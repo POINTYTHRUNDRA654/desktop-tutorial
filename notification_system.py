@@ -94,36 +94,36 @@ class FO4_NotificationSystem:
         # Always persist to the operation log so no work is ever lost
         OperationLog.log_operation(message, notification_type)
 
-        try:
-            scene = bpy.context.scene
-        except AttributeError:
-            print(f"[FO4 Notifications] {notification_type}: {message}")
-            return
-
-        # fo4_notifications must be a registered CollectionProperty.  If it is
-        # missing (e.g. registration failed) fall back gracefully.
-        if not hasattr(scene, 'fo4_notifications'):
-            print(f"[FO4 Notifications] fo4_notifications not registered — {notification_type}: {message}")
-            return
-
-        # Add notification item in-place (CollectionProperty does not support
-        # direct slice assignment; use add() / remove() instead).
-        item = scene.fo4_notifications.add()
-        item.message = f"[{notification_type}] {message}"
-        item.notification_type = notification_type
-
-        # Keep only the last 10 notifications by removing oldest entries
-        while len(scene.fo4_notifications) > 10:
-            scene.fo4_notifications.remove(0)
-        
-        # Also show in Blender's UI — must run on the main thread.
-        # Background install threads call notify() after work completes, so
-        # we schedule the popup via bpy.app.timers to avoid the
-        # "Missing 'window' in context" RuntimeError on Blender 5.
+        # All writes to bpy scene data AND the INVOKE_DEFAULT popup must run on
+        # the main thread.  Background install threads call notify() after work
+        # completes; writing to scene.fo4_notifications directly from a thread
+        # raises "Writing to ID classes in this context is not allowed" on
+        # Blender 5 (RECURRING BUG #4 extension).  Schedule everything via
+        # bpy.app.timers so it always executes on the main thread.
         _icon = 'ERROR' if notification_type in ('ERROR', 'WARNING') else 'INFO'
+        _type = notification_type
         _msg = message  # capture for closure
 
-        def _show_popup():
+        def _main_thread_update():
+            try:
+                scene = bpy.context.scene
+            except AttributeError:
+                print(f"[FO4 Notifications] {_type}: {_msg}")
+                return None
+
+            # fo4_notifications must be a registered CollectionProperty.
+            if hasattr(scene, 'fo4_notifications'):
+                try:
+                    item = scene.fo4_notifications.add()
+                    item.message = f"[{_type}] {_msg}"
+                    item.notification_type = _type
+                    # Keep only the last 10 notifications
+                    while len(scene.fo4_notifications) > 10:
+                        scene.fo4_notifications.remove(0)
+                except Exception:
+                    pass
+
+            # Show popup in Blender's UI
             try:
                 bpy.ops.fo4.show_message('INVOKE_DEFAULT', message=_msg, icon=_icon)
             except Exception:
@@ -131,9 +131,9 @@ class FO4_NotificationSystem:
             return None  # returning None de-registers the timer
 
         try:
-            bpy.app.timers.register(_show_popup, first_interval=0.0, persistent=False)
+            bpy.app.timers.register(_main_thread_update, first_interval=0.0, persistent=False)
         except Exception:
-            pass
+            print(f"[FO4 Notifications] {notification_type}: {message}")
     
     @staticmethod
     def check_common_errors(context):

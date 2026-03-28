@@ -13,6 +13,7 @@ Installation:
 """
 
 import bpy
+import importlib.util
 import os
 import platform
 import sys
@@ -23,19 +24,19 @@ from pathlib import Path
 HYMOTION_AVAILABLE = False
 HYMOTION_ERROR = None
 
-try:
-    # Check if PyTorch is available (required for motion model)
-    import torch
-    TORCH_AVAILABLE = True
-except OSError as e:
-    TORCH_AVAILABLE = False
-    if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
-        HYMOTION_ERROR = "Windows path length error: PyTorch cannot load due to Windows MAX_PATH limitation. Enable long paths in Windows or reinstall PyTorch in a shorter path."
-    else:
-        HYMOTION_ERROR = f"PyTorch file error: {str(e)}"
-except Exception:
-    TORCH_AVAILABLE = False
-    HYMOTION_ERROR = "PyTorch not available (import failed or DLL initialization error)"
+# NOTE: TORCH_AVAILABLE is intentionally NOT evaluated at module-import time.
+# The PyTorch custom path is added to sys.path only during register(), which
+# runs after this module is first imported.  Use _torch_available() instead.
+
+
+def _torch_available() -> bool:
+    """Return True if torch is findable on the current sys.path.
+
+    Uses importlib.util.find_spec (a fast filesystem check) rather than
+    actually importing torch, so the result reflects any paths added to
+    sys.path after module import (e.g. PyTorch Custom Path from prefs).
+    """
+    return importlib.util.find_spec("torch") is not None
 
 
 def _find_git_lfs_env():
@@ -128,8 +129,8 @@ def check_hymotion_availability():
     Returns:
         tuple: (available: bool, message: str)
     """
-    if not TORCH_AVAILABLE:
-        return False, "PyTorch not installed. Install with: pip install torch"
+    if not _torch_available():
+        return False, "PyTorch not installed. Install with: pip install torch torchvision"
     
     # Check if git-lfs is available
     lfs_available, lfs_message = check_git_lfs()

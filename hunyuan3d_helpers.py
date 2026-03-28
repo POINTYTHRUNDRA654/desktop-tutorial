@@ -12,6 +12,7 @@ Installation:
 """
 
 import bpy
+import importlib.util
 import os
 import sys
 import tempfile
@@ -21,19 +22,24 @@ from pathlib import Path
 HUNYUAN3D_AVAILABLE = False
 HUNYUAN3D_ERROR = None
 
-try:
-    # Try to import the necessary dependencies
-    import torch
-    TORCH_AVAILABLE = True
-except OSError as e:
-    TORCH_AVAILABLE = False
-    if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
-        HUNYUAN3D_ERROR = "Windows path length error: PyTorch cannot load due to Windows MAX_PATH limitation. Enable long paths in Windows or reinstall PyTorch in a shorter path."
-    else:
-        HUNYUAN3D_ERROR = f"PyTorch file error: {str(e)}"
-except Exception:
-    TORCH_AVAILABLE = False
-    HUNYUAN3D_ERROR = "PyTorch not available (import failed or DLL initialization error)"
+# NOTE: TORCH_AVAILABLE is intentionally NOT evaluated at module-import time.
+# The user's PyTorch custom path is added to sys.path only during register(),
+# which runs after this module is first imported.  Evaluating it here would
+# always return False and the flag would never update.  Instead we use the
+# lazy helper _torch_available() which calls find_spec at invocation time.
+
+
+def _torch_available() -> bool:
+    """Return True if torch is findable on the current sys.path.
+
+    Uses importlib.util.find_spec (a fast filesystem check) rather than
+    actually importing torch so that (a) we don't pay the multi-second
+    load cost at every availability probe and (b) the check automatically
+    reflects paths added to sys.path after this module was imported (e.g.
+    the PyTorch Custom Path restored during add-on register()).
+    """
+    return importlib.util.find_spec("torch") is not None
+
 
 # We don't actually import Hunyuan3D here to keep the add-on lightweight
 # It will be imported dynamically when needed
@@ -46,7 +52,7 @@ def check_hunyuan3d_availability():
     Returns:
         tuple: (available: bool, message: str)
     """
-    if not TORCH_AVAILABLE:
+    if not _torch_available():
         return False, "PyTorch not installed. Install with: pip install torch torchvision"
     
     # Check if Hunyuan3D-2 repository is cloned
