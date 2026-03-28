@@ -3346,45 +3346,62 @@ class FO4_PT_MaterialBrowserPanel(_FO4SubPanel):
 
         # ── Quick-apply buttons by category ─────────────────────────────────
         if fo4_material_browser:
+            apply_all = getattr(scene, "fo4_mat_apply_all", True)
+
+            def _quick_row(box, preset_ids):
+                row = box.row(align=True)
+                for pid in preset_ids:
+                    label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
+                    r = row.operator("fo4.apply_material_preset", text=label)
+                    r.preset = pid
+                    r.apply_all_selected = apply_all
+
             # Metals
             m_box = layout.box()
             m_box.label(text="Metals", icon='MATERIAL_DATA')
-            row = m_box.row(align=True)
-            for pid in ("RUSTY_METAL", "CLEAN_METAL", "GALVANIZED_METAL", "VAULT_METAL"):
-                label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
-                r = row.operator("fo4.apply_material_preset", text=label)
-                r.preset = pid
-                r.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+            _quick_row(m_box, ("RUSTY_METAL", "CLEAN_METAL", "GALVANIZED_METAL", "VAULT_METAL"))
+            _quick_row(m_box, ("POWER_ARMOR_PAINT", "PIPBOY_PAINT"))
 
             # Stone & Ground
             s_box = layout.box()
             s_box.label(text="Stone & Ground", icon='MESH_CUBE')
-            row = s_box.row(align=True)
-            for pid in ("CRACKED_CONCRETE", "SMOOTH_CONCRETE", "STONE", "ASPHALT"):
-                label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
-                r = row.operator("fo4.apply_material_preset", text=label)
-                r.preset = pid
-                r.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+            _quick_row(s_box, ("CRACKED_CONCRETE", "SMOOTH_CONCRETE", "STONE", "ASPHALT"))
 
-            # Organic & Fabric
-            o_box = layout.box()
-            o_box.label(text="Organic & Fabric", icon='MESH_UVSPHERE')
-            row = o_box.row(align=True)
-            for pid in ("WOOD_PLANK", "LEATHER", "FABRIC_CLOTH", "HUMAN_SKIN"):
-                label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
-                r = row.operator("fo4.apply_material_preset", text=label)
-                r.preset = pid
-                r.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+            # Wood
+            w_box = layout.box()
+            w_box.label(text="Wood", icon='MESH_PLANE')
+            _quick_row(w_box, ("WOOD_PLANK", "WOOD_PANEL"))
 
-            # Special / Emissive
+            # Glass
+            g_box = layout.box()
+            g_box.label(text="Glass", icon='CUBE')
+            _quick_row(g_box, ("GLASS_CLEAR", "GLASS_BROKEN"))
+
+            # Plastic & Rubber
+            p_box = layout.box()
+            p_box.label(text="Plastic & Rubber", icon='SNAP_FACE')
+            _quick_row(p_box, ("HARD_PLASTIC", "RUBBER"))
+
+            # Fabric & Leather
+            f_box = layout.box()
+            f_box.label(text="Fabric & Leather", icon='MESH_UVSPHERE')
+            _quick_row(f_box, ("FABRIC_CLOTH", "LEATHER"))
+
+            # Skin & Organic
+            sk_box = layout.box()
+            sk_box.label(text="Skin & Organic", icon='OUTLINER_OB_ARMATURE')
+            _quick_row(sk_box, ("HUMAN_SKIN", "GHOUL_SKIN"))
+
+            # Emissive & Special
             e_box = layout.box()
-            e_box.label(text="Special / Emissive", icon='LIGHT_SUN')
-            row = e_box.row(align=True)
-            for pid in ("NEON_LIGHT", "TERMINAL_SCREEN", "POWER_ARMOR_PAINT", "GLASS_CLEAR"):
-                label = fo4_material_browser.PRESETS[pid]["label"].split()[0]
-                r = row.operator("fo4.apply_material_preset", text=label)
-                r.preset = pid
-                r.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+            e_box.label(text="Emissive & Special", icon='LIGHT_SUN')
+            _quick_row(e_box, ("NEON_LIGHT", "TERMINAL_SCREEN", "HOLOTAPE"))
+
+            # FO4 Shader Types
+            sh_box = layout.box()
+            sh_box.label(text="FO4 Shader Types", icon='SHADING_RENDERED')
+            _quick_row(sh_box, ("FO4_EYE", "FO4_HAIR", "FO4_PARALLAX"))
+            _quick_row(sh_box, ("FO4_ENV_MAP", "FO4_MULTILAYER"))
 
         # ── Info ─────────────────────────────────────────────────────────────
         info_box = layout.box()
