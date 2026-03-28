@@ -2476,47 +2476,6 @@ class FO4_PT_BatchProcessingPanel(_FO4SubPanel):
         tips_box.label(text="• Processing is sequential")
 
 
-class FO4_PT_PresetsPanel(_FO4SubPanel):
-    """Smart presets panel for quick object creation"""
-    bl_label = "Smart Presets"
-    bl_idname = "FO4_PT_presets_panel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        layout = self.layout
-        scene  = context.scene
-
-        # ── Asset-path status banner ─────────────────────────────────────────
-        _draw_game_path_box(layout, context)
-
-        # Weapon presets
-        box = layout.box()
-        box.label(text="Weapon Presets", icon='MOD_ARMATURE')
-        box.operator("fo4.create_weapon_preset", text="Create Weapon", icon='MESH_CUBE')
-
-        # Armor presets
-        box = layout.box()
-        box.label(text="Armor Presets", icon='MESH_UVSPHERE')
-        box.operator("fo4.create_armor_preset", text="Create Armor", icon='MESH_CUBE')
-
-        # Prop presets
-        box = layout.box()
-        box.label(text="Prop Presets", icon='OBJECT_DATA')
-        box.operator("fo4.create_prop_preset", text="Create Prop", icon='MESH_CUBE')
-
-        # Info
-        info_box = layout.box()
-        info_box.label(text="About Presets:", icon='INFO')
-        info_box.label(text="• Imports the real game mesh when path is set")
-        info_box.label(text="• Falls back to placeholder if path is not set")
-        info_box.label(text="• Pre-configured FO4 materials & settings")
-        info_box.label(text="• Ready to customize and re-export")
-
-
 class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
     """Automation and quick tools panel"""
     bl_label = "Automation & Quick Tools"
@@ -4602,7 +4561,6 @@ classes = (
     FO4_PT_ExportPanel,
     # New panels for enhancements
     FO4_PT_BatchProcessingPanel,
-    FO4_PT_PresetsPanel,
     FO4_PT_AutomationQuickPanel,
     FO4_PT_Havok2FBXPanel,
     FO4_PT_VegetationPanel,
