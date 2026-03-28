@@ -23,7 +23,7 @@ class TextureHelpers:
         '_n': 'NORMAL',
         '_s': 'SPECULAR',
         '_g': 'GLOW',
-        '_e': 'EMISSIVE',
+        '_e': 'ENVIRONMENT',  # environment / cube-map mask (not emissive)
     }
 
     @staticmethod
@@ -93,17 +93,30 @@ class TextureHelpers:
         specular_tex.label = "Specular (_s)"
         specular_tex.location = (-400, -300)
         # Colorspace will be set when image is loaded in install_texture
-
+        
         # Glow / emissive texture (_g)
         glow_tex = nodes.new(type='ShaderNodeTexImage')
         glow_tex.name = "Glow"
         glow_tex.label = "Glow/Emissive (_g)"
         glow_tex.location = (-400, -600)
+
+        # Environment / cube-map mask (_e)
+        env_tex = nodes.new(type='ShaderNodeTexImage')
+        env_tex.name = "Environment"
+        env_tex.label = "Environment Mask (_e)"
+        env_tex.location = (-400, -900)
+        # Colorspace will be set when image is loaded in install_texture
         
         # Connect nodes
         links = mat.node_tree.links
         links.new(bsdf.outputs['BSDF'], output_node.inputs['Surface'])
         links.new(diffuse_tex.outputs['Color'], bsdf.inputs['Base Color'])
+
+        # Wire diffuse alpha to BSDF Alpha (passes through as 1.0 for opaque textures)
+        alpha_input = bsdf.inputs.get('Alpha')
+        if alpha_input:
+            links.new(diffuse_tex.outputs['Alpha'], alpha_input)
+
         links.new(normal_tex.outputs['Color'], normal_map.inputs['Color'])
         links.new(normal_map.outputs['Normal'], bsdf.inputs['Normal'])
         # 'Specular' was renamed to 'Specular IOR Level' in Blender 4.0
@@ -114,6 +127,14 @@ class TextureHelpers:
         emission_input = bsdf.inputs.get('Emission Color') or bsdf.inputs.get('Emission')
         if emission_input:
             links.new(glow_tex.outputs['Color'], emission_input)
+        # Set emission strength so the glow texture is visible
+        emission_strength = bsdf.inputs.get('Emission Strength')
+        if emission_strength:
+            emission_strength.default_value = 1.0
+        # Environment mask → Metallic (environment cube-map areas ≈ reflective areas)
+        metallic_input = bsdf.inputs.get('Metallic')
+        if metallic_input:
+            links.new(env_tex.outputs['Color'], metallic_input)
         
         # Assign material to object
         if obj.data.materials:
@@ -152,11 +173,13 @@ class TextureHelpers:
         
         # Find the appropriate texture node
         node_name_map = {
-            'DIFFUSE':  'Diffuse',
-            'NORMAL':   'Normal',
-            'SPECULAR': 'Specular',
-            'GLOW':     'Glow',
-            'EMISSIVE': 'Glow',   # EMISSIVE and GLOW share the same node slot
+            'DIFFUSE':     'Diffuse',
+            'NORMAL':      'Normal',
+            'SPECULAR':    'Specular',
+            'GLOW':        'Glow',
+            'EMISSIVE':    'Glow',       # EMISSIVE and GLOW share the same node slot
+            'ENVIRONMENT': 'Environment',
+            'ENV':         'Environment',
         }
         
         node_name = node_name_map.get(texture_type)
@@ -178,7 +201,7 @@ class TextureHelpers:
             
             # Non-colour textures must use 'Non-Color' colorspace so Blender
             # does not apply gamma correction before the NIF exporter reads them.
-            if texture_type in ('NORMAL', 'SPECULAR', 'GLOW', 'EMISSIVE'):
+            if texture_type in ('NORMAL', 'SPECULAR', 'GLOW', 'EMISSIVE', 'ENVIRONMENT', 'ENV'):
                 img.colorspace_settings.name = 'Non-Color'
             
             return True, f"Texture installed successfully: {texture_type}"
@@ -200,8 +223,10 @@ class TextureHelpers:
             issues.append("Material does not use nodes")
             return False, issues
         
-        # Check for required texture nodes
+        # Check for required texture nodes (Diffuse and Normal are mandatory for FO4)
         required_textures = ['Diffuse', 'Normal']
+        # Non-colour texture nodes that must use Non-Color colorspace
+        non_color_nodes = {'Normal', 'Specular', 'Glow', 'Environment'}
         nodes = mat.node_tree.nodes
         
         for tex_name in required_textures:
@@ -211,29 +236,39 @@ class TextureHelpers:
             elif not tex_node.image:
                 issues.append(f"{tex_name} texture is not loaded")
             else:
-                # Check image properties
                 img = tex_node.image
+
+                # FO4 requires DDS format — warn if the texture is not DDS
+                filepath = getattr(img, 'filepath', '') or ''
+                if filepath and not filepath.lower().endswith('.dds'):
+                    issues.append(
+                        f"{tex_name} texture is not DDS format "
+                        f"('{os.path.basename(filepath)}') – FO4 requires DDS. "
+                        "Use 'Texture Conversion (NVTT)' to convert."
+                    )
+
                 if img.size[0] == 0 or img.size[1] == 0:
                     issues.append(f"{tex_name} texture has invalid size")
                 
-                # Check if dimensions are power of 2 (recommended for FO4)
+                # FO4 requires power-of-2 dimensions for DDS textures
                 width, height = img.size[0], img.size[1]
-                if not (width & (width - 1) == 0 and width != 0):
-                    issues.append(f"{tex_name} width is not power of 2 (recommended: 512, 1024, 2048)")
-                if not (height & (height - 1) == 0 and height != 0):
-                    issues.append(f"{tex_name} height is not power of 2 (recommended: 512, 1024, 2048)")
+                if width and not (width & (width - 1) == 0):
+                    issues.append(f"{tex_name} width ({width}) is not power of 2 (use 512, 1024, or 2048)")
+                if height and not (height & (height - 1) == 0):
+                    issues.append(f"{tex_name} height ({height}) is not power of 2 (use 512, 1024, or 2048)")
 
-                # Normal maps must use Non-Color colorspace.  Using sRGB causes
-                # Blender to apply gamma correction and produces wrong tangent-
-                # space vectors when the NIF exporter reads the image data.
-                if tex_name == 'Normal':
-                    cs = getattr(getattr(img, 'colorspace_settings', None), 'name', None)
-                    if cs and cs not in ('Non-Color', 'Raw'):
-                        issues.append(
-                            f"Normal map colorspace is '{cs}' – must be 'Non-Color' "
-                            "(Image Properties > Colorspace) to avoid washed-out "
-                            "normals in Fallout 4"
-                        )
+        # Check colorspace for all non-colour texture nodes that are loaded
+        for node_name in non_color_nodes:
+            tex_node = nodes.get(node_name)
+            if not tex_node or not tex_node.image:
+                continue
+            cs = getattr(getattr(tex_node.image, 'colorspace_settings', None), 'name', None)
+            if cs and cs not in ('Non-Color', 'Raw'):
+                issues.append(
+                    f"{node_name} texture colorspace is '{cs}' – must be 'Non-Color' "
+                    "to prevent gamma correction in the NIF exporter "
+                    "(washed-out normals / wrong specular in Fallout 4)"
+                )
         
         if not issues:
             return True, ["Textures are valid for Fallout 4"]

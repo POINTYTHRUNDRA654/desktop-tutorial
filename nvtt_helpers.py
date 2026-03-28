@@ -124,14 +124,16 @@ class NVTTHelpers:
         Pass the result directly to :meth:`convert_to_dds`.
         """
         fmt_map = {
-            'DIFFUSE':   'bc1',
-            'DIFFUSE_A': 'bc3',  # diffuse with transparency/alpha
-            'NORMAL':    'bc5',  # ATI2 / two-channel tangent-space
-            'SPECULAR':  'bc1',
-            'GLOW':      'bc1',
-            'EMISSIVE':  'bc1',
-            'ALPHA':     'bc3',  # any texture with an alpha channel
-            'HIGH_QUAL': 'bc7',  # high-quality (slower to compress)
+            'DIFFUSE':     'bc1',
+            'DIFFUSE_A':   'bc3',  # diffuse with transparency/alpha
+            'NORMAL':      'bc5',  # ATI2 / two-channel tangent-space
+            'SPECULAR':    'bc1',
+            'GLOW':        'bc1',
+            'EMISSIVE':    'bc1',
+            'ENVIRONMENT': 'bc1',  # cube-map mask (BC1 – greyscale/RGB)
+            'ENV':         'bc1',
+            'ALPHA':       'bc3',  # any texture with an alpha channel
+            'HIGH_QUAL':   'bc7',  # high-quality (slower to compress)
         }
         return fmt_map.get(texture_type.upper(), 'bc1')
     
@@ -182,6 +184,7 @@ class NVTTHelpers:
                     tool_path,
                     f'-{format_lower}',
                     f'-{quality}',
+                    '-mipmap',      # FO4 requires a full mip chain in DDS files
                     input_path,
                     output_path
                 ]
@@ -194,7 +197,9 @@ class NVTTHelpers:
                 os.makedirs(out_dir, exist_ok=True)
                 cmd = [
                     tool_path,
-                    "-y",
+                    "-y",           # overwrite existing output
+                    "-nologo",      # suppress version banner
+                    "-m", "0",      # generate full mip chain (FO4 requirement)
                     "-f", texconv_format,
                     "-o", out_dir,
                     input_path,
@@ -244,12 +249,14 @@ class NVTTHelpers:
             # These match the recommendations in get_fo4_dds_format() and the
             # official FO4 modding guidelines.
             compression_map = {
-                'DIFFUSE':  'bc1',  # DXT1 – RGB diffuse without alpha
-                'NORMAL':   'bc5',  # ATI2 – two-channel tangent-space normals
-                'SPECULAR': 'bc1',  # DXT1 – RGB specular / smoothness
-                'GLOW':     'bc1',  # DXT1 – glow / emissive mask
-                'EMISSIVE': 'bc1',  # DXT1 – alias for glow
-                'ALPHA':    'bc3',  # DXT5 – any texture with an alpha channel
+                'DIFFUSE':     'bc1',  # DXT1 – RGB diffuse without alpha
+                'NORMAL':      'bc5',  # ATI2 – two-channel tangent-space normals
+                'SPECULAR':    'bc1',  # DXT1 – RGB specular / smoothness
+                'GLOW':        'bc1',  # DXT1 – glow / emissive mask
+                'EMISSIVE':    'bc1',  # DXT1 – alias for glow
+                'ENVIRONMENT': 'bc1',  # DXT1 – cube-map environment mask
+                'ENV':         'bc1',  # DXT1 – alias for environment
+                'ALPHA':       'bc3',  # DXT5 – any texture with an alpha channel
             }
         
         success_count = 0
@@ -301,6 +308,10 @@ class NVTTHelpers:
             return 'NORMAL'
         elif 'specular' in node_name_lower or 'spec' in node_name_lower:
             return 'SPECULAR'
+        elif 'glow' in node_name_lower or 'emissive' in node_name_lower or 'emission' in node_name_lower:
+            return 'GLOW'
+        elif 'environment' in node_name_lower or 'env' in node_name_lower or 'cubemap' in node_name_lower:
+            return 'ENVIRONMENT'
         elif 'alpha' in node_name_lower or 'opacity' in node_name_lower:
             return 'ALPHA'
         else:

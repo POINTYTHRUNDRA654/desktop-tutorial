@@ -1131,9 +1131,11 @@ class FO4_OT_InstallTexture(Operator):
     texture_type: EnumProperty(
         name="Texture Type",
         items=[
-            ('DIFFUSE', "Diffuse", "Color texture"),
-            ('NORMAL', "Normal", "Normal map"),
-            ('SPECULAR', "Specular", "Specular map"),
+            ('DIFFUSE',     "Diffuse",          "Diffuse/albedo colour map (_d) — BC1 or BC3 with alpha"),
+            ('NORMAL',      "Normal Map",        "Tangent-space normal map (_n) — BC5 (ATI2)"),
+            ('SPECULAR',    "Specular",          "Specular/smoothness map (_s) — BC1"),
+            ('GLOW',        "Glow/Emissive",     "Glow / emissive mask (_g) — BC1"),
+            ('ENVIRONMENT', "Environment Mask",  "Cube-map environment mask (_e) — BC1"),
         ]
     )
     
@@ -1156,11 +1158,12 @@ class FO4_OT_InstallTexture(Operator):
             import os
             if os.path.splitext(self.filepath)[1].lower() != '.dds':
                 dds_hint = {
-                    'DIFFUSE':  'BC1 (DXT1) or BC3 if alpha needed',
-                    'NORMAL':   'BC5 (ATI2) – two-channel tangent-space',
-                    'SPECULAR': 'BC1 (DXT1)',
-                    'GLOW':     'BC1 (DXT1)',
-                    'EMISSIVE': 'BC1 (DXT1)',
+                    'DIFFUSE':     'BC1 (DXT1) or BC3 if alpha needed',
+                    'NORMAL':      'BC5 (ATI2) – two-channel tangent-space',
+                    'SPECULAR':    'BC1 (DXT1)',
+                    'GLOW':        'BC1 (DXT1)',
+                    'EMISSIVE':    'BC1 (DXT1)',
+                    'ENVIRONMENT': 'BC1 (DXT1)',
                 }.get(self.texture_type, 'BC1 (DXT1)')
                 self.report(
                     {'WARNING'},
