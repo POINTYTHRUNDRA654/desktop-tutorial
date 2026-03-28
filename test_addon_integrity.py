@@ -106,6 +106,7 @@ class TestModulesPresent(unittest.TestCase):
         return (
             os.path.isfile(_path(f"{name}.py"))
             or os.path.isfile(_path(os.path.join(name, "__init__.py")))
+            or os.path.isfile(_path(os.path.join(*name.split("."), "__init__.py")))
         )
 
     def test_init_try_imports(self):
@@ -380,6 +381,7 @@ class TestInitModulesComplete(unittest.TestCase):
             if not (
                 os.path.isfile(_path(f"{m}.py"))
                 or os.path.isfile(_path(os.path.join(m, "__init__.py")))
+                or os.path.isfile(_path(os.path.join(*m.split("."), "__init__.py")))
             ):
                 missing.append(f"{m}.py")
         if missing:

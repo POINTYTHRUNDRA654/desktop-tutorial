@@ -12468,9 +12468,9 @@ class FO4_OT_ApplyPhysicsPreset(Operator):
 
     def execute(self, context):
         try:
-            from . import fo4_physics_helpers
+            from .animation_helper import havakphysics as fo4_physics_helpers
         except ImportError:
-            self.report({'ERROR'}, "fo4_physics_helpers module not found")
+            self.report({'ERROR'}, "animation_helper.havakphysics module not found")
             return {'CANCELLED'}
 
         preset_id = getattr(context.scene, "fo4_physics_preset", "STATIC_METAL")
@@ -12491,9 +12491,9 @@ class FO4_OT_ValidatePhysics(Operator):
 
     def execute(self, context):
         try:
-            from . import fo4_physics_helpers
+            from .animation_helper import havakphysics as fo4_physics_helpers
         except ImportError:
-            self.report({'ERROR'}, "fo4_physics_helpers module not found")
+            self.report({'ERROR'}, "animation_helper.havakphysics module not found")
             return {'CANCELLED'}
 
         obj = context.active_object

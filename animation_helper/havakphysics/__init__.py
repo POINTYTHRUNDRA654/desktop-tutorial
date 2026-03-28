@@ -1,7 +1,10 @@
 """
-Fallout 4 Havok Physics Properties
-=====================================
+Fallout 4 Havok Physics Properties  (animation_helper/havakphysics)
+====================================================================
 Per-object Havok rigid-body setup for correct Niftools NIF export.
+
+Sub-module of ``animation_helper``.  Moved here from ``fo4_physics_helpers``
+so that all animation-pipeline code lives under the same package tree.
 
 Every solid prop in FO4 needs a ``bhkRigidBody`` in its NIF.  The Niftools
 exporter generates this from Blender's rigid-body settings combined with
@@ -14,33 +17,38 @@ What this module does
 - ``PhysicsHelpers.setup_rigid_body(obj, preset_id)`` configures Blender's
   built-in rigid-body system AND writes the extra Niftools custom properties
   that the NIF exporter reads (``fo4_layer``, ``fo4_motion_type``, etc.).
-- Registers a dedicated ``FO4_PT_HavokPhysicsPanel`` in the 3D Viewport so
-  modders never need to guess the right mass / friction / layer values.
 
 FO4 Havok collision layer cheat-sheet
 --------------------------------------
 | Layer ID | Name                   | Typical use                        |
 |----------|------------------------|------------------------------------|
-| 1  (L_STATIC)          | Static world geometry  |
-| 2  (L_ANIMSTATIC)      | Animated static / doors|
-| 5  (L_BIPED)           | Player / NPCs          |
-| 7  (L_PROPS)           | Moveable props         |
-| 8  (L_DEBRIS_SMALL)    | Small debris / gibs    |
-| 9  (L_HAVOK_LANDSCAPE) | Landscape mesh         |
-| 32 (L_WEAPON)          | Weapon projectiles     |
-| 35 (L_TREES)           | Trees / foliage        |
+| 1  (L_STATIC)          | Static world geometry            |
+| 2  (L_ANIMSTATIC)      | Animated static / doors          |
+| 5  (L_BIPED)           | Player / NPCs / Power Armor      |
+| 6  (L_CLUTTER)         | Clutter / small world items      |
+| 7  (L_PROPS)           | Moveable props                   |
+| 8  (L_DEBRIS_SMALL)    | Small debris / gibs              |
+| 9  (L_HAVOK_LANDSCAPE) | Terrain / landscape mesh         |
+| 10 (L_WATER)           | Water surface volumes            |
+| 20 (L_FURNITURE)       | Furniture / activators           |
+| 32 (L_WEAPON)          | Weapon projectiles               |
+| 35 (L_TREES)           | Trees / foliage                  |
+| 56 (L_CLOUD_TRAP)      | Trigger volumes / cloud traps    |
 
-FO4 Havok motion type
-----------------------
-FIXED        – permanently static (mass must be 0)
-KEYFRAMED    – moved by animation / scripts (mass must be 0)
-DYNAMIC      – fully simulated physics object (needs positive mass)
-SPHERE_INERTIA – simplified sphere inertia tensor (usually for round props)
+FO4 Havok motion types
+-----------------------
+FIXED          – permanently static (mass must be 0)
+KEYFRAMED      – moved by animation / scripts (mass must be 0)
+DYNAMIC        – fully simulated physics (needs positive mass)
+SPHERE_INERTIA – simplified sphere inertia tensor (round props)
+BOX_INERTIA    – simplified box inertia tensor (box-shaped props)
+THIN_BOX       – thin flat objects (panels, plates)
+CHARACTER      – character controller (bipeds, power armor)
 
 Niftools custom property names (written by setup_rigid_body)
 -------------------------------------------------------------
 ``fo4_collision_layer``  – integer layer ID
-``fo4_motion_type``      – string: 'FIXED', 'KEYFRAMED', 'DYNAMIC'
+``fo4_motion_type``      – string motion type
 ``fo4_havok_mass``        – float (0 = fixed/keyframed)
 ``fo4_havok_friction``    – float 0–1
 ``fo4_havok_restitution`` – float 0–1
@@ -58,11 +66,15 @@ import bpy
 LAYER_STATIC          =  1
 LAYER_ANIMSTATIC      =  2
 LAYER_BIPED           =  5
+LAYER_CLUTTER         =  6
 LAYER_PROPS           =  7
 LAYER_DEBRIS_SMALL    =  8
 LAYER_LANDSCAPE       =  9
+LAYER_WATER           = 10
+LAYER_FURNITURE       = 20
 LAYER_WEAPON          = 32
 LAYER_TREES           = 35
+LAYER_CLOUD_TRAP      = 56
 
 # ---------------------------------------------------------------------------
 # Preset definitions
@@ -122,6 +134,33 @@ PRESETS: dict = {
         "angular_damping": 0.05,
         "blender_type":    "PASSIVE",
     },
+    "STATIC_RUBBER": {
+        "label":           "Static Rubber / Tire",
+        "description":     "Immoveable rubber or tire object",
+        "layer":           LAYER_STATIC,
+        "motion_type":     "FIXED",
+        "quality":         "FIXED",
+        "mass":            0.0,
+        "friction":        0.95,
+        "restitution":     0.4,
+        "linear_damping":  0.1,
+        "angular_damping": 0.05,
+        "blender_type":    "PASSIVE",
+    },
+    # ── Architecture / building geometry ──────────────────────────────────
+    "STATIC_ARCHITECTURE": {
+        "label":           "Architecture / Wall",
+        "description":     "Building wall, floor, ceiling — large static structure with collision",
+        "layer":           LAYER_STATIC,
+        "motion_type":     "FIXED",
+        "quality":         "FIXED",
+        "mass":            0.0,
+        "friction":        0.85,
+        "restitution":     0.05,
+        "linear_damping":  0.1,
+        "angular_damping": 0.05,
+        "blender_type":    "PASSIVE",
+    },
     # ── Animated static (door, lift) ──────────────────────────────────────
     "ANIMSTATIC_DOOR": {
         "label":           "Animated Static – Door",
@@ -132,6 +171,46 @@ PRESETS: dict = {
         "mass":            0.0,
         "friction":        0.8,
         "restitution":     0.1,
+        "linear_damping":  0.1,
+        "angular_damping": 0.05,
+        "blender_type":    "PASSIVE",
+    },
+    "ANIMSTATIC_PLATFORM": {
+        "label":           "Animated Static – Moving Platform",
+        "description":     "Script-driven lift, elevator, or moving platform",
+        "layer":           LAYER_ANIMSTATIC,
+        "motion_type":     "KEYFRAMED",
+        "quality":         "KEYFRAMED",
+        "mass":            0.0,
+        "friction":        0.8,
+        "restitution":     0.05,
+        "linear_damping":  0.1,
+        "angular_damping": 0.05,
+        "blender_type":    "PASSIVE",
+    },
+    # ── Furniture / activators ─────────────────────────────────────────────
+    "FURNITURE_CHAIR": {
+        "label":           "Furniture – Chair / Seat",
+        "description":     "Sit-able furniture object — uses L_FURNITURE layer",
+        "layer":           LAYER_FURNITURE,
+        "motion_type":     "FIXED",
+        "quality":         "FIXED",
+        "mass":            0.0,
+        "friction":        0.8,
+        "restitution":     0.1,
+        "linear_damping":  0.1,
+        "angular_damping": 0.05,
+        "blender_type":    "PASSIVE",
+    },
+    "FURNITURE_WORKBENCH": {
+        "label":           "Furniture – Workbench / Activator",
+        "description":     "Crafting station, workbench, or interactable object",
+        "layer":           LAYER_FURNITURE,
+        "motion_type":     "FIXED",
+        "quality":         "FIXED",
+        "mass":            0.0,
+        "friction":        0.85,
+        "restitution":     0.05,
         "linear_damping":  0.1,
         "angular_damping": 0.05,
         "blender_type":    "PASSIVE",
@@ -174,6 +253,19 @@ PRESETS: dict = {
         "restitution":     0.05,
         "linear_damping":  0.15,
         "angular_damping": 0.15,
+        "blender_type":    "ACTIVE",
+    },
+    "DYNAMIC_CLUTTER": {
+        "label":           "Dynamic Clutter",
+        "description":     "Small world-item clutter (pencil, fork, clipboard)",
+        "layer":           LAYER_CLUTTER,
+        "motion_type":     "DYNAMIC",
+        "quality":         "MOVING",
+        "mass":            0.3,
+        "friction":        0.5,
+        "restitution":     0.2,
+        "linear_damping":  0.05,
+        "angular_damping": 0.05,
         "blender_type":    "ACTIVE",
     },
     "DYNAMIC_DEBRIS": {
@@ -230,7 +322,62 @@ PRESETS: dict = {
         "angular_damping": 0.05,
         "blender_type":    "PASSIVE",
     },
-    # ── Power armor / character scale ─────────────────────────────────────
+    # ── Water ─────────────────────────────────────────────────────────────
+    "WATER_SURFACE": {
+        "label":           "Water Surface / Volume",
+        "description":     "Water plane or volume trigger — uses L_WATER layer",
+        "layer":           LAYER_WATER,
+        "motion_type":     "FIXED",
+        "quality":         "FIXED",
+        "mass":            0.0,
+        "friction":        0.0,
+        "restitution":     0.0,
+        "linear_damping":  0.0,
+        "angular_damping": 0.0,
+        "blender_type":    "PASSIVE",
+    },
+    # ── Landscape ─────────────────────────────────────────────────────────
+    "STATIC_LANDSCAPE": {
+        "label":           "Landscape / Terrain",
+        "description":     "Ground / terrain mesh — uses L_HAVOK_LANDSCAPE layer",
+        "layer":           LAYER_LANDSCAPE,
+        "motion_type":     "FIXED",
+        "quality":         "FIXED",
+        "mass":            0.0,
+        "friction":        0.9,
+        "restitution":     0.05,
+        "linear_damping":  0.1,
+        "angular_damping": 0.05,
+        "blender_type":    "PASSIVE",
+    },
+    # ── Character / biped ─────────────────────────────────────────────────
+    "CHARACTER_BIPED": {
+        "label":           "Character / Biped Body",
+        "description":     "NPC or player biped body part — uses L_BIPED layer",
+        "layer":           LAYER_BIPED,
+        "motion_type":     "CHARACTER",
+        "quality":         "MOVING",
+        "mass":            75.0,
+        "friction":        0.5,
+        "restitution":     0.1,
+        "linear_damping":  0.1,
+        "angular_damping": 0.05,
+        "blender_type":    "ACTIVE",
+    },
+    "POWER_ARMOR_BODY": {
+        "label":           "Power Armor Body Part",
+        "description":     "Power armor frame / body part — uses L_BIPED layer",
+        "layer":           LAYER_BIPED,
+        "motion_type":     "KEYFRAMED",
+        "quality":         "KEYFRAMED",
+        "mass":            0.0,
+        "friction":        0.6,
+        "restitution":     0.1,
+        "linear_damping":  0.1,
+        "angular_damping": 0.05,
+        "blender_type":    "PASSIVE",
+    },
+    # ── Vehicles ──────────────────────────────────────────────────────────
     "STATIC_VEHICLE": {
         "label":           "Static Vehicle",
         "description":     "Pre-war car or vehicle body (non-explosive static)",
@@ -242,6 +389,34 @@ PRESETS: dict = {
         "restitution":     0.05,
         "linear_damping":  0.1,
         "angular_damping": 0.05,
+        "blender_type":    "PASSIVE",
+    },
+    # ── Weapons ───────────────────────────────────────────────────────────
+    "WEAPON_PROJECTILE": {
+        "label":           "Weapon / Projectile",
+        "description":     "Held weapon or projectile collision — uses L_WEAPON layer",
+        "layer":           LAYER_WEAPON,
+        "motion_type":     "DYNAMIC",
+        "quality":         "MOVING",
+        "mass":            1.5,
+        "friction":        0.5,
+        "restitution":     0.1,
+        "linear_damping":  0.0,
+        "angular_damping": 0.0,
+        "blender_type":    "ACTIVE",
+    },
+    # ── Trigger volumes ───────────────────────────────────────────────────
+    "TRIGGER_VOLUME": {
+        "label":           "Trigger Volume / Cloud Trap",
+        "description":     "Invisible trigger or effect volume — uses L_CLOUD_TRAP layer",
+        "layer":           LAYER_CLOUD_TRAP,
+        "motion_type":     "FIXED",
+        "quality":         "FIXED",
+        "mass":            0.0,
+        "friction":        0.0,
+        "restitution":     0.0,
+        "linear_damping":  0.0,
+        "angular_damping": 0.0,
         "blender_type":    "PASSIVE",
     },
 }
@@ -256,7 +431,10 @@ MOTION_TYPE_ITEMS = [
     ("FIXED",          "Fixed",           "Permanently static – mass must be 0"),
     ("KEYFRAMED",      "Keyframed",       "Moved by animations / scripts – mass must be 0"),
     ("DYNAMIC",        "Dynamic",         "Full physics simulation – needs positive mass"),
-    ("SPHERE_INERTIA", "Sphere Inertia",  "Simplified inertia tensor for round objects"),
+    ("SPHERE_INERTIA", "Sphere Inertia",  "Simplified sphere inertia tensor for round objects"),
+    ("BOX_INERTIA",    "Box Inertia",     "Simplified box inertia tensor for box-shaped objects"),
+    ("THIN_BOX",       "Thin Box",        "Thin flat objects such as panels or plates"),
+    ("CHARACTER",      "Character",       "Character controller motion (bipeds, power armor)"),
 ]
 
 # Quality type enum items
@@ -267,16 +445,20 @@ QUALITY_TYPE_ITEMS = [
     ("MOVING",    "Moving",    "General physics prop"),
 ]
 
-# Layer enum items (subset of most-used FO4 layers)
+# Layer enum items – most-used FO4 Havok collision layers
 LAYER_ITEMS = [
     ("1",  "L_STATIC (1)",           "Static world geometry"),
     ("2",  "L_ANIMSTATIC (2)",        "Animated static / doors"),
-    ("5",  "L_BIPED (5)",             "Player / NPC bodies"),
+    ("5",  "L_BIPED (5)",             "Player / NPC / Power Armor bodies"),
+    ("6",  "L_CLUTTER (6)",           "Small world-item clutter"),
     ("7",  "L_PROPS (7)",             "Moveable props"),
     ("8",  "L_DEBRIS_SMALL (8)",      "Small debris / gibs"),
     ("9",  "L_HAVOK_LANDSCAPE (9)",   "Terrain / landscape"),
+    ("10", "L_WATER (10)",            "Water surface / volumes"),
+    ("20", "L_FURNITURE (20)",        "Furniture / activators"),
     ("32", "L_WEAPON (32)",           "Weapon projectiles"),
     ("35", "L_TREES (35)",            "Trees and foliage"),
+    ("56", "L_CLOUD_TRAP (56)",       "Trigger volumes / cloud traps"),
 ]
 
 
@@ -423,21 +605,105 @@ class PhysicsHelpers:
 def register():
     bpy.types.Scene.fo4_physics_preset = bpy.props.EnumProperty(
         name="Physics Preset",
-        description="Havok physics preset to apply",
+        description="Havok physics preset to apply to selected mesh objects",
         items=PRESET_ENUM_ITEMS,
         default="STATIC_METAL",
     )
     bpy.types.Scene.fo4_physics_show_warnings = bpy.props.BoolProperty(
         name="Show Physics Warnings",
-        description="Display live physics validation warnings in the panel",
+        description="Display live Havok physics validation warnings",
         default=True,
+    )
+    # Per-object Havok override properties (read by the Apply operator and the
+    # Niftools NIF exporter).  Registered here so operators.py and export
+    # helpers can always rely on them without a try/except.
+    bpy.types.Object.fo4_havok_motion_type = bpy.props.EnumProperty(
+        name="Motion Type",
+        description="Havok motion type for this object's bhkRigidBody",
+        items=MOTION_TYPE_ITEMS,
+        default="FIXED",
+    )
+    bpy.types.Object.fo4_havok_quality_type = bpy.props.EnumProperty(
+        name="Quality Type",
+        description="Havok simulation quality for this object's bhkRigidBody",
+        items=QUALITY_TYPE_ITEMS,
+        default="FIXED",
+    )
+    bpy.types.Object.fo4_havok_layer = bpy.props.EnumProperty(
+        name="Collision Layer",
+        description="Havok collision layer for this object's bhkCollisionObject",
+        items=LAYER_ITEMS,
+        default="1",
+    )
+    bpy.types.Object.fo4_havok_mass = bpy.props.FloatProperty(
+        name="Mass (kg)",
+        description="Rigid-body mass in kilograms (0 = FIXED / KEYFRAMED)",
+        default=0.0,
+        min=0.0,
+        soft_max=500.0,
+        precision=2,
+    )
+    bpy.types.Object.fo4_havok_friction = bpy.props.FloatProperty(
+        name="Friction",
+        description="Surface friction coefficient (0 = frictionless, 1 = maximum)",
+        default=0.8,
+        min=0.0,
+        max=1.0,
+        precision=2,
+    )
+    bpy.types.Object.fo4_havok_restitution = bpy.props.FloatProperty(
+        name="Restitution",
+        description="Bounciness / elasticity (0 = no bounce, 1 = perfectly elastic)",
+        default=0.1,
+        min=0.0,
+        max=1.0,
+        precision=2,
+    )
+    bpy.types.Object.fo4_havok_linear_damping = bpy.props.FloatProperty(
+        name="Linear Damping",
+        description="Linear velocity damping (higher = stops sliding faster)",
+        default=0.1,
+        min=0.0,
+        max=1.0,
+        precision=2,
+    )
+    bpy.types.Object.fo4_havok_angular_damping = bpy.props.FloatProperty(
+        name="Angular Damping",
+        description="Angular velocity damping (higher = stops spinning faster)",
+        default=0.05,
+        min=0.0,
+        max=1.0,
+        precision=2,
+    )
+    bpy.types.Object.fo4_physics_preset_id = bpy.props.StringProperty(
+        name="Applied Preset",
+        description="ID of the last physics preset applied to this object (informational)",
+        default="",
     )
 
 
 def unregister():
-    for prop in ("fo4_physics_preset", "fo4_physics_show_warnings"):
+    scene_props = ("fo4_physics_preset", "fo4_physics_show_warnings")
+    object_props = (
+        "fo4_havok_motion_type",
+        "fo4_havok_quality_type",
+        "fo4_havok_layer",
+        "fo4_havok_mass",
+        "fo4_havok_friction",
+        "fo4_havok_restitution",
+        "fo4_havok_linear_damping",
+        "fo4_havok_angular_damping",
+        "fo4_physics_preset_id",
+    )
+    for prop in scene_props:
         if hasattr(bpy.types.Scene, prop):
             try:
                 delattr(bpy.types.Scene, prop)
+            except Exception:
+                pass
+    for prop in object_props:
+        if hasattr(bpy.types.Object, prop):
+            try:
+                delattr(bpy.types.Object, prop)
             except Exception:
                 pass
