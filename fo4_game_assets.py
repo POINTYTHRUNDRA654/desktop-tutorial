@@ -35,6 +35,11 @@ class FO4GameAssets:
 
     _game_dir: Optional[Path] = None
     _asset_index: Optional[dict] = None
+    # Cache for get_status() — invalidated after _STATUS_CACHE_TTL seconds so
+    # the panel reflects path changes without a restart.
+    _status_cache: "Optional[tuple[bool, str]]" = None
+    _status_cache_time: float = 0.0
+    _status_cache_ttl: float = 10.0
 
     @staticmethod
     def detect_fo4_installation() -> Optional[Path]:
@@ -306,18 +311,32 @@ class FO4GameAssets:
 
     @staticmethod
     def get_status() -> tuple[bool, str]:
-        """Get Fallout 4 installation status for UI display."""
+        """Get Fallout 4 installation status for UI display.
+
+        The result is cached for ``_STATUS_CACHE_TTL`` seconds so that the
+        expensive BA2 glob is not repeated on every panel redraw.
+        """
+        import time
+        now = time.monotonic()
+        if (FO4GameAssets._status_cache is not None and
+                now - FO4GameAssets._status_cache_time < FO4GameAssets._status_cache_ttl):
+            return FO4GameAssets._status_cache
+
         game_dir = FO4GameAssets.detect_fo4_installation()
 
         if not game_dir:
-            return False, "Fallout 4 not detected. Please set installation path in preferences."
+            result = False, "Fallout 4 not detected. Please set installation path in preferences."
+        else:
+            data_dir = FO4GameAssets.get_data_dir()
+            if not data_dir:
+                result = False, f"Data directory not found in {game_dir}"
+            else:
+                ba2_count = len(FO4GameAssets.list_ba2_archives())
+                result = True, f"Fallout 4 found: {game_dir} ({ba2_count} BA2 archives)"
 
-        data_dir = FO4GameAssets.get_data_dir()
-        if not data_dir:
-            return False, f"Data directory not found in {game_dir}"
-
-        ba2_count = len(FO4GameAssets.list_ba2_archives())
-        return True, f"Fallout 4 found: {game_dir} ({ba2_count} BA2 archives)"
+        FO4GameAssets._status_cache = result
+        FO4GameAssets._status_cache_time = now
+        return result
 
 
 def register():

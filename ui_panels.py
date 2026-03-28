@@ -168,15 +168,17 @@ def _activation_op(layout, cls_name, idname, text, icon='NONE'):
 # at an external PyTorch directory via Settings > PyTorch Custom Path.
 # ──────────────────────────────────────────────────────────────────────────
 
-def reset_torch_cache():
-    """No-op stub kept for API compatibility.
+_torch_status_cache: "tuple[bool, str] | None" = None
 
-    Previously invalidated a module-level cache and reset the auto-install
-    failure flag in torch_path_manager.  Auto-installation inside Blender has
-    been removed, so there is no cache to clear.  The stub is kept so that
-    TORCH_OT_recheck_status (torch_path_manager.py) can still call
-    ``_ui.reset_torch_cache()`` without an AttributeError.
+
+def reset_torch_cache():
+    """Invalidate the cached PyTorch availability result.
+
+    Called by TORCH_OT_recheck_status so the next panel draw re-probes
+    sys.path instead of returning the stale cached value.
     """
+    global _torch_status_cache
+    _torch_status_cache = None
 
 
 def _get_torch_status():
@@ -185,12 +187,19 @@ def _get_torch_status():
     Returns ``(True, version_str)`` on success, ``(False, reason_str)`` on
     failure.  PyTorch is expected to be installed externally and pointed at
     via Settings > PyTorch Custom Path; no background install is attempted.
+
+    The result is cached at module level so that the ``import torch`` probe
+    is only run once per session (or after the user clicks "Re-check").
+    Call ``reset_torch_cache()`` to force a fresh probe.
     """
-    try:
-        import torch
-        return True, torch.__version__
-    except (ImportError, OSError) as e:
-        return False, str(e)
+    global _torch_status_cache
+    if _torch_status_cache is None:
+        try:
+            import torch
+            _torch_status_cache = (True, torch.__version__)
+        except (ImportError, OSError) as e:
+            _torch_status_cache = (False, str(e))
+    return _torch_status_cache
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -4147,13 +4156,18 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             torch_box.prop(prefs, "extra_python_paths", text="Extra Python Paths")
 
         # ── Connected tools status ────────────────────────────────────────
+        # Compute once here; results are reused later in the Tool Paths section.
+        ffmpeg_path     = preferences.get_configured_ffmpeg_path()     if preferences else None
+        nvcompress_path = preferences.get_configured_nvcompress_path() if preferences else None
+        texconv_path    = preferences.get_configured_texconv_path()    if preferences else None
+
         tools_box = layout.box()
         tools_box.label(text="Connected External Tools", icon='TOOL_SETTINGS')
         if preferences:
             tool_checks = [
-                (preferences.get_configured_ffmpeg_path()     if preferences else None, "ffmpeg"),
-                (preferences.get_configured_nvcompress_path() if preferences else None, "NVTT (nvcompress)"),
-                (preferences.get_configured_texconv_path()    if preferences else None, "texconv"),
+                (ffmpeg_path,     "ffmpeg"),
+                (nvcompress_path, "NVTT (nvcompress)"),
+                (texconv_path,    "texconv"),
             ]
             any_missing = False
             for path, label in tool_checks:
@@ -4237,8 +4251,8 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             tool_paths_box.prop(scene, "fo4_nvtt_path",    text="nvcompress / NVTT folder")
             tool_paths_box.prop(scene, "fo4_texconv_path", text="texconv / DirectXTex folder")
 
-        nvcompress = preferences.get_configured_nvcompress_path() if preferences else None
-        texconv    = preferences.get_configured_texconv_path() if preferences else None
+        nvcompress = nvcompress_path
+        texconv    = texconv_path
         if nvcompress:
             tool_paths_box.label(text=f"✓ nvcompress: {nvcompress}", icon="CHECKMARK")
         else:
