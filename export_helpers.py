@@ -261,6 +261,14 @@ class ExportHelpers:
             props = bpy.ops.export_scene.pynifly.get_rna_type().properties
             prop_keys = props.keys()
 
+            # ── Selection-only export ─────────────────────────────────────────
+            # use_selection restricts the export to the currently-selected
+            # objects.  The caller deselects everything then selects only the
+            # target mesh (+ its collision child) before invoking the operator,
+            # so this kwarg is critical to avoid exporting the entire scene.
+            if "use_selection" in prop_keys:
+                kwargs["use_selection"] = True
+
             # ── Target game ──────────────────────────────────────────────────
             # v25 uses "target_game"; older builds used "game".
             # "FO4" selects Fallout 4 BSTriShape / BSSubIndexTriShape format.

@@ -2,19 +2,27 @@
 native_nif_writer.py – Standalone Fallout 4 NIF exporter for Blender 5+
 
 Writes a game-ready NIF 20.2.0.7 file for Fallout 4 entirely in Python,
-without requiring the Niftools Blender operator.  Used as a fallback when:
+without requiring the PyNifly or Niftools Blender operators.  Used as a
+fallback when:
 
+  * PyNifly v25 (BadDogSkyrim) is not installed, AND
   * Niftools v0.1.1 is not installed, OR
-  * The Niftools operator fails at runtime (unhandled API breakage)
+  * Either operator fails at runtime (unhandled API breakage)
 
-The writer produces the minimal block tree for a static FO4 mesh:
+The writer produces the minimal block tree for a FO4 mesh:
 
   BSFadeNode (root)
   └── BSTriShape          (geometry: positions, normals, tangents, UVs)
-      ├── BSLightingShaderProperty  (shader with FO4 defaults)
+      ├── BSLightingShaderProperty  (shader with per-mesh-type FO4 flags)
       │   └── BSShaderTextureSet   (up to 9 texture slots)
 
-Vertex format (full-precision, 28 bytes/vertex):
+NIF wire-format constants (Fallout 4):
+  Version        : 20.2.0.7
+  User Version   : 12
+  BS Version     : 130  (BSVersion for FO4 / Skyrim SE)
+  Target Game    : FO4
+
+Vertex format (full-precision BSVertexData, 28 bytes/vertex):
   3 × float32   – position (x, y, z)
   1 × float32   – bitangent X component (packed into W slot)
   2 × float16   – UV (u, 1-v  because NIF flips V)
@@ -28,13 +36,22 @@ Triangle format: 3 × uint16 (little-endian) per triangle.
 NIF coordinate convention (niftools tangent space):
   nif_tangent   = -blender_bitangent
   nif_bitangent = +blender_tangent
-  This matches the niftools v0.1.1 set_bs_geom_data encoding exactly.
+  This matches the PyNifly v25 and niftools v0.1.1 encoding exactly.
 
-Limitations (initial version):
+Supported mesh types (BSFadeNode + BSTriShape fallback):
+  STATIC, LOD, VEGETATION, FLORA, FURNITURE, WEAPON, ARCHITECTURE,
+  ANIMATED, DEBRIS, AUTO
+
+Unsupported (decline and let caller fall back to PyNifly):
+  SKINNED, ARMOR  (require BSSkin::Instance / BSSubIndexTriShape)
+
+Limitations:
   * Single material/texture set per call
-  * No armature / skinning support (static meshes only)
-  * No NIF collision (wire UCX_ meshes separately via post-processing)
+  * No armature / skinning support (SKINNED/ARMOR declined)
+  * No NiKeyframeController for ANIMATED type
+  * No BSXFlags / bhkCollisionObject for DEBRIS / ARCHITECTURE
   * No LOD / morph support
+  * No NiAlphaProperty (Alpha Clip) for FLORA — use PyNifly for full flora
 """
 
 import bpy
@@ -320,6 +337,17 @@ _DEFAULT_SF2 = 0x00000001
 
 # Per-mesh-type shader flag overrides for the native writer.
 # Keys match the FO4_MESH_TYPE_ITEMS identifiers used in export_helpers.
+#
+# FO4 BSLightingShaderProperty ShaderFlags1 bit definitions:
+#   bit  0  (0x00000001) – Specular
+#   bit  1  (0x00000002) – Skinned (bone transforms applied by engine)
+#   bit  9  (0x00000200) – Cast Shadows
+#   bit 22  (0x00400000) – Tangent Space (required for normal-map lighting)
+#   bit 31  (0x80000000) – ZBuffer Write
+#
+# FO4 BSLightingShaderProperty ShaderFlags2 bit definitions:
+#   bit  0  (0x00000001) – ZBuffer Test
+#   bit  4  (0x00000010) – Two Sided (leaves/foliage visible from both sides)
 _MESH_TYPE_SF1 = {
     'STATIC':       0x80400201,
     'SKINNED':      0x80400203,  # + Skinned(0x02)
@@ -329,6 +357,18 @@ _MESH_TYPE_SF1 = {
     'FURNITURE':    0x80400201,
     'WEAPON':       0x80400201,
     'ARCHITECTURE': 0x80400201,
+    # FLORA (harvestable plants, e.g. Mutfruit, Tato): SF1 is identical to
+    # STATIC/VEGETATION.  The Two_Sided distinction is in SF2 (see below).
+    'FLORA':        0x80400201,
+    # ANIMATED: SF1 is identical to STATIC; animation data lives in
+    # NiKeyframeController blocks that the native writer does not emit.
+    # PyNifly/Niftools handles full ANIMATED export; this path is fallback only.
+    'ANIMATED':     0x80400201,
+    # DEBRIS: SF1 is identical to STATIC; the bhkCollisionObject/BSXFlags
+    # blocks are outside scope of the native writer.
+    'DEBRIS':       0x80400201,
+    # AUTO: runtime auto-detect falls back to generic static flags.
+    'AUTO':         0x80400201,
 }
 _MESH_TYPE_SF2 = {
     'STATIC':       0x00000001,
@@ -339,6 +379,12 @@ _MESH_TYPE_SF2 = {
     'FURNITURE':    0x00000001,
     'WEAPON':       0x00000001,
     'ARCHITECTURE': 0x00000001,
+    # FLORA uses Two_Sided so the plant leaf quads render from both directions,
+    # matching the behaviour of vanilla FO4 harvestable flora NIFs.
+    'FLORA':        0x00000011,  # ZBufferTest(0x01) | Two_Sided(0x10)
+    'ANIMATED':     0x00000001,
+    'DEBRIS':       0x00000001,
+    'AUTO':         0x00000001,
 }
 
 def _write_bslsp(name_str_idx: int, texset_block_idx: int,
@@ -355,7 +401,7 @@ def _write_bslsp(name_str_idx: int, texset_block_idx: int,
         root_material (int32 string ref, null)
         alpha (f32)
         refraction_power (f32)
-        glossiness / smoothness (f32)
+        smoothness (f32)   ← FO4 PBR field; was "Glossiness" in Skyrim NIFs
         specular_color (3×f32), specular_strength (f32)
         fresnel_power (f32)
         wetness fields ×6 (f32)
@@ -393,7 +439,7 @@ def _write_bslsp(name_str_idx: int, texset_block_idx: int,
     # Standard PBR values
     buf += struct.pack('<f', 1.0)              # alpha
     buf += struct.pack('<f', 0.0)              # refraction_power
-    buf += struct.pack('<f', 1.0)              # smoothness (glossiness in older NIFs)
+    buf += struct.pack('<f', 1.0)              # smoothness (PBR smoothness field; was "Glossiness" in pre-FO4 NIFs)
     buf += struct.pack('<3f', 1.0, 1.0, 1.0)  # specular_color
     buf += struct.pack('<f', 1.0)              # specular_strength
     buf += struct.pack('<f', 5.0)              # fresnel_power
@@ -653,16 +699,24 @@ def _build_nif(
 def export_fo4_nif(obj, filepath: str, mesh_type: str = 'STATIC') -> tuple:
     """Export a Blender mesh object as a Fallout 4 NIF file.
 
-    The native writer handles STATIC, LOD, VEGETATION, FURNITURE, and WEAPON
-    mesh types directly.  SKINNED and ARMOR meshes require BSSkin::Instance /
-    BSSubIndexTriShape which the native writer does not yet produce; those types
-    return a failure tuple so the caller can fall back to Niftools or FBX.
+    The native writer handles STATIC, LOD, VEGETATION, FLORA, FURNITURE,
+    WEAPON, ARCHITECTURE, ANIMATED, DEBRIS, and AUTO mesh types by producing
+    a BSFadeNode → BSTriShape NIF with the correct per-type shader flags.
+
+    SKINNED and ARMOR meshes require BSSkin::Instance / BSSubIndexTriShape
+    which the native writer does not yet produce; those types return a failure
+    tuple so the caller can fall back to PyNifly or Niftools.
+
+    Note: for ANIMATED the NiKeyframeController data, and for DEBRIS/
+    ARCHITECTURE the BSXFlags/bhkCollisionObject blocks, are outside the
+    scope of this fallback writer.  Full support for those types requires
+    PyNifly (BadDogSkyrim) or Niftools v0.1.1.
 
     Parameters
     ----------
     obj       : bpy.types.Object  – must be type 'MESH'
     filepath  : str               – output .nif path (parent dirs created)
-    mesh_type : str               – one of the FO4_MESH_TYPE_SETTINGS keys.
+    mesh_type : str               – one of the FO4_MESH_TYPE_ITEMS identifiers.
                                     Default is 'STATIC'.
 
     Returns
@@ -675,12 +729,13 @@ def export_fo4_nif(obj, filepath: str, mesh_type: str = 'STATIC') -> tuple:
 
     # SKINNED and ARMOR meshes need BSSubIndexTriShape + BSSkin::Instance.
     # The native writer only produces BSTriShape (static geometry), so we
-    # decline these types early so the caller can try Niftools or FBX.
+    # decline these types early so the caller can try PyNifly or Niftools.
     if mesh_type in ('SKINNED', 'ARMOR'):
         return False, (
             f"Native NIF writer does not support {mesh_type} meshes "
             "(requires BSSkin::Instance / BSSubIndexTriShape). "
-            "Install Niftools v0.1.1 for skinned-mesh NIF export."
+            "Install PyNifly v25 (BadDogSkyrim) or Niftools v0.1.1 for "
+            "skinned-mesh NIF export."
         )
 
     # ── Extract mesh data ─────────────────────────────────────────────────
