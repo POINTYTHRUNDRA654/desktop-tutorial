@@ -357,8 +357,8 @@ _MESH_TYPE_SF1 = {
     'FURNITURE':    0x80400201,
     'WEAPON':       0x80400201,
     'ARCHITECTURE': 0x80400201,
-    # FLORA (harvestable plants, e.g. Mutfruit, Tato): SF1 is identical to
-    # STATIC/VEGETATION.  The Two_Sided distinction is in SF2 (see below).
+    # FLORA (harvestable plants, e.g. Mutfruit, Tato): SF1 same as STATIC/VEGETATION;
+    # Two_Sided flag is set in SF2 (see below).
     'FLORA':        0x80400201,
     # ANIMATED: SF1 is identical to STATIC; animation data lives in
     # NiKeyframeController blocks that the native writer does not emit.
@@ -401,7 +401,7 @@ def _write_bslsp(name_str_idx: int, texset_block_idx: int,
         root_material (int32 string ref, null)
         alpha (f32)
         refraction_power (f32)
-        smoothness (f32)   ← FO4 PBR field; was "Glossiness" in Skyrim NIFs
+        smoothness (f32)   (FO4 PBR smoothness; was "Glossiness" in Skyrim NIFs)
         specular_color (3×f32), specular_strength (f32)
         fresnel_power (f32)
         wetness fields ×6 (f32)
@@ -439,7 +439,7 @@ def _write_bslsp(name_str_idx: int, texset_block_idx: int,
     # Standard PBR values
     buf += struct.pack('<f', 1.0)              # alpha
     buf += struct.pack('<f', 0.0)              # refraction_power
-    buf += struct.pack('<f', 1.0)              # smoothness (PBR smoothness field; was "Glossiness" in pre-FO4 NIFs)
+    buf += struct.pack('<f', 1.0)              # smoothness (FO4 PBR field; was "Glossiness" in Skyrim NIFs)
     buf += struct.pack('<3f', 1.0, 1.0, 1.0)  # specular_color
     buf += struct.pack('<f', 1.0)              # specular_strength
     buf += struct.pack('<f', 5.0)              # fresnel_power

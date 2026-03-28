@@ -3914,13 +3914,20 @@ class FO4_OT_ConfigureFallout4Settings(Operator):
         messages = []
         prefs = preferences.get_preferences()
 
-        # Check Niftools installation
-        nif_available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
-        if not nif_available:
-            messages.append("⚠ Niftools not installed - use 'Install Niftools' button")
-            messages.append(f"  {nif_msg}")
+        # Check PyNifly v25 installation (primary / recommended exporter)
+        pynifly_ok, pynifly_msg = export_helpers.ExportHelpers.pynifly_exporter_available()
+        if pynifly_ok:
+            messages.append("✓ PyNifly v25 ready — primary NIF exporter (BadDog / BadDogSkyrim)")
         else:
-            messages.append("✓ Niftools v0.1.1 ready (NIF 20.2.0.7, BSTriShape)")
+            messages.append(f"⚠ PyNifly v25 not installed — use 'Install PyNifly v25' button")
+            messages.append(f"  {pynifly_msg}")
+            # Check Niftools as fallback
+            nif_available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
+            if nif_available:
+                messages.append("✓ Niftools v0.1.1 found (fallback exporter — NIF 20.2.0.7, BSTriShape)")
+            else:
+                messages.append(f"⚠ Niftools v0.1.1 also not installed: {nif_msg}")
+                messages.append("  Native NIF writer will be used as last-resort fallback.")
 
         # Check texture conversion tools
         from . import nvtt_helpers
@@ -6791,6 +6798,9 @@ class FO4_OT_DecimateToFO4(Operator):
 
         layout.separator()
         layout.prop(context.scene, "fo4_imageto3d_target_poly")
+
+
+class FO4_OT_SplitMeshPolyLimit(Operator):
     """Split the active mesh into sub-meshes each under the FO4 65,535-triangle limit"""
     bl_idname = "fo4.split_mesh_poly_limit"
     bl_label = "Split at Poly Limit"
@@ -9948,9 +9958,9 @@ class FO4_OT_ExportVegetationAsNif(Operator):
     - Temporarily triangulates quads/n-gons for FO4 BSTriShape.
     - Skips collision mesh generation (most FO4 vegetation has no collision).
     - Validates that the material uses Alpha Clip / Alpha Blend so that the
-      Niftools exporter writes the correct BSLightingShaderProperty flags.
-    - If Niftools v0.1.1 is not installed, exports FBX for Cathedral Assets
-      Optimizer (CAO) conversion.
+      exporter writes the correct BSLightingShaderProperty flags.
+    - Exporter priority: PyNifly v25 → Niftools v0.1.1 → FBX fallback (for
+      Cathedral Assets Optimizer conversion).
 
     After export, open the NIF in NifSkope to verify:
     - Root node is a BSFadeNode.
@@ -12927,6 +12937,7 @@ classes = (
     FO4_OT_AutoRepairMesh,
     FO4_OT_SmartDecimate,
     FO4_OT_DecimateToFO4,
+    FO4_OT_SplitMeshPolyLimit,
     FO4_OT_GenerateLOD,
     FO4_OT_GenerateLODAndCollision,
     FO4_OT_BatchGenerateLOD,
