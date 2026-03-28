@@ -285,7 +285,7 @@ class FO4_OT_ShowCredits(Operator):
             "NifTools Team — https://github.com/niftools/blender_nif_plugin",
             "Enables direct .nif export for Fallout 4 / Skyrim (Blender 3.6 LTS)",
         ])
-        _section('STAR', "PyNifly v25  \u2605  PRIMARY NIF EXPORTER", [
+        _section('STAR', "PyNifly  \u2605  PRIMARY NIF EXPORTER", [
             "BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly",
             "The recommended NIF exporter for Blender 4.x and 5.x.",
             "Supports Fallout 4, Skyrim SE, and Starfield with full",

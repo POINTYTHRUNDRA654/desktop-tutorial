@@ -254,8 +254,8 @@ class FO4_OT_ShowShiagurWorkflow(Operator):
         # ── Required tools ───────────────────────────────────────────────────
         _box('TOOL_SETTINGS', "Step 1 — Install Required Tools", [
             "• Blender 4.1+             — blender.org  (free)",
-            "• PyNifly v25 (in addon)   — BadDog/BadDogSkyrim  ← RECOMMENDED PATH",
-            "  PyNifly v25 exports HKX natively — no extra tools needed!",
+            "• PyNifly (in addon)       — BadDog/BadDogSkyrim  ← RECOMMENDED PATH",
+            "  PyNifly exports HKX natively — no extra tools needed!",
             "",
             "Traditional pipeline (if not using PyNifly HKX export):",
             "• FBXImporter              — nexusmods.com/fallout4/mods/59849",
@@ -278,7 +278,7 @@ class FO4_OT_ShowShiagurWorkflow(Operator):
 
         # ── Export paths ─────────────────────────────────────────────────────
         _box('EXPORT', "Step 3 — Export to HKX", [
-            "PATH A — PyNifly v25 (recommended, simplest):",
+            "PATH A — PyNifly (recommended, simplest):",
             "  File > Export > HKX Animation (.hkx)",
             "  Set target_game = FO4, then export directly.",
             "  No FBX conversion step needed.",
@@ -605,7 +605,7 @@ class FO4_OT_ShowStoryActionPosesGuide(Operator):
             "To create custom poses for SAP-style distribution:",
             "1. Use Shiagur's animation rig (Nexus 82537) in Blender.",
             "2. Create a static key-pose (single frame) animation.",
-            "3. Export via PyNifly v25 or FBX → HKT → HKX pipeline.",
+            "3. Export via PyNifly or FBX → HKT → HKX pipeline.",
             "4. Register the .hkx in an AAF XML pose pack.",
             "5. Distribute with AAF as a dependency in your FOMOD.",
         ])
@@ -678,7 +678,7 @@ class FO4_OT_ShowArmorClothingWorkflow(Operator):
 
         _box('TOOL_SETTINGS', "Required Tools", [
             "• Blender 4.1+            — blender.org",
-            "• PyNifly v25             — use 'Install PyNifly v25' in Setup panel",
+            "• PyNifly                 — use 'Auto-Install PyNifly (Latest)' in Setup panel",
             "  Imports/exports NIF meshes with full skeleton support.",
             "• NifSkope               — github.com/niftools/nifskope",
             "  Inspect/tweak NIF shader flags and texture paths.",
@@ -693,7 +693,7 @@ class FO4_OT_ShowArmorClothingWorkflow(Operator):
         ])
 
         _box('MESH_DATA', "Step 1 — Model Your Armor in Blender", [
-            "1. Import body reference (CBBE or vanilla) via PyNifly v25.",
+            "1. Import body reference (CBBE or vanilla) via PyNifly.",
             "   File > Import > NetImmerse/Gambryo NIF → pick body NIF.",
             "2. Model armor/clothing on top of the reference body.",
             "   Keep polygons reasonable — FO4 runs best under 5,000 tris/piece.",
@@ -722,7 +722,7 @@ class FO4_OT_ShowArmorClothingWorkflow(Operator):
             "3. Use Cathedral Assets Optimizer to compress textures for FO4.",
         ])
 
-        _box('EXPORT', "Step 4 — Export as NIF via PyNifly v25", [
+        _box('EXPORT', "Step 4 — Export as NIF via PyNifly", [
             "1. Select armor mesh + armature.",
             "2. File > Export > NetImmerse/Gambryo NIF (.nif)",
             "   target_game = FO4",
@@ -3914,12 +3914,12 @@ class FO4_OT_ConfigureFallout4Settings(Operator):
         messages = []
         prefs = preferences.get_preferences()
 
-        # Check PyNifly v25 installation (primary / recommended exporter)
+        # Check PyNifly installation (primary / recommended exporter)
         pynifly_ok, pynifly_msg = export_helpers.ExportHelpers.pynifly_exporter_available()
         if pynifly_ok:
-            messages.append("✓ PyNifly v25 ready — primary NIF exporter (BadDog / BadDogSkyrim)")
+            messages.append("✓ PyNifly ready — primary NIF exporter (BadDog / BadDogSkyrim)")
         else:
-            messages.append(f"⚠ PyNifly v25 not installed — use 'Install PyNifly v25' button")
+            messages.append(f"⚠ PyNifly not installed — use 'Auto-Install PyNifly (Latest)' button")
             messages.append(f"  {pynifly_msg}")
             # Check Niftools as fallback
             nif_available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
@@ -9978,7 +9978,7 @@ class FO4_OT_ExportVegetationAsNif(Operator):
     - Skips collision mesh generation (most FO4 vegetation has no collision).
     - Validates that the material uses Alpha Clip / Alpha Blend so that the
       exporter writes the correct BSLightingShaderProperty flags.
-    - Exporter priority: PyNifly v25 → Niftools v0.1.1 → FBX fallback (for
+    - Exporter priority: PyNifly → Niftools v0.1.1 → FBX fallback (for
       Cathedral Assets Optimizer conversion).
 
     After export, open the NIF in NifSkope to verify:
@@ -12716,11 +12716,11 @@ class FO4_OT_ExportModManifest(Operator):
 
 
 class FO4_OT_InstallPyNifly(Operator):
-    """Install PyNifly v25 NIF exporter (by BadDog / BadDogSkyrim).
+    """Install the latest PyNifly NIF exporter (by BadDog / BadDogSkyrim).
 
-    Automatically downloads PyNifly v25 from GitHub if no local zip is found
-    in the tools folder (D:\\Blender addon\\tools).  The zip is then installed
-    directly into Blender as an add-on.
+    Automatically downloads the newest PyNifly release from GitHub if no local
+    zip is found in the tools folder (D:\\Blender addon\\tools).  The zip is
+    then installed directly into Blender as an add-on.
 
     PyNifly (by BadDog) is the recommended NIF exporter for Blender 4.x and
     5.x — it supports Fallout 4, Skyrim SE, and Starfield with full body-morph
@@ -12729,10 +12729,10 @@ class FO4_OT_InstallPyNifly(Operator):
     Credit: BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly
     """
     bl_idname = "fo4.install_pynifly"
-    bl_label = "Install PyNifly v25"
+    bl_label = "Auto-Install PyNifly (Latest)"
     bl_description = (
-        "Auto-download and install PyNifly v25 by BadDog (BadDogSkyrim). "
-        "Downloads from GitHub if not already in the tools folder."
+        "Auto-download and install the latest PyNifly release by BadDog (BadDogSkyrim). "
+        "Downloads the newest version from GitHub if not already in the tools folder."
     )
 
     def execute(self, context):

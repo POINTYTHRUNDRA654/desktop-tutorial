@@ -96,9 +96,9 @@ class ExportHelpers:
         if not export_scene:
             return False, "bpy.ops.export_scene not available"
         if hasattr(export_scene, "pynifly"):
-            return True, "PyNifly v25 exporter available (BadDog / BadDogSkyrim)"
+            return True, "PyNifly exporter available (BadDog / BadDogSkyrim)"
         return False, (
-            "PyNifly v25 not installed — click 'Install PyNifly v25' in the Setup & Status panel "
+            "PyNifly not installed — click 'Auto-Install PyNifly (Latest)' in the Setup & Status panel "
             "to auto-download and install it"
         )
 
@@ -239,18 +239,18 @@ class ExportHelpers:
 
     @staticmethod
     def _build_pynifly_export_kwargs(filepath):
-        """Assemble kwargs for PyNifly v25 (by BadDog) for Fallout 4 NIF export.
+        """Assemble kwargs for PyNifly (by BadDog) for Fallout 4 NIF export.
 
-        Based on the official PyNifly v25 IMPORT_EXPORT_OPTIONS.md:
+        Based on the official PyNifly IMPORT_EXPORT_OPTIONS.md:
           - ``target_game = "FO4"``    → Fallout 4 BSTriShape / BSSubIndexTriShape format
-          - ``export_modifiers``       → apply modifiers (renamed from apply_modifiers in v25)
-          - ``export_collision``       → include collision meshes (new in v25)
+          - ``export_modifiers``       → apply modifiers (renamed from apply_modifiers)
+          - ``export_collision``       → include collision meshes
           - ``export_colors``          → write vertex colours (default True, explicit for CK)
           - ``blender_xf = False``     → use NIF coordinates directly (correct for FO4)
           - ``rename_bones = True``    → convert Blender .L/.R names back to NIF names
 
         We introspect the operator's RNA properties at runtime so the code
-        remains resilient to minor API differences between installs.
+        remains resilient to API differences across PyNifly releases.
 
         Credit: PyNifly by BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly
         """
@@ -270,7 +270,7 @@ class ExportHelpers:
                 kwargs["use_selection"] = True
 
             # ── Target game ──────────────────────────────────────────────────
-            # v25 uses "target_game"; older builds used "game".
+            # "target_game" is the current property name; older builds used "game".
             # "FO4" selects Fallout 4 BSTriShape / BSSubIndexTriShape format.
             for game_key in ("target_game", "game"):
                 if game_key in prop_keys:
@@ -283,20 +283,20 @@ class ExportHelpers:
                     break
 
             # ── Apply modifiers ───────────────────────────────────────────────
-            # v25 renames apply_modifiers → export_modifiers; probe both.
+            # "export_modifiers" is the current name; older builds used "apply_modifiers".
             for mod_key in ("export_modifiers", "apply_modifiers"):
                 if mod_key in prop_keys:
                     kwargs[mod_key] = True
                     break
 
-            # ── Collision export (v25+) ───────────────────────────────────────
-            # export_collision tells PyNifly v25 to include bhkCollisionObject
+            # ── Collision export ──────────────────────────────────────────────
+            # export_collision tells PyNifly to include bhkCollisionObject
             # blocks, which are required for physics-enabled FO4 objects in CK.
             if "export_collision" in prop_keys:
                 kwargs["export_collision"] = True
 
             # ── Vertex colours ────────────────────────────────────────────────
-            # export_colors is True by default in v25, but be explicit so CK
+            # export_colors is True by default, but be explicit so CK
             # gets the vertex-colour data it needs for LOD and alpha blending.
             if "export_colors" in prop_keys:
                 kwargs["export_colors"] = True
@@ -313,9 +313,8 @@ class ExportHelpers:
             if "rename_bones" in prop_keys:
                 kwargs["rename_bones"] = True
 
-            # ── Scale (legacy pre-v25 builds) ─────────────────────────────────
-            # v25 dropped scale_factor; set it only if the property still exists
-            # so we stay compatible with users on older PyNifly builds.
+            # ── Scale (legacy property, dropped in later builds) ──────────────
+            # Set only if the property still exists for backwards compatibility.
             for scale_key in ("scale_factor", "scale_correction"):
                 if scale_key in prop_keys:
                     kwargs[scale_key] = 1.0
@@ -328,7 +327,7 @@ class ExportHelpers:
 
     @staticmethod
     def _prepare_mesh_for_nif(obj):
-        """Prepare a mesh object so it meets Fallout 4 / PyNifly v25 / Niftools v0.1.1 requirements.
+        """Prepare a mesh object so it meets Fallout 4 / PyNifly / Niftools v0.1.1 requirements.
 
         Performs (in order):
           1. Apply pending scale and rotation transforms – unapplied transforms
@@ -337,7 +336,7 @@ class ExportHelpers:
              coordinates on every exported mesh.
           3. Add a temporary ``_FO4_Triangulate`` modifier when the mesh
              contains quads or n-gons, because FO4 BSTriShape only stores
-             triangles.  PyNifly v25 can handle quads internally, but the
+             triangles.  PyNifly can handle quads internally, but the
              modifier guarantees a clean result for both exporters.
           4. Enable Auto Smooth for consistent tangent/normal export (skipped
              silently on Blender 4.x where the attribute was removed).
@@ -369,7 +368,7 @@ class ExportHelpers:
                 pass  # context may not support transform_apply; continue anyway
 
         # 2. Ensure UV map -------------------------------------------------------
-        #    Both Niftools v0.1.1 and PyNifly v25 require at least one UV map;
+        #    Both Niftools v0.1.1 and PyNifly require at least one UV map;
         #    auto-create one (smart-unwrapped) when the mesh has none.
         if not obj.data.uv_layers:
             obj.data.uv_layers.new(name="UVMap")
