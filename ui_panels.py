@@ -2170,8 +2170,14 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         ver_row.prop(context.scene, "fo4_game_version", text="")
         ver_hint = ver_box.column(align=True)
         ver_hint.scale_y = 0.75
+        _FO4_VER_NOTES = {
+            'FO4':   "OG: NIF 20.2.0.7 · bsver 130 · BSTriShape · target_game=FO4 · requires F4SE (pre-NG build)",
+            'FO4NG': "Next-Gen: same NIF format as OG · requires updated F4SE (NG build) and NG-compatible mods",
+            'FO4AE': "AE: same NIF 20.2.0.7 / bsver 130 / BSTriShape as OG & NG · ESL plugin support · requires latest F4SE",
+        }
+        ver_val = getattr(context.scene, "fo4_game_version", "FO4")
         ver_hint.label(
-            text="OG / NG / AE all use NIF 20.2.0.7 · bsver 130 · BSTriShape",
+            text=_FO4_VER_NOTES.get(ver_val, "NIF 20.2.0.7 · bsver 130 · BSTriShape · target_game=FO4"),
             icon='INFO',
         )
 
@@ -2272,6 +2278,17 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         game_row = settings_col.row(align=True)
         game_row.label(text="Game target:")
         game_row.prop(context.scene, "fo4_game_version", text="")
+
+        # Per-version dependency notes
+        _ver_deps = {
+            'FO4':   "Deps: F4SE (pre-NG build) · Creation Kit (Steam Tools) · FO4Edit",
+            'FO4NG': "Deps: F4SE NG build · NG-compatible mods · Creation Kit (NG) · FO4Edit",
+            'FO4AE': "Deps: F4SE (latest build) · AE-compatible mods · CK (AE) · FO4Edit · ESL support",
+        }
+        _cur_ver = getattr(context.scene, "fo4_game_version", "FO4")
+        dep_col = settings_box.column(align=True)
+        dep_col.scale_y = 0.75
+        dep_col.label(text=_ver_deps.get(_cur_ver, ""), icon='LINKED')
 
         # Fixed CK-required values shown as informational labels
         info_col = settings_box.column(align=True)
@@ -2457,47 +2474,6 @@ class FO4_PT_BatchProcessingPanel(_FO4SubPanel):
         tips_box.label(text="• Select meshes with Shift+Click")
         tips_box.label(text="• Use Box Select (B key)")
         tips_box.label(text="• Processing is sequential")
-
-
-class FO4_PT_PresetsPanel(_FO4SubPanel):
-    """Smart presets panel for quick object creation"""
-    bl_label = "Smart Presets"
-    bl_idname = "FO4_PT_presets_panel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        layout = self.layout
-        scene  = context.scene
-
-        # ── Asset-path status banner ─────────────────────────────────────────
-        _draw_game_path_box(layout, context)
-
-        # Weapon presets
-        box = layout.box()
-        box.label(text="Weapon Presets", icon='MOD_ARMATURE')
-        box.operator("fo4.create_weapon_preset", text="Create Weapon", icon='MESH_CUBE')
-
-        # Armor presets
-        box = layout.box()
-        box.label(text="Armor Presets", icon='MESH_UVSPHERE')
-        box.operator("fo4.create_armor_preset", text="Create Armor", icon='MESH_CUBE')
-
-        # Prop presets
-        box = layout.box()
-        box.label(text="Prop Presets", icon='OBJECT_DATA')
-        box.operator("fo4.create_prop_preset", text="Create Prop", icon='MESH_CUBE')
-
-        # Info
-        info_box = layout.box()
-        info_box.label(text="About Presets:", icon='INFO')
-        info_box.label(text="• Imports the real game mesh when path is set")
-        info_box.label(text="• Falls back to placeholder if path is not set")
-        info_box.label(text="• Pre-configured FO4 materials & settings")
-        info_box.label(text="• Ready to customize and re-export")
 
 
 class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
@@ -4585,7 +4561,6 @@ classes = (
     FO4_PT_ExportPanel,
     # New panels for enhancements
     FO4_PT_BatchProcessingPanel,
-    FO4_PT_PresetsPanel,
     FO4_PT_AutomationQuickPanel,
     FO4_PT_Havok2FBXPanel,
     FO4_PT_VegetationPanel,

@@ -772,6 +772,434 @@ class MeshHelpers:
             "then export with 'Export Mesh (.nif)'."
         )
 
+class SmartPresets:
+    """Game-asset catalog and NIF import helpers for Smart Presets.
+
+    Moved here from operators.py so the catalog data and helper logic live
+    alongside the other mesh utilities.  The Blender operator classes that
+    invoke these methods remain in operators.py.
+    """
+
+    # Shown in an ERROR report when FO4 game files are not found.
+    # No generic or placeholder mesh is created — the operator cancels.
+    FALLBACK_MSG = (
+        "Set your FO4 Data folder in any Fallout 4 panel, "
+        "then click this button again to import the real game mesh."
+    )
+
+    # Stem keywords used when picking the 'best' NIF in a folder.
+    NIF_PRIORITY_KEYWORDS: tuple = (
+        'receiver', 'body', 'torso', 'male', 'female', 'base',
+    )
+
+    # Maps a preset-type key → (folder_relative_to_FO4_Data, [candidate_filenames])
+    # The first candidate file that exists as a loose NIF is imported.
+    # If no matching NIF is found the operator cancels with an error — no
+    # generic geometry is created.
+    NIF_CATALOG: dict = {
+        # ── Weapons ────────────────────────────────────────────────────────────
+        '10MM':           ('meshes/weapons/10mmpistol/',     ['10mmpistol_receiver.nif']),
+        '44':             ('meshes/weapons/44pistol/',        ['44pistol_receiver.nif']),
+        'DELIVERER':      ('meshes/weapons/deliverer/',       ['deliverer_receiver.nif']),
+        'PIPE':           ('meshes/weapons/pipe/',            ['pipe_pistol_receiver.nif', 'pipepistol_receiver.nif']),
+        'ASSAULT':        ('meshes/weapons/assaultrifle/',    ['assaultrifle_receiver.nif']),
+        'COMBAT_RIFLE':   ('meshes/weapons/combatrifle/',     ['combatrifle_receiver.nif']),
+        'SHOTGUN':        ('meshes/weapons/combatshotgun/',   ['combatshotgun_receiver.nif']),
+        'HUNTING':        ('meshes/weapons/huntingrifle/',    ['huntingrifle_receiver.nif']),
+        'LASER':          ('meshes/weapons/lasergun/',        ['lasergun_receiver.nif']),
+        'PLASMA':         ('meshes/weapons/plasmagun/',       ['plasmagun_receiver.nif']),
+        'SMG':            ('meshes/weapons/submachinegun/',   ['submachinegun_receiver.nif']),
+        'MINIGUN':        ('meshes/weapons/minigun/',         ['minigun_receiver.nif']),
+        'FATMAN':         ('meshes/weapons/fatman/',          ['fatman_receiver.nif']),
+        'FLAMER':         ('meshes/weapons/flamer/',          ['flamer_receiver.nif']),
+        'MISSILE':        ('meshes/weapons/misslelauncher/',  ['missilelauncher_receiver.nif']),
+        'GAUSS':          ('meshes/weapons/gaussrifle/',      ['gaussrifle_receiver.nif']),
+        'RAILWAY':        ('meshes/weapons/railwayrifle/',    ['railwayrifle_receiver.nif']),
+        # ── Armor ──────────────────────────────────────────────────────────────
+        'ARMOR_LEATHER':  ('meshes/armor/leather/',      ['f_leather_armor_body_aa.nif', 'leather_armor_body_aa.nif']),
+        'ARMOR_COMBAT':   ('meshes/armor/combat/',        ['f_combat_armor_body_aa.nif',  'combat_armor_body_aa.nif']),
+        'ARMOR_METAL':    ('meshes/armor/metal/',         ['f_metal_armor_body_aa.nif',   'metal_armor_body_aa.nif']),
+        'ARMOR_RAIDER':   ('meshes/armor/raider/',        ['f_raider_armor_body_aa.nif',  'raider_armor_body_aa.nif']),
+        'ARMOR_SYNTH':    ('meshes/armor/synth/',         ['f_synth_armor_body_aa.nif',   'synth_armor_body_aa.nif']),
+        'POWER_T60':      ('meshes/armor/powerarmor/',    ['powerarmort60_torso.nif',     't60_torso.nif']),
+        'POWER_T45':      ('meshes/armor/powerarmor/',    ['powerarmort45_torso.nif',     't45_torso.nif']),
+        'VAULT_SUIT':     ('meshes/armor/vault111/',      ['vault111_jumpsuit.nif',        'vaultsuit.nif']),
+        # Power-armor pieces
+        'PA_TORSO_T60':   ('meshes/armor/powerarmor/', ['powerarmort60_torso.nif']),
+        'PA_HELMET_T60':  ('meshes/armor/powerarmor/', ['powerarmort60_helmet.nif']),
+        'PA_LARM_T60':    ('meshes/armor/powerarmor/', ['powerarmort60_larm.nif']),
+        'PA_RARM_T60':    ('meshes/armor/powerarmor/', ['powerarmort60_rarm.nif']),
+        'PA_LLEG_T60':    ('meshes/armor/powerarmor/', ['powerarmort60_lleg.nif']),
+        'PA_RLEG_T60':    ('meshes/armor/powerarmor/', ['powerarmort60_rleg.nif']),
+        # ── Props / Set-dressing ───────────────────────────────────────────────
+        'PROP_CRATE':     ('meshes/setdressing/crates/',  ['woodcrate01.nif']),
+        'PROP_METALCRATE':('meshes/setdressing/crates/',  ['metalcrate01.nif', 'metalcrate_lg01.nif']),
+        'PROP_BARREL':    ('meshes/setdressing/',          ['barrel01.nif']),
+        'PROP_DESK':      ('meshes/furniture/',            ['desk01.nif', 'office_desk01.nif']),
+        'PROP_CHAIR':     ('meshes/furniture/',            ['chair01.nif']),
+        'PROP_SHELF':     ('meshes/furniture/',            ['shelf01.nif', 'metalshelf01.nif']),
+        'PROP_TABLE':     ('meshes/furniture/',            ['table01.nif']),
+        # ── Vegetation ────────────────────────────────────────────────────────
+        'VEG_PINE':       ('meshes/landscape/trees/', ['treepine01.nif']),
+        'VEG_DEAD_TREE':  ('meshes/landscape/trees/', ['treedead01.nif', 'treedeadbark01.nif']),
+        'VEG_BUSH':       ('meshes/plants/',           ['bush01.nif', 'shrub01.nif', 'shrubdead01.nif']),
+        'VEG_GRASS':      ('meshes/landscape/grass/',  ['grass01.nif']),
+        'VEG_FERN':       ('meshes/plants/',           ['fern01.nif', 'plantfern01.nif']),
+        'VEG_ROCK':       ('meshes/landscape/rocks/',  ['rock01.nif', 'boulder01.nif']),
+        'VEG_MUTFRUIT':   ('meshes/plants/',           ['mutfruitplant.nif', 'mutfruit.nif']),
+        # ── NPCs / Actors ─────────────────────────────────────────────────────
+        'NPC_HUMAN':      ('meshes/actors/character/', ['character_assets/basehumanmale.nif', 'basehumanmale.nif']),
+        'NPC_GHOUL':      ('meshes/actors/feral/',     ['feralghoulmale.nif', 'feral_ghoul_male.nif']),
+        'NPC_SUPERMUTANT':('meshes/actors/supermutant/', ['supermutant.nif', 'supermutantmale.nif']),
+        'NPC_PROTECTRON': ('meshes/actors/protectron/', ['protectron.nif']),
+        'NPC_SYNTH':      ('meshes/actors/synth/',      ['synthmale.nif', 'synth_male.nif']),
+        # ── Creatures ─────────────────────────────────────────────────────────
+        'CR_RADROACH':    ('meshes/actors/radroach/',   ['radroach.nif']),
+        'CR_MOLERAT':     ('meshes/actors/molerat/',    ['molerat.nif']),
+        'CR_DEATHCLAW':   ('meshes/actors/deathclaw/',  ['deathclaw.nif']),
+        'CR_MIRELURK':    ('meshes/actors/mirelurk/',   ['mirelurk.nif', 'mirelurkkingmale.nif']),
+        'CR_RADSCORPION': ('meshes/actors/radscorpion/', ['radscorpion.nif']),
+        'CR_BRAHMIN':     ('meshes/actors/brahmin/',    ['brahmin.nif']),
+        # ── Architecture / World-building ─────────────────────────────────────
+        'WB_VAULT_WALL':  ('meshes/architecture/vault/',          ['vlt_wall_concrete01.nif', 'vaultwall01.nif']),
+        'WB_VAULT_FLOOR': ('meshes/architecture/vault/',          ['vlt_floor01.nif',          'vaultfloor01.nif']),
+        'WB_COMM_WALL':   ('meshes/architecture/commonwealth/',   ['cw_wall01.nif',            'cwbrickwall01.nif']),
+        'WB_DOOR':        ('meshes/architecture/',                ['door01.nif',               'doorframe01.nif']),
+        'WB_BED':         ('meshes/furniture/',   ['bed01.nif',        'sleepingbag01.nif']),
+        'WB_WORKBENCH':   ('meshes/furniture/',   ['workbench01.nif']),
+        'WB_CHAIR':       ('meshes/furniture/',   ['chair01.nif']),
+        'WB_GENERATOR':   ('meshes/furniture/',   ['generator01.nif']),
+        # ── Consumables / misc items ───────────────────────────────────────────
+        'ITEM_STIMPAK':   ('meshes/clutter/junk/', ['stimpak.nif',          'stimpakbox.nif']),
+        'ITEM_NUKACOLA':  ('meshes/clutter/junk/', ['nukacola.nif',         'nuka_cola_bottle.nif']),
+        'ITEM_FOOD':      ('meshes/clutter/junk/', ['instantmashbox.nif',   'boxcrinkles.nif']),
+        'ITEM_CHEM':      ('meshes/clutter/junk/', ['mentats.nif',          'chem01.nif']),
+        'ITEM_HOLOTAPE':  ('meshes/clutter/junk/', ['holotape.nif']),
+        'ITEM_KEY':       ('meshes/clutter/junk/', ['key.nif',              'key01.nif']),
+        'ITEM_TOOL':      ('meshes/clutter/junk/', ['wrench01.nif',         'tool01.nif']),
+        'ITEM_COMPONENT': ('meshes/clutter/junk/', ['screws.nif',           'springwire.nif']),
+        'ITEM_JUNK':      ('meshes/clutter/junk/', ['trashbag01.nif',       'junk01.nif']),
+        'ITEM_BOTTLE':    ('meshes/clutter/junk/', ['nukacola.nif',         'glassbottle01.nif']),
+        'ITEM_CAN':       ('meshes/clutter/junk/', ['instamashbox01.nif',   'can01.nif']),
+        'ITEM_BOX':       ('meshes/setdressing/crates/', ['woodcrate01.nif', 'cardboardbox01.nif']),
+    }
+
+    @staticmethod
+    def resolve_game_nif(key: str):
+        """Return the absolute path of the first loose FO4 NIF that matches *key*.
+
+        Looks up *key* in :attr:`NIF_CATALOG` → (folder, candidates), then
+        searches the FO4 Data directory.  If no candidate name matches, returns
+        the first ``.nif`` found in the folder (skipping ``_lod`` variants).
+        Returns ``None`` when FO4 is not detected or the folder contains no
+        NIFs, and prints a console message explaining why.
+        """
+        import importlib
+        import sys
+        from pathlib import Path as _P
+
+        entry = SmartPresets.NIF_CATALOG.get(key)
+        if not entry:
+            return None
+        folder_rel, candidates = entry
+
+        try:
+            fo4_game_assets = importlib.import_module(
+                ".fo4_game_assets", package=__package__
+            )
+        except Exception:
+            fo4_game_assets = None
+
+        if not fo4_game_assets:
+            print(
+                "[FO4 Add-on] Smart Preset: fo4_game_assets module unavailable.\n"
+                "  → Restart Blender and try again."
+            )
+            return None
+
+        data_dir = fo4_game_assets.FO4GameAssets.get_data_dir()
+        if not data_dir:
+            print(
+                "[FO4 Add-on] Smart Preset: FO4 data directory not found.\n"
+                "  → Open the 'Game Asset Import' panel and set the 'Meshes' path\n"
+                "    to your extracted FO4 Data folder (e.g. D:/FO4/Data).\n"
+                "  → If you set the path, click the preset button again."
+            )
+            return None
+
+        folder = _P(data_dir) / folder_rel
+        if not folder.exists():
+            print(
+                f"[FO4 Add-on] Smart Preset: folder not found: {folder}\n"
+                f"  Data dir: {data_dir}\n"
+                f"  Expected sub-path: {folder_rel}\n"
+                "  → Make sure you pointed the 'Meshes' path at the Data root\n"
+                "    (the folder that contains the 'meshes/' sub-folder),\n"
+                "    not at the 'meshes/' folder itself."
+            )
+            return None
+
+        for name in candidates:
+            p = folder / name
+            if p.exists():
+                return str(p)
+
+        # Fall back: first NIF in folder that isn't a LOD variant
+        nifs = sorted(
+            p for p in folder.glob('*.nif')
+            if '_lod' not in p.stem.lower()
+        )
+        if nifs:
+            for nif in nifs:
+                if any(kw in nif.stem.lower() for kw in SmartPresets.NIF_PRIORITY_KEYWORDS):
+                    return str(nif)
+            return str(nifs[0])
+
+        print(
+            f"[FO4 Add-on] Smart Preset: no NIFs found in {folder}\n"
+            "  → BA2 archives may still be packed. Extract them with\n"
+            "    Archive2.exe (Creation Kit) or BAE (Bethesda Archive Extractor)."
+        )
+        return None
+
+    @staticmethod
+    def import_game_nif(filepath: str):
+        """Import a NIF file using the Niftools operator if available.
+
+        Returns ``(success, message)``.  On success, the newly-imported objects
+        are selected and the active object is set by Blender's import operator.
+        """
+        from pathlib import Path as _P
+        filename = _P(filepath).name
+        if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'nif'):
+            try:
+                bpy.ops.import_scene.nif(filepath=filepath)
+                return True, f"Imported game mesh: {filename}"
+            except Exception as e:
+                return False, f"NIF import error: {e}"
+        return False, "Niftools add-on not installed — install it to import .nif files directly"
+
+    @staticmethod
+    def auto_apply_textures_from_game_asset(nif_path: str):
+        """Locate FO4 textures matching the imported NIF and apply to the active object."""
+        from pathlib import Path as _P
+        from . import texture_helpers
+
+        obj = bpy.context.active_object
+        if not obj or obj.type != 'MESH':
+            return
+
+        nif = _P(nif_path)
+        parts = nif.parts
+        if "meshes" in (p.lower() for p in parts):
+            try:
+                meshes_idx = [i for i, p in enumerate(parts) if p.lower() == "meshes"][-1]
+                data_root = _P(*parts[:meshes_idx])
+            except Exception:
+                data_root = nif.parent.parent
+        else:
+            data_root = nif.parent.parent
+
+        textures_root = data_root / "textures"
+        if not textures_root.exists():
+            return
+
+        stem = nif.stem.split("_lod")[0].lower()
+        candidates = list(textures_root.rglob(f"{stem}*.dds"))
+        if not candidates:
+            return
+
+        mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+        for tex in candidates:
+            tex_type = texture_helpers.TextureHelpers.detect_fo4_texture_type(str(tex))
+            texture_helpers.TextureHelpers.install_texture(obj, str(tex), tex_type)
+        return mat
+
+    @staticmethod
+    def apply_nif_v25_settings(context, preset_key: str):
+        """Apply the correct NIF v25 (PyNifly v25) export settings to all mesh
+        objects that were just imported by a Smart Preset operator.
+
+        Called immediately after a successful NIF import so that the user can
+        customize the mesh and re-export without having to manually configure
+        any settings.  The following are applied:
+
+        Per-object (bpy.types.Object custom properties):
+          - ``fo4_mesh_type``      → correct type for the preset category so
+                                     PyNifly v25 chooses the right root node
+                                     class, BSXFlags, shader flags, and
+                                     skinning path on export.
+          - ``fo4_collision_type`` → sensible default for the preset category
+                                     (NONE for wearables/items, DEFAULT for
+                                     props/architecture/weapons).
+
+        Per-scene:
+          - ``fo4_game_version``   → left at whatever the user chose; defaulted
+                                     to 'FO4' if not yet set.
+
+        NIF v25 wire-format settings (NIF 20.2.0.7 / user ver 12 / bsver 130 /
+        target_game=FO4) are fixed at export time by
+        ``ExportHelpers._build_pynifly_export_kwargs()`` and do not need to be
+        stored per-object.
+        """
+        # ── Preset key → fo4_mesh_type ────────────────────────────────────────
+        _MESH_TYPE: dict = {
+            # Weapons
+            '10MM': 'WEAPON', '44': 'WEAPON', 'DELIVERER': 'WEAPON',
+            'PIPE': 'WEAPON', 'ASSAULT': 'WEAPON', 'COMBAT_RIFLE': 'WEAPON',
+            'SHOTGUN': 'WEAPON', 'HUNTING': 'WEAPON', 'LASER': 'WEAPON',
+            'PLASMA': 'WEAPON', 'SMG': 'WEAPON', 'MINIGUN': 'WEAPON',
+            'FATMAN': 'WEAPON', 'FLAMER': 'WEAPON', 'MISSILE': 'WEAPON',
+            'GAUSS': 'WEAPON', 'RAILWAY': 'WEAPON',
+            # Armor / wearables
+            'ARMOR_LEATHER': 'ARMOR', 'ARMOR_COMBAT': 'ARMOR',
+            'ARMOR_METAL': 'ARMOR', 'ARMOR_RAIDER': 'ARMOR',
+            'ARMOR_SYNTH': 'ARMOR', 'POWER_T60': 'ARMOR',
+            'POWER_T45': 'ARMOR', 'VAULT_SUIT': 'SKINNED',
+            # Power-armor pieces (each is a separate wearable)
+            'PA_TORSO_T60': 'ARMOR', 'PA_HELMET_T60': 'ARMOR',
+            'PA_LARM_T60': 'ARMOR', 'PA_RARM_T60': 'ARMOR',
+            'PA_LLEG_T60': 'ARMOR', 'PA_RLEG_T60': 'ARMOR',
+            # Props / set-dressing
+            'PROP_CRATE': 'STATIC', 'PROP_METALCRATE': 'STATIC',
+            'PROP_BARREL': 'STATIC', 'PROP_DESK': 'STATIC',
+            'PROP_CHAIR': 'STATIC', 'PROP_SHELF': 'STATIC',
+            'PROP_TABLE': 'STATIC',
+            # Vegetation / landscape
+            'VEG_PINE': 'VEGETATION', 'VEG_DEAD_TREE': 'VEGETATION',
+            'VEG_BUSH': 'VEGETATION', 'VEG_GRASS': 'VEGETATION',
+            'VEG_FERN': 'VEGETATION', 'VEG_ROCK': 'STATIC',
+            'VEG_MUTFRUIT': 'FLORA',
+            # NPCs / actors
+            'NPC_HUMAN': 'SKINNED', 'NPC_GHOUL': 'SKINNED',
+            'NPC_SUPERMUTANT': 'SKINNED', 'NPC_PROTECTRON': 'SKINNED',
+            'NPC_SYNTH': 'SKINNED',
+            # Creatures
+            'CR_RADROACH': 'SKINNED', 'CR_MOLERAT': 'SKINNED',
+            'CR_DEATHCLAW': 'SKINNED', 'CR_MIRELURK': 'SKINNED',
+            'CR_RADSCORPION': 'SKINNED', 'CR_BRAHMIN': 'SKINNED',
+            # Architecture
+            'WB_VAULT_WALL': 'ARCHITECTURE', 'WB_VAULT_FLOOR': 'ARCHITECTURE',
+            'WB_COMM_WALL': 'ARCHITECTURE', 'WB_DOOR': 'ARCHITECTURE',
+            # Workshop / furniture
+            'WB_BED': 'FURNITURE', 'WB_WORKBENCH': 'FURNITURE',
+            'WB_CHAIR': 'FURNITURE', 'WB_GENERATOR': 'FURNITURE',
+            # Consumables / misc / clutter items
+            'ITEM_STIMPAK': 'STATIC', 'ITEM_NUKACOLA': 'STATIC',
+            'ITEM_FOOD': 'STATIC', 'ITEM_CHEM': 'STATIC',
+            'ITEM_HOLOTAPE': 'STATIC', 'ITEM_KEY': 'STATIC',
+            'ITEM_TOOL': 'STATIC', 'ITEM_COMPONENT': 'STATIC',
+            'ITEM_JUNK': 'STATIC', 'ITEM_BOTTLE': 'STATIC',
+            'ITEM_CAN': 'STATIC', 'ITEM_BOX': 'STATIC',
+        }
+
+        # ── Preset key → fo4_collision_type ──────────────────────────────────
+        # Wearables and characters have no collision mesh of their own;
+        # weapons, props, architecture, and furniture use DEFAULT collision.
+        _COLL_TYPE: dict = {
+            'ARMOR_LEATHER': 'NONE', 'ARMOR_COMBAT': 'NONE',
+            'ARMOR_METAL': 'NONE', 'ARMOR_RAIDER': 'NONE',
+            'ARMOR_SYNTH': 'NONE', 'POWER_T60': 'NONE',
+            'POWER_T45': 'NONE', 'VAULT_SUIT': 'NONE',
+            'PA_TORSO_T60': 'NONE', 'PA_HELMET_T60': 'NONE',
+            'PA_LARM_T60': 'NONE', 'PA_RARM_T60': 'NONE',
+            'PA_LLEG_T60': 'NONE', 'PA_RLEG_T60': 'NONE',
+            'NPC_HUMAN': 'NONE', 'NPC_GHOUL': 'NONE',
+            'NPC_SUPERMUTANT': 'NONE', 'NPC_PROTECTRON': 'NONE',
+            'NPC_SYNTH': 'NONE',
+            'CR_RADROACH': 'NONE', 'CR_MOLERAT': 'NONE',
+            'CR_DEATHCLAW': 'NONE', 'CR_MIRELURK': 'NONE',
+            'CR_RADSCORPION': 'NONE', 'CR_BRAHMIN': 'NONE',
+            'VEG_GRASS': 'GRASS',
+            'VEG_MUTFRUIT': 'VEGETATION',
+            'VEG_PINE': 'VEGETATION', 'VEG_DEAD_TREE': 'VEGETATION',
+            'VEG_BUSH': 'VEGETATION', 'VEG_FERN': 'VEGETATION',
+            'ITEM_STIMPAK': 'DEFAULT', 'ITEM_NUKACOLA': 'DEFAULT',
+            'ITEM_FOOD': 'DEFAULT', 'ITEM_CHEM': 'DEFAULT',
+            'ITEM_HOLOTAPE': 'DEFAULT', 'ITEM_KEY': 'DEFAULT',
+            'ITEM_TOOL': 'DEFAULT', 'ITEM_COMPONENT': 'DEFAULT',
+            'ITEM_JUNK': 'DEFAULT', 'ITEM_BOTTLE': 'DEFAULT',
+            'ITEM_CAN': 'DEFAULT', 'ITEM_BOX': 'DEFAULT',
+        }
+
+        mesh_type = _MESH_TYPE.get(preset_key, 'AUTO')
+        coll_type = _COLL_TYPE.get(preset_key, 'DEFAULT')
+
+        # Tag every mesh object that was selected by the import operator.
+        # PyNifly's import selects all newly-created objects and sets the
+        # root as the active object; iterating selected objects catches
+        # multi-mesh NIFs (e.g. separate body parts).
+        try:
+            selected = list(context.selected_objects) if context.selected_objects else []
+        except Exception:
+            selected = []
+
+        # Fall back to active object when nothing is selected
+        try:
+            if not selected and context.active_object:
+                selected = [context.active_object]
+                selected += [
+                    c for c in context.active_object.children_recursive
+                    if c.type == 'MESH'
+                ]
+        except Exception:
+            pass
+
+        for obj in selected:
+            if obj.type != 'MESH':
+                continue
+            try:
+                obj.fo4_mesh_type = mesh_type
+            except Exception:
+                pass
+            try:
+                obj.fo4_collision_type = coll_type
+            except Exception:
+                pass
+            # Store the NIF v25 wire-format constants as informational custom
+            # properties so they're visible in the Properties panel.  These
+            # match what ExportHelpers._build_pynifly_export_kwargs() passes
+            # to PyNifly v25 at export time.
+            obj['nif_version'] = '20.2.0.7'
+            obj['nif_user_version'] = 12
+            obj['nif_bs_version'] = 130
+            obj['nif_target_game'] = 'FO4'
+            obj['nif_export_modifiers'] = True
+            obj['nif_export_collision'] = True
+            obj['nif_rename_bones'] = True
+            obj['nif_blender_xf'] = False
+
+        # Default scene game version to FO4 if not yet set
+        try:
+            if not getattr(context.scene, 'fo4_game_version', None):
+                context.scene.fo4_game_version = 'FO4'
+        except Exception:
+            pass
+
+    @staticmethod
+    def apply_textures_to_active(texture_paths: list, root):
+        """Apply provided texture paths (relative to root) to the active mesh."""
+        import os
+        from . import texture_helpers
+
+        obj = bpy.context.active_object
+        if not obj or obj.type != 'MESH' or not texture_paths:
+            return
+
+        abs_paths = []
+        for t in texture_paths:
+            p = os.path.join(root, t) if root else t
+            if os.path.exists(p):
+                abs_paths.append(p)
+        if not abs_paths:
+            return
+
+        mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+        for tex in abs_paths:
+            tex_type = texture_helpers.TextureHelpers.detect_fo4_texture_type(tex)
+            texture_helpers.TextureHelpers.install_texture(obj, tex, tex_type)
+
+
 def register():
     """Register mesh helper functions"""
     pass
