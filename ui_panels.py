@@ -885,12 +885,6 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
 
         box.operator("fo4.validate_textures", text="Validate Textures", icon='CHECKMARK')
 
-        # DDS conversion – required for Fallout 4 NIF export
-        dds_box = layout.box()
-        dds_box.label(text="DDS Conversion (FO4 NIF Export)", icon='DISK_DRIVE')
-        dds_box.operator("fo4.convert_texture_to_dds", text="Convert Texture to DDS", icon='FILE_REFRESH')
-        dds_box.operator("fo4.convert_object_textures_to_dds", text="Convert Object Textures to DDS", icon='OBJECT_DATA')
-
         # AI Upscaling (Real-ESRGAN)
         ai_box = layout.box()
         ai_box.label(text="AI Upscaling (Real-ESRGAN)", icon='RENDER_RESULT')
@@ -1538,7 +1532,7 @@ class FO4_PT_NVTTPanel(_FO4SubPanel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
+    bl_parent_id = "FO4_PT_texture_panel"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -4567,10 +4561,11 @@ classes = (
     FO4_PT_SetupAIDiffusers,
     FO4_PT_MeshPanel,
     FO4_PT_TexturePanel,
+    # Texture Conversion sub-panel (child of FO4_PT_texture_panel)
+    FO4_PT_NVTTPanel,
     FO4_PT_ImageToMeshPanel,
     FO4_PT_AnimationPanel,
     FO4_PT_RigNetPanel,
-    FO4_PT_NVTTPanel,
     FO4_PT_AdvisorPanel,
     FO4_PT_ToolsLinks,
     FO4_PT_GameAssetsLibraryPanel,

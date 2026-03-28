@@ -241,9 +241,11 @@ class TextureHelpers:
         return False, issues
 
 def register():
-    """Register texture helper functions"""
-    pass
+    """Register texture helper functions and conversion operators"""
+    from . import conversion_operators
+    conversion_operators.register()
 
 def unregister():
-    """Unregister texture helper functions"""
-    pass
+    """Unregister texture helper functions and conversion operators"""
+    from . import conversion_operators
+    conversion_operators.unregister()

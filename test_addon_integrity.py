@@ -103,7 +103,10 @@ class TestModulesPresent(unittest.TestCase):
     }
 
     def _module_exists(self, name):
-        return os.path.isfile(_path(f"{name}.py"))
+        return (
+            os.path.isfile(_path(f"{name}.py"))
+            or os.path.isfile(_path(os.path.join(name, "__init__.py")))
+        )
 
     def test_init_try_imports(self):
         """__init__.py: every _try_import("X") must have X.py on disk."""
@@ -201,6 +204,7 @@ class TestOperatorsRegistered(unittest.TestCase):
             "setup_operators.py",
             "asset_library.py",
             "torch_path_manager.py",
+            "texture_helpers/conversion_operators.py",
         ]
         pattern = re.compile(r'bl_idname\s*=\s*["\']([^"\']+)["\']')
         for fname in files_to_scan:
@@ -373,7 +377,10 @@ class TestInitModulesComplete(unittest.TestCase):
         for m in refs:
             if m in self.ALLOWED_MISSING:
                 continue
-            if not os.path.isfile(_path(f"{m}.py")):
+            if not (
+                os.path.isfile(_path(f"{m}.py"))
+                or os.path.isfile(_path(os.path.join(m, "__init__.py")))
+            ):
                 missing.append(f"{m}.py")
         if missing:
             self.fail(
