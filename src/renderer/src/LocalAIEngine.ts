@@ -293,7 +293,7 @@ export const LocalAIEngine = {
     // avoid a redundant second network call when the guard retry is triggered.
     let cachedWebSearchResult: WebSearchResult | null = null;
     if (needsWebSearch) {
-      console.log('[LocalAIEngine] 🌐 Web search triggered for query:', query.substring(0, 100));
+      console.log('[LocalAIEngine] 🌐 WEB SEARCH TRIGGER DETECTED - Query:', query.substring(0, 100));
       try {
         const webApi = (window.electron?.api || window.electronAPI) as any;
         if (typeof webApi?.webSearch === 'function') {
@@ -310,7 +310,7 @@ export const LocalAIEngine = {
           // Only use the result when it's successful AND has real content
           // (empty:true means the API had no instant answer — don't inject that noise)
           if (searchResult?.success && searchResult?.text && !searchResult?.empty) {
-            console.log('[LocalAIEngine] ✅ Web search successful, injecting results');
+            console.log('[LocalAIEngine] ✅ WEB SEARCH SUCCESS - Results length:', searchResult.text.length, 'chars | Source:', searchResult.source);
             cachedWebSearchResult = { text: searchResult.text, url: searchResult.url, source: searchResult.source };
             injectedContext += '\n### LIVE WEB SEARCH RESULTS (use this to answer the user):\n';
             injectedContext += searchResult.text + '\n';
