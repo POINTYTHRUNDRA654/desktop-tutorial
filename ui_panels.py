@@ -4,6 +4,7 @@ UI Panels for the Fallout 4 Tutorial Add-on
 
 import bpy
 import sys
+import threading
 from bpy.types import Panel
 import importlib
 
@@ -168,17 +169,28 @@ def _activation_op(layout, cls_name, idname, text, icon='NONE'):
 # at an external PyTorch directory via Settings > PyTorch Custom Path.
 # ──────────────────────────────────────────────────────────────────────────
 
+# None  → probe not yet run (or reset by user)
+# (True/False, str) → completed result
 _torch_status_cache: "tuple[bool, str] | None" = None
+
+# Background thread that runs the import-torch probe.
+# Kept so reset_torch_cache() can tell whether a probe is already in flight.
+_torch_probe_thread: "threading.Thread | None" = None
+
+# Sentinel returned while the background probe is still running.
+# torch_ok=None distinguishes "in progress" from True/False.
+_TORCH_CHECKING: "tuple[None, str]" = (None, "Checking PyTorch availability…")
 
 
 def reset_torch_cache():
     """Invalidate the cached PyTorch availability result.
 
-    Called by TORCH_OT_recheck_status so the next panel draw re-probes
-    sys.path instead of returning the stale cached value.
+    Called by TORCH_OT_recheck_status so the next panel draw launches a fresh
+    background probe instead of returning the stale cached value.
     """
-    global _torch_status_cache
+    global _torch_status_cache, _torch_probe_thread
     _torch_status_cache = None
+    _torch_probe_thread = None  # allow a new probe thread to start
 
 
 # Sentinel first line shared by _dll_init_error_message() and _draw_torch_error().
@@ -209,35 +221,65 @@ def _dll_init_error_message() -> str:
     )
 
 
-def _get_torch_status():
-    """Check whether torch is importable from Blender's current sys.path.
+def _probe_torch_background() -> None:
+    """Import torch in a background thread and cache the result.
 
-    Returns ``(True, version_str)`` on success, ``(False, reason_str)`` on
-    failure.  PyTorch is expected to be installed externally and pointed at
-    via Settings > PyTorch Custom Path; no background install is attempted.
-
-    WinError 1114 (DLL initialisation failure) is detected explicitly and
-    returns the full user-friendly fix instructions via
-    ``_dll_init_error_message()`` so the Settings panel can display
-    actionable guidance instead of a raw OS error string.
-
-    The result is cached at module level so that the ``import torch`` probe
-    is only run once per session (or after the user clicks "Re-check").
-    Call ``reset_torch_cache()`` to force a fresh probe.
+    Runs once per session (or after the user clicks "Re-check PyTorch").
+    Schedules a VIEW_3D redraw via bpy.app.timers when finished so that
+    the Mossy and Settings panels update automatically.
     """
     global _torch_status_cache
-    if _torch_status_cache is None:
-        try:
-            import torch
-            _torch_status_cache = (True, torch.__version__)
-        except OSError as e:
-            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
-                _torch_status_cache = (False, _dll_init_error_message())
-            else:
-                _torch_status_cache = (False, str(e))
-        except ImportError as e:
+    try:
+        import torch  # noqa: PLC0415  — deferred to avoid blocking at module load
+        _torch_status_cache = (True, torch.__version__)
+    except OSError as e:
+        if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+            _torch_status_cache = (False, _dll_init_error_message())
+        else:
             _torch_status_cache = (False, str(e))
-    return _torch_status_cache
+    except ImportError as e:
+        _torch_status_cache = (False, str(e))
+    except Exception as e:
+        _torch_status_cache = (False, str(e))
+
+    # Trigger a UI redraw so the panel reflects the probe result.
+    def _redraw():
+        try:
+            for window in bpy.context.window_manager.windows:
+                for area in window.screen.areas:
+                    if area.type == 'VIEW_3D':
+                        area.tag_redraw()
+        except Exception as _e:
+            print(f"[torch probe] redraw failed: {_e}")
+    bpy.app.timers.register(_redraw, first_interval=0.0, persistent=False)
+
+
+def _get_torch_status() -> "tuple[bool | None, str]":
+    """Return the PyTorch availability status without blocking the UI thread.
+
+    Returns
+    -------
+    ``(True, version_str)``
+        PyTorch is importable.
+    ``(False, reason_str)``
+        Import failed; *reason_str* is a user-readable explanation.
+    ``(None, "Checking PyTorch availability…")``
+        The background probe is still running.  Draw a "checking" message
+        and the panel will refresh automatically when the probe finishes.
+
+    The result is cached so the probe runs at most once per session (or
+    after the user clicks "Re-check PyTorch" which calls reset_torch_cache()).
+    """
+    global _torch_status_cache, _torch_probe_thread
+    if _torch_status_cache is not None:
+        return _torch_status_cache
+    # Start the background probe if one isn't already running.
+    if _torch_probe_thread is None or not _torch_probe_thread.is_alive():
+        _torch_probe_thread = threading.Thread(
+            target=_probe_torch_background, daemon=True
+        )
+        _torch_probe_thread.start()
+    return _TORCH_CHECKING
 
 
 def _draw_torch_error(box, torch_info: str) -> None:
@@ -4189,7 +4231,10 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         wm = context.window_manager
         bridge_status = getattr(wm, 'mossy_bridge_status', "")
         bridge_online = bridge_status.startswith("Mossy Bridge online") if bridge_status else False
-        if torch_ok:
+        if torch_ok is None:
+            # Background probe running — show a non-blocking placeholder.
+            torch_box.label(text="Checking PyTorch availability…", icon='TIME')
+        elif torch_ok:
             torch_box.label(text=f"✓ PyTorch {torch_info} available", icon='CHECKMARK')
         elif bridge_online:
             torch_box.label(text="✓ PyTorch available via Mossy bridge", icon='CHECKMARK')
@@ -4555,6 +4600,9 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         bridge_status  = getattr(wm, 'mossy_bridge_status',  "")
         llm_status     = getattr(wm, 'mossy_llm_status',     "")
 
+        # Addon preferences — the server reads these, so we must display/edit them.
+        prefs = preferences.get_preferences() if preferences else None
+
         # ── TCP server (Blender → Mossy bridge) ───────────────────────────────
         srv_box = layout.box()
         row = srv_box.row()
@@ -4575,9 +4623,14 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         else:
             srv_box.label(text="(Mossy Link loading...)", icon='TIME')
 
-        # Port / token settings from scene props (mirrors preferences).
+        # Port / token / autostart — read directly from addon prefs so that
+        # changes here are actually picked up by mossy_link._get_ports().
         col = srv_box.column(align=True)
-        if hasattr(scene, 'fo4_mossy_port'):
+        if prefs is not None:
+            col.prop(prefs, "port",      text="Listen Port")
+            col.prop(prefs, "token",     text="Auth Token")
+            col.prop(prefs, "autostart", text="Auto-start on load")
+        elif hasattr(scene, 'fo4_mossy_port'):
             col.prop(scene, "fo4_mossy_port",      text="Listen Port")
             col.prop(scene, "fo4_mossy_token",     text="Auth Token")
             col.prop(scene, "fo4_mossy_autostart", text="Auto-start on load")
@@ -4606,7 +4659,13 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         else:
             llm_box.label(text="Not checked yet", icon='QUESTION')
 
-        if hasattr(scene, 'fo4_mossy_http_port'):
+        # LLM port and AI advisor toggle — same prefs-first pattern.
+        if prefs is not None:
+            llm_box.prop(prefs, "mossy_http_port", text="Nemotron Port")
+            llm_box.prop(prefs, "use_mossy_as_ai", text="Use as AI Advisor")
+            if prefs.use_mossy_as_ai:
+                llm_box.label(text="✓ Advisor will ask Mossy instead of remote LLM", icon='CHECKMARK')
+        elif hasattr(scene, 'fo4_mossy_http_port'):
             llm_box.prop(scene, "fo4_mossy_http_port", text="Nemotron Port")
             llm_box.prop(scene, "fo4_use_mossy_ai",   text="Use as AI Advisor")
             if getattr(scene, 'fo4_use_mossy_ai', False):
@@ -4626,7 +4685,10 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         # bridge_status was already fetched from wm at the top of this draw() method.
         bridge_online = bridge_status.startswith("Mossy Bridge online") if bridge_status else False
 
-        if torch_ok:
+        if torch_ok is None:
+            # Background probe is still running — don't block the UI.
+            torch_box.label(text="Checking PyTorch availability…", icon='TIME')
+        elif torch_ok:
             torch_box.label(text=f"✓ PyTorch {torch_info} available locally", icon='CHECKMARK')
             torch_box.label(text="✓ AI features active (local + Mossy)", icon='CHECKMARK')
         elif bridge_online:
