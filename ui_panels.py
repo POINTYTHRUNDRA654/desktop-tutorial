@@ -1678,9 +1678,8 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
+    bl_parent_id = "FO4_PT_setup_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    bl_order = -10  # Second: install external tools before starting work
 
     def draw(self, context):
         layout = self.layout
