@@ -998,7 +998,7 @@ def install_hymotion() -> tuple[bool, str]:
     tuple[bool, str]
         ``(True, message)`` on success, ``(False, reason)`` otherwise.
     """
-    dest = _ensure_tools_dir("HY-Motion")
+    dest = _ensure_tools_dir("HY-Motion-1.0")
 
     if (dest / "README.md").exists():
         return True, f"HY-Motion already present at {dest}"
@@ -1006,16 +1006,15 @@ def install_hymotion() -> tuple[bool, str]:
     git_exe = shutil.which("git")
     if not git_exe:
         return False, (
-            "git not found on PATH — cannot clone HY-Motion.\n"
+            "git not found on PATH — cannot clone HY-Motion-1.0.\n"
             "Install Git from https://git-scm.com/ then try again.\n"
             "Or clone manually:\n"
-            "  git clone https://github.com/Tencent/HunyuanVideo-Avatar.git"
+            "  git clone https://github.com/Tencent-Hunyuan/HY-Motion-1.0.git"
         )
 
-    # Try the most likely repo name; fall back to a broader search
+    # Official HY-Motion-1.0 repository on Tencent-Hunyuan GitHub org.
     candidates = [
-        "https://github.com/Tencent/HunyuanVideo-Avatar.git",
-        "https://github.com/Tencent/HY-Motion.git",
+        "https://github.com/Tencent-Hunyuan/HY-Motion-1.0.git",
     ]
     last_err = "unknown error"
     for url in candidates:
@@ -1039,7 +1038,7 @@ def install_hymotion() -> tuple[bool, str]:
     else:
         return False, (
             f"HY-Motion clone failed from all candidates: {last_err}\n"
-            "Please clone manually from https://github.com/Tencent"
+            "Please clone manually from https://github.com/Tencent-Hunyuan/HY-Motion-1.0"
         )
 
     if not (dest / "README.md").exists():

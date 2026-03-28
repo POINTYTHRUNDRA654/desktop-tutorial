@@ -167,8 +167,16 @@ def check_hymotion_availability():
     if not lfs_available:
         return False, f"git-lfs required but not available: {lfs_message}"
     
-    # Check if HY-Motion-1.0 repository is cloned
-    possible_paths = [
+    # Check if HY-Motion-1.0 repository is cloned.
+    # Check the tools root first (highest priority — matches install_hymotion()
+    # which clones to <tools_root>/HY-Motion-1.0 via tool_installers).
+    possible_paths = []
+    try:
+        import tool_installers as _tli
+        possible_paths.append(str(_tli.get_tools_root() / "HY-Motion-1.0"))
+    except Exception:
+        pass  # fall through to home-dir candidates below
+    possible_paths += [
         os.path.expanduser("~/HY-Motion-1.0"),
         os.path.expanduser("~/Projects/HY-Motion-1.0"),
         "/opt/HY-Motion-1.0",

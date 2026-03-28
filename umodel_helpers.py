@@ -154,14 +154,15 @@ def _find_download_url() -> str | None:
     except Exception as exc:
         print(f"UModel: could not scrape download page: {exc}")
 
-    # Fallback: try common UModel release URLs.
-    # Note: the GitHub gildor2/UModel repo does not publish automated
-    # releases, so the GitHub URL is a best-effort attempt.  The correct
-    # GitHub format for latest-release assets is /releases/latest/download/.
+    # Fallback: try the known direct download URL on gildor.org first, then
+    # GitHub best-effort URLs.  The gildor.org zip contains both 32-bit and
+    # 64-bit binaries.  UModel binaries are NOT published on GitHub releases
+    # (the project uses gildor2/UEViewer on GitHub, which has no binary
+    # releases), so the GitHub URLs are kept only as a last-resort attempt.
     fallback_urls = [
-        "https://github.com/gildor2/UModel/releases/latest/download/UModel_Win64.zip",
-        "https://github.com/gildor2/UModel/releases/latest/download/UModel_win64.zip",
-        "https://github.com/gildor2/UModel/releases/latest/download/UModel.zip",
+        "https://www.gildor.org/downloads/umodel/umodel_win32.zip",
+        "https://github.com/gildor2/UEViewer/releases/latest/download/UModel_Win64.zip",
+        "https://github.com/gildor2/UEViewer/releases/latest/download/UModel.zip",
     ]
     for fallback_url in fallback_urls:
         try:

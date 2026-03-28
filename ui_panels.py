@@ -181,6 +181,11 @@ def reset_torch_cache():
     _torch_status_cache = None
 
 
+# Sentinel first line shared by _dll_init_error_message() and _draw_torch_error().
+# Defined before the message function so both use the same constant.
+_DLL_ERROR_SENTINEL = "PyTorch DLL initialisation failed (WinError 1114)."
+
+
 def _dll_init_error_message() -> str:
     """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
 
@@ -191,9 +196,9 @@ def _dll_init_error_message() -> str:
     on those optional modules.
     """
     return (
-        "PyTorch DLL initialisation failed (WinError 1114).\n"
+        _DLL_ERROR_SENTINEL + "\n"
         "This usually means a CUDA/driver version mismatch.\n"
-        "A file such as D:\\blender_torch\\torch\\lib\\c10.dll could not be loaded.\n\n"
+        "A torch DLL (e.g. torch\\lib\\c10.dll) could not be loaded.\n\n"
         "Suggested fixes:\n"
         "1. Reinstall PyTorch matching your CUDA toolkit version:\n"
         "   https://pytorch.org/get-started/locally/\n"
@@ -202,10 +207,6 @@ def _dll_init_error_message() -> str:
         "3. Update your GPU driver to one compatible with your CUDA version.\n"
         "4. If no GPU is present, install the CPU-only PyTorch build."
     )
-
-
-# Sentinel used to distinguish a DLL-init failure from "torch not installed".
-_DLL_ERROR_SENTINEL = "PyTorch DLL initialisation failed (WinError 1114)."
 
 
 def _get_torch_status():
@@ -4520,8 +4521,7 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
             torch_box.label(text="  Heavy AI inference runs inside Mossy desktop app", icon='DOT')
             torch_box.label(text="  No local PyTorch install required", icon='DOT')
         else:
-            torch_box.label(text="PyTorch not detected locally", icon='INFO')
-            torch_box.label(text="Connect Mossy bridge above to enable AI features", icon='ERROR')
+            _draw_torch_error(torch_box, torch_info)
 
         row = torch_box.row(align=True)
         row.operator("torch.recheck_status", text="Re-check PyTorch", icon='FILE_REFRESH')
