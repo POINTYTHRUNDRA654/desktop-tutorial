@@ -1671,16 +1671,17 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
         tools.operator("fo4.check_kb_tools", text="Check KB Tools", icon='INFO')
 
 
+
+
 class FO4_PT_ToolsLinks(_FO4SubPanel):
-    """Quick links to external tools"""
+    """Quick links and installers for external tools — nested inside Setup & Status."""
     bl_label = "External Tools"
     bl_idname = "FO4_PT_tools_links"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
+    bl_parent_id = "FO4_PT_setup_panel"
     bl_options = {'DEFAULT_CLOSED'}
-    bl_order = -10  # Second: install external tools before starting work
 
     def draw(self, context):
         layout = self.layout
@@ -1871,7 +1872,6 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
             nif_note.label(text="→ enable 'NetImmerse/Gamebryo (.nif)'")
             if bpy.app.version >= (5, 0, 0):
                 nif_note.label(text="Blender 5.x API patches applied automatically.", icon='CHECKMARK')
-        # Python requirements
         # Python requirements — always drawn (Blender 5.x hasattr unreliable)
         op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
         if op is not None:
@@ -1896,12 +1896,12 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
 
         # Manual path override — use existing installations when auto-install fails
         scene = context.scene
+        prefs = preferences.get_preferences() if preferences else None
         man_box = layout.box()
         man_box.label(text="Manual Path Override", icon='FILE_FOLDER')
         man_box.label(text="Already have a tool? Point to it here.", icon='INFO')
-        _prefs = preferences.get_preferences() if preferences else None
-        if _prefs is not None:
-            man_box.prop(_prefs, "ffmpeg_path", text="FFmpeg")
+        if prefs is not None:
+            man_box.prop(prefs, "ffmpeg_path", text="FFmpeg")
         else:
             man_box.prop(scene, "fo4_ffmpeg_path", text="FFmpeg")
         ffmpeg_ok = preferences.get_configured_ffmpeg_path() if preferences else None
@@ -1909,8 +1909,8 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
             text=f"FFmpeg: {'OK ✔' if ffmpeg_ok else 'not found'}",
             icon='CHECKMARK' if ffmpeg_ok else 'ERROR',
         )
-        if _prefs is not None:
-            man_box.prop(_prefs, "nvtt_path", text="nvcompress")
+        if prefs is not None:
+            man_box.prop(prefs, "nvtt_path", text="nvcompress")
         else:
             man_box.prop(scene, "fo4_nvtt_path", text="nvcompress")
         nvcompress_ok = preferences.get_configured_nvcompress_path() if preferences else None
@@ -1918,8 +1918,8 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
             text=f"nvcompress: {'OK ✔' if nvcompress_ok else 'not found'}",
             icon='CHECKMARK' if nvcompress_ok else 'ERROR',
         )
-        if _prefs is not None:
-            man_box.prop(_prefs, "texconv_path", text="texconv")
+        if prefs is not None:
+            man_box.prop(prefs, "texconv_path", text="texconv")
         else:
             man_box.prop(scene, "fo4_texconv_path", text="texconv")
         texconv_ok = preferences.get_configured_texconv_path() if preferences else None
