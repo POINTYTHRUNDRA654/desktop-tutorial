@@ -246,24 +246,6 @@ def get_unreal_assets_path() -> str | None:
     return None
 
 
-def get_torch_custom_path() -> str | None:
-    """Return the persisted custom PyTorch installation directory, if set."""
-    prefs = get_preferences()
-    if not prefs:
-        return None
-    path = bpy.path.abspath(prefs.torch_custom_path).strip()
-    return path if path else None
-
-
-def set_torch_custom_path(path: str) -> None:
-    """Persist a custom PyTorch installation path in the add-on preferences."""
-    prefs = get_preferences()
-    if prefs is not None:
-        prefs.torch_custom_path = path
-        prefs.torch_install_attempted = True
-        save_prefs_deferred()
-
-
 def get_umodel_path() -> str | None:
     """Return the persisted UModel installation directory, if set."""
     prefs = get_preferences()
@@ -458,41 +440,15 @@ def restore_extra_python_paths() -> list[str]:
 
     added: list[str] = []
 
-    # Restore the dedicated torch_custom_path preference using TorchPathManager
-    # so that both sys.path and the Windows DLL search path are updated together.
+    # Restore the user-configured external PyTorch path.
+    # PyTorch is no longer auto-installed inside Blender; this simply adds the
+    # user-set torch_custom_path to sys.path so a locally-managed install stays
+    # importable across Blender restarts.
     torch_path = bpy.path.abspath(prefs.torch_custom_path).strip()
-    # Check that torch is *actually* installed in the directory, not just that
-    # the directory exists.  A previous failed or partial install can leave the
-    # parent folder on disk (e.g. D:/t) while torch/__init__.py is absent.
-    # In that case we must reset torch_install_attempted so the next startup can
-    # trigger a fresh auto-install rather than staying blocked forever.
-    torch_init_present = (
-        bool(torch_path)
-        and os.path.isfile(os.path.join(torch_path, "torch", "__init__.py"))
-    )
-    if torch_init_present:
-        try:
-            from . import torch_path_manager as _tpm
-            _tpm.TorchPathManager.add_torch_to_path(torch_path)
-        except Exception:
-            # Fallback: at minimum keep sys.path updated
-            import sys as _sys
-            if torch_path not in _sys.path:
-                _sys.path.insert(0, torch_path)
+    if torch_path and os.path.isdir(torch_path) and torch_path not in _sys.path:
+        _sys.path.insert(0, torch_path)
         added.append(torch_path)
-        print(f"✓ Restored PyTorch path to sys.path: {torch_path}")
-    elif prefs.torch_install_attempted:
-        # Saved path is gone, never set, or the directory exists but does not
-        # contain a real torch installation — clear the flag so the next call
-        # to try_import_torch() can trigger a fresh auto-install.
-        prefs.torch_install_attempted = False
-        if torch_path and os.path.isdir(torch_path):
-            print(
-                f"⚠ PyTorch directory '{torch_path}' exists but torch/ is missing "
-                "— reset install flag for retry"
-            )
-        else:
-            print("⚠ PyTorch custom path missing — reset install flag for retry")
+        print(f"✓ Restored PyTorch custom path to sys.path: {torch_path}")
 
     # Restore any extra semicolon-separated paths
     extra = prefs.extra_python_paths.strip()
@@ -701,22 +657,19 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
 
     auto_install_pytorch: bpy.props.BoolProperty(
         name="Auto Install PyTorch",
-        default=True,
+        default=False,
         description=(
-            "If enabled, PyTorch will be auto-installed automatically when it is "
-            "missing or when a Windows path-length error is detected. "
-            "On Windows it installs to D:/t; on Linux/macOS to ~/.blender_torch."
+            "Deprecated — PyTorch auto-installation inside Blender has been removed. "
+            "Install PyTorch externally and set 'PyTorch Custom Path' below."
         ),
+        options={'HIDDEN'},
     )
 
     torch_install_attempted: bpy.props.BoolProperty(
         name="PyTorch Install Attempted",
         default=False,
-        description=(
-            "Internal flag: True when PyTorch was successfully installed to the "
-            "saved custom path. Reset automatically on startup if that path is "
-            "missing, so a fresh install attempt is triggered."
-        ),
+        description="Deprecated internal flag — kept to avoid errors in saved preferences.",
+        options={'HIDDEN'},
     )
 
     torch_custom_path: bpy.props.StringProperty(
@@ -724,9 +677,9 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         subtype="DIR_PATH",
         default="",
         description=(
-            "Directory where PyTorch was installed with --target (e.g. D:/t). "
-            "Set automatically when you click 'Install PyTorch to Short Path'. "
-            "Added to sys.path on every Blender startup so torch stays accessible."
+            "Directory of an externally-installed PyTorch (e.g. D:/t or "
+            "~/.local/lib/python3.12/site-packages). "
+            "Added to sys.path on every Blender startup so torch is importable."
         ),
     )
 

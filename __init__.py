@@ -154,8 +154,6 @@ tutorial_operators = _try_import("tutorial_operators")
 # always appear as real clickable buttons, not "(loading...)" fallback labels.
 # See DEVELOPMENT_NOTES.md — *RECURRING BUG #1* — before removing this.
 setup_operators = _try_import("setup_operators")
-if setup_operators:
-    print(f"✓ setup_operators imported: {setup_operators}")
 
 
 # core modules that are safe to import and register unconditionally.
@@ -364,7 +362,6 @@ def _ensure_setup_operators():
     (*RECURRING BUG #1*) for full context.
     Do NOT remove this function or its call at the end of ``register()``.
     """
-    print(f"[DEBUG] _ensure_setup_operators called; setup_operators={setup_operators}")
     if setup_operators is None:
         print("  ⚠ setup_operators is None; cannot register")
         return
@@ -375,7 +372,6 @@ def _ensure_setup_operators():
         "FO4_OT_ReloadAddon",
     )
     missing = [n for n in required_operators if not hasattr(bpy.types, n)]
-    print(f"  Missing operators before re-register: {missing}")
     if not missing:
         print("✓ Setup operators confirmed in bpy.types (Setup panel buttons ready)")
         return
@@ -496,40 +492,6 @@ def register():
     # responsive.  A 2-second deferred timer lets the UI finish initializing
     # first, then the background work runs once without freezing the interface.
     def _deferred_startup():
-        # ── Step 3: detect PyTorch and trigger background auto-install ────────
-        # try_import_torch() covers all detection paths in priority order:
-        #   1. torch_custom_path saved in preferences
-        #   2. Well-known short paths (D:/t, C:/t, …, ~/.blender_torch)
-        #   3. A plain `import torch` (catches pip system-wide installs)
-        # If torch is still absent and auto_install_pytorch is enabled, a
-        # non-blocking background thread is queued to run pip install.
-        # Running this here (2 s after startup) ensures detection and
-        # auto-install happen at launch, not during the first Settings-panel
-        # draw — which would freeze Blender's UI.
-        try:
-            if torch_path_manager:
-                ok, msg, _ = torch_path_manager.TorchPathManager.try_import_torch()
-                if ok:
-                    print(f"✓ PyTorch available: {msg}")
-                elif msg == "auto_install_started":
-                    print("PyTorch: background install thread started — check back shortly.")
-                elif msg == "auto_install_in_progress":
-                    print("PyTorch: background install already in progress.")
-                elif msg == "dll_init_error":
-                    print(
-                        "PyTorch: DLL init error — native libraries could not load. "
-                        "Ensure Microsoft Visual C++ Redistributable (x64) is installed."
-                    )
-                elif msg == "windows_path_error":
-                    print(
-                        "PyTorch: Windows path-length error detected. "
-                        "Use the Settings panel to install to a short path (D:/t)."
-                    )
-                else:
-                    print(f"PyTorch not available: {msg}")
-        except Exception as e:
-            print(f"PyTorch detection skipped: {e}")
-
         # ── Step 4: auto-discover installed CLI tools and wire up preferences ─
         # If ffmpeg / nvcompress / texconv are present in the tools folder but
         # the preference paths are blank, fill them in automatically.
