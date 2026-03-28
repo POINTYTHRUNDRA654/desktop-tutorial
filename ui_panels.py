@@ -181,12 +181,44 @@ def reset_torch_cache():
     _torch_status_cache = None
 
 
+def _dll_init_error_message() -> str:
+    """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
+
+    This error means a CUDA-version mismatch between the installed PyTorch
+    and the system GPU driver, or a missing Visual C++ Redistributable.
+    Identical to the helper defined in hunyuan3d_helpers / hymotion_helpers /
+    zoedepth_helpers — duplicated here so ui_panels has no import dependency
+    on those optional modules.
+    """
+    return (
+        "PyTorch DLL initialisation failed (WinError 1114).\n"
+        "This usually means a CUDA/driver version mismatch.\n"
+        "A file such as D:\\blender_torch\\torch\\lib\\c10.dll could not be loaded.\n\n"
+        "Suggested fixes:\n"
+        "1. Reinstall PyTorch matching your CUDA toolkit version:\n"
+        "   https://pytorch.org/get-started/locally/\n"
+        "2. Install the latest Visual C++ Redistributable from Microsoft:\n"
+        "   https://aka.ms/vs/17/release/vc_redist.x64.exe\n"
+        "3. Update your GPU driver to one compatible with your CUDA version.\n"
+        "4. If no GPU is present, install the CPU-only PyTorch build."
+    )
+
+
+# Sentinel used to distinguish a DLL-init failure from "torch not installed".
+_DLL_ERROR_SENTINEL = "PyTorch DLL initialisation failed (WinError 1114)."
+
+
 def _get_torch_status():
     """Check whether torch is importable from Blender's current sys.path.
 
     Returns ``(True, version_str)`` on success, ``(False, reason_str)`` on
     failure.  PyTorch is expected to be installed externally and pointed at
     via Settings > PyTorch Custom Path; no background install is attempted.
+
+    WinError 1114 (DLL initialisation failure) is detected explicitly and
+    returns the full user-friendly fix instructions via
+    ``_dll_init_error_message()`` so the Settings panel can display
+    actionable guidance instead of a raw OS error string.
 
     The result is cached at module level so that the ``import torch`` probe
     is only run once per session (or after the user clicks "Re-check").
@@ -197,9 +229,40 @@ def _get_torch_status():
         try:
             import torch
             _torch_status_cache = (True, torch.__version__)
-        except (ImportError, OSError) as e:
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                _torch_status_cache = (False, _dll_init_error_message())
+            else:
+                _torch_status_cache = (False, str(e))
+        except ImportError as e:
             _torch_status_cache = (False, str(e))
     return _torch_status_cache
+
+
+def _draw_torch_error(box, torch_info: str) -> None:
+    """Draw torch-unavailable feedback inside a UI box.
+
+    Distinguishes a DLL-initialisation failure (WinError 1114 — CUDA/driver
+    mismatch) from a plain "module not found" situation and shows the
+    appropriate actionable guidance in each case.
+
+    Args:
+        box:        A Blender ``UILayout`` (typically a ``layout.box()``).
+        torch_info: The reason string returned by ``_get_torch_status()``.
+    """
+    if torch_info.startswith(_DLL_ERROR_SENTINEL):
+        box.label(text="PyTorch DLL failed to load — CUDA/driver mismatch", icon='ERROR')
+        box.label(text="Fix 1: Reinstall PyTorch matching your CUDA version", icon='DOT')
+        box.label(text="       https://pytorch.org/get-started/locally/", icon='BLANK1')
+        box.label(text="Fix 2: Install Visual C++ Redistributable", icon='DOT')
+        box.label(text="       https://aka.ms/vs/17/release/vc_redist.x64.exe", icon='BLANK1')
+        box.label(text="Fix 3: Update GPU driver to match your CUDA version", icon='DOT')
+        box.label(text="Fix 4: Use CPU-only PyTorch build if no GPU present", icon='DOT')
+    else:
+        box.label(text="PyTorch not detected in Blender's Python.", icon='INFO')
+        box.label(text="Connect Mossy bridge (Mossy tab) to enable AI features.", icon='INFO')
+        box.label(text="To use PyTorch locally: install externally, then set", icon='INFO')
+        box.label(text="  the path in 'PyTorch Custom Path' below.", icon='INFO')
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -4042,10 +4105,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             torch_box.label(text="✓ PyTorch available via Mossy bridge", icon='CHECKMARK')
             torch_box.label(text="  AI inference runs inside Mossy — no local install needed", icon='DOT')
         else:
-            torch_box.label(text="PyTorch not detected in Blender's Python.", icon='INFO')
-            torch_box.label(text="Connect Mossy bridge (Mossy tab) to enable AI features.", icon='INFO')
-            torch_box.label(text="To use PyTorch locally: install externally, then set", icon='INFO')
-            torch_box.label(text="  the path in 'PyTorch Custom Path' below.", icon='INFO')
+            _draw_torch_error(torch_box, torch_info)
             row = torch_box.row(align=True)
             if hasattr(bpy.types, 'TORCH_OT_install_custom_path'):
                 row.operator("torch.install_custom_path", text="Setup Instructions", icon='INFO')
