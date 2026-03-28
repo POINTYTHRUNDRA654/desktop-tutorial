@@ -780,9 +780,10 @@ class SmartPresets:
     invoke these methods remain in operators.py.
     """
 
-    # Shown to the user whenever FO4 assets are not found as loose files.
+    # Shown in an ERROR report when FO4 game files are not found.
+    # No generic or placeholder mesh is created — the operator cancels.
     FALLBACK_MSG = (
-        "FO4 game meshes not found. Set your FO4 Data folder in any Fallout 4 panel "
+        "Set your FO4 Data folder in any Fallout 4 panel, "
         "then click this button again to import the real game mesh."
     )
 
@@ -792,8 +793,9 @@ class SmartPresets:
     )
 
     # Maps a preset-type key → (folder_relative_to_FO4_Data, [candidate_filenames])
-    # The first candidate file that exists as a loose NIF is imported.  If none
-    # are found the operator falls back to procedural placeholder geometry.
+    # The first candidate file that exists as a loose NIF is imported.
+    # If no matching NIF is found the operator cancels with an error — no
+    # generic geometry is created.
     NIF_CATALOG: dict = {
         # ── Weapons ────────────────────────────────────────────────────────────
         '10MM':           ('meshes/weapons/10mmpistol/',     ['10mmpistol_receiver.nif']),

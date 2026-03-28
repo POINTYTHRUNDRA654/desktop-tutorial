@@ -9022,7 +9022,7 @@ class FO4_OT_ImportUnityAsset(Operator):
         if textures:
             from . import unity_game_assets
             root = unity_game_assets.UnityAssets.detect_unity_assets()
-            _apply_textures_to_active(textures, str(root) if root else None)
+            mesh_helpers.SmartPresets.apply_textures_to_active(textures, str(root) if root else None)
 
         return {'FINISHED'}
 
@@ -9167,7 +9167,7 @@ class FO4_OT_ImportUnrealAsset(Operator):
         if textures:
             from . import unreal_game_assets
             root = unreal_game_assets.UnrealAssets.detect_unreal_assets()
-            _apply_textures_to_active(textures, str(root) if root else None)
+            mesh_helpers.SmartPresets.apply_textures_to_active(textures, str(root) if root else None)
 
         return {'FINISHED'}
 
@@ -9597,20 +9597,20 @@ class FO4_OT_CreateVegetationPreset(Operator):
 
     def execute(self, context):
         try:
-            nif_path = _resolve_game_nif(self.vegetation_type)
+            nif_path = mesh_helpers.SmartPresets.resolve_game_nif(self.vegetation_type)
             if nif_path:
-                ok, msg = _import_game_nif(nif_path)
+                ok, msg = mesh_helpers.SmartPresets.import_game_nif(nif_path)
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Veg_{self.vegetation_type}"
-                    _auto_apply_textures_from_game_asset(nif_path)
+                    mesh_helpers.SmartPresets.auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — preset cancelled (no game mesh)")
+                self.report({'ERROR'}, f"{msg} — game mesh import failed")
                 return {'CANCELLED'}
 
-            self.report({'ERROR'}, f"No game mesh found for {self.vegetation_type}. {_FALLBACK_MSG}")
+            self.report({'ERROR'}, f"No game mesh found for {self.vegetation_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
             return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create vegetation: {e}")
@@ -10430,24 +10430,20 @@ class FO4_OT_CreateNPC(Operator):
 
     def execute(self, context):
         try:
-            nif_path = _resolve_game_nif(self.npc_type)
+            nif_path = mesh_helpers.SmartPresets.resolve_game_nif(self.npc_type)
             if nif_path:
-                ok, msg = _import_game_nif(nif_path)
+                ok, msg = mesh_helpers.SmartPresets.import_game_nif(nif_path)
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_NPC_{self.npc_type}"
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                return {'CANCELLED'}
 
-            obj = npc_helpers.NPCHelpers.create_npc_base_mesh(self.npc_type)
-            self.report({'INFO'}, f"Created placeholder {self.npc_type} NPC base")
-            notification_system.FO4_NotificationSystem.notify(
-                f"NPC created: {self.npc_type}", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.npc_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create NPC: {e}")
             return {'CANCELLED'}
@@ -10477,24 +10473,20 @@ class FO4_OT_CreateCreature(Operator):
 
     def execute(self, context):
         try:
-            nif_path = _resolve_game_nif(self.creature_type)
+            nif_path = mesh_helpers.SmartPresets.resolve_game_nif(self.creature_type)
             if nif_path:
-                ok, msg = _import_game_nif(nif_path)
+                ok, msg = mesh_helpers.SmartPresets.import_game_nif(nif_path)
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Creature_{self.creature_type}"
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                return {'CANCELLED'}
 
-            obj = npc_helpers.CreatureHelpers.create_creature_base(self.creature_type)
-            self.report({'INFO'}, f"Created placeholder {self.creature_type} creature base")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Creature created: {self.creature_type}", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.creature_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create creature: {e}")
             return {'CANCELLED'}
@@ -10524,24 +10516,20 @@ class FO4_OT_CreateInteriorCell(Operator):
 
     def execute(self, context):
         try:
-            nif_path = _resolve_game_nif(self.cell_type)
+            nif_path = mesh_helpers.SmartPresets.resolve_game_nif(self.cell_type)
             if nif_path:
-                ok, msg = _import_game_nif(nif_path)
+                ok, msg = mesh_helpers.SmartPresets.import_game_nif(nif_path)
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Arch_{self.cell_type}"
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                return {'CANCELLED'}
 
-            obj = world_building_helpers.WorldBuildingHelpers.create_interior_cell_template(self.cell_type)
-            self.report({'INFO'}, f"Created placeholder {self.cell_type} cell")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Interior cell created: {self.cell_type}", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.cell_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create cell: {e}")
             return {'CANCELLED'}
@@ -10611,24 +10599,20 @@ class FO4_OT_CreateWorkshopObject(Operator):
 
     def execute(self, context):
         try:
-            nif_path = _resolve_game_nif(self.object_type)
+            nif_path = mesh_helpers.SmartPresets.resolve_game_nif(self.object_type)
             if nif_path:
-                ok, msg = _import_game_nif(nif_path)
+                ok, msg = mesh_helpers.SmartPresets.import_game_nif(nif_path)
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Workshop_{self.object_type}"
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                return {'CANCELLED'}
 
-            obj = world_building_helpers.WorkshopHelpers.create_workshop_object(self.object_type)
-            self.report({'INFO'}, f"Created placeholder workshop {self.object_type}")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Workshop object created: {self.object_type}", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.object_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create object: {e}")
             return {'CANCELLED'}
@@ -10692,24 +10676,20 @@ class FO4_OT_CreateWeaponItem(Operator):
 
     def execute(self, context):
         try:
-            nif_path = _resolve_game_nif(self.weapon_category)
+            nif_path = mesh_helpers.SmartPresets.resolve_game_nif(self.weapon_category)
             if nif_path:
-                ok, msg = _import_game_nif(nif_path)
+                ok, msg = mesh_helpers.SmartPresets.import_game_nif(nif_path)
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_WeaponItem_{self.weapon_category}"
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                return {'CANCELLED'}
 
-            obj = item_helpers.ItemHelpers.create_weapon_base(self.weapon_category)
-            self.report({'INFO'}, f"Created placeholder {self.weapon_category} weapon item")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Weapon item: {self.weapon_category}", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.weapon_category}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create weapon: {e}")
             return {'CANCELLED'}
@@ -10738,24 +10718,20 @@ class FO4_OT_CreateArmorItem(Operator):
 
     def execute(self, context):
         try:
-            nif_path = _resolve_game_nif(self.armor_slot)
+            nif_path = mesh_helpers.SmartPresets.resolve_game_nif(self.armor_slot)
             if nif_path:
-                ok, msg = _import_game_nif(nif_path)
+                ok, msg = mesh_helpers.SmartPresets.import_game_nif(nif_path)
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_ArmorItem_{self.armor_slot}"
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                return {'CANCELLED'}
 
-            obj = item_helpers.ItemHelpers.create_armor_piece(self.armor_slot)
-            self.report({'INFO'}, f"Created placeholder {self.armor_slot} armor item")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Armor item: {self.armor_slot}", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.armor_slot}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create armor: {e}")
             return {'CANCELLED'}
@@ -10785,24 +10761,20 @@ class FO4_OT_CreatePowerArmorPiece(Operator):
 
     def execute(self, context):
         try:
-            nif_path = _resolve_game_nif(self.piece)
+            nif_path = mesh_helpers.SmartPresets.resolve_game_nif(self.piece)
             if nif_path:
-                ok, msg = _import_game_nif(nif_path)
+                ok, msg = mesh_helpers.SmartPresets.import_game_nif(nif_path)
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_PA_{self.piece}"
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                return {'CANCELLED'}
 
-            obj = item_helpers.ItemHelpers.create_power_armor_piece(self.piece)
-            self.report({'INFO'}, f"Created placeholder power armor {self.piece}")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Power armor piece: {self.piece}", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.piece}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create power armor: {e}")
             return {'CANCELLED'}
@@ -10830,24 +10802,20 @@ class FO4_OT_CreateConsumable(Operator):
 
     def execute(self, context):
         try:
-            nif_path = _resolve_game_nif(self.item_type)
+            nif_path = mesh_helpers.SmartPresets.resolve_game_nif(self.item_type)
             if nif_path:
-                ok, msg = _import_game_nif(nif_path)
+                ok, msg = mesh_helpers.SmartPresets.import_game_nif(nif_path)
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Consumable_{self.item_type}"
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                return {'CANCELLED'}
 
-            obj = item_helpers.ItemHelpers.create_consumable(self.item_type)
-            self.report({'INFO'}, f"Created placeholder {self.item_type} consumable")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Consumable: {self.item_type}", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.item_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create consumable: {e}")
             return {'CANCELLED'}
@@ -10876,24 +10844,20 @@ class FO4_OT_CreateMiscItem(Operator):
 
     def execute(self, context):
         try:
-            nif_path = _resolve_game_nif(self.item_type)
+            nif_path = mesh_helpers.SmartPresets.resolve_game_nif(self.item_type)
             if nif_path:
-                ok, msg = _import_game_nif(nif_path)
+                ok, msg = mesh_helpers.SmartPresets.import_game_nif(nif_path)
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_MiscItem_{self.item_type}"
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                return {'CANCELLED'}
 
-            obj = item_helpers.ItemHelpers.create_misc_item(self.item_type)
-            self.report({'INFO'}, f"Created placeholder {self.item_type} misc item")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Misc item: {self.item_type}", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.item_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create misc item: {e}")
             return {'CANCELLED'}
@@ -10921,24 +10885,20 @@ class FO4_OT_CreateClutterObject(Operator):
 
     def execute(self, context):
         try:
-            nif_path = _resolve_game_nif(self.clutter_type)
+            nif_path = mesh_helpers.SmartPresets.resolve_game_nif(self.clutter_type)
             if nif_path:
-                ok, msg = _import_game_nif(nif_path)
+                ok, msg = mesh_helpers.SmartPresets.import_game_nif(nif_path)
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_Clutter_{self.clutter_type}"
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'WARNING'}, f"{msg} — using placeholder mesh")
-            else:
-                self.report({'INFO'}, _FALLBACK_MSG)
+                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                return {'CANCELLED'}
 
-            obj = item_helpers.ClutterHelpers.create_clutter_object(self.clutter_type)
-            self.report({'INFO'}, f"Created placeholder {self.clutter_type} clutter object")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Clutter: {self.clutter_type}", 'INFO')
-            return {'FINISHED'}
+            self.report({'ERROR'}, f"No game mesh found for {self.clutter_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create clutter: {e}")
             return {'CANCELLED'}
