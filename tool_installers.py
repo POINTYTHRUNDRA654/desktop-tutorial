@@ -49,15 +49,26 @@ TOOLS_DIR_DISPLAY = str(DEFAULT_TOOLS_ROOT)
 ADDON_ROOT = Path(__file__).resolve().parent
 FALLBACK_TOOLS_ROOT = ADDON_ROOT / "tools"
 
+# The parent of the addon folder.  When the addon lives at e.g.
+#   D:\Blender addon\blender_game_tools\
+# the user's tools are typically kept at the sibling path
+#   D:\Blender addon\tools\
+# rather than inside the addon subfolder.
+SIBLING_TOOLS_ROOT = ADDON_ROOT.parent / "tools"
+
 
 def get_tools_root() -> Path:
     """Return the root directory where external tools are stored.
 
     Priority (highest to lowest):
       1. ``tools_root`` add-on preference — user explicitly chose this path.
-      2. Addon ``tools/`` subfolder if it already exists and contains files.
-      3. ``DEFAULT_TOOLS_ROOT`` (``D:\\blender_tools``) if it already exists.
-      4. Create and return ``FALLBACK_TOOLS_ROOT`` (addon ``tools/`` subfolder).
+      2. Sibling ``tools/`` folder next to the addon folder — e.g.
+         ``D:\\Blender addon\\tools\\`` when the addon is installed at
+         ``D:\\Blender addon\\blender_game_tools\\``.  This is the most
+         common layout for local development installs.
+      3. Addon ``tools/`` subfolder inside the addon folder, if populated.
+      4. ``DEFAULT_TOOLS_ROOT`` (``D:\\blender_tools``) if it already exists.
+      5. Create and return ``FALLBACK_TOOLS_ROOT`` (addon ``tools/`` subfolder).
     """
     # 1. User-configured preference (highest priority)
     try:
@@ -78,18 +89,27 @@ def get_tools_root() -> Path:
     except Exception:
         pass
 
-    # 2. Addon tools/ subfolder already populated — tools are here
+    # 2. Sibling tools/ folder next to the addon — the typical local dev layout
+    #    e.g.  D:\Blender addon\tools\  when addon is at
+    #          D:\Blender addon\blender_game_tools\
+    try:
+        if SIBLING_TOOLS_ROOT.exists() and any(SIBLING_TOOLS_ROOT.iterdir()):
+            return SIBLING_TOOLS_ROOT
+    except OSError:
+        pass
+
+    # 3. Addon tools/ subfolder already populated — tools are here
     try:
         if FALLBACK_TOOLS_ROOT.exists() and any(FALLBACK_TOOLS_ROOT.iterdir()):
             return FALLBACK_TOOLS_ROOT
     except OSError:
         pass
 
-    # 3. DEFAULT_TOOLS_ROOT only if it genuinely exists (don't create it blindly)
+    # 4. DEFAULT_TOOLS_ROOT only if it genuinely exists (don't create it blindly)
     if DEFAULT_TOOLS_ROOT.exists():
         return DEFAULT_TOOLS_ROOT
 
-    # 4. Create and return the addon-local fallback
+    # 5. Create and return the addon-local fallback
     FALLBACK_TOOLS_ROOT.mkdir(parents=True, exist_ok=True)
     return FALLBACK_TOOLS_ROOT
 
@@ -619,7 +639,7 @@ def discover_installed_tools() -> dict[str, "str | None"]:
         "cm_toolkit": None,
     }
 
-    search_roots = [get_tools_root(), DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
+    search_roots = [get_tools_root(), SIBLING_TOOLS_ROOT, DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
     # deduplicate while preserving priority order
     _seen_roots: set[str] = set()
     _deduped_roots: list[Path] = []
