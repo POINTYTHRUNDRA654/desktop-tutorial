@@ -49,18 +49,67 @@ TOOLS_DIR_DISPLAY = str(DEFAULT_TOOLS_ROOT)
 ADDON_ROOT = Path(__file__).resolve().parent
 FALLBACK_TOOLS_ROOT = ADDON_ROOT / "tools"
 
+# The parent of the addon folder.  When the addon lives at e.g.
+#   D:\Blender addon\blender_game_tools\
+# the user's tools are typically kept at the sibling path
+#   D:\Blender addon\tools\
+# rather than inside the addon subfolder.
+SIBLING_TOOLS_ROOT = ADDON_ROOT.parent / "tools"
 
-def get_tools_root():
-    """Get the tools directory, creating parent if needed."""
-    # Try D: drive first
+
+def get_tools_root() -> Path:
+    """Return the root directory where external tools are stored.
+
+    Priority (highest to lowest):
+      1. ``tools_root`` add-on preference — user explicitly chose this path.
+      2. Sibling ``tools/`` folder next to the addon folder — e.g.
+         ``D:\\Blender addon\\tools\\`` when the addon is installed at
+         ``D:\\Blender addon\\blender_game_tools\\``.  This is the most
+         common layout for local development installs.
+      3. Addon ``tools/`` subfolder inside the addon folder, if populated.
+      4. ``DEFAULT_TOOLS_ROOT`` (``D:\\blender_tools``) if it already exists.
+      5. Create and return ``FALLBACK_TOOLS_ROOT`` (addon ``tools/`` subfolder).
+    """
+    # 1. User-configured preference (highest priority)
     try:
-        if DEFAULT_TOOLS_ROOT.drive and Path(DEFAULT_TOOLS_ROOT.drive).exists():
-            DEFAULT_TOOLS_ROOT.mkdir(parents=True, exist_ok=True)
-            return DEFAULT_TOOLS_ROOT
+        import bpy as _bpy
+        from . import preferences as _prefs
+        prefs = _prefs.get_preferences()
+        if prefs:
+            pref_val = getattr(prefs, "tools_root", "")
+            if pref_val:
+                try:
+                    p = Path(_bpy.path.abspath(pref_val))
+                except Exception:
+                    import os as _os
+                    p = Path(_os.path.abspath(pref_val))
+                if p and str(p) not in (".", ""):
+                    p.mkdir(parents=True, exist_ok=True)
+                    return p
     except Exception:
         pass
 
-    # Fallback to addon folder
+    # 2. Sibling tools/ folder next to the addon — the typical local dev layout
+    #    e.g.  D:\Blender addon\tools\  when addon is at
+    #          D:\Blender addon\blender_game_tools\
+    try:
+        if SIBLING_TOOLS_ROOT.exists() and any(SIBLING_TOOLS_ROOT.iterdir()):
+            return SIBLING_TOOLS_ROOT
+    except OSError:
+        pass
+
+    # 3. Addon tools/ subfolder already populated — tools are here
+    try:
+        if FALLBACK_TOOLS_ROOT.exists() and any(FALLBACK_TOOLS_ROOT.iterdir()):
+            return FALLBACK_TOOLS_ROOT
+    except OSError:
+        pass
+
+    # 4. DEFAULT_TOOLS_ROOT only if it genuinely exists (don't create it blindly)
+    if DEFAULT_TOOLS_ROOT.exists():
+        return DEFAULT_TOOLS_ROOT
+
+    # 5. Create and return the addon-local fallback
     FALLBACK_TOOLS_ROOT.mkdir(parents=True, exist_ok=True)
     return FALLBACK_TOOLS_ROOT
 
@@ -194,7 +243,7 @@ def _version_constrained_packages() -> list[str]:
 
 
 def _ensure_tools_dir(name: str) -> Path:
-    path = TOOLS_ROOT / name
+    path = get_tools_root() / name
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -475,7 +524,16 @@ def install_pynifly() -> tuple[bool, str]:
         ``(True, message)`` on success, ``(False, reason)`` otherwise.
     """
     # ── 1. Look for an existing local zip ────────────────────────────────────
-    search_dirs = [DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
+    search_dirs = [get_tools_root(), SIBLING_TOOLS_ROOT, DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
+    # deduplicate while preserving priority order
+    _seen_dirs: set[str] = set()
+    _deduped_dirs: list[Path] = []
+    for _d in search_dirs:
+        _key = str(_d)
+        if _key not in _seen_dirs:
+            _seen_dirs.add(_key)
+            _deduped_dirs.append(_d)
+    search_dirs = _deduped_dirs
     zip_path: "Path | None" = None
     for directory in search_dirs:
         if not directory.exists():
@@ -581,7 +639,16 @@ def discover_installed_tools() -> dict[str, "str | None"]:
         "cm_toolkit": None,
     }
 
-    search_roots = [DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
+    search_roots = [get_tools_root(), SIBLING_TOOLS_ROOT, DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
+    # deduplicate while preserving priority order
+    _seen_roots: set[str] = set()
+    _deduped_roots: list[Path] = []
+    for _r in search_roots:
+        _key = str(_r)
+        if _key not in _seen_roots:
+            _seen_roots.add(_key)
+            _deduped_roots.append(_r)
+    search_roots = _deduped_roots
 
     binary_map = {
         "ffmpeg":     ("ffmpeg",     ("ffmpeg.exe",      "ffmpeg")),
@@ -685,8 +752,25 @@ def auto_configure_preferences() -> list[str]:
 
 
 def candidate_tool_paths(name: str) -> list[Path]:
-    """Return candidate install paths for *name* under both tools roots."""
-    return [DEFAULT_TOOLS_ROOT / name, FALLBACK_TOOLS_ROOT / name]
+    """Return candidate install paths for *name* under all tools roots.
+
+    Results are deduplicated and ordered by priority:
+      1. User-configured ``tools_root`` preference
+      2. ``SIBLING_TOOLS_ROOT`` — ``tools/`` folder next to the addon folder
+         (the typical local layout: ``D:\\Blender addon\\tools\\``)
+      3. ``FALLBACK_TOOLS_ROOT`` — ``tools/`` subfolder inside the addon folder
+      4. ``DEFAULT_TOOLS_ROOT`` (``D:\\blender_tools``)
+    """
+    roots = [get_tools_root(), SIBLING_TOOLS_ROOT, FALLBACK_TOOLS_ROOT, DEFAULT_TOOLS_ROOT]
+    seen: set[str] = set()
+    result: list[Path] = []
+    for r in roots:
+        p = r / name
+        key = str(p)
+        if key not in seen:
+            seen.add(key)
+            result.append(p)
+    return result
 
 
 def get_instantngp_dir() -> Path:
@@ -694,7 +778,7 @@ def get_instantngp_dir() -> Path:
     
     Returns the default location (under tools root), creating parent dirs if needed.
     """
-    dest = TOOLS_ROOT / "instant-ngp"
+    dest = get_tools_root() / "instant-ngp"
     dest.parent.mkdir(parents=True, exist_ok=True)
     return dest
 

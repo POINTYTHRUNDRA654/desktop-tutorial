@@ -145,8 +145,12 @@ def tool_status() -> dict:
     status["nvcompress"] = _which("nvcompress")
     status["texconv"] = _which("texconv")
 
-    # also check bundled tools folder
-    tools_dir = Path(__file__).resolve().parent / "tools"
+    # also check tools folder (preference-configured root, then addon tools/ subfolder)
+    try:
+        from . import tool_installers as _tli
+        tools_dir = _tli.get_tools_root()
+    except Exception:
+        tools_dir = Path(__file__).resolve().parent / "tools"
     if not status["ffmpeg"]:
         # honor user-configured path if provided
         try:

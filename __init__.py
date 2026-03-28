@@ -537,6 +537,25 @@ def register():
     except Exception as e:
         print(f"Could not restore API keys: {e}")
 
+    # ── Step 2d: synchronous tool auto-discovery ──────────────────────────────
+    # Scan the tools folder(s) right now — before the UI first draws — so that
+    # any tools already on disk (e.g. ffmpeg, nvtt, texconv in the sibling
+    # tools/ folder next to the addon) are wired into preferences immediately.
+    # This is pure filesystem scanning: no network I/O, no subprocess calls,
+    # sub-millisecond on a local drive. Runs synchronously so the Setup panel
+    # shows correct ✓/✗ status on its very first draw instead of showing ✗ for
+    # 2 seconds while the deferred timer hasn't fired yet.
+    try:
+        if tool_installers:
+            _configured = tool_installers.auto_configure_preferences()
+            if _configured:
+                print(f"✓ Auto-configured {len(_configured)} tool(s): "
+                      f"{', '.join(_configured)}")
+            else:
+                print("Tool auto-discovery: no unconfigured tools found on startup")
+    except Exception as e:
+        print(f"Tool auto-discovery (startup) skipped: {e}")
+
     # ── Steps 3-5: deferred to avoid blocking Blender's UI on startup ─────────
     # PyTorch detection, tool auto-discovery, and UModel auto-download all
     # involve filesystem scanning or network I/O.  Running them synchronously

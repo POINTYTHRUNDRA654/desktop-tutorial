@@ -24,7 +24,6 @@ import bpy
 import importlib
 import os
 import sys
-import traceback
 from bpy.types import Operator
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
