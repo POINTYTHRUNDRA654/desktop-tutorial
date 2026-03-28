@@ -1126,14 +1126,14 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
         info_box.label(text="• Requires: PIL/Pillow & NumPy")
         info_box.label(text="• See README for install instructions")
 
-class FO4_PT_AIGenerationPanel(_FO4SubPanel):
-    """AI-powered mesh generation panel (Hunyuan3D-2)"""
-    bl_label = "AI Generation (Optional)"
-    bl_idname = "FO4_PT_ai_generation_panel"
+class FO4_PT_SetupAIHunyuan3D(_FO4SubPanel):
+    """Hunyuan3D-2 AI mesh generation — sub-panel inside Setup & Status."""
+    bl_label = "AI: Hunyuan3D-2 (Text/Image to 3D)"
+    bl_idname = "FO4_PT_setup_ai_hunyuan3d"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_main_panel"
+    bl_parent_id = "FO4_PT_setup_panel"
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -1161,7 +1161,7 @@ class FO4_PT_AIGenerationPanel(_FO4SubPanel):
         status_box.operator("fo4.check_hunyuan3d_status", text="Check Status", icon='FILE_REFRESH')
         status_box.operator("fo4.show_hunyuan3d_info", text="Manual Instructions", icon='INFO')
 
-        # AI Generation operators (enabled only if available)
+        # Generation operators (enabled only if available)
         box = layout.box()
         box.label(text="Text to 3D", icon='FILE_TEXT')
         row = box.row()
@@ -1176,102 +1176,143 @@ class FO4_PT_AIGenerationPanel(_FO4SubPanel):
 
         # Info box
         info_box = layout.box()
-        info_box.label(text="About AI Generation:", icon='INFO')
-        info_box.label(text="• Uses Hunyuan3D-2 AI model")
-        info_box.label(text="• Generates full 3D meshes")
+        info_box.label(text="About Hunyuan3D-2:", icon='INFO')
+        info_box.label(text="• Generates full 3D meshes from text or image")
         info_box.label(text="• Requires GPU & model download")
         info_box.label(text="• Completely optional feature")
 
-        # Gradio Web UI section
+
+class FO4_PT_SetupAIGradio(_FO4SubPanel):
+    """Gradio web interface — sub-panel inside Setup & Status."""
+    bl_label = "AI: Web Interface (Gradio)"
+    bl_idname = "FO4_PT_setup_ai_gradio"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_setup_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+
         gradio_available = gradio_helpers.GradioHelpers.is_available() if gradio_helpers else False
         server_running = gradio_helpers.GradioHelpers.is_server_running() if gradio_helpers else False
 
-        layout.separator()
-        web_box = layout.box()
-        web_box.label(text="Web Interface (Gradio)", icon='URL')
-
         if gradio_available:
             if server_running:
-                web_box.label(text="Server: Running ✓", icon='CHECKMARK')
-                web_box.operator("fo4.stop_gradio_server", text="Stop Web UI", icon='CANCEL')
+                layout.label(text="Server: Running ✓", icon='CHECKMARK')
+                layout.operator("fo4.stop_gradio_server", text="Stop Web UI", icon='CANCEL')
             else:
-                web_box.label(text="Server: Stopped", icon='RADIOBUT_OFF')
-                web_box.operator("fo4.start_gradio_server", text="Start Web UI", icon='PLAY')
+                layout.label(text="Server: Stopped", icon='RADIOBUT_OFF')
+                layout.operator("fo4.start_gradio_server", text="Start Web UI", icon='PLAY')
         else:
-            web_box.label(text="Gradio: Not Installed ✗", icon='ERROR')
+            layout.label(text="Gradio: Not Installed ✗", icon='ERROR')
 
-        web_box.operator("fo4.show_gradio_info", text="Web UI Info", icon='INFO')
+        layout.operator("fo4.show_gradio_info", text="Web UI Info", icon='INFO')
 
         if gradio_available:
-            web_box.label(text="Open: http://localhost:7860")
+            layout.label(text="Open: http://localhost:7860")
 
-        # HY-Motion-1.0 section
+
+class FO4_PT_SetupAIHyMotion(_FO4SubPanel):
+    """HY-Motion-1.0 — sub-panel inside Setup & Status."""
+    bl_label = "AI: Motion Generation (HY-Motion)"
+    bl_idname = "FO4_PT_setup_ai_hymotion"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_setup_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+
         hymotion_available = hymotion_helpers.HyMotionHelpers.is_available() if hymotion_helpers else False
 
-        layout.separator()
-        motion_box = layout.box()
-        motion_box.label(text="Motion Generation (HY-Motion)", icon='ANIM')
-
         if hymotion_available:
-            motion_box.label(text="Status: Available ✓", icon='CHECKMARK')
-            motion_box.operator("fo4.generate_motion_from_text", text="Generate Motion", icon='ANIM_DATA')
-            motion_box.operator("fo4.import_motion_file", text="Import Motion File", icon='IMPORT')
+            layout.label(text="Status: Available ✓", icon='CHECKMARK')
+            layout.operator("fo4.generate_motion_from_text", text="Generate Motion", icon='ANIM_DATA')
+            layout.operator("fo4.import_motion_file", text="Import Motion File", icon='IMPORT')
         else:
-            motion_box.label(text="Status: Not Installed ✗", icon='ERROR')
-            motion_box.operator("fo4.install_hymotion", text="Auto-Install HY-Motion", icon='IMPORT')
+            layout.label(text="Status: Not Installed ✗", icon='ERROR')
+            layout.operator("fo4.install_hymotion", text="Auto-Install HY-Motion", icon='IMPORT')
 
-        motion_box.operator("fo4.show_hymotion_info", text="Manual Instructions", icon='INFO')
+        layout.operator("fo4.show_hymotion_info", text="Manual Instructions", icon='INFO')
 
-        # Shap-E section
-        layout.separator()
-        shap_e_box = layout.box()
-        shap_e_box.label(text="Shap-E (Text/Image to 3D)", icon='MESH_ICOSPHERE')
 
-        shap_e_installed, shap_e_msg = shap_e_helpers.ShapEHelpers.peek_cached_installation() if (shap_e_helpers and hasattr(shap_e_helpers, 'ShapEHelpers')) else (None, "Status unavailable")
+class FO4_PT_SetupAIShapE(_FO4SubPanel):
+    """Shap-E AI generation — sub-panel inside Setup & Status."""
+    bl_label = "AI: Shap-E (Text/Image to 3D)"
+    bl_idname = "FO4_PT_setup_ai_shap_e"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_setup_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+
+        shap_e_installed, shap_e_msg = (
+            shap_e_helpers.ShapEHelpers.peek_cached_installation()
+            if (shap_e_helpers and hasattr(shap_e_helpers, 'ShapEHelpers'))
+            else (None, "Status unavailable")
+        )
 
         if shap_e_installed:
-            shap_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
+            layout.label(text="Status: Installed ✓", icon='CHECKMARK')
 
-            # Text-to-3D
-            text_box = shap_e_box.box()
+            text_box = layout.box()
             text_box.label(text="Text to 3D:", icon='FILE_TEXT')
             text_box.prop(scene, "fo4_shap_e_prompt", text="")
             text_box.prop(scene, "fo4_shap_e_guidance_scale")
             text_box.prop(scene, "fo4_shap_e_inference_steps")
             text_box.operator("fo4.generate_shap_e_text", text="Generate from Text", icon='MESH_CUBE')
 
-            # Image-to-3D
-            image_box = shap_e_box.box()
+            image_box = layout.box()
             image_box.label(text="Image to 3D:", icon='IMAGE_DATA')
             image_box.prop(scene, "fo4_shap_e_image_path", text="")
             image_box.operator("fo4.generate_shap_e_image", text="Generate from Image", icon='TEXTURE')
         elif shap_e_installed is False:
-            shap_e_box.label(text="Status: Not Installed ✗", icon='ERROR')
-
+            layout.label(text="Status: Not Installed ✗", icon='ERROR')
             if "Windows path length error" in shap_e_msg:
-                shap_e_box.label(text="⚠ Windows path too long — use short path", icon='ERROR')
-                shap_e_box.operator("torch.install_custom_path", text="Fix: Install PyTorch to D:/t", icon='IMPORT')
+                layout.label(text="⚠ Windows path too long — use short path", icon='ERROR')
+                layout.operator("torch.install_custom_path", text="Fix: Install PyTorch to D:/t", icon='IMPORT')
             else:
-                shap_e_box.operator("fo4.install_shap_e", text="Auto-Install Shap-E", icon='IMPORT')
-                shap_e_box.operator("fo4.show_shap_e_info", text="Manual Instructions", icon='INFO')
+                layout.operator("fo4.install_shap_e", text="Auto-Install Shap-E", icon='IMPORT')
+                layout.operator("fo4.show_shap_e_info", text="Manual Instructions", icon='INFO')
         else:
-            shap_e_box.label(text="Status: Not checked", icon='INFO')
-            shap_e_box.label(text="Click Check Installation to refresh", icon='DOT')
+            layout.label(text="Status: Not checked", icon='INFO')
+            layout.label(text="Click Check Installation to refresh", icon='DOT')
 
-        shap_e_box.operator("fo4.check_shap_e_installation", text="Check Installation", icon='SYSTEM')
+        layout.operator("fo4.check_shap_e_installation", text="Check Installation", icon='SYSTEM')
 
-        # Point-E section
-        layout.separator()
-        point_e_box = layout.box()
-        point_e_box.label(text="Point-E (Text/Image to Point Cloud)", icon='OUTLINER_OB_POINTCLOUD')
 
-        point_e_installed, point_e_msg = point_e_helpers.PointEHelpers.peek_cached_installation() if (point_e_helpers and hasattr(point_e_helpers, 'PointEHelpers')) else (None, "Status unavailable")
+class FO4_PT_SetupAIPointE(_FO4SubPanel):
+    """Point-E AI generation — sub-panel inside Setup & Status."""
+    bl_label = "AI: Point-E (Text/Image to Point Cloud)"
+    bl_idname = "FO4_PT_setup_ai_point_e"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_setup_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+
+        point_e_installed, point_e_msg = (
+            point_e_helpers.PointEHelpers.peek_cached_installation()
+            if (point_e_helpers and hasattr(point_e_helpers, 'PointEHelpers'))
+            else (None, "Status unavailable")
+        )
 
         if point_e_installed:
-            point_e_box.label(text="Status: Installed ✓", icon='CHECKMARK')
+            layout.label(text="Status: Installed ✓", icon='CHECKMARK')
 
-            # Text-to-3D
-            text_box = point_e_box.box()
+            text_box = layout.box()
             text_box.label(text="Text to Point Cloud:", icon='FILE_TEXT')
             text_box.prop(scene, "fo4_point_e_prompt", text="")
             text_box.prop(scene, "fo4_point_e_num_samples")
@@ -1280,30 +1321,40 @@ class FO4_PT_AIGenerationPanel(_FO4SubPanel):
             text_box.prop(scene, "fo4_point_e_reconstruction_method")
             text_box.operator("fo4.generate_point_e_text", text="Generate from Text", icon='MESH_CUBE')
 
-            # Image-to-3D
-            image_box = point_e_box.box()
+            image_box = layout.box()
             image_box.label(text="Image to Point Cloud:", icon='IMAGE_DATA')
             image_box.prop(scene, "fo4_point_e_image_path", text="")
             image_box.prop(scene, "fo4_point_e_grid_size")
             image_box.prop(scene, "fo4_point_e_inference_steps")
             image_box.operator("fo4.generate_point_e_image", text="Generate from Image", icon='TEXTURE')
         elif point_e_installed is False:
-            point_e_box.label(text="Status: Not Installed ✗", icon='ERROR')
-
+            layout.label(text="Status: Not Installed ✗", icon='ERROR')
             if "Windows path length error" in point_e_msg:
-                point_e_box.label(text="⚠ Windows path too long — use short path", icon='ERROR')
-                point_e_box.operator("torch.install_custom_path", text="Fix: Install PyTorch to D:/t", icon='IMPORT')
+                layout.label(text="⚠ Windows path too long — use short path", icon='ERROR')
+                layout.operator("torch.install_custom_path", text="Fix: Install PyTorch to D:/t", icon='IMPORT')
             else:
-                point_e_box.operator("fo4.install_point_e", text="Auto-Install Point-E", icon='IMPORT')
-                point_e_box.operator("fo4.show_point_e_info", text="Manual Instructions", icon='INFO')
+                layout.operator("fo4.install_point_e", text="Auto-Install Point-E", icon='IMPORT')
+                layout.operator("fo4.show_point_e_info", text="Manual Instructions", icon='INFO')
         else:
-            point_e_box.label(text="Status: Not checked", icon='INFO')
-            point_e_box.label(text="Click Check Installation to refresh", icon='DOT')
+            layout.label(text="Status: Not checked", icon='INFO')
+            layout.label(text="Click Check Installation to refresh", icon='DOT')
 
-        point_e_box.operator("fo4.check_point_e_installation", text="Check Installation", icon='SYSTEM')
+        layout.operator("fo4.check_point_e_installation", text="Check Installation", icon='SYSTEM')
 
-        # Diffusers section
-        layout.separator()
+
+class FO4_PT_SetupAIDiffusers(_FO4SubPanel):
+    """Diffusers / LayerDiffuse and ecosystem resources — sub-panel inside Setup & Status."""
+    bl_label = "AI: Diffusers & Resources"
+    bl_idname = "FO4_PT_setup_ai_diffusers"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Fallout 4'
+    bl_parent_id = "FO4_PT_setup_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+
         diff_box = layout.box()
         diff_box.label(text="Diffusers / LayerDiffuse", icon='TEXTURE_DATA')
         diff_box.operator("fo4.install_diffusers", text="Auto-Install Diffusers", icon='IMPORT')
@@ -1311,7 +1362,6 @@ class FO4_PT_AIGenerationPanel(_FO4SubPanel):
         diff_box.operator("fo4.check_layerdiffuse", text="Check LayerDiffuse", icon='SYSTEM')
         diff_box.operator("fo4.show_diffusers_workflow", text="Diffusers Workflow Guide", icon='INFO')
 
-        # Ecosystem info
         layout.separator()
         eco_box = layout.box()
         eco_box.label(text="Resources & Recommendations", icon='BOOKMARKS')
@@ -4607,10 +4657,16 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
 classes = (
     FO4_PT_MainPanel,
     FO4_PT_SetupPanel,
+    # AI Generation sub-panels (children of FO4_PT_SetupPanel)
+    FO4_PT_SetupAIHunyuan3D,
+    FO4_PT_SetupAIGradio,
+    FO4_PT_SetupAIHyMotion,
+    FO4_PT_SetupAIShapE,
+    FO4_PT_SetupAIPointE,
+    FO4_PT_SetupAIDiffusers,
     FO4_PT_MeshPanel,
     FO4_PT_TexturePanel,
     FO4_PT_ImageToMeshPanel,
-    FO4_PT_AIGenerationPanel,
     FO4_PT_AnimationPanel,
     FO4_PT_RigNetPanel,
     FO4_PT_NVTTPanel,
