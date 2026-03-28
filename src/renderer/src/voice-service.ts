@@ -73,12 +73,19 @@ export class VoiceService {
   private isBrowserSttActive = false;
   private isBrowserSttStarting = false;
   private isUsingBrowserStt = false;
+  private recordingStartTime = 0;
+  /** Maximum recording length: 60 seconds. Prevents "File too large" errors. */
+  private readonly MAX_RECORDING_DURATION = 60000; // 60 seconds
+  /** Flag to enable longer delay on restart after transcription errors */
+  private hadRecentTranscriptionError = false;
   /**
    * True while TTS is actively playing. Used to pause microphone recording
    * during speech playback and prevent the audio feedback loop where Mossy
    * hears and transcribes her own voice.
    */
   private isSpeaking = false;
+  /** Delay before resuming microphone after TTS completes (ms). Must be long enough for audio to stop playing. */
+  private readonly TTS_RESUME_DELAY_MS = 2500; // 2.5 seconds to account for Web Speech API queuing, audio playback, and speaker echo decay
   private onTranscription?: (text: string, sessionId?: number) => void;
   private onError?: (error: string) => void;
   private onModeChange?: (mode: 'idle' | 'listening' | 'processing' | 'speaking') => void;
@@ -324,6 +331,8 @@ export class VoiceService {
 
       this.audioChunks = []; // Clear any leftover chunks
       this.isRecording = true;
+      this.recordingStartTime = Date.now();
+      console.log('[VoiceService] Recording started, will auto-stop if exceeds', this.MAX_RECORDING_DURATION, 'ms');
 
       console.log(`[VoiceService] Created MediaRecorder for session ${this.currentSessionId} (recordingId=${myRecordingId}), setting up event handlers...`);
 
@@ -371,7 +380,15 @@ export class VoiceService {
         if (this.audioChunks.length > 0) {
           // Combine audio chunks
           const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
-          console.log(`[VoiceService] Audio blob size: ${audioBlob.size} bytes, chunks: ${this.audioChunks.length}`);
+          const fileSizeKB = (audioBlob.size / 1024).toFixed(2);
+          console.log(`[VoiceService] Audio blob size: ${audioBlob.size} bytes (${fileSizeKB} KB), chunks: ${this.audioChunks.length}`);
+
+          // Warn if file is approaching backend limits (typically 25-50 MB)
+          const recordingDuration = Date.now() - this.recordingStartTime;
+          if (audioBlob.size > 5000000) { // 5 MB warning threshold
+            console.warn(`[VoiceService] ⚠️ LARGE AUDIO FILE: ${fileSizeKB} KB after ${recordingDuration}ms. Backend may reject this.`);
+          }
+
           const arrayBuffer = await audioBlob.arrayBuffer();
 
           try {
@@ -399,33 +416,31 @@ export class VoiceService {
             }
           } catch (error: any) {
             console.error('Transcription error:', error);
+            const recordingDuration = Date.now() - this.recordingStartTime;
 
             if (!this.shouldStop) {
-              this.onError?.(`Speech recognition failed: ${error?.message || 'Unknown error'}`);
+              const errorMessage = error?.message || 'Unknown error';
+              console.error(`[VoiceService] ❌ Transcription failed: ${errorMessage}. Duration: ${recordingDuration}ms, Size: ${fileSizeKB} KB`);
+              this.onError?.(`Speech recognition failed: ${errorMessage}`);
+              this.hadRecentTranscriptionError = true; // Flag for delayed restart
             }
           }
         }
 
-        // Auto-restart for continuous listening (increased delay for stability).
-        // Do NOT restart while TTS is playing — speak() will restart after it completes.
-        if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isSpeaking) {
-          setTimeout(() => {
-            // Re-check all conditions when timeout fires, not just when scheduling
-            // This prevents race conditions with TTS starting between scheduling and firing
-            if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isSpeaking && !this.isRecording) {
-              console.log('[VoiceService] Auto-restart: restarting recording after successful transcription');
-              this.startRecording();
-            } else {
-              console.log('[VoiceService] Auto-restart: skipping restart', {
-                isListening: this.isListening,
-                shouldStop: this.shouldStop,
-                isUsingBrowserStt: this.isUsingBrowserStt,
-                isSpeaking: this.isSpeaking,
-                isRecording: this.isRecording
-              });
-            }
-          }, 1000);
-        }
+        // ⚠️ NOTE: Microphone restart is NOT done here!
+        // Why? The AI response generation happens AFTER transcription completes,
+        // but BEFORE speak() is called. If we auto-restart here, the microphone
+        // resumes early and captures Mossy's TTS audio, creating an audio feedback loop.
+        //
+        // Solution: Let speak() handle microphone restart after TTS completes.
+        // speak() has a 2500ms timeout that ensures audio is fully played before resuming.
+        //
+        // This way the flow is:
+        //   transcription → (AI generates) → speak() → TTS plays → (2500ms wait) → startRecording()
+        //
+        // NOT the broken flow of:
+        //   transcription → (auto-restart) → (AI generates) → speak() → TTS overlaps with recording ❌
+        this.hadRecentTranscriptionError = false; // Reset flag for next cycle
       };
 
       this.mediaRecorder.onerror = (event) => {
@@ -465,6 +480,16 @@ export class VoiceService {
         if (!this.isRecording || this.shouldStop || this.recordingId !== myRecordingId) {
           if (silenceTimer) clearTimeout(silenceTimer);
           try { audioContext.close(); } catch (_e) { console.warn('[VoiceService] Failed to close stale audioContext:', _e); }
+          return;
+        }
+
+        // Check if recording has exceeded max duration (safety limit for file size)
+        const recordingDuration = Date.now() - this.recordingStartTime;
+        if (recordingDuration > this.MAX_RECORDING_DURATION) {
+          console.log('[VoiceService] Max recording duration reached (' + recordingDuration + 'ms), stopping to prevent "File too large" error');
+          if (this.mediaRecorder && this.isRecording) {
+            this.mediaRecorder.stop();
+          }
           return;
         }
 
@@ -515,7 +540,8 @@ export class VoiceService {
   }
 
   async speak(text: string): Promise<void> {
-    console.log('[VoiceService] speak() called with text:', text.substring(0, 100) + (text.length > 100 ? '...' : ''));
+    const speakStartTime = Date.now();
+    console.log('[VoiceService] 🎙️ speak() called - text length:', text.length, 'chars');
     if (this.shouldStop) {
       console.log('[VoiceService] Ignoring speak request, service stopped');
       return;
@@ -525,8 +551,10 @@ export class VoiceService {
     // Stop any active recording so Mossy's own voice is not transcribed and fed
     // back to the AI, causing an infinite "keep talking" loop.
     this.isSpeaking = true;
+    const speakStartedAt = new Date().toISOString();
+    console.log('[VoiceService] 🎙️ speak() called at', speakStartedAt, '- pausing microphone, text:', text.substring(0, 80));
     if (this.isRecording && this.mediaRecorder) {
-      console.log('[VoiceService] Pausing microphone for TTS playback');
+      console.log('[VoiceService] ⏹️ Stopping current recording at', new Date().toISOString(), 'to prevent voice capture during TTS');
       this.audioChunks = []; // Discard any audio captured before speak was called
       try { this.mediaRecorder.stop(); } catch (e) { console.warn('[VoiceService] Could not stop MediaRecorder for TTS:', e); }
     }
@@ -534,7 +562,11 @@ export class VoiceService {
     try {
       if (this.config.ttsProvider === 'browser') {
         console.log('[VoiceService] Using browser TTS provider');
-        return await this.speakBrowser(text);
+        const browserStartTime = Date.now();
+        const result = await this.speakBrowser(text);
+        const ttsDuration = Date.now() - browserStartTime;
+        console.log('[VoiceService] 🎙️ speak() complete - TTS duration:', ttsDuration, 'ms | TEXT:', text.substring(0, 80));
+        return result;
       } else if (this.config.ttsProvider === 'elevenlabs') {
         console.log('[VoiceService] Using ElevenLabs TTS provider');
         return await this.speakElevenLabs(text);
@@ -548,25 +580,30 @@ export class VoiceService {
       }
     } finally {
       // ── Resume microphone after TTS ──────────────────────────────────────────
+      // IMPORTANT: TTS duration varies (100ms-3s+ depending on text length and system).
+      // Microphone must NOT resume until TTS audio has finished playing AND speaker
+      // echo has decayed. If resume is too early, we capture our own voice, transcribe
+      // it, and enter a self-responding feedback loop.
       this.isSpeaking = false;
       this.audioChunks = []; // Discard any audio chunks that may have accumulated
-      // Restart recording if we were in a listening session, giving a short delay
-      // so any acoustic echo from the speaker has time to decay.
+
       if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt) {
-        console.log('[VoiceService] TTS complete — resuming microphone');
+        const resumeScheduledAt = new Date().toISOString();
+        console.log('[VoiceService] ⏱️ TTS resume: scheduling microphone restart at', resumeScheduledAt, 'after', this.TTS_RESUME_DELAY_MS, 'ms');
+
         setTimeout(() => {
           if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isRecording) {
-            console.log('[VoiceService] TTS resume: restarting recording after TTS completion');
+            console.log('[VoiceService] ▶️ TTS resume: restarting recording at', new Date().toISOString(), '(', this.TTS_RESUME_DELAY_MS, 'ms after TTS ended)');
             this.startRecording();
           } else {
-            console.log('[VoiceService] TTS resume: skipping restart', {
+            console.log('[VoiceService] ⏸️ TTS resume: skipping restart at', new Date().toISOString(), '(conditions not met)', {
               isListening: this.isListening,
               shouldStop: this.shouldStop,
               isUsingBrowserStt: this.isUsingBrowserStt,
               isRecording: this.isRecording
             });
           }
-        }, 400);
+        }, this.TTS_RESUME_DELAY_MS);
       }
     }
   }
@@ -675,12 +712,13 @@ export class VoiceService {
     // (e.g., Electron speechSynthesis.cancel() does not fire utterance.onerror),
     // which would otherwise leave the microphone permanently paused.
     if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isRecording) {
+      console.log('[VoiceService] stopSpeaking: waiting', this.TTS_RESUME_DELAY_MS, 'ms before resuming microphone');
       setTimeout(() => {
         if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isRecording) {
           console.log('[VoiceService] stopSpeaking: restarting recording after TTS stop');
           this.startRecording();
         }
-      }, 400);
+      }, this.TTS_RESUME_DELAY_MS);
     }
   }
 
@@ -764,7 +802,7 @@ export class VoiceService {
       }
 
       utterance.onstart = () => {
-        console.log('[VoiceService] Speech utterance started');
+        console.log('[VoiceService] 🎵 Speech utterance started at', new Date().toISOString());
         if (this.shouldStop) {
           console.log('[VoiceService] Cancelling speech due to shouldStop');
           window.speechSynthesis.cancel();
@@ -774,7 +812,7 @@ export class VoiceService {
         }
       };
       utterance.onend = () => {
-        console.log('[VoiceService] Speech utterance ended');
+        console.log('[VoiceService] 🔇 Speech utterance ended at', new Date().toISOString(), '- waiting', this.TTS_RESUME_DELAY_MS, 'ms for speaker decay');
         this.onModeChange?.('idle');
         resolve();
       };

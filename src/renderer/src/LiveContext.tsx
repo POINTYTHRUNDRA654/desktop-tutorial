@@ -421,11 +421,14 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       pushLiveHistory({ role: 'user', content: text });
 
       // Send to LocalAIEngine for response (with web search injection and full system context)
-      console.log('[LiveContext] Calling LocalAIEngine.generateResponse for voice');
+      const aiStartTime = Date.now();
+      console.log('[LiveContext] 🎯 Calling LocalAIEngine.generateResponse for voice');
       const systemContext = await generateSystemContextFromStorage(text);
       const systemInstruction = getFullSystemInstruction(systemContext);
       const priorHistory = conversationHistoryRef.current.slice(-30);
       const aiResult = await LocalAIEngine.generateResponse(text, systemInstruction, priorHistory);
+      const aiDuration = Date.now() - aiStartTime;
+      console.log('[LiveContext] ✅ AI response received - duration:', aiDuration, 'ms');
       const response = aiResult.content || 'Sorry, I encountered an error processing your request.';
 
       // Check if session ID changed (user disconnected, or session ended for another reason)
@@ -443,9 +446,11 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // Speak the response
       if (voiceServiceRef.current) {
-        console.log('[LiveContext] Calling voiceService.speak()');
+        const speakStartTime = Date.now();
+        console.log('[LiveContext] 🔊 Starting TTS playback - response length:', response.length, 'chars');
         await voiceServiceRef.current.speak(response);
-        console.log('[LiveContext] voiceService.speak() completed');
+        const speakDuration = Date.now() - speakStartTime;
+        console.log('[LiveContext] 🔊 TTS playback complete - duration:', speakDuration, 'ms');
         lastSpeakEndRef.current = Date.now(); // mark when speaking finished
       } else {
         console.error('[LiveContext] voiceServiceRef.current is null, cannot speak');
