@@ -57,6 +57,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
           spin3dPath: s.spin3dPath || '',
           nvidiaCanvasPath: s.nvidiaCanvasPath || '',
           umodelPath: s.umodelPath || '',
+          pytorchPath: s.pytorchPath || '',
         });
       } catch (e) {
         console.warn('[ExternalToolsSettings] Failed to load settings', e);
@@ -881,6 +882,27 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             <button onClick={() => browsePath('blenderPath', 'Blender')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
             <button onClick={() => testLaunch(draft.blenderPath, 'Blender')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
             <button onClick={() => aiLaunchTest('blender', 'Blender')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
+          </div>
+        </div>
+
+        {/* PyTorch (for Blender add-on) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className="w-5 h-5 text-orange-400" />
+            <div>
+              <div className="text-sm font-bold text-white">PyTorch (Blender Add-on)</div>
+          <div className="text-[11px] text-slate-400">Directory containing the <code className="text-orange-300">torch</code> package — typically the <code className="text-orange-300">Lib\site-packages</code> folder of the Python environment where PyTorch is installed (e.g. <code className="text-orange-300">D:\PyTorch\Lib\site-packages</code>). The Mossy Blender add-on will inject this into sys.path so Blender's Python can import torch without a separate install.</div>
+            </div>
+          </div>
+          <input
+            value={draft.pytorchPath || ''}
+            onChange={(e) => handleChange('pytorchPath', e.target.value)}
+            placeholder="D:\\PyTorch"
+            className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white font-mono"
+          />
+          {draft.pytorchPath && <div className="mt-1 text-[10px] text-slate-500 font-mono break-all">📁 {draft.pytorchPath}</div>}
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => browseFolder('pytorchPath', 'PyTorch installation folder')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
           </div>
         </div>
 

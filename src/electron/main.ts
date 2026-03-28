@@ -637,6 +637,7 @@ const loadSettings = (): any => {
     nvidiaOmniversePath: '',
     autodeskFbxPath: '',
     nifUtilsSuitePath: '',
+    pytorchPath: '',
 
     // Papyrus
     papyrusCompilerPath: '',
@@ -6876,6 +6877,20 @@ app.whenReady().then(() => {
       // ── GET /status ──────────────────────────────────────────────────────
       if (req.method === 'GET' && url === '/status') {
         respond(res, 200, { status: 'ok', app: 'Mossy', version: app.getVersion(), blenderBridge: true });
+        return;
+      }
+
+      // ── GET /pytorch-path ─────────────────────────────────────────────────
+      // Returns the PyTorch installation path configured in Mossy settings so
+      // the Blender add-on can inject it into sys.path and import torch.
+      if (req.method === 'GET' && url === '/pytorch-path') {
+        const s = loadSettings();
+        const ptPath = (s.pytorchPath as string | undefined) ?? '';
+        if (ptPath) {
+          respond(res, 200, { success: true, pytorch_path: ptPath });
+        } else {
+          respond(res, 200, { success: false, message: 'PyTorch path not configured in Mossy settings' });
+        }
         return;
       }
 
