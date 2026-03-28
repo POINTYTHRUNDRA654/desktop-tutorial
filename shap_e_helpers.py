@@ -358,7 +358,7 @@ class ShapEHelpers:
                         return False, ShapEHelpers._dll_init_error_message()
                     else:
                         return False, _pytorch_required_message(msg)
-            except ImportError:
+            except (ImportError, AttributeError):
                 # TorchPathManager not available, use regular import
                 try:
                     import torch
