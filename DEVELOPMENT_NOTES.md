@@ -277,6 +277,223 @@ but the cleanest fix is to have only one copy installed at a time.
 
 ---
 
+## ⚠️ RECURRING BUG #2 — `_ensure_*` safety nets fire every startup on Blender 5
+
+### Symptoms
+
+Every Blender launch prints a wall of warnings even though the operators work fine:
+
+```
+⚠ _ensure_tutorial_operators: ['FO4_OT_ShowDetailedSetup', ...] not in bpy.types; attempting re-registration…
+tutorial_operators: Registered fo4.show_detailed_setup
+  ⚠ Failed to register FO4_OT_ShowDetailedSetup directly: already registered as a subclass 'FO4_OT_ShowDetailedSetup'
+⚠ _ensure_setup_operators: ['FO4_OT_InstallPythonDeps', ...] not in bpy.types; attempting re-registration…
+  ⚠ Failed to register FO4_OT_InstallPythonDeps directly: already registered as a subclass 'FO4_OT_InstallPythonDeps'
+```
+
+The operators ARE working — buttons appear and click correctly — but the log is full of
+false-positive warnings on every startup and every deferred re-check.
+
+### Root Cause
+
+`hasattr(bpy.types, 'FO4_OT_X')` returns `False` in Blender 5's extension system
+(`bl_ext.user_default.*` namespace) even after `bpy.utils.register_class()` has succeeded.
+This is a Blender 5 quirk: the `bpy.types` Python attribute map does not always reflect
+types registered under the extension namespace.
+
+The old safety-net code used `hasattr(bpy.types, cls_name)` as the sole existence check.
+Because this returned `False` on every startup on Blender 5, `_ensure_tutorial_operators()`
+and `_ensure_setup_operators()` both concluded the operators were missing, attempted a full
+re-registration, and then each individual `bpy.utils.register_class(cls)` raised "already
+registered as a subclass" — because the operator WAS registered all along.
+
+This is the **same underlying Blender 5 issue** as Recurring Bug #1's button-disappearance
+(where `hasattr` returned `False` and the else-branch showed a label instead of a button),
+manifesting here in the safety-net logic instead of the UI layer.
+
+### The Fix
+
+`_is_operator_registered(cls_name, bl_idname)` in `__init__.py` performs a two-step check:
+1. `hasattr(bpy.types, cls_name)` — fast path, correct on Blender 4.x.
+2. `bpy.ops.<prefix>.<name>` attribute lookup — reliable on Blender 5 extensions.
+
+```python
+def _is_operator_registered(cls_name: str, bl_idname: str) -> bool:
+    if hasattr(bpy.types, cls_name):
+        return True
+    try:
+        prefix, name = bl_idname.split(".", 1)
+        op_ns = getattr(bpy.ops, prefix, None)
+        if op_ns is not None and hasattr(op_ns, name):
+            return True
+    except Exception:
+        pass
+    return False
+```
+
+Both `_ensure_tutorial_operators()` and `_ensure_setup_operators()` now call
+`_is_operator_registered(cls_name, bl_idname)` instead of bare `hasattr(bpy.types, ...)`.
+
+### What NOT to Do
+
+- **Do NOT revert `_is_operator_registered()` back to bare `hasattr(bpy.types, ...)`.**
+  On Blender 5 extensions, `hasattr(bpy.types, 'FO4_OT_X')` is unreliable.  The two-step
+  check is the correct and permanent solution.
+- **Do NOT remove the `bl_idname` parameter from `_is_operator_registered()`.**  The
+  `bpy.ops` fallback requires knowing the operator's id (e.g. `"fo4.self_test"`).
+
+---
+
+## ⚠️ RECURRING BUG #3 — Install operators crash with `AttributeError` on click
+
+### Symptoms
+
+Clicking any of the AI/tool install buttons in the N-panel prints to the console:
+
+```
+Exception in thread Thread-N (_run):
+AttributeError: module '...blender_game_tools.tool_installers' has no attribute 'install_hunyuan3d'
+AttributeError: module '...blender_game_tools.tool_installers' has no attribute 'install_hymotion'
+AttributeError: module '...blender_game_tools.tool_installers' has no attribute 'install_shap_e'
+AttributeError: module '...blender_game_tools.tool_installers' has no attribute 'install_point_e'
+AttributeError: module '...blender_game_tools.tool_installers' has no attribute 'install_zoedepth'
+AttributeError: module '...blender_game_tools.tool_installers' has no attribute 'install_triposr'
+```
+
+The install dialog appears to do nothing; the background thread crashes silently.
+
+### Root Cause
+
+`operators.py` defines install operator classes (e.g. `FO4_OT_InstallHunyuan3D`) whose
+`_run()` thread bodies call `tool_installers.install_hunyuan3d()`, but those functions
+were never implemented in `tool_installers.py`.  The operators existed; the backing
+functions did not.
+
+### The Fix
+
+Six functions were added to `tool_installers.py` (before `install_collective_modding_toolkit`):
+
+| Function | Method |
+|---|---|
+| `install_shap_e()` | `pip install shap-e` |
+| `install_point_e()` | `pip install point-e` |
+| `install_zoedepth()` | `git clone isl-org/ZoeDepth` + pip deps |
+| `install_triposr()` | `git clone VAST-AI-Research/TripoSR` + pip deps |
+| `install_hunyuan3d()` | `git clone Tencent/Hunyuan3D-2` + pip deps |
+| `install_hymotion()` | `git clone Tencent/HunyuanVideo-Avatar` + pip deps |
+
+### What NOT to Do
+
+- **Do NOT add a new install operator in `operators.py` without implementing the
+  corresponding `install_*()` function in `tool_installers.py`.**  The operator's
+  `_run()` thread will crash silently on first click.
+- When adding a new install function, follow the existing pattern: check for existing
+  install first (`dest.exists()`), handle `git not found`, set a reasonable timeout,
+  and return `(True, message)` or `(False, reason)`.
+
+---
+
+## ⚠️ RECURRING BUG #4 — `notification_system.notify()` crashes from background threads
+
+### Symptoms
+
+Background install threads (e.g. `FO4_OT_InstallUEImporter._run`) crash with:
+
+```
+RuntimeError: Operator bpy.ops.fo4.show_message.poll() Missing 'window' in context
+```
+
+The install itself may complete successfully, but the success/failure popup never appears.
+
+### Root Cause
+
+`FO4_NotificationSystem.notify()` used to call `bpy.ops.fo4.show_message('INVOKE_DEFAULT', …)`
+directly.  All install operators run their work on daemon background threads.
+`INVOKE_DEFAULT` operators require a window context that only exists on Blender's main
+thread.  Blender 5 is stricter about this than earlier versions.
+
+### The Fix
+
+In `notification_system.py`, the direct `bpy.ops` call was replaced with
+`bpy.app.timers.register()`:
+
+```python
+def _show_popup():
+    try:
+        bpy.ops.fo4.show_message('INVOKE_DEFAULT', message=_msg, icon=_icon)
+    except Exception:
+        pass
+    return None  # returning None de-registers the timer
+
+bpy.app.timers.register(_show_popup, first_interval=0.0, persistent=False)
+```
+
+Timers always execute on Blender's main thread, so `INVOKE_DEFAULT` gets the window
+context it needs.
+
+### What NOT to Do
+
+- **Do NOT call `bpy.ops.X('INVOKE_DEFAULT', …)` directly from any background thread.**
+  Always wrap it in `bpy.app.timers.register(lambda: bpy.ops.X('INVOKE_DEFAULT', …))`.
+- **Do NOT call `bpy.context.scene` or any `bpy.data` property from a background thread**
+  without guarding with `bpy.app.timers.register()` — same restriction applies.
+
+---
+
+## ⚠️ RECURRING BUG #5 — Instant-NGP reports "not found" when source IS cloned
+
+### Symptoms
+
+The user has already clicked "Auto-Install Instant-NGP" (source cloned to
+`D:\Blender addon\tools\instant-ngp\`), but clicking "Check Instant-NGP Installation"
+shows:
+
+```
+WARNING Instant-NGP not found
+```
+
+The panel says "not found" even though the source is present and just needs to be built
+with cmake.
+
+### Root Cause
+
+Three operators (`FO4_OT_ReconstructFromImages`, `FO4_OT_ShowInstantNGPInfo`,
+`FO4_OT_CheckInstantNGPInstallation`) all had hardcoded:
+
+```python
+self.report({'WARNING'}, "Instant-NGP not found")
+```
+
+This string was used regardless of what `check_instantngp_installation()` actually
+returned.  That function correctly distinguishes "source found but not built" from
+"not installed at all" in its returned message — but the operator discarded that
+information and showed the same string either way.
+
+### The Fix
+
+`_instantngp_status_report(message)` in `operators.py` maps the real message to a
+correct summary:
+
+```python
+def _instantngp_status_report(message: str) -> str:
+    msg_lower = message.lower()
+    if "source found" in msg_lower or "already cloned" in msg_lower:
+        return "Instant-NGP source found — needs building (see console for cmake instructions)"
+    if "already built" in msg_lower or "instant-ngp ready" in msg_lower:
+        return "Instant-NGP is ready"
+    return "Instant-NGP not found — see console for install instructions"
+```
+
+All three operators now call `self.report({'WARNING'}, _instantngp_status_report(message))`.
+
+### What NOT to Do
+
+- **Do NOT hardcode "not found" strings in operator reports** when the underlying helper
+  already returns a status message.  Always forward or summarise the message that the
+  helper returns.
+
+---
+
 ## UModel Auto-Download — `umodel_install_attempted` Flag
 
 UModel cannot be auto-downloaded (no reliable public URL as of Blender 5.0).
@@ -289,6 +506,20 @@ The fix is in `__init__.py _deferred_startup()` — after a failed `download_lat
 `_prefs.umodel_install_attempted = True` is set so subsequent startups skip the attempt.
 The user can reset this flag by toggling *Auto-install tools* in preferences if they want
 to retry after manually visiting https://www.gildor.org/en/projects/umodel.
+
+### UModel win32 URL returns HTTP 404 (Blender 5 / 2026)
+
+The download page at `gildor.org/en/projects/umodel` still lists a `umodel_win32.zip`
+path in its HTML, but that file returns HTTP 404 — the site switched to 64-bit only builds.
+
+`_find_download_url()` in `umodel_helpers.py` now:
+1. When a scraped URL contains `win32`, automatically constructs and tries `win64` and
+   `x64` variants before giving up.
+2. The static GitHub fallback list now tries `UModel_Win64.zip` and `UModel_win64.zip`
+   before the generic `UModel.zip`.
+
+If UModel download fails again in future, check whether the URL pattern has changed by
+visiting `https://www.gildor.org/en/projects/umodel` and inspecting the download links.
 
 ---
 
