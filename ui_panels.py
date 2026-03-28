@@ -4228,10 +4228,15 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                 or "filename or extension is too long" in info_str
             )
             if is_dll_error:
-                torch_box.label(text="✗ PyTorch not available", icon='ERROR')
-                torch_box.label(text="DLL init failed — native torch libraries could not load.", icon='ERROR')
-                torch_box.label(text="Ensure Microsoft Visual C++ Redistributable (x64) is installed.", icon='INFO')
-                torch_box.label(text="If on a custom path, Blender may need to be restarted once.", icon='INFO')
+                torch_box.label(text="✗ PyTorch DLL initialisation failed (WinError 1114)", icon='ERROR')
+                torch_box.label(text="Likely cause: CUDA/driver version mismatch.", icon='ERROR')
+                torch_box.label(text="Fix 1: Reinstall PyTorch matching your CUDA version:", icon='INFO')
+                torch_box.label(text="        https://pytorch.org/get-started/locally/", icon='URL')
+                torch_box.label(text="Fix 2: Install latest Visual C++ Redistributable (x64):", icon='INFO')
+                torch_box.label(text="        https://aka.ms/vs/17/release/vc_redist.x64.exe", icon='URL')
+                torch_box.label(text="Fix 3: Update your GPU driver to match your CUDA version.", icon='INFO')
+                torch_box.label(text="Fix 4: No GPU? Use the CPU-only PyTorch build (button below).", icon='INFO')
+                torch_box.label(text="See Blender console (Window > Toggle System Console) for details.", icon='INFO')
             elif is_path_error:
                 torch_box.label(text="✗ PyTorch not available", icon='ERROR')
                 torch_box.label(text="Windows path too long — install to a short path like D:/t", icon='ERROR')

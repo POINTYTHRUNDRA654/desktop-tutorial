@@ -339,6 +339,18 @@ class TorchPathManager:
             # Use both attribute check (set on Windows) and string fallback (cross-platform
             # compatibility and cases where winerror attribute may not be populated).
             if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                print(
+                    "\n[Blender Game Tools] PyTorch DLL initialisation failed (WinError 1114).\n"
+                    "This usually means a CUDA/driver version mismatch.\n"
+                    f"Detail: {e}\n"
+                    "Suggested fixes:\n"
+                    "  1. Reinstall PyTorch matching your CUDA toolkit version:\n"
+                    "     https://pytorch.org/get-started/locally/\n"
+                    "  2. Install the latest Visual C++ Redistributable from Microsoft:\n"
+                    "     https://aka.ms/vs/17/release/vc_redist.x64.exe\n"
+                    "  3. Update your GPU driver to one compatible with your CUDA version.\n"
+                    "  4. If no GPU is present, install the CPU-only PyTorch build.\n"
+                )
                 return False, "dll_init_error", None
             return False, f"File error: {str(e)}", None
         except ImportError as e:
