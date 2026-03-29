@@ -228,8 +228,7 @@ def _dll_init_error_message() -> str:
         "   https://aka.ms/vs/17/release/vc_redist.x64.exe\n"
         "3. Update your GPU driver to one compatible with your CUDA version.\n"
         "4. If no GPU is present, install the CPU-only PyTorch build:\n"
-        "   pip install torch torchvision torchaudio"
-        " --index-url https://download.pytorch.org/whl/cpu"
+        "   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu"
     )
 
 
@@ -240,26 +239,70 @@ def _probe_torch_background(torch_path: str = "") -> None:
     *torch_path* is the user's configured PyTorch directory captured on the
     main thread before the probe started (accessing bpy.context from a
     background thread is not safe).
+
+    Strategy
+    --------
+    1. Try importing torch locally (fast: either succeeds or fails immediately).
+    2. If that fails for ANY reason, check whether the Mossy bridge is online.
+       PyTorch may be running inside the Mossy desktop app, making a local
+       install unnecessary.  A successful bridge response means AI inference
+       is available, so we cache ``(True, "via Mossy bridge")``.
+    3. Only report a failure if BOTH local torch AND Mossy are unavailable.
+
     Schedules a VIEW_3D redraw via bpy.app.timers when finished so that
     the Mossy and Settings panels update automatically.
     """
     global _torch_status_cache
+
+    # ── Step 1: try local torch import ───────────────────────────────────
+    local_ok = False
+    local_error = ""
     try:
         import torch  # noqa: PLC0415  — deferred to avoid blocking at module load
         _torch_status_cache = (True, torch.__version__)
+        local_ok = True
     except OSError as e:
         if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
             try:
                 from . import torch_path_manager as _tpm
-                _torch_status_cache = (False, _tpm.dll_init_error_message(torch_path))
+                local_error = _tpm.dll_init_error_message(torch_path)
             except Exception:
-                _torch_status_cache = (False, _dll_init_error_message())
+                local_error = _dll_init_error_message()
         else:
-            _torch_status_cache = (False, str(e))
+            local_error = str(e)
     except ImportError as e:
-        _torch_status_cache = (False, str(e))
+        local_error = str(e)
     except Exception as e:
-        _torch_status_cache = (False, str(e))
+        local_error = str(e)
+
+    # ── Step 2: local torch missing/broken — check Mossy bridge ──────────
+    # If Mossy is running, PyTorch is available through it even if the local
+    # install is absent or has a DLL mismatch (WinError 1114).  Treat a live
+    # bridge as "torch available" so the user never sees a misleading error.
+    if not local_ok:
+        try:
+            from . import mossy_link as _ml
+            bridge_ok, bridge_msg = _ml.check_bridge(timeout=1.0)
+            if bridge_ok:
+                _torch_status_cache = (True, "via Mossy bridge")
+                # Populate the bridge-status WindowManager property on the
+                # main thread so the Mossy panel shows the connected indicator
+                # without requiring the user to click "Check Connection".
+                def _update_bridge(msg=bridge_msg):
+                    try:
+                        bpy.context.window_manager["mossy_bridge_status"] = msg
+                    except Exception:
+                        pass
+                bpy.app.timers.register(
+                    _update_bridge, first_interval=0.0, persistent=False
+                )
+                local_ok = True
+        except Exception:
+            pass
+
+    # ── Step 3: neither local torch nor Mossy — report the local failure ─
+    if not local_ok:
+        _torch_status_cache = (False, local_error)
 
     # Trigger a UI redraw so the panel reflects the probe result.
     def _redraw():
@@ -279,7 +322,7 @@ def _get_torch_status() -> "tuple[bool | None, str]":
     Returns
     -------
     ``(True, version_str)``
-        PyTorch is importable.
+        PyTorch is importable (locally or via Mossy bridge).
     ``(False, reason_str)``
         Import failed; *reason_str* is a user-readable explanation.
     ``(None, "Checking PyTorch availability…")``
@@ -292,14 +335,23 @@ def _get_torch_status() -> "tuple[bool | None, str]":
     global _torch_status_cache, _torch_probe_thread
     if _torch_status_cache is not None:
         return _torch_status_cache
-    # Capture the torch path on the main thread before starting the background
-    # probe — bpy.context must not be accessed from a background thread.
+    # Capture the torch path and Mossy preference on the main thread before
+    # starting the background probe — bpy.context must not be accessed from
+    # a background thread.
     torch_path = ""
+    use_mossy = False
     try:
         prefs = bpy.context.preferences.addons[__package__].preferences
         torch_path = bpy.path.abspath(prefs.torch_custom_path).strip().rstrip("/\\")
+        use_mossy = getattr(prefs, 'use_mossy_as_ai', False)
     except Exception:
         pass
+    # Short-circuit: the user has explicitly chosen to route AI through the
+    # Mossy desktop app.  No local torch install is required — skip the probe
+    # entirely and report success immediately.
+    if use_mossy:
+        _torch_status_cache = (True, "via Mossy bridge")
+        return _torch_status_cache
     # Start the background probe if one isn't already running.
     if _torch_probe_thread is None or not _torch_probe_thread.is_alive():
         _torch_probe_thread = threading.Thread(
@@ -340,8 +392,7 @@ def _draw_torch_error(box, torch_info: str) -> None:
                 tag = _tpm._pytorch_wheel_tag(cuda_ver)
                 if tag:
                     box.label(
-                        text=f"  pip install torch torchvision torchaudio --index-url"
-                             f" https://download.pytorch.org/whl/{tag}",
+                        text=f"  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/{tag}",
                         icon='BLANK1',
                     )
                 else:
@@ -355,8 +406,7 @@ def _draw_torch_error(box, torch_info: str) -> None:
         box.label(text="Fix 3: Update GPU driver to match your CUDA version", icon='DOT')
         box.label(text="Fix 4: CPU-only build (no GPU needed):", icon='DOT')
         box.label(
-            text="  pip install torch torchvision torchaudio --index-url"
-                 " https://download.pytorch.org/whl/cpu",
+            text="  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu",
             icon='BLANK1',
         )
     else:
