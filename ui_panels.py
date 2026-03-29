@@ -315,6 +315,7 @@ def _draw_torch_error(box, torch_info: str) -> None:
 # instead of doing 5 filesystem probes per frame.
 # ──────────────────────────────────────────────────────────────────────────
 import importlib.util as _importlib_util
+import time as _time
 _dep_cache: dict[str, bool] = {}   # module_name -> bool (True = found)
 
 
@@ -323,6 +324,53 @@ def _check_dep(module_name: str) -> bool:
     if module_name not in _dep_cache:
         _dep_cache[module_name] = _importlib_util.find_spec(module_name) is not None
     return _dep_cache[module_name]
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# TTL caches for expensive draw-time status checks.
+# Blender calls draw() on every UI redraw (potentially many times per second).
+# Running filesystem scans or `import torch` probes on every redraw causes
+# noticeable lag when sub-panels are open.  Each cache holds the last result
+# and a timestamp; if the result is fresher than _STATUS_CACHE_TTL seconds it
+# is returned immediately without re-running the probe.
+# ──────────────────────────────────────────────────────────────────────────
+_STATUS_CACHE_TTL = 10.0   # seconds between expensive re-checks
+
+_rignet_status_cache: dict = {"ts": 0.0, "rignet": (False, ""), "libigl": (False, "")}
+_tool_status_cache: dict = {"ts": 0.0, "status": {}}
+
+
+def _cached_rignet_status() -> tuple[tuple, tuple]:
+    """Return (rignet_result, libigl_result), refreshed at most every TTL seconds."""
+    global _rignet_status_cache
+    if _time.monotonic() - _rignet_status_cache["ts"] > _STATUS_CACHE_TTL:
+        try:
+            from . import rignet_helpers as _rh
+            rn = _rh.RigNetHelpers.check_rignet_available()
+            lg = _rh.RigNetHelpers.check_libigl_available()
+        except Exception:
+            rn = (False, "rignet_helpers unavailable")
+            lg = (False, "rignet_helpers unavailable")
+        _rignet_status_cache = {"ts": _time.monotonic(), "rignet": rn, "libigl": lg}
+    return _rignet_status_cache["rignet"], _rignet_status_cache["libigl"]
+
+
+def _invalidate_rignet_cache() -> None:
+    """Force the next draw to re-probe RigNet/libigl status (call after install)."""
+    _rignet_status_cache["ts"] = 0.0
+
+
+def _cached_tool_status() -> dict:
+    """Return knowledge_helpers.tool_status(), refreshed at most every TTL seconds."""
+    global _tool_status_cache
+    if _time.monotonic() - _tool_status_cache["ts"] > _STATUS_CACHE_TTL:
+        try:
+            from . import knowledge_helpers as _kh
+            status = _kh.tool_status()
+        except Exception:
+            status = {}
+        _tool_status_cache = {"ts": _time.monotonic(), "status": status}
+    return _tool_status_cache["status"]
 
 hunyuan3d_helpers = _safe_import("hunyuan3d_helpers")
 gradio_helpers = _safe_import("gradio_helpers")
@@ -1551,13 +1599,11 @@ class FO4_PT_RigNetPanel(_FO4SubPanel):
     def draw(self, context):
         layout = self.layout
 
-        # Check if RigNet is available
-        if rignet_helpers:
-            is_available, message = rignet_helpers.RigNetHelpers.check_rignet_available()
-            libigl_available, libigl_message = rignet_helpers.RigNetHelpers.check_libigl_available()
-        else:
-            is_available, message = False, "rignet_helpers module unavailable"
-            libigl_available, libigl_message = False, "rignet_helpers module unavailable"
+        # Check if RigNet is available — results cached to avoid filesystem
+        # scans and `import torch` probes on every UI redraw.
+        (is_available, message), (libigl_available, libigl_message) = (
+            _cached_rignet_status()
+        )
 
         # Status box for RigNet
         status_box = layout.box()
@@ -1810,8 +1856,9 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
     def draw(self, context):
         layout = self.layout
 
-        # quick tool availability summary
-        status = knowledge_helpers.tool_status() if knowledge_helpers else {}
+        # quick tool availability summary — cached to avoid shutil.which()
+        # and filesystem rglob calls on every UI redraw.
+        status = _cached_tool_status()
         sum_box = layout.box()
         sum_box.label(text="Tool Status", icon='INFO')
         for key, label in (

@@ -1127,6 +1127,228 @@ def install_hymotion() -> tuple[bool, str]:
     )
 
 
+def install_diffusers() -> tuple[bool, str]:
+    """Install Hugging Face Diffusers stack (Stable Diffusion, SDXL) via pip.
+
+    Installs ``diffusers[torch]``, ``transformers``, ``accelerate``, and
+    ``safetensors`` into Blender's bundled Python environment.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    ok, msg = _pip_install(["diffusers[torch]", "transformers", "accelerate", "safetensors"])
+    if ok:
+        return True, "Diffusers installed successfully. Restart Blender to activate."
+    return False, f"Diffusers install failed: {msg}"
+
+
+def install_libigl() -> tuple[bool, str]:
+    """Install libigl Python bindings via pip.
+
+    Installs the ``libigl`` package (published as ``libigl`` on PyPI) into
+    Blender's bundled Python environment.  The ``igl`` module becomes
+    importable after installation.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    ok, msg = _pip_install(["libigl"])
+    if ok:
+        return True, "libigl installed successfully. Restart Blender to activate."
+    return False, f"libigl install failed: {msg}"
+
+
+def get_realesrgan_ncnn_exe() -> "Path | None":
+    """Return the path to the locally-installed Real-ESRGAN NCNN Vulkan binary.
+
+    Returns ``None`` when the binary has not been downloaded yet.
+
+    Note: the NCNN Vulkan release provides separate archives for Windows,
+    Linux, and macOS.  The executable name varies by platform.
+    """
+    exe_name = "realesrgan-ncnn-vulkan.exe" if sys.platform == "win32" else "realesrgan-ncnn-vulkan"
+    exe = _ensure_tools_dir("realesrgan") / exe_name
+    return exe if exe.is_file() else None
+
+
+def get_realesrgan_weights_dir() -> Path:
+    """Return the directory that holds Real-ESRGAN model weights (.pth files)."""
+    return _ensure_tools_dir("realesrgan") / "models"
+
+
+def install_realesrgan() -> tuple[bool, str]:
+    """Download Real-ESRGAN NCNN Vulkan binary from GitHub releases.
+
+    The portable ZIP for the current platform is downloaded from
+    ``xinntao/Real-ESRGAN`` and extracted into the ``tools/realesrgan``
+    directory.  Supported platforms: Windows, Linux, macOS.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    dest = _ensure_tools_dir("realesrgan")
+
+    # Already installed?
+    if get_realesrgan_ncnn_exe():
+        _configure_tool_paths()
+        return True, f"Real-ESRGAN NCNN Vulkan already installed at {dest}"
+
+    repo = "xinntao/Real-ESRGAN"
+    if sys.platform == "win32":
+        platform_keyword = "windows"
+        fallback_zip = "realesrgan-ncnn-vulkan-20220424-windows.zip"
+    elif sys.platform == "darwin":
+        platform_keyword = "macos"
+        fallback_zip = "realesrgan-ncnn-vulkan-20220424-macos.zip"
+    else:
+        platform_keyword = "ubuntu"
+        fallback_zip = "realesrgan-ncnn-vulkan-20220424-ubuntu.zip"
+
+    url = _get_github_release_asset(repo, platform_keyword)
+    if not url:
+        # Fallback: try a known stable release URL
+        url = (
+            "https://github.com/xinntao/Real-ESRGAN/releases/download"
+            f"/v0.2.5.0/{fallback_zip}"
+        )
+
+    zip_path = dest / f"realesrgan-{platform_keyword}.zip"
+    try:
+        _download(url, zip_path)
+        _extract_zip(zip_path, dest)
+        zip_path.unlink(missing_ok=True)
+
+        # Flatten a single sub-directory if the zip created one
+        for sub in list(dest.iterdir()):
+            if sub.is_dir():
+                for item in list(sub.iterdir()):
+                    target = dest / item.name
+                    if not target.exists():
+                        shutil.move(str(item), str(target))
+                try:
+                    sub.rmdir()
+                except OSError:
+                    pass
+
+        _configure_tool_paths()
+        exe = get_realesrgan_ncnn_exe()
+        if exe:
+            return True, (
+                f"Real-ESRGAN NCNN Vulkan installed at {dest}.\n"
+                "Restart Blender or click 'Check Status' to refresh."
+            )
+        return True, (
+            f"Downloaded and extracted to {dest} — "
+            "look for the realesrgan-ncnn-vulkan binary inside that folder."
+        )
+    except Exception as exc:
+        return False, (
+            f"Real-ESRGAN install failed: {exc}\n"
+            "Download manually from "
+            "https://github.com/xinntao/Real-ESRGAN/releases"
+        )
+
+
+def install_rignet() -> tuple[bool, str]:
+    """Clone the rignet-gj repository and install its pip dependencies.
+
+    Clones ``https://github.com/govindjoshi12/rignet-gj`` into the tools
+    directory.  The ``torch``, ``scipy``, and ``open3d`` packages are also
+    installed via pip as runtime dependencies.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    dest = _ensure_tools_dir("rignet-gj")
+
+    if (dest / "README.md").exists():
+        return True, f"RigNet (rignet-gj) already present at {dest}"
+
+    git_exe = shutil.which("git")
+    if not git_exe:
+        return False, (
+            "git not found on PATH — cannot clone RigNet.\n"
+            "Install Git from https://git-scm.com/ then try again.\n"
+            "Or clone manually:\n"
+            "  git clone https://github.com/govindjoshi12/rignet-gj.git"
+        )
+
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(
+            [git_exe, "clone", "--depth", "1",
+             "https://github.com/govindjoshi12/rignet-gj.git", str(dest)],
+            capture_output=True, text=True, timeout=300,
+        )
+        if result.returncode != 0:
+            return False, f"RigNet clone failed:\n{result.stderr or result.stdout}"
+    except subprocess.TimeoutExpired:
+        return False, "RigNet clone timed out (> 5 min)"
+    except Exception as exc:
+        return False, f"RigNet clone error: {exc}"
+
+    _pip_install(["scipy", "open3d"])
+    return True, (
+        f"RigNet (rignet-gj) cloned to {dest}.\n"
+        "PyTorch is required at runtime — install via the Settings panel."
+    )
+
+
+def install_motion_diffuse() -> tuple[bool, str]:
+    """Clone MotionDiffuse from GitHub and install its pip dependencies.
+
+    Clones ``https://github.com/MotrixLab/MotionDiffuse`` into the tools
+    directory.  The ``einops`` and ``omegaconf`` packages are also installed
+    via pip as lightweight runtime dependencies.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    dest = _ensure_tools_dir("MotionDiffuse")
+
+    if (dest / "README.md").exists():
+        return True, f"MotionDiffuse already present at {dest}"
+
+    git_exe = shutil.which("git")
+    if not git_exe:
+        return False, (
+            "git not found on PATH — cannot clone MotionDiffuse.\n"
+            "Install Git from https://git-scm.com/ then try again.\n"
+            "Or clone manually:\n"
+            "  git clone https://github.com/MotrixLab/MotionDiffuse.git"
+        )
+
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(
+            [git_exe, "clone", "--depth", "1",
+             "https://github.com/MotrixLab/MotionDiffuse.git", str(dest)],
+            capture_output=True, text=True, timeout=300,
+        )
+        if result.returncode != 0:
+            return False, f"MotionDiffuse clone failed:\n{result.stderr or result.stdout}"
+    except subprocess.TimeoutExpired:
+        return False, "MotionDiffuse clone timed out (> 5 min)"
+    except Exception as exc:
+        return False, f"MotionDiffuse clone error: {exc}"
+
+    _pip_install(["einops", "omegaconf"])
+    return True, (
+        f"MotionDiffuse cloned to {dest}.\n"
+        "PyTorch is required at runtime — install via the Settings panel."
+    )
+
+
 def install_collective_modding_toolkit() -> tuple[bool, str]:
     """Download the Collective Modding Toolkit (wxMichael) from GitHub.
 

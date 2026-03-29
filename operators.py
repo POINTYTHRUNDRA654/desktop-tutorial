@@ -4672,6 +4672,12 @@ class FO4_OT_InstallLibigl(Operator):
             print(msg)
             print("=" * 60 + "\n")
             level = 'INFO' if ok else 'ERROR'
+            # Expire the rignet/libigl status cache so the panel refreshes.
+            try:
+                from . import ui_panels as _ui
+                _ui._invalidate_rignet_cache()
+            except Exception:
+                pass
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
@@ -4842,6 +4848,12 @@ class FO4_OT_InstallRigNet(Operator):
             print(msg)
             print("=" * 60 + "\n")
             level = 'INFO' if ok else 'ERROR'
+            # Expire the rignet/libigl status cache so the panel refreshes.
+            try:
+                from . import ui_panels as _ui
+                _ui._invalidate_rignet_cache()
+            except Exception:
+                pass
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
