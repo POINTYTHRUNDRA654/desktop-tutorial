@@ -5,12 +5,24 @@
     "moduleResolution": "node",
     "noEmit": false,
     "outDir": "dist-electron",
-    "lib": ["ES2022"],
-    "types": ["node"],
+    "lib": [
+      "ES2022"
+    ],
+    "types": [
+      "node"
+    ],
     "strict": false,
     "noImplicitAny": false,
     "skipLibCheck": true
   },
-  "include": ["src/main/**/*", "src/electron/**/*", "src/shared/**/*", "src/mining/**/*"],
-  "exclude": ["node_modules", "src/renderer", "src/electron/__tests__"]
+  "include": [
+    "src/electron/**/*",
+    "src/shared/**/*",
+    "src/mining/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/renderer",
+    "src/electron/__tests__"
+  ]
 }

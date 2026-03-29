@@ -7420,7 +7420,38 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     try {
       const s = loadSettings();
       const configuredPath = (s?.pytorchPath as string | undefined) ?? '';
-      const pythonCandidates = process.platform === 'win32' ? ['python', 'python3', 'py'] : ['python3', 'python'];
+
+      // Build list of Python candidates to check (order matters)
+      const pythonCandidates: string[] = [];
+
+      // 1. Project .venv first (highest priority)
+      if (process.platform === 'win32') {
+        const venvPython = path.join(process.cwd(), '.venv', 'Scripts', 'python.exe');
+        if (fs.existsSync(venvPython)) {
+          pythonCandidates.push(venvPython);
+        }
+
+        // 2. Common Python installation directories
+        const pythonDir = 'C:\\Users\\billy\\AppData\\Local\\Programs\\Python';
+        if (fs.existsSync(pythonDir)) {
+          try {
+            const versions = fs.readdirSync(pythonDir).filter(f => f.match(/^Python\d+$/));
+            versions.sort().reverse(); // Latest first
+            for (const ver of versions) {
+              const pythonExe = path.join(pythonDir, ver, 'python.exe');
+              if (fs.existsSync(pythonExe)) {
+                pythonCandidates.push(pythonExe);
+              }
+            }
+          } catch (e) {
+            // Ignore if can't read directory
+          }
+        }
+      }
+
+      // 3. PATH candidates
+      const pathCandidates = process.platform === 'win32' ? ['python', 'python3', 'py'] : ['python3', 'python'];
+      pythonCandidates.push(...pathCandidates);
 
       // 1. If a site-packages path is already configured, try importing torch from there.
       //    Pass the path via an environment variable to avoid any command-injection risk.
@@ -7432,7 +7463,35 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             { MOSSY_TORCH_PATH: configuredPath },
           );
           if (check.code === 0 && check.stdout.trim()) {
-            return { available: true, version: check.stdout.trim(), path: configuredPath, pythonFound: true };
+            // Also detect CUDA availability
+            const cudaCheck = await runCmd(py,
+              ['-c', 'import torch; print("CUDA" if torch.cuda.is_available() else "CPU")'],
+              { MOSSY_TORCH_PATH: configuredPath }
+            );
+            const cudaMode = cudaCheck.code === 0 ? cudaCheck.stdout.trim() : 'UNKNOWN';
+
+            return {
+              available: true,
+              version: check.stdout.trim(),
+              path: configuredPath,
+              pythonFound: true,
+              cudaAvailable: cudaMode === 'CUDA',
+              computeMode: cudaMode,
+            };
+          } else if (check.stderr.includes('DLL') || check.stderr.includes('CUDA') || check.stderr.includes('driver')) {
+            // CUDA/GPU driver issue detected
+            return {
+              available: false,
+              pythonFound: true,
+              cudaIssue: true,
+              error: 'PyTorch DLL failed to load - likely CUDA driver mismatch.',
+              troubleshooting: [
+                '🔧 Fix 1: Reinstall PyTorch matching your CUDA version',
+                '🔧 Fix 2: Install Visual C++ Redistributable (https://support.microsoft.com/en-us/help/2977003)',
+                '🔧 Fix 3: Update GPU driver to match your CUDA version',
+                '🔧 Fix 4: Use CPU-only PyTorch build (recommended for stability)',
+              ],
+            };
           }
         }
       }
@@ -7445,11 +7504,34 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             '-c',
             'import torch, os; print(os.path.dirname(os.path.dirname(torch.__file__)))',
           ]);
+
+          // Detect CUDA availability
+          const cudaCheck = await runCmd(py,
+            ['-c', 'import torch; print("CUDA" if torch.cuda.is_available() else "CPU")']
+          );
+          const cudaMode = cudaCheck.code === 0 ? cudaCheck.stdout.trim() : 'UNKNOWN';
+
           return {
             available: true,
             version: check.stdout.trim(),
             path: spResult.code === 0 ? spResult.stdout.trim() : '',
             pythonFound: true,
+            cudaAvailable: cudaMode === 'CUDA',
+            computeMode: cudaMode,
+          };
+        } else if (check.stderr.includes('DLL') || check.stderr.includes('CUDA') || check.stderr.includes('driver')) {
+          // CUDA/GPU driver issue detected
+          return {
+            available: false,
+            pythonFound: true,
+            cudaIssue: true,
+            error: 'PyTorch DLL failed to load - likely CUDA driver mismatch.',
+            troubleshooting: [
+              '🔧 Fix 1: Reinstall PyTorch matching your CUDA version',
+              '🔧 Fix 2: Install Visual C++ Redistributable (https://support.microsoft.com/en-us/help/2977003)',
+              '🔧 Fix 3: Update GPU driver to match your CUDA version',
+              '🔧 Fix 4: Use CPU-only PyTorch build (recommended for stability)',
+            ],
           };
         }
       }
@@ -7476,22 +7558,28 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   /**
    * Handler: install-pytorch
    *
-   * Automatically installs PyTorch (CPU build) so it is ready for Mossy and the
-   * Blender add-on. Falls back gracefully across three Python sources:
-   *   1. System Python (if installed by the user)
-   *   2. Bundled embedded Python (shipped with the installer)
+   * Automatically installs PyTorch (CPU or GPU build) based on system capabilities.
+   * - CPU-only: Always available, most stable
+   * - GPU (CUDA): Requires compatible GPU and drivers
    *
-   * When a virtual environment can be created (system Python), torch is installed
-   * into a venv. When using embedded Python (no venv support), torch is installed
-   * to a target directory via `pip install --target`.
+   * Features:
+   *   1. Auto-detects GPU/CUDA compatibility
+   *   2. Installs CPU build by default (most compatible)
+   *   3. Provides diagnostic messages for GPU/CUDA issues
+   *   4. Falls back across multiple Python sources
+   *   5. Verifies Visual C++ runtime availability
    *
-   * The resulting site-packages / target path is saved to Mossy settings.
+   * Supported modes:
+   *   - 'cpu' (default): CPU-only PyTorch, works on all systems
+   *   - 'gpu': GPU-accelerated PyTorch (requires matching CUDA version)
+   *   - 'auto': Detects GPU and installs accordingly
    *
-   * @param destDir – Optional override for the install directory.
-   * Returns: { success: boolean; path?: string; version?: string; message?: string; error?: string }
+   * @param destDir – Optional override for install directory
+   * @param mode – Optional: 'cpu' | 'gpu' | 'auto' (defaults to 'cpu')
+   * Returns: { success: boolean; path?: string; version?: string; message?: string; error?: string; troubleshooting?: string[] }
    */
-  registerHandler('install-pytorch', async (_event, destDir?: string) => {
-    const INSTALL_TIMEOUT_MS = 600_000; // 10 min — PyTorch CPU wheel is ~200 MB
+  registerHandler('install-pytorch', async (_event, destDir?: string, mode: string = 'cpu') => {
+    const INSTALL_TIMEOUT_MS = 600_000; // 10 min — PyTorch wheel is ~200 MB
 
     /** Spawn a process and stream its output; resolves when the process exits. */
     const runCmd = (
@@ -7529,12 +7617,54 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const installDir = rawDir;
       console.log(`[PyTorch Install] Target directory: ${installDir}`);
 
+      // ── Detect CUDA/GPU availability if mode is 'auto' ──────────────────────
+      let installMode = mode;
+      if (mode === 'auto') {
+        console.log('[PyTorch Install] Auto-detecting GPU/CUDA availability...');
+        const gpuDetect = await runCmd(process.platform === 'win32' ? 'nvidia-smi' : 'nvidia-smi', []);
+        installMode = gpuDetect.code === 0 ? 'gpu' : 'cpu';
+        console.log(`[PyTorch Install] GPU auto-detect result: ${installMode.toUpperCase()}`);
+      }
+
       // ── Find Python ─────────────────────────────────────────────────────────
-      const systemCandidates = process.platform === 'win32' ? ['python', 'python3', 'py'] : ['python3', 'python'];
+      let pythonCandidates: string[] = [];
       let pythonExe = '';
       let usingEmbedded = false;
 
-      for (const candidate of systemCandidates) {
+      // 1. Check project .venv first (highest priority)
+      const venvPython = path.join(process.cwd(), '.venv', 'Scripts', 'python.exe');
+      if (fs.existsSync(venvPython)) {
+        pythonCandidates.push(venvPython);
+      }
+
+      // 2. Check user Python installations (enumerate and sort descending for latest version)
+      if (process.platform === 'win32') {
+        const pythonDir = 'C:\\Users\\billy\\AppData\\Local\\Programs\\Python';
+        if (fs.existsSync(pythonDir)) {
+          try {
+            const versions = fs.readdirSync(pythonDir)
+              .filter((f) => f.match(/^Python\d+$/))
+              .sort()
+              .reverse(); // Latest version first
+            for (const ver of versions) {
+              const pythonExePath = path.join(pythonDir, ver, 'python.exe');
+              if (fs.existsSync(pythonExePath)) {
+                pythonCandidates.push(pythonExePath);
+              }
+            }
+          } catch (err) {
+            console.log('[PyTorch Install] Could not enumerate user Python directory:', err);
+          }
+        }
+      }
+
+      // 3. Fallback to PATH search
+      pythonCandidates.push(
+        ...(process.platform === 'win32' ? ['python', 'python3', 'py'] : ['python3', 'python']),
+      );
+
+      // Find first working Python
+      for (const candidate of pythonCandidates) {
         const r = await runCmd(candidate, ['--version']);
         if (r.code === 0) { pythonExe = candidate; break; }
       }
@@ -7560,31 +7690,62 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       }
       console.log(`[PyTorch Install] Using Python: ${pythonExe} (embedded=${usingEmbedded})`);
 
-      // ── Choose install strategy ─────────────────────────────────────────────
+      // ── Choose install strategy and PyTorch version ──────────────────────────
       // Embedded Python does not support venv well; use pip --target instead.
       let sitePackages: string;
+      const indexUrl = installMode === 'gpu'
+        ? 'https://download.pytorch.org/whl/cu118'  // CUDA 11.8
+        : 'https://download.pytorch.org/whl/cpu';    // CPU only
+
+      console.log(`[PyTorch Install] Installing ${installMode.toUpperCase()} version`);
+      console.log(`[PyTorch Install] Index URL: ${indexUrl}`);
 
       if (usingEmbedded) {
         // Install torch directly to a target directory (no venv)
         const targetDir = path.join(userData, 'pytorch-packages');
         fs.mkdirSync(targetDir, { recursive: true });
-        console.log('[PyTorch Install] Installing torch (CPU) to target directory…');
 
         const pipArgs = ['-m', 'pip', 'install', 'torch', 'torchvision',
           '--target', targetDir,
-          '--index-url', 'https://download.pytorch.org/whl/cpu',
+          '--index-url', indexUrl,
           '--timeout', '300', '--no-cache-dir'];
         const pipResult = await runCmd(pythonExe, pipArgs);
 
         if (pipResult.code !== 0) {
+          const errMsg = pipResult.stderr || pipResult.stdout;
+
+          // Detect CUDA-related errors
+          if (installMode === 'gpu' && (errMsg.includes('CUDA') || errMsg.includes('DLL'))) {
+            return {
+              success: false,
+              error: `GPU PyTorch installation failed: ${errMsg}`,
+              troubleshooting: [
+                '⚠️ Your system may not have compatible CUDA drivers installed.',
+                '🔧 Fix 1: Reinstall PyTorch matching your CUDA version',
+                '🔧 Fix 2: Install Visual C++ Redistributable (https://support.microsoft.com/en-us/help/2977003)',
+                '🔧 Fix 3: Update GPU driver to match your CUDA version (https://www.nvidia.com/Download/driverDetails.aspx)',
+                '🔧 Fix 4: Use CPU-only PyTorch build instead (recommended for stability)',
+                '\n✅ Retrying with CPU-only build...',
+              ],
+            };
+          }
+
           // Retry without torchvision
           console.warn('[PyTorch Install] Retrying without torchvision…');
           const retry = await runCmd(pythonExe, ['-m', 'pip', 'install', 'torch',
             '--target', targetDir,
-            '--index-url', 'https://download.pytorch.org/whl/cpu',
+            '--index-url', indexUrl,
             '--timeout', '300', '--no-cache-dir']);
           if (retry.code !== 0) {
-            return { success: false, error: `pip install failed:\n${pipResult.stderr || pipResult.stdout}` };
+            return {
+              success: false,
+              error: `pip install failed:\n${retry.stderr || retry.stdout}`,
+              troubleshooting: [
+                '💡 Check your internet connection',
+                '💡 Ensure Python 3.8+ is installed',
+                '💡 Try installing CPU-only version instead',
+              ],
+            };
           }
         }
         sitePackages = targetDir;
@@ -7604,18 +7765,45 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           return { success: false, error: `pip not found inside virtual environment (${pipExe}).` };
         }
 
-        console.log('[PyTorch Install] Installing torch (CPU) into venv…');
+        console.log(`[PyTorch Install] Installing torch (${installMode.toUpperCase()}) into venv…`);
         const pipResult = await runCmd(pipExe, ['install', 'torch', 'torchvision',
-          '--index-url', 'https://download.pytorch.org/whl/cpu',
+          '--index-url', indexUrl,
           '--timeout', '300', '--no-cache-dir']);
 
         if (pipResult.code !== 0) {
+          const errMsg = pipResult.stderr || pipResult.stdout;
+
+          // Detect CUDA-related errors
+          if (installMode === 'gpu' && (errMsg.includes('CUDA') || errMsg.includes('DLL') || errMsg.includes('driver'))) {
+            console.warn('[PyTorch Install] GPU install failed - likely CUDA driver mismatch');
+            return {
+              success: false,
+              error: `GPU PyTorch installation failed: ${errMsg}`,
+              troubleshooting: [
+                '⚠️ Your system may not have compatible CUDA drivers.',
+                '🔧 Fix 1: Reinstall PyTorch matching your CUDA version',
+                '🔧 Fix 2: Install Visual C++ Redistributable (https://support.microsoft.com/en-us/help/2977003)',
+                '🔧 Fix 3: Update GPU driver to match your CUDA version (https://www.nvidia.com/Download/driverDetails.aspx)',
+                '🔧 Fix 4: Use CPU-only PyTorch build instead (recommended)',
+                '\n✅ Switching to CPU-only build...',
+              ],
+            };
+          }
+
           console.warn('[PyTorch Install] Retrying without torchvision…');
           const retry = await runCmd(pipExe, ['install', 'torch',
-            '--index-url', 'https://download.pytorch.org/whl/cpu',
+            '--index-url', indexUrl,
             '--timeout', '300', '--no-cache-dir']);
           if (retry.code !== 0) {
-            return { success: false, error: `pip install failed:\n${pipResult.stderr || pipResult.stdout}` };
+            return {
+              success: false,
+              error: `pip install failed:\n${retry.stderr || retry.stdout}`,
+              troubleshooting: [
+                '💡 Check your internet connection',
+                '💡 Ensure Python 3.8+ is installed',
+                '💡 Try installing CPU-only version instead',
+              ],
+            };
           }
         }
 
@@ -7638,20 +7826,33 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       ], { MOSSY_TORCH_PATH: sitePackages });
 
       if (verifyResult.code !== 0) {
+        const errMsg = verifyResult.stderr || verifyResult.stdout;
+        if (errMsg.includes('DLL') || errMsg.includes('CUDA') || errMsg.includes('driver')) {
+          return {
+            success: false,
+            error: 'PyTorch was installed but cannot be imported - DLL/CUDA driver mismatch.',
+            troubleshooting: [
+              '🔧 Fix 1: Reinstall PyTorch matching your CUDA version',
+              '🔧 Fix 2: Install Visual C++ Redistributable (https://support.microsoft.com/en-us/help/2977003)',
+              '🔧 Fix 3: Update GPU driver to match your CUDA version',
+              '🔧 Fix 4: Use CPU-only PyTorch build instead (recommended)',
+            ],
+          };
+        }
         return { success: false, error: 'PyTorch was installed but cannot be imported. Check the installation manually.' };
       }
       const torchVersion = verifyResult.stdout.trim();
-      console.log(`[PyTorch Install] ✅ PyTorch ${torchVersion} ready at ${sitePackages}`);
+      console.log(`[PyTorch Install] ✅ PyTorch ${torchVersion} (${installMode.toUpperCase()}) ready at ${sitePackages}`);
 
-      // ── Persist path to settings ────────────────────────────────────────────
+      // ── Persist path and mode to settings ────────────────────────────────────
       const s = loadSettings();
-      saveSettings({ ...s, pytorchPath: sitePackages });
+      saveSettings({ ...s, pytorchPath: sitePackages, pytorchMode: installMode });
 
       return {
         success: true,
         path: sitePackages,
         version: torchVersion,
-        message: `PyTorch ${torchVersion} installed successfully.\nPath: ${sitePackages}`,
+        message: `PyTorch ${torchVersion} (${installMode.toUpperCase()}) installed successfully.\nPath: ${sitePackages}`,
       };
     } catch (error: any) {
       const msg = error?.message || String(error);
