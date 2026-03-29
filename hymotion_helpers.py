@@ -29,14 +29,41 @@ HYMOTION_ERROR = None
 # runs after this module is first imported.  Use _torch_available() instead.
 
 
-def _torch_available() -> bool:
-    """Return True if torch is findable on the current sys.path.
+def _mossy_provides_torch() -> bool:
+    """Return True when the Mossy bridge is online and provides PyTorch.
 
-    Uses importlib.util.find_spec (a fast filesystem check) rather than
-    actually importing torch, so the result reflects any paths added to
-    sys.path after module import (e.g. PyTorch Custom Path from prefs).
+    When Mossy is connected, PyTorch runs inside the Mossy desktop app —
+    a local Blender-side torch install is not required for AI inference.
+    Safe to call from background threads; all bpy.context access is guarded.
     """
-    return importlib.util.find_spec("torch") is not None
+    try:
+        import bpy as _bpy
+        wm = _bpy.context.window_manager
+        if getattr(wm, 'mossy_bridge_status', "").startswith("Mossy Bridge online"):
+            return True
+        try:
+            from . import preferences as _prefs
+            p = _prefs.get_preferences()
+            if p is not None and getattr(p, 'use_mossy_as_ai', False):
+                return True
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return False
+
+
+def _torch_available() -> bool:
+    """Return True if torch is available locally or via the Mossy bridge.
+
+    Checks (1) a fast local find_spec so custom-path installs are detected,
+    then (2) whether the Mossy bridge is online (Mossy hosts PyTorch, so no
+    local install is needed).  Called at invocation time, never at import
+    time, so it correctly reflects the runtime state.
+    """
+    if importlib.util.find_spec("torch") is not None:
+        return True
+    return _mossy_provides_torch()
 
 
 def _dll_init_error_message(exc_str: str = "") -> str:
@@ -169,10 +196,9 @@ def check_hymotion_availability():
         return False, "PyTorch not installed. Install with: pip install torch torchvision"
 
     # Probe torch to catch DLL init failures (WinError 1114 — CUDA/driver mismatch).
-    # Skip the probe when torch is already in sys.modules — it has been successfully
-    # loaded (e.g. by the Settings panel background probe) and its DLLs are confirmed
-    # working, so attempting a second import cannot give new information.
-    if sys.modules.get("torch") is None:
+    # Skip the probe when: (a) torch is already loaded in this process, or
+    # (b) torch runs inside Mossy — there are no local DLLs to verify.
+    if sys.modules.get("torch") is None and not _mossy_provides_torch():
         try:
             importlib.import_module("torch")
         except OSError as _e:
