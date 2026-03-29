@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowDownToLine, ChevronDown, ChevronUp, Lock, Map, RotateCcw, Settings as SettingsIcon, Wifi, Wrench } from 'lucide-react';
+import { ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw, Settings as SettingsIcon, Wifi, Wrench } from 'lucide-react';
 import type { ElectronAPI } from '../../electron/types';
 import PrivacySettings from './PrivacySettings';
 import LanguageSettings from './LanguageSettings';
@@ -7,6 +7,105 @@ import ExternalToolsSettings from './ExternalToolsSettings';
 import { SettingsImportExport } from './SettingsImportExport';
 import TutorialResetSettings from './TutorialResetSettings';
 import VersionInfo from './VersionInfo';
+
+// ─── Credits Section ───────────────────────────────────────────────────────────
+
+const CredsSection: React.FC = () => {
+  const [showFullCredits, setShowFullCredits] = useState(false);
+
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="p-3 rounded-md border border-emerald-700/30 bg-emerald-900/10 text-emerald-200 text-xs">
+        <div className="font-semibold mb-1">❤️ Built with Love on Amazing Open-Source Software</div>
+        <p>
+          Mossy stands on the shoulders of giants. Every feature you use is powered by
+          dedicated developers and vibrant communities. Click below to see the full list of
+          credits, licenses, and attributions.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setShowFullCredits(!showFullCredits)}
+        className="flex items-center gap-2 px-4 py-2 rounded-md bg-rose-700 hover:bg-rose-600 text-white font-semibold text-xs transition-colors"
+      >
+        <Heart className="w-4 h-4" />
+        {showFullCredits ? 'Hide Full Credits' : 'View Full Credits & Licenses'}
+      </button>
+
+      {showFullCredits && (
+        <div className="rounded-md border border-slate-700 bg-slate-800/30 p-4 max-h-96 overflow-y-auto space-y-3 text-xs">
+          <div>
+            <h4 className="font-semibold text-slate-200 mb-2">📦 Core Framework</h4>
+            <ul className="space-y-1 text-slate-300">
+              <li>• <strong>Electron</strong> - Cross-platform desktop framework (MIT)</li>
+              <li>• <strong>React</strong> - UI library by Meta (MIT)</li>
+              <li>• <strong>TypeScript</strong> - Typed JavaScript by Microsoft (Apache 2.0)</li>
+              <li>• <strong>Vite</strong> - Next-gen build tool (MIT)</li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-semibold text-slate-200 mb-2">🤖 AI & Machine Learning</h4>
+            <ul className="space-y-1 text-slate-300">
+              <li>• <strong>OpenAI SDK</strong> - ChatGPT integration (Apache 2.0)</li>
+              <li>• <strong>Groq SDK</strong> - Fast LLM inference (Apache 2.0)</li>
+              <li>• <strong>PyTorch</strong> - ML framework by Meta (BSD)</li>
+              <li>• <strong>NumPy</strong> - Numerical computing (BSD 3-Clause)</li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-semibold text-slate-200 mb-2">🎨 UI & Design</h4>
+            <ul className="space-y-1 text-slate-300">
+              <li>• <strong>TailwindCSS</strong> - Utility-first CSS (MIT)</li>
+              <li>• <strong>Lucide Icons</strong> - Icon library (ISC)</li>
+              <li>• <strong>react-markdown</strong> - Markdown renderer (MIT)</li>
+              <li>• <strong>Recharts</strong> - Charts library (MIT)</li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-semibold text-slate-200 mb-2">🎮 Modding Tools</h4>
+            <ul className="space-y-1 text-slate-300">
+              <li>• <strong>Blender</strong> - 3D modeling (GPL 2.0)</li>
+              <li>• <strong>xEdit</strong> - Plugin editor (GPL 2.0)</li>
+              <li>• <strong>Mod Organizer 2</strong> - Mod manager (GPL 3.0)</li>
+              <li>• <strong>Creation Kit</strong> - Official Bethesda tool</li>
+            </ul>
+          </div>
+
+          <div className="pt-2 border-t border-slate-700">
+            <p className="text-slate-400">
+              ...and 100+ more dependencies! See <strong>CREDITS.md</strong> in your Mossy installation folder for the
+              complete list with version numbers and license links.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="p-3 rounded-md border border-blue-700/30 bg-blue-900/10 text-blue-200 text-xs space-y-2">
+        <div className="font-semibold">📋 License Compliance</div>
+        <p>
+          Mossy respects all open-source licenses. Our LICENSE and CREDITS.md files are included
+          in your installation folder and this app bundle for transparency and attribution.
+        </p>
+        <p className="text-blue-300">
+          Found a license issue?{' '}
+          <a
+            href="https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues/new?title=License%20Compliance%20Issue"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-blue-200"
+          >
+            Report it on GitHub
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+};
+
 
 type HubSection = {
   id: string;
@@ -88,13 +187,12 @@ const InternetTestPanel: React.FC = () => {
       {report && (
         <div className="space-y-3">
           {/* Summary banner */}
-          <div className={`rounded-md border p-3 text-xs font-semibold ${
-            report.wikiOk && report.generalOk
-              ? 'border-emerald-600/50 bg-emerald-900/20 text-emerald-300'
-              : report.wikiOk || report.generalOk
-                ? 'border-yellow-600/50 bg-yellow-900/20 text-yellow-300'
-                : 'border-red-600/50 bg-red-900/20 text-red-300'
-          }`}>
+          <div className={`rounded-md border p-3 text-xs font-semibold ${report.wikiOk && report.generalOk
+            ? 'border-emerald-600/50 bg-emerald-900/20 text-emerald-300'
+            : report.wikiOk || report.generalOk
+              ? 'border-yellow-600/50 bg-yellow-900/20 text-yellow-300'
+              : 'border-red-600/50 bg-red-900/20 text-red-300'
+            }`}>
             {report.summary}
           </div>
 
@@ -207,6 +305,13 @@ const SettingsHub: React.FC = () => {
       description: 'Check that Mossy can reach search providers and go online.',
       icon: Wifi,
       content: <InternetTestPanel />,
+    },
+    {
+      id: 'credits',
+      title: 'Credits & Acknowledgments',
+      description: 'View the incredible open-source projects that power Mossy.',
+      icon: Heart,
+      content: <CredsSection />,
     },
   ];
 

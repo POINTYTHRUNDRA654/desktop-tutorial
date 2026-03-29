@@ -166,6 +166,30 @@ const DesktopBridge: React.FC = () => {
     const [newToolUrl, setNewToolUrl] = useState('');
     const [newToolCredit, setNewToolCredit] = useState('');
 
+    // --- Linked Directories ---
+    type LinkedDirectory = { name: string; path: string };
+
+    const [linkedDirectories, setLinkedDirectories] = useState<LinkedDirectory[]>(() => {
+        try {
+            const raw = localStorage.getItem('mossy_linked_directories');
+            const parsed = raw ? JSON.parse(raw) : null;
+            if (parsed && Array.isArray(parsed)) return parsed;
+
+            // Development defaults: for your personal workspace
+            const devDefaults: LinkedDirectory[] = [
+                { name: 'AI-Helper', path: 'D:\\Mossy\\AI-Helper' },
+                { name: 'Mossy-Desktop-AI', path: 'D:\\Mossy\\Mossy-Desktop-AI' },
+            ];
+            localStorage.setItem('mossy_linked_directories', JSON.stringify(devDefaults));
+            return devDefaults;
+        } catch {
+            return [];
+        }
+    });
+
+    const [newDirName, setNewDirName] = useState('');
+    const [newDirPath, setNewDirPath] = useState('');
+
     // --- Creation Kit / Papyrus ---
     const [ckSettings, setCkSettings] = useState<{
         creationKitPath: string;
@@ -614,6 +638,14 @@ const DesktopBridge: React.FC = () => {
             // ignore
         }
     }, [customToolLinks]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('mossy_linked_directories', JSON.stringify(linkedDirectories));
+        } catch {
+            // ignore
+        }
+    }, [linkedDirectories]);
 
     // Sync logs and check connection from LocalStorage (Updated by SystemBus)
     useEffect(() => {
@@ -1497,8 +1529,8 @@ pause
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}
                             className={`px-6 py-3 rounded-t-lg font-bold text-sm transition-colors flex items-center gap-2 ${activeTab === tab.id
-                                    ? 'bg-slate-800 text-white border-t border-x border-slate-700'
-                                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                                ? 'bg-slate-800 text-white border-t border-x border-slate-700'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                                 }`}
                         >
                             <tab.icon className="w-4 h-4" />
@@ -1596,7 +1628,7 @@ pause
                                                     <div>
                                                         <strong>&quot;Python is not recognized&quot;</strong>
                                                         <p className="text-xs text-slate-400 mt-1">
-                                                            Python isn&apos;t installed or not in PATH. Download from <a href="https://python.org" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">python.org</a> and check &quot;Add Python to PATH&quot; during install.
+                                                            Python isn&apos;t installed or not in PATH. Download from <a href="https://python.org" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">python.org</a> and check &quot;Add Python to PATH&quot; during install.
                                                         </p>
                                                     </div>
                                                     <div>
@@ -1641,13 +1673,13 @@ pause
                                         <div key={log.id} className="flex gap-3 animate-fade-in">
                                             <span className="text-slate-600 shrink-0">[{log.timestamp}]</span>
                                             <span className={`font-bold shrink-0 w-20 ${log.status === 'err' ? 'text-red-400' :
-                                                    log.status === 'success' ? 'text-emerald-400' :
-                                                        'text-blue-400'
+                                                log.status === 'success' ? 'text-emerald-400' :
+                                                    'text-blue-400'
                                                 }`}>{log.source}</span>
                                             <span className={`break-all ${log.status === 'warn' ? 'text-yellow-400' :
-                                                    log.status === 'err' ? 'text-red-400' :
-                                                        log.status === 'success' ? 'text-emerald-400' :
-                                                            'text-slate-300'
+                                                log.status === 'err' ? 'text-red-400' :
+                                                    log.status === 'success' ? 'text-emerald-400' :
+                                                        'text-slate-300'
                                                 }`}>{log.event}</span>
                                         </div>
                                     ))}
@@ -1879,7 +1911,8 @@ pause
                                                             if (nextExtends) setCkScriptExtends(nextExtends);
                                                         }
                                                     }}
-                                                    className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200"
+                                                    title="Select a Papyrus script template"
+                                                    className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/20 text-slate-200"
                                                 >
                                                     <option value="quest">Quest (OnInit)</option>
                                                     <option value="objectref">ObjectReference (OnInit, OnActivate)</option>
@@ -1927,6 +1960,8 @@ pause
                                                 value={ckScriptBody}
                                                 onChange={(e) => setCkScriptBody(e.target.value)}
                                                 rows={10}
+                                                title="Papyrus script content"
+                                                placeholder="Enter your Papyrus script content here"
                                                 className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
                                             />
                                         </div>
@@ -2127,7 +2162,8 @@ pause
                                                                     setPapyrusLibraryDescription(t.description || '');
                                                                 }
                                                             }}
-                                                            className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200"
+                                                            title="Select a saved Papyrus template"
+                                                            className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/20 text-slate-200"
                                                         >
                                                             <option value="">(none)</option>
                                                             {papyrusLibrary
@@ -2836,6 +2872,31 @@ pause
                                     File System Browser
                                 </h3>
 
+                                {linkedDirectories.length > 0 && (
+                                    <div className="mb-6 pb-4 border-b border-slate-700">
+                                        <p className="text-xs text-slate-400 mb-3">Quick Access (Linked Directories):</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            {linkedDirectories.map((dir, idx) => (
+                                                <button
+                                                    key={`${dir.path}-${idx}`}
+                                                    onClick={() => {
+                                                        setFilePath(dir.path);
+                                                        // Optionally: listFiles(dir.path);
+                                                    }}
+                                                    className="text-left px-3 py-2 rounded border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors flex items-center gap-2"
+                                                    title={dir.path}
+                                                >
+                                                    <FolderOpen className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                                                    <div className="min-w-0">
+                                                        <div className="text-xs font-bold truncate">{dir.name}</div>
+                                                        <div className="text-[10px] text-slate-500 truncate">{dir.path}</div>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {!bridgeConnected && (
                                     <div className="text-center py-12 text-slate-500">
                                         <FolderOpen className="w-16 h-16 mx-auto mb-4 opacity-20" />
@@ -2889,8 +2950,8 @@ pause
                         </div>
                     )}
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

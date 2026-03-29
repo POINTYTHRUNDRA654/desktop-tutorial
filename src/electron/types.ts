@@ -404,6 +404,32 @@ export interface ElectronAPI {
   getDdsDimensions: (filePath: string) => Promise<{ width: number; height: number }>;
   getImageDimensions: (filePath: string) => Promise<{ width: number; height: number }>;
   pickToolPath: (toolName: string) => Promise<string>;
+
+  // Tool auto-download — lets the app download optional tools (e.g. UModel) on demand.
+  downloadUModel: (destDir?: string) => Promise<any>;
+
+  // PyTorch — check availability and auto-install builds with CUDA diagnostics
+  checkPyTorch: () => Promise<{
+    available: boolean;
+    version?: string;
+    path?: string;
+    pythonFound?: boolean;
+    cudaAvailable?: boolean;
+    computeMode?: 'CPU' | 'CUDA' | 'UNKNOWN';
+    cudaIssue?: boolean;
+    error?: string;
+    troubleshooting?: string[];
+  }>;
+  installPyTorch: (destDir?: string, mode?: string) => Promise<{
+    success: boolean;
+    path?: string;
+    version?: string;
+    message?: string;
+    error?: string;
+    troubleshooting?: string[];
+  }>;
+  onPytorchSetupProgress: (callback: (data: { message: string }) => void) => (() => void);
+
   // Workshop
   browseDirectory: (startPath?: string) => Promise<{ name: string; type: 'folder' | 'file'; path: string; fileType?: string }[]>;
   readFile: (filePath: string) => Promise<string>;
