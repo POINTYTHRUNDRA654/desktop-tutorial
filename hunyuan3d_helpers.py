@@ -76,11 +76,9 @@ def _dll_init_error_message(exc_str: str = "") -> str:
         "2. Install the latest Visual C++ Redistributable from Microsoft:\n"
         "   https://aka.ms/vs/17/release/vc_redist.x64.exe\n"
         "3. Update your GPU driver to one compatible with your CUDA version.\n"
-        "4. If no GPU is present, install the CPU-only PyTorch build."
+        "4. If no GPU is present, install the CPU-only PyTorch build:\n"
+        "   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu"
     )
-
-
-def _build_hunyuan3d_candidates():
     """Return an ordered list of candidate paths to search for Hunyuan3D-2.
 
     The tools-root location (set by the addon installer or the user's

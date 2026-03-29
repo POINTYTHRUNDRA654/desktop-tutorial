@@ -616,6 +616,43 @@ def register():
         except Exception as e:
             print(f"⚠ Deferred setup-operator check failed: {e}")
 
+        # ── Step 7: auto-check Mossy bridge (safety net) ─────────────────
+        # The background torch probe already checks Mossy at probe time, but
+        # Mossy may start *after* Blender (or after the probe already ran and
+        # cached a local-torch failure).  Run a second check 2 s into startup
+        # so the cached failure gets replaced before the user notices it.
+        #
+        # Runs in a daemon thread so the HTTP call never blocks the UI.
+        def _auto_check_mossy_bridge():
+            try:
+                from . import mossy_link as _ml
+                from . import ui_panels as _ui
+                bridge_ok, bridge_msg = _ml.check_bridge(timeout=1.0)
+                if bridge_ok:
+                    def _apply(msg=bridge_msg):
+                        try:
+                            bpy.context.window_manager["mossy_bridge_status"] = msg
+                            # If the probe already cached a local-torch failure,
+                            # patch it to success so the panel no longer shows
+                            # the WinError 1114 message.
+                            cached = _ui._torch_status_cache
+                            if cached is not None and cached[0] is False:
+                                _ui._torch_status_cache = (True, "via Mossy bridge")
+                            # Trigger a redraw to surface the updated status.
+                            for _win in bpy.context.window_manager.windows:
+                                for _area in _win.screen.areas:
+                                    if _area.type == 'VIEW_3D':
+                                        _area.tag_redraw()
+                        except Exception:
+                            pass
+                    bpy.app.timers.register(
+                        _apply, first_interval=0.0, persistent=False
+                    )
+            except Exception:
+                pass
+        import threading as _thr
+        _thr.Thread(target=_auto_check_mossy_bridge, daemon=True).start()
+
         return None  # Do not reschedule
 
     try:

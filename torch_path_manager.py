@@ -19,6 +19,130 @@ test_addon_integrity.py continue to find ``torch.recheck_status`` and
 """
 
 import bpy
+import re as _re
+import subprocess as _subprocess
+
+
+# ── CUDA version detection ─────────────────────────────────────────────────
+# Module-level cache so nvidia-smi is only queried once per Blender session.
+_cuda_version_detected: "str | None" = None
+_cuda_detection_done: bool = False
+
+
+def detect_cuda_version() -> "str | None":
+    """Return the CUDA version supported by the installed GPU driver, or None.
+
+    Runs ``nvidia-smi`` once and caches the result for the lifetime of the
+    Blender session.  Returns a string such as ``"12.4"`` or ``"11.8"``.
+
+    Returns ``None`` when nvidia-smi is not available, times out, or the
+    output cannot be parsed (e.g. no NVIDIA GPU present).
+    """
+    global _cuda_version_detected, _cuda_detection_done
+    if _cuda_detection_done:
+        return _cuda_version_detected
+    _cuda_detection_done = True
+    try:
+        result = _subprocess.run(
+            ["nvidia-smi"],
+            capture_output=True, text=True, timeout=5,
+        )
+        match = _re.search(r"CUDA Version:\s*(\d+\.\d+)", result.stdout)
+        if match:
+            _cuda_version_detected = match.group(1)
+    except (FileNotFoundError, _subprocess.TimeoutExpired, OSError):
+        pass
+    return _cuda_version_detected
+
+
+# Maps the nearest supported CUDA toolkit version to a PyTorch wheel index tag.
+# Sorted highest-first so _pytorch_wheel_tag() picks the best match.
+_CUDA_WHEEL_TAGS: "list[tuple[tuple[int,int], str]]" = [
+    ((12, 6), "cu126"),
+    ((12, 4), "cu124"),
+    ((12, 1), "cu121"),
+    ((11, 8), "cu118"),
+    ((11, 7), "cu117"),
+    ((11, 6), "cu116"),
+]
+
+
+def _pytorch_wheel_tag(cuda_ver: str) -> str:
+    """Return the best PyTorch wheel index tag for *cuda_ver* (e.g. ``"cu124"``).
+
+    Picks the highest wheel tag whose CUDA version does not exceed the
+    driver's reported CUDA support level.  Returns ``""`` if no match.
+    """
+    try:
+        parts = cuda_ver.split(".")
+        driver_key = (int(parts[0]), int(parts[1]))
+    except (ValueError, IndexError):
+        return ""
+    for key, tag in _CUDA_WHEEL_TAGS:
+        if key <= driver_key:
+            return tag
+    return ""
+
+
+def dll_init_error_message(torch_path: str = "") -> str:
+    """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
+
+    Attempts to auto-detect the GPU driver's CUDA version via ``nvidia-smi``
+    and, when successful, adds the exact ``pip install`` command the user
+    should run to resolve the CUDA/driver mismatch.
+
+    This is the single canonical implementation; all helper modules
+    (hunyuan3d_helpers, hymotion_helpers, zoedepth_helpers, shap_e_helpers,
+    point_e_helpers, rignet_helpers) delegate to this function.
+
+    Args:
+        torch_path: The user-configured PyTorch directory
+                    (e.g. ``"D:\\blender_torch"``).  When provided the
+                    failing DLL path is shown more precisely.
+    """
+    if torch_path:
+        dll_line = (
+            f"A file such as {torch_path}\\torch\\lib\\c10.dll could not be loaded."
+        )
+    else:
+        dll_line = "A torch DLL (e.g. torch\\lib\\c10.dll) could not be loaded."
+
+    cuda_ver = detect_cuda_version()
+    if cuda_ver:
+        tag = _pytorch_wheel_tag(cuda_ver)
+        if tag:
+            whl_url = f"https://download.pytorch.org/whl/{tag}"
+            fix1 = (
+                f"1. Reinstall PyTorch matching your CUDA toolkit version.\n"
+                f"   Detected GPU driver CUDA support: {cuda_ver}\n"
+                f"   Run: pip install torch torchvision torchaudio"
+                f" --index-url {whl_url}"
+            )
+        else:
+            fix1 = (
+                f"1. Reinstall PyTorch matching your CUDA toolkit version.\n"
+                f"   Detected GPU driver CUDA support: {cuda_ver}\n"
+                f"   Visit: https://pytorch.org/get-started/locally/"
+            )
+    else:
+        fix1 = (
+            "1. Reinstall PyTorch matching your CUDA toolkit version:\n"
+            "   https://pytorch.org/get-started/locally/"
+        )
+
+    return (
+        "PyTorch DLL initialisation failed (WinError 1114).\n"
+        "This usually means a CUDA/driver version mismatch.\n"
+        f"{dll_line}\n\n"
+        "Suggested fixes:\n"
+        f"{fix1}\n"
+        "2. Install the latest Visual C++ Redistributable from Microsoft:\n"
+        "   https://aka.ms/vs/17/release/vc_redist.x64.exe\n"
+        "3. Update your GPU driver to one compatible with your CUDA version.\n"
+        "4. If no GPU is present, install the CPU-only PyTorch build:\n"
+        "   pip install torch torchvision torchaudio"
+        " --index-url https://download.pytorch.org/whl/cpu"
+    )
 
 # Width (px) of the setup-instructions pop-up dialog.
 _DIALOG_WIDTH = 480
