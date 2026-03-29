@@ -26,6 +26,23 @@ except ImportError:
     GRADIO_ERROR = "Gradio not installed"
 
 
+def refresh_availability():
+    """Re-check whether Gradio is importable and update the module-level flag.
+
+    Call this after a successful pip install so the UI reflects the new state
+    without requiring a Blender restart.
+    """
+    global GRADIO_AVAILABLE, GRADIO_ERROR, gr
+    try:
+        import importlib as _il
+        gr = _il.import_module("gradio")
+        GRADIO_AVAILABLE = True
+        GRADIO_ERROR = None
+    except ImportError as exc:
+        GRADIO_AVAILABLE = False
+        GRADIO_ERROR = str(exc)
+
+
 def check_gradio_availability():
     """
     Check if Gradio is installed and available.

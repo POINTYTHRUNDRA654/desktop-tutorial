@@ -1463,6 +1463,7 @@ class FO4_PT_SetupAIGradio(_FO4SubPanel):
                 layout.operator("fo4.start_gradio_server", text="Start Web UI", icon='PLAY')
         else:
             layout.label(text="Gradio: Not Installed ✗", icon='ERROR')
+            layout.operator("fo4.install_gradio", text="Auto-Install Gradio", icon='IMPORT')
 
         layout.operator("fo4.show_gradio_info", text="Web UI Info", icon='INFO')
 
