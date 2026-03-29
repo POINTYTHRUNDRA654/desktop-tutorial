@@ -2517,10 +2517,9 @@ class FO4_OT_StartGradioServer(Operator):
     def execute(self, context):
         # Check if Gradio is available
         if not gradio_helpers.GradioHelpers.is_available():
-            self.report({'ERROR'}, "Gradio not installed")
-            self.report({'INFO'}, "Install with: pip install gradio")
+            self.report({'ERROR'}, "Gradio not installed — click 'Auto-Install Gradio' in the panel")
             notification_system.FO4_NotificationSystem.notify(
-                "Gradio not installed. See console for instructions.", 'ERROR'
+                "Gradio not installed. Use 'Auto-Install Gradio' in the Web Interface panel.", 'ERROR'
             )
             return {'CANCELLED'}
         
@@ -2624,6 +2623,38 @@ class FO4_OT_ShowGradioInfo(Operator):
             print("="*70 + "\n")
         
         return {'FINISHED'}
+
+
+class FO4_OT_InstallGradio(Operator):
+    """Install Gradio web UI framework via pip (automatic)."""
+    bl_idname = "fo4.install_gradio"
+    bl_label = "Auto-Install Gradio"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING GRADIO")
+            print("=" * 60)
+            ok, msg = tool_installers.install_gradio()
+            print(msg)
+            print("=" * 60 + "\n")
+            if ok:
+                try:
+                    from . import gradio_helpers as _gh
+                    _gh.refresh_availability()
+                except Exception as exc:
+                    print(f"⚠ gradio_helpers.refresh_availability() failed: {exc}")
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing Gradio in background — check console (Window > Toggle System Console)")
+        return {'FINISHED'}
+
 
 # HY-Motion-1.0 Operators
 
@@ -12890,6 +12921,7 @@ classes = (
     FO4_OT_StartGradioServer,
     FO4_OT_StopGradioServer,
     FO4_OT_ShowGradioInfo,
+    FO4_OT_InstallGradio,
     FO4_OT_GenerateMotionFromText,
     FO4_OT_ImportMotionFile,
     FO4_OT_ShowHyMotionInfo,

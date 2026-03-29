@@ -14,9 +14,10 @@ from typing import Any, Dict
 
 try:
     import bpy  # type: ignore
+    from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
 except ImportError:  # pragma: no cover - worker processes run without Blender
     bpy = None
-from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
+    StringProperty = EnumProperty = IntProperty = FloatProperty = BoolProperty = None  # type: ignore[assignment]
 
 # ---------------------------------------------------------------------------
 # Module-level model cache — Point-E models take significant time to load

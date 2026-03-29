@@ -921,6 +921,23 @@ def install_point_e() -> tuple[bool, str]:
     return False, f"Point-E install failed: {msg}"
 
 
+def install_gradio() -> tuple[bool, str]:
+    """Install Gradio web UI framework via pip.
+
+    Gradio provides a browser-based interface for AI generation tools.
+    It is a pure-Python package with no git clone required.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    ok, msg = _pip_install(["gradio"])
+    if ok:
+        return True, "Gradio installed successfully. You can now start the Web UI from the add-on panel."
+    return False, f"Gradio install failed: {msg}"
+
+
 def install_zoedepth() -> tuple[bool, str]:
     """Clone ZoeDepth (isl-org) from GitHub and install its pip dependencies.
 
