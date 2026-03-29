@@ -52,22 +52,31 @@ def _torch_available() -> bool:
     return importlib.util.find_spec("torch") is not None
 
 
-def _dll_init_error_message() -> str:
+def _dll_init_error_message(exc_str: str = "") -> str:
     """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
 
-    Delegates to ``torch_path_manager.dll_init_error_message()`` which
-    auto-detects the GPU driver's CUDA version and includes the exact
-    ``pip install`` command for the user's system.
+    This error typically means a CUDA-version mismatch between the installed
+    PyTorch and the system GPU driver, or a missing Visual C++ Redistributable.
+
+    Args:
+        exc_str: String representation of the original OSError.  When provided,
+                 the actual failing DLL path is extracted and shown in the message.
     """
-    try:
-        from . import torch_path_manager as _tpm
-        return _tpm.dll_init_error_message()
-    except Exception:
-        pass
+    import re as _re
+    dll_path = ""
+    if exc_str:
+        m = _re.search(r"'([^']+\.(?:dll|pyd))'", exc_str, _re.IGNORECASE)
+        if m:
+            dll_path = m.group(1)
+    dll_line = (
+        f"A file such as {dll_path} could not be loaded.\n"
+        if dll_path
+        else "A torch DLL (e.g. torch\\lib\\c10.dll) could not be loaded.\n"
+    )
     return (
         "PyTorch DLL initialisation failed (WinError 1114).\n"
         "This usually means a CUDA/driver version mismatch.\n"
-        "A file such as D:\\blender_torch\\torch\\lib\\c10.dll could not be loaded.\n\n"
+        + dll_line + "\n"
         "Suggested fixes:\n"
         "1. Reinstall PyTorch matching your CUDA toolkit version:\n"
         "   https://pytorch.org/get-started/locally/\n"
@@ -131,7 +140,7 @@ def _check_zoedepth_availability_uncached():
             importlib.import_module("torch")
         except OSError as _e:
             if getattr(_e, 'winerror', None) == 1114 or "WinError 1114" in str(_e):
-                return False, _dll_init_error_message()
+                return False, _dll_init_error_message(str(_e))
             return False, f"PyTorch failed to load: {_e}"
         except ImportError as _e:
             return False, f"PyTorch not available: {_e}"

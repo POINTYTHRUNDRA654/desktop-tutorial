@@ -275,22 +275,31 @@ class ShapEHelpers:
         """Force the next availability check to re-scan (call after install completes)."""
 
     @staticmethod
-    def _dll_init_error_message():
+    def _dll_init_error_message(exc_str: str = ""):
         """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
 
-        Delegates to ``torch_path_manager.dll_init_error_message()`` which
-        auto-detects the GPU driver's CUDA version and includes the exact
-        ``pip install`` command for the user's system.
+        This error typically means a CUDA-version mismatch between the installed
+        PyTorch and the system GPU driver, or a missing Visual C++ Redistributable.
+
+        Args:
+            exc_str: String representation of the original OSError.  When provided,
+                     the actual failing DLL path is extracted and shown in the message.
         """
-        try:
-            from . import torch_path_manager as _tpm
-            return _tpm.dll_init_error_message()
-        except Exception:
-            pass
+        import re as _re
+        dll_path = ""
+        if exc_str:
+            m = _re.search(r"'([^']+\.(?:dll|pyd))'", exc_str, _re.IGNORECASE)
+            if m:
+                dll_path = m.group(1)
+        dll_line = (
+            f"A file such as {dll_path} could not be loaded.\n"
+            if dll_path
+            else "A torch DLL (e.g. torch\\lib\\c10.dll) could not be loaded.\n"
+        )
         return (
             "PyTorch DLL initialisation failed (WinError 1114).\n"
             "This usually means a CUDA/driver version mismatch.\n"
-            "A file such as D:\\blender_torch\\torch\\lib\\c10.dll could not be loaded.\n\n"
+            + dll_line + "\n"
             "Suggested fixes:\n"
             "1. Reinstall PyTorch matching your CUDA toolkit version:\n"
             "   https://pytorch.org/get-started/locally/\n"
@@ -300,9 +309,6 @@ class ShapEHelpers:
             "4. If no GPU is present, install the CPU-only PyTorch build:\n"
             "   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu"
         )
-
-        ShapEHelpers._cache = None
-        ShapEHelpers._cache_time = 0.0
 
     @staticmethod
     def is_shap_e_installed():
@@ -392,7 +398,7 @@ class ShapEHelpers:
                         return False, _pytorch_required_message(str(torch_err))
                     except OSError as torch_err:
                         if getattr(torch_err, 'winerror', None) == 1114 or "WinError 1114" in str(torch_err):
-                            return False, ShapEHelpers._dll_init_error_message()
+                            return False, ShapEHelpers._dll_init_error_message(str(torch_err))
                         return False, f"PyTorch failed to load: {torch_err}"
 
             import shap_e
@@ -414,7 +420,7 @@ class ShapEHelpers:
             # Catches the rare case where the DLL failure bubbles up here instead
             # of being caught by TorchPathManager (e.g. import shap_e triggers it).
             if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
-                return False, ShapEHelpers._dll_init_error_message()
+                return False, ShapEHelpers._dll_init_error_message(str(e))
             return False, f"File error loading Shap-E: {str(e)}"
         except ImportError as e:
             return False, f"Shap-E not installed: {str(e)}"
