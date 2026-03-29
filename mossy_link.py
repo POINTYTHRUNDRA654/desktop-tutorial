@@ -30,8 +30,10 @@ change them without restarting Blender.
 """
 
 import json
+import os
 import queue
 import socket
+import sys
 import threading
 from urllib import error as _url_error
 from urllib import request as _url_request
@@ -41,6 +43,7 @@ _server_thread: "threading.Thread | None" = None
 _server_socket: "socket.socket | None" = None
 _active: bool = False
 _command_queue: queue.Queue = queue.Queue()
+_pytorch_path: "str | None" = None  # Will be set by Mossy via set_pytorch_path command
 
 # ── Port helpers ───────────────────────────────────────────────────────────────
 
@@ -60,31 +63,87 @@ def _get_ports():
         pass
     return tcp_port, llm_port, token
 
-# ── TCP command server ─────────────────────────────────────────────────────────
 
-def _handle_connection(conn: socket.socket, token: str) -> None:
-    """Read one JSON command from *conn*, queue it, wait for result, reply."""
+def _store_pytorch_path_in_prefs(path: str) -> None:
+    """Store the PyTorch path in Blender preferences so it persists."""
+    global _pytorch_path
+    _pytorch_path = path
     try:
-        # Read until we have a complete JSON object (≤ 64 KB for safety).
-        data = b""
-        conn.settimeout(5.0)
-        while len(data) < 65536:
-            try:
-                chunk = conn.recv(4096)
-            except socket.timeout:
-                break
-            if not chunk:
-                break
-            data += chunk
-            try:
-                json.loads(data.decode("utf-8"))
-                break          # valid JSON received
-            except json.JSONDecodeError:
-                continue       # wait for more bytes
+        from . import preferences as _prefs_mod
+        prefs = _prefs_mod.get_preferences()
+        if prefs:
+            prefs.pytorch_path = path
+            print(f"[Mossy Link] Stored PyTorch path in preferences: {path}")
+    except Exception as e:
+        print(f"[Mossy Link] Warning: Could not store path in prefs: {e}")
 
-        if not data:
-            conn.close()
-            return
+
+def _load_pytorch_path_from_prefs() -> "str | None":
+    """Load the PyTorch path from Blender preferences if available."""
+    global _pytorch_path
+    try:
+        from . import preferences as _prefs_mod
+        prefs = _prefs_mod.get_preferences()
+        if prefs and hasattr(prefs, "pytorch_path"):
+            path = getattr(prefs, "pytorch_path", None)
+            if path:
+                _pytorch_path = path
+                print(f"[Mossy Link] Loaded PyTorch path from preferences: {path}")
+                # Also apply to sys.path and environment
+                _apply_pytorch_path(path)
+                return path
+    except Exception as e:
+        print(f"[Mossy Link] Could not load path from prefs: {e}")
+    return None
+
+
+def _apply_pytorch_path(path: str) -> None:
+    """Apply the PyTorch path to sys.path and environment variables."""
+    global _pytorch_path
+
+    # Add to sys.path if not already there
+    if path and path not in sys.path:
+        sys.path.insert(0, path)
+        print(f"[Mossy Link] Added {path} to sys.path")
+
+    # Set PYTHONPATH environment variable so subprocesses (Blender operators, etc.) can find torch
+    current_pythonpath = os.environ.get("PYTHONPATH", "")
+    if path:
+        paths = [p for p in current_pythonpath.split(os.pathsep) if p]  # Remove empty strings
+        if path not in paths:
+            paths.insert(0, path)
+            os.environ["PYTHONPATH"] = os.pathsep.join(paths)
+            print(f"[Mossy Link] Updated PYTHONPATH environment variable")
+
+    _pytorch_path = path
+
+    # Try to import torch as a test
+    try:
+        import torch
+        print(f"[Mossy Link] ✅ PyTorch {torch.__version__} is accessible from {path}")
+        return True
+    except ImportError as e:
+        # Check if it's a DLL error (CUDA mismatch) vs regular import error
+        error_msg = str(e)
+        if "DLL" in error_msg or "CUDA" in error_msg or "driver" in error_msg or "WinError 1114" in error_msg:
+            print(f"[Mossy Link] ❌ PyTorch DLL failed to load (likely CPU vs GPU version mismatch)")
+            print(f"[Mossy Link] Error: {e}")
+            print(f"[Mossy Link] ")
+            print(f"[Mossy Link] FIX: Mossy likely installed a GPU version but Blender needs CPU-only")
+            print(f"[Mossy Link] ")
+            print(f"[Mossy Link] Reinstall PyTorch CPU-only version:")
+            print(f"[Mossy Link]   1. Open Mossy Settings → PyTorch Manager")
+            print(f"[Mossy Link]   2. Click 'Uninstall PyTorch'")
+            print(f"[Mossy Link]   3. Click 'Install PyTorch (CPU-only)' Button")
+            print(f"[Mossy Link]   4. Restart Blender")
+            print(f"[Mossy Link] ")
+            print(f"[Mossy Link] OR manually reinstall:")
+            print(f"[Mossy Link]   python.exe -m pip uninstall torch torchvision torchaudio -y")
+            print(f"[Mossy Link]   python.exe -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu")
+            return False
+        else:
+            print(f"[Mossy Link] ⚠️ PyTorch import failed: {e}")
+            return False
 
         cmd = json.loads(data.decode("utf-8"))
 
@@ -181,7 +240,28 @@ def _process_command_queue() -> "float | None":
 
 def _execute_command_on_main_thread(cmd: dict, bpy) -> dict:
     """Execute a single command dict.  Must run on the Blender main thread."""
+    global _pytorch_path
+
     cmd_type = cmd.get("type", "script")
+
+    # NEW: Handle set_pytorch_path command from Mossy
+    if cmd_type == "set_pytorch_path":
+        path = cmd.get("path", "")
+        if not path:
+            return {"status": "error", "message": "No path provided"}
+
+        # Check if path exists
+        if not os.path.isdir(path):
+            return {"status": "error", "message": f"Path does not exist: {path}"}
+
+        # Apply the path and store it
+        _store_pytorch_path_in_prefs(path)
+        success = _apply_pytorch_path(path)
+
+        if success:
+            return {"status": "success", "message": f"PyTorch path set and verified: {path}"}
+        else:
+            return {"status": "warning", "message": f"Path set ({path}) but torch not found"}
 
     if cmd_type == "script":
         code = cmd.get("code", "")
@@ -230,6 +310,11 @@ def start_server() -> tuple:
 
     tcp_port, _llm_port, token = _get_ports()
     _active = True
+
+    # Load PyTorch path from preferences if available
+    pytorch_path = _load_pytorch_path_from_prefs()
+    if pytorch_path:
+        print(f"[Mossy Link] PyTorch path loaded and ready: {pytorch_path}")
 
     _server_thread = threading.Thread(
         target=_tcp_server_loop,
@@ -551,6 +636,11 @@ def analyze_scene(scene_info: dict, timeout: float = 30) -> "str | None":
 def register() -> None:
     """Called by the add-on register().  Auto-starts the server if preferred."""
     try:
+        # Load PyTorch path from preferences on add-on load
+        pytorch_path = _load_pytorch_path_from_prefs()
+        if pytorch_path:
+            print(f"[Mossy Link] PyTorch path loaded on add-on register: {pytorch_path}")
+
         from . import preferences as _prefs_mod
         prefs = _prefs_mod.get_preferences()
         if prefs and getattr(prefs, "autostart", True):
