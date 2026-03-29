@@ -32,13 +32,28 @@ class RigNetHelpers:
     """Helper functions for RigNet automatic rigging integration"""
 
     @staticmethod
-    def _dll_init_error_message():
-        """Return a user-friendly message when WinError 1114 (DLL init failure) occurs."""
+    def _dll_init_error_message(exc_str: str = ""):
+        """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
+
+        Args:
+            exc_str: String representation of the original OSError.  When provided,
+                     the actual failing DLL path is extracted and shown in the message.
+        """
+        import re as _re
+        dll_path = ""
+        if exc_str:
+            m = _re.search(r"'([^']+\.(?:dll|pyd))'", exc_str, _re.IGNORECASE)
+            if m:
+                dll_path = m.group(1)
+        dll_line = (
+            f"A file such as {dll_path} could not be loaded. "
+            if dll_path
+            else "A torch DLL (e.g. torch\\lib\\c10.dll) could not be loaded. "
+        )
         return (
             "PyTorch DLL initialisation failed (WinError 1114). "
-            "A file such as c10.dll (e.g. D:\\blender_torch\\torch\\lib\\c10.dll) "
-            "could not be loaded. "
-            "Please reinstall PyTorch matching your CUDA version and install "
+            + dll_line
+            + "Please reinstall PyTorch matching your CUDA version and install "
             "the Visual C++ Redistributable: https://aka.ms/vs/17/release/vc_redist.x64.exe"
         )
 
@@ -90,7 +105,7 @@ class RigNetHelpers:
             if "WinError 206" in str(e) or "filename or extension is too long" in str(e):
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path."
             if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
-                return False, RigNetHelpers._dll_init_error_message()
+                return False, RigNetHelpers._dll_init_error_message(str(e))
             return False, f"OS error checking RigNet: {str(e)}"
         except Exception as e:
             return False, f"Error checking RigNet: {str(e)}"

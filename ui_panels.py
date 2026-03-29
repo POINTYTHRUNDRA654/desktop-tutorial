@@ -197,8 +197,12 @@ def reset_torch_cache():
 # Defined before the message function so both use the same constant.
 _DLL_ERROR_SENTINEL = "PyTorch DLL initialisation failed (WinError 1114)."
 
+# Sentinel returned by _get_torch_status() when the Mossy bridge is online and
+# covers PyTorch inference — local install is not required.
+_MOSSY_TORCH = "via Mossy bridge"
 
-def _dll_init_error_message() -> str:
+
+def _dll_init_error_message(exc_str: str = "") -> str:
     """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
 
     This error means a CUDA-version mismatch between the installed PyTorch
@@ -206,11 +210,29 @@ def _dll_init_error_message() -> str:
     Identical to the helper defined in hunyuan3d_helpers / hymotion_helpers /
     zoedepth_helpers — duplicated here so ui_panels has no import dependency
     on those optional modules.
+
+    Args:
+        exc_str: String representation of the original OSError.  When provided,
+                 the actual failing DLL path is extracted and shown in the message
+                 so the user can identify exactly which file failed to load.
     """
+    import re as _re
+    # Try to extract a quoted DLL path from the OS error string.
+    # Windows error format: "[WinError 1114] ... failed: 'D:\\path\\to\\file.dll'"
+    dll_path = ""
+    if exc_str:
+        m = _re.search(r"'([^']+\.(?:dll|pyd))'", exc_str, _re.IGNORECASE)
+        if m:
+            dll_path = m.group(1)
+    dll_line = (
+        f"A file such as {dll_path} could not be loaded.\n"
+        if dll_path
+        else "A torch DLL (e.g. torch\\lib\\c10.dll) could not be loaded.\n"
+    )
     return (
         _DLL_ERROR_SENTINEL + "\n"
         "This usually means a CUDA/driver version mismatch.\n"
-        "A torch DLL (e.g. torch\\lib\\c10.dll) could not be loaded.\n\n"
+        + dll_line + "\n"
         "Suggested fixes:\n"
         "1. Reinstall PyTorch matching your CUDA toolkit version:\n"
         "   https://pytorch.org/get-started/locally/\n"
@@ -234,7 +256,7 @@ def _probe_torch_background() -> None:
         _torch_status_cache = (True, torch.__version__)
     except OSError as e:
         if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
-            _torch_status_cache = (False, _dll_init_error_message())
+            _torch_status_cache = (False, _dll_init_error_message(str(e)))
         else:
             _torch_status_cache = (False, str(e))
     except ImportError as e:
@@ -260,17 +282,39 @@ def _get_torch_status() -> "tuple[bool | None, str]":
     Returns
     -------
     ``(True, version_str)``
-        PyTorch is importable.
+        PyTorch is importable locally.
+    ``(True, _MOSSY_TORCH)``
+        Mossy bridge is online — PyTorch inference runs inside Mossy, so a
+        local install is not required even if the local probe failed.
     ``(False, reason_str)``
         Import failed; *reason_str* is a user-readable explanation.
     ``(None, "Checking PyTorch availability…")``
         The background probe is still running.  Draw a "checking" message
         and the panel will refresh automatically when the probe finishes.
 
-    The result is cached so the probe runs at most once per session (or
+    The local result is cached so the probe runs at most once per session (or
     after the user clicks "Re-check PyTorch" which calls reset_torch_cache()).
+    When the Mossy bridge is online the function short-circuits before even
+    checking the cache, so a WinError 1114 DLL failure from a broken local
+    install is never surfaced while Mossy is covering inference.
     """
     global _torch_status_cache, _torch_probe_thread
+
+    # ── Mossy short-circuit ────────────────────────────────────────────────
+    # PyTorch lives inside the Mossy desktop app.  When the bridge is online
+    # (or the user has enabled use_mossy_as_ai) there is no need to load a
+    # local torch install — and any DLL failure from a mismatched local
+    # install should not be shown as an error.
+    try:
+        wm = bpy.context.window_manager
+        bridge_status = getattr(wm, 'mossy_bridge_status', "")
+        _prefs = preferences.get_preferences() if preferences else None
+        use_mossy_as_ai = _prefs is not None and getattr(_prefs, 'use_mossy_as_ai', False)
+        if bridge_status.startswith("Mossy Bridge online") or use_mossy_as_ai:
+            return (True, _MOSSY_TORCH)
+    except Exception:
+        pass
+
     if _torch_status_cache is not None:
         return _torch_status_cache
     # Start the background probe if one isn't already running.
@@ -301,6 +345,7 @@ def _draw_torch_error(box, torch_info: str) -> None:
         box.label(text="       https://aka.ms/vs/17/release/vc_redist.x64.exe", icon='BLANK1')
         box.label(text="Fix 3: Update GPU driver to match your CUDA version", icon='DOT')
         box.label(text="Fix 4: Use CPU-only PyTorch build if no GPU present", icon='DOT')
+        box.label(text="Fix 5: Connect Mossy bridge — PyTorch runs inside Mossy", icon='DOT')
     else:
         box.label(text="PyTorch not detected in Blender's Python.", icon='INFO')
         box.label(text="Connect Mossy bridge (Mossy tab) to enable AI features.", icon='INFO')
@@ -4274,24 +4319,15 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         torch_box = layout.box()
         torch_box.label(text="PyTorch (AI Features)", icon='PLUGIN')
         torch_ok, torch_info = _get_torch_status()
-        # Check whether Mossy bridge is already connected OR user has chosen
-        # to route AI through Mossy — either way PyTorch is not needed locally.
-        wm = context.window_manager
-        bridge_status = getattr(wm, 'mossy_bridge_status', "")
-        _prefs = preferences.get_preferences() if preferences else None
-        use_mossy_as_ai = _prefs is not None and getattr(_prefs, 'use_mossy_as_ai', False)
-        bridge_online = (
-            (bridge_status.startswith("Mossy Bridge online") if bridge_status else False)
-            or use_mossy_as_ai
-        )
         if torch_ok is None:
             # Background probe running — show a non-blocking placeholder.
             torch_box.label(text="Checking PyTorch availability…", icon='TIME')
         elif torch_ok:
-            torch_box.label(text=f"✓ PyTorch {torch_info} available", icon='CHECKMARK')
-        elif bridge_online:
-            torch_box.label(text="✓ PyTorch available via Mossy bridge", icon='CHECKMARK')
-            torch_box.label(text="  AI inference runs inside Mossy — no local install needed", icon='DOT')
+            if torch_info == _MOSSY_TORCH:
+                torch_box.label(text="✓ PyTorch available via Mossy bridge", icon='CHECKMARK')
+                torch_box.label(text="  AI inference runs inside Mossy — no local install needed", icon='DOT')
+            else:
+                torch_box.label(text=f"✓ PyTorch {torch_info} available", icon='CHECKMARK')
         else:
             _draw_torch_error(torch_box, torch_info)
             row = torch_box.row(align=True)
@@ -4735,25 +4771,17 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         torch_box.label(text="PyTorch / AI Features", icon='PLUGIN')
 
         torch_ok, torch_info = _get_torch_status()
-        # bridge_status was already fetched from wm at the top of this draw() method.
-        # Also treat use_mossy_as_ai preference as "Mossy covers PyTorch" — the
-        # user has explicitly opted in to running AI through Mossy so a local
-        # PyTorch install is not required.
-        bridge_online = (
-            (bridge_status.startswith("Mossy Bridge online") if bridge_status else False)
-            or (prefs is not None and getattr(prefs, 'use_mossy_as_ai', False))
-        )
-
         if torch_ok is None:
             # Background probe is still running — don't block the UI.
             torch_box.label(text="Checking PyTorch availability…", icon='TIME')
         elif torch_ok:
-            torch_box.label(text=f"✓ PyTorch {torch_info} available locally", icon='CHECKMARK')
-            torch_box.label(text="✓ AI features active (local + Mossy)", icon='CHECKMARK')
-        elif bridge_online:
-            torch_box.label(text="✓ PyTorch available via Mossy bridge", icon='CHECKMARK')
-            torch_box.label(text="  Heavy AI inference runs inside Mossy desktop app", icon='DOT')
-            torch_box.label(text="  No local PyTorch install required", icon='DOT')
+            if torch_info == _MOSSY_TORCH:
+                torch_box.label(text="✓ PyTorch available via Mossy bridge", icon='CHECKMARK')
+                torch_box.label(text="  Heavy AI inference runs inside Mossy desktop app", icon='DOT')
+                torch_box.label(text="  No local PyTorch install required", icon='DOT')
+            else:
+                torch_box.label(text=f"✓ PyTorch {torch_info} available locally", icon='CHECKMARK')
+                torch_box.label(text="✓ AI features active (local + Mossy)", icon='CHECKMARK')
         else:
             _draw_torch_error(torch_box, torch_info)
 
