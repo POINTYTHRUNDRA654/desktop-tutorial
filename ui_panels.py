@@ -4227,10 +4227,16 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         torch_box = layout.box()
         torch_box.label(text="PyTorch (AI Features)", icon='PLUGIN')
         torch_ok, torch_info = _get_torch_status()
-        # Check whether Mossy bridge is already connected.
+        # Check whether Mossy bridge is already connected OR user has chosen
+        # to route AI through Mossy — either way PyTorch is not needed locally.
         wm = context.window_manager
         bridge_status = getattr(wm, 'mossy_bridge_status', "")
-        bridge_online = bridge_status.startswith("Mossy Bridge online") if bridge_status else False
+        _prefs = preferences.get_preferences() if preferences else None
+        use_mossy_as_ai = _prefs is not None and getattr(_prefs, 'use_mossy_as_ai', False)
+        bridge_online = (
+            (bridge_status.startswith("Mossy Bridge online") if bridge_status else False)
+            or use_mossy_as_ai
+        )
         if torch_ok is None:
             # Background probe running — show a non-blocking placeholder.
             torch_box.label(text="Checking PyTorch availability…", icon='TIME')
@@ -4683,7 +4689,13 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
 
         torch_ok, torch_info = _get_torch_status()
         # bridge_status was already fetched from wm at the top of this draw() method.
-        bridge_online = bridge_status.startswith("Mossy Bridge online") if bridge_status else False
+        # Also treat use_mossy_as_ai preference as "Mossy covers PyTorch" — the
+        # user has explicitly opted in to running AI through Mossy so a local
+        # PyTorch install is not required.
+        bridge_online = (
+            (bridge_status.startswith("Mossy Bridge online") if bridge_status else False)
+            or (prefs is not None and getattr(prefs, 'use_mossy_as_ai', False))
+        )
 
         if torch_ok is None:
             # Background probe is still running — don't block the UI.
