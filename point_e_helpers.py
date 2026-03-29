@@ -436,8 +436,22 @@ class PointEHelpers:
 
     @staticmethod
     def peek_cached_installation():
-        """Return cached installation status without performing a new check."""
+        """Return cached installation status without performing a new check.
+
+        If the cache holds a stale DLL-init error from a time when torch had not
+        yet been loaded, but torch is *now* in sys.modules (i.e. PyTorch is
+        connected), the stale entry is discarded so the panel prompts the user
+        to click "Check Installation" and get an accurate result.
+        """
         if PointEHelpers._cache is None:
+            return None, "Status not checked (click Check Installation)"
+        import sys as _sys
+        cached_avail, cached_msg = PointEHelpers._cache
+        if (not cached_avail
+                and "WinError 1114" in cached_msg
+                and _sys.modules.get("torch") is not None):
+            PointEHelpers._cache = None
+            PointEHelpers._cache_time = 0.0
             return None, "Status not checked (click Check Installation)"
         return PointEHelpers._cache
 
@@ -483,11 +497,21 @@ class PointEHelpers:
                     else:
                         return False, _pytorch_required_message(msg)
             except (ImportError, AttributeError):
-                # TorchPathManager not available, use regular import
-                try:
-                    import torch
-                except ImportError as torch_err:
-                    return False, _pytorch_required_message(str(torch_err))
+                # TorchPathManager not available.  Skip the torch import when it is
+                # already in sys.modules — DLLs are confirmed working by whoever loaded
+                # it (e.g. the Settings panel background probe).  Only attempt the
+                # import when torch has not been loaded yet, and handle both
+                # ImportError *and* OSError (WinError 1114) from that first load.
+                import sys as _sys
+                if _sys.modules.get("torch") is None:
+                    try:
+                        import torch
+                    except ImportError as torch_err:
+                        return False, _pytorch_required_message(str(torch_err))
+                    except OSError as torch_err:
+                        if getattr(torch_err, 'winerror', None) == 1114 or "WinError 1114" in str(torch_err):
+                            return False, PointEHelpers._dll_init_error_message()
+                        return False, f"PyTorch failed to load: {torch_err}"
 
             import point_e
             return True, "Point-E is installed"

@@ -116,14 +116,18 @@ def _check_zoedepth_availability_uncached():
         )
 
     # Probe torch to catch DLL init failures (WinError 1114 — CUDA/driver mismatch).
-    try:
-        importlib.import_module("torch")
-    except OSError as _e:
-        if getattr(_e, 'winerror', None) == 1114 or "WinError 1114" in str(_e):
-            return False, _dll_init_error_message()
-        return False, f"PyTorch failed to load: {_e}"
-    except ImportError as _e:
-        return False, f"PyTorch not available: {_e}"
+    # Skip the probe when torch is already in sys.modules — it has been successfully
+    # loaded (e.g. by the Settings panel background probe) and its DLLs are confirmed
+    # working, so attempting a second import cannot give new information.
+    if sys.modules.get("torch") is None:
+        try:
+            importlib.import_module("torch")
+        except OSError as _e:
+            if getattr(_e, 'winerror', None) == 1114 or "WinError 1114" in str(_e):
+                return False, _dll_init_error_message()
+            return False, f"PyTorch failed to load: {_e}"
+        except ImportError as _e:
+            return False, f"PyTorch not available: {_e}"
 
     # Check if ZoeDepth repository is cloned
     # Common locations to check
