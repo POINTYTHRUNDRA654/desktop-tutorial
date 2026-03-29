@@ -392,10 +392,15 @@ class PointEHelpers:
     def _dll_init_error_message():
         """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
 
-        This error typically means a CUDA-version mismatch between the installed
-        PyTorch and the system GPU driver, or a missing Visual C++ Redistributable.
-        Example path that fails: D:\\blender_torch\\torch\\lib\\c10.dll
+        Delegates to ``torch_path_manager.dll_init_error_message()`` which
+        auto-detects the GPU driver's CUDA version and includes the exact
+        ``pip install`` command for the user's system.
         """
+        try:
+            from . import torch_path_manager as _tpm
+            return _tpm.dll_init_error_message()
+        except Exception:
+            pass
         return (
             "PyTorch DLL initialisation failed (WinError 1114).\n"
             "This usually means a CUDA/driver version mismatch.\n"
@@ -406,7 +411,9 @@ class PointEHelpers:
             "2. Install the latest Visual C++ Redistributable from Microsoft:\n"
             "   https://aka.ms/vs/17/release/vc_redist.x64.exe\n"
             "3. Update your GPU driver to one compatible with your CUDA version.\n"
-            "4. If no GPU is present, install the CPU-only PyTorch build."
+            "4. If no GPU is present, install the CPU-only PyTorch build:\n"
+            "   pip install torch torchvision torchaudio"
+            " --index-url https://download.pytorch.org/whl/cpu"
         )
 
 

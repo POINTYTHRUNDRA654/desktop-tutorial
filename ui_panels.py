@@ -201,12 +201,22 @@ _DLL_ERROR_SENTINEL = "PyTorch DLL initialisation failed (WinError 1114)."
 def _dll_init_error_message() -> str:
     """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
 
-    This error means a CUDA-version mismatch between the installed PyTorch
-    and the system GPU driver, or a missing Visual C++ Redistributable.
-    Identical to the helper defined in hunyuan3d_helpers / hymotion_helpers /
-    zoedepth_helpers — duplicated here so ui_panels has no import dependency
-    on those optional modules.
+    Delegates to the shared ``torch_path_manager.dll_init_error_message()``
+    which auto-detects the GPU driver's CUDA version via ``nvidia-smi`` and
+    includes the exact ``pip install`` command for the user's system.
+    Falls back to a static message if the import fails.
     """
+    try:
+        from . import torch_path_manager as _tpm
+        torch_path = ""
+        try:
+            prefs = bpy.context.preferences.addons[__package__].preferences
+            torch_path = bpy.path.abspath(prefs.torch_custom_path).strip().rstrip("/\\")
+        except Exception:
+            pass
+        return _tpm.dll_init_error_message(torch_path)
+    except Exception:
+        pass
     return (
         _DLL_ERROR_SENTINEL + "\n"
         "This usually means a CUDA/driver version mismatch.\n"
@@ -217,14 +227,19 @@ def _dll_init_error_message() -> str:
         "2. Install the latest Visual C++ Redistributable from Microsoft:\n"
         "   https://aka.ms/vs/17/release/vc_redist.x64.exe\n"
         "3. Update your GPU driver to one compatible with your CUDA version.\n"
-        "4. If no GPU is present, install the CPU-only PyTorch build."
+        "4. If no GPU is present, install the CPU-only PyTorch build:\n"
+        "   pip install torch torchvision torchaudio"
+        " --index-url https://download.pytorch.org/whl/cpu"
     )
 
 
-def _probe_torch_background() -> None:
+def _probe_torch_background(torch_path: str = "") -> None:
     """Import torch in a background thread and cache the result.
 
     Runs once per session (or after the user clicks "Re-check PyTorch").
+    *torch_path* is the user's configured PyTorch directory captured on the
+    main thread before the probe started (accessing bpy.context from a
+    background thread is not safe).
     Schedules a VIEW_3D redraw via bpy.app.timers when finished so that
     the Mossy and Settings panels update automatically.
     """
@@ -234,7 +249,11 @@ def _probe_torch_background() -> None:
         _torch_status_cache = (True, torch.__version__)
     except OSError as e:
         if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
-            _torch_status_cache = (False, _dll_init_error_message())
+            try:
+                from . import torch_path_manager as _tpm
+                _torch_status_cache = (False, _tpm.dll_init_error_message(torch_path))
+            except Exception:
+                _torch_status_cache = (False, _dll_init_error_message())
         else:
             _torch_status_cache = (False, str(e))
     except ImportError as e:
@@ -273,10 +292,18 @@ def _get_torch_status() -> "tuple[bool | None, str]":
     global _torch_status_cache, _torch_probe_thread
     if _torch_status_cache is not None:
         return _torch_status_cache
+    # Capture the torch path on the main thread before starting the background
+    # probe — bpy.context must not be accessed from a background thread.
+    torch_path = ""
+    try:
+        prefs = bpy.context.preferences.addons[__package__].preferences
+        torch_path = bpy.path.abspath(prefs.torch_custom_path).strip().rstrip("/\\")
+    except Exception:
+        pass
     # Start the background probe if one isn't already running.
     if _torch_probe_thread is None or not _torch_probe_thread.is_alive():
         _torch_probe_thread = threading.Thread(
-            target=_probe_torch_background, daemon=True
+            target=_probe_torch_background, args=(torch_path,), daemon=True
         )
         _torch_probe_thread.start()
     return _TORCH_CHECKING
@@ -289,18 +316,49 @@ def _draw_torch_error(box, torch_info: str) -> None:
     mismatch) from a plain "module not found" situation and shows the
     appropriate actionable guidance in each case.
 
+    When a DLL error is detected, attempts to show the exact pip install
+    command for the user's GPU via ``torch_path_manager.detect_cuda_version()``.
+
     Args:
         box:        A Blender ``UILayout`` (typically a ``layout.box()``).
         torch_info: The reason string returned by ``_get_torch_status()``.
     """
     if torch_info.startswith(_DLL_ERROR_SENTINEL):
         box.label(text="PyTorch DLL failed to load — CUDA/driver mismatch", icon='ERROR')
+        # Try to show the detected CUDA version for a more specific fix.
+        cuda_ver = None
+        try:
+            from . import torch_path_manager as _tpm
+            cuda_ver = _tpm.detect_cuda_version()
+        except Exception:
+            pass
+        if cuda_ver:
+            box.label(text=f"Detected GPU driver CUDA support: {cuda_ver}", icon='INFO')
         box.label(text="Fix 1: Reinstall PyTorch matching your CUDA version", icon='DOT')
-        box.label(text="       https://pytorch.org/get-started/locally/", icon='BLANK1')
+        if cuda_ver:
+            try:
+                tag = _tpm._pytorch_wheel_tag(cuda_ver)
+                if tag:
+                    box.label(
+                        text=f"  pip install torch torchvision torchaudio --index-url"
+                             f" https://download.pytorch.org/whl/{tag}",
+                        icon='BLANK1',
+                    )
+                else:
+                    box.label(text="       https://pytorch.org/get-started/locally/", icon='BLANK1')
+            except Exception:
+                box.label(text="       https://pytorch.org/get-started/locally/", icon='BLANK1')
+        else:
+            box.label(text="       https://pytorch.org/get-started/locally/", icon='BLANK1')
         box.label(text="Fix 2: Install Visual C++ Redistributable", icon='DOT')
         box.label(text="       https://aka.ms/vs/17/release/vc_redist.x64.exe", icon='BLANK1')
         box.label(text="Fix 3: Update GPU driver to match your CUDA version", icon='DOT')
-        box.label(text="Fix 4: Use CPU-only PyTorch build if no GPU present", icon='DOT')
+        box.label(text="Fix 4: CPU-only build (no GPU needed):", icon='DOT')
+        box.label(
+            text="  pip install torch torchvision torchaudio --index-url"
+                 " https://download.pytorch.org/whl/cpu",
+            icon='BLANK1',
+        )
     else:
         box.label(text="PyTorch not detected in Blender's Python.", icon='INFO')
         box.label(text="Connect Mossy bridge (Mossy tab) to enable AI features.", icon='INFO')

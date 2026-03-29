@@ -33,7 +33,17 @@ class RigNetHelpers:
 
     @staticmethod
     def _dll_init_error_message():
-        """Return a user-friendly message when WinError 1114 (DLL init failure) occurs."""
+        """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
+
+        Delegates to ``torch_path_manager.dll_init_error_message()`` which
+        auto-detects the GPU driver's CUDA version and includes the exact
+        ``pip install`` command for the user's system.
+        """
+        try:
+            from . import torch_path_manager as _tpm
+            return _tpm.dll_init_error_message()
+        except Exception:
+            pass
         return (
             "PyTorch DLL initialisation failed (WinError 1114). "
             "A file such as c10.dll (e.g. D:\\blender_torch\\torch\\lib\\c10.dll) "
