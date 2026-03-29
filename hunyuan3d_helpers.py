@@ -126,14 +126,18 @@ def check_hunyuan3d_availability():
 
     # Probe torch to catch DLL init failures (WinError 1114 — CUDA/driver mismatch).
     # find_spec only verifies the files exist; it does not load the DLLs.
-    try:
-        importlib.import_module("torch")
-    except OSError as _e:
-        if getattr(_e, 'winerror', None) == 1114 or "WinError 1114" in str(_e):
-            return False, _dll_init_error_message()
-        return False, f"PyTorch failed to load: {_e}"
-    except ImportError as _e:
-        return False, f"PyTorch not available: {_e}"
+    # Skip the probe when torch is already in sys.modules — it has been successfully
+    # loaded (e.g. by the Settings panel background probe) and its DLLs are confirmed
+    # working, so attempting a second import cannot give new information.
+    if sys.modules.get("torch") is None:
+        try:
+            importlib.import_module("torch")
+        except OSError as _e:
+            if getattr(_e, 'winerror', None) == 1114 or "WinError 1114" in str(_e):
+                return False, _dll_init_error_message()
+            return False, f"PyTorch failed to load: {_e}"
+        except ImportError as _e:
+            return False, f"PyTorch not available: {_e}"
 
     candidates = _build_hunyuan3d_candidates()
 
@@ -371,6 +375,20 @@ Note: Hunyuan3D-2 requires:
 
 The add-on will automatically detect when it's installed.
 """
+
+
+def clear_availability_cache():
+    """Reset any cached availability state so the next check runs fresh.
+
+    Called by the install operator after a successful install to ensure
+    the panel reflects the newly-installed state immediately.
+    """
+    # hunyuan3d_helpers does not keep its own TTL cache — check_hunyuan3d_availability()
+    # re-runs on every call.  The module-level globals below are only written by
+    # register() so we reset them here to match the "not yet checked" state.
+    global HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR
+    HUNYUAN3D_AVAILABLE = False
+    HUNYUAN3D_ERROR = None
 
 
 def register():
