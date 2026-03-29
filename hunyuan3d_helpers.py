@@ -29,16 +29,41 @@ HUNYUAN3D_ERROR = None
 # lazy helper _torch_available() which calls find_spec at invocation time.
 
 
-def _torch_available() -> bool:
-    """Return True if torch is findable on the current sys.path.
+def _mossy_provides_torch() -> bool:
+    """Return True when the Mossy bridge is online and provides PyTorch.
 
-    Uses importlib.util.find_spec (a fast filesystem check) rather than
-    actually importing torch so that (a) we don't pay the multi-second
-    load cost at every availability probe and (b) the check automatically
-    reflects paths added to sys.path after this module was imported (e.g.
-    the PyTorch Custom Path restored during add-on register()).
+    When Mossy is connected, PyTorch runs inside the Mossy desktop app —
+    a local Blender-side torch install is not required for AI inference.
+    Safe to call from background threads; all bpy.context access is guarded.
     """
-    return importlib.util.find_spec("torch") is not None
+    try:
+        import bpy as _bpy
+        wm = _bpy.context.window_manager
+        if getattr(wm, 'mossy_bridge_status', "").startswith("Mossy Bridge online"):
+            return True
+        try:
+            from . import preferences as _prefs
+            p = _prefs.get_preferences()
+            if p is not None and getattr(p, 'use_mossy_as_ai', False):
+                return True
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return False
+
+
+def _torch_available() -> bool:
+    """Return True if torch is available locally or via the Mossy bridge.
+
+    Checks (1) a fast local find_spec so custom-path installs are detected,
+    then (2) whether the Mossy bridge is online (Mossy hosts PyTorch, so no
+    local install is needed).  Called at invocation time, never at import
+    time, so it correctly reflects the runtime state.
+    """
+    if importlib.util.find_spec("torch") is not None:
+        return True
+    return _mossy_provides_torch()
 
 
 # We don't actually import Hunyuan3D here to keep the add-on lightweight
@@ -139,10 +164,9 @@ def check_hunyuan3d_availability():
 
     # Probe torch to catch DLL init failures (WinError 1114 — CUDA/driver mismatch).
     # find_spec only verifies the files exist; it does not load the DLLs.
-    # Skip the probe when torch is already in sys.modules — it has been successfully
-    # loaded (e.g. by the Settings panel background probe) and its DLLs are confirmed
-    # working, so attempting a second import cannot give new information.
-    if sys.modules.get("torch") is None:
+    # Skip the probe when: (a) torch is already loaded in this process, or
+    # (b) torch runs inside Mossy — there are no local DLLs to verify.
+    if sys.modules.get("torch") is None and not _mossy_provides_torch():
         try:
             importlib.import_module("torch")
         except OSError as _e:
