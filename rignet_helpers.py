@@ -32,6 +32,29 @@ class RigNetHelpers:
     """Helper functions for RigNet automatic rigging integration"""
 
     @staticmethod
+    def _mossy_provides_torch() -> bool:
+        """Return True when the Mossy bridge is online and provides PyTorch.
+
+        When Mossy is connected, PyTorch runs inside the Mossy desktop app —
+        a local Blender-side torch install is not required for AI inference.
+        Safe to call from background threads; all bpy.context access is guarded.
+        """
+        try:
+            wm = bpy.context.window_manager
+            if getattr(wm, 'mossy_bridge_status', "").startswith("Mossy Bridge online"):
+                return True
+            try:
+                from . import preferences as _prefs
+                p = _prefs.get_preferences()
+                if p is not None and getattr(p, 'use_mossy_as_ai', False):
+                    return True
+            except Exception:
+                pass
+        except Exception:
+            pass
+        return False
+
+    @staticmethod
     def _dll_init_error_message(exc_str: str = ""):
         """Return a user-friendly message when WinError 1114 (DLL init failure) occurs.
 
@@ -61,9 +84,11 @@ class RigNetHelpers:
     def check_rignet_available():
         """Check if RigNet is installed and available"""
         try:
-            # Try to import RigNet modules
-            # This would need RigNet installed in Blender's Python environment
-            import torch
+            # Skip the local torch import when Mossy provides PyTorch
+            # (Mossy hosts PyTorch inside the desktop app — no local DLLs to probe).
+            if (sys.modules.get("torch") is None
+                    and not RigNetHelpers._mossy_provides_torch()):
+                import torch
             
             # Check for common RigNet installation paths
             # First check for rignet-gj (joint prediction reimplementation)

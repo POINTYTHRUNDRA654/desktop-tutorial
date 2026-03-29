@@ -261,6 +261,31 @@ def _load_shap_e_image_models(device):
     return _shap_e_image_models
 
 
+def _mossy_provides_torch() -> bool:
+    """Return True when the Mossy bridge is online and provides PyTorch.
+
+    When Mossy is connected, PyTorch runs inside the Mossy desktop app —
+    a local Blender-side torch install is not required for AI inference.
+    Safe to call from background threads; all bpy.context access is guarded.
+    """
+    try:
+        if bpy is None:
+            return False
+        wm = bpy.context.window_manager
+        if getattr(wm, 'mossy_bridge_status', "").startswith("Mossy Bridge online"):
+            return True
+        try:
+            from . import preferences as _prefs
+            p = _prefs.get_preferences()
+            if p is not None and getattr(p, 'use_mossy_as_ai', False):
+                return True
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return False
+
+
 class ShapEHelpers:
     """Helper functions for Shap-E integration"""
 
@@ -337,7 +362,7 @@ class ShapEHelpers:
         cached_avail, cached_msg = ShapEHelpers._cache
         if (not cached_avail
                 and "WinError 1114" in cached_msg
-                and _sys.modules.get("torch") is not None):
+                and (_sys.modules.get("torch") is not None or _mossy_provides_torch())):
             ShapEHelpers._cache = None
             ShapEHelpers._cache_time = 0.0
             return None, "Status not checked (click Check Installation)"
@@ -391,7 +416,7 @@ class ShapEHelpers:
                 # import when torch has not been loaded yet, and handle both
                 # ImportError *and* OSError (WinError 1114) from that first load.
                 import sys as _sys
-                if _sys.modules.get("torch") is None:
+                if _sys.modules.get("torch") is None and not _mossy_provides_torch():
                     try:
                         import torch
                     except ImportError as torch_err:
