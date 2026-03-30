@@ -24,6 +24,7 @@ from pathlib import Path
 # Check if HY-Motion-1.0 is available
 # None = not yet checked; True = available; False = not available
 HYMOTION_AVAILABLE = None
+# None = not yet checked; str = last status/error message
 HYMOTION_ERROR = None
 
 # TTL cache for check_hymotion_availability() - avoids filesystem / torch

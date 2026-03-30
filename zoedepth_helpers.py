@@ -122,7 +122,7 @@ def clear_availability_cache():
     Call this after a successful install so the next UI redraw reflects
     the new state without waiting for the 5-second TTL to expire.
     Also resets the module-level globals to ``None`` so they don't hold
-    a stale False value from register() time.
+    a stale False value from any prior check before torch paths were ready.
     """
     global _availability_cache, _availability_cache_time, ZOEDEPTH_AVAILABLE, ZOEDEPTH_ERROR
     _availability_cache = None
