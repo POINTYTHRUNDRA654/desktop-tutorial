@@ -240,6 +240,31 @@ def main(argv=None):
     addon_version = _read_addon_version(root)
     print(f"Building Fallout 4 Tutorial Helper  v{addon_version}")
     print(f"Output → {outdir}")
+
+    # Show the git branch and commit so you can verify you're building the
+    # right code.  If branch is not 'main', the latest fixes may not be
+    # included — merge the open Pull Request on GitHub first, then run
+    # start_session.bat to pull, and rebuild.
+    try:
+        import subprocess as _sp
+        _branch = _sp.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(root), text=True, stderr=_sp.DEVNULL,
+        ).strip()
+        _commit = _sp.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(root), text=True, stderr=_sp.DEVNULL,
+        ).strip()
+        print(f"Source  → branch={_branch}  commit={_commit}")
+        if _branch not in ("main", "HEAD"):
+            print(
+                f"  ⚠  You are on branch '{_branch}', not 'main'.\n"
+                "     If you are missing recent fixes, merge the open Pull\n"
+                "     Request on GitHub, run start_session.bat, then rebuild."
+            )
+    except Exception:
+        pass  # git not available or not a git repo — skip silently
+
     print()
 
     keys = list(VARIANTS.keys()) if args.version == "all" else [args.version]

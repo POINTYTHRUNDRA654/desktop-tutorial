@@ -88,7 +88,23 @@ if %errorlevel% neq 0 (
 :DONE
 echo.
 echo ============================================================
-echo  Ready!  You are up to date with GitHub.
+echo  Ready!  You are up to date with GitHub (main branch).
+echo ============================================================
+echo.
+echo  IMPORTANT -- Getting the latest AI/Copilot fixes:
+echo  ─────────────────────────────────────────────────
+echo  Fixes made by the AI coding agent are submitted as Pull Requests
+echo  (PRs) on GitHub.  They do NOT land on main automatically.
+echo.
+echo  To get a fix into your build:
+echo    1. Go to https://github.com/POINTYTHRUNDRA654/Blender-add-on./pulls
+echo    2. Open the relevant Pull Request and click "Merge pull request"
+echo    3. Run start_session.bat again (pulls the newly-merged code)
+echo    4. Run the VS Code build task  (Ctrl+Shift+B)  to rebuild the zip
+echo    5. Install the new zip in Blender and restart Blender
+echo.
+echo  If you just ran this script and rebuilt but still see old behaviour,
+echo  check that the PR was merged BEFORE you ran start_session.bat.
 echo ============================================================
 echo.
 pause
