@@ -21,6 +21,12 @@
       // Run at the START of every work session.
       // Stashes any local changes, pulls latest from GitHub, then restores.
       // Equivalent to: start_session.bat
+      //
+      // NOTE: AI/Copilot fixes are submitted as Pull Requests (PRs) on GitHub.
+      // They do NOT land on main automatically.  You must:
+      //   1. Merge the PR at https://github.com/POINTYTHRUNDRA654/Blender-add-on./pulls
+      //   2. THEN run this task to pull the merged code
+      //   3. Rebuild the zip (Ctrl+Shift+B) and reinstall in Blender
       "label": "Start Session Sync",
       "type": "shell",
       "command": "${workspaceFolder}/start_session.bat",
@@ -29,11 +35,11 @@
       },
       "linux": {
         "command": "bash",
-        "args": ["-c", "cd '${workspaceFolder}' && git stash push -m 'vscode-start-session' && git pull --rebase origin main && git stash pop"]
+        "args": ["-c", "cd '${workspaceFolder}' && git stash push -m 'vscode-start-session' && git pull --rebase origin main && git stash pop && echo '' && echo 'IMPORTANT: AI/Copilot fixes are PRs — merge them at https://github.com/POINTYTHRUNDRA654/Blender-add-on./pulls BEFORE running this task, then rebuild the zip (Ctrl+Shift+B).'"]
       },
       "osx": {
         "command": "bash",
-        "args": ["-c", "cd '${workspaceFolder}' && git stash push -m 'vscode-start-session' && git pull --rebase origin main && git stash pop"]
+        "args": ["-c", "cd '${workspaceFolder}' && git stash push -m 'vscode-start-session' && git pull --rebase origin main && git stash pop && echo '' && echo 'IMPORTANT: AI/Copilot fixes are PRs — merge them at https://github.com/POINTYTHRUNDRA654/Blender-add-on./pulls BEFORE running this task, then rebuild the zip (Ctrl+Shift+B).'"]
       },
       "group": "none",
       "presentation": {

@@ -1112,7 +1112,8 @@ def install_hunyuan3d() -> tuple[bool, str]:
     """
     dest = _ensure_tools_dir("Hunyuan3D-2")
 
-    if (dest / "README.md").exists():
+    # A valid install requires infer.py — README.md alone means a partial clone.
+    if (dest / "infer.py").exists():
         return True, f"Hunyuan3D-2 already present at {dest}"
 
     git_exe = shutil.which("git")
@@ -1125,14 +1126,36 @@ def install_hunyuan3d() -> tuple[bool, str]:
         )
 
     try:
-        dest.mkdir(parents=True, exist_ok=True)
-        result = subprocess.run(
-            [git_exe, "clone", "--depth", "1",
-             "https://github.com/Tencent/Hunyuan3D-2.git", str(dest)],
-            capture_output=True, text=True, timeout=600,
-        )
-        if result.returncode != 0:
-            return False, f"Hunyuan3D-2 clone failed:\n{result.stderr or result.stdout}"
+        # If the directory exists as a git repo (partial/interrupted clone),
+        # attempt a pull to complete/repair it rather than failing with
+        # "destination path already exists and is not an empty directory".
+        if dest.is_dir() and (dest / ".git").is_dir():
+            result = subprocess.run(
+                [git_exe, "pull"],
+                capture_output=True, text=True, timeout=600, cwd=str(dest),
+            )
+            if result.returncode != 0:
+                return False, (
+                    f"Hunyuan3D-2 directory exists at {dest} but infer.py is missing "
+                    f"and git pull failed:\n{result.stderr or result.stdout}\n"
+                    "Delete the folder manually and click Install again."
+                )
+        elif dest.is_dir():
+            # Non-git directory present but incomplete — guide user to remove it.
+            return False, (
+                f"Hunyuan3D-2 directory exists at {dest} but infer.py is missing "
+                "and it is not a git repository.\n"
+                "Delete the folder manually and click Install again."
+            )
+        else:
+            dest.mkdir(parents=True, exist_ok=True)
+            result = subprocess.run(
+                [git_exe, "clone", "--depth", "1",
+                 "https://github.com/Tencent/Hunyuan3D-2.git", str(dest)],
+                capture_output=True, text=True, timeout=600,
+            )
+            if result.returncode != 0:
+                return False, f"Hunyuan3D-2 clone failed:\n{result.stderr or result.stdout}"
     except subprocess.TimeoutExpired:
         return False, "Hunyuan3D-2 clone timed out (> 10 min)"
     except Exception as exc:
