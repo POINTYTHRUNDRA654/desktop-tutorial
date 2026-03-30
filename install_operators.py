@@ -19,10 +19,19 @@ def _safe_import(name):
         return None
 
 
-knowledge_helpers     = _safe_import("knowledge_helpers")
-umodel_helpers        = _safe_import("umodel_helpers")
-asset_studio_helpers  = _safe_import("asset_studio_helpers")
-asset_ripper_helpers  = _safe_import("asset_ripper_helpers")
+knowledge_helpers         = _safe_import("knowledge_helpers")
+umodel_helpers            = _safe_import("umodel_helpers")
+asset_studio_helpers      = _safe_import("asset_studio_helpers")
+asset_ripper_helpers      = _safe_import("asset_ripper_helpers")
+notification_system       = _safe_import("notification_system")
+tool_installers           = _safe_import("tool_installers")
+ue_importer_helpers       = _safe_import("ue_importer_helpers")
+umodel_tools_helpers      = _safe_import("umodel_tools_helpers")
+mesh_helpers              = _safe_import("mesh_helpers")
+unity_fbx_importer_helpers = _safe_import("unity_fbx_importer_helpers")
+realesrgan_helpers        = _safe_import("realesrgan_helpers")
+instantngp_helpers        = _safe_import("instantngp_helpers")
+preferences               = _safe_import("preferences")
 
 
 class FO4_OT_InstallCollectiveModdingToolkit(Operator):
