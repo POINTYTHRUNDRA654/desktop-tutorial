@@ -299,6 +299,8 @@ class ShapEHelpers:
     @staticmethod
     def clear_cache():
         """Force the next availability check to re-scan (call after install completes)."""
+        ShapEHelpers._cache = None
+        ShapEHelpers._cache_time = 0.0
 
     @staticmethod
     def _dll_init_error_message(exc_str: str = ""):
@@ -427,6 +429,8 @@ class ShapEHelpers:
                             return False, ShapEHelpers._dll_init_error_message(str(torch_err))
                         return False, f"PyTorch failed to load: {torch_err}"
 
+            import importlib as _il
+            _il.invalidate_caches()  # flush stale path-finder cache so packages installed at runtime are visible
             import shap_e
             return True, "Shap-E is installed"
         except OSError as e:

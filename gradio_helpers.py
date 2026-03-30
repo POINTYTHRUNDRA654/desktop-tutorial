@@ -35,6 +35,7 @@ def refresh_availability():
     global GRADIO_AVAILABLE, GRADIO_ERROR, gr
     try:
         import importlib as _il
+        _il.invalidate_caches()  # flush stale path-finder cache so packages installed at runtime are visible
         gr = _il.import_module("gradio")
         GRADIO_AVAILABLE = True
         GRADIO_ERROR = None

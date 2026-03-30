@@ -216,7 +216,7 @@ def check_hymotion_availability():
     # which clones to <tools_root>/HY-Motion-1.0 via tool_installers).
     possible_paths = []
     try:
-        import tool_installers as _tli
+        from . import tool_installers as _tli
         possible_paths.append(str(_tli.get_tools_root() / "HY-Motion-1.0"))
     except Exception:
         pass  # fall through to home-dir candidates below
