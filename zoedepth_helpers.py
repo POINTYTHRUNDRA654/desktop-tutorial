@@ -121,10 +121,14 @@ def clear_availability_cache():
 
     Call this after a successful install so the next UI redraw reflects
     the new state without waiting for the 5-second TTL to expire.
+    Also resets the module-level globals to ``None`` so they don't hold
+    a stale False value from register() time.
     """
-    global _availability_cache, _availability_cache_time
+    global _availability_cache, _availability_cache_time, ZOEDEPTH_AVAILABLE, ZOEDEPTH_ERROR
     _availability_cache = None
     _availability_cache_time = 0.0
+    ZOEDEPTH_AVAILABLE = None
+    ZOEDEPTH_ERROR = None
 
 
 def check_zoedepth_availability():
@@ -133,11 +137,12 @@ def check_zoedepth_availability():
 
     Results are cached for _CACHE_TTL seconds so that repeated calls from
     Blender's UI draw() loop do not hammer the filesystem on every redraw.
+    Also updates the module-level ZOEDEPTH_AVAILABLE / ZOEDEPTH_ERROR globals.
 
     Returns:
         tuple: (available: bool, message: str)
     """
-    global _availability_cache, _availability_cache_time
+    global _availability_cache, _availability_cache_time, ZOEDEPTH_AVAILABLE, ZOEDEPTH_ERROR
     now = time.monotonic()
     if _availability_cache is not None and (now - _availability_cache_time) < _CACHE_TTL:
         return _availability_cache
@@ -145,6 +150,7 @@ def check_zoedepth_availability():
     result = _check_zoedepth_availability_uncached()
     _availability_cache = result
     _availability_cache_time = now
+    ZOEDEPTH_AVAILABLE, ZOEDEPTH_ERROR = result
     return result
 
 
@@ -414,17 +420,16 @@ def get_status_message():
 
 
 def register():
-    """Register ZoeDepth helper functions"""
-    global ZOEDEPTH_AVAILABLE, ZOEDEPTH_ERROR
-    
-    # Check availability on registration
-    ZOEDEPTH_AVAILABLE, ZOEDEPTH_ERROR = check_zoedepth_availability()
-    
-    if ZOEDEPTH_AVAILABLE:
-        print("✓ ZoeDepth is available")
-    else:
-        print(f"ℹ ZoeDepth not available: {ZOEDEPTH_ERROR}")
-        print("  (This is optional - the add-on works without it)")
+    """Register ZoeDepth helper functions.
+
+    Intentionally does NOT call check_zoedepth_availability() here because
+    torch_custom_path has not yet been added to sys.path at module-register
+    time.  The deferred_startup() task runs 2 seconds after load and
+    calls clear_availability_cache() so the first UI draw gets an accurate
+    result rather than a stale "PyTorch not installed" from startup.
+    """
+    print("ℹ ZoeDepth availability check deferred to startup (torch paths not yet ready)")
+    print("  (This is optional - the add-on works without it)")
 
 
 def unregister():

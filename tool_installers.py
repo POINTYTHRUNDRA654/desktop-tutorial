@@ -29,6 +29,7 @@ Key differences this module handles:
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import shutil
@@ -37,6 +38,20 @@ import sys
 import urllib.request
 import zipfile
 from pathlib import Path
+
+
+def _torch_install_note() -> str:
+    """Return a PyTorch install reminder only when torch is NOT already importable.
+
+    Called at the end of every AI-tool install function so the user is only
+    warned about a missing dependency when it genuinely is missing.  If torch
+    is already installed (pip, Blender bundle, or a Mossy-provided path that
+    was inserted into sys.path before this check runs), the returned string is
+    empty and no spurious warning appears.
+    """
+    if importlib.util.find_spec("torch") is None:
+        return "\nPyTorch is required at runtime - install via the Settings panel."
+    return ""
 
 # Primary tools folder on D: drive - all external tools (including PyNifly)
 # live here, matching the user's local setup.
@@ -1054,10 +1069,7 @@ def install_zoedepth() -> tuple[bool, str]:
 
     # Install lightweight runtime deps (torch installed separately by user)
     _pip_install(["timm", "matplotlib"])
-    return True, (
-        f"ZoeDepth cloned to {dest}.\n"
-        "PyTorch is required at runtime - install via the Settings panel."
-    )
+    return True, f"ZoeDepth cloned to {dest}.{_torch_install_note()}"
 
 
 def install_triposr() -> tuple[bool, str]:
@@ -1101,10 +1113,7 @@ def install_triposr() -> tuple[bool, str]:
 
     # Install lightweight runtime deps
     _pip_install(["trimesh", "huggingface_hub", "einops", "omegaconf"])
-    return True, (
-        f"TripoSR cloned to {dest}.\n"
-        "PyTorch is required at runtime - install via the Settings panel."
-    )
+    return True, f"TripoSR cloned to {dest}.{_torch_install_note()}"
 
 
 def install_hunyuan3d() -> tuple[bool, str]:
@@ -1171,10 +1180,7 @@ def install_hunyuan3d() -> tuple[bool, str]:
 
     # Install lightweight runtime deps
     _pip_install(["einops", "omegaconf", "huggingface_hub"])
-    return True, (
-        f"Hunyuan3D-2 cloned to {dest}.\n"
-        "PyTorch is required at runtime - install via the Settings panel."
-    )
+    return True, f"Hunyuan3D-2 cloned to {dest}.{_torch_install_note()}"
 
 
 def install_hymotion() -> tuple[bool, str]:
@@ -1235,10 +1241,7 @@ def install_hymotion() -> tuple[bool, str]:
         return False, f"HY-Motion clone failed: {last_err}"
 
     _pip_install(["einops", "omegaconf"])
-    return True, (
-        f"HY-Motion cloned to {dest}.\n"
-        "PyTorch is required at runtime - install via the Settings panel."
-    )
+    return True, f"HY-Motion cloned to {dest}.{_torch_install_note()}"
 
 
 def install_diffusers() -> tuple[bool, str]:
@@ -1410,10 +1413,7 @@ def install_rignet() -> tuple[bool, str]:
         return False, f"RigNet clone error: {exc}"
 
     _pip_install(["scipy", "open3d"])
-    return True, (
-        f"RigNet (rignet-gj) cloned to {dest}.\n"
-        "PyTorch is required at runtime - install via the Settings panel."
-    )
+    return True, f"RigNet (rignet-gj) cloned to {dest}.{_torch_install_note()}"
 
 
 def install_motion_diffuse() -> tuple[bool, str]:
@@ -1457,10 +1457,7 @@ def install_motion_diffuse() -> tuple[bool, str]:
         return False, f"MotionDiffuse clone error: {exc}"
 
     _pip_install(["einops", "omegaconf"])
-    return True, (
-        f"MotionDiffuse cloned to {dest}.\n"
-        "PyTorch is required at runtime - install via the Settings panel."
-    )
+    return True, f"MotionDiffuse cloned to {dest}.{_torch_install_note()}"
 
 
 def install_collective_modding_toolkit() -> tuple[bool, str]:

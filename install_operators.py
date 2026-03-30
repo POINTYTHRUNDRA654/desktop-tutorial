@@ -1219,11 +1219,11 @@ class FO4_OT_InstallZoeDepth(Operator):
             ok, msg = tool_installers.install_zoedepth()
             print(msg)
             print("=" * 60 + "\n")
-            # Expire the availability cache so the UI picks up the new state.
+            # Re-run availability check to populate cache with fresh state.
             if ok:
                 try:
                     from . import zoedepth_helpers
-                    zoedepth_helpers.clear_availability_cache()
+                    zoedepth_helpers.check_zoedepth_availability()
                 except Exception:
                     pass
             level = 'INFO' if ok else 'ERROR'
@@ -1286,7 +1286,8 @@ class FO4_OT_InstallHunyuan3D(Operator):
             if ok:
                 try:
                     from . import hunyuan3d_helpers
-                    hunyuan3d_helpers.clear_availability_cache()
+                    # Re-run availability check to populate cache with fresh state
+                    hunyuan3d_helpers.check_hunyuan3d_availability()
                 except Exception:
                     pass
             level = 'INFO' if ok else 'ERROR'
@@ -1314,6 +1315,13 @@ class FO4_OT_InstallHyMotion(Operator):
             ok, msg = tool_installers.install_hymotion()
             print(msg)
             print("=" * 60 + "\n")
+            if ok:
+                try:
+                    from . import hymotion_helpers
+                    # Re-run availability check to populate cache with fresh state
+                    hymotion_helpers.check_hymotion_availability()
+                except Exception:
+                    pass
             level = 'INFO' if ok else 'ERROR'
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
