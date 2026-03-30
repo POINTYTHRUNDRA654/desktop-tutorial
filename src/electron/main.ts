@@ -357,7 +357,7 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
     }
 
     if (!pythonExe) {
-      sendProgress('⚠️ Python not found. Visit https://www.python.org/downloads/ to install Python 3.8+, then restart Mossy.');
+      sendProgress('⚠️ Python not found. Visit https://www.python.org/downloads/ to install Python 3.10+, then restart Mossy.');
       return;
     }
 
@@ -2023,10 +2023,85 @@ function setupIpcHandlers() {
     }
   });
 
+  // Track if we've already sent PyTorch path to Blender in this session
+  let _blenderPytorchPathSent = false;
+
+  /**
+   * Helper to send a single command to Blender's TCP server
+   */
+  const _sendToBlenderTCP = async (payload: any): Promise<any> => {
+    const net = await import('net');
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      const timeoutMs = 10000;
+      let responseReceived = false;
+
+      const cleanup = () => {
+        try { socket.destroy(); } catch { /* ignore */ }
+      };
+
+      socket.setTimeout(timeoutMs);
+
+      socket.on('connect', () => {
+        socket.write(JSON.stringify(payload));
+      });
+
+      socket.on('data', (data) => {
+        if (responseReceived) return;
+        responseReceived = true;
+
+        try {
+          const response = JSON.parse(data.toString().trim());
+          cleanup();
+
+          const standardResponse = {
+            success: response.status === 'success',
+            status: response.status || 'success',
+            message: response.message || '',
+            ...response
+          };
+
+          resolve(standardResponse);
+        } catch (e) {
+          cleanup();
+          resolve({ success: false, status: 'error', message: 'Invalid JSON response from Blender addon' });
+        }
+      });
+
+      socket.on('timeout', () => {
+        if (!responseReceived) {
+          cleanup();
+          resolve({ success: false, status: 'error', message: 'Timeout waiting for Blender response' });
+        }
+      });
+
+      socket.on('error', (err: any) => {
+        if (!responseReceived) {
+          cleanup();
+          resolve({ success: false, status: 'error', message: String(err?.message || err) });
+        }
+      });
+
+      socket.on('close', () => {
+        if (!responseReceived) {
+          resolve({ success: false, status: 'error', message: 'Connection closed by Blender addon' });
+        }
+      });
+
+      try {
+        socket.connect(9999, '127.0.0.1');
+      } catch (e: any) {
+        cleanup();
+        resolve({ success: false, status: 'error', message: String(e?.message || e) });
+      }
+    });
+  };
+
   /**
    * send-blender-command - Uses the exact Blender Bridge protocol
    * 
    * Sends a command to the Blender add-on (mossy_link.py) on port 9999.
+   * Auto-sends PyTorch path on first connection.
    * Protocol matches the official Blender-add-on:
    * - Command types: "script", "text", "get_capabilities", "query_mossy", "call_tool"
    * - Request: { type, code?, name?, run?, query?, context?, tool?, action?, payload?, token? }
@@ -2039,7 +2114,30 @@ function setupIpcHandlers() {
    */
   registerHandler('send-blender-command', async (_event, commandType: string, commandData: any = {}, token?: string) => {
     try {
-      const net = await import('net');
+      // AUTO-SEND PYTORCH PATH ON FIRST BLENDER COMMAND
+      if (!_blenderPytorchPathSent) {
+        const s = loadSettings();
+        const pytorchPath = s?.pytorchPath as string | undefined;
+
+        if (pytorchPath) {
+          console.log('[Blender Bridge] PyTorch path in settings:', pytorchPath);
+          if (fs.existsSync(pytorchPath)) {
+            try {
+              console.log('[Blender Bridge] ✅ PyTorch path exists, auto-sending to Blender on first connection...');
+              const pathPayload = { type: 'set_pytorch_path', path: pytorchPath };
+              const pathResult = await _sendToBlenderTCP(pathPayload);
+              console.log('[Blender Bridge] PyTorch auto-send result:', pathResult.status, '-', pathResult.message);
+              _blenderPytorchPathSent = true;
+            } catch (e: any) {
+              console.warn('[Blender Bridge] ⚠️ Failed to send PyTorch path:', e?.message);
+            }
+          } else {
+            console.warn('[Blender Bridge] ⚠️ PyTorch path does not exist:', pytorchPath);
+          }
+        } else {
+          console.log('[Blender Bridge] PyTorch path not configured. Skipping auto-send.');
+        }
+      }
 
       // Build the exact JSON format that mossy_link.py expects
       const payload: any = { type: commandType };
@@ -2069,73 +2167,8 @@ function setupIpcHandlers() {
         payload.token = token;
       }
 
-      return await new Promise((resolve) => {
-        const socket = new net.Socket();
-        const timeoutMs = 10000;
-        let responseReceived = false;
-
-        const cleanup = () => {
-          try { socket.destroy(); } catch { /* ignore */ }
-        };
-
-        socket.setTimeout(timeoutMs);
-
-        socket.on('connect', () => {
-          // Send JSON payload (mossy_link.py expects newline-delimited JSON)
-          socket.write(JSON.stringify(payload));
-        });
-
-        socket.on('data', (data) => {
-          if (responseReceived) return;
-          responseReceived = true;
-
-          try {
-            const response = JSON.parse(data.toString().trim());
-            cleanup();
-
-            // Convert from Blender addon response format to standard format
-            const standardResponse = {
-              success: response.status === 'success',
-              status: response.status || 'success',
-              message: response.message || '',
-              ...response // Include all other fields
-            };
-
-            resolve(standardResponse);
-          } catch (e) {
-            cleanup();
-            resolve({ success: false, status: 'error', message: 'Invalid JSON response from Blender addon' });
-          }
-        });
-
-        socket.on('timeout', () => {
-          if (!responseReceived) {
-            cleanup();
-            resolve({ success: false, status: 'error', message: 'Timeout waiting for Blender response' });
-          }
-        });
-
-        socket.on('error', (err: any) => {
-          if (!responseReceived) {
-            cleanup();
-            resolve({ success: false, status: 'error', message: String(err?.message || err) });
-          }
-        });
-
-        socket.on('close', () => {
-          if (!responseReceived) {
-            resolve({ success: false, status: 'error', message: 'Connection closed by Blender addon' });
-          }
-        });
-
-        try {
-          // Connect to Blender addon's TCP server on port 9999
-          socket.connect(9999, '127.0.0.1');
-        } catch (e: any) {
-          cleanup();
-          resolve({ success: false, status: 'error', message: String(e?.message || e) });
-        }
-      });
+      // Use the helper to send the command
+      return await _sendToBlenderTCP(payload);
     } catch (e: any) {
       return { success: false, status: 'error', message: String(e?.message || e) };
     }
@@ -2144,6 +2177,61 @@ function setupIpcHandlers() {
   // ═══════════════════════════════════════════════════════════════════════════
   // Blender-Mossy Integration: Enhanced AI & Tool Capabilities
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Handler: send-pytorch-path-to-blender
+   * Sends the PyTorch installation path to the Blender add-on
+   * The add-on will inject it into sys.path for torch imports
+   */
+  registerHandler('send-pytorch-path-to-blender', async () => {
+    try {
+      const s = loadSettings();
+      const pytorchPath = s?.pytorchPath as string | undefined;
+
+      if (!pytorchPath) {
+        return { success: false, message: 'PyTorch path not configured. Install PyTorch first.' };
+      }
+
+      // Send the path to Blender with set_pytorch_path command via the TCP bridge
+      const net = await import('net');
+      const payload = { type: 'set_pytorch_path', path: pytorchPath };
+
+      return await new Promise((resolve) => {
+        const socket = new net.Socket();
+        const timeoutMs = 5000;
+        let responseReceived = false;
+
+        socket.setTimeout(timeoutMs);
+        socket.on('connect', () => {
+          socket.write(JSON.stringify(payload));
+        });
+        socket.on('data', (data) => {
+          if (responseReceived) return;
+          responseReceived = true;
+          try {
+            const response = JSON.parse(data.toString().trim());
+            socket.destroy();
+            resolve({ success: response.status === 'success', ...response });
+          } catch (e) {
+            socket.destroy();
+            resolve({ success: false, message: 'Invalid response from Blender' });
+          }
+        });
+        socket.on('error', (err: any) => {
+          if (!responseReceived) {
+            resolve({ success: false, message: `Connection error: ${err?.message || err}` });
+          }
+        });
+        try {
+          socket.connect(9999, '127.0.0.1');
+        } catch (e: any) {
+          resolve({ success: false, message: String(e?.message || e) });
+        }
+      });
+    } catch (e: any) {
+      return { success: false, message: String(e?.message || e) };
+    }
+  });
 
   /**
    * Handler: get-mossy-capabilities
@@ -7432,7 +7520,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         }
 
         // 2. Common Python installation directories
-        const pythonDir = 'C:\\Users\\billy\\AppData\\Local\\Programs\\Python';
+        const userProfile = process.env.USERPROFILE || path.join('C:\\Users', process.env.USERNAME || 'user');
+        const pythonDir = path.join(userProfile, 'AppData', 'Local', 'Programs', 'Python');
         if (fs.existsSync(pythonDir)) {
           try {
             const versions = fs.readdirSync(pythonDir).filter(f => f.match(/^Python\d+$/));
@@ -7548,7 +7637,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         pythonFound,
         error: pythonFound
           ? 'PyTorch is not installed. Click Auto-Install to set it up automatically.'
-          : 'Python not found. Install Python 3.8+ from https://www.python.org/downloads/ first.',
+          : 'Python not found. Install Python 3.10+ from https://www.python.org/downloads/ first.',
       };
     } catch (error: any) {
       return { available: false, error: `Check failed: ${error?.message || String(error)}` };
@@ -7579,6 +7668,15 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
    * Returns: { success: boolean; path?: string; version?: string; message?: string; error?: string; troubleshooting?: string[] }
    */
   registerHandler('install-pytorch', async (_event, destDir?: string, mode: string = 'cpu') => {
+    // IMPORTANT: Always use CPU-only build for maximum compatibility
+    // GPU (CUDA) mode causes "DLL initialization failed" errors in Blender because:
+    // 1. Blender has its own Python environment
+    // 2. CUDA runtime libs are environment-specific
+    // 3. Visual C++ Redistributables may not match
+    // To use GPU PyTorch, users must install manually with matching CUDA version
+    const safeModeOverride = 'cpu';
+    const finalMode = mode === 'auto' ? 'cpu' : mode; // Never auto-detect GPU, default to CPU
+
     const INSTALL_TIMEOUT_MS = 600_000; // 10 min — PyTorch wheel is ~200 MB
 
     /** Spawn a process and stream its output; resolves when the process exits. */
@@ -7620,10 +7718,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // ── Detect CUDA/GPU availability if mode is 'auto' ──────────────────────
       let installMode = mode;
       if (mode === 'auto') {
-        console.log('[PyTorch Install] Auto-detecting GPU/CUDA availability...');
-        const gpuDetect = await runCmd(process.platform === 'win32' ? 'nvidia-smi' : 'nvidia-smi', []);
-        installMode = gpuDetect.code === 0 ? 'gpu' : 'cpu';
-        console.log(`[PyTorch Install] GPU auto-detect result: ${installMode.toUpperCase()}`);
+        console.log('[PyTorch Install] Auto-detect requested, but forcing CPU-only for Blender compatibility...');
+        installMode = 'cpu'; // Always CPU for safety
       }
 
       // ── Find Python ─────────────────────────────────────────────────────────
@@ -7639,7 +7735,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
       // 2. Check user Python installations (enumerate and sort descending for latest version)
       if (process.platform === 'win32') {
-        const pythonDir = 'C:\\Users\\billy\\AppData\\Local\\Programs\\Python';
+        const userProfile = process.env.USERPROFILE || path.join('C:\\Users', process.env.USERNAME || 'user');
+        const pythonDir = path.join(userProfile, 'AppData', 'Local', 'Programs', 'Python');
         if (fs.existsSync(pythonDir)) {
           try {
             const versions = fs.readdirSync(pythonDir)
@@ -7685,7 +7782,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       if (!pythonExe) {
         return {
           success: false,
-          error: 'Python is not installed. Please install Python 3.8+ from https://www.python.org/downloads/ and try again.',
+          error: 'Python is not installed. Please install Python 3.10+ from https://www.python.org/downloads/ and try again.',
         };
       }
       console.log(`[PyTorch Install] Using Python: ${pythonExe} (embedded=${usingEmbedded})`);
@@ -7693,11 +7790,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // ── Choose install strategy and PyTorch version ──────────────────────────
       // Embedded Python does not support venv well; use pip --target instead.
       let sitePackages: string;
-      const indexUrl = installMode === 'gpu'
-        ? 'https://download.pytorch.org/whl/cu118'  // CUDA 11.8
-        : 'https://download.pytorch.org/whl/cpu';    // CPU only
 
-      console.log(`[PyTorch Install] Installing ${installMode.toUpperCase()} version`);
+      // IMPORTANT: Force CPU-only for maximum compatibility (especially with Blender)
+      // GPU mode requires matching CUDA drivers/runtime - too fragile for multi-environment setup
+      // Users wanting GPU can manually install the GPU version
+      const indexUrl = 'https://download.pytorch.org/whl/cpu';    // CPU only (most reliable)
+
+      console.log(`[PyTorch Install] Installing CPU-ONLY PyTorch for Blender compatibility...`);
       console.log(`[PyTorch Install] Index URL: ${indexUrl}`);
 
       if (usingEmbedded) {
@@ -7714,24 +7813,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         if (pipResult.code !== 0) {
           const errMsg = pipResult.stderr || pipResult.stdout;
 
-          // Detect CUDA-related errors
-          if (installMode === 'gpu' && (errMsg.includes('CUDA') || errMsg.includes('DLL'))) {
-            return {
-              success: false,
-              error: `GPU PyTorch installation failed: ${errMsg}`,
-              troubleshooting: [
-                '⚠️ Your system may not have compatible CUDA drivers installed.',
-                '🔧 Fix 1: Reinstall PyTorch matching your CUDA version',
-                '🔧 Fix 2: Install Visual C++ Redistributable (https://support.microsoft.com/en-us/help/2977003)',
-                '🔧 Fix 3: Update GPU driver to match your CUDA version (https://www.nvidia.com/Download/driverDetails.aspx)',
-                '🔧 Fix 4: Use CPU-only PyTorch build instead (recommended for stability)',
-                '\n✅ Retrying with CPU-only build...',
-              ],
-            };
-          }
-
-          // Retry without torchvision
-          console.warn('[PyTorch Install] Retrying without torchvision…');
+          // Retry without torchvision (lightweight fallback for CPU)
+          console.warn('[PyTorch Install] Install failed, retrying with just torch (no torchvision)…');
           const retry = await runCmd(pythonExe, ['-m', 'pip', 'install', 'torch',
             '--target', targetDir,
             '--index-url', indexUrl,
@@ -7742,8 +7825,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               error: `pip install failed:\n${retry.stderr || retry.stdout}`,
               troubleshooting: [
                 '💡 Check your internet connection',
-                '💡 Ensure Python 3.8+ is installed',
-                '💡 Try installing CPU-only version instead',
+                '💡 Ensure Python 3.10+ is installed',
+                '💡 Try uninstalling and reinstalling Mossy PyTorch module',
               ],
             };
           }
@@ -7765,7 +7848,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           return { success: false, error: `pip not found inside virtual environment (${pipExe}).` };
         }
 
-        console.log(`[PyTorch Install] Installing torch (${installMode.toUpperCase()}) into venv…`);
+        console.log(`[PyTorch Install] Installing CPU-only torch into venv…`);
         const pipResult = await runCmd(pipExe, ['install', 'torch', 'torchvision',
           '--index-url', indexUrl,
           '--timeout', '300', '--no-cache-dir']);
@@ -7773,24 +7856,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         if (pipResult.code !== 0) {
           const errMsg = pipResult.stderr || pipResult.stdout;
 
-          // Detect CUDA-related errors
-          if (installMode === 'gpu' && (errMsg.includes('CUDA') || errMsg.includes('DLL') || errMsg.includes('driver'))) {
-            console.warn('[PyTorch Install] GPU install failed - likely CUDA driver mismatch');
-            return {
-              success: false,
-              error: `GPU PyTorch installation failed: ${errMsg}`,
-              troubleshooting: [
-                '⚠️ Your system may not have compatible CUDA drivers.',
-                '🔧 Fix 1: Reinstall PyTorch matching your CUDA version',
-                '🔧 Fix 2: Install Visual C++ Redistributable (https://support.microsoft.com/en-us/help/2977003)',
-                '🔧 Fix 3: Update GPU driver to match your CUDA version (https://www.nvidia.com/Download/driverDetails.aspx)',
-                '🔧 Fix 4: Use CPU-only PyTorch build instead (recommended)',
-                '\n✅ Switching to CPU-only build...',
-              ],
-            };
-          }
-
-          console.warn('[PyTorch Install] Retrying without torchvision…');
+          // Retry without torchvision (lightweight fallback for CPU)
+          console.warn('[PyTorch Install] Install failed, retrying with just torch (no torchvision)…');
           const retry = await runCmd(pipExe, ['install', 'torch',
             '--index-url', indexUrl,
             '--timeout', '300', '--no-cache-dir']);
@@ -7800,7 +7867,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               error: `pip install failed:\n${retry.stderr || retry.stdout}`,
               troubleshooting: [
                 '💡 Check your internet connection',
-                '💡 Ensure Python 3.8+ is installed',
+                '💡 Ensure Python 3.10+ is installed',
                 '💡 Try installing CPU-only version instead',
               ],
             };
@@ -7858,6 +7925,113 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const msg = error?.message || String(error);
       console.error('[PyTorch Install] Unexpected error:', msg);
       return { success: false, error: `Installation failed: ${msg}` };
+    }
+  });
+
+  /**
+   * Handler: reinstall-pytorch-cpu-only
+   * 
+   * Uninstalls all PyTorch and reinstalls CPU-only version.
+   * Use when GPU build causes "DLL initialization failed" in Blender.
+   */
+  registerHandler('reinstall-pytorch-cpu-only', async () => {
+    try {
+      const userData = app.getPath('userData');
+      const pythonCandidates: string[] = [];
+
+      // Find Python (same logic as install-pytorch)
+      const venvPython = path.join(process.cwd(), '.venv', 'Scripts', 'python.exe');
+      if (fs.existsSync(venvPython)) {
+        pythonCandidates.push(venvPython);
+      }
+
+      if (process.platform === 'win32') {
+        const userProfile = process.env.USERPROFILE || path.join('C:\\Users', process.env.USERNAME || 'user');
+        const pythonDir = path.join(userProfile, 'AppData', 'Local', 'Programs', 'Python');
+        if (fs.existsSync(pythonDir)) {
+          try {
+            const versions = fs.readdirSync(pythonDir)
+              .filter((f) => f.match(/^Python\d+$/))
+              .sort()
+              .reverse();
+            for (const ver of versions) {
+              const pythonExePath = path.join(pythonDir, ver, 'python.exe');
+              if (fs.existsSync(pythonExePath)) {
+                pythonCandidates.push(pythonExePath);
+              }
+            }
+          } catch { /* ignore */ }
+        }
+      }
+
+      pythonCandidates.push(...(process.platform === 'win32' ? ['python', 'python3', 'py'] : ['python3', 'python']));
+
+      let pythonExe = '';
+      const runCmd = (cmd: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> =>
+        new Promise((resolve) => {
+          const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], timeout: 600_000, windowsHide: true });
+          let stdout = '';
+          let stderr = '';
+          child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+          child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+          child.on('close', (code: number | null) => resolve({ code: code ?? -1, stdout, stderr }));
+          child.on('error', (err: Error) => resolve({ code: -1, stdout: '', stderr: err.message }));
+        });
+
+      for (const candidate of pythonCandidates) {
+        const r = await runCmd(candidate, ['--version']);
+        if (r.code === 0) { pythonExe = candidate; break; }
+      }
+
+      if (!pythonExe) {
+        return { success: false, error: 'Python not found. Cannot reinstall PyTorch.' };
+      }
+
+      console.log('[PyTorch Reinstall] Uninstalling existing PyTorch...');
+      const uninstall = await runCmd(pythonExe, ['-m', 'pip', 'uninstall', 'torch', 'torchvision', 'torchaudio', '-y']);
+      if (uninstall.code !== 0) {
+        console.warn('[PyTorch Reinstall] Uninstall warning:', uninstall.stderr || uninstall.stdout);
+      }
+
+      console.log('[PyTorch Reinstall] Installing CPU-only PyTorch...');
+      const targetDir = path.join(userData, 'pytorch-packages');
+      fs.mkdirSync(targetDir, { recursive: true });
+
+      const install = await runCmd(pythonExe, [
+        '-m', 'pip', 'install', 'torch', 'torchvision', 'torchaudio',
+        '--target', targetDir,
+        '--index-url', 'https://download.pytorch.org/whl/cpu',
+        '--timeout', '300', '--no-cache-dir'
+      ]);
+
+      if (install.code !== 0) {
+        return {
+          success: false,
+          error: `CPU-only installation failed: ${install.stderr || install.stdout}`,
+        };
+      }
+
+      // Verify
+      const verify = await runCmd(pythonExe, [
+        '-c',
+        'import sys, os; p=os.environ.get("MOSSY_TORCH_PATH",""); p and sys.path.insert(0, p); import torch; print(torch.__version__)',
+      ]);
+
+      if (verify.code === 0) {
+        const s = loadSettings();
+        saveSettings({ ...s, pytorchPath: targetDir, pytorchMode: 'cpu' });
+        console.log('[PyTorch Reinstall] ✅ CPU-only PyTorch installed successfully');
+        return {
+          success: true,
+          version: verify.stdout.trim(),
+          path: targetDir,
+          message: `✅ PyTorch CPU-only version installed. Restart Blender to apply changes.`,
+        };
+      } else {
+        return { success: false, error: 'CPU version installed but failed to verify import.' };
+      }
+    } catch (error: any) {
+      return { success: false, error: `Reinstall failed: ${error?.message || String(error)}` };
     }
   });
 

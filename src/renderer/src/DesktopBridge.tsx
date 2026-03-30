@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Link as RouterLink } from 'react-router-dom';
-import { Monitor, CheckCircle2, Wifi, Shield, Cpu, Terminal, Power, Layers, Box, Code, Image as ImageIcon, MessageSquare, Activity, RefreshCw, Lock, AlertOctagon, Link, Zap, Eye, Globe, Database, Wrench, FolderOpen, HardDrive, ArrowRightLeft, ArrowRight, Keyboard, ArrowDownToLine, Server, Clipboard, FileType, HelpCircle, AlertTriangle, Settings, Search, ExternalLink, Download } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import { Monitor, CheckCircle2, Wifi, Shield, Cpu, Terminal, Power, Layers, Box, Code, Image as ImageIcon, MessageSquare, Activity, RefreshCw, Lock, AlertOctagon, Link, Zap, Eye, Globe, Database, Wrench, FolderOpen, HardDrive, ArrowRightLeft, ArrowRight, Keyboard, ArrowDownToLine, Server, Clipboard, FileType, HelpCircle, AlertTriangle, Settings, Search, ExternalLink, Download, X } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 import { openExternal } from './utils/openExternal';
@@ -100,6 +101,9 @@ const DesktopBridge: React.FC = () => {
     const [bridgeConnected, setBridgeConnected] = useState(false);
     const [bridgeVersion, setBridgeVersion] = useState<string | null>(null);
     const [showHelp, setShowHelp] = useState(false);
+    const [showBlenderTutorial, setShowBlenderTutorial] = useState(false);
+    const [blenderTutorialContent, setBlenderTutorialContent] = useState<string>('');
+    const [blenderTutorialLoading, setBlenderTutorialLoading] = useState(false);
 
     // Real bridge testing state
     const [testingBridge, setTestingBridge] = useState(false);
@@ -648,20 +652,24 @@ const DesktopBridge: React.FC = () => {
     }, [linkedDirectories]);
 
     // Sync logs and check connection from LocalStorage (Updated by SystemBus)
+    // OPTIMIZED: Only poll infrequently, and only when NOT viewing the Blender tab to avoid UI lockup
     useEffect(() => {
         const syncState = () => {
             try {
                 const savedLogs = localStorage.getItem('mossy_bridge_logs');
-                if (savedLogs) setLogs(JSON.parse(savedLogs));
+                if (savedLogs) {
+                    const parsed = JSON.parse(savedLogs);
+                    setLogs(prev => JSON.stringify(prev) === JSON.stringify(parsed) ? prev : parsed);
+                }
 
                 const active = localStorage.getItem('mossy_bridge_active') === 'true';
-                setBridgeConnected(active);
+                setBridgeConnected(prev => prev === active ? prev : active);
 
                 const ver = localStorage.getItem('mossy_bridge_version');
-                setBridgeVersion(ver);
+                setBridgeVersion(prev => prev === ver ? prev : ver);
 
                 const bLinked = localStorage.getItem('mossy_blender_active') === 'true';
-                setBlenderLinked(bLinked);
+                setBlenderLinked(prev => prev === bLinked ? prev : bLinked);
             } catch (e) {
                 console.error('Failed to sync bridge state:', e);
             }
@@ -671,15 +679,16 @@ const DesktopBridge: React.FC = () => {
         window.addEventListener('storage', syncState);
         window.addEventListener('mossy-bridge-connected', syncState);
 
-        // Fallback poll for UI responsiveness
-        const interval = setInterval(syncState, 1000);
+        // Only poll every 7 seconds when NOT on Blender tab (to avoid freezing that tab with constant updates)
+        // When on Blender tab, rely on manual button clicks (Scan Scene, Disconnect, etc)
+        const pollInterval = activeTab === 'blender' ? null : setInterval(syncState, 7000);
 
         return () => {
             window.removeEventListener('storage', syncState);
             window.removeEventListener('mossy-bridge-connected', syncState);
-            clearInterval(interval);
+            if (pollInterval) clearInterval(pollInterval);
         };
-    }, []);
+    }, [activeTab]);
 
     useEffect(() => {
         void loadCkSettings();
@@ -712,7 +721,13 @@ const DesktopBridge: React.FC = () => {
     }, [ckScriptName, ckScriptExtends]);
 
     // Process Heartbeat - Automatically detect Blender/Tools
+    // OPTIMIZED: Only check when NOT on Blender tab to avoid constant polling that freezes the UI
     useEffect(() => {
+        if (activeTab === 'blender') {
+            // Skip auto-detection while viewing Blender tab (user can manually click buttons)
+            return;
+        }
+
         const heartbeat = async () => {
             const isBlenderRunning = await checkBlenderProcess();
             const currentStatus = localStorage.getItem('mossy_blender_active') === 'true';
@@ -734,7 +749,7 @@ const DesktopBridge: React.FC = () => {
         heartbeat(); // Initial check
 
         return () => clearInterval(interval);
-    }, [blenderLinked]);
+    }, [activeTab]);
 
     // --- PYTHON SERVER GENERATOR ---
     const handleDownloadServer = () => {
@@ -1251,6 +1266,10 @@ pause
             setBlenderLinked(true);
             window.dispatchEvent(new CustomEvent('mossy-blender-linked', { detail: true }));
             addLog('System', 'Blender add-on socket connected! Neural Link verified!', 'success');
+            // Auto-clear previous context when reconnecting
+            setBlenderContext(null);
+            setBlenderContextRaw('');
+            setBlenderContextError('');
         } else {
             localStorage.setItem('mossy_blender_active', 'false');
             setBlenderLinked(false);
@@ -1259,6 +1278,42 @@ pause
 
             // Instruction for user
             addLog('System', 'Make sure: 1) Blender is open, 2) Add-on is installed, 3) Toggle is ON in Mossy panel', 'ok');
+        }
+    };
+
+    const loadBlenderTutorial = async () => {
+        setShowBlenderTutorial(true);
+        setBlenderTutorialLoading(true);
+        try {
+            const base = import.meta.env.BASE_URL || '/';
+            const candidates = [
+                `${base}knowledge/MOSSY_LINK_BLENDER_ADDON_GUIDE.md`,
+                `${base}public/knowledge/MOSSY_LINK_BLENDER_ADDON_GUIDE.md`,
+            ];
+
+            let content: string | null = null;
+            for (const url of candidates) {
+                try {
+                    const resp = await fetch(url);
+                    if (resp.ok) {
+                        content = await resp.text();
+                        break;
+                    }
+                } catch {
+                    // try next candidate
+                }
+            }
+
+            if (content) {
+                setBlenderTutorialContent(content);
+            } else {
+                setBlenderTutorialContent('# Tutorial Not Found\n\nThe Blender add-on tutorial could not be loaded. Please ensure the knowledge base files are built.');
+            }
+        } catch (err) {
+            console.error('Failed to load tutorial:', err);
+            setBlenderTutorialContent('# Error Loading Tutorial\n\nFailed to load the tutorial content. Please try again.');
+        } finally {
+            setBlenderTutorialLoading(false);
         }
     };
 
@@ -1274,29 +1329,49 @@ pause
 
     const fetchBlenderContext = async () => {
         setBlenderContextError('');
-        setBlenderExportStatus('');
         try {
             const base = normalizeHttpUrl(bridgeBaseUrl) || 'http://127.0.0.1:21337';
-            const response = await fetch(`${base}/execute`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'context' }),
-            });
-            const data = await response.json();
-            const raw = String(data?.response || '');
-            setBlenderContextRaw(raw);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
+
             try {
-                setBlenderContext(raw ? JSON.parse(raw) : null);
-            } catch {
-                setBlenderContext(null);
-            }
-            if (!response.ok || data?.status !== 'success') {
-                setBlenderContextError(String(data?.message || 'Failed to fetch Blender context'));
-            } else {
-                addLog('Blender', 'Context snapshot retrieved', 'success');
+                const response = await fetch(`${base}/execute`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'context' }),
+                    signal: controller.signal,
+                });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    setBlenderContextError('Failed to fetch Blender context');
+                    return;
+                }
+
+                const data = await response.json();
+                const raw = String(data?.response || '');
+                setBlenderContextRaw(raw);
+                try {
+                    const parsed = raw ? JSON.parse(raw) : null;
+                    setBlenderContext(parsed);
+                } catch {
+                    setBlenderContext(null);
+                }
+
+                if (data?.status !== 'success') {
+                    setBlenderContextError(String(data?.message || 'Failed to fetch Blender context'));
+                } else {
+                    addLog('Blender', 'Context snapshot retrieved', 'success');
+                }
+            } finally {
+                clearTimeout(timeoutId);
             }
         } catch (e: any) {
-            setBlenderContextError(String(e?.message || e));
+            if (e?.name === 'AbortError') {
+                setBlenderContextError('Connection timeout (3s)');
+            } else {
+                setBlenderContextError(String(e?.message || e));
+            }
         }
     };
 
@@ -2407,6 +2482,13 @@ pause
                                             Disconnect Link
                                         </button>
                                     )}
+                                    <button
+                                        onClick={loadBlenderTutorial}
+                                        className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-all"
+                                    >
+                                        <HelpCircle className="w-5 h-5" />
+                                        View Blender Tutorial
+                                    </button>
                                 </div>
                             </div>
 
@@ -2946,6 +3028,72 @@ pause
                                         )}
                                     </div>
                                 )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Blender Tutorial Modal */}
+                    {showBlenderTutorial && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                            <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+                                {/* Modal Header */}
+                                <div className="flex justify-between items-center p-6 border-b border-slate-700">
+                                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                                        <HelpCircle className="w-6 h-6 text-blue-400" />
+                                        Mossy Link for Blender Tutorial
+                                    </h2>
+                                    <button
+                                        onClick={() => setShowBlenderTutorial(false)}
+                                        className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+                                        title="Close tutorial"
+                                    >
+                                        <X className="w-6 h-6 text-slate-400 hover:text-white" />
+                                    </button>
+                                </div>
+
+                                {/* Modal Content */}
+                                <div className="flex-1 overflow-y-auto p-6">
+                                    {blenderTutorialLoading ? (
+                                        <div className="flex items-center justify-center py-12">
+                                            <div className="text-center">
+                                                <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-4" />
+                                                <p className="text-slate-400">Loading tutorial...</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="prose prose-invert prose-sm max-w-none dark text-slate-200">
+                                            <ReactMarkdown
+                                                components={{
+                                                    h1: ({ ...props }) => <h1 className="text-3xl font-bold text-white mt-6 mb-4" {...props} />,
+                                                    h2: ({ ...props }) => <h2 className="text-2xl font-bold text-blue-300 mt-5 mb-3" {...props} />,
+                                                    h3: ({ ...props }) => <h3 className="text-lg font-bold text-blue-200 mt-4 mb-2" {...props} />,
+                                                    h4: ({ ...props }) => <h4 className="text-base font-bold text-slate-300 mt-3 mb-2" {...props} />,
+                                                    p: ({ ...props }) => <p className="text-slate-300 mb-3 leading-relaxed" {...props} />,
+                                                    ol: ({ ...props }) => <ol className="list-decimal list-inside mb-3 text-slate-300" {...props} />,
+                                                    ul: ({ ...props }) => <ul className="list-disc list-inside mb-3 text-slate-300" {...props} />,
+                                                    code: ({ ...props }) => <code className="bg-slate-800 text-emerald-300 px-2 py-1 rounded text-xs font-mono" {...props} />,
+                                                    pre: ({ ...props }) => <pre className="bg-slate-800 p-3 rounded mb-3 overflow-x-auto text-xs" {...props} />,
+                                                    blockquote: ({ ...props }) => <blockquote className="border-l-4 border-blue-500 pl-4 italic text-slate-400 mb-3" {...props} />,
+                                                    a: ({ ...props }) => <a className="text-blue-400 hover:text-blue-300 underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                                                    strong: ({ ...props }) => <strong className="text-blue-300 font-bold" {...props} />,
+                                                    em: ({ ...props }) => <em className="text-slate-200 italic" {...props} />,
+                                                }}
+                                            >
+                                                {blenderTutorialContent}
+                                            </ReactMarkdown>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="border-t border-slate-700 p-6 flex justify-end gap-3">
+                                    <button
+                                        onClick={() => setShowBlenderTutorial(false)}
+                                        className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg transition-colors"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
