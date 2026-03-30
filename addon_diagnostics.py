@@ -91,6 +91,22 @@ _CRITICAL_OPERATORS = [
     ("FO4_OT_ReloadAddon",         "fo4.reload_addon"),
 ]
 
+# Operators that belong to tutorial_operators.py and setup_operators.py
+# respectively.  Auto-Fix uses these to decide whether re-registration is
+# actually needed — the modules are only re-registered when at least one of
+# their operators is missing from the Blender type system.
+_TUTORIAL_OP_IDNAMES = [
+    "fo4.show_detailed_setup",
+    "fo4.start_tutorial",
+    "fo4.show_help",
+    "fo4.show_credits",
+]
+_SETUP_OP_IDNAMES = [
+    "fo4.install_python_deps",
+    "fo4.self_test",
+    "fo4.reload_addon",
+]
+
 
 # ── Diagnostics engine ────────────────────────────────────────────────────────
 
@@ -132,8 +148,9 @@ def collect_diagnostics():
                         "Installed as local extension (user_default) - "
                         "module prefix: bl_ext.user_default"))
     else:
-        results.append(("WARN", "Install",
-                        "Unexpected install path (neither blender_org nor user_default)"))
+        results.append(("INFO", "Install",
+                        "Non-standard install path (not a Blender extension) - "
+                        "addon should still function normally"))
 
     # ── 3. Dual-install via sys.modules ──────────────────────────────────────
     name_base = (__package__ or "blender_game_tools").split(".")[-1]
@@ -295,33 +312,35 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
 
         print("\n[ FO4 Auto-Fix ] Starting repair …")
 
-        # ── Step 1: re-register tutorial_operators ────────────────────────────
+        # ── Step 1: re-register tutorial_operators (only when operators missing) ─
         tut = getattr(init, "tutorial_operators", None) if init else None
         if tut:
-            try:
-                tut.unregister()
-            except Exception:
-                pass
-            try:
-                tut.register()
-                fixed.append("tutorial_operators re-registered")
-            except Exception as exc:
-                failed.append(f"tutorial_operators: {exc}")
+            if any(not _op_callable(op) for op in _TUTORIAL_OP_IDNAMES):
+                try:
+                    tut.unregister()
+                except Exception:
+                    pass
+                try:
+                    tut.register()
+                    fixed.append("tutorial_operators re-registered")
+                except Exception as exc:
+                    failed.append(f"tutorial_operators: {exc}")
         else:
             failed.append("tutorial_operators: module not available")
 
-        # ── Step 2: re-register setup_operators ──────────────────────────────
+        # ── Step 2: re-register setup_operators (only when operators missing) ──
         setup = getattr(init, "setup_operators", None) if init else None
         if setup:
-            try:
-                setup.unregister()
-            except Exception:
-                pass
-            try:
-                setup.register()
-                fixed.append("setup_operators re-registered")
-            except Exception as exc:
-                failed.append(f"setup_operators: {exc}")
+            if any(not _op_callable(op) for op in _SETUP_OP_IDNAMES):
+                try:
+                    setup.unregister()
+                except Exception:
+                    pass
+                try:
+                    setup.register()
+                    fixed.append("setup_operators re-registered")
+                except Exception as exc:
+                    failed.append(f"setup_operators: {exc}")
         else:
             failed.append("setup_operators: module not available")
 
@@ -350,7 +369,9 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
         if prefs_mod:
             try:
                 restored = prefs_mod.restore_extra_python_paths()
-                fixed.append(f"extra Python paths restored ({len(restored) if restored else 0} paths)")
+                restored_count = len(restored) if restored else 0
+                if restored_count > 0:
+                    fixed.append(f"extra Python paths restored ({restored_count} paths)")
             except Exception as exc:
                 failed.append(f"restore_extra_python_paths: {exc}")
 
@@ -361,7 +382,6 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
                             prefs_mod.restore_scene_props_from_prefs(scene)
                         except Exception:
                             pass
-                fixed.append("scene properties restored from preferences")
             except Exception as exc:
                 failed.append(f"restore_scene_props: {exc}")
 
