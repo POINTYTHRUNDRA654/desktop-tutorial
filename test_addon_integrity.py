@@ -1071,6 +1071,498 @@ class TestMossyLinkRegistrationOrder(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Test 16 – PyTorch warning / tool availability cache (RECURRING BUG #11)
+# ---------------------------------------------------------------------------
+class TestPyTorchWarningAndToolCaching(unittest.TestCase):
+    """Regression tests for the two persistent problems that have recurred
+    multiple times across this add-on:
+
+      Problem A – False "PyTorch is required" warning after a successful install
+        Root cause: install functions hard-coded the warning string instead of
+        checking at runtime whether torch was actually missing.  Additionally,
+        the check ignored the Mossy bridge: when PyTorch runs inside the Mossy
+        desktop app, ``importlib.util.find_spec("torch")`` always returns None
+        even though torch IS available.
+
+      Problem B – Tool status shows "Not checked" / "Not installed" on every
+        Blender restart, forcing the user to click "Install" again
+        Root cause 1: ``get_cached_availability()`` was missing from
+          hunyuan3d_helpers.py → the UI always fell back to the None/"not
+          checked" branch.
+        Root cause 2: ``AVAILABLE`` globals were initialised to ``False`` so
+          register() cached a stale False immediately (before torch paths were
+          restored), and ``clear_availability_cache()`` also reset to False
+          instead of None.
+        Root cause 3: the helpers' ``register()`` ran availability checks before
+          ``restore_extra_python_paths()`` had added torch_custom_path to
+          sys.path — so the first cached result was always wrong.
+        Root cause 4: ``deferred_startup()`` did not refresh the caches, leaving
+          the UI showing stale status for the entire session unless the user
+          manually clicked "Check Status".
+
+    These tests verify the structural properties of the fix so that any future
+    change that reintroduces one of these root causes will immediately fail CI.
+    No Blender runtime is required — all checks are pure source / AST analysis.
+    """
+
+    # ------------------------------------------------------------------ helpers
+
+    def _functions_in(self, source: str) -> set:
+        """Return the set of top-level and method function names in *source*."""
+        tree = ast.parse(source)
+        return {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+
+    def _assignment_values_in_func(self, source: str, func_name: str,
+                                   target_name: str) -> list:
+        """Return AST constant values assigned to *target_name* inside *func_name*.
+
+        Useful for checking e.g. that ``HUNYUAN3D_AVAILABLE = None`` (not False)
+        appears inside ``clear_availability_cache()``.
+        """
+        tree = ast.parse(source)
+        values = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef) or node.name != func_name:
+                continue
+            for stmt in ast.walk(node):
+                if not isinstance(stmt, ast.Assign):
+                    continue
+                for target in stmt.targets:
+                    tname = (target.id if isinstance(target, ast.Name)
+                             else getattr(target, 'attr', None))
+                    if tname == target_name:
+                        val = stmt.value
+                        if isinstance(val, ast.Constant):
+                            values.append(val.value)
+                        elif isinstance(val, ast.NameConstant):   # Python 3.7
+                            values.append(val.value)
+        return values
+
+    # =====================================================================
+    # Section A: _torch_install_note() correctness
+    # =====================================================================
+
+    def test_torch_install_note_defined_in_tool_installers(self):
+        """tool_installers.py must define _torch_install_note()."""
+        source = _read("tool_installers.py")
+        self.assertIn(
+            "_torch_install_note",
+            self._functions_in(source),
+            "_torch_install_note() is missing from tool_installers.py — "
+            "all AI-tool install functions depend on it to suppress the "
+            "false 'PyTorch required' warning when torch is already available.",
+        )
+
+    def test_torch_install_note_checks_mossy_bridge(self):
+        """_torch_install_note() must check the Mossy bridge status.
+
+        When PyTorch runs inside the Mossy desktop app, find_spec('torch')
+        returns None even though torch IS available.  Without a Mossy check the
+        warning fires on every install even when the user has a working setup.
+        """
+        source = _read("tool_installers.py")
+        self.assertIn(
+            "mossy_bridge_status",
+            source,
+            "_torch_install_note() in tool_installers.py does not check "
+            "'mossy_bridge_status'.  When PyTorch is provided by Mossy, "
+            "find_spec('torch') returns None and the warning fires spuriously. "
+            "Add the same Mossy-bridge check used by _mossy_provides_torch().",
+        )
+
+    def test_torch_install_note_checks_use_mossy_as_ai_pref(self):
+        """_torch_install_note() must also check the use_mossy_as_ai preference."""
+        source = _read("tool_installers.py")
+        self.assertIn(
+            "use_mossy_as_ai",
+            source,
+            "_torch_install_note() in tool_installers.py does not check the "
+            "'use_mossy_as_ai' preference.  Users who enabled 'Use Mossy as AI' "
+            "should never see the PyTorch required warning.",
+        )
+
+    def test_no_hardcoded_pytorch_warning_in_install_functions(self):
+        """No AI-tool install function may contain a hardcoded PyTorch warning.
+
+        The warning must always be produced by calling _torch_install_note()
+        so the Mossy-bridge check is applied uniformly.
+        """
+        source = _read("tool_installers.py")
+        # Find every return statement that yields a tuple ending with the
+        # hardcoded warning string.
+        hardcoded = "PyTorch is required at runtime - install via the Settings panel."
+        # We allow the string to appear once inside _torch_install_note() itself
+        # (the function that conditionally returns it), but nowhere else.
+        occurrences = [
+            i + 1
+            for i, line in enumerate(source.splitlines())
+            if hardcoded in line
+        ]
+        # _torch_install_note returns it conditionally — that one occurrence is fine.
+        non_note_occurrences = []
+        tree = ast.parse(source)
+        note_func_lines = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == "_torch_install_note":
+                for child in ast.walk(node):
+                    if hasattr(child, 'lineno'):
+                        note_func_lines.add(child.lineno)
+        for lineno in occurrences:
+            if lineno not in note_func_lines:
+                non_note_occurrences.append(lineno)
+
+        if non_note_occurrences:
+            self.fail(
+                f"Hardcoded PyTorch warning string found outside "
+                f"_torch_install_note() on line(s) {non_note_occurrences} in "
+                f"tool_installers.py.  All install functions must call "
+                f"_torch_install_note() so the Mossy-bridge check is applied."
+            )
+
+    def test_all_ai_install_functions_use_torch_install_note(self):
+        """Every AI-tool install function must call _torch_install_note()."""
+        source = _read("tool_installers.py")
+        install_fns = [
+            "install_zoedepth",
+            "install_triposr",
+            "install_hunyuan3d",
+            "install_hymotion",
+            "install_rignet",
+            "install_motion_diffuse",
+        ]
+        tree = ast.parse(source)
+        missing = []
+        for fn_name in install_fns:
+            fn_node = next(
+                (n for n in ast.walk(tree)
+                 if isinstance(n, ast.FunctionDef) and n.name == fn_name),
+                None,
+            )
+            if fn_node is None:
+                missing.append(f"{fn_name} (function not found)")
+                continue
+            # Check that _torch_install_note is called inside this function
+            calls = [
+                n.func.id if isinstance(n.func, ast.Name) else ""
+                for n in ast.walk(fn_node)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+            ]
+            if "_torch_install_note" not in calls:
+                missing.append(fn_name)
+
+        if missing:
+            self.fail(
+                f"AI-tool install function(s) do NOT call _torch_install_note():\n"
+                + "\n".join(f"  {n}" for n in missing)
+                + "\nAdd `_torch_install_note()` to the success return so the "
+                "PyTorch warning is only shown when torch is genuinely missing."
+            )
+
+    # =====================================================================
+    # Section B: get_cached_availability() must exist in AI helpers
+    # =====================================================================
+
+    def test_get_cached_availability_in_hunyuan3d_helpers(self):
+        """hunyuan3d_helpers.py must define get_cached_availability().
+
+        The UI panel (FO4_PT_SetupAIHunyuan3D) calls this function via
+        ``hasattr(hunyuan3d_helpers, 'get_cached_availability')``.  When it is
+        absent the panel always falls back to (None, 'status unavailable') and
+        shows 'Not checked' on every restart — forcing the user to click
+        'Check Status' manually after every Blender restart.
+        """
+        source = _read("hunyuan3d_helpers.py")
+        fns = self._functions_in(source)
+        self.assertIn(
+            "get_cached_availability",
+            fns,
+            "hunyuan3d_helpers.py is missing get_cached_availability().  "
+            "The Hunyuan3D panel will show 'Not checked' on every restart.",
+        )
+
+    def test_get_cached_availability_in_hymotion_helpers(self):
+        """hymotion_helpers.py must define get_cached_availability()."""
+        source = _read("hymotion_helpers.py")
+        fns = self._functions_in(source)
+        self.assertIn(
+            "get_cached_availability",
+            fns,
+            "hymotion_helpers.py is missing get_cached_availability().  "
+            "The HY-Motion panel will hammer the filesystem on every UI redraw.",
+        )
+
+    # =====================================================================
+    # Section C: AVAILABLE globals initialised to None, not False
+    # =====================================================================
+
+    def test_hunyuan3d_available_initialised_to_none(self):
+        """HUNYUAN3D_AVAILABLE must be initialised to None (not False).
+
+        None = "not yet checked"; False = "checked and unavailable".  Starting
+        at False means the UI shows 'Not installed' before any check has run,
+        which is misleading and causes users to click 'Install' unnecessarily.
+        """
+        source = _read("hunyuan3d_helpers.py")
+        self.assertIn(
+            "HUNYUAN3D_AVAILABLE = None",
+            source,
+            "hunyuan3d_helpers.py initialises HUNYUAN3D_AVAILABLE to something "
+            "other than None.  It must be None so the UI shows 'Not checked' "
+            "before the deferred startup check runs.",
+        )
+        self.assertNotIn(
+            "HUNYUAN3D_AVAILABLE = False",
+            source,
+            "hunyuan3d_helpers.py initialises HUNYUAN3D_AVAILABLE to False. "
+            "Use None so the UI shows 'Not checked' before startup check.",
+        )
+
+    def test_hymotion_available_initialised_to_none(self):
+        """HYMOTION_AVAILABLE must be initialised to None (not False)."""
+        source = _read("hymotion_helpers.py")
+        self.assertIn(
+            "HYMOTION_AVAILABLE = None",
+            source,
+            "hymotion_helpers.py initialises HYMOTION_AVAILABLE to something "
+            "other than None.  It must be None.",
+        )
+        self.assertNotIn(
+            "HYMOTION_AVAILABLE = False",
+            source,
+            "hymotion_helpers.py initialises HYMOTION_AVAILABLE to False. "
+            "Use None so the UI shows 'Not checked' before startup check.",
+        )
+
+    # =====================================================================
+    # Section D: clear_availability_cache() resets to None, not False
+    # =====================================================================
+
+    def test_hunyuan3d_clear_cache_resets_to_none(self):
+        """clear_availability_cache() in hunyuan3d_helpers must set AVAILABLE=None.
+
+        If it resets to False, the UI shows 'Not installed' immediately after
+        clicking 'Install' (before the re-check runs), making it look like the
+        install failed.
+        """
+        source = _read("hunyuan3d_helpers.py")
+        vals = self._assignment_values_in_func(
+            source, "clear_availability_cache", "HUNYUAN3D_AVAILABLE"
+        )
+        self.assertTrue(
+            vals,
+            "clear_availability_cache() in hunyuan3d_helpers.py does not "
+            "assign to HUNYUAN3D_AVAILABLE — reset is missing.",
+        )
+        self.assertNotIn(
+            False,
+            vals,
+            "clear_availability_cache() in hunyuan3d_helpers.py resets "
+            "HUNYUAN3D_AVAILABLE to False instead of None. "
+            "The UI will show 'Not installed' before the re-check runs.",
+        )
+        self.assertIn(
+            None,
+            vals,
+            "clear_availability_cache() in hunyuan3d_helpers.py does not "
+            "reset HUNYUAN3D_AVAILABLE to None.",
+        )
+
+    def test_hymotion_clear_cache_resets_to_none(self):
+        """clear_availability_cache() in hymotion_helpers must set AVAILABLE=None."""
+        source = _read("hymotion_helpers.py")
+        vals = self._assignment_values_in_func(
+            source, "clear_availability_cache", "HYMOTION_AVAILABLE"
+        )
+        self.assertTrue(
+            vals,
+            "clear_availability_cache() in hymotion_helpers.py does not "
+            "assign to HYMOTION_AVAILABLE — reset is missing.",
+        )
+        self.assertNotIn(False, vals,
+            "clear_availability_cache() in hymotion_helpers.py resets "
+            "HYMOTION_AVAILABLE to False instead of None.")
+        self.assertIn(None, vals,
+            "clear_availability_cache() in hymotion_helpers.py does not "
+            "reset HYMOTION_AVAILABLE to None.")
+
+    def test_zoedepth_clear_cache_resets_module_globals(self):
+        """clear_availability_cache() in zoedepth_helpers must also reset globals.
+
+        Without this, the module-level ZOEDEPTH_AVAILABLE stays False from
+        register()-time even after the TTL cache has been cleared.
+        """
+        source = _read("zoedepth_helpers.py")
+        vals = self._assignment_values_in_func(
+            source, "clear_availability_cache", "ZOEDEPTH_AVAILABLE"
+        )
+        self.assertTrue(
+            vals,
+            "clear_availability_cache() in zoedepth_helpers.py does not "
+            "assign to ZOEDEPTH_AVAILABLE.  The module-level global stays "
+            "stale after the TTL cache is cleared.",
+        )
+        self.assertIn(
+            None,
+            vals,
+            "clear_availability_cache() in zoedepth_helpers.py does not "
+            "reset ZOEDEPTH_AVAILABLE to None.",
+        )
+
+    # =====================================================================
+    # Section E: register() must NOT run availability checks at load time
+    # =====================================================================
+
+    def _register_calls_check(self, source: str, check_fn: str) -> bool:
+        """Return True if register() calls *check_fn* in its body."""
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef) or node.name != "register":
+                continue
+            for child in ast.walk(node):
+                if not isinstance(child, ast.Call):
+                    continue
+                fn = child.func
+                name = fn.id if isinstance(fn, ast.Name) else getattr(fn, 'attr', '')
+                if name == check_fn:
+                    return True
+        return False
+
+    def test_hunyuan3d_register_does_not_check_availability(self):
+        """hunyuan3d_helpers.register() must NOT call check_hunyuan3d_availability().
+
+        At register() time, torch_custom_path has not been added to sys.path yet
+        (that happens later in __init__.register() via restore_extra_python_paths()).
+        Calling the check here caches a False result that the UI then shows for
+        the entire session.  The deferred_startup() handles the first real check.
+        """
+        source = _read("hunyuan3d_helpers.py")
+        called = self._register_calls_check(source, "check_hunyuan3d_availability")
+        self.assertFalse(
+            called,
+            "hunyuan3d_helpers.register() calls check_hunyuan3d_availability(). "
+            "This caches a wrong False result before torch paths are set up. "
+            "Remove the call — deferred_startup() performs the first real check.",
+        )
+
+    def test_hymotion_register_does_not_check_availability(self):
+        """hymotion_helpers.register() must NOT call check_hymotion_availability()."""
+        source = _read("hymotion_helpers.py")
+        called = self._register_calls_check(source, "check_hymotion_availability")
+        self.assertFalse(
+            called,
+            "hymotion_helpers.register() calls check_hymotion_availability() "
+            "before torch paths are ready.  Remove it — use deferred_startup().",
+        )
+
+    def test_zoedepth_register_does_not_check_availability(self):
+        """zoedepth_helpers.register() must NOT call check_zoedepth_availability()."""
+        source = _read("zoedepth_helpers.py")
+        called = self._register_calls_check(source, "check_zoedepth_availability")
+        self.assertFalse(
+            called,
+            "zoedepth_helpers.register() calls check_zoedepth_availability() "
+            "before torch paths are ready.  Remove it — use deferred_startup().",
+        )
+
+    # =====================================================================
+    # Section F: deferred_startup() refreshes all tool caches
+    # =====================================================================
+
+    def test_deferred_startup_refreshes_hunyuan3d_cache(self):
+        """startup_helpers.deferred_startup() must call check_hunyuan3d_availability().
+
+        This is the deferred first check that runs ~2 s after load, by which
+        time torch_custom_path is in sys.path.  Without it the user sees stale
+        'Not checked' status until they manually click 'Check Status'.
+        """
+        source = _read("startup_helpers.py")
+        self.assertIn(
+            "check_hunyuan3d_availability",
+            source,
+            "startup_helpers.py does not call check_hunyuan3d_availability(). "
+            "deferred_startup() must probe Hunyuan3D after torch paths are set "
+            "up so the panel shows correct status on every restart.",
+        )
+
+    def test_deferred_startup_refreshes_hymotion_cache(self):
+        """startup_helpers.deferred_startup() must call check_hymotion_availability()."""
+        source = _read("startup_helpers.py")
+        self.assertIn(
+            "check_hymotion_availability",
+            source,
+            "startup_helpers.py does not call check_hymotion_availability(). "
+            "Add a deferred re-check so HY-Motion status is correct on restart.",
+        )
+
+    def test_deferred_startup_invalidates_zoedepth_cache(self):
+        """startup_helpers.deferred_startup() must clear the ZoeDepth TTL cache."""
+        source = _read("startup_helpers.py")
+        self.assertIn(
+            "clear_availability_cache",
+            source,
+            "startup_helpers.py does not call clear_availability_cache() for "
+            "ZoeDepth.  Without this the stale False cached at register()-time "
+            "persists for 5 s, showing 'Not installed' on startup.",
+        )
+
+    def test_deferred_startup_invalidates_rignet_cache(self):
+        """startup_helpers.deferred_startup() must invalidate the RigNet status cache."""
+        source = _read("startup_helpers.py")
+        self.assertIn(
+            "_invalidate_rignet_cache",
+            source,
+            "startup_helpers.py does not call _invalidate_rignet_cache(). "
+            "The RigNet panel will show stale status on startup.",
+        )
+
+    # =====================================================================
+    # Section G: install operators re-probe after a successful install
+    # =====================================================================
+
+    def test_hunyuan3d_install_operator_calls_check_not_just_clear(self):
+        """FO4_OT_InstallHunyuan3D must call check_hunyuan3d_availability() on success.
+
+        Calling only clear_availability_cache() leaves the panel showing
+        'Not checked' after the install completes.  The operator must run the
+        fresh check so the panel immediately shows 'Available ✓'.
+        """
+        source = _read("install_operators.py")
+        self.assertIn(
+            "check_hunyuan3d_availability",
+            source,
+            "install_operators.py does not call check_hunyuan3d_availability() "
+            "after a successful Hunyuan3D install.  The panel will show "
+            "'Not checked' instead of 'Available ✓'.",
+        )
+
+    def test_hymotion_install_operator_calls_check_after_success(self):
+        """FO4_OT_InstallHyMotion must call check_hymotion_availability() on success."""
+        source = _read("install_operators.py")
+        self.assertIn(
+            "check_hymotion_availability",
+            source,
+            "install_operators.py does not call check_hymotion_availability() "
+            "after a successful HY-Motion install.  Add the check so the panel "
+            "immediately reflects the new state.",
+        )
+
+    def test_zoedepth_install_operator_calls_check_after_success(self):
+        """FO4_OT_InstallZoeDepth must call check_zoedepth_availability() on success."""
+        source = _read("install_operators.py")
+        self.assertIn(
+            "check_zoedepth_availability",
+            source,
+            "install_operators.py does not call check_zoedepth_availability() "
+            "after a successful ZoeDepth install.  Add the check so the panel "
+            "immediately reflects the new state.",
+        )
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":

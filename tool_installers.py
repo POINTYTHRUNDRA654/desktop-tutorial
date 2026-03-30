@@ -41,17 +41,43 @@ from pathlib import Path
 
 
 def _torch_install_note() -> str:
-    """Return a PyTorch install reminder only when torch is NOT already importable.
+    """Return a PyTorch install reminder only when torch is NOT already available.
 
-    Called at the end of every AI-tool install function so the user is only
-    warned about a missing dependency when it genuinely is missing.  If torch
-    is already installed (pip, Blender bundle, or a Mossy-provided path that
-    was inserted into sys.path before this check runs), the returned string is
-    empty and no spurious warning appears.
+    Checks two sources before deciding the warning is needed:
+      1. Local install: ``importlib.util.find_spec("torch")`` — covers pip-installed
+         or custom-path torch inside Blender's Python environment.
+      2. Mossy bridge: when the user routes AI inference through the Mossy desktop
+         app, PyTorch runs inside Mossy (not Blender's Python), so ``find_spec``
+         returns None even though torch IS available.  We check the bridge status
+         and the ``use_mossy_as_ai`` preference to handle this case.
+
+    Safe to call from background threads — all ``bpy.context`` access is wrapped
+    in try/except so a missing window-manager context (common in threads) is
+    silently ignored.
     """
-    if importlib.util.find_spec("torch") is None:
-        return "\nPyTorch is required at runtime - install via the Settings panel."
-    return ""
+    # Fast path: torch is importable locally
+    if importlib.util.find_spec("torch") is not None:
+        return ""
+
+    # Mossy-bridge path: PyTorch lives inside the Mossy desktop app
+    try:
+        import bpy as _bpy
+        wm = _bpy.context.window_manager
+        if getattr(wm, 'mossy_bridge_status', "").startswith("Mossy Bridge online"):
+            return ""
+    except Exception:
+        pass
+
+    # Also honour the explicit "use Mossy as AI backend" preference
+    try:
+        from . import preferences as _prefs
+        p = _prefs.get_preferences()
+        if p is not None and getattr(p, 'use_mossy_as_ai', False):
+            return ""
+    except Exception:
+        pass
+
+    return "\nPyTorch is required at runtime - install via the Settings panel."
 
 # Primary tools folder on D: drive - all external tools (including PyNifly)
 # live here, matching the user's local setup.
