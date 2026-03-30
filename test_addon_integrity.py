@@ -942,6 +942,135 @@ class TestTorchPathManagerOperators(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Test 15 – mossy_link registers before torch-dependent modules
+# ---------------------------------------------------------------------------
+class TestMossyLinkRegistrationOrder(unittest.TestCase):
+    """
+    mossy_link.register() loads the Mossy-provided PyTorch path from prefs and
+    inserts it into sys.path.  This must happen BEFORE any module that needs
+    torch (rignet_helpers, shap_e_helpers, point_e_helpers, hunyuan3d_helpers,
+    hymotion_helpers, zoedepth_helpers) is registered.
+
+    If mossy_link appears after those modules in the __init__.py modules list
+    the PyTorch path won't be in sys.path when they register, which causes
+    WinError 1114 / ImportError on first use even when Mossy is running.
+
+    We also verify that the pytorch_path preference property exists in
+    preferences.py so the Mossy-supplied path survives a Blender restart.
+    """
+
+    # Modules that depend on torch and therefore must appear AFTER mossy_link.
+    TORCH_DEPENDENT = {
+        "rignet_helpers",
+        "shap_e_helpers",
+        "point_e_helpers",
+        "hunyuan3d_helpers",
+        "hymotion_helpers",
+        "zoedepth_helpers",
+    }
+
+    def _modules_list_order(self):
+        """Return the ordered list of module names from __init__.py's modules list."""
+        source = _read("__init__.py")
+        tree = ast.parse(source, filename="__init__.py")
+
+        # Find the assignment: modules = list(filter(_filter, [...]))
+        # Walk top-level assignments to find `modules = list(filter(...))`
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            for target in node.targets:
+                if not (isinstance(target, ast.Name) and target.id == "modules"):
+                    continue
+                # The value should be a Call to list(filter(..., [...]))
+                call = node.value
+                if not isinstance(call, ast.Call):
+                    continue
+                # Drill into list(filter(func, list_arg))
+                # list( filter(_filter, [...]) )
+                if len(call.args) < 1:
+                    continue
+                inner = call.args[0]  # filter(...)
+                if not isinstance(inner, ast.Call):
+                    continue
+                if len(inner.args) < 2:
+                    continue
+                list_arg = inner.args[1]  # the [...] literal
+                if not isinstance(list_arg, (ast.List, ast.Tuple)):
+                    continue
+                names = []
+                for elt in list_arg.elts:
+                    if isinstance(elt, ast.Name):
+                        names.append(elt.id)
+                    elif isinstance(elt, ast.Attribute):
+                        names.append(elt.attr)
+                return names
+        return []
+
+    def test_mossy_link_before_torch_dependent_modules(self):
+        """mossy_link must appear before all torch-dependent module entries."""
+        order = self._modules_list_order()
+        self.assertTrue(
+            order,
+            "__init__.py modules list could not be parsed – check the list syntax",
+        )
+        self.assertIn(
+            "mossy_link",
+            order,
+            "mossy_link is not in the __init__.py modules list",
+        )
+        mossy_idx = order.index("mossy_link")
+
+        for dep in self.TORCH_DEPENDENT:
+            if dep not in order:
+                continue  # module not in list (optional), skip
+            dep_idx = order.index(dep)
+            self.assertLess(
+                mossy_idx,
+                dep_idx,
+                f"mossy_link (index {mossy_idx}) must appear before "
+                f"{dep} (index {dep_idx}) in the __init__.py modules list. "
+                f"mossy_link.register() loads the Mossy PyTorch path into "
+                f"sys.path and must run first.",
+            )
+
+    def test_mossy_link_immediately_after_preferences(self):
+        """mossy_link should be the second entry (right after preferences)."""
+        order = self._modules_list_order()
+        self.assertTrue(order, "__init__.py modules list could not be parsed")
+        self.assertIn("preferences", order, "preferences not in modules list")
+        self.assertIn("mossy_link", order, "mossy_link not in modules list")
+        prefs_idx = order.index("preferences")
+        mossy_idx = order.index("mossy_link")
+        self.assertEqual(
+            mossy_idx,
+            prefs_idx + 1,
+            f"mossy_link should be at index {prefs_idx + 1} (immediately after "
+            f"preferences at {prefs_idx}) so the PyTorch path is in sys.path "
+            f"before any torch-dependent module registers. "
+            f"Currently mossy_link is at index {mossy_idx}.",
+        )
+
+    def test_pytorch_path_property_in_preferences(self):
+        """FO4AddonPreferences must define a pytorch_path StringProperty.
+
+        mossy_link._store_pytorch_path_in_prefs() writes to prefs.pytorch_path
+        and mossy_link._load_pytorch_path_from_prefs() reads it.  If the
+        property does not exist in the class definition the path is never
+        persisted and Blender will lose it on restart.
+        """
+        source = _read("preferences.py")
+        self.assertIn(
+            "pytorch_path",
+            source,
+            "preferences.py must define a 'pytorch_path' StringProperty so the "
+            "Mossy-provided PyTorch path survives Blender restarts. "
+            "mossy_link._store_pytorch_path_in_prefs() and "
+            "_load_pytorch_path_from_prefs() depend on this property.",
+        )
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
