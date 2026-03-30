@@ -114,7 +114,7 @@ def _build_hunyuan3d_candidates() -> list:
     copy on D:\\blender_tools takes priority over any stray clone in the
     user's home directory that might be missing infer.py.
     """
-    import tool_installers as _tli
+    from . import tool_installers as _tli
 
     candidates = []
 
