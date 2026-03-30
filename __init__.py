@@ -83,6 +83,7 @@ def _try_import(name: str):
 # import core submodules; missing components will be skipped but reported.
 preferences = _try_import("preferences")
 ui_panels = _try_import("ui_panels")
+content_panels = _try_import("content_panels")
 operators = _try_import("operators")
 tutorial_system = _try_import("tutorial_system")
 mesh_helpers = _try_import("mesh_helpers")
@@ -244,6 +245,7 @@ modules = list(
             install_operators,
             operators,
             ui_panels,
+            content_panels,
             post_processing_helpers,
             fo4_material_browser,
             fo4_scene_diagnostics,
