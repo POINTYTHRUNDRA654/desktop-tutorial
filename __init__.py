@@ -27,6 +27,16 @@ import bpy
 import importlib
 import sys
 
+# Startup/registration helpers live in startup_helpers.py so this file stays
+# thin.  Import them here so the rest of this module can use the same names.
+from .startup_helpers import (
+    on_load_post as _on_load_post,
+    is_operator_registered as _is_operator_registered,
+    ensure_tutorial_operators as _ensure_tutorial_operators,
+    ensure_setup_operators as _ensure_setup_operators,
+    deferred_startup as _deferred_startup,
+)
+
 # helper for resilient imports – some modules may fail under untested Blender
 # releases (e.g. Blender 5.x during early testing).  We log failures but
 # allow the addon to initialize so users can still see the error message and
@@ -73,6 +83,7 @@ def _try_import(name: str):
 # import core submodules; missing components will be skipped but reported.
 preferences = _try_import("preferences")
 ui_panels = _try_import("ui_panels")
+content_panels = _try_import("content_panels")
 operators = _try_import("operators")
 tutorial_system = _try_import("tutorial_system")
 mesh_helpers = _try_import("mesh_helpers")
@@ -159,6 +170,8 @@ setup_operators = _try_import("setup_operators")
 # Setup & Status panel.  Registered before operators so the buttons are
 # always available even if the large operators.py bundle fails to load.
 addon_diagnostics = _try_import("addon_diagnostics")
+install_operators = _try_import("install_operators")
+ai_gen_operators  = _try_import("ai_gen_operators")
 
 
 # core modules that are safe to import and register unconditionally.
@@ -228,8 +241,11 @@ modules = list(
             # if the larger operators.py bundle fails to load on a particular build.
             setup_operators,
             addon_diagnostics,
+            ai_gen_operators,
+            install_operators,
             operators,
             ui_panels,
+            content_panels,
             post_processing_helpers,
             fo4_material_browser,
             fo4_scene_diagnostics,
@@ -242,233 +258,6 @@ modules = list(
         ],
     )
 )
-
-
-@bpy.app.handlers.persistent
-def _on_load_post(*args):
-    """Restore path preferences into all scenes' properties after every file load.
-
-    Blender resets scene properties to their defaults when a new or different
-    .blend file is opened.  By copying the globally-saved addon-preference values
-    back into every scene here, users don't have to re-enter their game-asset paths
-    every time they start Blender or open a fresh file.
-
-    FIX for Blender 5.0: Wrapped in try/except to handle '_RestrictData' object
-    access restrictions gracefully.
-    """
-    try:
-        if preferences and hasattr(bpy.data, 'scenes'):
-            scenes = getattr(bpy.data, 'scenes', None)
-            if scenes:
-                for scene in scenes:
-                    try:
-                        preferences.restore_scene_props_from_prefs(scene)
-                    except Exception:
-                        # Skip individual scenes that fail; don't block the rest
-                        pass
-    except Exception as e:
-        # Silently fail rather than spam console; this is non-critical
-        pass
-
-    # Restore asset-library paths from their own JSON config file,
-    # then immediately re-populate the asset list for every scene so users
-    # never have to click "Scan Asset Library" again after opening a project.
-    try:
-        if asset_library and hasattr(bpy.data, 'scenes'):
-            scenes = getattr(bpy.data, 'scenes', None)
-            if scenes:
-                for scene in scenes:
-                    try:
-                        asset_library.load_asset_paths(scene)
-                        asset_library.auto_scan_for_scene(scene)
-                    except Exception:
-                        # Skip individual scenes that fail; don't block the rest
-                        pass
-    except Exception as e:
-        # Silently fail rather than spam console; this is non-critical
-        pass
-
-
-def _is_operator_registered(cls_name: str, bl_idname: str) -> bool:
-    """Check whether an operator is actually registered and callable.
-
-    Blender 5.x with the extension system has a known issue where
-    ``hasattr(bpy.types, cls_name)`` returns ``False`` even after
-    ``bpy.utils.register_class()`` succeeds.  The operator IS registered
-    in Blender's internal RNA type map, but the ``bpy.types`` Python
-    attribute lookup misses it under the extension namespace.
-
-    This function adds a secondary check via ``bpy.ops`` so that the
-    ``_ensure_*`` safety nets don't fire spurious warnings every startup.
-
-    Parameters
-    ----------
-    cls_name : str
-        Python class name, e.g. ``"FO4_OT_ShowDetailedSetup"``.
-    bl_idname : str
-        Blender operator id, e.g. ``"fo4.show_detailed_setup"``.
-    """
-    # Fast path - works in Blender 4.x and most Blender 5 builds
-    if hasattr(bpy.types, cls_name):
-        return True
-    # Blender 5 extension fallback: verify via bpy.ops namespace
-    try:
-        prefix, name = bl_idname.split(".", 1)
-        op_ns = getattr(bpy.ops, prefix, None)
-        if op_ns is not None and hasattr(op_ns, name):
-            return True
-    except Exception:
-        pass
-    return False
-
-
-def _ensure_tutorial_operators():
-    """Last-resort registration of the 4 critical tutorial operators.
-
-    Called at the end of ``register()`` to ensure the welcome/tutorial buttons
-    are always present in ``FO4_PT_MainPanel`` even if
-    ``tutorial_operators.register()`` failed earlier (e.g. due to a dual-install
-    conflict or a stale ``sys.modules`` entry).
-
-    See DEVELOPMENT_NOTES.md - *RECURRING BUG #1* - for full context.
-    Do NOT remove this function or its call at the end of ``register()``.
-    """
-    if tutorial_operators is None:
-        return
-
-    # Map class names → bl_idnames for the Blender 5 extension fallback check.
-    required_operators = {
-        "FO4_OT_ShowDetailedSetup": "fo4.show_detailed_setup",
-        "FO4_OT_StartTutorial":     "fo4.start_tutorial",
-        "FO4_OT_ShowHelp":          "fo4.show_help",
-        "FO4_OT_ShowCredits":       "fo4.show_credits",
-    }
-    missing = [
-        n for n, idname in required_operators.items()
-        if not _is_operator_registered(n, idname)
-    ]
-    if not missing:
-        print("✓ Tutorial operators confirmed (tutorial panel buttons ready)")
-        return  # All operators already registered - nothing to do.
-
-    print(
-        f"⚠ _ensure_tutorial_operators: {missing} not reachable; "
-        "attempting re-registration…"
-    )
-    # Try re-registering the whole module first so class state is consistent.
-    try:
-        tutorial_operators.unregister()
-    except Exception:
-        pass
-    try:
-        tutorial_operators.register()
-        # If that succeeded, we're done.
-        still_missing = [
-            n for n, idname in required_operators.items()
-            if not _is_operator_registered(n, idname)
-        ]
-        if not still_missing:
-            print("  ✓ tutorial_operators re-registered successfully")
-            return
-    except Exception as e:
-        print(f"  ⚠ Module re-registration failed: {e}")
-
-    # Fall back: register each missing class individually.
-    for cls_name, bl_idname in required_operators.items():
-        if _is_operator_registered(cls_name, bl_idname):
-            continue
-        cls = getattr(tutorial_operators, cls_name, None)
-        if cls is None:
-            continue
-        try:
-            bpy.utils.register_class(cls)
-            print(f"  ✓ Registered {cls_name} directly")
-        except Exception as e2:
-            # A stale class object may already occupy the type name (e.g. from
-            # a dual-install or a previous load that left a dangling entry).
-            # Unregister whatever is there and force-register the fresh class.
-            try:
-                existing = getattr(bpy.types, cls_name, None)
-                if existing is not None:
-                    bpy.utils.unregister_class(existing)
-                bpy.utils.register_class(cls)
-                print(f"  ✓ Registered {cls_name} (replaced stale entry)")
-            except Exception as e3:
-                print(f"  ⚠ Failed to register {cls_name} directly: {e3}")
-
-
-def _ensure_setup_operators():
-    """Last-resort registration of the 3 critical setup operators.
-
-    Called at the end of ``register()`` and inside ``_deferred_startup()``
-    to ensure the Setup & Status panel buttons are always present as real
-    clickable buttons, not "(loading...)" fallback labels.
-
-    Mirrors ``_ensure_tutorial_operators()`` - see DEVELOPMENT_NOTES.md
-    (*RECURRING BUG #1*) for full context.
-    Do NOT remove this function or its call at the end of ``register()``.
-    """
-    if setup_operators is None:
-        print("  ⚠ setup_operators is None; cannot register")
-        return
-
-    required_operators = {
-        "FO4_OT_InstallPythonDeps": "fo4.install_python_deps",
-        "FO4_OT_SelfTest":          "fo4.self_test",
-        "FO4_OT_ReloadAddon":       "fo4.reload_addon",
-    }
-    missing = [
-        n for n, idname in required_operators.items()
-        if not _is_operator_registered(n, idname)
-    ]
-    if not missing:
-        print("✓ Setup operators confirmed (Setup panel buttons ready)")
-        return
-
-    print(
-        f"⚠ _ensure_setup_operators: {missing} not reachable; "
-        "attempting re-registration…"
-    )
-    try:
-        setup_operators.unregister()
-        print("  ✓ unregister() succeeded")
-    except Exception as e:
-        print(f"  ⚠ unregister() failed: {e}")
-    try:
-        setup_operators.register()
-        print("  ✓ register() succeeded")
-        still_missing = [
-            n for n, idname in required_operators.items()
-            if not _is_operator_registered(n, idname)
-        ]
-        if not still_missing:
-            print("  ✓ setup_operators re-registered successfully")
-            return
-        print(f"  Missing operators after re-register: {still_missing}")
-    except Exception as e:
-        print(f"  ⚠ Module re-registration failed: {e}")
-
-    # Fall back: register each missing class individually.
-    for cls_name, bl_idname in required_operators.items():
-        if _is_operator_registered(cls_name, bl_idname):
-            print(f"  ✓ {cls_name} already reachable")
-            continue
-        cls = getattr(setup_operators, cls_name, None)
-        if cls is None:
-            print(f"  ⚠ {cls_name} not found in setup_operators module")
-            continue
-        try:
-            bpy.utils.register_class(cls)
-            print(f"  ✓ Registered {cls_name} directly")
-        except Exception as e2:
-            try:
-                existing = getattr(bpy.types, cls_name, None)
-                if existing is not None:
-                    bpy.utils.unregister_class(existing)
-                bpy.utils.register_class(cls)
-                print(f"  ✓ Registered {cls_name} (replaced stale entry)")
-            except Exception as e3:
-                print(f"  ⚠ Failed to register {cls_name} directly: {e3}")
 
 
 def register():
@@ -562,99 +351,7 @@ def register():
     # during register() caused a noticeable delay before the Blender UI became
     # responsive.  A 2-second deferred timer lets the UI finish initializing
     # first, then the background work runs once without freezing the interface.
-    def _deferred_startup():
-        # ── Step 4: auto-discover installed CLI tools and wire up preferences ─
-        # If ffmpeg / nvcompress / texconv are present in the tools folder but
-        # the preference paths are blank, fill them in automatically.
-        try:
-            if tool_installers:
-                tool_installers.auto_configure_preferences()
-        except Exception as e:
-            print(f"Tool auto-discovery skipped: {e}")
-
-        # ── Step 5: auto-download UModel if missing and auto-install enabled ──
-        # Runs only when the user has 'Auto-install missing tools' turned on and
-        # UModel has not been successfully installed before.
-        try:
-            _prefs = preferences.get_preferences() if preferences else None
-            if _prefs and _prefs.auto_install_tools and not _prefs.umodel_install_attempted:
-                if umodel_helpers:
-                    ready, _ = umodel_helpers.status()
-                    if not ready:
-                        print("UModel not found - attempting auto-download...")
-                        ok, msg = umodel_helpers.download_latest()
-                        if ok:
-                            print(f"✓ UModel auto-downloaded: {msg}")
-                        else:
-                            print(f"UModel auto-download skipped: {msg}")
-                            # Mark as attempted so we don't retry every startup.
-                            # UModel requires manual download from gildor.org;
-                            # repeatedly trying on every Blender launch spams the
-                            # console.  The user can reset this flag via Preferences
-                            # if they want to retry after visiting the download page.
-                            # (DEVELOPMENT_NOTES.md - umodel_install_attempted fix)
-                            try:
-                                _prefs.umodel_install_attempted = True
-                            except AttributeError as flag_err:
-                                print(f"UModel: could not set umodel_install_attempted: {flag_err}")
-        except Exception as e:
-            print(f"UModel auto-download skipped: {e}")
-
-        # ── Step 6: deferred tutorial-operator safety check ─────────────────
-        # A 2-second window after startup is enough time for other extensions
-        # (e.g. Fab, BAC) to complete their own registrations.  Re-run the
-        # _ensure_tutorial_operators() safety net here so that if any of those
-        # extensions inadvertently displaced our classes (or if the initial
-        # registration ran before Blender's type system was fully ready) the
-        # welcome/tutorial buttons will still appear correctly.
-        try:
-            _ensure_tutorial_operators()
-        except Exception as e:
-            print(f"⚠ Deferred tutorial-operator check failed: {e}")
-        try:
-            _ensure_setup_operators()
-        except Exception as e:
-            print(f"⚠ Deferred setup-operator check failed: {e}")
-
-        # ── Step 7: auto-check Mossy bridge (safety net) ─────────────────
-        # The background torch probe already checks Mossy at probe time, but
-        # Mossy may start *after* Blender (or after the probe already ran and
-        # cached a local-torch failure).  Run a second check 2 s into startup
-        # so the cached failure gets replaced before the user notices it.
-        #
-        # Runs in a daemon thread so the HTTP call never blocks the UI.
-        def _auto_check_mossy_bridge():
-            try:
-                from . import mossy_link as _ml
-                from . import ui_panels as _ui
-                bridge_ok, bridge_msg = _ml.check_bridge(timeout=1.0)
-                if bridge_ok:
-                    def _apply(msg=bridge_msg):
-                        try:
-                            bpy.context.window_manager["mossy_bridge_status"] = msg
-                            # If the probe already cached a local-torch failure,
-                            # patch it to success so the panel no longer shows
-                            # the WinError 1114 message.
-                            cached = _ui._torch_status_cache
-                            if cached is not None and cached[0] is False:
-                                _ui._torch_status_cache = (True, "via Mossy bridge")
-                            # Trigger a redraw to surface the updated status.
-                            for _win in bpy.context.window_manager.windows:
-                                for _area in _win.screen.areas:
-                                    if _area.type == 'VIEW_3D':
-                                        _area.tag_redraw()
-                        except Exception:
-                            pass
-                    bpy.app.timers.register(
-                        _apply, first_interval=0.0, persistent=False
-                    )
-            except Exception:
-                pass
-        import threading as _thr
-        _thr.Thread(target=_auto_check_mossy_bridge, daemon=True).start()
-
-        return None  # Do not reschedule
-
+    # The implementation lives in startup_helpers.deferred_startup().
     try:
         bpy.app.timers.register(_deferred_startup, first_interval=2.0)
     except Exception as e:

@@ -11,7 +11,7 @@ import os
 import bpy
 
 
-_DEFAULT_HAVOK2FBX_PATH = r"D:\Blender Foundation\havok2fbx_release_0.1a"
+_DEFAULT_HAVOK2FBX_PATH = ""
 _DEFAULT_NVTT_PATH = ""
 _DEFAULT_TEXCONV_PATH = ""
 _DEFAULT_LLM_ENDPOINT = ""
@@ -589,7 +589,10 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         name="LLM API Key",
         default="",
         subtype='PASSWORD',
-        description="Bearer token for the LLM endpoint",
+        description=(
+            "Bearer token for the LLM endpoint. "
+            "Stored in plain text at ~/.blender_game_tools_keys.json."
+        ),
         update=_key_update,
     )
 
@@ -679,7 +682,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
     torch_custom_path: bpy.props.StringProperty(
         name="PyTorch Custom Path",
         subtype="DIR_PATH",
-        default=r"D:\blender_torch",
+        default="",
         description=(
             "Directory of an externally-installed PyTorch (e.g. D:\\blender_torch or "
             "~/.local/lib/python3.12/site-packages). "
@@ -824,14 +827,22 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         name="Mossy Link Token",
         default="",
         subtype='PASSWORD',
-        description="Optional shared secret for the Mossy Link TCP server; leave blank to disable auth",
+        description=(
+            "Shared secret for the Mossy Link TCP server. "
+            "Must be non-empty before the server will start. "
+            "Enter the same value in Mossy's settings. "
+            "Stored in plain text at ~/.blender_game_tools_keys.json."
+        ),
         update=_key_update,
     )
 
     autostart: bpy.props.BoolProperty(
         name="Auto-start Mossy Link",
-        default=True,
-        description="Start the Mossy Link server automatically when the add-on loads",
+        default=False,
+        description=(
+            "Start the Mossy Link server automatically when the add-on loads. "
+            "Requires a non-empty Mossy Link Token to be set first."
+        ),
     )
 
     mossy_http_port: bpy.props.IntProperty(

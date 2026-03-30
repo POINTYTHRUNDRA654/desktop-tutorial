@@ -140,19 +140,45 @@ def _apply_pytorch_path(path: str) -> None:
             print(f"[Mossy Link] OR manually reinstall:")
             print(f"[Mossy Link]   python.exe -m pip uninstall torch torchvision torchaudio -y")
             print(f"[Mossy Link]   python.exe -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu")
-            return False
         else:
             print(f"[Mossy Link] ⚠️ PyTorch import failed: {e}")
-            return False
+        return False
+
+
+def _handle_connection(conn: "socket.socket", token: str) -> None:
+    """Handle a single TCP connection in a background thread.
+
+    A non-empty ``token`` is required.  Any connection that does not supply a
+    matching token is rejected immediately -- no code is executed.  This keeps
+    the exec() gateway closed to every process that does not know the shared
+    secret, including other local processes on the same machine.
+
+    To connect from Mossy: set the same token in the Mossy desktop app and in
+    the Blender add-on preferences (Add-ons > Blender Game Tools > Mossy Link
+    Token).
+    """
+    try:
+        chunks = []
+        while True:
+            chunk = conn.recv(4096)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            # A well-formed JSON command fits in one recv on localhost; stop
+            # when the buffer ends with a newline or is smaller than full MTU.
+            if b"\n" in chunk or len(chunk) < 4096:
+                break
+        data = b"".join(chunks)
+        if not data:
+            return
 
         cmd = json.loads(data.decode("utf-8"))
 
-        # Optional auth token check.
-        if token and cmd.get("token") != token:
+        # Mandatory auth check -- reject if token is empty or does not match.
+        if not token or cmd.get("token") != token:
             conn.sendall(
                 json.dumps({"status": "error", "message": "Unauthorized"}).encode()
             )
-            conn.close()
             return
 
         # Hand off to the Blender main thread via the queue.
@@ -309,6 +335,18 @@ def start_server() -> tuple:
         return True, "Mossy Link server is already running."
 
     tcp_port, _llm_port, token = _get_ports()
+
+    # Refuse to open the exec() gateway without authentication.
+    # Set a token in Add-ons > Blender Game Tools > Mossy Link Token and enter
+    # the same value in your Mossy desktop app settings, then start the server.
+    if not token or not token.strip():
+        return (
+            False,
+            "Mossy Link server requires a non-empty token. "
+            "Set one in Add-ons > Blender Game Tools > Mossy Link Token, "
+            "enter the same value in Mossy, then start the server.",
+        )
+
     _active = True
 
     # Load PyTorch path from preferences if available
@@ -643,7 +681,7 @@ def register() -> None:
 
         from . import preferences as _prefs_mod
         prefs = _prefs_mod.get_preferences()
-        if prefs and getattr(prefs, "autostart", True):
+        if prefs and getattr(prefs, "autostart", False):
             ok, msg = start_server()
             print(f"[Mossy Link] {msg}")
     except Exception as exc:
