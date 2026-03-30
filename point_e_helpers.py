@@ -554,6 +554,8 @@ class PointEHelpers:
                             return False, PointEHelpers._dll_init_error_message(str(torch_err))
                         return False, f"PyTorch failed to load: {torch_err}"
 
+            import importlib as _il
+            _il.invalidate_caches()  # flush stale path-finder cache so packages installed at runtime are visible
             import point_e
             return True, "Point-E is installed"
         except ImportError as e:
