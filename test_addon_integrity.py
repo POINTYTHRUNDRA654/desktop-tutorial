@@ -202,6 +202,7 @@ class TestOperatorsRegistered(unittest.TestCase):
         files_to_scan = [
             "operators.py",
             "install_operators.py",
+            "ai_gen_operators.py",
             "tutorial_operators.py",
             "setup_operators.py",
             "addon_diagnostics.py",

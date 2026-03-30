@@ -170,6 +170,7 @@ setup_operators = _try_import("setup_operators")
 # always available even if the large operators.py bundle fails to load.
 addon_diagnostics = _try_import("addon_diagnostics")
 install_operators = _try_import("install_operators")
+ai_gen_operators  = _try_import("ai_gen_operators")
 
 
 # core modules that are safe to import and register unconditionally.
@@ -239,6 +240,7 @@ modules = list(
             # if the larger operators.py bundle fails to load on a particular build.
             setup_operators,
             addon_diagnostics,
+            ai_gen_operators,
             install_operators,
             operators,
             ui_panels,
