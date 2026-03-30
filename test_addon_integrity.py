@@ -527,7 +527,82 @@ class TestMultiprocessingConnectionImport(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Test 10 – No nested f-string backslash (Python ≤3.11 compatibility)
+# Test 10 – bpy.props imports must be inside try/except in worker-process modules
+# ---------------------------------------------------------------------------
+class TestBpyPropsInsideTryInWorkerModules(unittest.TestCase):
+    """
+    Files that spawn multiprocessing worker processes (``ctx.Process(...)``) are
+    reimported inside the child process, which has *no* Blender environment.
+    Any bare ``from bpy.props import ...`` **outside** the ``try: import bpy``
+    block will crash the worker on startup with::
+
+        ModuleNotFoundError: No module named 'bpy'
+
+    This is RECURRING BUG #6.  The fix: move ``from bpy.props import ...``
+    inside the same ``try`` block that guards ``import bpy``.
+
+    This test uses AST analysis to enforce the rule.
+    """
+
+    def _bpy_props_outside_try(self, source: str) -> bool:
+        """Return True if the source has a bare ``from bpy.props import`` at
+        module level outside any try/except block."""
+        import ast
+
+        class Checker(ast.NodeVisitor):
+            def __init__(self):
+                self.found = False
+                self._try_depth = 0
+
+            def visit_Try(self, node):
+                self._try_depth += 1
+                self.generic_visit(node)
+                self._try_depth -= 1
+
+            def visit_ImportFrom(self, node):
+                if node.module == "bpy.props" and self._try_depth == 0:
+                    self.found = True
+
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            return False
+        checker = Checker()
+        checker.visit(tree)
+        return checker.found
+
+    def test_bpy_props_inside_try_in_worker_modules(self):
+        """Worker-process modules must not have bare ``from bpy.props import``
+        at module level (outside any try/except)."""
+        errors = []
+        # Patterns that indicate a file spawns worker subprocesses
+        _WORKER_PATTERNS = (
+            "ctx.Process(",
+            "mp.Process(",
+            ".Process(target=",
+            "multiprocessing.Process(",
+            "ProcessPoolExecutor(",
+        )
+        for fname in _py_files():
+            source = _read(fname)
+            # Only check files that actually spawn worker processes
+            if not any(pat in source for pat in _WORKER_PATTERNS):
+                continue
+            if self._bpy_props_outside_try(source):
+                errors.append(
+                    f"  {fname}: spawns worker processes but has "
+                    f"'from bpy.props import' outside try/except "
+                    f"(will crash in worker subprocess — see RECURRING BUG #6)"
+                )
+        if errors:
+            self.fail(
+                "Worker-process module(s) have bare 'from bpy.props import' "
+                "at module level:\n" + "\n".join(errors)
+            )
+
+
+# ---------------------------------------------------------------------------
+# Test 11 – No nested f-string backslash (Python ≤3.11 compatibility)
 # ---------------------------------------------------------------------------
 class TestNoNestedFStringBackslash(unittest.TestCase):
     """
@@ -590,7 +665,7 @@ class TestNoNestedFStringBackslash(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Test 11 – tutorial_operators.py contains the four critical welcome operators
+# Test 12 – tutorial_operators.py contains the four critical welcome operators
 # ---------------------------------------------------------------------------
 class TestTutorialOperatorsModule(unittest.TestCase):
     """
@@ -703,7 +778,7 @@ class TestTutorialOperatorsModule(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Test 12 – Scene properties used in .prop(scene, "X") calls are registered
+# Test 13 – Scene properties used in .prop(scene, "X") calls are registered
 # ---------------------------------------------------------------------------
 class TestScenePropsRegistered(unittest.TestCase):
     """Every scene property referenced in a layout.prop(scene, "X") call in
@@ -767,7 +842,7 @@ class TestScenePropsRegistered(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Test 13 – torch_path_manager.py defines and registers PyTorch operators
+# Test 14 – torch_path_manager.py defines and registers PyTorch operators
 # ---------------------------------------------------------------------------
 class TestTorchPathManagerOperators(unittest.TestCase):
     """

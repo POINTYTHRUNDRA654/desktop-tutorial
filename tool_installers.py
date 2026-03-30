@@ -435,20 +435,86 @@ def install_havok2fbx() -> tuple[bool, str]:
         return False, f"Havok2FBX download failed: {exc}"
 
 def install_niftools(blender_version: str = "3.6") -> tuple[bool, str]:
-    """Invoke the PowerShell installer for the niftools add-on if on Windows."""
-    if os.name != "nt":
-        return False, "Niftools installer only available on Windows."
-    script = Path(__file__).resolve().parent / "tools" / "install_niftools.ps1"
-    if not script.exists():
-        return False, "install_niftools.ps1 not found"
+    """Download and install the latest Niftools NIF add-on from GitHub.
+
+    Downloads the newest zip release from the
+    ``niftools/blender_nif_plugin`` GitHub repository and installs it
+    into Blender's add-on directory via ``bpy.ops.preferences.addon_install``.
+
+    The *blender_version* parameter is kept for API compatibility but is
+    no longer used — Blender itself handles version matching during install.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    _NIFTOOLS_API = (
+        "https://api.github.com/repos/niftools/blender_nif_plugin/releases/latest"
+    )
+    release_url = "https://github.com/niftools/blender_nif_plugin/releases"
+
+    # ── 1. Query GitHub for the latest release zip ───────────────────────
+    zip_url: "str | None" = None
+    zip_name: str = "blender_nif_plugin.zip"
+    version_tag: str = "latest"
     try:
-        subprocess.check_call([
-            "powershell", "-ExecutionPolicy", "Bypass", "-File", str(script),
-            "-BlenderVersion", blender_version
-        ])
-        return True, "Niftools installer executed"
+        req = urllib.request.Request(
+            _NIFTOOLS_API,
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/vnd.github+json"},
+        )
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read().decode())
+        version_tag = data.get("tag_name", "latest")
+        for asset in data.get("assets", []):
+            name = asset.get("name", "")
+            if name.lower().endswith(".zip"):
+                zip_url = asset.get("browser_download_url")
+                zip_name = name
+                break
+    except Exception as exc:
+        print(f"niftools: GitHub query failed: {exc}")
+
+    if not zip_url:
+        return False, (
+            f"Could not auto-download the latest Niftools release. "
+            f"Please download it manually from {release_url} "
+            f"and install via Edit → Preferences → Add-ons → Install.\n"
+            f"Credit: Niftools Team — {release_url}"
+        )
+
+    # ── 2. Download zip to tools directory ───────────────────────────────
+    tools_root = get_tools_root()
+    tools_root.mkdir(parents=True, exist_ok=True)
+    zip_path = tools_root / zip_name
+    try:
+        print(f"niftools: downloading {zip_name} ({version_tag}) …")
+        urllib.request.urlretrieve(zip_url, zip_path)
+        print(f"niftools: saved to {zip_path}")
+    except Exception as exc:
+        return False, f"Niftools download failed: {exc}"
+
+    # ── 3. Install into Blender ───────────────────────────────────────────
+    try:
+        import bpy as _bpy
+        _bpy.ops.preferences.addon_install(filepath=str(zip_path), overwrite=True)
+        try:
+            _bpy.ops.preferences.addon_enable(module="io_scene_niftools")
+        except Exception:
+            # On Blender 4.2+ the add-on is legacy and cannot be enabled until
+            # "Allow Legacy Add-ons" is turned on in Preferences.
+            pass
+        suffix = (
+            " If running Blender 4.2+, enable 'Allow Legacy Add-ons' in "
+            "Edit → Preferences → Add-ons, then enable 'NetImmerse/Gamebryo (.nif)'."
+            if _bpy.app.version >= (4, 2, 0) else ""
+        )
+        return True, (
+            f"Niftools {version_tag} installed successfully.{suffix} "
+            f"Credit: Niftools Team — {release_url}"
+        )
     except Exception as e:
-        return False, f"Failed to run Niftools installer: {e}"
+        return False, f"Niftools install failed: {e}"
 
 
 

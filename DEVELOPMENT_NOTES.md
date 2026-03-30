@@ -494,6 +494,68 @@ All three operators now call `self.report({'WARNING'}, _instantngp_status_report
 
 ---
 
+## ⚠️ RECURRING BUG #6 — `ModuleNotFoundError: No module named 'bpy'` in multiprocessing workers
+
+### Symptoms
+
+Clicking "Generate from Text" or "Generate from Image" in the Shap-E or Point-E panels
+produces a silent crash.  Blender's System Console shows:
+
+```
+Python: Traceback (most recent call last):
+  File "...shap_e_helpers.py", line N, in <module>
+    from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
+ModuleNotFoundError: No module named 'bpy'
+```
+
+The generation never completes and no result is returned.
+
+### Root Cause
+
+`shap_e_helpers.py` and `point_e_helpers.py` both spawn a child process using
+`multiprocessing.get_context("spawn").Process(...)`.  In the child process, Python
+starts fresh with no Blender environment — `bpy` is not available.
+
+Before the fix both files had:
+
+```python
+try:
+    import bpy  # type: ignore
+except ImportError:
+    bpy = None
+from bpy.props import StringProperty, ...   # ← OUTSIDE the try block
+```
+
+When the child process reimported the module, the `try/except` caught `import bpy`, set
+`bpy = None`, and then immediately crashed at the bare `from bpy.props import ...` line
+because `bpy` (and therefore `bpy.props`) does not exist in the child.
+
+### The Fix
+
+Move **every** `from bpy.props import ...` statement inside the same `try` block that
+guards `import bpy`, and add stub fallbacks in the `except` branch:
+
+```python
+try:
+    import bpy  # type: ignore
+    from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
+except ImportError:  # worker processes run without Blender
+    bpy = None
+    StringProperty = EnumProperty = IntProperty = FloatProperty = BoolProperty = None
+```
+
+This was applied to `shap_e_helpers.py` and `point_e_helpers.py` (in the import section near the top of each file).
+
+### What NOT to Do
+
+- **Do NOT put `from bpy.props import ...` outside the `try: import bpy` block** in any
+  file that uses `multiprocessing.Process`.  The child process does not have Blender, so
+  any bare `bpy.*` import at module level will crash the worker on startup.
+- The regression test `test_bpy_props_inside_try_in_worker_modules` in
+  `test_addon_integrity.py` enforces this — keep it passing.
+
+---
+
 ## UModel Auto-Download — `umodel_install_attempted` Flag
 
 UModel cannot be auto-downloaded (no reliable public URL as of Blender 5.0).

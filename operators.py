@@ -3117,8 +3117,19 @@ class FO4_OT_InstallUEImporter(Operator):
                 ok, msg = ue_importer_helpers.download_latest()
                 print(msg)
                 if ok:
-                    ue_importer_helpers.register()
-                    _, msg = ue_importer_helpers.status()
+                    # bpy.utils.register_class() cannot be called from a
+                    # background thread — schedule on the main thread via timer.
+                    def _finish():
+                        ue_importer_helpers.register()
+                        _, status_msg = ue_importer_helpers.status()
+                        print("=" * 60 + "\n")
+                        notification_system.FO4_NotificationSystem.notify(
+                            status_msg, 'INFO'
+                        )
+                        return None  # de-register the timer
+
+                    bpy.app.timers.register(_finish, first_interval=0.0)
+                    return  # notification dispatched from _finish()
             except Exception as exc:
                 ok, msg = False, f"UE Importer install error: {exc}"
                 print(msg)
