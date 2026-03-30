@@ -15,18 +15,22 @@ Adds two operators that appear in the Setup & Status panel:
         5.  Critical operator registration
         6.  Addon preferences accessibility
         7.  Python version
-        8.  PyTorch availability
+        8.  PyTorch availability (local install AND Mossy bridge)
         9.  __init__ presence in sys.modules
         10. External tool binaries (FFmpeg, NVTT, TexConv, Havok2FBX,
             UModel, Instant-NGP, RealESRGAN, tools root)
         11. Mossy Bridge connectivity (when Mossy is enabled in preferences)
         12. Asset & knowledge-base paths
+        13. AI tool availability status (Hunyuan3D, HyMotion, ZoeDepth, RigNet)
+        14. Mossy PyTorch path persistence
 
   fo4.fix_addon_issues
       Attempts to automatically repair the most common registration failures:
         • Re-registers tutorial_operators and setup_operators
         • Re-imports and re-registers any module that failed to load
         • Restores extra Python paths and scene properties from preferences
+        • Re-runs AI tool availability checks with correct sys.path (Step 5)
+        • Applies persisted Mossy PyTorch path to sys.path (Step 6)
 
 These operators are lightweight and safe to call repeatedly.  They do NOT
 touch any scene data or addon preferences destructively.
@@ -37,8 +41,10 @@ causes.  Understanding that document is essential before making changes here.
 
 import bpy
 import importlib
+import importlib.util
 import os
 import sys
+import time
 from bpy.types import Operator
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -239,17 +245,65 @@ def collect_diagnostics():
         results.append(("WARN", "Python",
                         f"Python {pv_str} - older than recommended 3.11; some packages may misbehave"))
 
-    # ── 8. PyTorch availability (optional) ────────────────────────────────────
+    # Fetch preferences now — needed by checks 8, 13, 14 and later by check 10.
+    _prefs = None
+    if prefs_mod:
+        try:
+            _prefs = prefs_mod.get_preferences()
+        except Exception:
+            pass
+
+    # ── 8. PyTorch availability (local install AND Mossy bridge) ─────────────
+    # PyTorch may be provided in three ways:
+    #   (a) Installed locally into Blender's Python (find_spec finds it)
+    #   (b) Provided by the Mossy desktop app via the bridge (find_spec returns
+    #       None even though torch IS available for AI inference)
+    #   (c) A custom torch path set in preferences was added to sys.path
+    # All three must be checked so the status is never falsely reported as
+    # "not installed" when the user has a working Mossy setup.
     try:
-        import importlib.util as _ilu
-        torch_spec = _ilu.find_spec("torch")
+        torch_spec = importlib.util.find_spec("torch")
         if torch_spec:
-            results.append(("OK",   "PyTorch", f"torch found at {torch_spec.origin}"))
+            results.append(("OK", "PyTorch",
+                            f"torch found locally at {torch_spec.origin}"))
         else:
-            results.append(("INFO", "PyTorch",
-                            "torch not installed - AI generation features are disabled (optional)"))
-    except Exception:
-        results.append(("INFO", "PyTorch", "Could not check torch availability"))
+            # Local install absent — check Mossy bridge
+            _mossy_torch = False
+            _mossy_source = ""
+
+            # Check live bridge status in window manager
+            try:
+                _wm_status = bpy.context.window_manager.get("mossy_bridge_status", "")
+                if str(_wm_status).startswith("Mossy Bridge online"):
+                    _mossy_torch = True
+                    _mossy_source = "Mossy bridge online"
+            except Exception:
+                pass
+
+            # Check use_mossy_as_ai preference (user explicitly chose Mossy as backend)
+            if not _mossy_torch and _prefs is not None:
+                if getattr(_prefs, "use_mossy_as_ai", False):
+                    _mossy_torch = True
+                    _mossy_source = "use_mossy_as_ai preference enabled"
+
+            # Check persisted pytorch_path from a previous Mossy session
+            if not _mossy_torch and _prefs is not None:
+                _saved_path = getattr(_prefs, "pytorch_path", "")
+                if _saved_path and os.path.isdir(_saved_path):
+                    _mossy_torch = True
+                    _mossy_source = f"saved pytorch_path: {_saved_path}"
+
+            if _mossy_torch:
+                results.append(("OK", "PyTorch",
+                                f"torch provided by Mossy ({_mossy_source}) — "
+                                "local find_spec returns None but torch IS available"))
+            else:
+                results.append(("INFO", "PyTorch",
+                                "torch not found locally and Mossy bridge not detected — "
+                                "AI generation features disabled (optional). "
+                                "Install via Settings panel or connect Mossy."))
+    except Exception as _exc:
+        results.append(("INFO", "PyTorch", f"Could not check torch availability: {_exc}"))
 
     # ── 9. __init__ module present in sys.modules ────────────────────────────
     if init is not None:
@@ -260,14 +314,7 @@ def collect_diagnostics():
                         "module tracking will be limited"))
 
     # ── 10. External tool binaries ────────────────────────────────────────────
-    # Fetch preferences once for all remaining sections.
-    _prefs = None
-    if prefs_mod:
-        try:
-            _prefs = prefs_mod.get_preferences()
-        except Exception:
-            pass
-
+    # _prefs was already fetched above (after check 7) and is reused here.
     _ti = getattr(init, "tool_installers", None) if init else None
 
     if _prefs:
@@ -417,6 +464,85 @@ def collect_diagnostics():
         else:
             results.append(("INFO", "Assets", "Knowledge base: disabled"))
 
+    # ── 13. AI tool availability status ──────────────────────────────────────
+    # Check whether each AI helper has run its deferred availability check.
+    # A status of None means the deferred check never ran (e.g. deferred_startup
+    # was skipped) — Auto-Fix can trigger the re-check immediately.
+    # A status of False when the tool IS installed on disk means a stale bad
+    # result got cached before torch paths were ready (the recurring bug).
+    _ai_checks = [
+        # (helper attr on init,   AVAILABLE global name,  display name)
+        ("hunyuan3d_helpers", "HUNYUAN3D_AVAILABLE", "Hunyuan3D-2"),
+        ("hymotion_helpers",  "HYMOTION_AVAILABLE",  "HY-Motion-1.0"),
+        ("zoedepth_helpers",  "ZOEDEPTH_AVAILABLE",  "ZoeDepth"),
+    ]
+    for _attr, _glob, _label in _ai_checks:
+        _helper = getattr(init, _attr, None) if init else None
+        if _helper is None:
+            results.append(("WARN", "AI Tools",
+                            f"{_label}: helper module not loaded"))
+            continue
+        _avail = getattr(_helper, _glob, "?")
+        if _avail is True:
+            results.append(("OK",   "AI Tools", f"{_label}: available ✓"))
+        elif _avail is None:
+            results.append(("WARN", "AI Tools",
+                            f"{_label}: status not yet checked — "
+                            "click Auto-Fix to refresh (deferred check may have been skipped)"))
+        elif _avail is False:
+            # Possibly a stale False from before torch paths were restored.
+            # Try to distinguish "genuinely not installed" from "stale cache".
+            _torch_ok = (
+                importlib.util.find_spec("torch") is not None
+                or (_prefs is not None and getattr(_prefs, "use_mossy_as_ai", False))
+                or (_prefs is not None and bool(getattr(_prefs, "pytorch_path", "")))
+            )
+            if _torch_ok:
+                results.append(("WARN", "AI Tools",
+                                f"{_label}: shows Not Installed but torch IS available — "
+                                "likely a stale cache from before torch paths were ready. "
+                                "Click Auto-Fix to refresh."))
+            else:
+                results.append(("INFO", "AI Tools",
+                                f"{_label}: not installed / not available (optional)"))
+        else:
+            results.append(("INFO", "AI Tools", f"{_label}: status unknown ({_avail!r})"))
+
+    # RigNet uses a separate TTL cache in ui_panels rather than a module global
+    _up = getattr(init, "ui_panels", None) if init else None
+    if _up and hasattr(_up, "_rignet_status_cache"):
+        _rc = _up._rignet_status_cache
+        _rc_ts = _rc.get("ts", 0.0)
+        # ts == 0.0 means cache was explicitly invalidated (needs refresh)
+        if _rc_ts == 0.0:
+            results.append(("WARN", "AI Tools",
+                            "RigNet: status cache invalidated — "
+                            "will re-probe on next UI draw"))
+        elif _rc.get("rignet", (False,))[0]:
+            results.append(("OK",   "AI Tools", "RigNet: available ✓"))
+        else:
+            results.append(("INFO", "AI Tools", "RigNet: not installed (optional)"))
+
+    # ── 14. Mossy PyTorch path persistence ───────────────────────────────────
+    # When Mossy sends a set_pytorch_path command, mossy_link stores it in
+    # prefs.pytorch_path so it survives a Blender restart.  If the pref is
+    # empty but Mossy is enabled, the path will be lost on next restart and
+    # the false "PyTorch required" warning will reappear.
+    if _prefs is not None and getattr(_prefs, "use_mossy_as_ai", False):
+        _saved_pt = getattr(_prefs, "pytorch_path", "").strip()
+        if _saved_pt:
+            if _saved_pt in sys.path:
+                results.append(("OK", "Mossy",
+                                f"PyTorch path persisted and active: {_saved_pt}"))
+            else:
+                results.append(("WARN", "Mossy",
+                                f"PyTorch path persisted but NOT in sys.path: {_saved_pt} — "
+                                "click Auto-Fix to apply it for this session"))
+        else:
+            results.append(("WARN", "Mossy",
+                            "use_mossy_as_ai is ON but pytorch_path preference is empty. "
+                            "Connect Mossy so it can send the path, then restart Blender to persist it."))
+
     return results
 
 
@@ -557,6 +683,69 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
                             pass
             except Exception as exc:
                 failed.append(f"restore_scene_props: {exc}")
+
+        # ── Step 5: refresh AI tool availability caches ───────────────────────
+        # Mirrors startup_helpers.deferred_startup() Step 6b.  Run after Step 4
+        # (restore_extra_python_paths) so torch_custom_path is already in sys.path
+        # when the availability checks run.  This is the direct in-session fix for
+        # "shows Not Installed even though the tool is present" after restart.
+
+        # Hunyuan3D-2
+        try:
+            _h3d = getattr(init, "hunyuan3d_helpers", None)
+            if _h3d and hasattr(_h3d, "check_hunyuan3d_availability"):
+                avail, msg = _h3d.check_hunyuan3d_availability()
+                fixed.append(
+                    f"Hunyuan3D-2 status refreshed: {'available' if avail else 'not available'}"
+                )
+        except Exception as exc:
+            failed.append(f"Hunyuan3D-2 status refresh: {exc}")
+
+        # HY-Motion-1.0
+        try:
+            _hym = getattr(init, "hymotion_helpers", None)
+            if _hym and hasattr(_hym, "check_hymotion_availability"):
+                avail, msg = _hym.check_hymotion_availability()
+                fixed.append(
+                    f"HY-Motion-1.0 status refreshed: {'available' if avail else 'not available'}"
+                )
+        except Exception as exc:
+            failed.append(f"HY-Motion-1.0 status refresh: {exc}")
+
+        # ZoeDepth — clear the TTL cache so next UI draw probes with fresh paths
+        try:
+            _zdh = getattr(init, "zoedepth_helpers", None)
+            if _zdh and hasattr(_zdh, "clear_availability_cache"):
+                _zdh.clear_availability_cache()
+                fixed.append("ZoeDepth availability cache cleared (will re-probe on next draw)")
+        except Exception as exc:
+            failed.append(f"ZoeDepth cache clear: {exc}")
+
+        # RigNet — invalidate ui_panels TTL cache
+        try:
+            _up = getattr(init, "ui_panels", None)
+            if _up and hasattr(_up, "_invalidate_rignet_cache"):
+                _up._invalidate_rignet_cache()
+                fixed.append("RigNet status cache invalidated (will re-probe on next draw)")
+        except Exception as exc:
+            failed.append(f"RigNet cache invalidate: {exc}")
+
+        # ── Step 6: apply persisted Mossy PyTorch path ────────────────────────
+        # If Mossy previously sent a set_pytorch_path command and it was saved in
+        # prefs.pytorch_path, ensure it is in sys.path for this session even when
+        # Mossy is not currently connected (e.g. Mossy not yet started).
+        if prefs_mod:
+            try:
+                prefs = prefs_mod.get_preferences()
+                if prefs:
+                    _pt_path = getattr(prefs, "pytorch_path", "").strip()
+                    if _pt_path and os.path.isdir(_pt_path) and _pt_path not in sys.path:
+                        sys.path.insert(0, _pt_path)
+                        fixed.append(f"Mossy PyTorch path applied to sys.path: {_pt_path}")
+                    elif _pt_path and _pt_path in sys.path:
+                        fixed.append(f"Mossy PyTorch path already in sys.path: {_pt_path}")
+            except Exception as exc:
+                failed.append(f"apply Mossy pytorch_path: {exc}")
 
         # ── Report ────────────────────────────────────────────────────────────
         print("[ FO4 Auto-Fix ] Results:")

@@ -19,7 +19,8 @@ import tempfile
 from pathlib import Path
 
 # Check if Hunyuan3D-2 is available
-HUNYUAN3D_AVAILABLE = False
+# None = not yet checked; True = available; False = not available
+HUNYUAN3D_AVAILABLE = None
 HUNYUAN3D_ERROR = None
 
 # NOTE: TORCH_AVAILABLE is intentionally NOT evaluated at module-import time.
@@ -156,14 +157,21 @@ def _is_valid_hunyuan_install(path: str) -> bool:
 
 
 def check_hunyuan3d_availability():
-    """
-    Check if Hunyuan3D-2 is installed and available.
-    
+    """Check if Hunyuan3D-2 is installed and available.
+
+    As a side-effect, updates the module-level ``HUNYUAN3D_AVAILABLE`` and
+    ``HUNYUAN3D_ERROR`` globals so that ``get_cached_availability()`` always
+    reflects the most recent result without requiring a separate cache layer.
+
     Returns:
         tuple: (available: bool, message: str)
     """
+    global HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR
+
     if not _torch_available():
-        return False, "PyTorch not installed. Install with: pip install torch torchvision"
+        result = False, "PyTorch not installed. Install with: pip install torch torchvision"
+        HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR = result
+        return result
 
     # Probe torch to catch DLL init failures (WinError 1114 - CUDA/driver mismatch).
     # find_spec only verifies the files exist; it does not load the DLLs.
@@ -174,28 +182,39 @@ def check_hunyuan3d_availability():
             importlib.import_module("torch")
         except OSError as _e:
             if getattr(_e, 'winerror', None) == 1114 or "WinError 1114" in str(_e):
-                return False, _dll_init_error_message(str(_e))
-            return False, f"PyTorch failed to load: {_e}"
+                result = False, _dll_init_error_message(str(_e))
+            else:
+                result = False, f"PyTorch failed to load: {_e}"
+            HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR = result
+            return result
         except ImportError as _e:
-            return False, f"PyTorch not available: {_e}"
+            result = False, f"PyTorch not available: {_e}"
+            HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR = result
+            return result
 
     candidates = _build_hunyuan3d_candidates()
 
     # First pass: find a directory that actually contains infer.py
     for path in candidates:
         if _is_valid_hunyuan_install(path):
-            return True, f"Hunyuan3D-2 available at: {path}"
+            result = True, f"Hunyuan3D-2 available at: {path}"
+            HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR = result
+            return result
 
     # Second pass: report any directory found but missing infer.py
     for path in candidates:
         if os.path.isdir(path):
-            return False, f"Hunyuan3D-2 found at {path} but infer.py not found"
+            result = False, f"Hunyuan3D-2 found at {path} but infer.py not found"
+            HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR = result
+            return result
 
-    return False, (
+    result = False, (
         "Hunyuan3D-2 not found. Clone it with:\n"
         "gh repo clone Tencent-Hunyuan/Hunyuan3D-2\n"
         "Or: git clone https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git"
     )
+    HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR = result
+    return result
 
 
 def generate_mesh_from_text(prompt, output_path=None, resolution=256):
@@ -417,32 +436,49 @@ The add-on will automatically detect when it's installed.
 """
 
 
+def get_cached_availability():
+    """Return the most recently computed availability status without re-probing.
+
+    Used by the UI draw() function to avoid heavy filesystem / DLL probes on
+    every redraw.  Returns ``(None, "Not yet checked…")`` when no check has
+    been run since startup or the last ``clear_availability_cache()`` call.
+    Call the ``fo4.check_hunyuan3d_status`` operator to force a fresh probe.
+
+    Returns:
+        tuple: (available: bool | None, message: str)
+    """
+    if HUNYUAN3D_AVAILABLE is None:
+        return None, "Not yet checked - click Check Status to refresh"
+    return HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR or ""
+
+
 def clear_availability_cache():
     """Reset any cached availability state so the next check runs fresh.
 
     Called by the install operator after a successful install to ensure
     the panel reflects the newly-installed state immediately.
     """
-    # hunyuan3d_helpers does not keep its own TTL cache - check_hunyuan3d_availability()
-    # re-runs on every call.  The module-level globals below are only written by
-    # register() so we reset them here to match the "not yet checked" state.
     global HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR
-    HUNYUAN3D_AVAILABLE = False
+    # Reset to None (not False) so the UI shows "Not checked" rather than
+    # "Not installed", prompting the user to click Check Status after install.
+    HUNYUAN3D_AVAILABLE = None
     HUNYUAN3D_ERROR = None
 
 
 def register():
-    """Register Hunyuan3D helper functions"""
-    global HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR
-    
-    # Check availability on registration
-    HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR = check_hunyuan3d_availability()
-    
-    if HUNYUAN3D_AVAILABLE:
-        print("✓ Hunyuan3D-2 is available")
-    else:
-        print(f"ℹ Hunyuan3D-2 not available: {HUNYUAN3D_ERROR}")
-        print("  (This is optional - the add-on works without it)")
+    """Register Hunyuan3D helper functions.
+
+    Intentionally does NOT call check_hunyuan3d_availability() here because
+    torch_custom_path has not yet been added to sys.path at module-register
+    time (that happens later in register() via restore_extra_python_paths()).
+    The deferred_startup() task runs 2 seconds after load and populates
+    HUNYUAN3D_AVAILABLE / HUNYUAN3D_ERROR with an accurate result.
+    """
+    # Leave HUNYUAN3D_AVAILABLE = None so the UI shows "Not checked"
+    # rather than a potentially-stale "Not installed" during the 2-second
+    # window before deferred_startup() fires.
+    print("ℹ Hunyuan3D-2 availability check deferred to startup (torch paths not yet ready)")
+    print("  (This is optional - the add-on works without it)")
 
 
 def unregister():

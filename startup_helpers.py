@@ -329,6 +329,48 @@ def deferred_startup():
     except Exception as e:
         print(f"⚠ Deferred setup-operator check failed: {e}")
 
+    # ── Step 6b: refresh AI-tool availability caches ─────────────────────────
+    # hunyuan3d_helpers, hymotion_helpers, and zoedepth_helpers intentionally
+    # skip their availability check during register() because torch_custom_path
+    # has not yet been added to sys.path at that point.  Now that all paths are
+    # in place, run a lightweight re-check so the UI panels show correct status
+    # immediately after startup without the user having to click "Check Status".
+    # These calls are fast (filesystem checks only; no network, no model loads).
+    try:
+        from . import hunyuan3d_helpers as _h3d
+        if _h3d:
+            _h3d.check_hunyuan3d_availability()
+            if _h3d.HUNYUAN3D_AVAILABLE:
+                print("✓ Hunyuan3D-2 is available")
+    except Exception as _e:
+        print(f"Hunyuan3D-2 deferred check skipped: {_e}")
+
+    try:
+        from . import hymotion_helpers as _hym
+        if _hym:
+            _hym.check_hymotion_availability()
+            if _hym.HYMOTION_AVAILABLE:
+                print("✓ HY-Motion-1.0 is available")
+    except Exception as _e:
+        print(f"HY-Motion-1.0 deferred check skipped: {_e}")
+
+    try:
+        from . import zoedepth_helpers as _zdh
+        if _zdh:
+            # clear_availability_cache() resets the 5-second TTL so the next
+            # UI draw triggers a fresh probe with correct sys.path.
+            _zdh.clear_availability_cache()
+    except Exception as _e:
+        print(f"ZoeDepth cache reset skipped: {_e}")
+
+    # Invalidate the RigNet status cache so it re-probes on next UI draw.
+    try:
+        from . import ui_panels as _ui
+        if _ui and hasattr(_ui, '_invalidate_rignet_cache'):
+            _ui._invalidate_rignet_cache()
+    except Exception as _e:
+        print(f"RigNet cache reset skipped: {_e}")
+
     # ── Step 7: auto-check Mossy bridge (safety net) ─────────────────────────
     # The background torch probe already checks Mossy at probe time, but
     # Mossy may start *after* Blender (or after the probe already ran and

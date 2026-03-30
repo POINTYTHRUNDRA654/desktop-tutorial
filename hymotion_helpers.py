@@ -18,11 +18,20 @@ import os
 import platform
 import sys
 import subprocess
+import time
 from pathlib import Path
 
 # Check if HY-Motion-1.0 is available
-HYMOTION_AVAILABLE = False
+# None = not yet checked; True = available; False = not available
+HYMOTION_AVAILABLE = None
+# None = not yet checked; str = last status/error message
 HYMOTION_ERROR = None
+
+# TTL cache for check_hymotion_availability() - avoids filesystem / torch
+# probes on every UI redraw (same pattern as zoedepth_helpers).
+_availability_cache = None
+_availability_cache_time = 0.0
+_CACHE_TTL = 5.0  # seconds
 
 # NOTE: TORCH_AVAILABLE is intentionally NOT evaluated at module-import time.
 # The PyTorch custom path is added to sys.path only during register(), which
@@ -186,11 +195,37 @@ def check_git_lfs():
 
 
 def check_hymotion_availability():
-    """
-    Check if HY-Motion-1.0 is installed and available.
-    
+    """Check if HY-Motion-1.0 is installed and available.
+
+    Results are cached for _CACHE_TTL seconds so that repeated calls from
+    Blender's UI draw() loop do not hammer the filesystem on every redraw.
+    As a side-effect, updates HYMOTION_AVAILABLE / HYMOTION_ERROR globals.
+
     Returns:
         tuple: (available: bool, message: str)
+    """
+    global _availability_cache, _availability_cache_time, HYMOTION_AVAILABLE, HYMOTION_ERROR
+    now = time.monotonic()
+    if _availability_cache is not None and (now - _availability_cache_time) < _CACHE_TTL:
+        return _availability_cache
+
+    result = _check_hymotion_availability_uncached()
+    _availability_cache = result
+    _availability_cache_time = now
+    HYMOTION_AVAILABLE, HYMOTION_ERROR = result
+    return result
+
+
+def _check_hymotion_availability_uncached():
+    """Perform the actual (uncached) HY-Motion-1.0 availability check.
+
+    Checks whether PyTorch is importable, git-lfs is present, and the
+    HY-Motion-1.0 repository has been cloned to a recognised location.
+
+    Returns:
+        tuple: (available: bool, message: str)  Message is a success path
+               string when ``available`` is True, or a human-readable error
+               explanation when False.
     """
     if not _torch_available():
         return False, "PyTorch not installed. Install with: pip install torch torchvision"
@@ -512,18 +547,43 @@ https://github.com/Tencent-Hunyuan/HY-Motion-1.0
 """
 
 
+def get_cached_availability():
+    """Return the most recently computed availability status without re-probing.
+
+    Used by the UI draw() function.  Returns ``(None, "Not yet checked…")``
+    when no check has been run since startup or the last
+    ``clear_availability_cache()`` call.
+
+    Returns:
+        tuple: (available: bool | None, message: str)
+    """
+    if HYMOTION_AVAILABLE is None and _availability_cache is None:
+        return None, "Not yet checked - click Check Status to refresh"
+    if _availability_cache is not None:
+        return _availability_cache
+    return HYMOTION_AVAILABLE, HYMOTION_ERROR or ""
+
+
+def clear_availability_cache():
+    """Force-expire the TTL cache so the next UI draw re-probes HY-Motion."""
+    global _availability_cache, _availability_cache_time, HYMOTION_AVAILABLE, HYMOTION_ERROR
+    _availability_cache = None
+    _availability_cache_time = 0.0
+    # Reset to None so the UI shows "Not checked" rather than stale "Not installed".
+    HYMOTION_AVAILABLE = None
+    HYMOTION_ERROR = None
+
+
 def register():
-    """Register HY-Motion helper functions"""
-    global HYMOTION_AVAILABLE, HYMOTION_ERROR
-    
-    # Check availability on registration
-    HYMOTION_AVAILABLE, HYMOTION_ERROR = check_hymotion_availability()
-    
-    if HYMOTION_AVAILABLE:
-        print("✓ HY-Motion-1.0 is available")
-    else:
-        print(f"ℹ HY-Motion-1.0 not available: {HYMOTION_ERROR}")
-        print("  (This is optional - the add-on works without it)")
+    """Register HY-Motion helper functions.
+
+    Intentionally does NOT call check_hymotion_availability() here because
+    torch_custom_path has not yet been added to sys.path at module-register
+    time.  The deferred_startup() task runs 2 seconds after load and
+    populates the cache with an accurate result.
+    """
+    print("ℹ HY-Motion-1.0 availability check deferred to startup (torch paths not yet ready)")
+    print("  (This is optional - the add-on works without it)")
 
 
 def unregister():
