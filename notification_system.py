@@ -16,7 +16,7 @@ class FO4_NotificationItem(bpy.types.PropertyGroup):
 
 
 class OperationLog:
-    """Persistent operation log — writes every operation to a JSON file on disk.
+    """Persistent operation log - writes every operation to a JSON file on disk.
 
     The log file lives in Blender's user config directory so it survives
     add-on reloads and Blender restarts.  Each entry records:

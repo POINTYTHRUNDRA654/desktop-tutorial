@@ -150,7 +150,7 @@ PRESETS: dict = {
     # ── Architecture / building geometry ──────────────────────────────────
     "STATIC_ARCHITECTURE": {
         "label":           "Architecture / Wall",
-        "description":     "Building wall, floor, ceiling — large static structure with collision",
+        "description":     "Building wall, floor, ceiling - large static structure with collision",
         "layer":           LAYER_STATIC,
         "motion_type":     "FIXED",
         "quality":         "FIXED",
@@ -191,7 +191,7 @@ PRESETS: dict = {
     # ── Furniture / activators ─────────────────────────────────────────────
     "FURNITURE_CHAIR": {
         "label":           "Furniture – Chair / Seat",
-        "description":     "Sit-able furniture object — uses L_FURNITURE layer",
+        "description":     "Sit-able furniture object - uses L_FURNITURE layer",
         "layer":           LAYER_FURNITURE,
         "motion_type":     "FIXED",
         "quality":         "FIXED",
@@ -325,7 +325,7 @@ PRESETS: dict = {
     # ── Water ─────────────────────────────────────────────────────────────
     "WATER_SURFACE": {
         "label":           "Water Surface / Volume",
-        "description":     "Water plane or volume trigger — uses L_WATER layer",
+        "description":     "Water plane or volume trigger - uses L_WATER layer",
         "layer":           LAYER_WATER,
         "motion_type":     "FIXED",
         "quality":         "FIXED",
@@ -339,7 +339,7 @@ PRESETS: dict = {
     # ── Landscape ─────────────────────────────────────────────────────────
     "STATIC_LANDSCAPE": {
         "label":           "Landscape / Terrain",
-        "description":     "Ground / terrain mesh — uses L_HAVOK_LANDSCAPE layer",
+        "description":     "Ground / terrain mesh - uses L_HAVOK_LANDSCAPE layer",
         "layer":           LAYER_LANDSCAPE,
         "motion_type":     "FIXED",
         "quality":         "FIXED",
@@ -353,7 +353,7 @@ PRESETS: dict = {
     # ── Character / biped ─────────────────────────────────────────────────
     "CHARACTER_BIPED": {
         "label":           "Character / Biped Body",
-        "description":     "NPC or player biped body part — uses L_BIPED layer",
+        "description":     "NPC or player biped body part - uses L_BIPED layer",
         "layer":           LAYER_BIPED,
         "motion_type":     "CHARACTER",
         "quality":         "MOVING",
@@ -366,7 +366,7 @@ PRESETS: dict = {
     },
     "POWER_ARMOR_BODY": {
         "label":           "Power Armor Body Part",
-        "description":     "Power armor frame / body part — uses L_BIPED layer",
+        "description":     "Power armor frame / body part - uses L_BIPED layer",
         "layer":           LAYER_BIPED,
         "motion_type":     "KEYFRAMED",
         "quality":         "KEYFRAMED",
@@ -394,7 +394,7 @@ PRESETS: dict = {
     # ── Weapons ───────────────────────────────────────────────────────────
     "WEAPON_PROJECTILE": {
         "label":           "Weapon / Projectile",
-        "description":     "Held weapon or projectile collision — uses L_WEAPON layer",
+        "description":     "Held weapon or projectile collision - uses L_WEAPON layer",
         "layer":           LAYER_WEAPON,
         "motion_type":     "DYNAMIC",
         "quality":         "MOVING",
@@ -408,7 +408,7 @@ PRESETS: dict = {
     # ── Trigger volumes ───────────────────────────────────────────────────
     "TRIGGER_VOLUME": {
         "label":           "Trigger Volume / Cloud Trap",
-        "description":     "Invisible trigger or effect volume — uses L_CLOUD_TRAP layer",
+        "description":     "Invisible trigger or effect volume - uses L_CLOUD_TRAP layer",
         "layer":           LAYER_CLOUD_TRAP,
         "motion_type":     "FIXED",
         "quality":         "FIXED",

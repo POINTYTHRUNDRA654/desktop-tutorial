@@ -14,7 +14,7 @@ from pathlib import Path
 class ImageTo3DHelpers:
     """Helper functions for various image-to-3D solutions"""
 
-    # Cache for is_triposr_available() — avoids repeated torch import / filesystem
+    # Cache for is_triposr_available() - avoids repeated torch import / filesystem
     # hits on every Blender UI redraw.
     _triposr_cache = None
     _triposr_cache_time = 0.0
@@ -49,7 +49,7 @@ class ImageTo3DHelpers:
     def _is_triposr_available_uncached():
         """Perform the actual (uncached) TripoSR availability check."""
         try:
-            # Use find_spec to detect torch without actually importing it —
+            # Use find_spec to detect torch without actually importing it -
             # a full `import torch` can block the UI for several seconds on
             # first load.  TripoSR requires torch at runtime, but we only need
             # to know whether it is *installed* here.

@@ -14,7 +14,7 @@ from pathlib import Path
 class InstantNGPHelpers:
     """Helper functions for Instant-NGP integration"""
 
-    # Cache for is_instantngp_available() — avoids shutil.which + filesystem hits
+    # Cache for is_instantngp_available() - avoids shutil.which + filesystem hits
     # on every Blender UI redraw.
     _cache = None
     _cache_time = 0.0
@@ -77,7 +77,7 @@ class InstantNGPHelpers:
             from . import tool_installers
             if tool_installers.find_instantngp_exe():
                 return True
-            # Source cloned but not yet built — still counts as "found" so the
+            # Source cloned but not yet built - still counts as "found" so the
             # UI can show the build instructions instead of "Not Installed".
             dest = tool_installers.get_instantngp_dir()
             if (dest / "CMakeLists.txt").exists():
@@ -212,7 +212,7 @@ class InstantNGPHelpers:
                     msg += "CUDA: Not available\n"
                     msg += "⚠️ Instant-NGP requires an NVIDIA GPU with CUDA"
             except (ImportError, OSError):
-                msg += "PyTorch: Not installed (optional — used to check CUDA availability)"
+                msg += "PyTorch: Not installed (optional - used to check CUDA availability)"
 
             return bool(exe), msg
 

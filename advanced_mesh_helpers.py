@@ -156,7 +156,7 @@ class AdvancedMeshHelpers:
         bpy.ops.mesh.select_all(action='SELECT')
         
         # Remove doubles (operator renamed in Blender 2.91; old name removed in 5.0)
-        # Use try/except because bpy.ops proxies make hasattr() unreliable —
+        # Use try/except because bpy.ops proxies make hasattr() unreliable -
         # it returns True for any attribute, even unregistered operators.
         try:
             result = bpy.ops.mesh.merge_by_distance(threshold=0.0001)
@@ -437,20 +437,20 @@ class AdvancedMeshHelpers:
         obj : bpy.types.Object
             Target mesh object.
         method : str
-            ``'MIN_STRETCH'`` — **(default)** Minimum Stretch unwrap.
+            ``'MIN_STRETCH'`` - **(default)** Minimum Stretch unwrap.
                                 Uses a CONFORMAL (LSCM) initial layout then
                                 runs ``uv.minimize_stretch`` to convergence
                                 (100 iterations).  Produces the lowest UV
                                 distortion of any available method and is
                                 Blender's recommended technique for matching
                                 textures to geometry accurately.
-            ``'SMART'``      — Smart UV Project.  Good general-purpose choice;
+            ``'SMART'``      - Smart UV Project.  Good general-purpose choice;
                                 fast and automatic.
-            ``'ANGLE'``      — Seam-marked angle-based conformal unwrap with a
+            ``'ANGLE'``      - Seam-marked angle-based conformal unwrap with a
                                 stretch-minimize refinement pass.
-            ``'UNWRAP'``     — Alias for ``'ANGLE'`` (legacy name kept for
+            ``'UNWRAP'``     - Alias for ``'ANGLE'`` (legacy name kept for
                                 backward compatibility).
-            ``'CUBE'``       — Box/cube projection (fast; best for architecture).
+            ``'CUBE'``       - Box/cube projection (fast; best for architecture).
         margin : float
             Spacing between UV islands (default 0.01).
 
@@ -476,14 +476,14 @@ class AdvancedMeshHelpers:
 
             if norm == 'MIN_STRETCH':
                 # -----------------------------------------------------------
-                # Minimum Stretch unwrap — lowest distortion available.
+                # Minimum Stretch unwrap - lowest distortion available.
                 #
                 # Pipeline:
-                #   1. Smart UV Project  — seeds island boundaries / seams so
+                #   1. Smart UV Project  - seeds island boundaries / seams so
                 #      the CONFORMAL solver starts from a reasonable layout.
-                #   2. CONFORMAL (LSCM)  — Least Squares Conformal Maps; the
+                #   2. CONFORMAL (LSCM)  - Least Squares Conformal Maps; the
                 #      best analytical starting layout for the relaxation step.
-                #   3. minimize_stretch  — iterative relaxation that directly
+                #   3. minimize_stretch  - iterative relaxation that directly
                 #      minimises the difference between 3-D and UV edge lengths
                 #      (i.e. the "stretch" metric).  100 iterations reaches
                 #      convergence for almost all real-world meshes.
@@ -558,13 +558,13 @@ class AdvancedMeshHelpers:
             Integer 0–100.  Higher = more complex and harder to unwrap
             automatically without distortion.
         ``'problem_areas'``
-            ``list[str]`` — human-readable descriptions of detected issues.
+            ``list[str]`` - human-readable descriptions of detected issues.
         ``'seam_candidates'``
-            ``int`` — number of edges that are candidates for seam placement.
+            ``int`` - number of edges that are candidates for seam placement.
         ``'island_estimate'``
-            ``int`` — rough estimate of the optimal number of UV islands.
+            ``int`` - rough estimate of the optimal number of UV islands.
         ``'recommendations'``
-            ``list[str]`` — ordered, actionable instructions for the user.
+            ``list[str]`` - ordered, actionable instructions for the user.
         """
         import math
 
@@ -603,7 +603,7 @@ class AdvancedMeshHelpers:
         if sharp_ratio > 0.3:
             score += 30
             problem_areas.append(
-                f"{len(sharp_edges)} sharp-angle edges ({sharp_ratio:.0%}) — "
+                f"{len(sharp_edges)} sharp-angle edges ({sharp_ratio:.0%}) - "
                 "seams needed at fold lines"
             )
         elif sharp_ratio > 0.1:
@@ -612,14 +612,14 @@ class AdvancedMeshHelpers:
                 f"{len(sharp_edges)} moderate-angle edges ({sharp_ratio:.0%})"
             )
 
-        # ── 2. High-valence vertices (branching topology — plants, coral…) ──
+        # ── 2. High-valence vertices (branching topology - plants, coral…) ──
         high_valence_verts = [v for v in bm.verts if len(v.link_edges) > 6]
         hv_ratio = len(high_valence_verts) / max(len(bm.verts), 1)
         if hv_ratio > 0.05:
             score += 25
             problem_areas.append(
                 f"{len(high_valence_verts)} high-valence vertices "
-                f"({hv_ratio:.0%}) — branching topology (plants/foliage)"
+                f"({hv_ratio:.0%}) - branching topology (plants/foliage)"
             )
 
         # ── 3. Very thin / high-aspect-ratio triangles ──────────────────────
@@ -633,7 +633,7 @@ class AdvancedMeshHelpers:
         if thin_ratio > 0.1:
             score += 20
             problem_areas.append(
-                f"{len(thin_faces)} thin triangles ({thin_ratio:.0%}) — "
+                f"{len(thin_faces)} thin triangles ({thin_ratio:.0%}) - "
                 "these cause UV stretch"
             )
 
@@ -643,7 +643,7 @@ class AdvancedMeshHelpers:
         if boundary_edges:
             score += 10
             problem_areas.append(
-                f"{len(boundary_edges)} boundary edges — open mesh areas"
+                f"{len(boundary_edges)} boundary edges - open mesh areas"
             )
 
         # ── 5. Existing seam count ───────────────────────────────────────────
@@ -665,18 +665,18 @@ class AdvancedMeshHelpers:
         recommendations = []
         if score < 20:
             recommendations.append(
-                "Low complexity — 'Setup UV + Texture (All-in-One)' with "
+                "Low complexity - 'Setup UV + Texture (All-in-One)' with "
                 "Minimum Stretch will give excellent results automatically."
             )
         elif score < 50:
             recommendations.append(
-                "Moderate complexity — run 'Scan & Mark Seams' to auto-mark "
+                "Moderate complexity - run 'Scan & Mark Seams' to auto-mark "
                 "fold lines, adjust them if needed in Edit Mode, then click "
                 "'Hybrid Unwrap'."
             )
         else:
             recommendations.append(
-                "High complexity (organic / branching mesh) — use the Hybrid "
+                "High complexity (organic / branching mesh) - use the Hybrid "
                 "Workflow:  (1) 'Scan & Mark Seams'  (2) review and add seams "
                 "at branch points by clicking edges in Edit Mode  "
                 "(3) 'Hybrid Unwrap'."
@@ -684,12 +684,12 @@ class AdvancedMeshHelpers:
 
         if existing_seams:
             recommendations.append(
-                f"{len(existing_seams)} seam(s) already marked — "
+                f"{len(existing_seams)} seam(s) already marked - "
                 "'Hybrid Unwrap' will respect them."
             )
         else:
             recommendations.append(
-                "No seams marked yet — 'Scan & Mark Seams' will suggest them "
+                "No seams marked yet - 'Scan & Mark Seams' will suggest them "
                 "automatically based on fold angles."
             )
 
@@ -707,9 +707,9 @@ class AdvancedMeshHelpers:
 
         Identifies seam candidates by examining:
 
-        * **Dihedral angle** — edges whose face-to-face angle exceeds
+        * **Dihedral angle** - edges whose face-to-face angle exceeds
           *sharp_threshold_deg* are crease / fold lines and should be cut.
-        * **Boundary edges** — open-mesh edges (only one adjacent face) are
+        * **Boundary edges** - open-mesh edges (only one adjacent face) are
           always seams because they are already geometric boundaries.
 
         If *clear_existing* is ``False`` (default) any seams the user has
@@ -750,7 +750,7 @@ class AdvancedMeshHelpers:
         new_seams = 0
         for edge in bm.edges:
             if edge.seam:
-                continue  # already marked — preserve user intent
+                continue  # already marked - preserve user intent
             if edge.is_boundary:
                 edge.seam = True
                 new_seams += 1

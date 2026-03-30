@@ -266,7 +266,7 @@ def _execute_command_on_main_thread(cmd: dict, bpy) -> dict:
     if cmd_type == "script":
         code = cmd.get("code", "")
         # SECURITY NOTE: this executes arbitrary Python code sent by Mossy.
-        # The token check in _handle_connection guards access — keep the token
+        # The token check in _handle_connection guards access - keep the token
         # non-empty and private to limit who can send commands.
         ns = {"bpy": bpy, "__name__": "__mossy_script__"}
         exec(compile(code, "<mossy_script>", "exec"), ns)  # noqa: S102
@@ -283,7 +283,7 @@ def _execute_command_on_main_thread(cmd: dict, bpy) -> dict:
             text_block = bpy.data.texts.new(name)
         text_block.write(code)
         if run:
-            # Same security note as above — execution is gated by the token check.
+            # Same security note as above - execution is gated by the token check.
             ns = {"bpy": bpy, "__name__": "__mossy_script__"}
             exec(compile(code, name, "exec"), ns)  # noqa: S102
         return {"status": "success", "message": f"Text block '{name}' updated"}
@@ -379,7 +379,7 @@ def ask_mossy(query: str, context_data=None, timeout: float = 15) -> "str | None
     Send a natural-language query to Mossy's local Nemotron AI service.
 
     Mossy must be running on the desktop.  The request goes to
-    ``POST http://localhost:{mossy_http_port}/nemotron`` — no data leaves the
+    ``POST http://localhost:{mossy_http_port}/nemotron`` - no data leaves the
     machine.
 
     :param query:        The natural-language question or prompt.
@@ -417,7 +417,7 @@ def ask_mossy(query: str, context_data=None, timeout: float = 15) -> "str | None
                             result.pop()
                             break
                     return result
-                return obj  # scalar — return as-is
+                return obj  # scalar - return as-is
 
             parts.append("\nContext:\n" + json.dumps(_trim(context_data), indent=2))
         except Exception:
@@ -441,7 +441,7 @@ def ask_mossy(query: str, context_data=None, timeout: float = 15) -> "str | None
         with _url_request.urlopen(req, timeout=timeout) as resp:
             if resp.status == 200:
                 data = json.loads(resp.read().decode("utf-8"))
-                # Nemotron returns {"response": "..."} — fall back to other keys
+                # Nemotron returns {"response": "..."} - fall back to other keys
                 # in case the endpoint changes.
                 return (
                     data.get("response")

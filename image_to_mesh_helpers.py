@@ -29,7 +29,7 @@ def load_image_as_heightmap(filepath):
 
         ext = os.path.splitext(filepath)[1].lower()
 
-        # EXR is not supported by PIL — use Blender's native image loader instead
+        # EXR is not supported by PIL - use Blender's native image loader instead
         if ext == '.exr':
             try:
                 img = bpy.data.images.load(filepath)
@@ -103,7 +103,7 @@ def create_mesh_from_heightmap(name, heightmap_data, width, height,
         
         # Determine subdivisions
         if subdivisions is None:
-            # Limit subdivisions for performance — a lower cap avoids
+            # Limit subdivisions for performance - a lower cap avoids
             # overly dense geometry that produces spiky-looking results.
             max_subdivs = 128
             subdivs_x = min(width, max_subdivs)
@@ -138,7 +138,7 @@ def create_mesh_from_heightmap(name, heightmap_data, width, height,
         bpy.context.view_layer.objects.active = obj
         obj.select_set(True)
 
-        # Build mesh via foreach_set — passes numpy buffers directly to C code,
+        # Build mesh via foreach_set - passes numpy buffers directly to C code,
         # avoiding the expensive .tolist() conversion required by from_pydata.
         n_verts = len(verts)
         n_faces = len(faces)

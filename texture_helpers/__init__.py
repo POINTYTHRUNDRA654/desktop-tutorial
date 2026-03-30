@@ -238,7 +238,7 @@ class TextureHelpers:
             else:
                 img = tex_node.image
 
-                # FO4 requires DDS format — warn if the texture is not DDS
+                # FO4 requires DDS format - warn if the texture is not DDS
                 filepath = getattr(img, 'filepath', '') or ''
                 if filepath and not filepath.lower().endswith('.dds'):
                     issues.append(

@@ -35,7 +35,7 @@ class RigNetHelpers:
     def _mossy_provides_torch() -> bool:
         """Return True when the Mossy bridge is online and provides PyTorch.
 
-        When Mossy is connected, PyTorch runs inside the Mossy desktop app —
+        When Mossy is connected, PyTorch runs inside the Mossy desktop app -
         a local Blender-side torch install is not required for AI inference.
         Safe to call from background threads; all bpy.context access is guarded.
         """
@@ -85,7 +85,7 @@ class RigNetHelpers:
         """Check if RigNet is installed and available"""
         try:
             # Skip the local torch import when Mossy provides PyTorch
-            # (Mossy hosts PyTorch inside the desktop app — no local DLLs to probe).
+            # (Mossy hosts PyTorch inside the desktop app - no local DLLs to probe).
             if (sys.modules.get("torch") is None
                     and not RigNetHelpers._mossy_provides_torch()):
                 import torch

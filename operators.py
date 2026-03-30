@@ -190,7 +190,7 @@ class FO4_OT_OpenShiagurPowerArmorRig(Operator):
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/81279")
-        self.report({'INFO'}, "Opened Nexus Mods — Blender Power Armor Animation Rig by Shiagur")
+        self.report({'INFO'}, "Opened Nexus Mods - Blender Power Armor Animation Rig by Shiagur")
         return {'FINISHED'}
 
 
@@ -202,7 +202,7 @@ class FO4_OT_OpenShiagurAnimRig(Operator):
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/82537")
-        self.report({'INFO'}, "Opened Nexus Mods — Blender Animation Rig & Guide by Shiagur")
+        self.report({'INFO'}, "Opened Nexus Mods - Blender Animation Rig & Guide by Shiagur")
         return {'FINISHED'}
 
 
@@ -214,7 +214,7 @@ class FO4_OT_OpenFBXImporter(Operator):
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/59849")
-        self.report({'INFO'}, "Opened Nexus Mods — FBXImporter by andrelo1")
+        self.report({'INFO'}, "Opened Nexus Mods - FBXImporter by andrelo1")
         return {'FINISHED'}
 
 
@@ -245,29 +245,29 @@ class FO4_OT_ShowShiagurWorkflow(Operator):
                 col.label(text=ln)
 
         # ── Rig downloads ────────────────────────────────────────────────────
-        _box('ARMATURE_DATA', "Step 0 — Download Shiagur's Rig (Nexus Mods — requires free account)", [
+        _box('ARMATURE_DATA', "Step 0 - Download Shiagur's Rig (Nexus Mods - requires free account)", [
             "Power Armor rig:   nexusmods.com/fallout4/mods/81279",
             "1st/3rd person:    nexusmods.com/fallout4/mods/82537",
             "Use the buttons below the guide to open each page.",
         ])
 
         # ── Required tools ───────────────────────────────────────────────────
-        _box('TOOL_SETTINGS', "Step 1 — Install Required Tools", [
-            "• Blender 4.1+             — blender.org  (free)",
-            "• PyNifly (in addon)       — BadDog/BadDogSkyrim  ← RECOMMENDED PATH",
-            "  PyNifly exports HKX natively — no extra tools needed!",
+        _box('TOOL_SETTINGS', "Step 1 - Install Required Tools", [
+            "• Blender 4.1+             - blender.org  (free)",
+            "• PyNifly (in addon)       - BadDog/BadDogSkyrim  ← RECOMMENDED PATH",
+            "  PyNifly exports HKX natively - no extra tools needed!",
             "",
             "Traditional pipeline (if not using PyNifly HKX export):",
-            "• FBXImporter              — nexusmods.com/fallout4/mods/59849",
+            "• FBXImporter              - nexusmods.com/fallout4/mods/59849",
             "  Converts Blender FBX → Havok HKT intermediate format",
             "• Havok Content Tools 2014.1.1 64-bit",
             "  Converts HKT → HKX (community-sourced; no public download)",
-            "• hkxcmd (optional)        — github.com/figment/hkxcmd",
-            "• HKXPack (optional)       — dexesttp.github.io/hkxpack",
+            "• hkxcmd (optional)        - github.com/figment/hkxcmd",
+            "• HKXPack (optional)       - dexesttp.github.io/hkxpack",
         ])
 
         # ── Animation workflow ───────────────────────────────────────────────
-        _box('ANIM', "Step 2 — Create Your Animation in Blender", [
+        _box('ANIM', "Step 2 - Create Your Animation in Blender", [
             "1. Open the .blend rig file from Shiagur's download.",
             "2. Pose and keyframe using Blender's NLA/Action editor.",
             "   • IK/FK toggle panels are included in the rig.",
@@ -277,13 +277,13 @@ class FO4_OT_ShowShiagurWorkflow(Operator):
         ])
 
         # ── Export paths ─────────────────────────────────────────────────────
-        _box('EXPORT', "Step 3 — Export to HKX", [
-            "PATH A — PyNifly (recommended, simplest):",
+        _box('EXPORT', "Step 3 - Export to HKX", [
+            "PATH A - PyNifly (recommended, simplest):",
             "  File > Export > HKX Animation (.hkx)",
             "  Set target_game = FO4, then export directly.",
             "  No FBX conversion step needed.",
             "",
-            "PATH B — FBX → HKT → HKX (traditional):",
+            "PATH B - FBX → HKT → HKX (traditional):",
             "  1. File > Export > FBX (Blender built-in)",
             "     Settings: Apply transforms, Bake animation ON",
             "  2. Run FBXImporter.exe on the exported .fbx",
@@ -294,7 +294,7 @@ class FO4_OT_ShowShiagurWorkflow(Operator):
         ])
 
         # ── Game integration ─────────────────────────────────────────────────
-        _box('GAME', "Step 4 — Add to Fallout 4", [
+        _box('GAME', "Step 4 - Add to Fallout 4", [
             "1. Place .hkx in Data\\Meshes\\Actors\\Character\\Animations\\",
             "   (or relevant subfolder for weapon/power armor)",
             "2. Register the animation in Creation Kit or FO4Edit.",
@@ -331,7 +331,7 @@ class FO4_OT_OpenFOMODCreationTool(Operator):
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/6821")
-        self.report({'INFO'}, "Opened Nexus Mods — FOMOD Creation Tool by Wenderer")
+        self.report({'INFO'}, "Opened Nexus Mods - FOMOD Creation Tool by Wenderer")
         return {'FINISHED'}
 
 
@@ -343,7 +343,7 @@ class FO4_OT_OpenCathedralAssetsOptimizer(Operator):
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/skyrimspecialedition/mods/23316")
-        self.report({'INFO'}, "Opened Nexus Mods — Cathedral Assets Optimizer")
+        self.report({'INFO'}, "Opened Nexus Mods - Cathedral Assets Optimizer")
         return {'FINISHED'}
 
 
@@ -355,7 +355,7 @@ class FO4_OT_OpenFO4Edit(Operator):
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/2737")
-        self.report({'INFO'}, "Opened Nexus Mods — FO4Edit / xEdit")
+        self.report({'INFO'}, "Opened Nexus Mods - FO4Edit / xEdit")
         return {'FINISHED'}
 
 
@@ -406,7 +406,7 @@ class FO4_OT_ShowFOMODGuide(Operator):
             "• Mod Organizer 2 / Vortex   Test your FOMOD before upload.",
         ])
 
-        _box('FILEBROWSER', "Step 1 — Build Your Mod Folder Structure", [
+        _box('FILEBROWSER', "Step 1 - Build Your Mod Folder Structure", [
             "Use 'Create Data/ + FOMOD Folders' button above.",
             "Expected layout:",
             "  MyMod/",
@@ -418,14 +418,14 @@ class FO4_OT_ShowFOMODGuide(Operator):
             "    fomod/        ← info.xml + ModuleConfig.xml",
         ])
 
-        _box('TOOL_SETTINGS', "Step 2 — Edit Plugin in FO4Edit / Creation Kit", [
+        _box('TOOL_SETTINGS', "Step 2 - Edit Plugin in FO4Edit / Creation Kit", [
             "1. Create or edit your .esp / .esm / .esl plugin.",
             "2. Add records: weapons, armor, NPCs, quests, etc.",
             "3. Clean with FO4Edit (Quick Auto Clean) before release.",
             "4. ESL-flag small plugins to save plugin slots (FO4Edit).",
         ])
 
-        _box('IMAGE_DATA', "Step 3 — Optimize Assets (Cathedral Assets Optimizer)", [
+        _box('IMAGE_DATA', "Step 3 - Optimize Assets (Cathedral Assets Optimizer)", [
             "1. Open CAO. Select 'Fallout 4' as target game.",
             "2. Set input folder to Data/textures/ (and/or meshes/).",
             "3. Run optimization: compresses textures to BC7/BC1 DDS,",
@@ -433,7 +433,7 @@ class FO4_OT_ShowFOMODGuide(Operator):
             "4. Optimized files replace originals in-place.",
         ])
 
-        _box('PACKAGE', "Step 4 — Pack into BA2 (Archive2)", [
+        _box('PACKAGE', "Step 4 - Pack into BA2 (Archive2)", [
             "  Archive2.exe Data\\textures\\ -root=Data -format=DX10",
             "    → MyMod - Textures.ba2",
             "  Archive2.exe Data\\meshes\\   -root=Data -format=GNRL",
@@ -441,7 +441,7 @@ class FO4_OT_ShowFOMODGuide(Operator):
             "pack_ba2.bat / .sh scripts are written by 'Create Structure'.",
         ])
 
-        _box('FILE_TICK', "Step 5 — Create FOMOD Installer", [
+        _box('FILE_TICK', "Step 5 - Create FOMOD Installer", [
             "Simple mod (no options):",
             "  Use 'Generate info.xml + ModuleConfig.xml' above.",
             "  Result: always-install single-option installer.",
@@ -451,10 +451,10 @@ class FO4_OT_ShowFOMODGuide(Operator):
             "  Open your fomod/ folder in the tool.",
             "  Add pages, groups, options, conditions, screenshots.",
             "  Supports: plugin detection, flag conditions, BA2 choice.",
-            "  Generates correct XML automatically — no hand-coding needed.",
+            "  Generates correct XML automatically - no hand-coding needed.",
         ])
 
-        _box('EXPORT', "Step 6 — Package & Upload to Nexus", [
+        _box('EXPORT', "Step 6 - Package & Upload to Nexus", [
             "1. Create a .zip or .7z archive of your mod root folder.",
             "2. Test install in MO2 or Vortex before uploading.",
             "3. Upload to nexusmods.com/fallout4.",
@@ -505,7 +505,7 @@ class FO4_OT_OpenCollectiveModdingToolkit(Operator):
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/87441")
-        self.report({'INFO'}, "Opened Nexus — Collective Modding Toolkit by wxMichael")
+        self.report({'INFO'}, "Opened Nexus - Collective Modding Toolkit by wxMichael")
         return {'FINISHED'}
 
 
@@ -521,19 +521,19 @@ class FO4_OT_OpenStoryActionPoses(Operator):
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/58448")
-        self.report({'INFO'}, "Opened Nexus — Story Action Poses by EngineGaming")
+        self.report({'INFO'}, "Opened Nexus - Story Action Poses by EngineGaming")
         return {'FINISHED'}
 
 
 class FO4_OT_OpenAAF(Operator):
     """Open Advanced Animation Framework Nexus page (mod 31304, dagobaking) in browser."""
     bl_idname = "fo4.open_aaf"
-    bl_label  = "Get AAF — Advanced Animation Framework (Nexus)"
+    bl_label  = "Get AAF - Advanced Animation Framework (Nexus)"
 
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/31304")
-        self.report({'INFO'}, "Opened Nexus — Advanced Animation Framework by dagobaking")
+        self.report({'INFO'}, "Opened Nexus - Advanced Animation Framework by dagobaking")
         return {'FINISHED'}
 
 
@@ -545,7 +545,7 @@ class FO4_OT_OpenPoserHotkeys(Operator):
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/45967")
-        self.report({'INFO'}, "Opened Nexus — Poser Hotkeys by opparco")
+        self.report({'INFO'}, "Opened Nexus - Poser Hotkeys by opparco")
         return {'FINISHED'}
 
 
@@ -576,28 +576,28 @@ class FO4_OT_ShowStoryActionPosesGuide(Operator):
         _box('INFO', "What it is", [
             "1,700+ action poses for storytelling, screenshots, and machinima.",
             "Covers standard characters, power armor, and creatures.",
-            "ESL-flagged — consumes no plugin slot in your load order.",
+            "ESL-flagged - consumes no plugin slot in your load order.",
             "NEXT-GEN version (v4.0) at Nexus mod 68000.",
         ])
 
         _box('TOOL_SETTINGS', "Required Tools (install in this order)", [
-            "1. F4SE (Fallout 4 Script Extender)  — f4se.silverlock.org",
+            "1. F4SE (Fallout 4 Script Extender)  - f4se.silverlock.org",
             "   Required by everything below. Launch FO4 via f4se_loader.exe.",
             "",
-            "2. AAF (Advanced Animation Framework)  — Nexus mod 31304",
+            "2. AAF (Advanced Animation Framework)  - Nexus mod 31304",
             "   by dagobaking. Core pose/animation manager.",
             "   Use the buttons below to open each Nexus page.",
             "",
-            "3. Poser Hotkeys  — Nexus mod 45967  by opparco",
+            "3. Poser Hotkeys  - Nexus mod 45967  by opparco",
             "   Trigger poses in-game with arrow keys. Optional but recommended.",
             "",
-            "4. LooksMenu  — Nexus mod 12631  by expired6978",
+            "4. LooksMenu  - Nexus mod 12631  by expired6978",
             "   Required for face/expression control in posed scenes.",
         ])
 
         _box('ANIM', "Optional / Creature Poses", [
-            "Animal Posing Framework — needed for creature/animal poses.",
-            "Story Action Poses NEXT-GEN (v4.0) — Nexus mod 68000",
+            "Animal Posing Framework - needed for creature/animal poses.",
+            "Story Action Poses NEXT-GEN (v4.0) - Nexus mod 68000",
             "  Updated for NG Fallout 4 (post May 2024 patch).",
         ])
 
@@ -636,7 +636,7 @@ class FO4_OT_OpenBodySlideOutfitStudio(Operator):
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/25")
-        self.report({'INFO'}, "Opened Nexus — BodySlide and Outfit Studio by ousnius/Caliente")
+        self.report({'INFO'}, "Opened Nexus - BodySlide and Outfit Studio by ousnius/Caliente")
         return {'FINISHED'}
 
 
@@ -648,7 +648,7 @@ class FO4_OT_OpenCBBE(Operator):
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/15")
-        self.report({'INFO'}, "Opened Nexus — CBBE by Caliente")
+        self.report({'INFO'}, "Opened Nexus - CBBE by Caliente")
         return {'FINISHED'}
 
 
@@ -677,31 +677,31 @@ class FO4_OT_ShowArmorClothingWorkflow(Operator):
                 col.label(text=ln)
 
         _box('TOOL_SETTINGS', "Required Tools", [
-            "• Blender 4.1+            — blender.org",
-            "• PyNifly                 — use 'Auto-Install PyNifly (Latest)' in Setup panel",
+            "• Blender 4.1+            - blender.org",
+            "• PyNifly                 - use 'Auto-Install PyNifly (Latest)' in Setup panel",
             "  Imports/exports NIF meshes with full skeleton support.",
-            "• NifSkope               — github.com/niftools/nifskope",
+            "• NifSkope               - github.com/niftools/nifskope",
             "  Inspect/tweak NIF shader flags and texture paths.",
-            "• BodySlide & Outfit Studio  — Nexus mod 25  (ousnius/Caliente)",
+            "• BodySlide & Outfit Studio  - Nexus mod 25  (ousnius/Caliente)",
             "  Conform armor to CBBE body, create morph sliders for users.",
-            "• CBBE body              — Nexus mod 15  (Caliente)",
+            "• CBBE body              - Nexus mod 15  (Caliente)",
             "  Body reference mesh for fitting and weight transfer.",
-            "• Fallout 4 Creation Kit — Steam → Library → Tools",
+            "• Fallout 4 Creation Kit - Steam → Library → Tools",
             "  Create ArmorAddon + Armor records, set body slots.",
-            "• FO4Edit / xEdit        — Nexus mod 2737",
+            "• FO4Edit / xEdit        - Nexus mod 2737",
             "  Edit plugin records, ESL-flag, clean masters.",
         ])
 
-        _box('MESH_DATA', "Step 1 — Model Your Armor in Blender", [
+        _box('MESH_DATA', "Step 1 - Model Your Armor in Blender", [
             "1. Import body reference (CBBE or vanilla) via PyNifly.",
             "   File > Import > NetImmerse/Gambryo NIF → pick body NIF.",
             "2. Model armor/clothing on top of the reference body.",
-            "   Keep polygons reasonable — FO4 runs best under 5,000 tris/piece.",
+            "   Keep polygons reasonable - FO4 runs best under 5,000 tris/piece.",
             "3. Ensure clean topology: no N-gons, no overlapping UVs.",
             "4. Scale: match existing FO4 armor scale (1 Blender unit = 1 unit).",
         ])
 
-        _box('WPAINT_FACE', "Step 2 — Weight Paint", [
+        _box('WPAINT_FACE', "Step 2 - Weight Paint", [
             "Armor must deform with the body skeleton to animate correctly.",
             "1. Parent armor mesh to the body armature (Ctrl+P > Armature Deform).",
             "2. Use Data Transfer modifier to copy weights from CBBE body:",
@@ -713,7 +713,7 @@ class FO4_OT_ShowArmorClothingWorkflow(Operator):
             "   LCalf, RCalf, LFoot, RFoot.",
         ])
 
-        _box('UV', "Step 3 — UV Unwrap & Textures", [
+        _box('UV', "Step 3 - UV Unwrap & Textures", [
             "1. UV unwrap the armor (Smart UV Project is a good start).",
             "2. Create textures in 512×512, 1024×1024, or 2048×2048:",
             "   _d.dds = diffuse/albedo (BC1 or BC7)",
@@ -722,7 +722,7 @@ class FO4_OT_ShowArmorClothingWorkflow(Operator):
             "3. Use Cathedral Assets Optimizer to compress textures for FO4.",
         ])
 
-        _box('EXPORT', "Step 4 — Export as NIF via PyNifly", [
+        _box('EXPORT', "Step 4 - Export as NIF via PyNifly", [
             "1. Select armor mesh + armature.",
             "2. File > Export > NetImmerse/Gambryo NIF (.nif)",
             "   target_game = FO4",
@@ -733,7 +733,7 @@ class FO4_OT_ShowArmorClothingWorkflow(Operator):
             "   CharacterAssets\\YourMod\\YourArmor.nif",
         ])
 
-        _box('MODIFIER', "Step 5 — Outfit Studio (BodySlide Conforming)", [
+        _box('MODIFIER', "Step 5 - Outfit Studio (BodySlide Conforming)", [
             "1. Open Outfit Studio. File > New Project.",
             "2. Load CBBE body as reference (From Template > CBBE Body).",
             "3. File > Import > From NIF → import your armor NIF.",
@@ -744,12 +744,12 @@ class FO4_OT_ShowArmorClothingWorkflow(Operator):
             "   so users can batch-build your armor to their body shape.",
         ])
 
-        _box('GAME', "Step 6 — Creation Kit (ArmorAddon + Armor Records)", [
+        _box('GAME', "Step 6 - Creation Kit (ArmorAddon + Armor Records)", [
             "1. Open Creation Kit. File > Data > tick your mod .esp.",
             "2. Create ArmorAddon record:",
             "   Actors > Armor > ArmorAddon > New",
             "   Set Male/Female World Model → path to your NIF.",
-            "   Body slots (Biped Object slots) — see slot table below.",
+            "   Body slots (Biped Object slots) - see slot table below.",
             "3. Create Armor record:",
             "   Actors > Armor > Armor > New",
             "   Link to ArmorAddon. Set keywords (ArmorTypePower etc.).",
@@ -781,14 +781,14 @@ class FO4_OT_ShowArmorClothingWorkflow(Operator):
 
 
 class FO4_OT_OpenFO4ArmorBlenderGuide(Operator):
-    """Open mod 17785 — FO4 Armor/Outfit Creation with Blender (free tools guide)."""
+    """Open mod 17785 - FO4 Armor/Outfit Creation with Blender (free tools guide)."""
     bl_idname = "fo4.open_fo4_armor_blender_guide"
     bl_label  = "FO4 Armor/Outfit Blender Guide (Nexus 17785)"
 
     def execute(self, context):
         import webbrowser
         webbrowser.open("https://www.nexusmods.com/fallout4/mods/17785")
-        self.report({'INFO'}, "Opened Nexus — FO4 Armor/Outfit with Blender (free tools guide)")
+        self.report({'INFO'}, "Opened Nexus - FO4 Armor/Outfit with Blender (free tools guide)")
         return {'FINISHED'}
 
 
@@ -926,7 +926,7 @@ class FO4_OT_CleanImportedArmature(Operator):
     """Unparent active mesh from its armature and delete the malformed armature.
 
     Per the mod 17785 guide: FBX bodies exported from Outfit Studio arrive in
-    Blender with a malformed armature. Unparent the mesh and delete it — the
+    Blender with a malformed armature. Unparent the mesh and delete it - the
     body will look correct once freed.
     """
     bl_idname  = "fo4.clean_imported_armature"
@@ -1131,11 +1131,11 @@ class FO4_OT_InstallTexture(Operator):
     texture_type: EnumProperty(
         name="Texture Type",
         items=[
-            ('DIFFUSE',     "Diffuse",          "Diffuse/albedo colour map (_d) — BC1 or BC3 with alpha"),
-            ('NORMAL',      "Normal Map",        "Tangent-space normal map (_n) — BC5 (ATI2)"),
-            ('SPECULAR',    "Specular",          "Specular/smoothness map (_s) — BC1"),
-            ('GLOW',        "Glow/Emissive",     "Glow / emissive mask (_g) — BC1"),
-            ('ENVIRONMENT', "Environment Mask",  "Cube-map environment mask (_e) — BC1"),
+            ('DIFFUSE',     "Diffuse",          "Diffuse/albedo colour map (_d) - BC1 or BC3 with alpha"),
+            ('NORMAL',      "Normal Map",        "Tangent-space normal map (_n) - BC5 (ATI2)"),
+            ('SPECULAR',    "Specular",          "Specular/smoothness map (_s) - BC1"),
+            ('GLOW',        "Glow/Emissive",     "Glow / emissive mask (_g) - BC1"),
+            ('ENVIRONMENT', "Environment Mask",  "Cube-map environment mask (_e) - BC1"),
         ]
     )
     
@@ -2044,7 +2044,7 @@ class FO4_OT_ImageToMesh(Operator):
         description=(
             "How much the bright/dark values of the image raise or lower the "
             "mesh surface.  Keep this low (0.05 – 0.2) for natural-looking "
-            "terrain — high values produce spiky geometry"
+            "terrain - high values produce spiky geometry"
         ),
         default=0.1,
         min=0.0,
@@ -2128,7 +2128,7 @@ class FO4_OT_ApplyDisplacementMap(Operator):
     strength: bpy.props.FloatProperty(
         name="Strength",
         description=(
-            "Displacement strength — keep this low (0.05 – 0.2) to avoid "
+            "Displacement strength - keep this low (0.05 – 0.2) to avoid "
             "overly spiky surfaces"
         ),
         default=0.1,
@@ -2234,7 +2234,7 @@ class FO4_OT_GenerateMeshFromText(Operator):
             bpy.app.timers.register(_finish, first_interval=0.0)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "AI generation started in background — Blender stays responsive")
+        self.report({'INFO'}, "AI generation started in background - Blender stays responsive")
         notification_system.FO4_NotificationSystem.notify(
             "AI generation started…", 'INFO'
         )
@@ -2310,7 +2310,7 @@ class FO4_OT_GenerateMeshFromImageAI(Operator):
             bpy.app.timers.register(_finish, first_interval=0.0)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "AI generation started in background — Blender stays responsive")
+        self.report({'INFO'}, "AI generation started in background - Blender stays responsive")
         notification_system.FO4_NotificationSystem.notify(
             "AI generation started…", 'INFO'
         )
@@ -2517,7 +2517,7 @@ class FO4_OT_StartGradioServer(Operator):
     def execute(self, context):
         # Check if Gradio is available
         if not gradio_helpers.GradioHelpers.is_available():
-            self.report({'ERROR'}, "Gradio not installed — click 'Auto-Install Gradio' in the panel")
+            self.report({'ERROR'}, "Gradio not installed - click 'Auto-Install Gradio' in the panel")
             notification_system.FO4_NotificationSystem.notify(
                 "Gradio not installed. Use 'Auto-Install Gradio' in the Web Interface panel.", 'ERROR'
             )
@@ -2652,7 +2652,7 @@ class FO4_OT_InstallGradio(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing Gradio in background — check console (Window > Toggle System Console)")
+        self.report({'INFO'}, "Installing Gradio in background - check console (Window > Toggle System Console)")
         return {'FINISHED'}
 
 
@@ -2933,7 +2933,7 @@ class FO4_OT_AdvisorAnalyze(Operator):
         import time
         if self._thread and self._thread.is_alive() and time.monotonic() < self._deadline:
                 return {'PASS_THROUGH'}
-            # Hard timeout reached — stop waiting and report what we have
+            # Hard timeout reached - stop waiting and report what we have
         context.window_manager.event_timer_remove(self._timer)
         self._timer = None
         report = self._base_report
@@ -3118,7 +3118,7 @@ class FO4_OT_InstallUEImporter(Operator):
                 print(msg)
                 if ok:
                     # bpy.utils.register_class() cannot be called from a
-                    # background thread — schedule on the main thread via timer.
+                    # background thread - schedule on the main thread via timer.
                     def _finish():
                         ue_importer_helpers.register()
                         _, status_msg = ue_importer_helpers.status()
@@ -3138,7 +3138,7 @@ class FO4_OT_InstallUEImporter(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing UE Importer in background — check console")
+        self.report({'INFO'}, "Installing UE Importer in background - check console")
         return {'FINISHED'}
 
 
@@ -3209,7 +3209,7 @@ class FO4_OT_OpenUModelToolsPage(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Downloading UModel Tools in background — check console")
+        self.report({'INFO'}, "Downloading UModel Tools in background - check console")
         return {'FINISHED'}
 
 
@@ -3251,12 +3251,12 @@ class FO4_OT_InstallUModelTools(Operator):
 
                 all_deps_ok = deps_ok and req_ok
                 final_msg = (
-                    f"{msg} — Python deps installed. "
+                    f"{msg} - Python deps installed. "
                     "UModel Tools downloaded and ready. "
                     "Install it as a Blender addon via "
                     "Edit > Preferences > Add-ons > Install."
                 ) if all_deps_ok else (
-                    f"{msg} — Warning: some Python deps failed to install: {deps_msg}"
+                    f"{msg} - Warning: some Python deps failed to install: {deps_msg}"
                 )
 
                 # Wire any newly discovered tools into prefs immediately
@@ -3268,7 +3268,7 @@ class FO4_OT_InstallUModelTools(Operator):
             notification_system.FO4_NotificationSystem.notify(final_msg, 'INFO')
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing UModel Tools in background — check console")
+        self.report({'INFO'}, "Installing UModel Tools in background - check console")
         return {'FINISHED'}
 
 
@@ -3806,7 +3806,7 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
 
         self.report({'INFO'}, f"FBX exported: {fbx_path}")
 
-        # Attempt Havok2FBX conversion if configured — run in background so
+        # Attempt Havok2FBX conversion if configured - run in background so
         # Blender's UI stays responsive during the conversion (can take ~2 min).
         havok_dir = preferences.get_havok2fbx_path()
         if havok_dir:
@@ -3855,11 +3855,11 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
                     bpy.app.timers.register(_notify, first_interval=0.0)
 
                 threading.Thread(target=_convert, daemon=True).start()
-                self.report({'INFO'}, "HKX conversion started in background — Blender stays responsive")
+                self.report({'INFO'}, "HKX conversion started in background - Blender stays responsive")
             else:
                 self.report({'WARNING'}, f"Havok2FBX binaries missing from {havok_dir}. FBX saved at {fbx_path}")
         else:
-            self.report({'INFO'}, f"Havok2FBX not configured — FBX saved at {fbx_path}. Set the folder in preferences to enable HKX conversion.")
+            self.report({'INFO'}, f"Havok2FBX not configured - FBX saved at {fbx_path}. Set the folder in preferences to enable HKX conversion.")
 
         return {'FINISHED'}
 
@@ -3938,7 +3938,7 @@ class FO4_OT_EnableAddon(Operator):
                     f"Add-on '{self.addon_id}' enabled ✓", 'INFO'
                 )
             else:
-                self.report({'WARNING'}, f"Could not enable '{self.addon_id}' — it may not be installed")
+                self.report({'WARNING'}, f"Could not enable '{self.addon_id}' - it may not be installed")
         except Exception as exc:
             self.report({'ERROR'}, f"Could not enable '{self.addon_id}': {exc}")
         return {'FINISHED'}
@@ -3959,14 +3959,14 @@ class FO4_OT_ConfigureFallout4Settings(Operator):
         # Check PyNifly installation (primary / recommended exporter)
         pynifly_ok, pynifly_msg = export_helpers.ExportHelpers.pynifly_exporter_available()
         if pynifly_ok:
-            messages.append("✓ PyNifly ready — primary NIF exporter (BadDog / BadDogSkyrim)")
+            messages.append("✓ PyNifly ready - primary NIF exporter (BadDog / BadDogSkyrim)")
         else:
-            messages.append(f"⚠ PyNifly not installed — use 'Auto-Install PyNifly (Latest)' button")
+            messages.append(f"⚠ PyNifly not installed - use 'Auto-Install PyNifly (Latest)' button")
             messages.append(f"  {pynifly_msg}")
             # Check Niftools as fallback
             nif_available, nif_msg = export_helpers.ExportHelpers.nif_exporter_available()
             if nif_available:
-                messages.append("✓ Niftools v0.1.1 found (fallback exporter — NIF 20.2.0.7, BSTriShape)")
+                messages.append("✓ Niftools v0.1.1 found (fallback exporter - NIF 20.2.0.7, BSTriShape)")
             else:
                 messages.append(f"⚠ Niftools v0.1.1 also not installed: {nif_msg}")
                 messages.append("  Native NIF writer will be used as last-resort fallback.")
@@ -4171,7 +4171,7 @@ class FO4_OT_ConvertToFallout4(Operator):
 
 
 # FO4_OT_InstallPythonDeps is defined in setup_operators.py and registered
-# before this module.  Do NOT redefine it here — a duplicate class body with
+# before this module.  Do NOT redefine it here - a duplicate class body with
 # the same bl_idname causes Blender's metaclass to displace the already-
 # registered version on every module reload, making the N-panel button vanish.
 
@@ -4258,7 +4258,7 @@ class FO4_OT_RunAllInstallers(Operator):
 
 
 # FO4_OT_SelfTest is defined in setup_operators.py and registered before this
-# module.  Do NOT redefine it here — see the FO4_OT_InstallPythonDeps comment
+# module.  Do NOT redefine it here - see the FO4_OT_InstallPythonDeps comment
 # above for the same reason.
 
 # Real-ESRGAN Operators
@@ -4526,7 +4526,7 @@ class FO4_OT_InstallUpscalerDeps(Operator):
     to installing the Python package stack (PyTorch CPU + basicsr +
     realesrgan, ~400 MB) if the binary download fails.
 
-    Runs entirely in the background — Blender stays responsive.
+    Runs entirely in the background - Blender stays responsive.
     A notification pops up when the installation is complete."""
     bl_idname = "fo4.install_upscaler_deps"
     bl_label = "Install AI Upscaler"
@@ -4601,7 +4601,7 @@ class FO4_OT_InstallInstantNGP(Operator):
         threading.Thread(target=_run, daemon=True).start()
         self.report(
             {'INFO'},
-            "Cloning Instant-NGP in the background — check the Blender console "
+            "Cloning Instant-NGP in the background - check the Blender console "
             "(Window > Toggle System Console) for progress."
         )
         return {'FINISHED'}
@@ -4636,7 +4636,7 @@ class FO4_OT_InstallShapE(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing Shap-E in background — check console (Window > Toggle System Console)")
+        self.report({'INFO'}, "Installing Shap-E in background - check console (Window > Toggle System Console)")
         return {'FINISHED'}
 
 
@@ -4667,7 +4667,7 @@ class FO4_OT_InstallPointE(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing Point-E in background — check console")
+        self.report({'INFO'}, "Installing Point-E in background - check console")
         return {'FINISHED'}
 
 
@@ -4692,7 +4692,7 @@ class FO4_OT_InstallDiffusers(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing Diffusers in background — check console")
+        self.report({'INFO'}, "Installing Diffusers in background - check console")
         return {'FINISHED'}
 
 
@@ -4723,7 +4723,7 @@ class FO4_OT_InstallLibigl(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing libigl in background — check console")
+        self.report({'INFO'}, "Installing libigl in background - check console")
         return {'FINISHED'}
 
 
@@ -4755,7 +4755,7 @@ class FO4_OT_InstallZoeDepth(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing ZoeDepth in background — check console")
+        self.report({'INFO'}, "Installing ZoeDepth in background - check console")
         return {'FINISHED'}
 
 
@@ -4787,7 +4787,7 @@ class FO4_OT_InstallTripoSR(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing TripoSR in background — check console")
+        self.report({'INFO'}, "Installing TripoSR in background - check console")
         return {'FINISHED'}
 
 
@@ -4818,7 +4818,7 @@ class FO4_OT_InstallHunyuan3D(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing Hunyuan3D-2 in background — check console")
+        self.report({'INFO'}, "Installing Hunyuan3D-2 in background - check console")
         return {'FINISHED'}
 
 
@@ -4843,7 +4843,7 @@ class FO4_OT_InstallHyMotion(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing HY-Motion in background — check console")
+        self.report({'INFO'}, "Installing HY-Motion in background - check console")
         return {'FINISHED'}
 
 
@@ -4868,7 +4868,7 @@ class FO4_OT_InstallMotionGeneration(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing MotionDiffuse in background — check console")
+        self.report({'INFO'}, "Installing MotionDiffuse in background - check console")
         return {'FINISHED'}
 
 
@@ -4899,7 +4899,7 @@ class FO4_OT_InstallRigNet(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, level)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Installing RigNet in background — check console")
+        self.report({'INFO'}, "Installing RigNet in background - check console")
         return {'FINISHED'}
 
 
@@ -5360,10 +5360,10 @@ def _instantngp_status_report(message: str) -> str:
     """
     msg_lower = message.lower()
     if "source found" in msg_lower or "already cloned" in msg_lower:
-        return "Instant-NGP source found — needs building (see console for cmake instructions)"
+        return "Instant-NGP source found - needs building (see console for cmake instructions)"
     if "already built" in msg_lower or "instant-ngp ready" in msg_lower:
         return "Instant-NGP is ready"
-    return "Instant-NGP not found — see console for install instructions"
+    return "Instant-NGP not found - see console for install instructions"
 
 
 class FO4_OT_ReconstructFromImages(Operator):
@@ -6820,7 +6820,7 @@ class FO4_OT_DecimateToFO4(Operator):
         target = context.scene.fo4_imageto3d_target_poly
 
         if not advanced_mesh_helpers:
-            self.report({'ERROR'}, "advanced_mesh_helpers unavailable — restart Blender")
+            self.report({'ERROR'}, "advanced_mesh_helpers unavailable - restart Blender")
             return {'CANCELLED'}
 
         current = len(obj.data.polygons)
@@ -7182,7 +7182,7 @@ class FO4_OT_OptimizeUVs(Operator):
         items=[
             ('MIN_STRETCH', "Minimum Stretch",
              "CONFORMAL (LSCM) initial layout + minimize_stretch to convergence "
-             "(100 iterations) — lowest distortion, best texture match; "
+             "(100 iterations) - lowest distortion, best texture match; "
              "Blender's recommended method for accuracy"),
             ('SMART', "Smart UV Project",
              "Automatic seam detection – recommended for most meshes"),
@@ -7236,7 +7236,7 @@ class FO4_OT_SetupUVWithTexture(Operator):
     """One-click UV unwrap + texture binding for Fallout 4 NIF export.
 
     Creates (or keeps) a UV map, unwraps the mesh, sets up a full FO4
-    PBR material node tree, and binds the selected texture — all in one
+    PBR material node tree, and binds the selected texture - all in one
     step. The viewport is automatically switched to Material Preview so
     you can see the result immediately. Use 'Edit UV Map' to fine-tune
     UV islands if the texture does not sit correctly."""
@@ -7273,7 +7273,7 @@ class FO4_OT_SetupUVWithTexture(Operator):
         items=[
             ('MIN_STRETCH', "Minimum Stretch",
              "CONFORMAL (LSCM) initial layout + minimize_stretch to convergence "
-             "(100 iterations) — lowest distortion, best texture match; "
+             "(100 iterations) - lowest distortion, best texture match; "
              "Blender's recommended method for accuracy"),
             ('SMART',    "Smart UV Project",
              "Automatic seam detection – best for most meshes (recommended default)"),
@@ -7348,7 +7348,7 @@ class FO4_OT_ReUnwrapUV(Operator):
     """Re-unwrap the active mesh's UV map without changing its material or textures.
 
     Use this when the initial unwrap did not look right. Texture bindings
-    are preserved — only the UV coordinates are recalculated."""
+    are preserved - only the UV coordinates are recalculated."""
     bl_idname = "fo4.re_unwrap_uv"
     bl_label = "Re-Unwrap UV"
     bl_options = {'REGISTER', 'UNDO'}
@@ -7359,7 +7359,7 @@ class FO4_OT_ReUnwrapUV(Operator):
         items=[
             ('MIN_STRETCH', "Minimum Stretch",
              "CONFORMAL (LSCM) initial layout + minimize_stretch to convergence "
-             "(100 iterations) — lowest distortion, best texture match; "
+             "(100 iterations) - lowest distortion, best texture match; "
              "Blender's recommended method for accuracy"),
             ('SMART', "Smart UV Project",
              "Automatic seam detection – recommended for most meshes"),
@@ -7427,7 +7427,7 @@ class FO4_OT_OpenUVEditing(Operator):
             return {'CANCELLED'}
 
         if not obj.data.uv_layers:
-            self.report({'ERROR'}, "Object has no UV map — run 'Setup UV + Texture' first")
+            self.report({'ERROR'}, "Object has no UV map - run 'Setup UV + Texture' first")
             return {'CANCELLED'}
 
         # Switch to Edit Mode with all geometry selected so UV islands appear
@@ -7516,7 +7516,7 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
         import time
         if self._thread and self._thread.is_alive() and time.monotonic() < self._deadline:
             return {'PASS_THROUGH'}
-        # Hard timeout reached — stop waiting and use whatever result we have
+        # Hard timeout reached - stop waiting and use whatever result we have
         context.window_manager.event_timer_remove(self._timer)
         self._timer = None
         self._display_result()
@@ -7525,9 +7525,9 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
     def _display_result(self):
         advice = self._result
         if advice:
-            self.report({'INFO'}, "Mossy responded — see Blender console for full advice")
+            self.report({'INFO'}, "Mossy responded - see Blender console for full advice")
             print("\n" + "=" * 60)
-            print(f"MOSSY UV/TEXTURE ADVICE — {self._obj_name}")
+            print(f"MOSSY UV/TEXTURE ADVICE - {self._obj_name}")
             print("=" * 60)
             print(advice)
             print("=" * 60 + "\n")
@@ -7536,7 +7536,7 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
                 'INFO'
             )
         else:
-            # Mossy unavailable — fall back to built-in rules analysis
+            # Mossy unavailable - fall back to built-in rules analysis
             analysis = self._analysis or {}
             issues = analysis.get("issues", [])
             suggestions = analysis.get("suggestions", [])
@@ -7554,18 +7554,18 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
 
             full = "\n".join(lines)
             print("\n" + "=" * 60)
-            print(f"UV/TEXTURE ANALYSIS — {self._obj_name}")
+            print(f"UV/TEXTURE ANALYSIS - {self._obj_name}")
             print("=" * 60)
             print(full)
-            print("(Mossy not available — showing built-in analysis)")
+            print("(Mossy not available - showing built-in analysis)")
             print("=" * 60 + "\n")
-            self.report({'INFO'}, lines[0] if lines else "Analysis complete — see console")
+            self.report({'INFO'}, lines[0] if lines else "Analysis complete - see console")
 
 
 class FO4_OT_MossyAutoFix(Operator):
     """Ask Mossy's AI to automatically fix mesh export issues.
 
-    Sends a validation report to Mossy (running locally — no API key needed),
+    Sends a validation report to Mossy (running locally - no API key needed),
     which decides the correct Blender operations to run to automatically fix
     your mesh for Fallout 4 NIF export."""
     bl_idname = "fo4.mossy_auto_fix"
@@ -7634,7 +7634,7 @@ class FO4_OT_MossyAutoFix(Operator):
         import time
         if self._thread and self._thread.is_alive() and time.monotonic() < self._deadline:
             return {'PASS_THROUGH'}
-        # Hard timeout reached — stop waiting and use whatever result we have
+        # Hard timeout reached - stop waiting and use whatever result we have
         context.window_manager.event_timer_remove(self._timer)
         self._timer = None
 
@@ -7679,9 +7679,9 @@ class FO4_OT_MossyAutoFix(Operator):
 # These three operators implement the semi-automatic workflow for complex
 # meshes (plants, foliage, armour with many panels, etc.) where neither pure
 # automation nor pure manual work gives optimal results.  The intended steps:
-#   1. FO4_OT_ScanUVComplexity  — understand how hard the mesh is to unwrap
-#   2. FO4_OT_SmartSeamMark     — auto-mark seams, then refine interactively
-#   3. FO4_OT_HybridUnwrap      — finalise with MIN_STRETCH, honouring seams
+#   1. FO4_OT_ScanUVComplexity  - understand how hard the mesh is to unwrap
+#   2. FO4_OT_SmartSeamMark     - auto-mark seams, then refine interactively
+#   3. FO4_OT_HybridUnwrap      - finalise with MIN_STRETCH, honouring seams
 # ─────────────────────────────────────────────────────────────────────────────
 
 class FO4_OT_ScanUVComplexity(Operator):
@@ -7708,7 +7708,7 @@ class FO4_OT_ScanUVComplexity(Operator):
 
         # Always print the full report to the console
         print("\n" + "=" * 60)
-        print(f"UV COMPLEXITY SCAN — {obj.name}")
+        print(f"UV COMPLEXITY SCAN - {obj.name}")
         print("=" * 60)
         print(f"  Complexity score : {score}/100")
         print(f"  Seam candidates  : {report['seam_candidates']}")
@@ -7727,7 +7727,7 @@ class FO4_OT_ScanUVComplexity(Operator):
         first_rec = recs[0] if recs else "See console for full report."
         self.report(
             {level},
-            f"Complexity {score}/100 — {first_rec}"
+            f"Complexity {score}/100 - {first_rec}"
         )
         notification_system.FO4_NotificationSystem.notify(
             f"UV scan: {score}/100. See console.", level
@@ -7809,7 +7809,7 @@ class FO4_OT_SmartSeamMark(Operator):
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='DESELECT')
 
-        # Switch to edge-select mode — the natural mode for seam editing
+        # Switch to edge-select mode - the natural mode for seam editing
         bpy.context.tool_settings.mesh_select_mode = (False, True, False)
 
         # Navigate to UV Editing workspace if it exists so the seam preview
@@ -7836,7 +7836,7 @@ class FO4_OT_HybridUnwrap(Operator):
 
     Runs the full Minimum Stretch pipeline (CONFORMAL initial layout +
     uv.minimize_stretch convergence pass) but does NOT reset the seams you
-    have placed — every island boundary set by 'Scan & Mark Seams' or by
+    have placed - every island boundary set by 'Scan & Mark Seams' or by
     hand is respected.  The result is the lowest-distortion unwrap achievable
     for your seam layout.
 
@@ -7897,7 +7897,7 @@ class FO4_OT_HybridUnwrap(Operator):
             # mesh data are automatically honoured by uv.unwrap.
             bpy.ops.uv.unwrap(method='CONFORMAL', margin=self.island_margin)
 
-            # Iterative relaxation — minimises stretch in every island.
+            # Iterative relaxation - minimises stretch in every island.
             try:
                 bpy.ops.uv.minimize_stretch(
                     fill_holes=True, iterations=self.stretch_iterations
@@ -7928,7 +7928,7 @@ class FO4_OT_HybridUnwrap(Operator):
                 break
 
         msg = (
-            "Hybrid Unwrap complete — Minimum Stretch applied, seams preserved. "
+            "Hybrid Unwrap complete - Minimum Stretch applied, seams preserved. "
             "Use 'Edit UV Map' to inspect islands, then export with "
             "'Export Mesh (.nif)'."
         )
@@ -7942,9 +7942,9 @@ class FO4_OT_HybridUnwrap(Operator):
 
 # ── Face-Selective UV Unwrap Operators ──────────────────────────────────────
 # These two operators implement the face-picking workflow the user requested:
-#   1. FO4_OT_PickFacesForUnwrap   — enter Face Select in Edit Mode so the
+#   1. FO4_OT_PickFacesForUnwrap   - enter Face Select in Edit Mode so the
 #      user can click individual faces to choose what gets unwrapped.
-#   2. FO4_OT_UnwrapSelectedFaces  — apply Minimum Stretch UV unwrap to only
+#   2. FO4_OT_UnwrapSelectedFaces  - apply Minimum Stretch UV unwrap to only
 #      the currently selected faces, leaving the rest of the UV map intact.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -7958,7 +7958,7 @@ class FO4_OT_PickFacesForUnwrap(Operator):
 
     Tip: hold Shift while clicking to add faces to the selection.  Press A to
     select all, Alt+A to deselect all.  When you are done, click 'Unwrap
-    Selected Faces' — you do NOT need to exit Edit Mode first."""
+    Selected Faces' - you do NOT need to exit Edit Mode first."""
     bl_idname = "fo4.pick_faces_for_unwrap"
     bl_label = "Pick Faces to Unwrap"
     bl_options = {'REGISTER', 'UNDO'}
@@ -7986,7 +7986,7 @@ class FO4_OT_PickFacesForUnwrap(Operator):
 
         self.report(
             {'INFO'},
-            "Face Select active — click faces to select them, then click "
+            "Face Select active - click faces to select them, then click "
             "'Unwrap Selected Faces'."
         )
         return {'FINISHED'}
@@ -8041,7 +8041,7 @@ class FO4_OT_UnwrapSelectedFaces(Operator):
             self.report({'ERROR'}, "Select a mesh object first")
             return {'CANCELLED'}
 
-        # Must be in Edit Mode — enter it if the user clicked from Object Mode
+        # Must be in Edit Mode - enter it if the user clicked from Object Mode
         if context.mode != 'EDIT_MESH':
             if obj.type == 'MESH':
                 bpy.ops.object.mode_set(mode='EDIT')
@@ -8055,7 +8055,7 @@ class FO4_OT_UnwrapSelectedFaces(Operator):
         # Ensure Face Select so the unwrap operates on the visible selection
         bpy.context.tool_settings.mesh_select_mode = (False, False, True)
 
-        # Create a UV layer if needed — the unwrap operator requires one
+        # Create a UV layer if needed - the unwrap operator requires one
         if not obj.data.uv_layers:
             bpy.ops.object.mode_set(mode='OBJECT')
             obj.data.uv_layers.new(name="UVMap")
@@ -8065,7 +8065,7 @@ class FO4_OT_UnwrapSelectedFaces(Operator):
         # CONFORMAL (LSCM) gives the best analytical starting point
         bpy.ops.uv.unwrap(method='CONFORMAL', margin=self.island_margin)
 
-        # Iterative relaxation — minimises stretch in every island
+        # Iterative relaxation - minimises stretch in every island
         try:
             bpy.ops.uv.minimize_stretch(
                 fill_holes=True, iterations=self.stretch_iterations
@@ -8281,7 +8281,7 @@ class FO4_OT_SetFO4SubPath(Operator):
     bl_idname = "fo4.set_fo4_sub_path"
     bl_label = "Set FO4 Sub-Folder"
     bl_description = (
-        "Choose the folder for this asset type — the path is saved directly "
+        "Choose the folder for this asset type - the path is saved directly "
         "in the scene so you can use it straight away without opening Preferences"
     )
 
@@ -8574,7 +8574,7 @@ class FO4_OT_PrepareThirdPartyMesh(Operator):
         name="Apply Rotation & Scale",
         description=(
             "Apply rotation and scale (required for correct NIF export). "
-            "Location is intentionally left as-is — FO4 meshes are positioned via the NIF node transform"
+            "Location is intentionally left as-is - FO4 meshes are positioned via the NIF node transform"
         ),
         default=True,
     )
@@ -9111,7 +9111,7 @@ class FO4_OT_CreateWeaponPreset(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — preset cancelled (no game mesh)")
+                self.report({'ERROR'}, f"{msg} - preset cancelled (no game mesh)")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.weapon_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -9159,7 +9159,7 @@ class FO4_OT_CreateArmorPreset(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — preset cancelled (no game mesh)")
+                self.report({'ERROR'}, f"{msg} - preset cancelled (no game mesh)")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.armor_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -9206,7 +9206,7 @@ class FO4_OT_CreatePropPreset(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — preset cancelled (no game mesh)")
+                self.report({'ERROR'}, f"{msg} - preset cancelled (no game mesh)")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.prop_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -9497,7 +9497,7 @@ class FO4_OT_CreateVegetationPreset(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.vegetation_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -9516,10 +9516,10 @@ class FO4_OT_CreateVegetationPreset(Operator):
         try:
             ready, _ = fo4_game_assets.FO4GameAssets.get_status()
             if ready:
-                box.label(text="Game files found — real mesh will be imported",
+                box.label(text="Game files found - real mesh will be imported",
                           icon='CHECKMARK')
             else:
-                box.label(text="Game files not found — set path to import real mesh",
+                box.label(text="Game files not found - set path to import real mesh",
                           icon='INFO')
                 sub = box.column(align=True)
                 sub.scale_y = 0.8
@@ -10330,7 +10330,7 @@ class FO4_OT_CreateNPC(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.npc_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -10374,7 +10374,7 @@ class FO4_OT_CreateCreature(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.creature_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -10418,7 +10418,7 @@ class FO4_OT_CreateInteriorCell(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.cell_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -10502,7 +10502,7 @@ class FO4_OT_CreateWorkshopObject(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.object_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -10580,7 +10580,7 @@ class FO4_OT_CreateWeaponItem(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.weapon_category}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -10623,7 +10623,7 @@ class FO4_OT_CreateArmorItem(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.armor_slot}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -10667,7 +10667,7 @@ class FO4_OT_CreatePowerArmorPiece(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.piece}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -10709,7 +10709,7 @@ class FO4_OT_CreateConsumable(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.item_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -10752,7 +10752,7 @@ class FO4_OT_CreateMiscItem(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.item_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -10794,7 +10794,7 @@ class FO4_OT_CreateClutterObject(Operator):
                     self.report({'INFO'}, msg)
                     notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
                     return {'FINISHED'}
-                self.report({'ERROR'}, f"{msg} — game mesh import failed")
+                self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
 
             self.report({'ERROR'}, f"No game mesh found for {self.clutter_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
@@ -11497,7 +11497,7 @@ class FO4_OT_GenerateShapEText(Operator):
             bpy.app.timers.register(_finish, first_interval=0.0)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Shap-E generation started in background — Blender stays responsive")
+        self.report({'INFO'}, "Shap-E generation started in background - Blender stays responsive")
         notification_system.FO4_NotificationSystem.notify(
             f"Generating with Shap-E: {prompt}…", 'INFO'
         )
@@ -11564,7 +11564,7 @@ class FO4_OT_GenerateShapEImage(Operator):
             bpy.app.timers.register(_finish, first_interval=0.0)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Shap-E generation started in background — Blender stays responsive")
+        self.report({'INFO'}, "Shap-E generation started in background - Blender stays responsive")
         notification_system.FO4_NotificationSystem.notify(
             "Generating with Shap-E from image…", 'INFO'
         )
@@ -11592,7 +11592,7 @@ class FO4_OT_CheckPointEInstallation(Operator):
     def execute(self, context):
         _pe = _get_point_e_cls()
         if _pe is None:
-            self.report({'ERROR'}, "Point-E helpers not available — try restarting Blender")
+            self.report({'ERROR'}, "Point-E helpers not available - try restarting Blender")
             return {'CANCELLED'}
         is_installed, message = _pe.is_point_e_installed()
         
@@ -11619,7 +11619,7 @@ class FO4_OT_ShowPointEInfo(Operator):
     def execute(self, context):
         _pe = _get_point_e_cls()
         if _pe is None:
-            self.report({'ERROR'}, "Point-E helpers not available — try restarting Blender")
+            self.report({'ERROR'}, "Point-E helpers not available - try restarting Blender")
             return {'CANCELLED'}
         instructions = _pe.get_installation_instructions()
         
@@ -11645,7 +11645,7 @@ class FO4_OT_GeneratePointEText(Operator):
         # Check if Point-E is installed
         _pe = _get_point_e_cls()
         if _pe is None:
-            self.report({'ERROR'}, "Point-E helpers not available — try restarting Blender")
+            self.report({'ERROR'}, "Point-E helpers not available - try restarting Blender")
             return {'CANCELLED'}
         is_installed, message = _pe.is_point_e_installed()
         if not is_installed:
@@ -11696,7 +11696,7 @@ class FO4_OT_GeneratePointEText(Operator):
             bpy.app.timers.register(_finish, first_interval=0.0)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Point-E generation started in background — Blender stays responsive")
+        self.report({'INFO'}, "Point-E generation started in background - Blender stays responsive")
         notification_system.FO4_NotificationSystem.notify(
             f"Generating with Point-E: {prompt}…", 'INFO'
         )
@@ -11715,7 +11715,7 @@ class FO4_OT_GeneratePointEImage(Operator):
         # Check if Point-E is installed
         _pe = _get_point_e_cls()
         if _pe is None:
-            self.report({'ERROR'}, "Point-E helpers not available — try restarting Blender")
+            self.report({'ERROR'}, "Point-E helpers not available - try restarting Blender")
             return {'CANCELLED'}
         is_installed, message = _pe.is_point_e_installed()
         if not is_installed:
@@ -11771,7 +11771,7 @@ class FO4_OT_GeneratePointEImage(Operator):
             bpy.app.timers.register(_finish, first_interval=0.0)
 
         threading.Thread(target=_run, daemon=True).start()
-        self.report({'INFO'}, "Point-E generation started in background — Blender stays responsive")
+        self.report({'INFO'}, "Point-E generation started in background - Blender stays responsive")
         notification_system.FO4_NotificationSystem.notify(
             "Generating with Point-E from image…", 'INFO'
         )
@@ -11796,7 +11796,7 @@ class FO4_OT_ClearOperationLog(Operator):
 
 
 # FO4_OT_ReloadAddon is defined in setup_operators.py and registered before
-# this module.  Do NOT redefine it here — see the FO4_OT_InstallPythonDeps
+# this module.  Do NOT redefine it here - see the FO4_OT_InstallPythonDeps
 # comment above for the same reason.
 
 
@@ -12777,10 +12777,10 @@ class FO4_OT_InstallPyNifly(Operator):
     then installed directly into Blender as an add-on.
 
     PyNifly (by BadDog) is the recommended NIF exporter for Blender 4.x and
-    5.x — it supports Fallout 4, Skyrim SE, and Starfield with full body-morph
+    5.x - it supports Fallout 4, Skyrim SE, and Starfield with full body-morph
     and material path support.
 
-    Credit: BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly
+    Credit: BadDog (BadDogSkyrim) - https://github.com/BadDogSkyrim/PyNifly
     """
     bl_idname = "fo4.install_pynifly"
     bl_label = "Auto-Install PyNifly (Latest)"
@@ -12962,10 +12962,10 @@ classes = (
     FO4_OT_InstallNiftools,
     FO4_OT_EnableAddon,
     FO4_OT_ConfigureFallout4Settings,
-    # FO4_OT_InstallPythonDeps — moved to setup_operators.py (registered before this module)
+    # FO4_OT_InstallPythonDeps - moved to setup_operators.py (registered before this module)
     FO4_OT_CheckToolPaths,
     FO4_OT_RunAllInstallers,
-    # FO4_OT_SelfTest — moved to setup_operators.py (registered before this module)
+    # FO4_OT_SelfTest - moved to setup_operators.py (registered before this module)
     FO4_OT_UpscaleTexture,
     FO4_OT_UpscaleObjectTextures,
     FO4_OT_UpscaleKREALegacy,
@@ -13096,7 +13096,7 @@ classes = (
     # Operation log
     FO4_OT_ClearOperationLog,
     # Add-on self-update / reload
-    # FO4_OT_ReloadAddon — moved to setup_operators.py (registered before this module)
+    # FO4_OT_ReloadAddon - moved to setup_operators.py (registered before this module)
     # Mod folder import/export
     FO4_OT_ImportModFolder,
     FO4_OT_ExportModFolder,
@@ -13441,9 +13441,9 @@ def register():
             name="Game Version",
             description="Target Fallout 4 game version (affects NIF flags and dependencies)",
             items=[
-                ('FO4',   "Fallout 4 (OG)",                    "Original Fallout 4 (pre-Next-Gen patch) — NIF 20.2.0.7, bsver 130, BSTriShape, target_game=FO4"),
-                ('FO4NG', "Fallout 4 Next-Gen",                 "Next-Gen / free update (May 2024 patch) — same NIF format as OG; requires updated F4SE and mods"),
-                ('FO4AE', "Fallout 4 AE (Anniversary Edition)", "Anniversary Edition — same NIF 20.2.0.7 / bsver 130 / BSTriShape as OG & NG; supports ESL plugins; requires latest F4SE"),
+                ('FO4',   "Fallout 4 (OG)",                    "Original Fallout 4 (pre-Next-Gen patch) - NIF 20.2.0.7, bsver 130, BSTriShape, target_game=FO4"),
+                ('FO4NG', "Fallout 4 Next-Gen",                 "Next-Gen / free update (May 2024 patch) - same NIF format as OG; requires updated F4SE and mods"),
+                ('FO4AE', "Fallout 4 AE (Anniversary Edition)", "Anniversary Edition - same NIF 20.2.0.7 / bsver 130 / BSTriShape as OG & NG; supports ESL plugins; requires latest F4SE"),
             ],
             default='FO4',
         )
@@ -13469,17 +13469,17 @@ def register():
                         "Controls root node, BSXFlags, shader flags, and skinning.",
             items=[
                 ('AUTO',         "Auto-detect",    "Classify automatically from armature / name / material"),
-                ('STATIC',       "Static",         "Non-animated world object — BSFadeNode root, BSTriShape, no skinning"),
-                ('SKINNED',      "Skinned",        "Character / creature mesh — NiNode root, BSSubIndexTriShape, BSSkin::Instance"),
-                ('ARMOR',        "Armor",          "Wearable armor — NiNode root, BSSubIndexTriShape, BSSkin::Instance, Skinned SF1"),
-                ('ANIMATED',     "Animated",       "Animated prop — NiNode with NiKeyframeController"),
-                ('LOD',          "LOD",            "Level-of-detail mesh — BSFadeNode root, reduced poly, same flags as Static"),
-                ('VEGETATION',   "Vegetation",     "Tree / bush / plant — BSFadeNode root, Two_Sided SF2, Alpha Clip material"),
-                ('FURNITURE',    "Furniture",      "Sit/activate furniture — NiNode root, BSXFlags Animated (1), CK markers"),
-                ('WEAPON',       "Weapon",         "Held weapon — NiNode root, no vertex skinning, attach via named bone"),
-                ('ARCHITECTURE', "Architecture",   "Building / wall — BSFadeNode root, BSXFlags Has-Havok (2), collision required"),
-                ('FLORA',        "Flora",          "Harvestable flora — BSFadeNode root, Alpha Clip, harvest node required"),
-                ('DEBRIS',       "Debris",         "Small physics debris — BSFadeNode root, BSXFlags Has-Havok (2)"),
+                ('STATIC',       "Static",         "Non-animated world object - BSFadeNode root, BSTriShape, no skinning"),
+                ('SKINNED',      "Skinned",        "Character / creature mesh - NiNode root, BSSubIndexTriShape, BSSkin::Instance"),
+                ('ARMOR',        "Armor",          "Wearable armor - NiNode root, BSSubIndexTriShape, BSSkin::Instance, Skinned SF1"),
+                ('ANIMATED',     "Animated",       "Animated prop - NiNode with NiKeyframeController"),
+                ('LOD',          "LOD",            "Level-of-detail mesh - BSFadeNode root, reduced poly, same flags as Static"),
+                ('VEGETATION',   "Vegetation",     "Tree / bush / plant - BSFadeNode root, Two_Sided SF2, Alpha Clip material"),
+                ('FURNITURE',    "Furniture",      "Sit/activate furniture - NiNode root, BSXFlags Animated (1), CK markers"),
+                ('WEAPON',       "Weapon",         "Held weapon - NiNode root, no vertex skinning, attach via named bone"),
+                ('ARCHITECTURE', "Architecture",   "Building / wall - BSFadeNode root, BSXFlags Has-Havok (2), collision required"),
+                ('FLORA',        "Flora",          "Harvestable flora - BSFadeNode root, Alpha Clip, harvest node required"),
+                ('DEBRIS',       "Debris",         "Small physics debris - BSFadeNode root, BSXFlags Has-Havok (2)"),
             ],
             default='AUTO',
         )
@@ -13495,7 +13495,7 @@ def register():
         )
         bpy.types.Scene.fo4_mossy_token = bpy.props.StringProperty(
             name="Mossy Auth Token",
-            description="Optional auth token — must match the token set in Mossy",
+            description="Optional auth token - must match the token set in Mossy",
             default="", subtype='PASSWORD',
         )
         bpy.types.Scene.fo4_mossy_autostart = bpy.props.BoolProperty(
@@ -13544,9 +13544,9 @@ def register():
             name="Generation Quality",
             description="Trade-off between speed and mesh detail for AI generation",
             items=[
-                ('DRAFT',    "Draft  (fastest)",   "Lowest resolution — use for quick previews"),
-                ('BALANCED', "Balanced",            "Good quality / reasonable time — recommended starting point"),
-                ('HIGH',     "High  (slower)",      "Best detail — use when the mesh looks too blobby"),
+                ('DRAFT',    "Draft  (fastest)",   "Lowest resolution - use for quick previews"),
+                ('BALANCED', "Balanced",            "Good quality / reasonable time - recommended starting point"),
+                ('HIGH',     "High  (slower)",      "Best detail - use when the mesh looks too blobby"),
             ],
             default='BALANCED',
         )

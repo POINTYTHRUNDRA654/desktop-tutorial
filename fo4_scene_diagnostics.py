@@ -364,7 +364,7 @@ class SceneDiagnostics:
         # Loose vertices
         # MeshVertex.link_edges only exists on BMVert (bmesh API), not on the
         # regular Mesh.vertices collection.  Build the set of edge-connected
-        # vertex indices from mesh.edges instead — works on all Blender versions.
+        # vertex indices from mesh.edges instead - works on all Blender versions.
         _verts_with_edges: set[int] = set()
         for _e in mesh.edges:
             _verts_with_edges.add(_e.vertices[0])

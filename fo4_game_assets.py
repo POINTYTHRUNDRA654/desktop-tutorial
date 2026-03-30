@@ -35,7 +35,7 @@ class FO4GameAssets:
 
     _game_dir: Optional[Path] = None
     _asset_index: Optional[dict] = None
-    # Cache for get_status() — invalidated after _STATUS_CACHE_TTL seconds so
+    # Cache for get_status() - invalidated after _STATUS_CACHE_TTL seconds so
     # the panel reflects path changes without a restart.
     _status_cache: "Optional[tuple[bool, str]]" = None
     _status_cache_time: float = 0.0

@@ -138,7 +138,7 @@ class RealESRGANHelpers:
                 return True, status
         except Exception:
             pass
-        status = "Not installed — click 'Install AI Upscaler'"
+        status = "Not installed - click 'Install AI Upscaler'"
         _avail_cache.update(ts=now, result=False, status=status)
         return False, status
 
@@ -173,7 +173,7 @@ class RealESRGANHelpers:
         """
         available, status = RealESRGANHelpers.get_install_status()
         if available:
-            return True, f"Real-ESRGAN is ready — {status}"
+            return True, f"Real-ESRGAN is ready - {status}"
         return False, (
             "Real-ESRGAN is not installed yet.\n\n"
             "Click 'Install AI Upscaler' in the Texture Helpers panel for a "
@@ -237,7 +237,7 @@ class RealESRGANHelpers:
                     f"{output_path} ({size_mb:.1f} MB)"
                 )
             else:
-                # Some tools write errors to stdout instead of stderr — capture both.
+                # Some tools write errors to stdout instead of stderr - capture both.
                 error_msg = (result.stderr.strip() or result.stdout.strip()
                              or f"exit code {result.returncode}")
                 return False, f"Upscaling failed: {error_msg}"
@@ -523,7 +523,7 @@ class RealESRGANHelpers:
             base, ext = os.path.splitext(input_path)
             output_path = f"{base}_krea_legacy{ext}"
 
-        # Prefer Real-ESRGAN when available — highest quality
+        # Prefer Real-ESRGAN when available - highest quality
         if RealESRGANHelpers.is_realesrgan_available():
             path, method = RealESRGANHelpers.get_realesrgan_path()
             if method == 'python':

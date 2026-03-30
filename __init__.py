@@ -45,7 +45,7 @@ def _try_import(name: str):
     registry are always up-to-date.  Without the reload, Blender may hold a
     reference to the *old* class object and fail to find the operators,
     causing the "no active buttons" symptom.
-    Do NOT remove this reload — it is the permanent root-cause fix for the
+    Do NOT remove this reload - it is the permanent root-cause fix for the
     extension-reload / stale-sys.modules scenario (DEVELOPMENT_NOTES.md).
     """
     full = f"{__package__}.{name}"
@@ -152,10 +152,10 @@ tutorial_operators = _try_import("tutorial_operators")
 # operators.py mirrors the tutorial_operators.py pattern and guarantees that
 # "Install Core Dependencies", "Environment Check", and "Restart Blender"
 # always appear as real clickable buttons, not "(loading...)" fallback labels.
-# See DEVELOPMENT_NOTES.md — *RECURRING BUG #1* — before removing this.
+# See DEVELOPMENT_NOTES.md - *RECURRING BUG #1* - before removing this.
 setup_operators = _try_import("setup_operators")
 
-# Diagnostics module — adds Run Diagnostics / Auto-Fix buttons to the
+# Diagnostics module - adds Run Diagnostics / Auto-Fix buttons to the
 # Setup & Status panel.  Registered before operators so the buttons are
 # always available even if the large operators.py bundle fails to load.
 addon_diagnostics = _try_import("addon_diagnostics")
@@ -196,7 +196,7 @@ modules = list(
             point_e_helpers,
             advisor_helpers,
             knowledge_helpers,
-            # external integrations — register by default so their buttons/operators
+            # external integrations - register by default so their buttons/operators
             # are available without a separate manual load step; any missing module is
             # filtered out by _filter to avoid crashes on platforms without the tools.
             ue_importer_helpers,
@@ -308,7 +308,7 @@ def _is_operator_registered(cls_name: str, bl_idname: str) -> bool:
     bl_idname : str
         Blender operator id, e.g. ``"fo4.show_detailed_setup"``.
     """
-    # Fast path — works in Blender 4.x and most Blender 5 builds
+    # Fast path - works in Blender 4.x and most Blender 5 builds
     if hasattr(bpy.types, cls_name):
         return True
     # Blender 5 extension fallback: verify via bpy.ops namespace
@@ -330,7 +330,7 @@ def _ensure_tutorial_operators():
     ``tutorial_operators.register()`` failed earlier (e.g. due to a dual-install
     conflict or a stale ``sys.modules`` entry).
 
-    See DEVELOPMENT_NOTES.md — *RECURRING BUG #1* — for full context.
+    See DEVELOPMENT_NOTES.md - *RECURRING BUG #1* - for full context.
     Do NOT remove this function or its call at the end of ``register()``.
     """
     if tutorial_operators is None:
@@ -349,7 +349,7 @@ def _ensure_tutorial_operators():
     ]
     if not missing:
         print("✓ Tutorial operators confirmed (tutorial panel buttons ready)")
-        return  # All operators already registered — nothing to do.
+        return  # All operators already registered - nothing to do.
 
     print(
         f"⚠ _ensure_tutorial_operators: {missing} not reachable; "
@@ -404,7 +404,7 @@ def _ensure_setup_operators():
     to ensure the Setup & Status panel buttons are always present as real
     clickable buttons, not "(loading...)" fallback labels.
 
-    Mirrors ``_ensure_tutorial_operators()`` — see DEVELOPMENT_NOTES.md
+    Mirrors ``_ensure_tutorial_operators()`` - see DEVELOPMENT_NOTES.md
     (*RECURRING BUG #1*) for full context.
     Do NOT remove this function or its call at the end of ``register()``.
     """
@@ -496,7 +496,7 @@ def register():
     # Must run AFTER the modules loop so tutorial_operators.register() has had
     # its chance.  If the operators are still absent (dual-install conflict,
     # stale sys.modules, etc.) this attempts a direct re-registration.
-    # See DEVELOPMENT_NOTES.md — RECURRING BUG #1 — before removing this.
+    # See DEVELOPMENT_NOTES.md - RECURRING BUG #1 - before removing this.
     _ensure_tutorial_operators()
     _ensure_setup_operators()
     # Runs AFTER module registration so get_preferences() works.
@@ -538,7 +538,7 @@ def register():
         print(f"Could not restore API keys: {e}")
 
     # ── Step 2d: synchronous tool auto-discovery ──────────────────────────────
-    # Scan the tools folder(s) right now — before the UI first draws — so that
+    # Scan the tools folder(s) right now - before the UI first draws - so that
     # any tools already on disk (e.g. ffmpeg, nvtt, texconv in the sibling
     # tools/ folder next to the addon) are wired into preferences immediately.
     # This is pure filesystem scanning: no network I/O, no subprocess calls,
@@ -581,7 +581,7 @@ def register():
                 if umodel_helpers:
                     ready, _ = umodel_helpers.status()
                     if not ready:
-                        print("UModel not found — attempting auto-download...")
+                        print("UModel not found - attempting auto-download...")
                         ok, msg = umodel_helpers.download_latest()
                         if ok:
                             print(f"✓ UModel auto-downloaded: {msg}")
@@ -592,7 +592,7 @@ def register():
                             # repeatedly trying on every Blender launch spams the
                             # console.  The user can reset this flag via Preferences
                             # if they want to retry after visiting the download page.
-                            # (DEVELOPMENT_NOTES.md — umodel_install_attempted fix)
+                            # (DEVELOPMENT_NOTES.md - umodel_install_attempted fix)
                             try:
                                 _prefs.umodel_install_attempted = True
                             except AttributeError as flag_err:
@@ -658,7 +658,7 @@ def register():
     try:
         bpy.app.timers.register(_deferred_startup, first_interval=2.0)
     except Exception as e:
-        # Timers unavailable (e.g., headless/CI) — run startup tasks immediately.
+        # Timers unavailable (e.g., headless/CI) - run startup tasks immediately.
         _deferred_startup()
         print(f"Timers unavailable, startup tasks ran synchronously: {e}")
 
@@ -677,7 +677,7 @@ def register():
     except Exception as e:
         print(f"⚠ Could not initialize tutorials: {e}")
 
-    # Check for core Python dependencies — install automatically if missing.
+    # Check for core Python dependencies - install automatically if missing.
     # DISABLED: Auto-installation causes severe performance issues during startup
     # Users should use the "Install Core Dependencies" button in the Setup panel instead
     # import importlib.util as _ilu
@@ -694,7 +694,7 @@ def register():
     #     py_ver = f"{_sys.version_info.major}.{_sys.version_info.minor}"
     #     missing_desc = ", ".join(f"{pip} (import {mod})" for mod, pip in missing.items())
     #     print(f"⚠ Missing Python packages: {missing_desc}")
-    #     print(f"  Python {py_ver} — attempting version-aware automatic installation …")
+    #     print(f"  Python {py_ver} - attempting version-aware automatic installation …")
     #     if tool_installers:
     #         try:
     #             ok, msg = tool_installers.install_python_requirements(include_optional=False)

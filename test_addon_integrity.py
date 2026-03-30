@@ -169,13 +169,13 @@ class TestModulesPresent(unittest.TestCase):
                 if not self._module_exists(mod_name):
                     issues.append(
                         f"  line {node.lineno}: 'from . import {mod_name}' "
-                        f"— {mod_name}.py NOT FOUND ON DISK"
+                        f"- {mod_name}.py NOT FOUND ON DISK"
                     )
                 elif node.lineno not in try_ranges:
                     # The module exists but the import is bare (no try/except)
                     issues.append(
                         f"  line {node.lineno}: 'from . import {mod_name}' "
-                        f"— import is NOT inside a try/except block "
+                        f"- import is NOT inside a try/except block "
                         f"(crashes draw() if import fails)"
                     )
 
@@ -235,14 +235,14 @@ class TestOperatorsRegistered(unittest.TestCase):
         ui_panels.py must also be defined in one of our operator files.
 
         This complements test_all_used_operators_registered which only checks
-        fo4.* — it closes the gap that lets wm.mossy_link_toggle and
+        fo4.* - it closes the gap that lets wm.mossy_link_toggle and
         torch.install_custom_path silently vanish when their classes are
         removed or renamed.
 
         Prefixes checked:
-          fo4.*   — exclusively ours, all must be in our files
-          torch.* — exclusively ours, all must be in our files
-          wm.*    — shared with Blender; only flag ops not in KNOWN_BLENDER_OPERATORS
+          fo4.*   - exclusively ours, all must be in our files
+          torch.* - exclusively ours, all must be in our files
+          wm.*    - shared with Blender; only flag ops not in KNOWN_BLENDER_OPERATORS
                     and not defined in our files
         """
         # Blender built-in wm.* operators we call but do NOT define ourselves.
@@ -250,7 +250,7 @@ class TestOperatorsRegistered(unittest.TestCase):
         # Blender Python API docs); anything else must have a bl_idname in one
         # of our operator files.
         KNOWN_BLENDER_OPERATORS = {
-            "wm.url_open",   # bpy.ops.wm.url_open() — opens a URL in the OS browser
+            "wm.url_open",   # bpy.ops.wm.url_open() - opens a URL in the OS browser
         }
 
         registered = self._collect_registered_ids()
@@ -452,7 +452,7 @@ class TestAddonIntegrationInterface(unittest.TestCase):
     def test_module_exists(self):
         self.assertTrue(
             os.path.isfile(_path("addon_integration.py")),
-            "addon_integration.py is missing — FO4_PT_AddonIntegrationPanel will crash",
+            "addon_integration.py is missing - FO4_PT_AddonIntegrationPanel will crash",
         )
 
     def test_scan_returns_list_of_dicts(self):
@@ -512,7 +512,7 @@ class TestMultiprocessingConnectionImport(unittest.TestCase):
             source = _read(fname)
             if "multiprocessing.connection." not in source:
                 continue
-            # The file references the sub-module — ensure it's explicitly imported
+            # The file references the sub-module - ensure it's explicitly imported
             if "import multiprocessing.connection" not in source:
                 errors.append(
                     f"  {fname}: uses 'multiprocessing.connection.*' but "
@@ -592,7 +592,7 @@ class TestBpyPropsInsideTryInWorkerModules(unittest.TestCase):
                 errors.append(
                     f"  {fname}: spawns worker processes but has "
                     f"'from bpy.props import' outside try/except "
-                    f"(will crash in worker subprocess — see RECURRING BUG #6)"
+                    f"(will crash in worker subprocess - see RECURRING BUG #6)"
                 )
         if errors:
             self.fail(
@@ -658,7 +658,7 @@ class TestNoNestedFStringBackslash(unittest.TestCase):
 
         if errors:
             self.fail(
-                "Nested f-string(s) with backslash detected — pre-compute the value "
+                "Nested f-string(s) with backslash detected - pre-compute the value "
                 "in a plain variable *before* the outer f-string:\n"
                 + "\n".join(errors)
             )
@@ -733,7 +733,7 @@ class TestTutorialOperatorsModule(unittest.TestCase):
         Both forms prevent 'rna_uiItemO: unknown operator' console spam on
         every UI redraw when an operator is not yet registered.
 
-        IMPORTANT — RECURRING BUG #1 (see DEVELOPMENT_NOTES.md):
+        IMPORTANT - RECURRING BUG #1 (see DEVELOPMENT_NOTES.md):
           Do NOT replace _activation_op() calls with a bare hasattr if/else
           that shows a label in the else-branch.  On Blender 5.x the hasattr
           check can return False even for registered operators; a label
@@ -757,7 +757,7 @@ class TestTutorialOperatorsModule(unittest.TestCase):
             )
             # Form (b): _activation_op(layout, 'FO4_OT_Xxx', ...)
             # The helper calls hasattr(bpy.types, cls_name) internally and
-            # always draws the button — prevents the "loading..." label problem
+            # always draws the button - prevents the "loading..." label problem
             # on Blender 5.x where hasattr(bpy.types, ...) is unreliable.
             helper_pattern = re.compile(
                 r"_activation_op\s*\([^,]+,\s*['\"]"
@@ -869,7 +869,7 @@ class TestTorchPathManagerOperators(unittest.TestCase):
     def test_module_exists(self):
         self.assertTrue(
             os.path.isfile(_path("torch_path_manager.py")),
-            "torch_path_manager.py is missing — PyTorch operators will be unavailable",
+            "torch_path_manager.py is missing - PyTorch operators will be unavailable",
         )
 
     def test_module_parses(self):

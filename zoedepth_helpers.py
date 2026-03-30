@@ -29,7 +29,7 @@ from pathlib import Path
 ZOEDEPTH_AVAILABLE = False
 ZOEDEPTH_ERROR = None
 
-# Cache for check_zoedepth_availability() — avoids repeated filesystem hits on every UI redraw
+# Cache for check_zoedepth_availability() - avoids repeated filesystem hits on every UI redraw
 _availability_cache = None
 _availability_cache_time = 0.0
 _CACHE_TTL = 5.0  # seconds
@@ -45,7 +45,7 @@ _CACHE_TTL = 5.0  # seconds
 def _mossy_provides_torch() -> bool:
     """Return True when the Mossy bridge is online and provides PyTorch.
 
-    When Mossy is connected, PyTorch runs inside the Mossy desktop app —
+    When Mossy is connected, PyTorch runs inside the Mossy desktop app -
     a local Blender-side torch install is not required for AI inference.
     Safe to call from background threads; all bpy.context access is guarded.
     """
@@ -158,9 +158,9 @@ def _check_zoedepth_availability_uncached():
             "LongPathsEnabled=1) or reinstall PyTorch to a shorter path."
         )
 
-    # Probe torch to catch DLL init failures (WinError 1114 — CUDA/driver mismatch).
+    # Probe torch to catch DLL init failures (WinError 1114 - CUDA/driver mismatch).
     # Skip the probe when: (a) torch is already loaded in this process, or
-    # (b) torch runs inside Mossy — there are no local DLLs to verify.
+    # (b) torch runs inside Mossy - there are no local DLLs to verify.
     if sys.modules.get("torch") is None and not _mossy_provides_torch():
         try:
             importlib.import_module("torch")
@@ -265,7 +265,7 @@ def estimate_depth_from_image(image_path, output_path=None, model_type="ZoeD_N")
         # Load and pre-process the input image
         image = _PIL_Image.open(image_path).convert("RGB")
 
-        # Run inference — ZoeDepth's infer_pil returns a float32 numpy depth map
+        # Run inference - ZoeDepth's infer_pil returns a float32 numpy depth map
         with torch.no_grad():
             depth = model.infer_pil(image)  # shape (H, W), metric depth in metres
 

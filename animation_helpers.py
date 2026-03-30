@@ -14,7 +14,7 @@ _wind_preview_handler = None
 # ---------------------------------------------------------------------------
 # Blender 4.4 replaced the flat ``action.fcurves`` collection with a layered
 # Action system: ``action.layers[n].strips[n].fcurves``.  Blender 5.0 carries
-# this further — ``action.fcurves`` no longer exists at all on newly-created
+# this further - ``action.fcurves`` no longer exists at all on newly-created
 # actions.  The helper below returns the correct fcurves container regardless
 # of Blender version and also assigns the action slot when required so the
 # animation data resolves correctly in 4.4+.
@@ -116,7 +116,7 @@ class AnimationHelpers:
         is required by the Creation Kit and vanilla equipment so that armour
         and clothing pieces deform correctly when parented to this skeleton.
 
-        Hierarchy (simplified — fingers/facial bones omitted for base meshes):
+        Hierarchy (simplified - fingers/facial bones omitted for base meshes):
 
         Root
         └─ COM [COM]
