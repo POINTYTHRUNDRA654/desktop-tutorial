@@ -51,7 +51,7 @@ Limitations:
   * No NiKeyframeController for ANIMATED type
   * No BSXFlags / bhkCollisionObject for DEBRIS / ARCHITECTURE
   * No LOD / morph support
-  * No NiAlphaProperty (Alpha Clip) for FLORA — use PyNifly for full flora
+  * No NiAlphaProperty (Alpha Clip) for FLORA - use PyNifly for full flora
 """
 
 import bpy

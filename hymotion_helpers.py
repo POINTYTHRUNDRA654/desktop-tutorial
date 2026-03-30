@@ -32,7 +32,7 @@ HYMOTION_ERROR = None
 def _mossy_provides_torch() -> bool:
     """Return True when the Mossy bridge is online and provides PyTorch.
 
-    When Mossy is connected, PyTorch runs inside the Mossy desktop app —
+    When Mossy is connected, PyTorch runs inside the Mossy desktop app -
     a local Blender-side torch install is not required for AI inference.
     Safe to call from background threads; all bpy.context access is guarded.
     """
@@ -195,9 +195,9 @@ def check_hymotion_availability():
     if not _torch_available():
         return False, "PyTorch not installed. Install with: pip install torch torchvision"
 
-    # Probe torch to catch DLL init failures (WinError 1114 — CUDA/driver mismatch).
+    # Probe torch to catch DLL init failures (WinError 1114 - CUDA/driver mismatch).
     # Skip the probe when: (a) torch is already loaded in this process, or
-    # (b) torch runs inside Mossy — there are no local DLLs to verify.
+    # (b) torch runs inside Mossy - there are no local DLLs to verify.
     if sys.modules.get("torch") is None and not _mossy_provides_torch():
         try:
             importlib.import_module("torch")
@@ -212,7 +212,7 @@ def check_hymotion_availability():
         return False, f"git-lfs required but not available: {lfs_message}"
     
     # Check if HY-Motion-1.0 repository is cloned.
-    # Check the tools root first (highest priority — matches install_hymotion()
+    # Check the tools root first (highest priority - matches install_hymotion()
     # which clones to <tools_root>/HY-Motion-1.0 via tool_installers).
     possible_paths = []
     try:
@@ -348,7 +348,7 @@ def apply_motion_to_armature(armature, motion_data):
 
     Args:
         armature: Blender armature object
-        motion_data: dict — motion data as described above
+        motion_data: dict - motion data as described above
 
     Returns:
         tuple: (success: bool, message)

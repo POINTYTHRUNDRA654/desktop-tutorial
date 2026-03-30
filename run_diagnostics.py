@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-run_diagnostics.py — Fallout 4 Mod Assistant Static Diagnostics
+run_diagnostics.py - Fallout 4 Mod Assistant Static Diagnostics
 ================================================================
 
 Run this script from a Windows Command Prompt or PowerShell BEFORE loading
@@ -21,16 +21,16 @@ What it checks
   1. All required files are present (DEVELOPMENT_NOTES.md, __init__.py, etc.)
   2. blender_manifest.toml is valid and version numbers are consistent
   3. Every .py file in the addon parses without a SyntaxError
-  4. RECURRING BUG #1 — duplicate operator class bodies in operators.py
-  5. RECURRING BUG #1 — tutorial_operators / setup_operators class coverage
-  6. RECURRING BUG #1 — module order in __init__.py
-  7. RECURRING BUG #6 — module-level TORCH_AVAILABLE pattern
+  4. RECURRING BUG #1 - duplicate operator class bodies in operators.py
+  5. RECURRING BUG #1 - tutorial_operators / setup_operators class coverage
+  6. RECURRING BUG #1 - module order in __init__.py
+  7. RECURRING BUG #6 - module-level TORCH_AVAILABLE pattern
   8. All .py modules referenced in __init__.py exist on disk
 
 Exit code
 ---------
-  0  — no failures (warnings are OK)
-  1  — at least one FAIL was reported
+  0  - no failures (warnings are OK)
+  1  - at least one FAIL was reported
 """
 
 import ast
@@ -87,14 +87,14 @@ def check_critical_files(addon_dir: Path):
             size = path.stat().st_size
             _ok(f"{name}  ({size:,} bytes)")
         else:
-            _fail(f"{name}  MISSING — this file must exist")
+            _fail(f"{name}  MISSING - this file must exist")
 
 
 def check_manifest(addon_dir: Path):
     _section("blender_manifest.toml")
     manifest_path = addon_dir / "blender_manifest.toml"
     if not manifest_path.exists():
-        _warn("blender_manifest.toml not found — extension may not load in Blender 4.2+")
+        _warn("blender_manifest.toml not found - extension may not load in Blender 4.2+")
         return
 
     content = manifest_path.read_text(encoding="utf-8")
@@ -120,7 +120,7 @@ def check_manifest(addon_dir: Path):
                 _ok(f"version consistent: manifest={manifest_ver}, bl_info={bl_info_ver}")
             else:
                 _warn(
-                    f"version mismatch — manifest says {manifest_ver!r} but "
+                    f"version mismatch - manifest says {manifest_ver!r} but "
                     f"bl_info says {bl_info_ver!r}; keep them in sync"
                 )
         elif m_manifest:
@@ -182,8 +182,8 @@ def check_known_patterns(addon_dir: Path):
                 and not stripped.startswith("#")
             ):
                 _fail(
-                    f"{fname}:{i} — module-level TORCH_AVAILABLE=find_spec(...) "
-                    "(RECURRING BUG #6 — must be a lazy function, not evaluated at import time)"
+                    f"{fname}:{i} - module-level TORCH_AVAILABLE=find_spec(...) "
+                    "(RECURRING BUG #6 - must be a lazy function, not evaluated at import time)"
                 )
                 found_bad = True
                 break
@@ -210,7 +210,7 @@ def check_known_patterns(addon_dir: Path):
             if pattern.search(text):
                 _fail(
                     f"operators.py: class {cls} has a full body here "
-                    "(RECURRING BUG #1 — these classes must only live in setup_operators.py; "
+                    "(RECURRING BUG #1 - these classes must only live in setup_operators.py; "
                     "remove the body from operators.py)"
                 )
             else:
@@ -262,7 +262,7 @@ def check_known_patterns(addon_dir: Path):
             else:
                 _fail(
                     f"__init__.py: tutorial_operators (line {tut_line + 1}) "
-                    f"is AFTER operators (line {ops_line + 1}) — RECURRING BUG #1"
+                    f"is AFTER operators (line {ops_line + 1}) - RECURRING BUG #1"
                 )
         else:
             if tut_line is None:
@@ -279,7 +279,7 @@ def check_known_patterns(addon_dir: Path):
             else:
                 _fail(
                     f"__init__.py: setup_operators (line {setup_line + 1}) "
-                    f"is AFTER operators (line {ops_line + 1}) — RECURRING BUG #1"
+                    f"is AFTER operators (line {ops_line + 1}) - RECURRING BUG #1"
                 )
 
         # Check that _ensure_tutorial_operators and _ensure_setup_operators are called
@@ -289,9 +289,9 @@ def check_known_patterns(addon_dir: Path):
             if call_count >= 2:
                 _ok(f"__init__.py: {fn}() called {call_count} time(s)")
             elif call_count == 1:
-                _warn(f"__init__.py: {fn}() called only once — should be called in both register() and _deferred_startup()")
+                _warn(f"__init__.py: {fn}() called only once - should be called in both register() and _deferred_startup()")
             else:
-                _fail(f"__init__.py: {fn}() never called — RECURRING BUG #1 safety net is missing")
+                _fail(f"__init__.py: {fn}() never called - RECURRING BUG #1 safety net is missing")
 
 
 def check_module_coverage(addon_dir: Path):
@@ -299,7 +299,7 @@ def check_module_coverage(addon_dir: Path):
     _section("Module Coverage (__init__.py imports)")
     init_path = addon_dir / "__init__.py"
     if not init_path.exists():
-        _fail("__init__.py not found — cannot check coverage")
+        _fail("__init__.py not found - cannot check coverage")
         return
 
     init_text = init_path.read_text(encoding="utf-8")
@@ -320,7 +320,7 @@ def check_module_coverage(addon_dir: Path):
         if module_name in init_text:
             _ok(f"{module_name}: imported in __init__.py")
         else:
-            _warn(f"{module_name}: NOT found in __init__.py — may not be loaded by Blender")
+            _warn(f"{module_name}: NOT found in __init__.py - may not be loaded by Blender")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -333,7 +333,7 @@ def main():
 
     sep = "=" * 64
     print(f"\n{sep}")
-    print("  FO4 MOD ASSISTANT — STATIC DIAGNOSTICS")
+    print("  FO4 MOD ASSISTANT - STATIC DIAGNOSTICS")
     print(f"  Addon directory: {addon_dir}")
     print(sep)
 

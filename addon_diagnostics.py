@@ -1,5 +1,5 @@
 """
-addon_diagnostics.py — Fallout 4 Mod Assistant Health Check & Auto-Fix
+addon_diagnostics.py - Fallout 4 Mod Assistant Health Check & Auto-Fix
 
 Adds two operators that appear in the Setup & Status panel:
 
@@ -107,10 +107,10 @@ def collect_diagnostics():
     bv = bpy.app.version
     bv_str = f"{bv[0]}.{bv[1]}.{bv[2]}"
     if bv >= (5, 0, 0):
-        results.append(("OK",   "Blender", f"Version {bv_str} — supported target"))
+        results.append(("OK",   "Blender", f"Version {bv_str} - supported target"))
     else:
         results.append(("WARN", "Blender",
-                        f"Version {bv_str} — add-on targets Blender 5.x; some features may misbehave"))
+                        f"Version {bv_str} - add-on targets Blender 5.x; some features may misbehave"))
 
     # ── 2. Install location ───────────────────────────────────────────────────
     addon_dir = os.path.dirname(os.path.abspath(__file__))
@@ -125,11 +125,11 @@ def collect_diagnostics():
                         "addon directory.  Disable one copy via Edit ▸ Preferences ▸ Add-ons."))
     elif in_blender_org:
         results.append(("INFO", "Install",
-                        "Installed via Blender marketplace (blender_org) — "
+                        "Installed via Blender marketplace (blender_org) - "
                         "module prefix: bl_ext.blender_org"))
     elif in_user_default:
         results.append(("INFO", "Install",
-                        "Installed as local extension (user_default) — "
+                        "Installed as local extension (user_default) - "
                         "module prefix: bl_ext.user_default"))
     else:
         results.append(("WARN", "Install",
@@ -141,7 +141,7 @@ def collect_diagnostics():
              if name_base in k and k != __package__ and "addon_diagnostics" not in k]
     if dupes:
         results.append(("WARN", "Install",
-                        f"Multiple sys.modules entries for '{name_base}': {dupes!r} — "
+                        f"Multiple sys.modules entries for '{name_base}': {dupes!r} - "
                         "dual-install or stale reload.  Restart Blender to clear."))
 
     # ── 4. Module import status ───────────────────────────────────────────────
@@ -156,14 +156,14 @@ def collect_diagnostics():
         if mod is _SENTINEL:
             results.append(("WARN", "Module", f"{name}: not tracked in __init__"))
         elif mod is None:
-            results.append(("FAIL", "Module", f"{name}: FAILED TO IMPORT — its features will be missing"))
+            results.append(("FAIL", "Module", f"{name}: FAILED TO IMPORT - its features will be missing"))
             failed_mods.append(name)
         else:
             results.append(("OK",   "Module", f"{name}: loaded OK"))
 
     if failed_mods:
         results.append(("WARN", "Module",
-                        f"{len(failed_mods)} module(s) failed — click 'Auto-Fix Issues' to retry"))
+                        f"{len(failed_mods)} module(s) failed - click 'Auto-Fix Issues' to retry"))
 
     # ── 5. Critical operator registration ────────────────────────────────────
     missing_ops = []
@@ -172,12 +172,12 @@ def collect_diagnostics():
             results.append(("OK",   "Operator", f"{bl_idname}: registered ✓"))
         else:
             results.append(("FAIL", "Operator",
-                            f"{bl_idname}: NOT FOUND — button will be broken or invisible"))
+                            f"{bl_idname}: NOT FOUND - button will be broken or invisible"))
             missing_ops.append(bl_idname)
 
     if missing_ops:
         results.append(("FAIL", "Operator",
-                        "One or more critical operators missing — click 'Auto-Fix Issues' to repair"))
+                        "One or more critical operators missing - click 'Auto-Fix Issues' to repair"))
 
     # ── 6. Preferences ────────────────────────────────────────────────────────
     prefs_mod = getattr(init, "preferences", None) if init else None
@@ -188,24 +188,24 @@ def collect_diagnostics():
                 results.append(("OK", "Prefs", "Addon preferences accessible"))
             else:
                 results.append(("WARN", "Prefs",
-                                "get_preferences() returned None — addon may not be fully enabled"))
+                                "get_preferences() returned None - addon may not be fully enabled"))
         except Exception as exc:
             results.append(("FAIL", "Prefs", f"Error reading preferences: {exc}"))
     else:
         results.append(("FAIL", "Prefs",
-                        "preferences module not loaded — cannot read addon settings"))
+                        "preferences module not loaded - cannot read addon settings"))
 
     # ── 7. Python version ─────────────────────────────────────────────────────
     import sys as _sys
     pv = _sys.version_info
     pv_str = f"{pv.major}.{pv.minor}.{pv.micro}"
     if pv >= (3, 11):
-        results.append(("OK",   "Python", f"Python {pv_str} — full compatibility"))
+        results.append(("OK",   "Python", f"Python {pv_str} - full compatibility"))
     elif pv >= (3, 9):
-        results.append(("OK",   "Python", f"Python {pv_str} — compatible"))
+        results.append(("OK",   "Python", f"Python {pv_str} - compatible"))
     else:
         results.append(("WARN", "Python",
-                        f"Python {pv_str} — older than recommended 3.11; some packages may misbehave"))
+                        f"Python {pv_str} - older than recommended 3.11; some packages may misbehave"))
 
     # ── 8. PyTorch availability (optional) ────────────────────────────────────
     try:
@@ -215,7 +215,7 @@ def collect_diagnostics():
             results.append(("OK",   "PyTorch", f"torch found at {torch_spec.origin}"))
         else:
             results.append(("INFO", "PyTorch",
-                            "torch not installed — AI generation features are disabled (optional)"))
+                            "torch not installed - AI generation features are disabled (optional)"))
     except Exception:
         results.append(("INFO", "PyTorch", "Could not check torch availability"))
 
@@ -224,7 +224,7 @@ def collect_diagnostics():
         results.append(("OK",   "Init", f"__init__ module in sys.modules as '{__package__}'"))
     else:
         results.append(("WARN", "Init",
-                        f"__init__ module NOT found in sys.modules under '{__package__}' — "
+                        f"__init__ module NOT found in sys.modules under '{__package__}' - "
                         "module tracking will be limited"))
 
     return results
@@ -242,7 +242,7 @@ Results are printed to the Blender System Console (Window > Toggle System Consol
     def execute(self, context):
         sep = "=" * 64
         print(f"\n{sep}")
-        print("  FO4 MOD ASSISTANT — DIAGNOSTICS REPORT")
+        print("  FO4 MOD ASSISTANT - DIAGNOSTICS REPORT")
         print(sep)
 
         results = collect_diagnostics()
@@ -260,19 +260,19 @@ Results are printed to the Blender System Console (Window > Toggle System Consol
 
         print(sep)
         print(f"  SUMMARY: {ok_n} OK · {fail_n} FAILED · {warn_n} WARNINGS")
-        print(f"  {'All checks passed!' if fail_n == 0 else 'Issues found — see details above.'}")
+        print(f"  {'All checks passed!' if fail_n == 0 else 'Issues found - see details above.'}")
         print(sep + "\n")
 
         if fail_n > 0:
             self.report(
                 {'WARNING'},
-                f"Diagnostics: {fail_n} failure(s), {warn_n} warning(s) — "
+                f"Diagnostics: {fail_n} failure(s), {warn_n} warning(s) - "
                 "open Window ▸ Toggle System Console to read the full report",
             )
         elif warn_n > 0:
             self.report(
                 {'INFO'},
-                f"Diagnostics: {ok_n} OK, {warn_n} warning(s) — "
+                f"Diagnostics: {ok_n} OK, {warn_n} warning(s) - "
                 "open System Console for details",
             )
         else:
@@ -330,7 +330,7 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
             for name in _TRACKED_MODULES:
                 mod = getattr(init, name, None)
                 if mod is not None:
-                    continue  # already loaded — skip
+                    continue  # already loaded - skip
                 pkg_full = f"{__package__}.{name}"
                 sys.modules.pop(pkg_full, None)
                 try:
@@ -340,7 +340,7 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
                         if hasattr(new_mod, "register"):
                             new_mod.register()
                     except Exception:
-                        pass  # partial success — module loaded even if register() failed
+                        pass  # partial success - module loaded even if register() failed
                     fixed.append(f"re-imported {name}")
                 except Exception as exc:
                     failed.append(f"re-import {name}: {exc}")
@@ -371,18 +371,18 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
             print(f"  ✓ {item}")
         for item in failed:
             print(f"  ✗ {item}")
-        print(f"[ FO4 Auto-Fix ] Done — {len(fixed)} fixed, {len(failed)} failed\n")
+        print(f"[ FO4 Auto-Fix ] Done - {len(fixed)} fixed, {len(failed)} failed\n")
 
         if failed:
             self.report(
                 {'WARNING'},
-                f"Auto-Fix: {len(fixed)} repaired, {len(failed)} could not be fixed — "
+                f"Auto-Fix: {len(fixed)} repaired, {len(failed)} could not be fixed - "
                 "check System Console for details",
             )
         else:
             self.report(
                 {'INFO'},
-                f"Auto-Fix: {len(fixed)} action(s) completed — "
+                f"Auto-Fix: {len(fixed)} action(s) completed - "
                 "click 'Run Diagnostics' to verify",
             )
 

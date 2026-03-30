@@ -465,7 +465,7 @@ def restore_extra_python_paths() -> list[str]:
     umodel_p = prefs.umodel_path.strip()
     if prefs.umodel_install_attempted and umodel_p and not os.path.isdir(umodel_p):
         prefs.umodel_install_attempted = False
-        print("⚠ UModel path missing — reset install flag for retry")
+        print("⚠ UModel path missing - reset install flag for retry")
 
     return added
 
@@ -637,7 +637,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         default=False,
         description=(
             "If enabled, missing CLI tools (e.g. UModel) will be downloaded automatically "
-            "on startup. Disabled by default — enable this only if you want the add-on to "
+            "on startup. Disabled by default - enable this only if you want the add-on to "
             "fetch executables from the internet without a manual button click."
         ),
     )
@@ -663,7 +663,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         name="Auto Install PyTorch",
         default=False,
         description=(
-            "Deprecated — PyTorch auto-installation inside Blender has been removed. "
+            "Deprecated - PyTorch auto-installation inside Blender has been removed. "
             "Install PyTorch externally and set 'PyTorch Custom Path' below."
         ),
         options={'HIDDEN'},
@@ -672,7 +672,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
     torch_install_attempted: bpy.props.BoolProperty(
         name="PyTorch Install Attempted",
         default=False,
-        description="Deprecated internal flag — kept to avoid errors in saved preferences.",
+        description="Deprecated internal flag - kept to avoid errors in saved preferences.",
         options={'HIDDEN'},
     )
 
@@ -852,7 +852,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         description=(
             "Route advisor AI queries through Mossy instead of a remote LLM endpoint. "
             "Requires Mossy to be running on the desktop. "
-            "No API key needed — everything stays on your machine."
+            "No API key needed - everything stays on your machine."
         ),
     )
 

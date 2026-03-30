@@ -20,14 +20,14 @@ except ImportError:  # pragma: no cover - worker processes run without Blender
     StringProperty = EnumProperty = IntProperty = FloatProperty = BoolProperty = None  # type: ignore[assignment]
 
 # ---------------------------------------------------------------------------
-# Module-level model cache — Point-E models take significant time to load
+# Module-level model cache - Point-E models take significant time to load
 # from disk and to download checkpoints, so we cache them between calls and
 # only reload when the active compute device changes.
 #
 # The upsampler model is shared between text and image pipelines to avoid
 # holding duplicate weights in VRAM when both modes are used in one session.
 #
-# The PointCloudSampler and diffusion objects are NOT cached here — they are
+# The PointCloudSampler and diffusion objects are NOT cached here - they are
 # created cheaply on each generation call so that the user's grid_size and
 # inference_steps settings take effect immediately without reloading weights.
 # ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ def _pytorch_required_message(detail=""):
         msg += f"\n\nError: {detail}"
     return msg
 
-# Sampler caches — keyed by (device_str, grid_size, num_steps) so that users
+# Sampler caches - keyed by (device_str, grid_size, num_steps) so that users
 # can freely change quality settings without the per-call overhead of
 # re-building diffusion schedules and PointCloudSampler objects.
 # Caches are cleared whenever the underlying model weights are reloaded (e.g.
@@ -188,13 +188,13 @@ def _load_point_e_upsampler(device, torch_module):
     if torch_module.device(device).type == 'cuda':
         upsampler_model.half()
         # cudnn auto-tuner selects the fastest convolution kernel for fixed
-        # inference input sizes — one benchmark pass, then faster every time.
+        # inference input sizes - one benchmark pass, then faster every time.
         torch_module.backends.cudnn.benchmark = True
     if hasattr(torch_module, 'compile') and torch_module.device(device).type == 'cuda':
         print("Compiling Point-E upsampler with torch.compile() (one-time, ~15 s)…")
         upsampler_model = torch_module.compile(upsampler_model, mode="reduce-overhead")
     _point_e_upsampler = {'model': upsampler_model, 'device': device_str}
-    # Upsampler is shared by both pipelines — both sampler caches are now stale.
+    # Upsampler is shared by both pipelines - both sampler caches are now stale.
     _point_e_text_sampler_cache.clear()
     _point_e_image_sampler_cache.clear()
     print("Point-E upsampler loaded and cached.")
@@ -240,7 +240,7 @@ def _load_point_e_text_models(device):
         base_model = _torch.compile(base_model, mode="reduce-overhead")
 
     _point_e_text_models = {'base_model': base_model, 'device': device_str}
-    # Sampler objects hold references to model weights — stale after a reload.
+    # Sampler objects hold references to model weights - stale after a reload.
     _point_e_text_sampler_cache.clear()
     print("Point-E text base model loaded and cached.")
     return _point_e_text_models
@@ -285,7 +285,7 @@ def _load_point_e_image_models(device):
         base_model = _torch.compile(base_model, mode="reduce-overhead")
 
     _point_e_image_models = {'base_model': base_model, 'device': device_str}
-    # Sampler objects hold references to model weights — stale after a reload.
+    # Sampler objects hold references to model weights - stale after a reload.
     _point_e_image_sampler_cache.clear()
     print("Point-E image base model loaded and cached.")
     return _point_e_image_models
@@ -389,7 +389,7 @@ def _get_point_e_image_sampler(device, device_str, grid_size, num_steps):
 def _mossy_provides_torch() -> bool:
     """Return True when the Mossy bridge is online and provides PyTorch.
 
-    When Mossy is connected, PyTorch runs inside the Mossy desktop app —
+    When Mossy is connected, PyTorch runs inside the Mossy desktop app -
     a local Blender-side torch install is not required for AI inference.
     Safe to call from background threads; all bpy.context access is guarded.
     """
@@ -451,7 +451,7 @@ class PointEHelpers:
         )
 
 
-    # Cache for is_point_e_installed() — avoids repeated torch/point_e import attempts
+    # Cache for is_point_e_installed() - avoids repeated torch/point_e import attempts
     # on every Blender UI redraw.
     _cache = None
     _cache_time = 0.0
@@ -539,7 +539,7 @@ class PointEHelpers:
                         return False, _pytorch_required_message(msg)
             except (ImportError, AttributeError):
                 # TorchPathManager not available.  Skip the torch import when it is
-                # already in sys.modules — DLLs are confirmed working by whoever loaded
+                # already in sys.modules - DLLs are confirmed working by whoever loaded
                 # it (e.g. the Settings panel background probe).  Only attempt the
                 # import when torch has not been loaded yet, and handle both
                 # ImportError *and* OSError (WinError 1114) from that first load.
@@ -635,7 +635,7 @@ For more info: https://github.com/openai/point-e
             prompt: Text description of object to generate
             num_samples: Number of point clouds to generate
             grid_size: Resolution of point cloud (32, 64, 128, 256).
-                Mapped to num_points via _grid_size_to_num_points — lower values
+                Mapped to num_points via _grid_size_to_num_points - lower values
                 are proportionally faster because the upsampling stage is cheaper.
             num_steps: Number of diffusion timesteps per stage (default 64).
                 Fewer steps = faster generation, lower quality.
@@ -682,7 +682,7 @@ For more info: https://github.com/openai/point-e
             sampler = _get_point_e_text_sampler(device, device_str, grid_size, num_steps)
             print(f"[Point-E] sampler build: {time.monotonic() - t0:.1f} s")
 
-            # Generate — use inference_mode + autocast for FP16 mixed-precision on CUDA.
+            # Generate - use inference_mode + autocast for FP16 mixed-precision on CUDA.
             t0 = time.monotonic()
             samples = None
             use_autocast = device.type == 'cuda'
@@ -731,7 +731,7 @@ For more info: https://github.com/openai/point-e
             image_path: Path to input image
             num_samples: Number of point clouds to generate
             grid_size: Resolution of point cloud (32, 64, 128, 256).
-                Mapped to num_points via _grid_size_to_num_points — lower values
+                Mapped to num_points via _grid_size_to_num_points - lower values
                 are proportionally faster because the upsampling stage is cheaper.
             num_steps: Number of diffusion timesteps per stage (default 64).
                 Fewer steps = faster generation, lower quality.
@@ -783,7 +783,7 @@ For more info: https://github.com/openai/point-e
             sampler = _get_point_e_image_sampler(device, device_str, grid_size, num_steps)
             print(f"[Point-E] sampler build: {time.monotonic() - t0:.1f} s")
 
-            # Generate — use inference_mode + autocast for FP16 mixed-precision on CUDA.
+            # Generate - use inference_mode + autocast for FP16 mixed-precision on CUDA.
             t0 = time.monotonic()
             samples = None
             use_autocast = device.type == 'cuda'
@@ -877,7 +877,7 @@ For more info: https://github.com/openai/point-e
             # Link to scene
             bpy.context.collection.objects.link(obj)
 
-            # Use foreach_set to transfer coordinates as a flat float32 buffer —
+            # Use foreach_set to transfer coordinates as a flat float32 buffer -
             # much faster than building a Python list via .tolist() for large
             # point clouds (thousands of points).
             n_verts = len(coords)

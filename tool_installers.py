@@ -38,7 +38,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-# Primary tools folder on D: drive — all external tools (including PyNifly)
+# Primary tools folder on D: drive - all external tools (including PyNifly)
 # live here, matching the user's local setup.
 DEFAULT_TOOLS_ROOT = Path(r"D:\blender_tools")
 
@@ -61,8 +61,8 @@ def get_tools_root() -> Path:
     """Return the root directory where external tools are stored.
 
     Priority (highest to lowest):
-      1. ``tools_root`` add-on preference — user explicitly chose this path.
-      2. Sibling ``tools/`` folder next to the addon folder — e.g.
+      1. ``tools_root`` add-on preference - user explicitly chose this path.
+      2. Sibling ``tools/`` folder next to the addon folder - e.g.
          ``D:\\Blender addon\\tools\\`` when the addon is installed at
          ``D:\\Blender addon\\blender_game_tools\\``.  This is the most
          common layout for local development installs.
@@ -89,7 +89,7 @@ def get_tools_root() -> Path:
     except Exception:
         pass
 
-    # 2. Sibling tools/ folder next to the addon — the typical local dev layout
+    # 2. Sibling tools/ folder next to the addon - the typical local dev layout
     #    e.g.  D:\Blender addon\tools\  when addon is at
     #          D:\Blender addon\blender_game_tools\
     try:
@@ -98,7 +98,7 @@ def get_tools_root() -> Path:
     except OSError:
         pass
 
-    # 3. Addon tools/ subfolder already populated — tools are here
+    # 3. Addon tools/ subfolder already populated - tools are here
     try:
         if FALLBACK_TOOLS_ROOT.exists() and any(FALLBACK_TOOLS_ROOT.iterdir()):
             return FALLBACK_TOOLS_ROOT
@@ -442,7 +442,7 @@ def install_niftools(blender_version: str = "3.6") -> tuple[bool, str]:
     into Blender's add-on directory via ``bpy.ops.preferences.addon_install``.
 
     The *blender_version* parameter is kept for API compatibility but is
-    no longer used — Blender itself handles version matching during install.
+    no longer used - Blender itself handles version matching during install.
 
     Returns
     -------
@@ -480,7 +480,7 @@ def install_niftools(blender_version: str = "3.6") -> tuple[bool, str]:
             f"Could not auto-download the latest Niftools release. "
             f"Please download it manually from {release_url} "
             f"and install via Edit → Preferences → Add-ons → Install.\n"
-            f"Credit: Niftools Team — {release_url}"
+            f"Credit: Niftools Team - {release_url}"
         )
 
     # ── 2. Download zip to tools directory ───────────────────────────────
@@ -511,14 +511,14 @@ def install_niftools(blender_version: str = "3.6") -> tuple[bool, str]:
         )
         return True, (
             f"Niftools {version_tag} installed successfully.{suffix} "
-            f"Credit: Niftools Team — {release_url}"
+            f"Credit: Niftools Team - {release_url}"
         )
     except Exception as e:
         return False, f"Niftools install failed: {e}"
 
 
 
-# GitHub API endpoint — always resolves to the newest published release.
+# GitHub API endpoint - always resolves to the newest published release.
 _PYNIFLY_LATEST_API = (
     "https://api.github.com/repos/BadDogSkyrim/PyNifly/releases/latest"
 )
@@ -616,7 +616,7 @@ def install_pynifly() -> tuple[bool, str]:
     # ── 2. Auto-download the latest release from GitHub if not found locally ──
     if not zip_path:
         tools_root = get_tools_root()
-        print("PyNifly: no local zip found — auto-downloading latest release from GitHub …")
+        print("PyNifly: no local zip found - auto-downloading latest release from GitHub …")
         zip_path, version_tag = _download_pynifly_zip(tools_root)
 
     if not zip_path:
@@ -630,7 +630,7 @@ def install_pynifly() -> tuple[bool, str]:
             f"Could not auto-download the latest PyNifly release. "
             f"Please download it manually from {release_url}, "
             f"place the zip in {DEFAULT_TOOLS_ROOT}, and click Install again.\n"
-            f"Credit: BadDog (BadDogSkyrim) — {release_url}"
+            f"Credit: BadDog (BadDogSkyrim) - {release_url}"
         )
 
     # ── 3. Install into Blender ───────────────────────────────────────────
@@ -641,7 +641,7 @@ def install_pynifly() -> tuple[bool, str]:
         _configure_tool_paths()
         return True, (
             f"PyNifly {version_tag} installed from {zip_path.name}. "
-            f"Credit: BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly"
+            f"Credit: BadDog (BadDogSkyrim) - https://github.com/BadDogSkyrim/PyNifly"
         )
     except Exception as e:
         return False, f"PyNifly install failed: {e}"
@@ -658,7 +658,7 @@ def install_torch_deps(target_path: "str | Path | None" = None) -> tuple[bool, s
         target_path: Ignored (kept for API compatibility).
 
     Returns:
-        ``(False, instructions)`` always — the user must install externally.
+        ``(False, instructions)`` always - the user must install externally.
     """
     msg = (
         "PyTorch is no longer installed inside Blender. "
@@ -744,7 +744,7 @@ def auto_configure_preferences() -> list[str]:
     """Discover installed tools and update add-on preferences automatically.
 
     Intended to be called once during add-on registration so that any tools
-    already present on disk are immediately wired up — even after a fresh
+    already present on disk are immediately wired up - even after a fresh
     Blender install or if preferences were reset.
 
     Returns a list of human-readable status strings (one per configured tool).
@@ -788,7 +788,7 @@ def auto_configure_preferences() -> list[str]:
         results.append(f"texconv auto-configured: {installed['texconv']}")
         print(f"✓ texconv auto-configured: {installed['texconv']}")
 
-    # UModel — persist the folder in preferences so the add-on can locate it
+    # UModel - persist the folder in preferences so the add-on can locate it
     if installed["umodel"] and not _prefs.get_umodel_path():
         try:
             _prefs.set_umodel_path(installed["umodel"])
@@ -797,7 +797,7 @@ def auto_configure_preferences() -> list[str]:
         except Exception as exc:
             print(f"auto_configure_preferences: UModel path set failed: {exc}")
 
-    # Havok2FBX — persist the folder in preferences
+    # Havok2FBX - persist the folder in preferences
     if installed["havok2fbx"] and not _prefs.get_havok2fbx_path():
         try:
             prefs.havok2fbx_path = installed["havok2fbx"]
@@ -814,9 +814,9 @@ def candidate_tool_paths(name: str) -> list[Path]:
 
     Results are deduplicated and ordered by priority:
       1. User-configured ``tools_root`` preference
-      2. ``SIBLING_TOOLS_ROOT`` — ``tools/`` folder next to the addon folder
+      2. ``SIBLING_TOOLS_ROOT`` - ``tools/`` folder next to the addon folder
          (the typical local layout: ``D:\\Blender addon\\tools\\``)
-      3. ``FALLBACK_TOOLS_ROOT`` — ``tools/`` subfolder inside the addon folder
+      3. ``FALLBACK_TOOLS_ROOT`` - ``tools/`` subfolder inside the addon folder
       4. ``DEFAULT_TOOLS_ROOT`` (``D:\\blender_tools``)
     """
     roots = [get_tools_root(), SIBLING_TOOLS_ROOT, FALLBACK_TOOLS_ROOT, DEFAULT_TOOLS_ROOT]
@@ -1024,7 +1024,7 @@ def install_zoedepth() -> tuple[bool, str]:
     git_exe = shutil.which("git")
     if not git_exe:
         return False, (
-            "git not found on PATH — cannot clone ZoeDepth.\n"
+            "git not found on PATH - cannot clone ZoeDepth.\n"
             "Install Git from https://git-scm.com/ then try again.\n"
             "Or clone manually:\n"
             "  git clone https://github.com/isl-org/ZoeDepth.git"
@@ -1048,7 +1048,7 @@ def install_zoedepth() -> tuple[bool, str]:
     _pip_install(["timm", "matplotlib"])
     return True, (
         f"ZoeDepth cloned to {dest}.\n"
-        "PyTorch is required at runtime — install via the Settings panel."
+        "PyTorch is required at runtime - install via the Settings panel."
     )
 
 
@@ -1071,7 +1071,7 @@ def install_triposr() -> tuple[bool, str]:
     git_exe = shutil.which("git")
     if not git_exe:
         return False, (
-            "git not found on PATH — cannot clone TripoSR.\n"
+            "git not found on PATH - cannot clone TripoSR.\n"
             "Install Git from https://git-scm.com/ then try again.\n"
             "Or clone manually:\n"
             "  git clone https://github.com/VAST-AI-Research/TripoSR.git"
@@ -1095,7 +1095,7 @@ def install_triposr() -> tuple[bool, str]:
     _pip_install(["trimesh", "huggingface_hub", "einops", "omegaconf"])
     return True, (
         f"TripoSR cloned to {dest}.\n"
-        "PyTorch is required at runtime — install via the Settings panel."
+        "PyTorch is required at runtime - install via the Settings panel."
     )
 
 
@@ -1112,14 +1112,14 @@ def install_hunyuan3d() -> tuple[bool, str]:
     """
     dest = _ensure_tools_dir("Hunyuan3D-2")
 
-    # A valid install requires infer.py — README.md alone means a partial clone.
+    # A valid install requires infer.py - README.md alone means a partial clone.
     if (dest / "infer.py").exists():
         return True, f"Hunyuan3D-2 already present at {dest}"
 
     git_exe = shutil.which("git")
     if not git_exe:
         return False, (
-            "git not found on PATH — cannot clone Hunyuan3D-2.\n"
+            "git not found on PATH - cannot clone Hunyuan3D-2.\n"
             "Install Git from https://git-scm.com/ then try again.\n"
             "Or clone manually:\n"
             "  git clone https://github.com/Tencent/Hunyuan3D-2.git"
@@ -1141,7 +1141,7 @@ def install_hunyuan3d() -> tuple[bool, str]:
                     "Delete the folder manually and click Install again."
                 )
         elif dest.is_dir():
-            # Non-git directory present but incomplete — guide user to remove it.
+            # Non-git directory present but incomplete - guide user to remove it.
             return False, (
                 f"Hunyuan3D-2 directory exists at {dest} but infer.py is missing "
                 "and it is not a git repository.\n"
@@ -1165,7 +1165,7 @@ def install_hunyuan3d() -> tuple[bool, str]:
     _pip_install(["einops", "omegaconf", "huggingface_hub"])
     return True, (
         f"Hunyuan3D-2 cloned to {dest}.\n"
-        "PyTorch is required at runtime — install via the Settings panel."
+        "PyTorch is required at runtime - install via the Settings panel."
     )
 
 
@@ -1188,7 +1188,7 @@ def install_hymotion() -> tuple[bool, str]:
     git_exe = shutil.which("git")
     if not git_exe:
         return False, (
-            "git not found on PATH — cannot clone HY-Motion-1.0.\n"
+            "git not found on PATH - cannot clone HY-Motion-1.0.\n"
             "Install Git from https://git-scm.com/ then try again.\n"
             "Or clone manually:\n"
             "  git clone https://github.com/Tencent-Hunyuan/HY-Motion-1.0.git"
@@ -1229,7 +1229,7 @@ def install_hymotion() -> tuple[bool, str]:
     _pip_install(["einops", "omegaconf"])
     return True, (
         f"HY-Motion cloned to {dest}.\n"
-        "PyTorch is required at runtime — install via the Settings panel."
+        "PyTorch is required at runtime - install via the Settings panel."
     )
 
 
@@ -1350,7 +1350,7 @@ def install_realesrgan() -> tuple[bool, str]:
                 "Restart Blender or click 'Check Status' to refresh."
             )
         return True, (
-            f"Downloaded and extracted to {dest} — "
+            f"Downloaded and extracted to {dest} - "
             "look for the realesrgan-ncnn-vulkan binary inside that folder."
         )
     except Exception as exc:
@@ -1381,7 +1381,7 @@ def install_rignet() -> tuple[bool, str]:
     git_exe = shutil.which("git")
     if not git_exe:
         return False, (
-            "git not found on PATH — cannot clone RigNet.\n"
+            "git not found on PATH - cannot clone RigNet.\n"
             "Install Git from https://git-scm.com/ then try again.\n"
             "Or clone manually:\n"
             "  git clone https://github.com/govindjoshi12/rignet-gj.git"
@@ -1404,7 +1404,7 @@ def install_rignet() -> tuple[bool, str]:
     _pip_install(["scipy", "open3d"])
     return True, (
         f"RigNet (rignet-gj) cloned to {dest}.\n"
-        "PyTorch is required at runtime — install via the Settings panel."
+        "PyTorch is required at runtime - install via the Settings panel."
     )
 
 
@@ -1428,7 +1428,7 @@ def install_motion_diffuse() -> tuple[bool, str]:
     git_exe = shutil.which("git")
     if not git_exe:
         return False, (
-            "git not found on PATH — cannot clone MotionDiffuse.\n"
+            "git not found on PATH - cannot clone MotionDiffuse.\n"
             "Install Git from https://git-scm.com/ then try again.\n"
             "Or clone manually:\n"
             "  git clone https://github.com/MotrixLab/MotionDiffuse.git"
@@ -1451,7 +1451,7 @@ def install_motion_diffuse() -> tuple[bool, str]:
     _pip_install(["einops", "omegaconf"])
     return True, (
         f"MotionDiffuse cloned to {dest}.\n"
-        "PyTorch is required at runtime — install via the Settings panel."
+        "PyTorch is required at runtime - install via the Settings panel."
     )
 
 
@@ -1476,7 +1476,7 @@ def install_collective_modding_toolkit() -> tuple[bool, str]:
         _configure_tool_paths()
         return True, f"Collective Modding Toolkit already installed at {dest}"
 
-    # Direct download URL — always points to the latest release zip.
+    # Direct download URL - always points to the latest release zip.
     zip_url = (
         "https://github.com/wxMichael/Collective-Modding-Toolkit"
         "/releases/latest/download/cm-toolkit.zip"
@@ -1508,7 +1508,7 @@ def install_collective_modding_toolkit() -> tuple[bool, str]:
                 "Key uses: BA2 patching (OG v1 ↔ NG v8), F4SE DLL scan, mod conflict scan."
             )
         return True, (
-            f"Downloaded and extracted to {dest} — look for cm-toolkit.exe"
+            f"Downloaded and extracted to {dest} - look for cm-toolkit.exe"
         )
     except Exception as exc:
         return False, (

@@ -1,7 +1,7 @@
 """Asset Library Browser for the Fallout 4 add-on.
 
 Provides a searchable, filterable panel that lets the user point to a folder
-(or a .blend library file) containing all their game assets — meshes, textures,
+(or a .blend library file) containing all their game assets - meshes, textures,
 and materials.  Separate paths can be configured for each asset type so that
 organised project layouts are fully supported.
 
@@ -42,7 +42,7 @@ _MATERIAL_EXTS: frozenset[str] = frozenset({
 })
 _ALL_EXTS: frozenset[str] = _MESH_EXTS | _TEXTURE_EXTS | _MATERIAL_EXTS
 
-# Categories inferred from semantic path keywords — kept as a module-level
+# Categories inferred from semantic path keywords - kept as a module-level
 # constant so neither _populate_asset_list nor the scan operator recreate it.
 _SEMANTIC_MESH_CATEGORIES: frozenset[str] = frozenset({
     'Characters', 'Weapons', 'Vegetation',
@@ -190,7 +190,7 @@ def _populate_asset_list(scene) -> int:
 
     Returns the number of unique assets found.  The existing list is cleared
     and rebuilt from scratch, so the result is always fresh.  This is pure
-    Python — no operator context required — making it safe to call from
+    Python - no operator context required - making it safe to call from
     app-handlers and other non-operator contexts.
     """
     combined_path = bpy.path.abspath(
@@ -265,7 +265,7 @@ def auto_scan_for_scene(scene) -> None:
     """Auto-scan assets for *scene* when paths are configured but the list is empty.
 
     Called from the ``load_post`` handler so assets are immediately available
-    after Blender starts or a project is opened — without the user having to
+    after Blender starts or a project is opened - without the user having to
     click "Scan Asset Library" again.
 
     The scan is skipped when the list already contains items so that a scene
@@ -273,7 +273,7 @@ def auto_scan_for_scene(scene) -> None:
     """
     try:
         if len(scene.fo4_asset_lib_items) > 0:
-            return  # Already populated — nothing to do
+            return  # Already populated - nothing to do
         count = _populate_asset_list(scene)
         if count:
             print(
@@ -285,7 +285,7 @@ def auto_scan_for_scene(scene) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Property group — one row in the asset list
+# Property group - one row in the asset list
 # ---------------------------------------------------------------------------
 
 class FO4_AssetLibraryItem(PropertyGroup):
@@ -297,7 +297,7 @@ class FO4_AssetLibraryItem(PropertyGroup):
 
 
 # ---------------------------------------------------------------------------
-# UIList — scrollable list with live search + category filtering
+# UIList - scrollable list with live search + category filtering
 # ---------------------------------------------------------------------------
 
 class FO4_UL_AssetLibrary(UIList):
@@ -383,7 +383,7 @@ class FO4_OT_SetAssetFolderPath(Operator):
     bl_label   = "Select Asset Folder"
     bl_description = (
         "Navigate to the folder that contains your assets and click "
-        "'Accept' — the entire folder (including sub-folders) will be scanned."
+        "'Accept' - the entire folder (including sub-folders) will be scanned."
     )
 
     # Which slot to fill: 'meshes', 'textures', or 'materials'
@@ -440,7 +440,7 @@ class FO4_OT_ScanAssetLibrary(Operator):
         if not has_path:
             self.report(
                 {'WARNING'},
-                "No asset paths configured — use 'Set Path' to choose a folder",
+                "No asset paths configured - use 'Set Path' to choose a folder",
             )
             return {'CANCELLED'}
 
@@ -473,7 +473,7 @@ class FO4_OT_ImportLibraryAsset(Operator):
         idx   = scene.fo4_asset_lib_active
 
         if not lib or idx < 0 or idx >= len(lib):
-            self.report({'WARNING'}, "No asset selected — click one in the list first")
+            self.report({'WARNING'}, "No asset selected - click one in the list first")
             return {'CANCELLED'}
 
         item     = lib[idx]
@@ -510,7 +510,7 @@ class FO4_OT_ImportLibraryAsset(Operator):
                 else:
                     self.report(
                         {'ERROR'},
-                        "NIF import requires the Niftools add-on — install it via "
+                        "NIF import requires the Niftools add-on - install it via "
                         "Preferences → Add-ons",
                     )
                     return {'CANCELLED'}
@@ -532,7 +532,7 @@ class FO4_OT_ImportLibraryAsset(Operator):
             else:
                 self.report(
                     {'WARNING'},
-                    f"'{filetype}' format is not directly importable — "
+                    f"'{filetype}' format is not directly importable - "
                     "try opening it via File → Import",
                 )
                 return {'CANCELLED'}
@@ -640,7 +640,7 @@ def _invalidate_game_asset_cache(self, context):  # noqa: ARG001
     """Called whenever an asset-path property changes.
 
     Clears the FO4GameAssets._game_dir cache so the next Smart Preset or
-    asset-library scan picks up the new path immediately — no Blender restart
+    asset-library scan picks up the new path immediately - no Blender restart
     needed.
 
     Also performs reverse-sync: when the user sets the meshes sub-folder

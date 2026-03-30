@@ -117,7 +117,7 @@ class AdvisorHelpers:
 
         This is the Mossy-specific AI path.  Unlike :meth:`query_llm`, which
         requires an OpenAI-compatible remote endpoint and API key, this calls
-        Mossy's local HTTP server directly — no API key needed, no data leaves
+        Mossy's local HTTP server directly - no API key needed, no data leaves
         your machine.
 
         Mossy must be running on the desktop and ``use_mossy_as_ai`` must be
@@ -129,7 +129,7 @@ class AdvisorHelpers:
         if not prefs or not getattr(prefs, 'use_mossy_as_ai', False):
             return None
 
-        # Build the context we send to Mossy (summary strings only — no mesh
+        # Build the context we send to Mossy (summary strings only - no mesh
         # or texture binaries ever leave Blender).
         kb_snippets = []
         if getattr(prefs, "knowledge_base_enabled", False):
@@ -392,7 +392,7 @@ class AdvisorHelpers:
         """Analyse the UV map and texture setup of *obj* for FO4 compatibility.
 
         Returns a structured dict suitable for display or for sending to Mossy
-        as context data.  Never raises — errors are captured into the ``issues``
+        as context data.  Never raises - errors are captured into the ``issues``
         list so the caller always gets a usable result.
 
         Fields returned
@@ -556,12 +556,12 @@ class AdvisorHelpers:
                 if cs:
                     if is_colour and cs not in ("sRGB", "Linear Rec.709"):
                         result["issues"].append(
-                            f"{display} colorspace is '{cs}' — should be 'sRGB' "
+                            f"{display} colorspace is '{cs}' - should be 'sRGB' "
                             "for correct colour in FO4."
                         )
                     elif not is_colour and cs not in ("Non-Color", "Raw"):
                         result["issues"].append(
-                            f"{display} colorspace is '{cs}' — must be 'Non-Color' "
+                            f"{display} colorspace is '{cs}' - must be 'Non-Color' "
                             "to prevent gamma corruption of the texture data."
                         )
             else:
@@ -620,7 +620,7 @@ class AdvisorHelpers:
 
         Mossy analyses the issues and responds with a JSON array of action
         strings (same set used by :meth:`apply_quick_fix`).  No API key is
-        required — Mossy runs locally on the user's desktop.
+        required - Mossy runs locally on the user's desktop.
 
         Returns a dict with keys ``success`` (bool), ``message`` (str on
         failure), and ``actions`` (list[str] on success).

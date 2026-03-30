@@ -11,7 +11,7 @@ To use a local torch build alongside Blender:
   2. Open the Settings panel (N-panel → Fallout 4 → Settings) and set
      "PyTorch Custom Path" to the directory that contains the ``torch/``
      package folder (e.g. D:/t or ~/.local/lib/python3.12/site-packages).
-  3. Restart Blender — the custom path is added to sys.path on startup.
+  3. Restart Blender - the custom path is added to sys.path on startup.
 
 The two operator classes below are kept so that existing UI layout code and
 test_addon_integrity.py continue to find ``torch.recheck_status`` and
@@ -166,7 +166,7 @@ class TORCH_OT_recheck_status(bpy.types.Operator):
             _ui.reset_torch_cache()
         except Exception as e:
             self.report({'WARNING'}, f"Could not reset torch cache: {e}")
-        self.report({'INFO'}, "PyTorch status refreshed — see Settings panel.")
+        self.report({'INFO'}, "PyTorch status refreshed - see Settings panel.")
         return {'FINISHED'}
 
 
@@ -195,14 +195,14 @@ class TORCH_OT_install_custom_path(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.label(
-            text="PyTorch is managed externally — not installed inside Blender.",
+            text="PyTorch is managed externally - not installed inside Blender.",
             icon='INFO',
         )
         layout.separator()
-        layout.label(text="Step 1 — Install PyTorch in a normal Python environment:")
+        layout.label(text="Step 1 - Install PyTorch in a normal Python environment:")
         layout.label(text="  https://pytorch.org/get-started/locally/", icon='URL')
         layout.separator()
-        layout.label(text="Step 2 — Open Settings panel, set 'PyTorch Custom Path' to")
+        layout.label(text="Step 2 - Open Settings panel, set 'PyTorch Custom Path' to")
         layout.label(text="  the directory that contains the torch/ package folder.")
         layout.separator()
         layout.label(

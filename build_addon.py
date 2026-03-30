@@ -187,7 +187,7 @@ def build_variant(root: Path, outdir: Path, addon_version: str,
             rel = item.relative_to(root)
             # Extension format: all .py files from the repo root land at the
             # zip root (__init__.py, operators.py, preferences.py, …) alongside
-            # the generated blender_manifest.toml — exactly what Blender's
+            # the generated blender_manifest.toml - exactly what Blender's
             # Get-Extensions → Install-from-Disk expects.
             # Legacy add-on format: everything goes under blender_game_tools/
             # so Blender's old add-on installer finds the module folder.
@@ -243,7 +243,7 @@ def main(argv=None):
 
     # Show the git branch and commit so you can verify you're building the
     # right code.  If branch is not 'main', the latest fixes may not be
-    # included — merge the open Pull Request on GitHub first, then run
+    # included - merge the open Pull Request on GitHub first, then run
     # start_session.bat to pull, and rebuild.
     try:
         import subprocess as _sp
@@ -263,7 +263,7 @@ def main(argv=None):
                 "     Request on GitHub, run start_session.bat, then rebuild."
             )
     except Exception:
-        pass  # git not available or not a git repo — skip silently
+        pass  # git not available or not a git repo - skip silently
 
     print()
 
@@ -273,7 +273,7 @@ def main(argv=None):
         built.append(build_variant(root, outdir, addon_version, key, VARIANTS[key]))
 
     print()
-    print(f"Done — {len(built)} zip(s) built.")
+    print(f"Done - {len(built)} zip(s) built.")
     return 0
 
 

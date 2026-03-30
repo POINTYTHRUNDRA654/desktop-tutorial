@@ -19,11 +19,11 @@ except ImportError:  # pragma: no cover - worker processes run without Blender
     StringProperty = EnumProperty = IntProperty = FloatProperty = BoolProperty = None  # type: ignore[assignment]
 
 # ---------------------------------------------------------------------------
-# Module-level model cache — models are expensive to load (several seconds),
+# Module-level model cache - models are expensive to load (several seconds),
 # so we keep them alive between generation calls and only reload when the
 # active compute device changes.
 #
-# The transmitter (xm) is shared between text and image pipelines — loading
+# The transmitter (xm) is shared between text and image pipelines - loading
 # it twice wastes VRAM and initialization time when both modes are used in
 # the same session.
 # ---------------------------------------------------------------------------
@@ -175,7 +175,7 @@ def _load_shap_e_transmitter(device, torch_module):
     if torch_module.device(device).type == 'cuda':
         xm.half()
         # cudnn auto-tuner picks the fastest convolution algorithm for the
-        # fixed input sizes used during inference — one-time benchmark cost,
+        # fixed input sizes used during inference - one-time benchmark cost,
         # then faster on every subsequent forward pass.
         torch_module.backends.cudnn.benchmark = True
     if hasattr(torch_module, 'compile') and torch_module.device(device).type == 'cuda':
@@ -265,7 +265,7 @@ def _load_shap_e_image_models(device):
 def _mossy_provides_torch() -> bool:
     """Return True when the Mossy bridge is online and provides PyTorch.
 
-    When Mossy is connected, PyTorch runs inside the Mossy desktop app —
+    When Mossy is connected, PyTorch runs inside the Mossy desktop app -
     a local Blender-side torch install is not required for AI inference.
     Safe to call from background threads; all bpy.context access is guarded.
     """
@@ -290,7 +290,7 @@ def _mossy_provides_torch() -> bool:
 class ShapEHelpers:
     """Helper functions for Shap-E integration"""
 
-    # Cache for is_shap_e_installed() — avoids repeated torch/shap_e import attempts
+    # Cache for is_shap_e_installed() - avoids repeated torch/shap_e import attempts
     # on every Blender UI redraw.
     _cache = None
     _cache_time = 0.0
@@ -414,7 +414,7 @@ class ShapEHelpers:
                         return False, _pytorch_required_message(msg)
             except (ImportError, AttributeError):
                 # TorchPathManager not available.  Skip the torch import when it is
-                # already in sys.modules — DLLs are confirmed working by whoever loaded
+                # already in sys.modules - DLLs are confirmed working by whoever loaded
                 # it (e.g. the Settings panel background probe).  Only attempt the
                 # import when torch has not been loaded yet, and handle both
                 # ImportError *and* OSError (WinError 1114) from that first load.
@@ -538,7 +538,7 @@ For more info: https://github.com/openai/shap-e
             diffusion = cached['diffusion']
             print(f"[Shap-E] model load: {time.monotonic() - t0:.1f} s")
 
-            # Inference — inference_mode + autocast for maximum throughput.
+            # Inference - inference_mode + autocast for maximum throughput.
             print(f"[Shap-E] inference ({num_inference_steps} steps, guidance={guidance_scale})…")
             t0 = time.monotonic()
             batch_size = 1
@@ -627,7 +627,7 @@ For more info: https://github.com/openai/shap-e
             diffusion = cached['diffusion']
             print(f"[Shap-E] model load: {time.monotonic() - t0:.1f} s")
 
-            # Inference — inference_mode + autocast for maximum throughput.
+            # Inference - inference_mode + autocast for maximum throughput.
             print(f"[Shap-E] inference ({num_inference_steps} steps, guidance={guidance_scale})…")
             t0 = time.monotonic()
             batch_size = 1

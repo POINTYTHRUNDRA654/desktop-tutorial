@@ -3,13 +3,13 @@ Post-processing helpers for Fallout 4 mod creation.
 
 Covers two distinct workflows:
 
-1.  **Blender Compositor preview** — Sets up Blender's node-compositor so
+1.  **Blender Compositor preview** - Sets up Blender's node-compositor so
     artists can preview how a scene will look with Fallout 4's built-in
     post-processing (colour grading, bloom, vignette, cinematic bars, etc.)
     *before* exporting.  All changes are non-destructive and can be removed
     with one click.
 
-2.  **ImageSpace / IMAD data export** — Serialises the current settings to
+2.  **ImageSpace / IMAD data export** - Serialises the current settings to
     a JSON file that maps 1-to-1 onto Creation Kit ``ImageSpace (IMGS)`` and
     ``ImageSpace Modifier (IMAD)`` record fields.  The user imports the JSON
     with a CK plugin (e.g. xEdit's scripted import) or fills the CK form

@@ -98,7 +98,7 @@ class ExportHelpers:
         if hasattr(export_scene, "pynifly"):
             return True, "PyNifly exporter available (BadDog / BadDogSkyrim)"
         return False, (
-            "PyNifly not installed — click 'Auto-Install PyNifly (Latest)' in the Setup & Status panel "
+            "PyNifly not installed - click 'Auto-Install PyNifly (Latest)' in the Setup & Status panel "
             "to auto-download and install it"
         )
 
@@ -107,8 +107,8 @@ class ExportHelpers:
         """Return which NIF exporter is active and whether it is available.
 
         Priority order (highest to lowest):
-          1. **PyNifly** (BadDogSkyrim) — preferred for Blender 4.x / 5.x
-          2. **Niftools v0.1.1**        — legacy, Blender 3.6 LTS only
+          1. **PyNifly** (BadDogSkyrim) - preferred for Blender 4.x / 5.x
+          2. **Niftools v0.1.1**        - legacy, Blender 3.6 LTS only
 
         Returns
         -------
@@ -252,7 +252,7 @@ class ExportHelpers:
         We introspect the operator's RNA properties at runtime so the code
         remains resilient to API differences across PyNifly releases.
 
-        Credit: PyNifly by BadDog (BadDogSkyrim) — https://github.com/BadDogSkyrim/PyNifly
+        Credit: PyNifly by BadDog (BadDogSkyrim) - https://github.com/BadDogSkyrim/PyNifly
         """
         kwargs: dict = {
             "filepath": filepath,
@@ -303,7 +303,7 @@ class ExportHelpers:
 
             # ── Coordinate system ─────────────────────────────────────────────
             # blender_xf applies a 90° rotation + scale when True.  For FO4 we
-            # leave it False (NIF-native coordinates) — matching vanilla files.
+            # leave it False (NIF-native coordinates) - matching vanilla files.
             if "blender_xf" in prop_keys:
                 kwargs["blender_xf"] = False
 
@@ -446,9 +446,9 @@ class ExportHelpers:
         falling back to FBX when neither is installed.
 
         Exporter priority:
-          1. **PyNifly** (BadDogSkyrim) — preferred for Blender 4.x / 5.x
-          2. **Niftools v0.1.1**        — legacy, Blender 3.6 LTS only
-          3. **FBX fallback**           — when no NIF exporter is available
+          1. **PyNifly** (BadDogSkyrim) - preferred for Blender 4.x / 5.x
+          2. **Niftools v0.1.1**        - legacy, Blender 3.6 LTS only
+          3. **FBX fallback**           - when no NIF exporter is available
 
         Pre-export preparation (applied automatically, reversed after export):
           - Scale and rotation transforms are applied so geometry arrives at the

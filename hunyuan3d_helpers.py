@@ -32,7 +32,7 @@ HUNYUAN3D_ERROR = None
 def _mossy_provides_torch() -> bool:
     """Return True when the Mossy bridge is online and provides PyTorch.
 
-    When Mossy is connected, PyTorch runs inside the Mossy desktop app —
+    When Mossy is connected, PyTorch runs inside the Mossy desktop app -
     a local Blender-side torch install is not required for AI inference.
     Safe to call from background threads; all bpy.context access is guarded.
     """
@@ -165,10 +165,10 @@ def check_hunyuan3d_availability():
     if not _torch_available():
         return False, "PyTorch not installed. Install with: pip install torch torchvision"
 
-    # Probe torch to catch DLL init failures (WinError 1114 — CUDA/driver mismatch).
+    # Probe torch to catch DLL init failures (WinError 1114 - CUDA/driver mismatch).
     # find_spec only verifies the files exist; it does not load the DLLs.
     # Skip the probe when: (a) torch is already loaded in this process, or
-    # (b) torch runs inside Mossy — there are no local DLLs to verify.
+    # (b) torch runs inside Mossy - there are no local DLLs to verify.
     if sys.modules.get("torch") is None and not _mossy_provides_torch():
         try:
             importlib.import_module("torch")
@@ -423,7 +423,7 @@ def clear_availability_cache():
     Called by the install operator after a successful install to ensure
     the panel reflects the newly-installed state immediately.
     """
-    # hunyuan3d_helpers does not keep its own TTL cache — check_hunyuan3d_availability()
+    # hunyuan3d_helpers does not keep its own TTL cache - check_hunyuan3d_availability()
     # re-runs on every call.  The module-level globals below are only written by
     # register() so we reset them here to match the "not yet checked" state.
     global HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR

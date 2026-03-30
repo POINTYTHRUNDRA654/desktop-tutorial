@@ -28,7 +28,7 @@ class MeshHelpers:
         'ROCK': 0.5,
         'TREE': 0.2,
         'BUILDING': 0.15,  # less aggressive simplification for structures
-        'VEGETATION': 0.1, # very aggressive for organic shapes — produces a simple hull footprint
+        'VEGETATION': 0.1, # very aggressive for organic shapes - produces a simple hull footprint
         'GRASS': 1.0,      # no simplification needed since we skip
         'MUSHROOM': 1.0,
         'CREATURE': 1.0,   # creatures typically use external physics shapes
@@ -68,7 +68,7 @@ class MeshHelpers:
         'ROCK':       {'friction': 0.9, 'restitution': 0.05},
         'TREE':       {'friction': 0.7, 'restitution': 0.2},
         'BUILDING':   {'friction': 0.9, 'restitution': 0.05},
-        # VEGETATION: matches FO4 bush/shrub collision feel — low friction so
+        # VEGETATION: matches FO4 bush/shrub collision feel - low friction so
         # the player slides past naturally, small bounce for organic give.
         'VEGETATION': {'friction': 0.6, 'restitution': 0.15},
         'GRASS':      {'friction': 0.5, 'restitution': 0.05},
@@ -617,15 +617,15 @@ class MeshHelpers:
         texture_type : str
             ``'DIFFUSE'``, ``'NORMAL'``, ``'SPECULAR'``, or ``'GLOW'``.
         unwrap_method : str
-            ``'MIN_STRETCH'`` **(default)** — Minimum Stretch: CONFORMAL
+            ``'MIN_STRETCH'`` **(default)** - Minimum Stretch: CONFORMAL
             (LSCM) initial layout followed by ``uv.minimize_stretch`` run to
             convergence (100 iterations).  Produces the lowest UV distortion
             of any available method.
-            ``'SMART'``      — Smart UV Project (fast, good general purpose).
-            ``'ANGLE'``      — Angle-Based conformal unwrap with stretch-
+            ``'SMART'``      - Smart UV Project (fast, good general purpose).
+            ``'ANGLE'``      - Angle-Based conformal unwrap with stretch-
                                minimize refinement pass.
-            ``'CUBE'``       — Cube/box projection.
-            ``'EXISTING'``   — Keep current UV map; only bind the texture.
+            ``'CUBE'``       - Cube/box projection.
+            ``'EXISTING'``   - Keep current UV map; only bind the texture.
         island_margin : float
             Spacing between UV islands (0.0 - 0.1). Default 0.02 (2 %) gives
             enough room to prevent mip-map bleed on 1024 x 1024 DDS textures.
@@ -693,7 +693,7 @@ class MeshHelpers:
                     )
                     bpy.ops.mesh.select_all(action='SELECT')
                     bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=island_margin)
-                    # Conformal smoothing pass — reduces rubber-band stretch.
+                    # Conformal smoothing pass - reduces rubber-band stretch.
                     try:
                         bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=10)
                     except Exception:
@@ -781,7 +781,7 @@ class SmartPresets:
     """
 
     # Shown in an ERROR report when FO4 game files are not found.
-    # No generic or placeholder mesh is created — the operator cancels.
+    # No generic or placeholder mesh is created - the operator cancels.
     FALLBACK_MSG = (
         "Set your FO4 Data folder in any Fallout 4 panel, "
         "then click this button again to import the real game mesh."
@@ -794,7 +794,7 @@ class SmartPresets:
 
     # Maps a preset-type key → (folder_relative_to_FO4_Data, [candidate_filenames])
     # The first candidate file that exists as a loose NIF is imported.
-    # If no matching NIF is found the operator cancels with an error — no
+    # If no matching NIF is found the operator cancels with an error - no
     # generic geometry is created.
     NIF_CATALOG: dict = {
         # ── Weapons ────────────────────────────────────────────────────────────
@@ -977,7 +977,7 @@ class SmartPresets:
                 return True, f"Imported game mesh: {filename}"
             except Exception as e:
                 return False, f"NIF import error: {e}"
-        return False, "Niftools add-on not installed — install it to import .nif files directly"
+        return False, "Niftools add-on not installed - install it to import .nif files directly"
 
     @staticmethod
     def auto_apply_textures_from_game_asset(nif_path: str):

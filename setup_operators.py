@@ -16,7 +16,7 @@ Keeping them in a separate, minimal module mirrors the pattern used for
 tutorial_operators.py and prevents the fallback "(loading...)" labels that
 appear when operators.py fails to load on a particular Blender build.
 
-See DEVELOPMENT_NOTES.md — *RECURRING BUG #1* — for full context.
+See DEVELOPMENT_NOTES.md - *RECURRING BUG #1* - for full context.
 Do NOT delete this file or remove these operators from the classes tuple.
 """
 
@@ -180,7 +180,7 @@ class FO4_OT_SelfTest(Operator):
         try:
             ns = importlib.import_module(".notification_system", package=__package__)
             ns.FO4_NotificationSystem.notify(
-                "Environment self-test complete — see System Console", 'INFO'
+                "Environment self-test complete - see System Console", 'INFO'
             )
         except Exception:
             pass
@@ -257,7 +257,7 @@ def register():
             # already occupy this type name.  Unregister the old object first
             # then register the fresh one so the UI always runs current code.
             # This mirrors the pattern used in tutorial_operators.py and
-            # operators.py register() — see DEVELOPMENT_NOTES.md.
+            # operators.py register() - see DEVELOPMENT_NOTES.md.
             try:
                 existing = getattr(bpy.types, cls.__name__, None)
                 if existing is not None:

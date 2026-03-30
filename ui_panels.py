@@ -49,12 +49,12 @@ def _check_legacy_conflict():
     global _legacy_conflict_cache
     if _legacy_conflict_cache is None:
         if _is_running_as_legacy():
-            # We ARE the old addon — check whether the new one is also present.
+            # We ARE the old addon - check whether the new one is also present.
             _legacy_conflict_cache = any(
                 "blender_game_tools" in k for k in sys.modules
             )
         else:
-            # We ARE the new addon — check whether the old one is also present.
+            # We ARE the new addon - check whether the old one is also present.
             _legacy_conflict_cache = any(
                 "fallout4_tutorial_helper" in k for k in sys.modules
             )
@@ -96,7 +96,7 @@ def _safe_import(name):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ACTIVATION BUTTONS — READ THIS BEFORE TOUCHING ANYTHING BELOW
+# ACTIVATION BUTTONS - READ THIS BEFORE TOUCHING ANYTHING BELOW
 # ══════════════════════════════════════════════════════════════════════════════
 #
 # The add-on has 7 "activation operators" that MUST always appear as real,
@@ -123,7 +123,7 @@ def _safe_import(name):
 #     Duplicate class bodies displace the setup_operators.py registrations.
 #
 #  5. Every call to a tutorial or setup operator in this file must go through
-#     _activation_op() (see below) — never wrap them in hasattr guards whose
+#     _activation_op() (see below) - never wrap them in hasattr guards whose
 #     else-branch returns a static label.  In Blender 5.x, hasattr(bpy.types,
 #     'FO4_OT_X') can return False even for operators that ARE registered;
 #     showing a label in the else-branch silently hides the button.
@@ -133,20 +133,20 @@ def _safe_import(name):
 #   Always draw the button.  If the operator is missing the user sees an
 #   error on click; if the button is missing the user cannot do anything at all.
 #
-# See DEVELOPMENT_NOTES.md — RECURRING BUG #1 — for the full history.
+# See DEVELOPMENT_NOTES.md - RECURRING BUG #1 - for the full history.
 # ══════════════════════════════════════════════════════════════════════════════
 
 
 def _activation_op(layout, cls_name, idname, text, icon='NONE'):
-    """Draw an activation operator button — ALWAYS visible.
+    """Draw an activation operator button - ALWAYS visible.
 
     Every one of the 7 activation operators (tutorial + setup) must be drawn
     through this helper so the button is never replaced by a static label.
 
     Background: in Blender 5.x ``hasattr(bpy.types, cls_name)`` may return
     ``False`` even when the operator IS registered (RECURRING BUG #1, see
-    DEVELOPMENT_NOTES.md).  The previous pattern — ``if hasattr(...): op() else:
-    label()`` — caused the panel to silently show a "(loading...)" text instead
+    DEVELOPMENT_NOTES.md).  The previous pattern - ``if hasattr(...): op() else:
+    label()`` - caused the panel to silently show a "(loading...)" text instead
     of a button whenever the hasattr check misfired.
 
     This helper performs the hasattr check (kept for correctness on Blender
@@ -159,12 +159,12 @@ def _activation_op(layout, cls_name, idname, text, icon='NONE'):
     """
     # hasattr check retained: satisfies test_addon_integrity.py guard test and
     # is useful on Blender versions where it works.  The button is drawn either
-    # way — see module-level comment above.
+    # way - see module-level comment above.
     hasattr(bpy.types, cls_name)  # guard check (result intentionally unused)
     return layout.operator(idname, text=text, icon=icon)
 
 # ──────────────────────────────────────────────────────────────────────────
-# PyTorch availability — simple external-install check.
+# PyTorch availability - simple external-install check.
 # Auto-installation inside Blender has been removed; users point the addon
 # at an external PyTorch directory via Settings > PyTorch Custom Path.
 # ──────────────────────────────────────────────────────────────────────────
@@ -198,7 +198,7 @@ def reset_torch_cache():
 _DLL_ERROR_SENTINEL = "PyTorch DLL initialisation failed (WinError 1114)."
 
 # Sentinel returned by _get_torch_status() when the Mossy bridge is online and
-# covers PyTorch inference — local install is not required.
+# covers PyTorch inference - local install is not required.
 _MOSSY_TORCH = "via Mossy bridge"
 
 
@@ -208,7 +208,7 @@ def _dll_init_error_message(exc_str: str = "") -> str:
     This error means a CUDA-version mismatch between the installed PyTorch
     and the system GPU driver, or a missing Visual C++ Redistributable.
     Identical to the helper defined in hunyuan3d_helpers / hymotion_helpers /
-    zoedepth_helpers — duplicated here so ui_panels has no import dependency
+    zoedepth_helpers - duplicated here so ui_panels has no import dependency
     on those optional modules.
 
     Args:
@@ -270,7 +270,7 @@ def _probe_torch_background(torch_path: str = "") -> None:
     local_ok = False
     local_error = ""
     try:
-        import torch  # noqa: PLC0415  — deferred to avoid blocking at module load
+        import torch  # noqa: PLC0415  - deferred to avoid blocking at module load
         _torch_status_cache = (True, torch.__version__)
         local_ok = True
     except OSError as e:
@@ -283,7 +283,7 @@ def _probe_torch_background(torch_path: str = "") -> None:
     except Exception as e:
         local_error = str(e)
 
-    # ── Step 2: local torch missing/broken — check Mossy bridge ──────────
+    # ── Step 2: local torch missing/broken - check Mossy bridge ──────────
     # If Mossy is running, PyTorch is available through it even if the local
     # install is absent or has a DLL mismatch (WinError 1114).  Treat a live
     # bridge as "torch available" so the user never sees a misleading error.
@@ -308,7 +308,7 @@ def _probe_torch_background(torch_path: str = "") -> None:
         except Exception:
             pass
 
-    # ── Step 3: neither local torch nor Mossy — report the local failure ─
+    # ── Step 3: neither local torch nor Mossy - report the local failure ─
     if not local_ok:
         _torch_status_cache = (False, local_error)
 
@@ -332,7 +332,7 @@ def _get_torch_status() -> "tuple[bool | None, str]":
     ``(True, version_str)``
         PyTorch is importable locally.
     ``(True, _MOSSY_TORCH)``
-        Mossy bridge is online — PyTorch inference runs inside Mossy, so a
+        Mossy bridge is online - PyTorch inference runs inside Mossy, so a
         local install is not required even if the local probe failed.
     ``(False, reason_str)``
         Import failed; *reason_str* is a user-readable explanation.
@@ -351,7 +351,7 @@ def _get_torch_status() -> "tuple[bool | None, str]":
     # ── Mossy short-circuit ────────────────────────────────────────────────
     # PyTorch lives inside the Mossy desktop app.  When the bridge is online
     # (or the user has enabled use_mossy_as_ai) there is no need to load a
-    # local torch install — and any DLL failure from a mismatched local
+    # local torch install - and any DLL failure from a mismatched local
     # install should not be shown as an error.
     try:
         wm = bpy.context.window_manager
@@ -366,7 +366,7 @@ def _get_torch_status() -> "tuple[bool | None, str]":
     if _torch_status_cache is not None:
         return _torch_status_cache
     # Capture the torch path and Mossy preference on the main thread before
-    # starting the background probe — bpy.context must not be accessed from
+    # starting the background probe - bpy.context must not be accessed from
     # a background thread.
     torch_path = ""
     use_mossy = False
@@ -377,7 +377,7 @@ def _get_torch_status() -> "tuple[bool | None, str]":
     except Exception:
         pass
     # Short-circuit: the user has explicitly chosen to route AI through the
-    # Mossy desktop app.  No local torch install is required — skip the probe
+    # Mossy desktop app.  No local torch install is required - skip the probe
     # entirely and report success immediately.
     if use_mossy:
         _torch_status_cache = (True, "via Mossy bridge")
@@ -394,7 +394,7 @@ def _get_torch_status() -> "tuple[bool | None, str]":
 def _draw_torch_error(box, torch_info: str) -> None:
     """Draw torch-unavailable feedback inside a UI box.
 
-    Distinguishes a DLL-initialisation failure (WinError 1114 — CUDA/driver
+    Distinguishes a DLL-initialisation failure (WinError 1114 - CUDA/driver
     mismatch) from a plain "module not found" situation and shows the
     appropriate actionable guidance in each case.
 
@@ -406,7 +406,7 @@ def _draw_torch_error(box, torch_info: str) -> None:
         torch_info: The reason string returned by ``_get_torch_status()``.
     """
     if torch_info.startswith(_DLL_ERROR_SENTINEL):
-        box.label(text="PyTorch DLL failed to load — CUDA/driver mismatch", icon='ERROR')
+        box.label(text="PyTorch DLL failed to load - CUDA/driver mismatch", icon='ERROR')
         # Try to show the detected CUDA version for a more specific fix.
         cuda_ver = None
         try:
@@ -435,7 +435,7 @@ def _draw_torch_error(box, torch_info: str) -> None:
         box.label(text="       https://aka.ms/vs/17/release/vc_redist.x64.exe", icon='BLANK1')
         box.label(text="Fix 3: Update GPU driver to match your CUDA version", icon='DOT')
         box.label(text="Fix 4: Use CPU-only PyTorch build if no GPU present", icon='DOT')
-        box.label(text="Fix 5: Connect Mossy bridge — PyTorch runs inside Mossy", icon='DOT')
+        box.label(text="Fix 5: Connect Mossy bridge - PyTorch runs inside Mossy", icon='DOT')
     else:
         box.label(text="PyTorch not detected in Blender's Python.", icon='INFO')
         box.label(text="Connect Mossy bridge (Mossy tab) to enable AI features.", icon='INFO')
@@ -554,7 +554,7 @@ def _draw_game_path_box(layout, context):
 
     scene = context.scene
 
-    # Get prefs for the path field — may be None when addon not yet registered
+    # Get prefs for the path field - may be None when addon not yet registered
     prefs = preferences.get_preferences() if preferences else None
 
     if not fo4_game_assets:
@@ -626,7 +626,7 @@ class FO4_PT_MainPanel(Panel):
         # Two scenarios:
         # A) We ARE the old 'fallout4_tutorial_helper' running alongside the
         #    new 'blender_game_tools' extension.  Our operators are not
-        #    registered so we must NOT draw any operator buttons — return early
+        #    registered so we must NOT draw any operator buttons - return early
         #    after showing a "please remove me" message.
         # B) We ARE the new 'blender_game_tools' extension and the old addon
         #    is still installed.  Our operators ARE registered so we continue
@@ -640,7 +640,7 @@ class FO4_PT_MainPanel(Panel):
                 warn.label(text="This copy ('fallout4_tutorial_helper') is outdated.")
                 warn.label(text="Fix: Edit → Preferences → Add-ons/Extensions")
                 warn.label(text="→ find 'fallout4_tutorial_helper' → Disable & Remove")
-                return  # Do NOT draw operator buttons — they are unregistered.
+                return  # Do NOT draw operator buttons - they are unregistered.
             else:
                 warn.label(text="⚠ OLD ADDON CONFLICT DETECTED", icon='ERROR')
                 warn.label(text="'fallout4_tutorial_helper' is still enabled.")
@@ -669,11 +669,11 @@ class FO4_PT_MainPanel(Panel):
             compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
             compat_box.label(text="  Export .fbx and convert with Cathedral Assets Optimizer.")
         elif bv < (5, 0, 0):
-            # 4.1–4.x — use_auto_smooth removed; FBX-only NIF path
+            # 4.1–4.x - use_auto_smooth removed; FBX-only NIF path
             compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
             compat_box.label(text="  Shade-by-angle is automatic in Blender 4.1+.")
         else:
-            # 5.0+ — Niftools works with runtime patches applied by this add-on
+            # 5.0+ - Niftools works with runtime patches applied by this add-on
             compat_box.label(text="✓ NIF export: Niftools works with runtime patches", icon='CHECKMARK')
             compat_box.label(text="  Install Niftools (legacy add-on) + enable 'Allow Legacy Add-ons'.")
             compat_box.label(text="  API patches applied automatically before every export.")
@@ -927,7 +927,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             uv_box = layout.box()
             uv_box.label(text="UV & Texture Workflow", icon='UV')
 
-            # Step 1 — status
+            # Step 1 - status
             if has_mesh:
                 mesh = obj.data
                 uv_ok = bool(mesh.uv_layers)
@@ -944,8 +944,8 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
                 )
                 uv_box.separator()
 
-            # Step 1 — one-click setup (UV + texture + material in one go)
-            uv_box.label(text="Step 1 — Setup UV + Bind Texture:", icon='FORWARD')
+            # Step 1 - one-click setup (UV + texture + material in one go)
+            uv_box.label(text="Step 1 - Setup UV + Bind Texture:", icon='FORWARD')
             row = uv_box.row()
             row.enabled = has_mesh
             row.operator(
@@ -954,7 +954,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
                 icon='TEXTURE',
             )
 
-            # Step 1b — Hybrid workflow for complex / organic meshes
+            # Step 1b - Hybrid workflow for complex / organic meshes
             uv_box.separator()
             uv_box.label(
                 text="Complex Mesh? (plants, foliage, armor) →",
@@ -981,8 +981,8 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             )
             uv_box.separator()
 
-            # Step 2 — face-picking for selective unwrap
-            uv_box.label(text="Step 2 — Select faces to unwrap:", icon='FORWARD')
+            # Step 2 - face-picking for selective unwrap
+            uv_box.label(text="Step 2 - Select faces to unwrap:", icon='FORWARD')
             row = uv_box.row(align=True)
             row.enabled = has_mesh
             row.operator(
@@ -997,15 +997,15 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             )
             uv_box.separator()
 
-            # Step 3 — re-unwrap if needed
-            uv_box.label(text="Step 3 — Adjust UV Map if needed:", icon='FORWARD')
+            # Step 3 - re-unwrap if needed
+            uv_box.label(text="Step 3 - Adjust UV Map if needed:", icon='FORWARD')
             row = uv_box.row(align=True)
             row.enabled = has_mesh
             row.operator("fo4.re_unwrap_uv", text="Re-Unwrap UV", icon='UV_SYNC_SELECT')
             row.operator("fo4.optimize_uvs",  text="Pack Islands", icon='UV_FACESEL')
 
-            # Step 4 — interactive UV editing
-            uv_box.label(text="Step 4 — Fine-tune in UV Editor:", icon='FORWARD')
+            # Step 4 - interactive UV editing
+            uv_box.label(text="Step 4 - Fine-tune in UV Editor:", icon='FORWARD')
             row = uv_box.row()
             row.enabled = has_mesh
             row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
@@ -1018,9 +1018,9 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
                 icon='LIGHT_HEMI',
             )
 
-            # Step 5 — export
+            # Step 5 - export
             uv_box.separator()
-            uv_box.label(text="Step 5 — Export as Fallout 4 NIF:", icon='FORWARD')
+            uv_box.label(text="Step 5 - Export as Fallout 4 NIF:", icon='FORWARD')
             row = uv_box.row()
             row.enabled = has_mesh
             row.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='EXPORT')
@@ -1188,7 +1188,7 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
         if esrgan_available:
             ai_box.label(text=f"Status: {esrgan_status}", icon='CHECKMARK')
         else:
-            ai_box.label(text="Status: Not Installed — click below to auto-install", icon='ERROR')
+            ai_box.label(text="Status: Not Installed - click below to auto-install", icon='ERROR')
             ai_box.operator(
                 "fo4.install_upscaler_deps",
                 text="Auto-Install Real-ESRGAN (One-Click)",
@@ -1202,7 +1202,7 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
         row.enabled = esrgan_available
         row.operator("fo4.upscale_object_textures", text="Upscale Object Textures", icon='OBJECT_DATA')
 
-        # KREA AI Legacy upscaling — own self-contained upscaler, no subscription
+        # KREA AI Legacy upscaling - own self-contained upscaler, no subscription
         krea_box = layout.box()
         krea_box.label(text="KREA AI Legacy Upscale", icon='SHADERFX')
         if esrgan_available:
@@ -1244,9 +1244,9 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
                 icon='ERROR' if over_limit else ('CHECKMARK' if at_target else 'INFO'),
             )
             if over_limit:
-                q_box.label(text="⚠ Over 65,535 — cannot export to FO4 until decimated", icon='ERROR')
+                q_box.label(text="⚠ Over 65,535 - cannot export to FO4 until decimated", icon='ERROR')
             elif not at_target:
-                q_box.label(text=f"Above target ({target:,}) — click Decimate below", icon='INFO')
+                q_box.label(text=f"Above target ({target:,}) - click Decimate below", icon='INFO')
 
         col = q_box.column(align=True)
         col.prop(scene, "fo4_imageto3d_quality")
@@ -1260,7 +1260,7 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
         hint.label(text="MC Resolution ↓ = fewer polys  |  ↑ = more detail (slower)", icon='DOT')
         hint.label(text="Auto-Decimate runs Smart Decimate after every generation", icon='DOT')
 
-        # One-click decimate button — always visible so users can fix any mesh
+        # One-click decimate button - always visible so users can fix any mesh
         dec_row = q_box.row(align=True)
         dec_row.enabled = bool(obj and obj.type == 'MESH')
         dec_row.scale_y = 1.3
@@ -1350,13 +1350,13 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
         if ngp_available:
             ngp_box.label(text="Status: Found ✓", icon='CHECKMARK')
         else:
-            ngp_box.label(text="Status: Not Found — click below to auto-clone", icon='ERROR')
+            ngp_box.label(text="Status: Not Found - click below to auto-clone", icon='ERROR')
             ngp_box.operator(
                 "fo4.install_instantngp",
                 text="Auto-Install Instant-NGP (Clone via git)",
                 icon='IMPORT',
             )
-        # Manual path override — lets users point to a pre-built install
+        # Manual path override - lets users point to a pre-built install
         if context.scene:
             ngp_box.prop(context.scene, "fo4_instantngp_path", text="Path")
         ngp_box.operator("fo4.check_instantngp_installation", text="Check Installation", icon='SYSTEM')
@@ -1383,7 +1383,7 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
         info_box.label(text="• See README for install instructions")
 
 class FO4_PT_SetupAIHunyuan3D(_FO4SubPanel):
-    """Hunyuan3D-2 AI mesh generation — sub-panel inside Setup & Status."""
+    """Hunyuan3D-2 AI mesh generation - sub-panel inside Setup & Status."""
     bl_label = "AI: Hunyuan3D-2 (Text/Image to 3D)"
     bl_idname = "FO4_PT_setup_ai_hunyuan3d"
     bl_space_type = 'VIEW_3D'
@@ -1439,7 +1439,7 @@ class FO4_PT_SetupAIHunyuan3D(_FO4SubPanel):
 
 
 class FO4_PT_SetupAIGradio(_FO4SubPanel):
-    """Gradio web interface — sub-panel inside Setup & Status."""
+    """Gradio web interface - sub-panel inside Setup & Status."""
     bl_label = "AI: Web Interface (Gradio)"
     bl_idname = "FO4_PT_setup_ai_gradio"
     bl_space_type = 'VIEW_3D'
@@ -1472,7 +1472,7 @@ class FO4_PT_SetupAIGradio(_FO4SubPanel):
 
 
 class FO4_PT_SetupAIHyMotion(_FO4SubPanel):
-    """HY-Motion-1.0 — sub-panel inside Setup & Status."""
+    """HY-Motion-1.0 - sub-panel inside Setup & Status."""
     bl_label = "AI: Motion Generation (HY-Motion)"
     bl_idname = "FO4_PT_setup_ai_hymotion"
     bl_space_type = 'VIEW_3D'
@@ -1498,7 +1498,7 @@ class FO4_PT_SetupAIHyMotion(_FO4SubPanel):
 
 
 class FO4_PT_SetupAIShapE(_FO4SubPanel):
-    """Shap-E AI generation — sub-panel inside Setup & Status."""
+    """Shap-E AI generation - sub-panel inside Setup & Status."""
     bl_label = "AI: Shap-E (Text/Image to 3D)"
     bl_idname = "FO4_PT_setup_ai_shap_e"
     bl_space_type = 'VIEW_3D'
@@ -1543,7 +1543,7 @@ class FO4_PT_SetupAIShapE(_FO4SubPanel):
 
 
 class FO4_PT_SetupAIPointE(_FO4SubPanel):
-    """Point-E AI generation — sub-panel inside Setup & Status."""
+    """Point-E AI generation - sub-panel inside Setup & Status."""
     bl_label = "AI: Point-E (Text/Image to Point Cloud)"
     bl_idname = "FO4_PT_setup_ai_point_e"
     bl_space_type = 'VIEW_3D'
@@ -1592,7 +1592,7 @@ class FO4_PT_SetupAIPointE(_FO4SubPanel):
 
 
 class FO4_PT_SetupAIDiffusers(_FO4SubPanel):
-    """Diffusers / LayerDiffuse and ecosystem resources — sub-panel inside Setup & Status."""
+    """Diffusers / LayerDiffuse and ecosystem resources - sub-panel inside Setup & Status."""
     bl_label = "AI: Diffusers & Resources"
     bl_idname = "FO4_PT_setup_ai_diffusers"
     bl_space_type = 'VIEW_3D'
@@ -1674,7 +1674,7 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
 
         credit_col = rig_box.column(align=True)
         credit_col.scale_y = 0.75
-        credit_col.label(text="Blender rigs by Shiagur — Nexus Mods (free account required)", icon='FUND')
+        credit_col.label(text="Blender rigs by Shiagur - Nexus Mods (free account required)", icon='FUND')
         credit_col.label(text="Use the buttons below to open each mod page in your browser.", icon='INFO')
 
         rig_box.separator(factor=0.5)
@@ -1720,7 +1720,7 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
         hint = rig_box.column(align=True)
         hint.scale_y = 0.72
         hint.label(text="Pipeline:  Blender rig → FBX export → FBXImporter → Havok Content Tools → .hkx", icon='INFO')
-        hint.label(text="OR:  PyNifly (latest) exports .hkx directly — no FBX step needed!", icon='CHECKMARK')
+        hint.label(text="OR:  PyNifly (latest) exports .hkx directly - no FBX step needed!", icon='CHECKMARK')
 
 class FO4_PT_RigNetPanel(_FO4SubPanel):
     """RigNet auto-rigging panel"""
@@ -1735,7 +1735,7 @@ class FO4_PT_RigNetPanel(_FO4SubPanel):
     def draw(self, context):
         layout = self.layout
 
-        # Check if RigNet is available — results cached to avoid filesystem
+        # Check if RigNet is available - results cached to avoid filesystem
         # scans and `import torch` probes on every UI redraw.
         (is_available, message), (libigl_available, libigl_message) = (
             _cached_rignet_status()
@@ -1880,7 +1880,7 @@ class FO4_PT_NVTTPanel(_FO4SubPanel):
         info_box.label(text="FO4 DDS Format Reference:", icon='INFO')
         info_box.label(text="• BC1 (DXT1): Diffuse (_d), Specular (_s), Glow (_g), Env mask (_e)")
         info_box.label(text="• BC3 (DXT5): Diffuse with alpha (transparency)")
-        info_box.label(text="• BC5 (ATI2): Normal maps (_n) — two-channel R+G")
+        info_box.label(text="• BC5 (ATI2): Normal maps (_n) - two-channel R+G")
         info_box.label(text="• BC7: optional high quality variant", icon='BLANK1')
         info_box.label(text="• Mipmaps: auto-generated (required by FO4)", icon='BLANK1')
         info_box.label(text="• Dimensions: must be power of 2 (512/1024/2048)", icon='BLANK1')
@@ -1980,7 +1980,7 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
 
 
 class FO4_PT_ToolsLinks(_FO4SubPanel):
-    """Quick links and installers for external tools — nested inside Setup & Status."""
+    """Quick links and installers for external tools - nested inside Setup & Status."""
     bl_label = "External Tools"
     bl_idname = "FO4_PT_tools_links"
     bl_space_type = 'VIEW_3D'
@@ -1992,7 +1992,7 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
     def draw(self, context):
         layout = self.layout
 
-        # quick tool availability summary — cached to avoid shutil.which()
+        # quick tool availability summary - cached to avoid shutil.which()
         # and filesystem rglob calls on every UI redraw.
         status = _cached_tool_status()
         sum_box = layout.box()
@@ -2179,7 +2179,7 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
             nif_note.label(text="→ enable 'NetImmerse/Gamebryo (.nif)'")
             if bpy.app.version >= (5, 0, 0):
                 nif_note.label(text="Blender 5.x API patches applied automatically.", icon='CHECKMARK')
-        # Python requirements — always drawn (Blender 5.x hasattr unreliable)
+        # Python requirements - always drawn (Blender 5.x hasattr unreliable)
         op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
         if op is not None:
             op.optional = False
@@ -2201,7 +2201,7 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
         config_help.label(text="Verify and configure optimal settings for FO4 modding", icon='INFO')
         config_help.label(text="Checks: Niftools, DDS tools, export settings", icon='INFO')
 
-        # Manual path override — use existing installations when auto-install fails
+        # Manual path override - use existing installations when auto-install fails
         scene = context.scene
         prefs = preferences.get_preferences() if preferences else None
         man_box = layout.box()
@@ -2555,16 +2555,16 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
             pynifly_ok, pynifly_msg = export_helpers.ExportHelpers.pynifly_exporter_available()
             niftools_ok, niftools_msg = export_helpers.ExportHelpers.nif_exporter_available()
         else:
-            pynifly_ok, pynifly_msg = False, "export_helpers unavailable — restart Blender"
+            pynifly_ok, pynifly_msg = False, "export_helpers unavailable - restart Blender"
             niftools_ok, niftools_msg = False, "export_helpers unavailable"
 
         # Which exporter will be used?
         if pynifly_ok:
             active_row = nif_box.row()
-            active_row.label(text="✓ PyNifly (BadDog) — active exporter", icon='CHECKMARK')
+            active_row.label(text="✓ PyNifly (BadDog) - active exporter", icon='CHECKMARK')
         elif niftools_ok:
             active_row = nif_box.row()
-            active_row.label(text="✓ Niftools v0.1.1 — active exporter", icon='CHECKMARK')
+            active_row.label(text="✓ Niftools v0.1.1 - active exporter", icon='CHECKMARK')
         else:
             active_row = nif_box.row()
             active_row.label(text="✗ No NIF exporter installed", icon='ERROR')
@@ -2581,7 +2581,7 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         settings_col = settings_box.column(align=True)
         settings_col.scale_y = 0.8
 
-        # Game version — editable directly in the panel
+        # Game version - editable directly in the panel
         game_row = settings_col.row(align=True)
         game_row.label(text="Game target:")
         game_row.prop(context.scene, "fo4_game_version", text="")
@@ -2880,7 +2880,7 @@ class FO4_PT_Havok2FBXPanel(_FO4SubPanel):
         if path:
             status_row.label(text=f"Configured: {path}", icon='CHECKMARK')
         else:
-            status_row.label(text="Path not found — set folder above.", icon='ERROR')
+            status_row.label(text="Path not found - set folder above.", icon='ERROR')
 
         # ── Animation type ─────────────────────────────────────────────────
         type_box = layout.box()
@@ -3229,7 +3229,7 @@ class FO4_PT_ItemCreationPanel(_FO4SubPanel):
 
 
 class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
-    """Armor and clothing creation panel — free-tools workflow (Blender + Outfit Studio)"""
+    """Armor and clothing creation panel - free-tools workflow (Blender + Outfit Studio)"""
     bl_label      = "Armor & Clothing"
     bl_idname     = "FO4_PT_armor_clothing_panel"
     bl_space_type  = 'VIEW_3D'
@@ -3249,7 +3249,7 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         top_box.label(text="Free-Tools Workflow  (Blender + Outfit Studio)", icon='INFO')
         top_col = top_box.column(align=True)
         top_col.scale_y = 0.78
-        top_col.label(text="Based on Nexus mod 17785 — skeleton fo4.blend guide.")
+        top_col.label(text="Based on Nexus mod 17785 - skeleton fo4.blend guide.")
         top_col.label(text="Requirements: Blender · BodySlide+Outfit Studio · CBBE")
         top_box.operator(
             "fo4.show_armor_clothing_workflow",
@@ -3258,7 +3258,7 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         )
         top_box.operator(
             "fo4.open_fo4_armor_blender_guide",
-            text="Nexus 17785 — Armor/Outfit Blender Guide",
+            text="Nexus 17785 - Armor/Outfit Blender Guide",
             icon='URL',
         )
 
@@ -3277,12 +3277,12 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         # ── Step 1 helpers ────────────────────────────────────────────────────
         layout.separator()
         s1_box = layout.box()
-        s1_box.label(text="Step 1 — Import & Prepare Reference Body", icon='IMPORT')
+        s1_box.label(text="Step 1 - Import & Prepare Reference Body", icon='IMPORT')
         s1_col = s1_box.column(align=True)
         s1_col.scale_y = 0.78
         s1_col.label(text="1. In Outfit Studio: load CBBE body, export as FBX.")
         s1_col.label(text="2. Open skeleton fo4.blend (from Nexus 17785).")
-        s1_col.label(text="3. Import the FBX — it will look crumpled. That is normal.")
+        s1_col.label(text="3. Import the FBX - it will look crumpled. That is normal.")
         s1_col.label(text="4. Click 'Remove Malformed Armature' below to fix it.")
         row = s1_box.row(align=True)
         row.enabled = has_mesh
@@ -3294,7 +3294,7 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         s1_box.separator(factor=0.3)
         s1_col2 = s1_box.column(align=True)
         s1_col2.scale_y = 0.78
-        s1_col2.label(text="5. Set body origin to (0, 0, 120) — required by FO4.")
+        s1_col2.label(text="5. Set body origin to (0, 0, 120) - required by FO4.")
         row2 = s1_box.row(align=True)
         row2.enabled = has_mesh
         row2.operator("fo4.set_armor_origin", text="Set Origin (0, 0, 120)", icon='OBJECT_ORIGIN')
@@ -3302,7 +3302,7 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         # ── Step 2 helpers ────────────────────────────────────────────────────
         layout.separator()
         s2_box = layout.box()
-        s2_box.label(text="Step 2 — Weight Paint Armor from Body", icon='WPAINT_FACE')
+        s2_box.label(text="Step 2 - Weight Paint Armor from Body", icon='WPAINT_FACE')
         s2_col = s2_box.column(align=True)
         s2_col.scale_y = 0.78
         s2_col.label(text="Select your armor (active) + reference body (shift-click).")
@@ -3323,7 +3323,7 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         # ── Step 3 helpers ────────────────────────────────────────────────────
         layout.separator()
         s3_box = layout.box()
-        s3_box.label(text="Step 3 — Prepare for FBX Export to Outfit Studio", icon='EXPORT')
+        s3_box.label(text="Step 3 - Prepare for FBX Export to Outfit Studio", icon='EXPORT')
         s3_col = s3_box.column(align=True)
         s3_col.scale_y = 0.78
         s3_col.label(text="IMPORTANT: split UV seam edges before FBX export.")
@@ -3346,10 +3346,10 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         exp_col.label(text="Note: if UV seams must stay joined, export OBJ")
         exp_col.label(text="for geometry + FBX for weights, then merge in OS.")
 
-        # ── Step 4 — Outfit Studio + NIF ─────────────────────────────────────
+        # ── Step 4 - Outfit Studio + NIF ─────────────────────────────────────
         layout.separator()
         s4_box = layout.box()
-        s4_box.label(text="Step 4 — Outfit Studio → NIF", icon='MODIFIER')
+        s4_box.label(text="Step 4 - Outfit Studio → NIF", icon='MODIFIER')
         s4_col = s4_box.column(align=True)
         s4_col.scale_y = 0.78
         s4_col.label(text="1. Import your FBX in Outfit Studio.")
@@ -4026,7 +4026,7 @@ class FO4_PT_ModPackagingPanel(_FO4SubPanel):
         fct_col.label(text="  • Add install pages, groups, and options")
         fct_col.label(text="  • Detect other installed plugins as conditions")
         fct_col.label(text="  • Set file priorities, add preview screenshots")
-        fct_col.label(text="  • No XML knowledge needed — everything via GUI")
+        fct_col.label(text="  • No XML knowledge needed - everything via GUI")
         fct_box.separator(factor=0.4)
         fct_box.operator(
             "fo4.open_fomod_creation_tool",
@@ -4097,7 +4097,7 @@ class FO4_PT_AddonIntegrationPanel(_FO4SubPanel):
             dl_url      = addon.get('download_url', '')
 
             if addon['is_enabled']:
-                # Already active — nothing to do
+                # Already active - nothing to do
                 pass
 
             elif addon['is_installed']:
@@ -4116,7 +4116,7 @@ class FO4_PT_AddonIntegrationPanel(_FO4SubPanel):
                     # in some builds.  Guide the user to Preferences rather than
                     # trying to call addon_enable on a module that isn't on disk.
                     addon_box.label(
-                        text="Built-in — enable via Edit > Preferences > Add-ons",
+                        text="Built-in - enable via Edit > Preferences > Add-ons",
                         icon='INFO',
                     )
                     op = addon_box.operator(
@@ -4284,14 +4284,14 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         _any_tool_ok = _ffmpeg_ok or _nvtt_ok or _texconv_ok
 
         if _deps_ok and _any_tool_ok:
-            # Everything ready — compact green confirmation
+            # Everything ready - compact green confirmation
             ready_box = layout.box()
             ready_col = ready_box.column(align=True)
             ready_col.label(text="✓  All systems ready!", icon='CHECKMARK')
             ready_col.label(text="   Dependencies installed  •  Tools configured",
                             icon='BLANK1')
         else:
-            # One or more things need attention — show the setup guide
+            # One or more things need attention - show the setup guide
             guide_box = layout.box()
             guide_col = guide_box.column(align=True)
             if not _deps_ok and not _any_tool_ok:
@@ -4300,10 +4300,10 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                 guide_col.label(text="SETUP INCOMPLETE", icon='ERROR')
             guide_col.separator()
 
-            # Step 1 — Python deps
+            # Step 1 - Python deps
             if not _deps_ok:
                 guide_col.label(
-                    text="Step 1 — Install Core Dependencies:", icon='SCRIPT'
+                    text="Step 1 - Install Core Dependencies:", icon='SCRIPT'
                 )
                 guide_col.operator(
                     "fo4.install_python_deps",
@@ -4311,14 +4311,14 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                     icon='PACKAGE',
                 )
             else:
-                guide_col.label(text="Step 1 — ✓ Core Dependencies installed",
+                guide_col.label(text="Step 1 - ✓ Core Dependencies installed",
                                 icon='CHECKMARK')
 
             guide_col.separator()
 
-            # Step 2 — Tool paths (auto-detected or manual)
+            # Step 2 - Tool paths (auto-detected or manual)
             if not _any_tool_ok:
-                guide_col.label(text="Step 2 — Configure Tools Root:", icon='TOOL_SETTINGS')
+                guide_col.label(text="Step 2 - Configure Tools Root:", icon='TOOL_SETTINGS')
                 guide_col.label(
                     text="  Set the 'Tools Root' field (Tool Paths section below)",
                     icon='BLANK1',
@@ -4328,13 +4328,13 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                     icon='BLANK1',
                 )
             else:
-                guide_col.label(text="Step 2 — ✓ CLI tool paths configured",
+                guide_col.label(text="Step 2 - ✓ CLI tool paths configured",
                                 icon='CHECKMARK')
 
             guide_col.separator()
 
-            # Step 3 — Restart
-            guide_col.label(text="Step 3 — Restart Blender:", icon='FILE_REFRESH')
+            # Step 3 - Restart
+            guide_col.label(text="Step 3 - Restart Blender:", icon='FILE_REFRESH')
             guide_col.label(
                 text="  Required after installing deps so Python can load them",
                 icon='BLANK1',
@@ -4351,11 +4351,11 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
 
             guide_col.separator()
 
-            # Step 4 — second restart only if needed
+            # Step 4 - second restart only if needed
             guide_col.label(text="Step 4 (if tools still show ✗ after restart):",
                             icon='INFO')
             guide_col.label(
-                text="  Click Restart Blender one more time — tools will be ready",
+                text="  Click Restart Blender one more time - tools will be ready",
                 icon='BLANK1',
             )
 
@@ -4372,7 +4372,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         if py < (3, 8):
             ver_box.label(text="⚠ Python 3.7: using Pillow<10, numpy<2", icon='ERROR')
         elif py >= (3, 11):
-            ver_box.label(text="✓ Python 3.11+ — all packages supported", icon='CHECKMARK')
+            ver_box.label(text="✓ Python 3.11+ - all packages supported", icon='CHECKMARK')
 
         # ── Core Python dependencies ──────────────────────────────────────
         box = layout.box()
@@ -4396,7 +4396,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         if not all_ok:
             box.separator()
             box.label(text="Click below to install missing packages:", icon='INFO')
-            # Always draw — Blender 5.x hasattr(bpy.types, 'FO4_OT_InstallPythonDeps')
+            # Always draw - Blender 5.x hasattr(bpy.types, 'FO4_OT_InstallPythonDeps')
             # may return False even when the operator IS registered.
             box.operator("fo4.install_python_deps", text="Install Core Dependencies",
                          icon='PACKAGE')
@@ -4411,12 +4411,12 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         torch_box.label(text="PyTorch (AI Features)", icon='PLUGIN')
         torch_ok, torch_info = _get_torch_status()
         if torch_ok is None:
-            # Background probe running — show a non-blocking placeholder.
+            # Background probe running - show a non-blocking placeholder.
             torch_box.label(text="Checking PyTorch availability…", icon='TIME')
         elif torch_ok:
             if torch_info == _MOSSY_TORCH:
                 torch_box.label(text="✓ PyTorch available via Mossy bridge", icon='CHECKMARK')
-                torch_box.label(text="  AI inference runs inside Mossy — no local install needed", icon='DOT')
+                torch_box.label(text="  AI inference runs inside Mossy - no local install needed", icon='DOT')
             else:
                 torch_box.label(text=f"✓ PyTorch {torch_info} available", icon='CHECKMARK')
         else:
@@ -4453,7 +4453,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                     tools_box.label(text=f"✗ {label}: not configured", icon='ERROR')
                     any_missing = True
             if any_missing:
-                tools_box.label(text="Install tools below — paths auto-save and persist", icon='INFO')
+                tools_box.label(text="Install tools below - paths auto-save and persist", icon='INFO')
         else:
             tools_box.label(text="Preferences unavailable", icon='ERROR')
 
@@ -4681,7 +4681,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                 text="Then restart Blender to apply changes.", icon='BLANK1')
 
         # ── Quick actions ─────────────────────────────────────────────────
-        # Always draw buttons directly — in Blender 5.x hasattr(bpy.types, ...)
+        # Always draw buttons directly - in Blender 5.x hasattr(bpy.types, ...)
         # may return False even for registered operators (RECURRING BUG #1).
         row = layout.row(align=True)
         row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
@@ -4699,7 +4699,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             icon='BLANK1',
         )
         diag_row = diag_box.row(align=True)
-        # Always draw directly — bpy.types hasattr check is unreliable on Blender 5.x
+        # Always draw directly - bpy.types hasattr check is unreliable on Blender 5.x
         diag_row.operator(
             "fo4.run_addon_diagnostics",
             text="Run Diagnostics",
@@ -4763,7 +4763,7 @@ class FO4_PT_OperationLogPanel(_FO4SubPanel):
 # ── Mossy tab ──────────────────────────────────────────────────────────────────
 
 class FO4_PT_MossyPanel(_FO4SubPanel):
-    """Mossy AI connection panel — dedicated sidebar tab"""
+    """Mossy AI connection panel - dedicated sidebar tab"""
     bl_label       = "Mossy"
     bl_idname      = "FO4_PT_mossy_panel"
     bl_space_type  = 'VIEW_3D'
@@ -4780,7 +4780,7 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         bridge_status  = getattr(wm, 'mossy_bridge_status',  "")
         llm_status     = getattr(wm, 'mossy_llm_status',     "")
 
-        # Addon preferences — the server reads these, so we must display/edit them.
+        # Addon preferences - the server reads these, so we must display/edit them.
         prefs = preferences.get_preferences() if preferences else None
 
         # ── TCP server (Blender → Mossy bridge) ───────────────────────────────
@@ -4792,9 +4792,9 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         )
 
         if server_active:
-            srv_box.label(text="✓ Server running — Mossy can control Blender", icon='CHECKMARK')
+            srv_box.label(text="✓ Server running - Mossy can control Blender", icon='CHECKMARK')
         else:
-            srv_box.label(text="Server stopped — Mossy cannot send commands", icon='RADIOBUT_OFF')
+            srv_box.label(text="Server stopped - Mossy cannot send commands", icon='RADIOBUT_OFF')
 
         toggle_text = "Stop Mossy Link Server" if server_active else "Start Mossy Link Server"
         toggle_icon = 'PAUSE' if server_active else 'PLAY'
@@ -4803,7 +4803,7 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         else:
             srv_box.label(text="(Mossy Link loading...)", icon='TIME')
 
-        # Port / token / autostart — read directly from addon prefs so that
+        # Port / token / autostart - read directly from addon prefs so that
         # changes here are actually picked up by mossy_link._get_ports().
         col = srv_box.column(align=True)
         if prefs is not None:
@@ -4839,7 +4839,7 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         else:
             llm_box.label(text="Not checked yet", icon='QUESTION')
 
-        # LLM port and AI advisor toggle — same prefs-first pattern.
+        # LLM port and AI advisor toggle - same prefs-first pattern.
         if prefs is not None:
             llm_box.prop(prefs, "mossy_http_port", text="Nemotron Port")
             llm_box.prop(prefs, "use_mossy_as_ai", text="Use as AI Advisor")
@@ -4863,7 +4863,7 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
 
         torch_ok, torch_info = _get_torch_status()
         if torch_ok is None:
-            # Background probe is still running — don't block the UI.
+            # Background probe is still running - don't block the UI.
             torch_box.label(text="Checking PyTorch availability…", icon='TIME')
         elif torch_ok:
             if torch_info == _MOSSY_TORCH:
@@ -4947,9 +4947,9 @@ classes = (
     FO4_PT_ModPackagingPanel,
     FO4_PT_AddonIntegrationPanel,
     FO4_PT_DesktopTutorialPanel,
-    # Operation log — records every process for reference
+    # Operation log - records every process for reference
     FO4_PT_OperationLogPanel,
-    # Mossy tab — dedicated 'Mossy' category in the sidebar
+    # Mossy tab - dedicated 'Mossy' category in the sidebar
     FO4_PT_MossyPanel,
 )
 
@@ -4962,7 +4962,7 @@ def register():
             # already occupy this type name.  Unregister the old object first
             # then register the fresh one so the UI always runs current code.
             # This mirrors the pattern used in tutorial_operators.py and
-            # operators.py register() — do NOT simplify back to a plain
+            # operators.py register() - do NOT simplify back to a plain
             # bpy.utils.register_class() with no fallback (see DEVELOPMENT_NOTES.md).
             try:
                 existing = getattr(bpy.types, cls.__name__, None)

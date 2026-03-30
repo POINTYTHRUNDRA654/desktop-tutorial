@@ -334,13 +334,13 @@ def draw_update_ui(layout):
         col.label(text="Checking for updates…", icon="TIME")
 
     elif _update_status == "up_to_date":
-        col.label(text=f"Installed: v{current} — up to date", icon="CHECKMARK")
+        col.label(text=f"Installed: v{current} - up to date", icon="CHECKMARK")
         if _needs_restart:
             col.label(
                 text="Restart Blender for the update to take effect.", icon="ERROR"
             )
             # fo4.reload_addon defers the quit via bpy.app.timers so it runs
-            # after the current UI event is processed — safe in Blender 5.0.1.
+            # after the current UI event is processed - safe in Blender 5.0.1.
             col.operator("fo4.reload_addon", text="Restart Blender Now", icon="QUIT")
         col.operator("fo4.check_for_update", text="Check Again", icon="URL")
 
@@ -352,7 +352,7 @@ def draw_update_ui(layout):
         if _download_url:
             col.operator("fo4.install_update", icon="IMPORT")
         else:
-            col.label(text="No zip asset found in release — install manually.", icon="QUESTION")
+            col.label(text="No zip asset found in release - install manually.", icon="QUESTION")
         col.operator("fo4.check_for_update", text="Check Again", icon="URL")
 
     elif _update_status == "error":
