@@ -8,6 +8,7 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, screen, net } from 'electron';
 import path from 'path';
 import os from 'os';
+import crypto from 'crypto';
 import { IPC_CHANNELS } from './types';
 import { ModProject, CollaborationSession, VersionControlConfig, AnalyticsEvent, UsageMetrics, AnalyticsConfig, Roadmap, ProjectWizardState, Quest, QuestType, QuestStage } from '../shared/types';
 import { scanForDuplicates, type DedupeScanState } from './duplicateFinder';
@@ -812,7 +813,14 @@ const loadSettings = (): any => {
         seedSecretFromEnv(next, 'groqApiKey', 'GROQ_API_KEY') ||
         seedSecretFromEnv(next, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
 
-      if (migrated || seeded || cleaned) {
+      // Initialize Blender token on first run
+      let tokenInitialized = false;
+      if (!next.blenderLinkToken) {
+        next.blenderLinkToken = crypto.randomBytes(16).toString('hex');
+        tokenInitialized = true;
+      }
+
+      if (migrated || seeded || cleaned || tokenInitialized) {
         try {
           fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
           if (migrated) {
@@ -824,8 +832,11 @@ const loadSettings = (): any => {
           if (cleaned) {
             console.log('[Settings] Removed legacy Deepgram secrets');
           }
+          if (tokenInitialized) {
+            console.log('[Settings] 🔐 Generated Blender Link token on first connection');
+          }
         } catch (e) {
-          console.warn('[Settings] Failed to persist migrated secrets:', e);
+          console.warn('[Settings] Failed to persist migrated settings:', e);
         }
       }
       return next;
@@ -924,6 +935,9 @@ const loadSettings = (): any => {
     openaiApiKeyEnc: '',
     groqApiKey: '',
     groqApiKeyEnc: '',
+
+    // Blender Link security token
+    blenderLinkToken: crypto.randomBytes(16).toString('hex'),
   };
 
   // Seed API keys from .env.encrypted into settings.json on first launch so that
@@ -2171,6 +2185,21 @@ function setupIpcHandlers() {
       return await _sendToBlenderTCP(payload);
     } catch (e: any) {
       return { success: false, status: 'error', message: String(e?.message || e) };
+    }
+  });
+
+  // Regenerate Blender Link authentication token
+  registerHandler('invoke-blender-token-regen', async () => {
+    try {
+      const newToken = crypto.randomBytes(16).toString('hex');
+      const settings = loadSettings();
+      const updated = { ...settings, blenderLinkToken: newToken };
+      saveSettings(updated);
+      console.log('[Blender Link] 🔐 New token generated and saved');
+      return newToken;
+    } catch (e: any) {
+      console.error('[Blender Link] Token regeneration failed:', e);
+      return null;
     }
   });
 

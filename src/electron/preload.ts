@@ -59,6 +59,7 @@ const IPC_CHANNELS = {
   ELEVENLABS_LIST_VOICES: 'elevenlabs-list-voices',
   ELEVENLABS_SYNTHESIZE: 'elevenlabs-synthesize',
   CHECK_BLENDER_ADDON: 'check-blender-addon',
+  SEND_BLENDER_COMMAND: 'send-blender-command',
   VAULT_RUN_TOOL: 'vault-run-tool',
   VAULT_SAVE_MANIFEST: 'vault-save-manifest',
   VAULT_LOAD_MANIFEST: 'vault-load-manifest',
@@ -347,6 +348,25 @@ const electronAPI = {
     const subscription = (_event: any, payload: any) => callback(payload);
     ipcRenderer.on('blender-event', subscription);
     return () => ipcRenderer.removeListener('blender-event', subscription);
+  },
+
+  /**
+   * Send a command to the Blender add-on (mossy_link.py) via TCP port 9999.
+   * @param commandType - Command type (e.g., "script", "text", "get_context", "export_fbx")
+   * @param commandData - Command payload
+   * @param token - Optional authentication token (must match Blender addon preferences)
+   * @returns Promise resolving to the command response
+   */
+  sendBlenderCommand: (commandType: string, commandData?: any, token?: string): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SEND_BLENDER_COMMAND, commandType, commandData || {}, token);
+  },
+
+  /**
+   * Regenerate a new Blender Link authentication token
+   * @returns Promise resolving to the new token string, or null on failure
+   */
+  invokeBlenderTokenRegen: (): Promise<string | null> => {
+    return ipcRenderer.invoke('invoke-blender-token-regen');
   },
 
   /**

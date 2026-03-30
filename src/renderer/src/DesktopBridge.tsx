@@ -114,6 +114,9 @@ const DesktopBridge: React.FC = () => {
     const [fileList, setFileList] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'setup' | 'ck' | 'hardware' | 'vision' | 'clipboard' | 'files' | 'blender'>('setup');
     const [blenderLinked, setBlenderLinked] = useState(localStorage.getItem('mossy_blender_active') === 'true');
+    const [blenderLinkToken, setBlenderLinkToken] = useState<string>('');
+    const [tokenCopyFeedback, setTokenCopyFeedback] = useState<string>('');
+    const [showTokenModal, setShowTokenModal] = useState(false);
 
     const [bridgeBaseUrl, setBridgeBaseUrl] = useState<string>(() => {
         try {
@@ -351,6 +354,19 @@ const DesktopBridge: React.FC = () => {
             await api.setSettings({ papyrusTemplateLibrary: nextLibrary });
         } catch (e: any) {
             setCkStatus(String(e?.message || e));
+        }
+    };
+
+    const loadBlenderToken = async () => {
+        try {
+            const api = getElectronApi();
+            if (!api?.getSettings) return;
+            const s = await api.getSettings();
+            if (s?.blenderLinkToken) {
+                setBlenderLinkToken(s.blenderLinkToken);
+            }
+        } catch (e: any) {
+            console.warn('[DesktopBridge] Failed to load blenderLinkToken:', e);
         }
     };
 
@@ -643,6 +659,11 @@ const DesktopBridge: React.FC = () => {
         }
     }, [customToolLinks]);
 
+    // Load Blender Link token from settings on component mount
+    useEffect(() => {
+        loadBlenderToken();
+    }, []);
+
     useEffect(() => {
         try {
             localStorage.setItem('mossy_linked_directories', JSON.stringify(linkedDirectories));
@@ -750,6 +771,70 @@ const DesktopBridge: React.FC = () => {
 
         return () => clearInterval(interval);
     }, [activeTab]);
+
+    // ── Blender Token Sync ─────────────────────────────────────────────────
+    // Save token to settings when changed
+    const saveBlenderToken = async (token: string) => {
+        try {
+            const api = getElectronApi();
+            if (!api?.setSettings) return;
+            await api.setSettings({ blenderLinkToken: token });
+        } catch (e) {
+            console.warn('[DesktopBridge] Failed to save blenderLinkToken:', e);
+        }
+    };
+
+    // Send a command to Blender add-on with authentication token
+    const sendBlenderCommandWithToken = async (commandType: string, commandData?: any): Promise<any> => {
+        try {
+            const api = getElectronApi();
+            if (!api?.sendBlenderCommand) {
+                throw new Error('Blender command API not available');
+            }
+            return await api.sendBlenderCommand(commandType, commandData || {}, blenderLinkToken || undefined);
+        } catch (e: any) {
+            console.error('[DesktopBridge] Blender command error:', e?.message);
+            return { success: false, status: 'error', message: String(e?.message || e) };
+        }
+    };
+
+    // Copy Blender Link token to clipboard
+    const copyTokenToClipboard = async () => {
+        try {
+            if (!blenderLinkToken) {
+                setTokenCopyFeedback('No token to copy');
+                setTimeout(() => setTokenCopyFeedback(''), 2000);
+                return;
+            }
+            await navigator.clipboard.writeText(blenderLinkToken);
+            setTokenCopyFeedback('✓ Token copied to clipboard!');
+            setTimeout(() => setTokenCopyFeedback(''), 2000);
+        } catch (e) {
+            setTokenCopyFeedback('Failed to copy');
+            setTimeout(() => setTokenCopyFeedback(''), 2000);
+        }
+    };
+
+    // Regenerate Blender Link token
+    const regenerateToken = async () => {
+        try {
+            const api = getElectronApi();
+            if (!api?.invokeBlenderTokenRegen) {
+                console.warn('Cannot regenerate token - API not available');
+                return;
+            }
+            const newToken = await api.invokeBlenderTokenRegen?.();
+            if (newToken) {
+                setBlenderLinkToken(newToken);
+                setShowTokenModal(true);
+                addLog('System', '🔐 New Blender Link token generated. Copy it to Blender preferences.', 'success');
+            }
+        } catch (e: any) {
+            console.error('Token regeneration failed:', e);
+            addLog('System', `Token regeneration failed: ${e?.message || e}`, 'error');
+        }
+    };
+
 
     // --- PYTHON SERVER GENERATOR ---
     const handleDownloadServer = () => {
@@ -2407,6 +2492,53 @@ pause
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div className="bg-black/40 p-4 rounded-lg border border-blue-500/50">
+                                        <h4 className="font-bold text-white mb-3 flex items-center gap-2 text-sm">
+                                            <Lock className="w-4 h-4 text-amber-400" /> Mossy Link Token
+                                        </h4>
+                                        <div className="space-y-3">
+                                            <p className="text-xs text-slate-300">
+                                                Security token auto-generated on first connection.<br />
+                                                <em>Copy it to Blender → Add-ons → Mossy Link Token</em>
+                                            </p>
+
+                                            {/* Token Display Box */}
+                                            <div className="bg-slate-900/60 border border-slate-600 rounded p-3 font-mono text-sm">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="text-amber-300 break-all">{blenderLinkToken || 'Loading...'}</span>
+                                                    <button
+                                                        onClick={copyTokenToClipboard}
+                                                        className="px-2 py-1 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded whitespace-nowrap flex items-center gap-1"
+                                                        title="Copy token to clipboard"
+                                                        aria-label="Copy Blender Link token to clipboard"
+                                                    >
+                                                        📋 Copy
+                                                    </button>
+                                                </div>
+                                                {tokenCopyFeedback && (
+                                                    <div className="text-xs text-emerald-400 mt-2">{tokenCopyFeedback}</div>
+                                                )}
+                                            </div>
+
+                                            {/* Token Actions */}
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={regenerateToken}
+                                                    className="px-3 py-2 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 hover:border-slate-500 font-semibold"
+                                                    title="Generate a new token"
+                                                    aria-label="Regenerate Blender Link security token"
+                                                >
+                                                    🔄 Regenerate Token
+                                                </button>
+                                            </div>
+
+                                            <p className="text-xs text-slate-400 leading-relaxed">
+                                                ℹ️ <strong>Blender addon</strong> auto-generates a token on first load.<br />
+                                                <strong>Mossy</strong> also generates one on first connection.<br />
+                                                They must match for the connection to work.
+                                            </p>
+                                        </div>
+                                    </div>
                                     <div className="bg-black/40 p-4 rounded-lg border border-slate-700">
                                         <h4 className="font-bold text-white mb-2 flex items-center gap-2 text-sm">
                                             <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Key Capabilities
