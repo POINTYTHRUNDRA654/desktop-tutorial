@@ -114,6 +114,9 @@ class FO4_OT_SelfTest(Operator):
         lines.append(f"Blender: {blender_ver}  |  Python: {py_ver}")
 
         # ── Core Python packages ──────────────────────────────────────────
+        # Flush the path-finder cache first so packages installed earlier in
+        # this session (without restarting Blender) are visible to find_spec().
+        importlib.invalidate_caches()
         core_pkgs = {
             "PIL":      "Pillow (image processing)",
             "numpy":    "NumPy (math / 3D data)",

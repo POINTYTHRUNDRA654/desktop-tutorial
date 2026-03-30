@@ -164,7 +164,7 @@ def collect_diagnostics():
                         "module prefix: bl_ext.user_default"))
     else:
         results.append(("INFO", "Install",
-                        "Non-standard install path (not a Blender extension) - "
+                        "Non-standard installation path (not a Blender extension) - "
                         "addon should still function normally"))
 
     # ── 3. Dual-install via sys.modules ──────────────────────────────────────

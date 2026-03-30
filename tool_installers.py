@@ -165,6 +165,10 @@ def _pip_install(packages: list[str]) -> tuple[bool, str]:
 
     try:
         subprocess.check_call(cmd, timeout=300)
+        # Flush Python's path-finder cache so newly installed packages are
+        # importable in this session without restarting Blender.
+        import importlib
+        importlib.invalidate_caches()
         return True, f"Installed: {', '.join(packages)}"
     except subprocess.TimeoutExpired:
         return False, (
@@ -192,6 +196,10 @@ def _pip_install_requirements(req_file: Path) -> tuple[bool, str]:
 
     try:
         subprocess.check_call(cmd, timeout=300)
+        # Flush Python's path-finder cache so newly installed packages are
+        # importable in this session without restarting Blender.
+        import importlib
+        importlib.invalidate_caches()
         return True, f"Installed from {req_file.name}"
     except subprocess.TimeoutExpired:
         return False, (
