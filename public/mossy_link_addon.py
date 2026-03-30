@@ -63,6 +63,7 @@ import json
 import sys
 import os
 import traceback
+import secrets
 from io import StringIO
 
 # ---------------------------------------------------------------------------
@@ -107,17 +108,56 @@ class MossyLinkPreferences(bpy.types.AddonPreferences):
         description="Display export warnings in the N-panel Warnings sub-panel",
         default=True,
     )
+    token: bpy.props.StringProperty(
+        name="Mossy Link Token",
+        description="Security token to authenticate connections from Mossy Desktop (must match Mossy settings)",
+        default="",
+        subtype="PASSWORD",
+    )
 
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "port")
         layout.prop(self, "autostart")
         layout.prop(self, "show_fo4_warnings")
+        layout.prop(self, "token")
 
 
 def _get_prefs():
     addon = bpy.context.preferences.addons.get(__name__)
     return addon.preferences if addon else None
+
+
+def _generate_secure_token():
+    """
+    Generate a secure 32-character hexadecimal token for Mossy Link authentication.
+    Uses secrets module for cryptographic randomness.
+    """
+    return secrets.token_hex(16)  # 16 bytes = 32 hex chars
+
+
+def _ensure_token_initialized():
+    """
+    Initialize the Mossy Link token on first addon load.
+    If no token is set in addon preferences, generates one automatically.
+    This ensures secure authentication is set up on first connection without user intervention.
+    """
+    prefs = _get_prefs()
+    if not prefs:
+        return None
+    
+    current_token = prefs.token.strip() if hasattr(prefs, 'token') else ""
+    
+    if not current_token:
+        # Auto-generate token on first run
+        new_token = _generate_secure_token()
+        prefs.token = new_token
+        print(f"[Mossy Link v6] 🔐 Auto-generated security token (first initialization).")
+        print(f"[Mossy Link v6] Token: {new_token}")
+        print(f"[Mossy Link v6] ℹ️  Copy this token to Mossy → Desktop Bridge → Blender → Token field.")
+        return new_token
+    
+    return current_token
 
 
 # ---------------------------------------------------------------------------
@@ -693,7 +733,44 @@ class MossyLinkServer:
 
     # ---- command dispatch ------------------------------------------------
 
+    def _validate_token(self, token_from_client):
+        """
+        Validate the authentication token from the client.
+        Returns (is_valid: bool, error_message: str|None)
+        
+        If no token is set in preferences, validation passes (backward compatible).
+        If a token IS set, the client must provide the exact same token.
+        """
+        prefs = _get_prefs()
+        if not prefs:
+            return True, None  # No preferences available, allow anyway
+        
+        required_token = prefs.token.strip() if hasattr(prefs, 'token') else ""
+        
+        # If no token configured in Blender, allow all connections (backward compatible)
+        if not required_token:
+            return True, None
+        
+        # Token is required - check client token
+        if not token_from_client:
+            return False, "Mossy Link token required. Set Add-ons → Blender Game Tools → Mossy Link Token in Blender, then enter the same value in Mossy settings."
+        
+        if token_from_client.strip() != required_token:
+            return False, "Mossy Link token mismatch. Token does not match the one set in Blender add-on preferences."
+        
+        return True, None
+
     def _execute_command(self, command):
+        # ✓ TOKEN VALIDATION (applies to all commands)
+        token_from_client = command.get("token", "")
+        is_valid, error_msg = self._validate_token(token_from_client)
+        if not is_valid:
+            return json.dumps({
+                "success": False,
+                "status": "error",
+                "message": error_msg
+            })
+        
         t = command.get("type", "script")
 
         # --- v5 commands (backward-compatible) ---
@@ -1387,6 +1464,10 @@ def _start_server_deferred():
     global _server_instance
     try:
         prefs = _get_prefs()
+        
+        # Initialize token on first addon load
+        _ensure_token_initialized()
+        
         port  = prefs.port if prefs else 9999
         if prefs and not prefs.autostart:
             print("[Mossy Link v6] Autostart disabled.")
