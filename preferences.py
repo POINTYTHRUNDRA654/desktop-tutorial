@@ -690,6 +690,19 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         ),
     )
 
+    pytorch_path: bpy.props.StringProperty(
+        name="Mossy PyTorch Path",
+        subtype="DIR_PATH",
+        default="",
+        description=(
+            "Directory of the PyTorch installation provided by Mossy. "
+            "Set automatically when Mossy sends a set_pytorch_path command. "
+            "Added to sys.path on startup so torch is importable by tools "
+            "like RigNet, Shape-E, and Point-E."
+        ),
+        options={'HIDDEN'},
+    )
+
     umodel_path: bpy.props.StringProperty(
         name="UModel Path",
         subtype="DIR_PATH",

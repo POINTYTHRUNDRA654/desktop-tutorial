@@ -188,6 +188,14 @@ modules = list(
         _filter,
         [
             preferences,
+            # ── CRITICAL: mossy_link MUST be second (immediately after preferences). ──
+            # mossy_link.register() loads the Mossy-provided PyTorch path from prefs
+            # and inserts it into sys.path.  Every module that needs torch
+            # (rignet_helpers, shap_e_helpers, point_e_helpers, hunyuan3d_helpers,
+            # hymotion_helpers, zoedepth_helpers, ...) must register AFTER this so
+            # that `import torch` and importlib.util.find_spec("torch") succeed.
+            # Do NOT move mossy_link lower in this list.
+            mossy_link,
             tutorial_system,
             notification_system,
             mesh_helpers,
@@ -218,7 +226,6 @@ modules = list(
             asset_studio_helpers,
             asset_ripper_helpers,
             tool_installers,
-            mossy_link,
             export_helpers,
             image_to_mesh_helpers,
             hunyuan3d_helpers,
