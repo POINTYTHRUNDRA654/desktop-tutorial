@@ -7,6 +7,21 @@ Adds two operators that appear in the Setup & Status panel:
       Runs a full health check and prints a detailed report to the Blender
       System Console (Window ▸ Toggle System Console on Windows).
 
+      Checks performed:
+        1.  Blender version
+        2.  Install location / dual-install detection
+        3.  Duplicate sys.modules entries
+        4.  Python module import status (all tracked modules)
+        5.  Critical operator registration
+        6.  Addon preferences accessibility
+        7.  Python version
+        8.  PyTorch availability
+        9.  __init__ presence in sys.modules
+        10. External tool binaries (FFmpeg, NVTT, TexConv, Havok2FBX,
+            UModel, Instant-NGP, RealESRGAN, tools root)
+        11. Mossy Bridge connectivity (when Mossy is enabled in preferences)
+        12. Asset & knowledge-base paths
+
   fo4.fix_addon_issues
       Attempts to automatically repair the most common registration failures:
         • Re-registers tutorial_operators and setup_operators
@@ -93,7 +108,7 @@ _CRITICAL_OPERATORS = [
 
 # Operators that belong to tutorial_operators.py and setup_operators.py
 # respectively.  Auto-Fix uses these to decide whether re-registration is
-# actually needed — the modules are only re-registered when at least one of
+# actually needed - the modules are only re-registered when at least one of
 # their operators is missing from the Blender type system.
 _TUTORIAL_OP_IDNAMES = [
     "fo4.show_detailed_setup",
@@ -243,6 +258,164 @@ def collect_diagnostics():
         results.append(("WARN", "Init",
                         f"__init__ module NOT found in sys.modules under '{__package__}' - "
                         "module tracking will be limited"))
+
+    # ── 10. External tool binaries ────────────────────────────────────────────
+    # Fetch preferences once for all remaining sections.
+    _prefs = None
+    if prefs_mod:
+        try:
+            _prefs = prefs_mod.get_preferences()
+        except Exception:
+            pass
+
+    _ti = getattr(init, "tool_installers", None) if init else None
+
+    if _prefs:
+        # FFmpeg ──────────────────────────────────────────────────────────────
+        _p = bpy.path.abspath(_prefs.ffmpeg_path).strip()
+        if not _p:
+            results.append(("INFO", "Tools", "FFmpeg: not configured (optional)"))
+        elif os.path.isfile(_p):
+            results.append(("OK",   "Tools", f"FFmpeg: found at {_p}"))
+        else:
+            results.append(("WARN", "Tools", f"FFmpeg: configured path not found - {_p}"))
+
+        # NVTT / nvcompress ───────────────────────────────────────────────────
+        _p = bpy.path.abspath(_prefs.nvtt_path).strip()
+        if not _p:
+            results.append(("INFO", "Tools", "NVTT (nvcompress): not configured (optional)"))
+        elif os.path.isfile(_p) or os.path.isdir(_p):
+            results.append(("OK",   "Tools", f"NVTT: found at {_p}"))
+        else:
+            results.append(("WARN", "Tools", f"NVTT: configured path not found - {_p}"))
+
+        # TexConv ─────────────────────────────────────────────────────────────
+        _p = bpy.path.abspath(_prefs.texconv_path).strip()
+        if not _p:
+            results.append(("INFO", "Tools", "TexConv: not configured (optional)"))
+        elif os.path.isfile(_p):
+            results.append(("OK",   "Tools", f"TexConv: found at {_p}"))
+        else:
+            results.append(("WARN", "Tools", f"TexConv: configured path not found - {_p}"))
+
+        # Havok2FBX ───────────────────────────────────────────────────────────
+        _p = bpy.path.abspath(_prefs.havok2fbx_path).strip()
+        if not _p:
+            results.append(("INFO", "Tools", "Havok2FBX: not configured (optional)"))
+        elif _ti and hasattr(_ti, "check_havok2fbx") and _ti.check_havok2fbx(_p):
+            results.append(("OK",   "Tools", f"Havok2FBX: verified at {_p}"))
+        elif os.path.isdir(_p):
+            results.append(("WARN", "Tools",
+                            f"Havok2FBX: folder found but expected files missing - {_p}"))
+        else:
+            results.append(("WARN", "Tools", f"Havok2FBX: configured path not found - {_p}"))
+
+        # UModel ──────────────────────────────────────────────────────────────
+        _p = bpy.path.abspath(_prefs.umodel_path).strip()
+        if not _p:
+            results.append(("INFO", "Tools", "UModel: not configured (optional)"))
+        elif (os.path.isfile(os.path.join(_p, "umodel.exe"))
+              or os.path.isfile(os.path.join(_p, "umodel"))):
+            results.append(("OK",   "Tools", f"UModel: found in {_p}"))
+        elif os.path.isdir(_p):
+            results.append(("WARN", "Tools",
+                            f"UModel: folder found but umodel executable not inside - {_p}"))
+        else:
+            results.append(("WARN", "Tools", f"UModel: configured path not found - {_p}"))
+
+        # Instant-NGP ─────────────────────────────────────────────────────────
+        _p = bpy.path.abspath(_prefs.instantngp_path).strip()
+        if not _p:
+            results.append(("INFO", "Tools", "Instant-NGP: not configured (optional)"))
+        else:
+            _exe = None
+            if _ti and hasattr(_ti, "find_instantngp_exe"):
+                try:
+                    _exe = _ti.find_instantngp_exe(_p)
+                except Exception:
+                    pass
+            if _exe:
+                results.append(("OK",   "Tools", f"Instant-NGP: found at {_exe}"))
+            elif os.path.isdir(_p):
+                results.append(("WARN", "Tools",
+                                f"Instant-NGP: folder found but executable not inside - {_p}"))
+            else:
+                results.append(("WARN", "Tools",
+                                f"Instant-NGP: configured path not found - {_p}"))
+
+        # RealESRGAN (auto-discovered, no manual path preference) ─────────────
+        if _ti and hasattr(_ti, "get_realesrgan_ncnn_exe"):
+            try:
+                _exe = _ti.get_realesrgan_ncnn_exe()
+                if _exe:
+                    results.append(("OK",   "Tools", f"RealESRGAN: found at {_exe}"))
+                else:
+                    results.append(("INFO", "Tools",
+                                    "RealESRGAN: not found in tools directories (optional)"))
+            except Exception:
+                results.append(("INFO", "Tools", "RealESRGAN: could not check (optional)"))
+
+        # Tools root ──────────────────────────────────────────────────────────
+        _p = bpy.path.abspath(_prefs.tools_root).strip()
+        if not _p:
+            results.append(("INFO", "Tools",
+                            "Tools root: not set (auto-discovery will be used)"))
+        elif os.path.isdir(_p):
+            results.append(("OK",   "Tools", f"Tools root: {_p}"))
+        else:
+            results.append(("WARN", "Tools",
+                            f"Tools root: configured but directory not found - {_p}"))
+    else:
+        results.append(("WARN", "Tools",
+                        "Cannot check external tools - addon preferences not accessible"))
+
+    # ── 11. Mossy Bridge ──────────────────────────────────────────────────────
+    _ml = getattr(init, "mossy_link", None) if init else None
+    _mossy_enabled = _prefs and (
+        getattr(_prefs, "use_mossy_as_ai", False)
+        or getattr(_prefs, "autostart", False)
+    )
+    if _mossy_enabled:
+        if _ml and hasattr(_ml, "check_bridge"):
+            try:
+                _ok, _msg = _ml.check_bridge(timeout=2.0)
+                if _ok:
+                    results.append(("OK",   "Mossy", f"Bridge online: {_msg}"))
+                else:
+                    results.append(("WARN", "Mossy", f"Bridge offline: {_msg}"))
+            except Exception as _exc:
+                results.append(("WARN", "Mossy",
+                                f"Bridge check raised an exception: {_exc}"))
+        else:
+            results.append(("FAIL", "Mossy",
+                            "mossy_link module not loaded but Mossy is enabled in preferences"))
+    else:
+        results.append(("INFO", "Mossy",
+                        "Mossy Link not enabled in preferences (bridge check skipped)"))
+
+    # ── 12. Asset & knowledge-base paths ─────────────────────────────────────
+    if _prefs:
+        _fo4 = bpy.path.abspath(_prefs.fo4_assets_path).strip()
+        if _fo4:
+            if os.path.isdir(_fo4):
+                results.append(("OK",   "Assets", f"FO4 assets root: {_fo4}"))
+            else:
+                results.append(("WARN", "Assets",
+                                f"FO4 assets root configured but not found - {_fo4}"))
+        else:
+            results.append(("INFO", "Assets", "FO4 assets root: not configured"))
+
+        _kb_on = getattr(_prefs, "knowledge_base_enabled", False)
+        _kb    = bpy.path.abspath(_prefs.knowledge_base_path).strip()
+        if _kb_on:
+            if _kb and os.path.isdir(_kb):
+                results.append(("OK",   "Assets", f"Knowledge base: {_kb}"))
+            else:
+                results.append(("WARN", "Assets",
+                                f"Knowledge base enabled but path not found - "
+                                f"{_kb or '(not set)'}"))
+        else:
+            results.append(("INFO", "Assets", "Knowledge base: disabled"))
 
     return results
 
