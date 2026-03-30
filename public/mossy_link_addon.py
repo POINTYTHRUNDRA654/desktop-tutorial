@@ -584,6 +584,7 @@ class MossyLinkServer:
         self.running       = False
         self.thread        = None
         self.client_socket = None
+        self.pytorch_path  = None  # Will be set by Mossy via get-mossy-capabilities
 
     # ---- lifecycle -------------------------------------------------------
 
@@ -599,6 +600,8 @@ class MossyLinkServer:
             self.thread  = threading.Thread(target=self._server_loop, daemon=True)
             self.thread.start()
             print(f"[Mossy Link v6] Server ready on {self.host}:{self.port}")
+            # Attempt to load PyTorch path from Mossy after a short delay
+            threading.Timer(1.0, self._attempt_load_pytorch_path).start()
             return True
         except Exception as e:
             print(f"[Mossy Link v6] Failed to start: {e}")
@@ -614,6 +617,31 @@ class MossyLinkServer:
                 except Exception:
                     pass
         print("[Mossy Link v6] Server stopped.")
+
+    def _attempt_load_pytorch_path(self):
+        """Try to inject Mossy's PyTorch path into sys.path for torch imports."""
+        try:
+            # This will be called after server starts, so it can receive commands from Mossy
+            # For now, we just ensure sys.path is ready. When get_capabilities is called,
+            # we'll set self.pytorch_path and inject it.
+            if self.pytorch_path and self.pytorch_path not in sys.path:
+                sys.path.insert(0, self.pytorch_path)
+                print(f"[Mossy Link v6] PyTorch path injected: {self.pytorch_path}")
+                
+                # Also set PYTHONPATH for subprocesses
+                current_pythonpath = os.environ.get("PYTHONPATH", "")
+                paths = [p for p in current_pythonpath.split(os.pathsep) if p]
+                if self.pytorch_path not in paths:
+                    paths.insert(0, self.pytorch_path)
+                    os.environ["PYTHONPATH"] = os.pathsep.join(paths)
+                
+                try:
+                    import torch
+                    print(f"[Mossy Link v6] ✅ PyTorch {torch.__version__} successfully imported from Mossy path")
+                except ImportError as e:
+                    print(f"[Mossy Link v6] ⚠️ PyTorch import failed: {e}")
+        except Exception as e:
+            print(f"[Mossy Link v6] Error loading PyTorch path: {e}")
 
     # ---- networking ------------------------------------------------------
 
@@ -693,6 +721,7 @@ class MossyLinkServer:
                                         command.get("preset", ""),
                                         command.get("params", {}))
         # --- Blender Bridge v6.1: AI Capabilities & Tool Access ---
+        elif t == "set_pytorch_path": return self._set_pytorch_path(command.get("path", ""))
         elif t == "get_capabilities":    return json.dumps(self._get_mossy_capabilities())
         elif t == "query_mossy":        return json.dumps(self._query_mossy_ai(
                                             command.get("query", ""),
@@ -810,9 +839,51 @@ class MossyLinkServer:
     # Mossy Integration v6.1 — AI Capabilities & Tool Access
     # ─────────────────────────────────────────────────────────────────────────
 
+    def _set_pytorch_path(self, path):
+        """Receive and configure the PyTorch path from Mossy."""
+        if not path:
+            return json.dumps({"success": False, "status": "error", "message": "No path provided"})
+        
+        if not os.path.isdir(path):
+            return json.dumps({"success": False, "status": "error", "message": f"Path does not exist: {path}"})
+        
+        self.pytorch_path = path
+        
+        # Add to sys.path
+        if path not in sys.path:
+            sys.path.insert(0, path)
+            print(f"[Mossy Link v6] Added PyTorch path to sys.path: {path}")
+        
+        # Set PYTHONPATH environment variable for subprocesses
+        current_pythonpath = os.environ.get("PYTHONPATH", "")
+        paths = [p for p in current_pythonpath.split(os.pathsep) if p]
+        if path not in paths:
+            paths.insert(0, path)
+            os.environ["PYTHONPATH"] = os.pathsep.join(paths)
+            print(f"[Mossy Link v6] Updated PYTHONPATH environment variable")
+        
+        # Verify torch import
+        try:
+            import torch
+            version = torch.__version__
+            print(f"[Mossy Link v6] ✅ PyTorch {version} successfully loaded from {path}")
+            return json.dumps({
+                "success": True,
+                "status": "success",
+                "message": f"PyTorch {version} configured and verified from {path}"
+            })
+        except ImportError as e:
+            print(f"[Mossy Link v6] ⚠️ PyTorch import failed: {e}")
+            return json.dumps({
+                "success": True,
+                "status": "warning",
+                "message": f"Path configured ({path}) but PyTorch import failed: {e}"
+            })
+
     def _get_mossy_capabilities(self):
         """Return Mossy's available capabilities: AI models, tools, PyTorch, integrations."""
-        return {
+        # Start with default capabilities
+        caps = {
             "version": "6.1.0",
             "success": True,
             "capabilities": {
@@ -829,6 +900,7 @@ class MossyLinkServer:
                 },
                 "pytorch": {
                     "available": True,
+                    "path": self.pytorch_path,
                     "models": ["upscaling", "super-resolution", "style-transfer"]
                 },
                 "integrations": {
@@ -838,6 +910,7 @@ class MossyLinkServer:
                 }
             }
         }
+        return caps
 
     def _query_mossy(self, query, context=""):
         """Send a query to Mossy AI for real-time guidance."""
