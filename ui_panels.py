@@ -1400,12 +1400,9 @@ class FO4_PT_SetupAIHunyuan3D(_FO4SubPanel):
             status_box.label(text="Status: Not Installed ✗", icon='ERROR')
         else:
             status_box.label(text="Status: Not checked", icon='INFO')
-            status_box.label(text="Click Check Status to refresh", icon='DOT')
-
         status_box.label(text=hun_msg, icon='INFO')
-        status_box.operator("fo4.install_hunyuan3d", text="Auto-Install Hunyuan3D-2", icon='IMPORT')
-        status_box.operator("fo4.check_hunyuan3d_status", text="Check Status", icon='FILE_REFRESH')
-        status_box.operator("fo4.show_hunyuan3d_info", text="Manual Instructions", icon='INFO')
+        if hun_status is not True:
+            status_box.label(text="Use the 'Install Tools' hub to install.", icon='DOT')
 
         # Generation operators (enabled only if available)
         box = layout.box()
@@ -1419,13 +1416,6 @@ class FO4_PT_SetupAIHunyuan3D(_FO4SubPanel):
         row = box.row()
         row.enabled = hun_status is True
         row.operator("fo4.generate_mesh_from_image_ai", text="Generate from Image (AI)", icon='MESH_ICOSPHERE')
-
-        # Info box
-        info_box = layout.box()
-        info_box.label(text="About Hunyuan3D-2:", icon='INFO')
-        info_box.label(text="• Generates full 3D meshes from text or image")
-        info_box.label(text="• Requires GPU & model download")
-        info_box.label(text="• Completely optional feature")
 
 
 class FO4_PT_SetupAIGradio(_FO4SubPanel):
@@ -1453,9 +1443,7 @@ class FO4_PT_SetupAIGradio(_FO4SubPanel):
                 layout.operator("fo4.start_gradio_server", text="Start Web UI", icon='PLAY')
         else:
             layout.label(text="Gradio: Not Installed ✗", icon='ERROR')
-            layout.operator("fo4.install_gradio", text="Auto-Install Gradio", icon='IMPORT')
-
-        layout.operator("fo4.show_gradio_info", text="Web UI Info", icon='INFO')
+            layout.label(text="Use the 'Install Tools' hub to install.", icon='INFO')
 
         if gradio_available:
             layout.label(text="Open: http://localhost:7860")
@@ -1482,9 +1470,7 @@ class FO4_PT_SetupAIHyMotion(_FO4SubPanel):
             layout.operator("fo4.import_motion_file", text="Import Motion File", icon='IMPORT')
         else:
             layout.label(text="Status: Not Installed ✗", icon='ERROR')
-            layout.operator("fo4.install_hymotion", text="Auto-Install HY-Motion", icon='IMPORT')
-
-        layout.operator("fo4.show_hymotion_info", text="Manual Instructions", icon='INFO')
+            layout.label(text="Use the 'Install Tools' hub to install.", icon='INFO')
 
 
 class FO4_PT_SetupAIShapE(_FO4SubPanel):
@@ -3430,15 +3416,18 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         # AI / optional tools
         ai_col = hub.column(align=True)
         ai_col.label(text="AI Tools (optional, GPU recommended):", icon='PLUGIN')
-        ai_col.operator("fo4.install_upscaler_deps",     text="Install Real-ESRGAN (texture upscaler)",    icon='IMPORT')
-        ai_col.operator("fo4.install_zoedepth",          text="Install ZoeDepth (depth estimation)",       icon='IMPORT')
-        ai_col.operator("fo4.install_triposr",           text="Install TripoSR (image to 3D)",             icon='IMPORT')
-        ai_col.operator("fo4.install_shap_e",            text="Install Shap-E (text/image to 3D)",         icon='IMPORT')
+        ai_col.operator("fo4.install_upscaler_deps",     text="Install Real-ESRGAN (texture upscaler)",      icon='IMPORT')
+        ai_col.operator("fo4.install_zoedepth",          text="Install ZoeDepth (depth estimation)",         icon='IMPORT')
+        ai_col.operator("fo4.install_triposr",           text="Install TripoSR (image to 3D)",               icon='IMPORT')
+        ai_col.operator("fo4.install_shap_e",            text="Install Shap-E (text/image to 3D)",           icon='IMPORT')
         ai_col.operator("fo4.install_point_e",           text="Install Point-E (text/image to point cloud)", icon='IMPORT')
-        ai_col.operator("fo4.install_instantngp",        text="Install Instant-NGP (NeRF)",                icon='IMPORT')
-        ai_col.operator("fo4.install_rignet",            text="Install RigNet (auto-rigging)",             icon='IMPORT')
-        ai_col.operator("fo4.install_libigl",            text="Install libigl (RigNet dependency)",        icon='IMPORT')
-        ai_col.operator("fo4.install_motion_generation", text="Install MotionDiffuse (animation AI)",      icon='IMPORT')
+        ai_col.operator("fo4.install_hunyuan3d",         text="Install Hunyuan3D-2 (text/image to 3D)",      icon='IMPORT')
+        ai_col.operator("fo4.install_gradio",            text="Install Gradio (web interface)",              icon='IMPORT')
+        ai_col.operator("fo4.install_hymotion",          text="Install HY-Motion (animation AI)",            icon='IMPORT')
+        ai_col.operator("fo4.install_instantngp",        text="Install Instant-NGP (NeRF)",                  icon='IMPORT')
+        ai_col.operator("fo4.install_rignet",            text="Install RigNet (auto-rigging)",               icon='IMPORT')
+        ai_col.operator("fo4.install_libigl",            text="Install libigl (RigNet dependency)",          icon='IMPORT')
+        ai_col.operator("fo4.install_motion_generation", text="Install MotionDiffuse (animation AI)",        icon='IMPORT')
 
         hub.separator()
         hub.operator("fo4.install_all_tools", text="Install All Tools (Batch)", icon='FILE_REFRESH')
