@@ -1809,6 +1809,60 @@ class TestCheckHavok2FBX(unittest.TestCase):
         )
 
 
+
+# ---------------------------------------------------------------------------
+# Section K: bundled knowledge_base/ directory must exist
+# ---------------------------------------------------------------------------
+
+class TestKnowledgeBaseDirectoryBundled(unittest.TestCase):
+    """Verify that the bundled knowledge_base/ directory is present in the add-on root.
+
+    knowledge_helpers._kb_root() falls back to <addon_dir>/knowledge_base/ when
+    no custom path is configured.  If that directory is missing, the diagnostic
+    check fires "Knowledge base enabled but path not found" even for users who
+    have never touched the knowledge base settings.
+
+    The fix: ship knowledge_base/ in the repository so the default path is always
+    valid.  At minimum a README.md must be present so load_snippets() returns at
+    least one snippet (avoiding the "empty" false-negative).
+    """
+
+    def test_knowledge_base_dir_exists(self):
+        """knowledge_base/ must exist as a directory inside the add-on root."""
+        import os
+        addon_root = os.path.dirname(os.path.abspath(__file__))
+        kb_dir = os.path.join(addon_root, "knowledge_base")
+        self.assertTrue(
+            os.path.isdir(kb_dir),
+            "knowledge_base/ directory not found at add-on root.  "
+            "Create it (with at least a README.md) so the default fallback path "
+            "is always valid and the diagnostic check does not fire a false-positive WARN.",
+        )
+
+    def test_knowledge_base_has_at_least_one_text_file(self):
+        """knowledge_base/ must contain at least one .txt or .md file.
+
+        An empty directory causes knowledge_helpers.status() to return
+        (False, 'Knowledge base empty at ...'), which is misleading for
+        a fresh install with the default configuration.
+        """
+        import os
+        addon_root = os.path.dirname(os.path.abspath(__file__))
+        kb_dir = os.path.join(addon_root, "knowledge_base")
+        if not os.path.isdir(kb_dir):
+            self.skipTest("knowledge_base/ directory missing — covered by test_knowledge_base_dir_exists")
+        text_files = [
+            f for f in os.listdir(kb_dir)
+            if f.lower().endswith((".txt", ".md"))
+        ]
+        self.assertGreater(
+            len(text_files),
+            0,
+            "knowledge_base/ is empty.  Add at least a README.md so "
+            "load_snippets() returns at least one snippet for a default install.",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
