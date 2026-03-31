@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Wrench, Save, Code, AlertTriangle, CheckCircle2, FileText, Play, RefreshCw, Terminal, Clock, MapPin } from 'lucide-react';
 
 interface CompilationJob {
@@ -19,6 +19,9 @@ interface CKScript {
 }
 
 export const CKExtension: React.FC = () => {
+  const navigate = useNavigate();
+  const logRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(() => {
     return localStorage.getItem('ck_autosave_enabled') === 'true';
@@ -192,7 +195,7 @@ export const CKExtension: React.FC = () => {
 
           {/* Auto-Save Control */}
           {isConnected && (
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
+            <div ref={settingsRef} className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <Save className="w-6 h-6 text-orange-400" />
@@ -349,7 +352,7 @@ export const CKExtension: React.FC = () => {
 
           {/* Activity Log */}
           {isConnected && ckLogs.length > 0 && (
-            <div className="bg-slate-900/90 backdrop-blur-sm rounded-xl border border-orange-500/30 p-6">
+            <div ref={logRef} className="bg-slate-900/90 backdrop-blur-sm rounded-xl border border-orange-500/30 p-6">
               <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
                 <Terminal className="w-5 h-5 text-orange-400" />
                 Activity Log
@@ -376,15 +379,21 @@ export const CKExtension: React.FC = () => {
                   <Save className="w-4 h-4" />
                   Save Now
                 </button>
-                <button className="px-4 py-3 bg-blue-900/20 border border-blue-500/30 text-blue-300 rounded-lg hover:bg-blue-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={() => logRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                  className="px-4 py-3 bg-blue-900/20 border border-blue-500/30 text-blue-300 rounded-lg hover:bg-blue-900/30 transition-colors flex items-center gap-2 justify-center">
                   <FileText className="w-4 h-4" />
                   View Logs
                 </button>
-                <button className="px-4 py-3 bg-purple-900/20 border border-purple-500/30 text-purple-300 rounded-lg hover:bg-purple-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={() => navigate('/ai-mod-assistant')}
+                  className="px-4 py-3 bg-purple-900/20 border border-purple-500/30 text-purple-300 rounded-lg hover:bg-purple-900/30 transition-colors flex items-center gap-2 justify-center">
                   <Code className="w-4 h-4" />
                   Script Editor
                 </button>
-                <button className="px-4 py-3 bg-orange-900/20 border border-orange-500/30 text-orange-300 rounded-lg hover:bg-orange-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={() => settingsRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                  className="px-4 py-3 bg-orange-900/20 border border-orange-500/30 text-orange-300 rounded-lg hover:bg-orange-900/30 transition-colors flex items-center gap-2 justify-center">
                   <Wrench className="w-4 h-4" />
                   Settings
                 </button>

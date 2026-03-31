@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Package, List, Play, RefreshCw, AlertTriangle, CheckCircle2, Folder, Settings, ExternalLink, FileText, Download } from 'lucide-react';
 
 interface MO2Mod {
@@ -18,6 +18,7 @@ interface MO2Profile {
 }
 
 export const MO2Extension: React.FC = () => {
+  const navigate = useNavigate();
   const [isConnected, setIsConnected] = useState(false);
   const [mo2Path, setMo2Path] = useState<string>('');
   const [activeProfile, setActiveProfile] = useState<MO2Profile | null>(null);
@@ -26,6 +27,7 @@ export const MO2Extension: React.FC = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [filterEnabled, setFilterEnabled] = useState<boolean | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusMsg, setStatusMsg] = useState<string>('');
 
   // Check if MO2 is running via Neural Link
   useEffect(() => {
@@ -108,6 +110,59 @@ export const MO2Extension: React.FC = () => {
       loadMO2Config();
     }
   }, [isConnected]);
+
+  const launchGame = async () => {
+    const bridge: any = (window as any).electron?.api;
+    setStatusMsg('');
+    try {
+      const rawTools = localStorage.getItem('mossy_active_tools');
+      if (rawTools) {
+        let data: any;
+        try {
+          data = JSON.parse(rawTools);
+        } catch {
+          data = null;
+        }
+        const mo2Tool = data?.tools?.find((t: any) =>
+          t.name.toLowerCase().includes('modorganizer') ||
+          t.name.toLowerCase().includes('mo2')
+        );
+        if (mo2Tool?.path && bridge?.openProgram) {
+          const result = await bridge.openProgram(mo2Tool.path);
+          if (result?.success) {
+            setStatusMsg('MO2 brought to focus – use its Launch button to start the game.');
+            return;
+          }
+        }
+      }
+      setStatusMsg('MO2 is running – use its Launch button to start your game.');
+    } catch {
+      setStatusMsg('Could not focus MO2. Use MO2 directly to launch the game.');
+    }
+  };
+
+  const exportModList = async () => {
+    const bridge: any = (window as any).electron?.api;
+    if (!bridge?.saveFile) {
+      setStatusMsg('Export is not available in this environment.');
+      return;
+    }
+    const lines = [
+      `# MO2 Mod List – Profile: ${activeProfile?.name ?? 'Unknown'}`,
+      `# Exported: ${new Date().toLocaleString()}`,
+      '',
+      ...mods.map(m =>
+        `${m.enabled ? '[+]' : '[-]'} ${m.name}${m.version ? ` v${m.version}` : ''}${m.category ? ` (${m.category})` : ''}`
+      ),
+    ];
+    try {
+      const savedTo = await bridge.saveFile(lines.join('\n'), 'mo2-mod-list.txt');
+      if (savedTo) setStatusMsg(`Mod list exported to: ${savedTo}`);
+    } catch {
+      setStatusMsg('Export failed.');
+    }
+  };
+
 
   const filteredMods = mods.filter(mod => {
     if (filterEnabled !== null && mod.enabled !== filterEnabled) return false;
@@ -213,20 +268,33 @@ export const MO2Extension: React.FC = () => {
           {isConnected && (
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
               <h3 className="text-lg font-bold text-white mb-4">Quick Actions</h3>
+              {statusMsg && (
+                <div className="mb-4 px-4 py-2 bg-slate-900/70 border border-slate-600/50 rounded-lg text-sm text-slate-300">
+                  {statusMsg}
+                </div>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <button className="px-4 py-3 bg-green-900/20 border border-green-500/30 text-green-300 rounded-lg hover:bg-green-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={launchGame}
+                  className="px-4 py-3 bg-green-900/20 border border-green-500/30 text-green-300 rounded-lg hover:bg-green-900/30 transition-colors flex items-center gap-2 justify-center">
                   <Play className="w-4 h-4" />
                   Launch Game
                 </button>
-                <button className="px-4 py-3 bg-blue-900/20 border border-blue-500/30 text-blue-300 rounded-lg hover:bg-blue-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={() => navigate('/settings')}
+                  className="px-4 py-3 bg-blue-900/20 border border-blue-500/30 text-blue-300 rounded-lg hover:bg-blue-900/30 transition-colors flex items-center gap-2 justify-center">
                   <Settings className="w-4 h-4" />
                   Configure
                 </button>
-                <button className="px-4 py-3 bg-purple-900/20 border border-purple-500/30 text-purple-300 rounded-lg hover:bg-purple-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={() => navigate('/diagnostics')}
+                  className="px-4 py-3 bg-purple-900/20 border border-purple-500/30 text-purple-300 rounded-lg hover:bg-purple-900/30 transition-colors flex items-center gap-2 justify-center">
                   <FileText className="w-4 h-4" />
                   View Logs
                 </button>
-                <button className="px-4 py-3 bg-amber-900/20 border border-amber-500/30 text-amber-300 rounded-lg hover:bg-amber-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={exportModList}
+                  className="px-4 py-3 bg-amber-900/20 border border-amber-500/30 text-amber-300 rounded-lg hover:bg-amber-900/30 transition-colors flex items-center gap-2 justify-center">
                   <Download className="w-4 h-4" />
                   Export List
                 </button>
