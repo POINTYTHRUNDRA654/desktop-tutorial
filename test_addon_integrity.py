@@ -1944,6 +1944,120 @@ class TestTryImportNoBpyContext(unittest.TestCase):
         )
 
 
+class TestInstallLibiglHeadersCheck(unittest.TestCase):
+    """install_libigl() must detect missing Python headers and fail clearly.
+
+    libigl >= 2.5 uses scikit-build-core + CMake and falls back to a source
+    build whenever no binary wheel is available for the running interpreter.
+    Blender's bundled Python does NOT ship C development headers (the
+    ``Include/`` directory), so the CMake configuration step always fails with:
+
+        Development: Cannot find the directory ".../python/Include"
+
+    The fix is a pre-flight check in install_libigl() that detects the missing
+    headers via ``sysconfig.get_path("include")`` and returns a clear,
+    actionable error message instead of dumping a wall of CMake output.
+    """
+
+    def test_headers_preflight_check_present(self):
+        """install_libigl must guard against missing Python development headers."""
+        with open(os.path.join(ADDON_DIR, "tool_installers.py")) as fh:
+            source = fh.read()
+        tree = ast.parse(source)
+        fn_node = next(
+            (n for n in ast.walk(tree)
+             if isinstance(n, ast.FunctionDef) and n.name == "install_libigl"),
+            None,
+        )
+        self.assertIsNotNone(fn_node, "install_libigl not found in tool_installers.py")
+
+        # The function body must reference sysconfig (for get_path("include"))
+        fn_src = ast.get_source_segment(source, fn_node) or ""
+        self.assertIn(
+            "sysconfig",
+            fn_src,
+            "install_libigl must use sysconfig to locate Python include dir "
+            "and detect missing C development headers before calling pip.",
+        )
+
+    def test_headers_preflight_before_pip_call(self):
+        """The headers pre-flight check must appear before _pip_install(['libigl'])."""
+        with open(os.path.join(ADDON_DIR, "tool_installers.py")) as fh:
+            source = fh.read()
+
+        fn_start = source.find("def install_libigl(")
+        self.assertGreater(fn_start, -1, "install_libigl not found")
+        # Find the next function definition to bound the search
+        fn_end = source.find("\ndef ", fn_start + 1)
+        fn_body = source[fn_start:fn_end] if fn_end > fn_start else source[fn_start:]
+
+        sysconfig_pos = fn_body.find("sysconfig")
+        pip_pos = fn_body.find("_pip_install")
+        self.assertGreater(sysconfig_pos, -1, "sysconfig not found in install_libigl")
+        self.assertGreater(pip_pos, -1, "_pip_install not found in install_libigl")
+        self.assertLess(
+            sysconfig_pos,
+            pip_pos,
+            "sysconfig header check must appear BEFORE the _pip_install call "
+            "so that the pre-flight guard fires before pip attempts a source build.",
+        )
+
+    def test_headers_check_returns_false_with_actionable_message(self):
+        """install_libigl must return (False, <informative str>) when headers missing."""
+        import importlib
+        import unittest.mock as mock
+        import sysconfig as _sysconfig
+
+        # Dynamically reload tool_installers so we get a fresh module object
+        # without needing bpy.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "_test_tool_installers",
+            os.path.join(ADDON_DIR, "tool_installers.py"),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        # Stub out bpy so the module-level code doesn't crash
+        import types
+        fake_bpy = types.ModuleType("bpy")
+        fake_bpy.app = types.SimpleNamespace(version=(5, 0, 0))
+        import sys as _sys
+        _sys.modules.setdefault("bpy", fake_bpy)
+        try:
+            spec.loader.exec_module(mod)
+        except Exception:
+            self.skipTest("tool_installers.py could not be loaded outside Blender")
+
+        keywords = ("libigl", "Blender", "Python", "header")
+
+        # Case 1: get_path returns a non-existent directory (Blender scenario)
+        with mock.patch.object(
+            _sysconfig, "get_path", return_value="/nonexistent/python/Include"
+        ):
+            ok, msg = mod.install_libigl()
+        self.assertFalse(ok, "install_libigl must return False when Include dir is missing")
+        for keyword in keywords:
+            self.assertIn(
+                keyword,
+                msg,
+                f"Error message must mention '{keyword}' (non-existent path case). "
+                f"Got: {msg[:300]}",
+            )
+
+        # Case 2: get_path returns None (some embedded/minimal Python builds)
+        with mock.patch.object(
+            _sysconfig, "get_path", return_value=None
+        ):
+            ok2, msg2 = mod.install_libigl()
+        self.assertFalse(ok2, "install_libigl must return False when get_path returns None")
+        for keyword in keywords:
+            self.assertIn(
+                keyword,
+                msg2,
+                f"Error message must mention '{keyword}' (None path case). "
+                f"Got: {msg2[:300]}",
+            )
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------

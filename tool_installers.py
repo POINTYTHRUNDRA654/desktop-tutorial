@@ -1373,11 +1373,42 @@ def install_libigl() -> tuple[bool, str]:
     Blender's bundled Python environment.  The ``igl`` module becomes
     importable after installation.
 
+    .. note::
+        ``libigl >= 2.5`` builds from source using scikit-build-core + CMake
+        and requires Python development headers (``Include/`` + import library).
+        Blender's bundled Python does **not** ship these headers, so any version
+        that lacks a pre-built wheel for the running interpreter will fail with
+        a CMake error.  This function detects the missing headers up-front and
+        returns a clear, actionable message rather than a confusing build log.
+
     Returns
     -------
     tuple[bool, str]
         ``(True, message)`` on success, ``(False, reason)`` otherwise.
     """
+    import sysconfig
+
+    # Pre-flight: detect missing Python development headers.
+    # libigl falls back to a source build when no binary wheel is available for
+    # the running interpreter.  The CMake build requires the Python Include/
+    # directory to exist.  Blender ships Python without these headers, so the
+    # build always fails with "Cannot find the directory ... /python/Include".
+    # Detect this early and return a human-readable error instead of a wall of
+    # CMake output.
+    inc_dir = sysconfig.get_path("include")
+    if not (inc_dir and os.path.isdir(inc_dir)):
+        return False, (
+            "libigl cannot be installed automatically because Blender's "
+            "bundled Python does not include C development headers "
+            f"(expected directory: {inc_dir!r}).\n\n"
+            "libigl >= 2.5 builds from source when no pre-built wheel is "
+            "available for your Python version, which requires those headers.\n\n"
+            "Workaround: install libigl into a standalone Python environment "
+            "that shares the same version as Blender's Python, then add that "
+            "environment's site-packages path via the PyTorch / Mossy path "
+            "preference in the add-on settings."
+        )
+
     ok, msg = _pip_install(["libigl"])
     if ok:
         return True, "libigl installed successfully. Restart Blender to activate."
