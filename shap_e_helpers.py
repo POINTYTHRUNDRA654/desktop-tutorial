@@ -453,7 +453,9 @@ class ShapEHelpers:
                 return False, ShapEHelpers._dll_init_error_message(str(e))
             return False, f"File error loading Shap-E: {str(e)}"
         except ImportError as e:
-            return False, f"Shap-E not installed: {str(e)}"
+            if getattr(e, "name", None) == "shap_e":
+                return False, "Shap-E is not installed. Use the 'Auto-Install Shap-E' button to set it up."
+            return False, f"Shap-E dependency missing: {str(e)}"
 
     @staticmethod
     def get_installation_instructions():
@@ -462,7 +464,7 @@ class ShapEHelpers:
 To install Shap-E:
 
 1. Clone the repository:
-   git clone https://huggingface.co/openai/shap-e
+   git clone https://github.com/openai/shap-e.git
    cd shap-e
 
 2. Install dependencies:
@@ -584,7 +586,9 @@ For more info: https://github.com/openai/shap-e
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Shap-E installation check for details)."
             return False, f"File error: {str(e)}"
         except ImportError as e:
-            return False, f"Shap-E not installed: {str(e)}"
+            if getattr(e, "name", None) == "shap_e":
+                return False, "Shap-E is not installed. Use the 'Auto-Install Shap-E' button to set it up."
+            return False, f"Shap-E dependency missing: {str(e)}"
         except Exception as e:
             return False, f"Generation failed: {str(e)}"
     
@@ -673,7 +677,9 @@ For more info: https://github.com/openai/shap-e
                 return False, "Windows path length error. Enable long paths in Windows or reinstall PyTorch in a shorter path (see Shap-E installation check for details)."
             return False, f"File error: {str(e)}"
         except ImportError as e:
-            return False, f"Shap-E not installed: {str(e)}"
+            if getattr(e, "name", None) == "shap_e":
+                return False, "Shap-E is not installed. Use the 'Auto-Install Shap-E' button to set it up."
+            return False, f"Shap-E dependency missing: {str(e)}"
         except Exception as e:
             return False, f"Generation failed: {str(e)}"
     
