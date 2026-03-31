@@ -21,11 +21,18 @@ _VIDEO_EXT = {".mp4", ".mov", ".mkv", ".webm"}
 
 def _kb_root() -> Path:
     prefs = preferences.get_preferences()
-    base = None
     if prefs and getattr(prefs, "knowledge_base_path", ""):
-        base = Path(os.path.abspath(os.path.expanduser(prefs.knowledge_base_path)))
-    else:
-        base = Path(__file__).resolve().parent / _DEFAULT_KB_DIR
+        return Path(os.path.abspath(os.path.expanduser(prefs.knowledge_base_path)))
+    base = Path(__file__).resolve().parent / _DEFAULT_KB_DIR
+    # Auto-create the default directory if it is absent (e.g. older installs
+    # that were deployed before knowledge_base/ was added to the repo).
+    if not base.exists():
+        try:
+            base.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            # Silently ignore: the add-on dir may be read-only (e.g. system-
+            # wide install).  The caller handles a non-existent kb_dir safely.
+            pass
     return base
 
 
@@ -201,7 +208,10 @@ def status() -> tuple[bool, str]:
     snippets = load_snippets()
     count = len(snippets)
     if count == 0:
-        return False, f"Knowledge base empty at {kb_dir}"
+        return True, (
+            f"Knowledge base ready at {kb_dir} "
+            "(no snippets loaded; add .txt/.md files for custom Advisor context)"
+        )
     return True, describe_kb()
 
 

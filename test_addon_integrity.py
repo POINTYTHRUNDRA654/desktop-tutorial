@@ -1843,8 +1843,10 @@ class TestKnowledgeBaseDirectoryBundled(unittest.TestCase):
         """knowledge_base/ must contain at least one .txt or .md file.
 
         An empty directory causes knowledge_helpers.status() to return
-        (False, 'Knowledge base empty at ...'), which is misleading for
-        a fresh install with the default configuration.
+        (True, '...no snippets loaded...'), which is not an error, but shipping
+        at least a README.md in the repo gives users useful onboarding content
+        and confirms that load_snippets() returns at least one snippet for a
+        default install.
         """
         import os
         addon_root = os.path.dirname(os.path.abspath(__file__))
