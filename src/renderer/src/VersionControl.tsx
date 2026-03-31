@@ -174,7 +174,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
 
   const loadCommitHistory = async () => {
     try {
-      const history = await window.electronAPI?.versionControlHistory(50);
+      const history = await window.electronAPI?.versionControlHistory?.(50);
       setCommitHistory(history);
     } catch (err) {
       setError('Failed to load commit history');
@@ -188,7 +188,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
 
   const loadBackups = async () => {
     try {
-      const backupList = await window.electronAPI?.versionControlListBackups();
+      const backupList = await window.electronAPI?.versionControlListBackups?.();
       setBackups(backupList);
     } catch (err) {
       setError('Failed to load backups');
@@ -200,7 +200,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
 
     try {
       setLoading(true);
-      await window.electronAPI?.versionControlCommit(commitMessage);
+      await window.electronAPI?.versionControlCommit?.(commitMessage);
       setCommitMessage('');
       await loadRepositoryStatus();
       await loadCommitHistory();
@@ -232,7 +232,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
 
     try {
       setLoading(true);
-      await window.electronAPI?.versionControlCreateBranch(newBranchName);
+      await window.electronAPI?.versionControlCreateBranch?.(newBranchName);
       setNewBranchName('');
       setCreateBranchDialog(false);
       await loadBranches();
@@ -248,7 +248,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
 
     try {
       setLoading(true);
-      await window.electronAPI?.versionControlMergeBranch(mergeSource, mergeTarget);
+      await window.electronAPI?.versionControlMergeBranch?.(mergeSource, mergeTarget);
       await loadRepositoryStatus();
     } catch (err) {
       setError('Failed to merge branches');
@@ -260,7 +260,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
   const handleCreateBackup = async () => {
     try {
       setLoading(true);
-      await window.electronAPI?.versionControlBackup(process.cwd());
+      await window.electronAPI?.versionControlBackup?.(process.cwd());
       await loadBackups();
     } catch (err) {
       setError('Failed to create backup');
@@ -274,7 +274,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
 
     try {
       setLoading(true);
-      await window.electronAPI?.versionControlRestore(selectedBackup.id, process.cwd());
+      await window.electronAPI?.versionControlRestore?.(selectedBackup.id, process.cwd());
       setRestoreDialog(false);
       setSelectedBackup(null);
     } catch (err) {
@@ -286,7 +286,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
 
   const handleViewCommitDetails = async (commit: CommitHistory) => {
     try {
-      const details = await window.electronAPI?.versionControlShowChanges(commit.hash);
+      const details = await window.electronAPI?.versionControlShowChanges?.(commit.hash);
       setSelectedCommit(commit);
       setCommitDetails(details);
     } catch (err) {
@@ -375,7 +375,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
                         <Typography variant="body2">{lastCommit.author}</Typography>
                         <Clock size={16} style={{ marginLeft: 8, marginRight: 4 }} />
                         <Typography variant="body2">
-                          {new Date(lastCommit.date).toLocaleDateString()}
+                          {new Date(lastCommit.date ?? lastCommit.timestamp).toLocaleDateString()}
                         </Typography>
                       </Box>
                     </>
@@ -538,7 +538,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
                             <Box>
                               <Typography variant="body1">{commit.message}</Typography>
                               <Typography variant="body2" color="text.secondary">
-                                {commit.hash.substring(0, 7)} • {commit.author} • {new Date(commit.date).toLocaleDateString()}
+                                {commit.hash.substring(0, 7)} • {commit.author} • {new Date(commit.date ?? commit.timestamp).toLocaleDateString()}
                               </Typography>
                             </Box>
                           }
@@ -569,7 +569,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
                           <strong>Author:</strong> {selectedCommit.author}
                         </Typography>
                         <Typography variant="body2">
-                          <strong>Date:</strong> {new Date(selectedCommit.date).toLocaleString()}
+                          <strong>Date:</strong> {new Date(selectedCommit.date ?? selectedCommit.timestamp).toLocaleString()}
                         </Typography>
                         <Typography variant="body2">
                           <strong>Files:</strong> {typeof selectedCommit.files === 'number' ? selectedCommit.files : (selectedCommit.files?.length ?? 0)}

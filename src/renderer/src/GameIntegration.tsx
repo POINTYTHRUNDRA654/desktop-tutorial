@@ -145,6 +145,7 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
       // Add to history
       setCommandHistory(prev => [...prev, {
         command,
+        timestamp: Date.now(),
         description: result.output,
         category: 'utility',
       }]);
@@ -759,8 +760,8 @@ const PerformanceDashboardTab: React.FC<PerformanceDashboardTabProps> = ({
               </div>
               <div>
                 <p className="text-sm font-medium">Script Lag</p>
-                <Badge variant={performanceData.scriptLag > 0 ? 'destructive' : 'default'}>
-                  {performanceData.scriptLag > 0 ? `${performanceData.scriptLag}ms` : 'None'}
+                <Badge variant={( performanceData.scriptLag ?? 0) > 0 ? 'destructive' : 'default'}>
+                  {( performanceData.scriptLag ?? 0) > 0 ? `${performanceData.scriptLag ?? 0}ms` : 'None'}
                 </Badge>
               </div>
             </div>
