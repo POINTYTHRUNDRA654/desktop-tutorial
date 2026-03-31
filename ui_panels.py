@@ -2635,10 +2635,14 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
             uv_ok = bool(mesh.uv_layers)
             scale_ok = obj.scale[:] == (1.0, 1.0, 1.0)
             coll_name = f"UCX_{obj.name}"
-            has_coll = any(
-                c.name == coll_name or c.get("fo4_collision")
-                for c in obj.children
-            )
+            try:
+                has_coll = any(
+                    c.name == coll_name or c.get("fo4_collision")
+                    for c in obj.children
+                )
+            except AttributeError:
+                # bpy.data is restricted in some contexts (e.g. during addon install)
+                has_coll = False
 
             # Mesh name + poly count with FO4 budget indicator
             budget_icon = 'CHECKMARK' if poly_count <= 65535 else 'ERROR'

@@ -357,19 +357,29 @@ def deferred_startup():
     try:
         from . import zoedepth_helpers as _zdh
         if _zdh:
-            # clear_availability_cache() resets the 5-second TTL so the next
-            # UI draw triggers a fresh probe with correct sys.path.
-            _zdh.clear_availability_cache()
+            # Run a full availability check now that torch paths are ready,
+            # so the UI panel shows the correct status immediately and the
+            # diagnostics report does not show "status not yet checked".
+            avail, msg = _zdh.check_zoedepth_availability()
+            if avail:
+                print("✓ ZoeDepth is available")
+            else:
+                print(f"  ZoeDepth not available: {msg}")
     except Exception as _e:
-        print(f"ZoeDepth cache reset skipped: {_e}")
+        print(f"ZoeDepth deferred check skipped: {_e}")
 
-    # Invalidate the RigNet status cache so it re-probes on next UI draw.
+    # Populate the RigNet status cache so diagnostics does not report
+    # "cache invalidated" when the user runs a check before the RigNet
+    # panel has had a chance to draw (which is what triggers the probe
+    # under normal operation).
     try:
         from . import ui_panels as _ui
-        if _ui and hasattr(_ui, '_invalidate_rignet_cache'):
-            _ui._invalidate_rignet_cache()
+        if _ui and hasattr(_ui, '_cached_rignet_status'):
+            rignet_status, _libigl_status = _ui._cached_rignet_status()
+            if rignet_status[0]:
+                print("✓ RigNet is available")
     except Exception as _e:
-        print(f"RigNet cache reset skipped: {_e}")
+        print(f"RigNet deferred check skipped: {_e}")
 
     # ── Step 7: auto-check Mossy bridge (safety net) ─────────────────────────
     # The background torch probe already checks Mossy at probe time, but
