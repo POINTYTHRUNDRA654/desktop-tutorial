@@ -1730,6 +1730,85 @@ class TestDualInstallDetection(unittest.TestCase):
         )
 
 
+
+# ---------------------------------------------------------------------------
+# Section J: check_havok2fbx only requires havok2fbx.exe (not libfbxsdk.dll)
+# ---------------------------------------------------------------------------
+
+class TestCheckHavok2FBX(unittest.TestCase):
+    """Verify that check_havok2fbx() only requires havok2fbx.exe.
+
+    Earlier versions also required libfbxsdk.dll, which caused a false-positive
+    "folder found but expected files missing" warning for statically-linked builds
+    or newer releases that don't ship a separate libfbxsdk.dll.
+
+    discover_installed_tools() also only looks for havok2fbx.exe, so the check
+    function must be consistent with it.
+    """
+
+    def _get_check_source(self) -> str:
+        source = _read("tool_installers.py")
+        import re
+        m = re.search(
+            r"def check_havok2fbx\(.*?\n(?=\ndef |\nclass )",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "check_havok2fbx() not found in tool_installers.py")
+        return m.group(0)
+
+    def test_only_exe_required(self):
+        """check_havok2fbx should succeed with only havok2fbx.exe present."""
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Simulate folder with only the exe (no libfbxsdk.dll)
+            exe_path = os.path.join(tmpdir, "havok2fbx.exe")
+            from pathlib import Path as _Path
+            _Path(exe_path).touch()
+
+            # Import the module under test (no bpy required — check_havok2fbx
+            # only uses pathlib.Path so it works outside Blender)
+            import importlib.util, types
+            # Provide a minimal bpy stub so the module can be parsed
+            bpy_stub = types.ModuleType("bpy")
+            bpy_stub.props = types.ModuleType("bpy.props")
+            bpy_stub.types = types.ModuleType("bpy.types")
+            bpy_stub.path = types.SimpleNamespace(abspath=lambda p: p)
+            original_bpy = sys.modules.get("bpy")
+            sys.modules["bpy"] = bpy_stub
+            try:
+                spec = importlib.util.spec_from_file_location(
+                    "_ti_test", _path("tool_installers.py"))
+                ti = importlib.util.module_from_spec(spec)
+                try:
+                    spec.loader.exec_module(ti)
+                except Exception:
+                    pass  # module may error on bpy internals; check_havok2fbx is pure
+                if hasattr(ti, "check_havok2fbx"):
+                    result = ti.check_havok2fbx(tmpdir)
+                    self.assertTrue(
+                        result,
+                        "check_havok2fbx() returned False for a folder containing only "
+                        "havok2fbx.exe.  The function must not require libfbxsdk.dll.",
+                    )
+            finally:
+                if original_bpy is None:
+                    sys.modules.pop("bpy", None)
+
+    def test_libfbxsdk_dll_not_required_in_source(self):
+        """The return statement of check_havok2fbx must not gate on libfbxsdk.dll."""
+        block = self._get_check_source()
+        # Strip the docstring so a mention in documentation doesn't trigger the check.
+        import re
+        body_only = re.sub(r'""".*?"""', '', block, flags=re.DOTALL)
+        self.assertNotIn(
+            "dll.is_file()",
+            body_only,
+            "check_havok2fbx() must not require libfbxsdk.dll — "
+            "statically-linked and newer releases don't ship it as a separate file.",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------

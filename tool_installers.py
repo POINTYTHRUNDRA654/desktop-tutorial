@@ -431,10 +431,14 @@ def install_python_requirements(include_optional: bool = False) -> tuple[bool, s
 
 
 def check_havok2fbx(path: str) -> bool:
-    """Return True if the given folder appears to contain Havok2FBX binaries."""
+    """Return True if the given folder appears to contain Havok2FBX binaries.
+
+    Only the executable is required — some builds (e.g. statically linked
+    releases) do not ship a separate libfbxsdk.dll, and discover_installed_tools()
+    also uses only the exe to locate the tool, so this check must be consistent.
+    """
     exe = Path(path) / "havok2fbx.exe"
-    dll = Path(path) / "libfbxsdk.dll"
-    return exe.is_file() and dll.is_file()
+    return exe.is_file()
 
 
 def install_havok2fbx() -> tuple[bool, str]:
