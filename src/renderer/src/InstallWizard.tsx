@@ -653,7 +653,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
         },
       ];
     }
-  }, [state.modManager, state.topic, t]);
+  }, [state.modManager, state.topic, t]) ?? [];
 
   const topicMeta = {
     xedit: {

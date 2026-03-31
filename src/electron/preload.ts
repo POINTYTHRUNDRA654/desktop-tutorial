@@ -94,6 +94,7 @@ const IPC_CHANNELS = {
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
   AUDITOR_SCAN_MOD_DIRECTORY: 'auditor-scan-mod-directory',
+  AUDITOR_SCAN_MOD_DIRECTORY_PATH: 'auditor-scan-mod-directory-path',
 
   // Duplicate Finder
   DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',
@@ -544,6 +545,14 @@ const electronAPI = {
    */
   scanModDirectory: (): Promise<Array<{ path: string; type: string }>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_SCAN_MOD_DIRECTORY);
+  },
+
+  /**
+   * Auditor: Scan a specific mod folder by path (no OS dialog shown).
+   * Returns the same file list as scanModDirectory but accepts a pre-selected path.
+   */
+  scanModDirectoryPath: (folderPath: string): Promise<Array<{ path: string; type: string }>> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_SCAN_MOD_DIRECTORY_PATH, folderPath);
   },
 
   /**
