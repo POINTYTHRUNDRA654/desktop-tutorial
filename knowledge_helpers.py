@@ -2,7 +2,7 @@
 Knowledge helpers for the advisor.
 - Loads small snippets from bundled or user-provided knowledge base.
 - Supports .txt/.md directly.
-- PDFs: best-effort text extraction if PyPDF2 is installed.
+- PDFs: best-effort text extraction if pypdf is installed.
 - Video: looks for sidecar transcripts (.srt/.vtt/.txt) with the same stem.
 - Keeps snippets short to avoid large prompts.
 """

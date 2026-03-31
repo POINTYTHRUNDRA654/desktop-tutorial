@@ -1679,6 +1679,190 @@ class TestCoreDependencyInstallList(unittest.TestCase):
         )
 
 
+
+# ---------------------------------------------------------------------------
+# Section I: dual-install detection in addon_diagnostics.py
+# ---------------------------------------------------------------------------
+
+class TestDualInstallDetection(unittest.TestCase):
+    """Verify that the dual-install sys.modules check in addon_diagnostics.py
+    excludes sub-modules of the CURRENT package.
+
+    Without this guard, every sub-module (e.g. bl_ext.user_default.blender_game_tools.preferences)
+    would appear in the "dupes" list and the warning would fire on every single-install run.
+    """
+
+    def _get_dupes_source(self) -> str:
+        source = _read("addon_diagnostics.py")
+        import re
+        m = re.search(
+            r"# ── 3\. Dual-install via sys\.modules.*?(?=\n    # ──)",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "Check #3 (Dual-install via sys.modules) not found in addon_diagnostics.py")
+        return m.group(0)
+
+    def test_own_pkg_prefix_excluded_from_dupes(self):
+        """The dupes filter must use startswith(own_pkg + '.') to exclude own sub-modules.
+
+        A filter of `k != __package__` is NOT sufficient: it leaves all sub-modules
+        in the list, producing a false-positive warning on every single-install run.
+        """
+        block = self._get_dupes_source()
+        self.assertIn(
+            "startswith(",
+            block,
+            "addon_diagnostics.py check #3 does not use startswith() to exclude own "
+            "sub-modules from the dupes list.  Add "
+            "`not (k == own_pkg or k.startswith(own_pkg + '.'))` to the filter so the "
+            "warning only fires for genuinely different installs.",
+        )
+
+    def test_own_pkg_variable_used(self):
+        """The filter must capture __package__ in a variable (own_pkg) before the list comp."""
+        block = self._get_dupes_source()
+        self.assertIn(
+            "own_pkg",
+            block,
+            "addon_diagnostics.py check #3 should store __package__ in 'own_pkg' "
+            "and use it in the dupes filter.",
+        )
+
+
+
+# ---------------------------------------------------------------------------
+# Section J: check_havok2fbx only requires havok2fbx.exe (not libfbxsdk.dll)
+# ---------------------------------------------------------------------------
+
+class TestCheckHavok2FBX(unittest.TestCase):
+    """Verify that check_havok2fbx() only requires havok2fbx.exe.
+
+    Earlier versions also required libfbxsdk.dll, which caused a false-positive
+    "folder found but expected files missing" warning for statically-linked builds
+    or newer releases that don't ship a separate libfbxsdk.dll.
+
+    discover_installed_tools() also only looks for havok2fbx.exe, so the check
+    function must be consistent with it.
+    """
+
+    def _get_check_source(self) -> str:
+        source = _read("tool_installers.py")
+        import re
+        m = re.search(
+            r"def check_havok2fbx\(.*?\n(?=\ndef |\nclass )",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "check_havok2fbx() not found in tool_installers.py")
+        return m.group(0)
+
+    def test_only_exe_required(self):
+        """check_havok2fbx should succeed with only havok2fbx.exe present."""
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Simulate folder with only the exe (no libfbxsdk.dll)
+            exe_path = os.path.join(tmpdir, "havok2fbx.exe")
+            from pathlib import Path as _Path
+            _Path(exe_path).touch()
+
+            # Import the module under test (no bpy required — check_havok2fbx
+            # only uses pathlib.Path so it works outside Blender)
+            import importlib.util, types
+            # Provide a minimal bpy stub so the module can be parsed
+            bpy_stub = types.ModuleType("bpy")
+            bpy_stub.props = types.ModuleType("bpy.props")
+            bpy_stub.types = types.ModuleType("bpy.types")
+            bpy_stub.path = types.SimpleNamespace(abspath=lambda p: p)
+            original_bpy = sys.modules.get("bpy")
+            sys.modules["bpy"] = bpy_stub
+            try:
+                spec = importlib.util.spec_from_file_location(
+                    "_ti_test", _path("tool_installers.py"))
+                ti = importlib.util.module_from_spec(spec)
+                try:
+                    spec.loader.exec_module(ti)
+                except Exception:
+                    pass  # module may error on bpy internals; check_havok2fbx is pure
+                if hasattr(ti, "check_havok2fbx"):
+                    result = ti.check_havok2fbx(tmpdir)
+                    self.assertTrue(
+                        result,
+                        "check_havok2fbx() returned False for a folder containing only "
+                        "havok2fbx.exe.  The function must not require libfbxsdk.dll.",
+                    )
+            finally:
+                if original_bpy is None:
+                    sys.modules.pop("bpy", None)
+
+    def test_libfbxsdk_dll_not_required_in_source(self):
+        """The return statement of check_havok2fbx must not gate on libfbxsdk.dll."""
+        block = self._get_check_source()
+        # Strip the docstring so a mention in documentation doesn't trigger the check.
+        import re
+        body_only = re.sub(r'""".*?"""', '', block, flags=re.DOTALL)
+        self.assertNotIn(
+            "dll.is_file()",
+            body_only,
+            "check_havok2fbx() must not require libfbxsdk.dll — "
+            "statically-linked and newer releases don't ship it as a separate file.",
+        )
+
+
+
+# ---------------------------------------------------------------------------
+# Section K: bundled knowledge_base/ directory must exist
+# ---------------------------------------------------------------------------
+
+class TestKnowledgeBaseDirectoryBundled(unittest.TestCase):
+    """Verify that the bundled knowledge_base/ directory is present in the add-on root.
+
+    knowledge_helpers._kb_root() falls back to <addon_dir>/knowledge_base/ when
+    no custom path is configured.  If that directory is missing, the diagnostic
+    check fires "Knowledge base enabled but path not found" even for users who
+    have never touched the knowledge base settings.
+
+    The fix: ship knowledge_base/ in the repository so the default path is always
+    valid.  At minimum a README.md must be present so load_snippets() returns at
+    least one snippet (avoiding the "empty" false-negative).
+    """
+
+    def test_knowledge_base_dir_exists(self):
+        """knowledge_base/ must exist as a directory inside the add-on root."""
+        import os
+        addon_root = os.path.dirname(os.path.abspath(__file__))
+        kb_dir = os.path.join(addon_root, "knowledge_base")
+        self.assertTrue(
+            os.path.isdir(kb_dir),
+            "knowledge_base/ directory not found at add-on root.  "
+            "Create it (with at least a README.md) so the default fallback path "
+            "is always valid and the diagnostic check does not fire a false-positive WARN.",
+        )
+
+    def test_knowledge_base_has_at_least_one_text_file(self):
+        """knowledge_base/ must contain at least one .txt or .md file.
+
+        An empty directory causes knowledge_helpers.status() to return
+        (False, 'Knowledge base empty at ...'), which is misleading for
+        a fresh install with the default configuration.
+        """
+        import os
+        addon_root = os.path.dirname(os.path.abspath(__file__))
+        kb_dir = os.path.join(addon_root, "knowledge_base")
+        if not os.path.isdir(kb_dir):
+            self.skipTest("knowledge_base/ directory missing — covered by test_knowledge_base_dir_exists")
+        text_files = [
+            f for f in os.listdir(kb_dir)
+            if f.lower().endswith((".txt", ".md"))
+        ]
+        self.assertGreater(
+            len(text_files),
+            0,
+            "knowledge_base/ is empty.  Add at least a README.md so "
+            "load_snippets() returns at least one snippet for a default install.",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
