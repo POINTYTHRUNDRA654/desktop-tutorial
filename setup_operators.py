@@ -59,6 +59,17 @@ class FO4_OT_InstallPythonDeps(Operator):
             print("PYTHON DEPS", msg)
             _sys.stdout.flush()
 
+            # If installation succeeded, clear the UI panel's dependency cache
+            # so the Setup & Status panel shows the freshly installed packages
+            # rather than stale [MISSING] indicators.
+            if ok:
+                try:
+                    ui = importlib.import_module(".ui_panels", package=__package__)
+                    if hasattr(ui, "invalidate_dep_cache"):
+                        ui.invalidate_dep_cache()
+                except Exception:
+                    pass
+
             def _notify():
                 try:
                     ns = importlib.import_module(

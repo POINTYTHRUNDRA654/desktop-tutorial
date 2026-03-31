@@ -1679,6 +1679,112 @@ class TestCoreDependencyInstallList(unittest.TestCase):
         )
 
 
+class TestPipInstallRobustness(unittest.TestCase):
+    """Verify robustness improvements to _pip_install in tool_installers.py.
+
+    These are regression guards for the bug where trimesh/pypdf remained
+    [MISSING] even after clicking 'Install Core Dependencies' because:
+      1. pip errors were swallowed (check_call didn't capture stderr).
+      2. Packages installed to the user site-packages were not on sys.path.
+      3. The UI panel's _dep_cache was never cleared after installation.
+    """
+
+    def _get_pip_install_body(self) -> str:
+        source = _read("tool_installers.py")
+        import re
+        m = re.search(
+            r"def _pip_install\b.*?(?=\ndef |\Z)",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "_pip_install not found in tool_installers.py")
+        return m.group(0)
+
+    def _get_refresh_paths_body(self) -> str:
+        source = _read("tool_installers.py")
+        import re
+        m = re.search(
+            r"def _refresh_import_paths\b.*?(?=\ndef |\Z)",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "_refresh_import_paths not found in tool_installers.py")
+        return m.group(0)
+
+    def test_pip_install_uses_subprocess_run(self):
+        """_pip_install must use subprocess.run (not check_call) to capture stderr."""
+        body = self._get_pip_install_body()
+        self.assertIn(
+            "subprocess.run",
+            body,
+            "_pip_install must use subprocess.run so that stderr is captured and "
+            "included in the error message.  Replace subprocess.check_call with "
+            "subprocess.run(cmd, ..., capture_output=True, text=True).",
+        )
+
+    def test_pip_install_captures_stderr(self):
+        """_pip_install must pass capture_output=True so pip errors are surfaced."""
+        body = self._get_pip_install_body()
+        self.assertIn(
+            "capture_output=True",
+            body,
+            "_pip_install must pass capture_output=True to subprocess.run so that "
+            "pip's error output is included in the failure message shown to the user.",
+        )
+
+    def test_refresh_import_paths_adds_user_site(self):
+        """_refresh_import_paths must add the user site-packages dir to sys.path.
+
+        When Blender's system site-packages is not writable, pip falls back to
+        the user site directory.  That directory is often absent from Blender's
+        sys.path, so packages installed there are not importable until it is
+        added explicitly via site.addsitedir().
+        """
+        body = self._get_refresh_paths_body()
+        self.assertIn(
+            "addsitedir",
+            body,
+            "_refresh_import_paths must call site.addsitedir(user_site) to ensure "
+            "packages installed to the user site-packages are immediately importable "
+            "in Blender without restarting.",
+        )
+
+    def test_pip_install_calls_refresh_import_paths(self):
+        """_pip_install must call _refresh_import_paths() after a successful install."""
+        body = self._get_pip_install_body()
+        self.assertIn(
+            "_refresh_import_paths",
+            body,
+            "_pip_install must call _refresh_import_paths() after a successful install "
+            "to flush import caches and add the user site-packages to sys.path.",
+        )
+
+    def test_invalidate_dep_cache_exists_in_ui_panels(self):
+        """ui_panels.py must expose invalidate_dep_cache() for post-install refresh."""
+        source = _read("ui_panels.py")
+        self.assertIn(
+            "def invalidate_dep_cache",
+            source,
+            "ui_panels.py must define invalidate_dep_cache() so that "
+            "FO4_OT_InstallPythonDeps can clear the stale _dep_cache after a "
+            "successful installation.  Without this, the Setup & Status panel "
+            "continues to show [MISSING] for newly installed packages.",
+        )
+
+    def test_setup_operators_calls_invalidate_dep_cache(self):
+        """setup_operators.py must call invalidate_dep_cache() after a successful install."""
+        source = _read("setup_operators.py")
+        self.assertIn(
+            "invalidate_dep_cache",
+            source,
+            "setup_operators.py must call ui_panels.invalidate_dep_cache() after "
+            "install_python_requirements() succeeds.  Without this, the _dep_cache "
+            "in ui_panels.py keeps its stale False entries and the Setup & Status "
+            "panel still shows [MISSING] for trimesh/pypdf after a successful install.",
+        )
+
+
+
 
 # ---------------------------------------------------------------------------
 # Section I: dual-install detection in addon_diagnostics.py

@@ -461,6 +461,23 @@ def _check_dep(module_name: str) -> bool:
     return _dep_cache[module_name]
 
 
+def invalidate_dep_cache(*module_names: str) -> None:
+    """Remove *module_names* from the dep cache so they are re-checked on the
+    next UI draw.
+
+    Called by ``FO4_OT_InstallPythonDeps`` after a successful install so that
+    the Setup & Status panel immediately reflects the newly installed packages
+    instead of showing stale [MISSING] indicators.
+
+    If called with no arguments the entire cache is cleared.
+    """
+    if module_names:
+        for name in module_names:
+            _dep_cache.pop(name, None)
+    else:
+        _dep_cache.clear()
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # TTL caches for expensive draw-time status checks.
 # Blender calls draw() on every UI redraw (potentially many times per second).

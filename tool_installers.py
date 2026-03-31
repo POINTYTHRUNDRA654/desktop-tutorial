@@ -184,6 +184,34 @@ def _ensure_pip() -> tuple[bool, str]:
         return False, f"pip bootstrap failed: {e}"
 
 
+def _refresh_import_paths() -> None:
+    """Flush Python's import caches and ensure the user site-packages directory
+    is on ``sys.path``.
+
+    Called after every successful pip install so that newly installed packages
+    are immediately importable inside the running Blender session without a
+    restart.
+
+    Two things can make a just-installed package invisible to ``find_spec``:
+      1. Stale path-finder caches – cleared by ``importlib.invalidate_caches()``.
+      2. Packages landing in the user site directory – this happens when Blender's
+         system site-packages is not writable (e.g. installed under
+         ``C:\\Program Files``).  The user site directory is often absent from
+         Blender's ``sys.path``, so we add it explicitly via
+         ``site.addsitedir()``.
+    """
+    import importlib
+    importlib.invalidate_caches()
+    try:
+        import site as _site
+        user_site = _site.getusersitepackages()
+        if user_site not in sys.path:
+            _site.addsitedir(user_site)
+            importlib.invalidate_caches()
+    except Exception:
+        pass
+
+
 def _pip_install(packages: list[str]) -> tuple[bool, str]:
     """Install *packages* using the bundled Python's pip.
 
@@ -205,19 +233,20 @@ def _pip_install(packages: list[str]) -> tuple[bool, str]:
     cmd.extend(packages)
 
     try:
-        subprocess.check_call(cmd, timeout=300)
-        # Flush Python's path-finder cache so newly installed packages are
-        # importable in this session without restarting Blender.
-        import importlib
-        importlib.invalidate_caches()
+        result = subprocess.run(cmd, timeout=300, capture_output=True, text=True)
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            return False, (
+                f"pip install failed (exit {result.returncode})"
+                + (f": {detail}" if detail else "")
+            )
+        _refresh_import_paths()
         return True, f"Installed: {', '.join(packages)}"
     except subprocess.TimeoutExpired:
         return False, (
-            f"pip install timed out after 300 s. "
+            "pip install timed out after 300 s. "
             "Check your internet connection or install dependencies manually."
         )
-    except subprocess.CalledProcessError as e:
-        return False, f"pip install failed (exit {e.returncode}): {e}"
     except Exception as e:
         return False, f"pip install error: {e}"
 
@@ -236,19 +265,20 @@ def _pip_install_requirements(req_file: Path) -> tuple[bool, str]:
         cmd.append("--break-system-packages")
 
     try:
-        subprocess.check_call(cmd, timeout=300)
-        # Flush Python's path-finder cache so newly installed packages are
-        # importable in this session without restarting Blender.
-        import importlib
-        importlib.invalidate_caches()
+        result = subprocess.run(cmd, timeout=300, capture_output=True, text=True)
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            return False, (
+                f"pip install failed (exit {result.returncode}) for {req_file.name}"
+                + (f": {detail}" if detail else "")
+            )
+        _refresh_import_paths()
         return True, f"Installed from {req_file.name}"
     except subprocess.TimeoutExpired:
         return False, (
             f"pip install timed out after 300 s while processing {req_file.name}. "
             "Check your internet connection or install dependencies manually."
         )
-    except subprocess.CalledProcessError as e:
-        return False, f"pip install failed (exit {e.returncode}): {e}"
     except Exception as e:
         return False, f"pip install error: {e}"
 
