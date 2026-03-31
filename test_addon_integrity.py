@@ -1835,6 +1835,36 @@ class TestDualInstallDetection(unittest.TestCase):
             "and use it in the dupes filter.",
         )
 
+    def test_warning_shows_only_foreign_roots(self):
+        """The warning message must report only the root package(s) of other installs.
+
+        A dual-installed addon produces 30+ sub-module entries in sys.modules
+        (one per Python file in the package).  Listing all of them makes the
+        warning extremely noisy.  The check must extract only the *root* keys
+        (entries that end with the bare addon name, e.g.
+        "bl_ext.blender_org.blender_game_tools") and display those.
+
+        Regression guard: the original code dumped the raw ``dupes`` list which
+        contained every sub-module of the other install.
+        """
+        block = self._get_dupes_source()
+        # The root-extraction logic must identify root keys by checking that the
+        # key equals name_base OR ends with ("." + name_base).
+        self.assertIn(
+            "endswith",
+            block,
+            "addon_diagnostics.py check #3 must extract foreign ROOT packages by "
+            "checking `k.endswith('.' + name_base)` so the warning shows only "
+            "'bl_ext.blender_org.blender_game_tools' instead of all 30+ sub-modules.",
+        )
+        # The extracted roots must be stored in a dedicated variable so the warning
+        # message uses them instead of the raw full list.
+        self.assertIn(
+            "foreign_roots",
+            block,
+            "addon_diagnostics.py check #3 must store root packages in 'foreign_roots' "
+            "and use that in the warning, not the raw list of all foreign keys.",
+        )
 
 
 # ---------------------------------------------------------------------------
