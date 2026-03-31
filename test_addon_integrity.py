@@ -1696,7 +1696,7 @@ class TestDualInstallDetection(unittest.TestCase):
         source = _read("addon_diagnostics.py")
         import re
         m = re.search(
-            r"# ── 3\. Dual-install via sys\.modules.*?(?=\n    # ── 4\.)",
+            r"# ── 3\. Dual-install via sys\.modules.*?(?=\n    # ──)",
             source,
             re.DOTALL,
         )

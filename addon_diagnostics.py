@@ -175,7 +175,7 @@ def collect_diagnostics():
 
     # ── 3. Dual-install via sys.modules ──────────────────────────────────────
     name_base = (__package__ or "blender_game_tools").split(".")[-1]
-    own_pkg = __package__ or ""
+    own_pkg = __package__ or "blender_game_tools"
     # Exclude the current package root AND all of its own sub-modules so that
     # the warning only fires when a genuinely *different* install of the addon
     # is also loaded (e.g. bl_ext.blender_org.* alongside bl_ext.user_default.*).
