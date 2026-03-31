@@ -95,7 +95,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
 
   const exportReport = async (format: 'json' | 'csv' | 'html') => {
     try {
-      const report = await window.electronAPI.exportAnalyticsReport(format);
+      const report = await window.electronAPI.exportAnalyticsReport?.(format);
       const blob = new Blob([report], {
         type: format === 'html' ? 'text/html' : format === 'csv' ? 'text/csv' : 'application/json'
       });

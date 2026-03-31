@@ -172,11 +172,11 @@ export const PluginManager: React.FC = () => {
     return state.availablePlugins.filter(plugin => {
       const matchesSearch =
         plugin.name.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
-        plugin.description.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
-        plugin.author.toLowerCase().includes(state.searchTerm.toLowerCase());
+        (plugin.description ?? '').toLowerCase().includes(state.searchTerm.toLowerCase()) ||
+        (plugin.author ?? '').toLowerCase().includes(state.searchTerm.toLowerCase());
 
       if (state.categoryFilter === 'All') return matchesSearch;
-      return matchesSearch && plugin.tags.includes(state.categoryFilter.toLowerCase());
+      return matchesSearch && (plugin.tags ?? []).includes(state.categoryFilter.toLowerCase());
     });
   }, [state.availablePlugins, state.searchTerm, state.categoryFilter]);
 
@@ -272,7 +272,7 @@ export const PluginManager: React.FC = () => {
       setState(s => ({
         ...s,
         installedPlugins: s.installedPlugins.map(p =>
-          p.id === pluginId ? { ...p, version: (parseFloat(p.version) + 0.1).toFixed(1) } : p
+          p.id === pluginId ? { ...p, version: (parseFloat(p.version ?? '1.0') + 0.1).toFixed(1) } : p
         ),
         loading: false,
       }));
@@ -356,7 +356,7 @@ export const PluginManager: React.FC = () => {
             <div className="plugin-meta">
               <span className="plugin-author">By {plugin.author}</span>
               <span className="plugin-date">
-                Updated {new Date(plugin.modified).toLocaleDateString()}
+                Updated {new Date(plugin.modified ?? 0).toLocaleDateString()}
               </span>
             </div>
 
@@ -432,7 +432,7 @@ export const PluginManager: React.FC = () => {
                 <div className="plugin-header">
                   <h3>{plugin.name}</h3>
                   <div className="rating">
-                    {'⭐'.repeat(Math.floor(plugin.rating))}
+                    {'⭐'.repeat(Math.floor(plugin.rating ?? 0))}
                     <span className="rating-value">{plugin.rating}</span>
                   </div>
                 </div>
@@ -441,13 +441,13 @@ export const PluginManager: React.FC = () => {
 
                 <div className="plugin-stats">
                   <span className="stat">
-                    <strong>{(plugin.downloads / 1000).toFixed(1)}k</strong> installs
+                    <strong>{((plugin.downloads ?? 0) / 1000).toFixed(1)}k</strong> installs
                   </span>
                   <span className="stat">By {plugin.author}</span>
                 </div>
 
                 <div className="plugin-tags">
-                  {plugin.tags.slice(0, 3).map(tag => (
+                  {(plugin.tags ?? []).slice(0, 3).map(tag => (
                     <span key={tag} className="tag">
                       {tag}
                     </span>
@@ -716,7 +716,7 @@ export const PluginManager: React.FC = () => {
                 </div>
                 {'rating' in plugin && (
                   <div>
-                    <strong>Rating:</strong> {'⭐'.repeat(Math.floor(plugin.rating))}{' '}
+                    <strong>Rating:</strong> {'⭐'.repeat(Math.floor(plugin.rating ?? 0))}{' '}
                     ({plugin.rating})
                   </div>
                 )}
@@ -775,7 +775,7 @@ export const PluginManager: React.FC = () => {
                 <h3>Statistics</h3>
                 <div className="stats-grid">
                   <div>
-                    <strong>{(plugin.downloads / 1000).toFixed(1)}k</strong>
+                    <strong>{((plugin.downloads ?? 0) / 1000).toFixed(1)}k</strong>
                     <p>Installs</p>
                   </div>
                   <div>

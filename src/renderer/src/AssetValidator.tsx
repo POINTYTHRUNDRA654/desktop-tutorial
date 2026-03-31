@@ -305,7 +305,7 @@ const AssetValidator: React.FC = () => {
                     fullWidth
                     label="File or Folder Path"
                     value={selectedPath}
-                    onChange={e => setSelectedPath(e.target.value)}
+                    onChange={(e: any) => setSelectedPath(e.target.value)}
                     placeholder="Select a file or folder to validate"
                     InputProps={{
                       readOnly: true
@@ -316,7 +316,7 @@ const AssetValidator: React.FC = () => {
                 <Grid item xs={12} md={4}>
                   <FormControl fullWidth>
                     <InputLabel>Validation Depth</InputLabel>
-                    <Select value={validationDepth} onChange={e => setValidationDepth(e.target.value as ValidationDepth)} label="Validation Depth">
+                    <Select value={validationDepth} onChange={(e: any) => setValidationDepth(e.target.value as ValidationDepth)} label="Validation Depth">
                       <MenuItem value="quick">Quick</MenuItem>
                       <MenuItem value="standard">Standard</MenuItem>
                       <MenuItem value="deep">Deep</MenuItem>
@@ -416,7 +416,7 @@ const AssetValidator: React.FC = () => {
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   <FormControl size="small" sx={{ minWidth: 120 }}>
                     <InputLabel>Filter Type</InputLabel>
-                    <Select value={assetTypeFilter} onChange={e => setAssetTypeFilter(e.target.value as AssetType)} label="Filter Type">
+                    <Select value={assetTypeFilter} onChange={(e: any) => setAssetTypeFilter(e.target.value as AssetType)} label="Filter Type">
                       <MenuItem value="all">All Types</MenuItem>
                       <MenuItem value="nif">NIF Files</MenuItem>
                       <MenuItem value="dds">DDS Files</MenuItem>
@@ -487,7 +487,7 @@ const AssetValidator: React.FC = () => {
                                       label="Auto-fixable"
                                       size="small"
                                       color="success"
-                                      onClick={e => {
+                                      onClick={(e: any) => {
                                         e.stopPropagation();
                                         const newSelected = new Set(selectedIssues);
                                         if (newSelected.has(issue.id)) {
@@ -579,7 +579,7 @@ const AssetValidator: React.FC = () => {
                     <Grid item xs={12} md={6}>
                       <FormControl fullWidth>
                         <InputLabel>Asset Type Filter</InputLabel>
-                        <Select value={assetTypeFilter} onChange={e => setAssetTypeFilter(e.target.value as AssetType)} label="Asset Type Filter">
+                        <Select value={assetTypeFilter} onChange={(e: any) => setAssetTypeFilter(e.target.value as AssetType)} label="Asset Type Filter">
                           <MenuItem value="all">All Assets</MenuItem>
                           <MenuItem value="nif">NIF Files Only</MenuItem>
                           <MenuItem value="dds">DDS Files Only</MenuItem>
@@ -593,7 +593,7 @@ const AssetValidator: React.FC = () => {
                     <Grid item xs={12} md={6}>
                       <FormControl fullWidth>
                         <InputLabel>Validation Depth</InputLabel>
-                        <Select value={validationDepth} onChange={e => setValidationDepth(e.target.value as ValidationDepth)} label="Validation Depth">
+                        <Select value={validationDepth} onChange={(e: any) => setValidationDepth(e.target.value as ValidationDepth)} label="Validation Depth">
                           <MenuItem value="quick">Quick (Fast)</MenuItem>
                           <MenuItem value="standard">Standard (Recommended)</MenuItem>
                           <MenuItem value="deep">Deep (Thorough)</MenuItem>

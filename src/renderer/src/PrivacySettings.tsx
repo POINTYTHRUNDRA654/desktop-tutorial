@@ -488,8 +488,8 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
 
               <div className="space-y-4">
                 {group.settings.map((setting, settingIndex) => {
-                  const isEnabled = settings.privacySettings[setting.id];
-                  const isDisabled = setting.dependsOn && !settings.privacySettings[setting.dependsOn];
+                  const isEnabled = (settings.privacySettings as Record<string, boolean | undefined>)[setting.id];
+                  const isDisabled = setting.dependsOn && !(settings.privacySettings as Record<string, boolean | undefined>)[setting.dependsOn];
 
                   return (
                     <div key={settingIndex} className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${

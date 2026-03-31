@@ -1326,6 +1326,7 @@ export interface ConsoleCommand {
   timestamp: number;
   result?: string;
   description?: string;
+  category?: string;
 }
 
 export interface MacroCommand {
