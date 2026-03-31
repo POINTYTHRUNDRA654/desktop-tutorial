@@ -76,6 +76,10 @@ export const IPC_CHANNELS = {
   AUDITOR_SCAN_MOD_DIRECTORY: 'auditor-scan-mod-directory',
   AUDITOR_SCAN_MOD_DIRECTORY_PATH: 'auditor-scan-mod-directory-path',
 
+  // Knowledge Vault file persistence (backup/restore to userData/knowledge-vault.json)
+  SAVE_KNOWLEDGE_VAULT: 'save-knowledge-vault',
+  LOAD_KNOWLEDGE_VAULT: 'load-knowledge-vault',
+
   // Project Management
   PROJECT_LIST: 'project-list',
   PROJECT_CREATE: 'project-create',
@@ -478,6 +482,12 @@ export interface ElectronAPI {
   scanModDirectory: () => Promise<Array<{ path: string; type: string }>>;
   /** Scan a mod directory for mod files using a pre-selected path (no OS dialog) */
   scanModDirectoryPath: (folderPath: string) => Promise<Array<{ path: string; type: string }>>;
+
+  // Knowledge Vault file persistence
+  /** Persist the full Knowledge Vault to userData/knowledge-vault.json */
+  saveKnowledgeVault: (items: unknown[]) => Promise<{ ok: boolean; error?: string }>;
+  /** Load the Knowledge Vault from userData/knowledge-vault.json (returns [] if not found) */
+  loadKnowledgeVaultFromFile: () => Promise<unknown[]>;
 
   // Generic file helpers
   pickJsonFile: () => Promise<string>;

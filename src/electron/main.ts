@@ -2899,6 +2899,35 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // --- Knowledge Vault: Persist user-added knowledge to a plain JSON file ---
+  // This ensures that information fed to Mossy via the Memory Vault survives
+  // app reinstalls and localStorage clears (data is stored in userData which
+  // persists independently of Electron's browser storage).
+  registerHandler(IPC_CHANNELS.SAVE_KNOWLEDGE_VAULT, async (_event, items: unknown) => {
+    try {
+      const file = path.join(app.getPath('userData'), 'knowledge-vault.json');
+      const data = Array.isArray(items) ? items : [];
+      fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[Main] save-knowledge-vault error:', e);
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.LOAD_KNOWLEDGE_VAULT, async () => {
+    try {
+      const file = path.join(app.getPath('userData'), 'knowledge-vault.json');
+      if (!fs.existsSync(file)) return [];
+      const raw = fs.readFileSync(file, 'utf-8');
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e: any) {
+      console.error('[Main] load-knowledge-vault error:', e);
+      return [];
+    }
+  });
+
   // --- Vault: Get DDS width/height (read header) ---
   registerHandler(IPC_CHANNELS.VAULT_GET_DDS_DIMENSIONS, async (_event, filePathStr: string) => {
     try {
