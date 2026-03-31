@@ -23,19 +23,34 @@ bl_info = {
     "category": "Import-Export",
 }
 
-import bpy
 import importlib
 import sys
 
+try:
+    import bpy  # bpy is only available inside Blender
+except ImportError:
+    bpy = None  # type: ignore[assignment]
+
 # Startup/registration helpers live in startup_helpers.py so this file stays
 # thin.  Import them here so the rest of this module can use the same names.
-from .startup_helpers import (
-    on_load_post as _on_load_post,
-    is_operator_registered as _is_operator_registered,
-    ensure_tutorial_operators as _ensure_tutorial_operators,
-    ensure_setup_operators as _ensure_setup_operators,
-    deferred_startup as _deferred_startup,
-)
+try:
+    from .startup_helpers import (
+        on_load_post as _on_load_post,
+        is_operator_registered as _is_operator_registered,
+        ensure_tutorial_operators as _ensure_tutorial_operators,
+        ensure_setup_operators as _ensure_setup_operators,
+        deferred_startup as _deferred_startup,
+    )
+except ImportError:
+    # Fallback stubs used in non-Blender environments (e.g. pytest, linters).
+    # startup_helpers.py itself imports bpy, so the relative import above
+    # fails when bpy is unavailable.  The register() / unregister() functions
+    # guard every use of these helpers, so None is safe here.
+    _on_load_post = None  # type: ignore[assignment]
+    _is_operator_registered = None  # type: ignore[assignment]
+    _ensure_tutorial_operators = None  # type: ignore[assignment]
+    _ensure_setup_operators = None  # type: ignore[assignment]
+    _deferred_startup = None  # type: ignore[assignment]
 
 # helper for resilient imports – some modules may fail under untested Blender
 # releases (e.g. Blender 5.x during early testing).  We log failures but
