@@ -74,15 +74,22 @@ def _store_pytorch_path_in_prefs(path: str) -> None:
         if prefs:
             prefs.pytorch_path = path
             print(f"[Mossy Link] Stored PyTorch path in preferences: {path}")
-            # Persist to disk so the path survives a Blender restart.
-            # This function is only ever called on the Blender main thread
-            # (via the bpy.app.timers command-queue drain), so save_userpref
-            # is safe to call here.
+            # ── Persist to disk, two complementary mechanisms ────────────────
+            # 1. JSON keys file: reliable backup that does not depend on the
+            #    Blender operator context.  Survives addon renames / reinstalls.
             try:
-                import bpy
-                bpy.ops.wm.save_userpref()
+                _prefs_mod.save_api_keys()
+            except Exception as _json_exc:
+                print(f"[Mossy Link] Warning: Could not save to JSON keys file: {_json_exc}")
+            # 2. Blender user-preferences: uses save_prefs_deferred() which
+            #    applies a proper window-context override so the operator
+            #    succeeds even when called from inside a timer callback
+            #    (bare wm.save_userpref can return CANCELLED silently when
+            #    bpy.context.window is None from a timer — RECURRING BUG #12).
+            try:
+                _prefs_mod.save_prefs_deferred()
             except Exception as _save_exc:
-                print(f"[Mossy Link] Warning: Could not save preferences: {_save_exc}")
+                print(f"[Mossy Link] Warning: Could not schedule prefs save: {_save_exc}")
     except Exception as e:
         print(f"[Mossy Link] Warning: Could not store path in prefs: {e}")
 

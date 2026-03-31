@@ -494,6 +494,60 @@ All three operators now call `self.report({'WARNING'}, _instantngp_status_report
 
 ---
 
+## ⚠️ RECURRING BUG #12 — Mossy PyTorch path lost on Blender restart
+
+### Symptoms
+
+The user connects Mossy and PyTorch works correctly during that Blender session.
+After restarting Blender, `prefs.pytorch_path` is empty and torch is not
+importable.  The user must connect Mossy again every session.
+
+### Root Cause
+
+`_store_pytorch_path_in_prefs()` in `mossy_link.py` called
+`bpy.ops.wm.save_userpref()` **directly without a window-context override**.
+When this function is invoked from inside a `bpy.app.timers` callback
+(the `_process_command_queue` timer that runs every 0.1 s while the server is
+active), `bpy.context.window` can be `None`.  Blender operators that lack a
+valid context return `{'CANCELLED'}` — they do **not** raise an exception.
+Because the code only wraps the call in `except Exception`, the silent
+`CANCELLED` result was never detected, and the preferences file was never
+written to disk.
+
+### The Fix
+
+Three complementary layers, all required:
+
+1. **JSON keys file backup** — `_store_pytorch_path_in_prefs()` now calls
+   `preferences.save_api_keys()` immediately after setting `prefs.pytorch_path`.
+   `save_api_keys()` writes the path to `~/.blender_game_tools_keys.json` using
+   plain file I/O that requires no Blender operator context.
+
+2. **Deferred Blender prefs save** — `_store_pytorch_path_in_prefs()` now calls
+   `preferences.save_prefs_deferred()` instead of bare `wm.save_userpref()`.
+   `save_prefs_deferred()` schedules the save via a timer and applies
+   `bpy.context.temp_override(window=wins[0])` so the operator always has a
+   valid window context.
+
+3. **JSON restore on startup** — `load_api_keys()` now reads `pytorch_path` from
+   the JSON file.  If `prefs.pytorch_path` is empty (because the Blender prefs
+   save failed), it is populated from JSON and the path is added to `sys.path`
+   immediately.  Additionally, `restore_extra_python_paths()` now also applies
+   `prefs.pytorch_path` to `sys.path` so the path is active before any
+   torch-dependent module draws.
+
+### What NOT to Do
+
+- **Do NOT add a bare `bpy.ops.wm.save_userpref()` call** inside any timer
+  callback or function called from a timer.  Always use `save_prefs_deferred()`.
+- **Do NOT remove `pytorch_path` from `save_api_keys()`** — the JSON file is the
+  only reliable cross-restart persistence that does not depend on Blender's
+  operator context.
+- The regression tests in `TestMossyPytorchPathJsonPersistence` in
+  `test_addon_integrity.py` enforce all three layers — keep them passing.
+
+---
+
 ## ⚠️ RECURRING BUG #13 — Mossy PyTorch path not applied when Blender opens
 
 ### Symptoms

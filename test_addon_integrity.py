@@ -2061,6 +2061,164 @@ class TestInstallLibiglHeadersCheck(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Test – Mossy PyTorch path JSON persistence (RECURRING BUG #12 / #14)
+# ---------------------------------------------------------------------------
+class TestMossyPytorchPathJsonPersistence(unittest.TestCase):
+    """Regression tests for the Mossy-provided PyTorch path not surviving
+    Blender restarts (reported repeatedly as "every restart I have to re-add
+    pytorch").
+
+    Root cause: _store_pytorch_path_in_prefs() called bpy.ops.wm.save_userpref()
+    directly without a window-context override.  From inside a bpy.app.timers
+    callback, bpy.context.window can be None, causing save_userpref() to return
+    CANCELLED silently.  The path was stored in memory (prefs.pytorch_path = path)
+    but never written to the userpref.blend file.
+
+    Fix (three complementary layers):
+      1. _store_pytorch_path_in_prefs() now calls save_api_keys() to write the
+         path to ~/.blender_game_tools_keys.json (JSON backup that does not
+         depend on Blender operator context).
+      2. _store_pytorch_path_in_prefs() now calls save_prefs_deferred() (which
+         uses temp_override with window=wins[0]) instead of the raw
+         bpy.ops.wm.save_userpref() call.
+      3. load_api_keys() now reads 'pytorch_path' from the JSON file and:
+           a. Restores prefs.pytorch_path if it is currently empty.
+           b. Adds the path to sys.path for the current session.
+      4. restore_extra_python_paths() now also applies prefs.pytorch_path if set
+         (catches the RECURRING BUG #13 case where mossy_link.register() ran
+         before get_preferences() was ready).
+
+    These tests verify the structural properties of the fix.
+    No Blender runtime required — all checks are pure source analysis.
+    """
+
+    # ------------------------------------------------------------------ helpers
+
+    @staticmethod
+    def _get_function_source(filename: str, function_name: str) -> str:
+        """Return the source text of *function_name* from *filename*.
+
+        Raises AssertionError if the function cannot be found.
+        """
+        source = _read(filename)
+        tree = ast.parse(source, filename=filename)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == function_name:
+                func_lines = source.splitlines()[node.lineno - 1: node.end_lineno]
+                return "\n".join(func_lines)
+        raise AssertionError(f"{function_name}() not found in {filename}")
+
+    def test_save_api_keys_includes_pytorch_path(self):
+        """save_api_keys() must include 'pytorch_path' in the JSON data.
+
+        _store_pytorch_path_in_prefs() calls save_api_keys() to persist the
+        Mossy-provided pytorch path to the JSON keys file.  If save_api_keys()
+        does not include 'pytorch_path' in the written dict, the JSON backup is
+        useless and the path will be lost on Blender restart.
+        """
+        func_src = self._get_function_source("preferences.py", "save_api_keys")
+        self.assertIn(
+            "pytorch_path",
+            func_src,
+            "save_api_keys() in preferences.py must include 'pytorch_path' in the "
+            "JSON dict it writes to the keys file.  Without this, the Mossy-provided "
+            "PyTorch path is never written to the JSON backup, and will be lost when "
+            "bpy.ops.wm.save_userpref() fails silently (missing window context in a "
+            "timer callback).",
+        )
+
+    def test_load_api_keys_restores_pytorch_path(self):
+        """load_api_keys() must read and restore 'pytorch_path' from the JSON file.
+
+        The JSON keys file is the reliable backup for the Mossy-provided PyTorch
+        path.  load_api_keys() is called during register() AFTER restore_extra_
+        python_paths(), so it must directly apply the path to sys.path (not just
+        set the pref property) for the current Blender session.
+        """
+        func_src = self._get_function_source("preferences.py", "load_api_keys")
+        self.assertIn(
+            "pytorch_path",
+            func_src,
+            "load_api_keys() in preferences.py must restore 'pytorch_path' from the "
+            "JSON keys file back into prefs.pytorch_path and sys.path.  Without this, "
+            "the JSON backup written by save_api_keys() is never consumed on startup.",
+        )
+        self.assertIn(
+            "sys.path",
+            func_src,
+            "load_api_keys() must add the restored pytorch_path to sys.path so torch "
+            "is importable immediately after register().  restore_extra_python_paths() "
+            "runs before load_api_keys(), so load_api_keys() must do the sys.path "
+            "insertion itself when the path was absent from prefs.pytorch_path.",
+        )
+
+    def test_store_pytorch_path_uses_save_api_keys(self):
+        """_store_pytorch_path_in_prefs() must call save_api_keys() for JSON backup.
+
+        The bare bpy.ops.wm.save_userpref() call that this replaced can return
+        CANCELLED silently when bpy.context.window is None inside a timer callback.
+        save_api_keys() writes to a plain JSON file and never needs a Blender
+        operator context, making it the reliable persistence path.
+        """
+        func_src = self._get_function_source("mossy_link.py", "_store_pytorch_path_in_prefs")
+        self.assertIn(
+            "save_api_keys",
+            func_src,
+            "_store_pytorch_path_in_prefs() in mossy_link.py must call "
+            "save_api_keys() to persist the pytorch_path to the JSON keys file. "
+            "The direct bpy.ops.wm.save_userpref() call silently fails (returns "
+            "CANCELLED) when bpy.context.window is None inside a timer callback, "
+            "so a JSON-based backup is required.",
+        )
+
+    def test_store_pytorch_path_uses_save_prefs_deferred(self):
+        """_store_pytorch_path_in_prefs() must use save_prefs_deferred(), not bare save_userpref().
+
+        save_prefs_deferred() applies a temp_override(window=wins[0]) so the
+        save_userpref operator succeeds from a timer callback.  Bare
+        bpy.ops.wm.save_userpref() returns CANCELLED silently when
+        bpy.context.window is None (RECURRING BUG #12 root cause).
+        """
+        func_src = self._get_function_source("mossy_link.py", "_store_pytorch_path_in_prefs")
+        self.assertNotIn(
+            "bpy.ops.wm.save_userpref()",
+            func_src,
+            "_store_pytorch_path_in_prefs() must NOT call bpy.ops.wm.save_userpref() "
+            "directly.  From a timer callback bpy.context.window can be None, causing "
+            "the operator to return CANCELLED silently (RECURRING BUG #12).  Use "
+            "save_prefs_deferred() which applies a proper window-context override.",
+        )
+        self.assertIn(
+            "save_prefs_deferred",
+            func_src,
+            "_store_pytorch_path_in_prefs() must call save_prefs_deferred() so that "
+            "the Blender user preferences are saved with a proper window-context "
+            "override (temp_override(window=wins[0])), preventing the silent "
+            "CANCELLED return that caused the pytorch_path to be lost on restart.",
+        )
+
+    def test_restore_extra_python_paths_applies_mossy_pytorch_path(self):
+        """restore_extra_python_paths() must also apply prefs.pytorch_path to sys.path.
+
+        This adds a third safety net (after mossy_link.register() and deferred_startup)
+        so the Mossy-provided path is in sys.path for torch-dependent modules even
+        when mossy_link.register() could not read it due to get_preferences()
+        returning None during early registration (RECURRING BUG #13 scenario).
+        """
+        func_src = self._get_function_source("preferences.py", "restore_extra_python_paths")
+        self.assertIn(
+            "pytorch_path",
+            func_src,
+            "restore_extra_python_paths() in preferences.py must also check and apply "
+            "prefs.pytorch_path (the Mossy-provided path) to sys.path.  Without this, "
+            "the path is only applied by mossy_link.register() which may run before "
+            "get_preferences() is ready (RECURRING BUG #13), leaving torch unavailable "
+            "until deferred_startup() fires 2 seconds later.",
+        )
+
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":

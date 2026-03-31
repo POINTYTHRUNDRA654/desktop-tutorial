@@ -42,10 +42,14 @@ def _get_keys_file_path() -> str:
 
 
 def save_api_keys() -> None:
-    """Write the current API keys from preferences to the persistent keys file.
+    """Write the current API keys and pytorch_path from preferences to the persistent keys file.
 
     Safe to call from any context; silently swallows I/O errors so a
     permission problem never crashes the addon.
+
+    pytorch_path is included so the Mossy-provided PyTorch directory survives
+    Blender restarts even when bpy.ops.wm.save_userpref() fails (e.g. due to
+    missing window context in a timer callback).  load_api_keys() reads it back.
     """
     prefs = get_preferences()
     if not prefs:
@@ -53,6 +57,7 @@ def save_api_keys() -> None:
     keys: dict = {
         "llm_api_key": prefs.llm_api_key,
         "mossy_token": prefs.token,
+        "pytorch_path": prefs.pytorch_path,
     }
     try:
         path = _get_keys_file_path()
@@ -119,6 +124,29 @@ def load_api_keys() -> None:
     if mossy_token and not prefs.token.strip():
         prefs.token = mossy_token
         print("✓ Mossy Link token restored from keys file")
+
+    # Restore the Mossy-provided PyTorch path from the JSON backup.
+    # This is the safety net for when bpy.ops.wm.save_userpref() failed to
+    # persist prefs.pytorch_path to userpref.blend (e.g. missing window context
+    # when the timer fired).  If prefs.pytorch_path is already populated from
+    # userpref.blend we leave it alone; if it is empty we fill it from the JSON.
+    saved_pytorch = keys.get("pytorch_path", "").strip()
+    if saved_pytorch and not prefs.pytorch_path.strip():
+        try:
+            prefs.pytorch_path = saved_pytorch
+            print(f"✓ Mossy PyTorch path restored from keys file: {saved_pytorch}")
+        except Exception as exc:
+            print(f"Could not restore pytorch_path to prefs: {exc}")
+    # Regardless of where the path came from, ensure it is in sys.path for
+    # this session.  restore_extra_python_paths() runs before load_api_keys()
+    # in the register() sequence, so we must apply it here if it wasn't already
+    # added by that earlier call.
+    effective_pytorch = prefs.pytorch_path.strip() or saved_pytorch
+    if effective_pytorch:
+        import sys as _sys
+        if os.path.isdir(effective_pytorch) and effective_pytorch not in _sys.path:
+            _sys.path.insert(0, effective_pytorch)
+            print(f"✓ Mossy PyTorch path added to sys.path: {effective_pytorch}")
 
 
 def _key_update(self, context) -> None:  # noqa: ARG001
@@ -449,6 +477,18 @@ def restore_extra_python_paths() -> list[str]:
         _sys.path.insert(0, torch_path)
         added.append(torch_path)
         print(f"✓ Restored PyTorch custom path to sys.path: {torch_path}")
+
+    # Restore the Mossy-provided PyTorch path.
+    # When Mossy sends a set_pytorch_path command, mossy_link stores it in
+    # prefs.pytorch_path AND in the JSON keys file.  Applying it here ensures
+    # it is in sys.path before any torch-dependent module draws or checks its
+    # status, even if mossy_link.register() ran too early for get_preferences()
+    # to return a non-None value (RECURRING BUG #13 scenario).
+    mossy_pt = bpy.path.abspath(getattr(prefs, "pytorch_path", "")).strip()
+    if mossy_pt and os.path.isdir(mossy_pt) and mossy_pt not in _sys.path:
+        _sys.path.insert(0, mossy_pt)
+        added.append(mossy_pt)
+        print(f"✓ Restored Mossy PyTorch path to sys.path: {mossy_pt}")
 
     # Restore any extra semicolon-separated paths
     extra = prefs.extra_python_paths.strip()
