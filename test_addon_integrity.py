@@ -1679,6 +1679,57 @@ class TestCoreDependencyInstallList(unittest.TestCase):
         )
 
 
+
+# ---------------------------------------------------------------------------
+# Section I: dual-install detection in addon_diagnostics.py
+# ---------------------------------------------------------------------------
+
+class TestDualInstallDetection(unittest.TestCase):
+    """Verify that the dual-install sys.modules check in addon_diagnostics.py
+    excludes sub-modules of the CURRENT package.
+
+    Without this guard, every sub-module (e.g. bl_ext.user_default.blender_game_tools.preferences)
+    would appear in the "dupes" list and the warning would fire on every single-install run.
+    """
+
+    def _get_dupes_source(self) -> str:
+        source = _read("addon_diagnostics.py")
+        import re
+        m = re.search(
+            r"# ── 3\. Dual-install via sys\.modules.*?(?=\n    # ── 4\.)",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "Check #3 (Dual-install via sys.modules) not found in addon_diagnostics.py")
+        return m.group(0)
+
+    def test_own_pkg_prefix_excluded_from_dupes(self):
+        """The dupes filter must use startswith(own_pkg + '.') to exclude own sub-modules.
+
+        A filter of `k != __package__` is NOT sufficient: it leaves all sub-modules
+        in the list, producing a false-positive warning on every single-install run.
+        """
+        block = self._get_dupes_source()
+        self.assertIn(
+            "startswith(",
+            block,
+            "addon_diagnostics.py check #3 does not use startswith() to exclude own "
+            "sub-modules from the dupes list.  Add "
+            "`not (k == own_pkg or k.startswith(own_pkg + '.'))` to the filter so the "
+            "warning only fires for genuinely different installs.",
+        )
+
+    def test_own_pkg_variable_used(self):
+        """The filter must capture __package__ in a variable (own_pkg) before the list comp."""
+        block = self._get_dupes_source()
+        self.assertIn(
+            "own_pkg",
+            block,
+            "addon_diagnostics.py check #3 should store __package__ in 'own_pkg' "
+            "and use it in the dupes filter.",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
