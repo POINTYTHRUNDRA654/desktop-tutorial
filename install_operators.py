@@ -88,7 +88,7 @@ class FO4_OT_InstallGradio(Operator):
 
 
 class FO4_OT_CheckKBTools(Operator):
-    """Check knowledge-base tooling (PyPDF2, ffmpeg, whisper)"""
+    """Check knowledge-base tooling (pypdf, ffmpeg, whisper)"""
     bl_idname = "fo4.check_kb_tools"
     bl_label = "Check KB Tools"
 
@@ -96,7 +96,7 @@ class FO4_OT_CheckKBTools(Operator):
         status = knowledge_helpers.tool_status()
         lines = []
         for key, label in (
-            ("pypdf2", "PyPDF2 (PDF parsing)"),
+            ("pypdf",  "pypdf (PDF parsing)"),
             ("ffmpeg", "ffmpeg (audio extract)"),
             ("whisper", "whisper CLI (transcription)"),
         ):

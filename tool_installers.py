@@ -270,7 +270,7 @@ def _version_constrained_packages() -> list[str]:
             "numpy>=1.21.0,<2.0.0",
             "requests>=2.27.0",
             "trimesh>=3.20.0",
-            "PyPDF2>=3.0.0",
+            "pypdf>=3.0.0",
         ]
     if py < (3, 9):
         # Python 3.8 (not a Blender target but future-proof)
@@ -279,7 +279,7 @@ def _version_constrained_packages() -> list[str]:
             "numpy>=1.21.0,<2.0.0",
             "requests>=2.27.0",
             "trimesh>=3.20.0",
-            "PyPDF2>=3.0.0",
+            "pypdf>=3.0.0",
         ]
     # Python 3.9+ (Blender 2.93 onwards) – no special restrictions
     return [
@@ -287,7 +287,7 @@ def _version_constrained_packages() -> list[str]:
         "numpy>=1.21.0",
         "requests>=2.27.0",
         "trimesh>=3.20.0",
-        "PyPDF2>=3.0.0",
+        "pypdf>=3.0.0",
     ]
 
 

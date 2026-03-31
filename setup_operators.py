@@ -122,7 +122,7 @@ class FO4_OT_SelfTest(Operator):
             "numpy":    "NumPy (math / 3D data)",
             "requests": "Requests (HTTP / downloads)",
             "trimesh":  "trimesh (3D mesh processing)",
-            "PyPDF2":   "PyPDF2 (PDF parsing)",
+            "pypdf":    "pypdf (PDF parsing)",
         }
         missing = []
         for mod, label in core_pkgs.items():

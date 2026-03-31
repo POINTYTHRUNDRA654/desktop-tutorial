@@ -3442,7 +3442,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         # ── First-Time Setup Banner ───────────────────────────────────────
         # Status-only guide: install buttons are in the hub above.
         _deps_ok = all(
-            _check_dep(m) for m in ("PIL", "numpy", "requests", "trimesh", "PyPDF2")
+            _check_dep(m) for m in ("PIL", "numpy", "requests", "trimesh", "pypdf")
         )
         _ffmpeg_ok  = bool(preferences.get_configured_ffmpeg_path()    if preferences else None)
         _nvtt_ok    = bool(preferences.get_configured_nvcompress_path() if preferences else None)
@@ -3517,7 +3517,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             ("numpy",    "NumPy (math / 3D data)"),
             ("requests", "Requests (HTTP / downloads)"),
             ("trimesh",  "trimesh (3D mesh processing)"),
-            ("PyPDF2",   "PyPDF2 (PDF parsing)"),
+            ("pypdf",    "pypdf (PDF parsing)"),
         ]
         all_ok = True
         for mod, label in core_deps:

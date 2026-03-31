@@ -40,11 +40,11 @@ def _read_text_file(path: Path, max_chars: int) -> str | None:
 
 def _read_pdf(path: Path, max_chars: int) -> str | None:
     try:
-        import PyPDF2  # optional dependency
+        import pypdf  # optional dependency
     except Exception:
         return None
     try:
-        reader = PyPDF2.PdfReader(str(path))
+        reader = pypdf.PdfReader(str(path))
         parts = []
         for page in reader.pages:
             txt = page.extract_text() or ""
@@ -123,17 +123,17 @@ def describe_kb() -> str:
 
 def tool_status() -> dict:
     status = {
-        "pypdf2": False,
+        "pypdf": False,
         "ffmpeg": False,
         "whisper": False,
         "nvcompress": False,
         "texconv": False,
     }
     try:
-        import PyPDF2  # noqa: F401
-        status["pypdf2"] = True
+        import pypdf  # noqa: F401
+        status["pypdf"] = True
     except Exception:
-        status["pypdf2"] = False
+        status["pypdf"] = False
 
     def _which(cmd):
         from shutil import which
