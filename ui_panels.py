@@ -1523,8 +1523,7 @@ class FO4_PT_SetupAIShapE(_FO4SubPanel):
             image_box.operator("fo4.generate_shap_e_image", text="Generate from Image", icon='TEXTURE')
         elif shap_e_installed is False:
             layout.label(text="Status: Not Installed ✗", icon='ERROR')
-            layout.operator("fo4.install_shap_e", text="Auto-Install Shap-E", icon='IMPORT')
-            layout.operator("fo4.show_shap_e_info", text="Manual Instructions", icon='INFO')
+            layout.label(text="Use the 'Install Tools' hub to install.", icon='INFO')
         else:
             layout.label(text="Status: Not checked", icon='INFO')
             layout.label(text="Click Check Installation to refresh", icon='DOT')
@@ -1572,8 +1571,7 @@ class FO4_PT_SetupAIPointE(_FO4SubPanel):
             image_box.operator("fo4.generate_point_e_image", text="Generate from Image", icon='TEXTURE')
         elif point_e_installed is False:
             layout.label(text="Status: Not Installed ✗", icon='ERROR')
-            layout.operator("fo4.install_point_e", text="Auto-Install Point-E", icon='IMPORT')
-            layout.operator("fo4.show_point_e_info", text="Manual Instructions", icon='INFO')
+            layout.label(text="Use the 'Install Tools' hub to install.", icon='INFO')
         else:
             layout.label(text="Status: Not checked", icon='INFO')
             layout.label(text="Click Check Installation to refresh", icon='DOT')
@@ -3435,6 +3433,8 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         ai_col.operator("fo4.install_upscaler_deps",     text="Install Real-ESRGAN (texture upscaler)",    icon='IMPORT')
         ai_col.operator("fo4.install_zoedepth",          text="Install ZoeDepth (depth estimation)",       icon='IMPORT')
         ai_col.operator("fo4.install_triposr",           text="Install TripoSR (image to 3D)",             icon='IMPORT')
+        ai_col.operator("fo4.install_shap_e",            text="Install Shap-E (text/image to 3D)",         icon='IMPORT')
+        ai_col.operator("fo4.install_point_e",           text="Install Point-E (text/image to point cloud)", icon='IMPORT')
         ai_col.operator("fo4.install_instantngp",        text="Install Instant-NGP (NeRF)",                icon='IMPORT')
         ai_col.operator("fo4.install_rignet",            text="Install RigNet (auto-rigging)",             icon='IMPORT')
         ai_col.operator("fo4.install_libigl",            text="Install libigl (RigNet dependency)",        icon='IMPORT')

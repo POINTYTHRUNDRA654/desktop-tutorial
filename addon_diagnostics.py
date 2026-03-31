@@ -454,13 +454,15 @@ def collect_diagnostics():
 
         _kb_on = getattr(_prefs, "knowledge_base_enabled", False)
         _kb    = bpy.path.abspath(_prefs.knowledge_base_path).strip()
+        if not _kb:
+            # Mirror _kb_root() fallback: bundled knowledge_base/ folder
+            _kb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "knowledge_base")
         if _kb_on:
-            if _kb and os.path.isdir(_kb):
+            if os.path.isdir(_kb):
                 results.append(("OK",   "Assets", f"Knowledge base: {_kb}"))
             else:
                 results.append(("WARN", "Assets",
-                                f"Knowledge base enabled but path not found - "
-                                f"{_kb or '(not set)'}"))
+                                f"Knowledge base enabled but path not found - {_kb}"))
         else:
             results.append(("INFO", "Assets", "Knowledge base: disabled"))
 
