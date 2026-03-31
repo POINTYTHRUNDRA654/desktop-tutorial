@@ -1592,6 +1592,94 @@ class TestPyTorchWarningAndToolCaching(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Section H: core dependency install list
+# ---------------------------------------------------------------------------
+
+class TestCoreDependencyInstallList(unittest.TestCase):
+    """Verify that _version_constrained_packages() includes all required packages.
+
+    This is a regression guard against accidentally dropping trimesh or pypdf
+    from the install list, which would leave users with missing dependencies
+    even after clicking 'Install Core Dependencies'.
+    """
+
+    def _get_packages(self) -> list[str]:
+        """Extract the package list from _version_constrained_packages() source."""
+        source = _read("tool_installers.py")
+        # Find the function body and collect all quoted package specs
+        import re
+        # Match quoted strings like "trimesh>=3.20.0" or 'pypdf>=3.0.0'
+        # within the _version_constrained_packages function
+        fn_match = re.search(
+            r"def _version_constrained_packages.*?(?=\ndef |\Z)",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(fn_match, "_version_constrained_packages not found in tool_installers.py")
+        fn_body = fn_match.group(0)
+        return re.findall(r'["\']([A-Za-z][^"\'>=\s]*)', fn_body)
+
+    def test_trimesh_in_install_list(self):
+        """trimesh must be included in _version_constrained_packages()."""
+        pkgs = self._get_packages()
+        self.assertTrue(
+            any(p.lower().startswith("trimesh") for p in pkgs),
+            f"trimesh is missing from _version_constrained_packages(). "
+            f"Found: {pkgs}.  Add 'trimesh>=3.20.0' to all three Python-version "
+            f"branches so the 'Install Core Dependencies' button installs it.",
+        )
+
+    def test_pypdf_in_install_list(self):
+        """pypdf must be included in _version_constrained_packages() (not the deprecated PyPDF2)."""
+        pkgs = self._get_packages()
+        # Must have pypdf (the maintained successor to PyPDF2)
+        self.assertTrue(
+            any(p == "pypdf" for p in pkgs),
+            f"pypdf is missing from _version_constrained_packages(). "
+            f"Found: {pkgs}.  Add 'pypdf>=3.0.0' (not PyPDF2) to all three "
+            f"Python-version branches.",
+        )
+        # Must NOT list the deprecated PyPDF2 package
+        self.assertFalse(
+            any(p == "PyPDF2" for p in pkgs),
+            "Deprecated PyPDF2 found in _version_constrained_packages(). "
+            "Replace with pypdf>=3.0.0 (the maintained successor).",
+        )
+
+    def test_pypdf_used_in_knowledge_helpers(self):
+        """knowledge_helpers.py must import pypdf, not the deprecated PyPDF2."""
+        source = _read("knowledge_helpers.py")
+        self.assertIn(
+            "import pypdf",
+            source,
+            "knowledge_helpers.py does not import pypdf.  "
+            "Replace 'import PyPDF2' with 'import pypdf' and update PdfReader usage.",
+        )
+        self.assertNotIn(
+            "import PyPDF2",
+            source,
+            "knowledge_helpers.py still imports the deprecated PyPDF2.  "
+            "Replace with 'import pypdf'.",
+        )
+
+    def test_self_test_checks_pypdf_not_PyPDF2(self):
+        """setup_operators.py self-test must check for 'pypdf', not 'PyPDF2'."""
+        source = _read("setup_operators.py")
+        self.assertIn(
+            '"pypdf"',
+            source,
+            "setup_operators.py self-test does not check for 'pypdf'.  "
+            "Update the core_pkgs dict to use 'pypdf' as the key.",
+        )
+        self.assertNotIn(
+            '"PyPDF2"',
+            source,
+            "setup_operators.py still checks for the deprecated 'PyPDF2' import name.  "
+            "Replace with 'pypdf'.",
+        )
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
