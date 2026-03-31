@@ -511,7 +511,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // stop current listening session and restart with new provider
         setStatus('Switching to browser STT...');
         voiceServiceRef.current.stopListening();
-        voiceServiceRef.current.config.sttProvider = 'browser';
+        voiceServiceRef.current.setSttProvider('browser');
         voiceServiceRef.current.startListening(
           (t, sid) => handleTranscription(t, sid),
           handleVoiceError,

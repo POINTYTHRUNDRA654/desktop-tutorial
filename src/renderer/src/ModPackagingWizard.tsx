@@ -939,11 +939,11 @@ export default function ModPackagingWizard() {
           <br />
           <strong>Path:</strong> {buildResult.archivePath}
           <br />
-          <strong>Size:</strong> {(buildResult.archiveSize / 1024 / 1024).toFixed(2)} MB
+          <strong>Size:</strong> {((buildResult.archiveSize ?? 0) / 1024 / 1024).toFixed(2)} MB
           <br />
           <strong>Compression:</strong> {buildResult.compressionRatio?.toFixed(1)}%
           <br />
-          <strong>Build Time:</strong> {(buildResult.buildTime / 1000).toFixed(2)}s
+          <strong>Build Time:</strong> {(( buildResult.buildTime ?? 0) / 1000).toFixed(2)}s
         </Alert>
       )}
     </Box>
@@ -975,7 +975,7 @@ export default function ModPackagingWizard() {
             <ListItem>
               <ListItemText
                 primary="File Size"
-                secondary={`${(buildResult.archiveSize / 1024 / 1024).toFixed(2)} MB`}
+                secondary={`${((buildResult.archiveSize ?? 0) / 1024 / 1024).toFixed(2)} MB`}
               />
             </ListItem>
             <ListItem>
@@ -1324,7 +1324,7 @@ export default function ModPackagingWizard() {
                 {buildResult.archivePath?.split('\\').pop()}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Size: {(buildResult.archiveSize / 1024 / 1024).toFixed(2)} MB
+                Size: {((buildResult.archiveSize ?? 0) / 1024 / 1024).toFixed(2)} MB
               </Typography>
             </Paper>
           )}

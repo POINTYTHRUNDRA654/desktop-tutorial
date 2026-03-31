@@ -518,9 +518,13 @@ export interface ElectronAPI {
     scanConflicts: (path: string) => Promise<{ count: number; conflicts: any[] }>;
     remapFormIds: (path: string) => Promise<{ success: boolean }>;
   };
-  modComparisonTool: (action: string, payload?: any) => Promise<any>;
-  modConflictVisualizer: (action: string, payload?: any) => Promise<any>;
-  projectTemplates: (action: string, payload?: any) => Promise<any>;
+  modComparisonTool: { compare: (mod1: string, mod2: string) => Promise<{ differences: any[] }>; merge?: () => Promise<any>; export?: () => Promise<any> };
+  modConflictVisualizer: { scanLoadOrder: () => Promise<{ plugins: string[]; conflicts: any[] }>; analyze?: () => Promise<any>; resolve?: () => Promise<any> };
+  projectTemplates: {
+    browsePath: () => Promise<string | null>;
+    createProject: (config: { templateId: string; projectName: string; projectPath: string; authorName: string }) => Promise<{ success: boolean; path?: string; error?: string }>;
+    downloadTemplate: (templateId: string) => Promise<boolean>;
+  };
   voiceCommands: {
     startListening: () => Promise<void>;
     stopListening: () => Promise<void>;

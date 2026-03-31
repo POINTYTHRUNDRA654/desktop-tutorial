@@ -488,8 +488,8 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
 
               <div className="space-y-4">
                 {group.settings.map((setting, settingIndex) => {
-                  const isEnabled = (settings.privacySettings as Record<string, boolean | undefined>)[setting.id];
-                  const isDisabled = setting.dependsOn && !(settings.privacySettings as Record<string, boolean | undefined>)[setting.dependsOn];
+                  const isEnabled = (settings.privacySettings as unknown as Record<string, boolean | undefined>)[setting.id];
+                  const isDisabled = setting.dependsOn && !(settings.privacySettings as unknown as Record<string, boolean | undefined>)[setting.dependsOn];
 
                   return (
                     <div key={settingIndex} className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
@@ -504,7 +504,7 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
                           <button
                             id={`setting-${setting.id}`}
                             onClick={() => !isDisabled && handlePrivacySettingToggle(setting.id)}
-                            disabled={isDisabled}
+                            disabled={!!isDisabled}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 ${
                               isEnabled && !isDisabled ? 'bg-blue-600' : 'bg-slate-600'
                             } ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}

@@ -156,7 +156,7 @@ export const VideoTutorial: React.FC<VideoTutorialProps> = ({ isOpen, onClose })
                             title="Mossy Tutorial Video"
                             frameBorder={0}
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullscreen
+                            allowFullScreen
                         />
                     ) : videoSource ? (
                         // Local/External video

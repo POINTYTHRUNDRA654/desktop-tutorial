@@ -439,7 +439,7 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
                       <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5" />
                       <div>
                         <div className="text-slate-200">{issue.description}</div>
-                        <div className="text-slate-500">Affected: {issue.affectedPlugins.join(', ')}</div>
+                        <div className="text-slate-500">Affected: {(issue.affectedPlugins ?? []).join(', ')}</div>
                       </div>
                     </div>
                   ))}
@@ -454,7 +454,7 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
                 <div className="space-y-2">
                   {(analysis?.recommendations || []).slice(0, 4).map((rec, idx) => (
                     <div key={`rec-${idx}`} className="text-xs text-slate-200">
-                      <strong>{rec.priority.toUpperCase()}</strong> {rec.description} — {rec.suggestedAction}
+                      <strong>{(rec.priority?.toString().toUpperCase() ?? "INFO")}</strong> {rec.description} — {rec.suggestedAction}
                     </div>
                   ))}
                   {(analysis?.recommendations || []).length === 0 && (
@@ -643,15 +643,15 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-xs">
                     <div className="text-slate-400">Conflicts Resolved</div>
-                    <div className="text-lg font-black text-white">{optimized.improvements.conflictsResolved}</div>
+                    <div className="text-lg font-black text-white">{(optimized.improvements?.conflictsResolved ?? 0)}</div>
                   </div>
                   <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-xs">
                     <div className="text-slate-400">Stability Gain</div>
-                    <div className="text-lg font-black text-white">{optimized.improvements.stabilityGain}</div>
+                    <div className="text-lg font-black text-white">{(optimized.improvements?.stabilityGain ?? 0)}</div>
                   </div>
                   <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-xs">
                     <div className="text-slate-400">Performance Gain</div>
-                    <div className="text-lg font-black text-white">{optimized.improvements.performanceGain}</div>
+                    <div className="text-lg font-black text-white">{(optimized.improvements?.performanceGain ?? 0)}</div>
                   </div>
                 </div>
               )}
