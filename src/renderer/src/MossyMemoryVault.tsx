@@ -1297,7 +1297,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                                             {mem.creditUrl && (
                                                 <button
                                                     className="text-cyan-400 hover:text-cyan-300 transition-colors"
-                                                    onClick={() => void openExternal(mem.creditUrl)}
+                                                    onClick={() => void openExternal(mem.creditUrl!)}
                                                     title="Open credit source"
                                                 >
                                                     Source
@@ -1444,7 +1444,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                                     <select
                                         className="w-full bg-[#0f120f] border border-emerald-900/40 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
                                         value={newTrustLevel}
-                                        onChange={(e) => setNewTrustLevel(e.target.value as MemoryItem['trustLevel'])}
+                                        onChange={(e) => setNewTrustLevel(e.target.value as 'personal' | 'community' | 'official')}
                                         disabled={isUploading}
                                     >
                                         <option value="personal">Personal</option>

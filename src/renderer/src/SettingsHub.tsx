@@ -146,7 +146,7 @@ const InternetTestPanel: React.FC = () => {
     setReport(null);
     setError(null);
     try {
-      const api: ElectronAPI | undefined = (window.electron?.api ?? (window as { electronAPI?: ElectronAPI }).electronAPI);
+      const api: ElectronAPI | undefined = (window.electron?.api ?? (window as unknown as { electronAPI?: ElectronAPI }).electronAPI);
       if (typeof api?.testInternetAccess !== 'function') {
         setError('testInternetAccess API not available — make sure you are running inside Electron.');
         return;

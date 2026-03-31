@@ -103,7 +103,7 @@ interface PackagingDraft {
   currentStep: number;
 }
 
-interface ArchiveResult { success: boolean; archivePath?: string; size?: number; fileCount?: number; error?: string }
+interface ArchiveResult { success: boolean; archivePath?: string; archiveSize?: number; size?: number; fileCount?: number; compressionRatio?: number; buildTime?: number; error?: string }
 
 interface ModInfo {
   name: string;
@@ -381,12 +381,14 @@ export default function ModPackagingWizard() {
     setLoading(true);
     setBuildProgress(0);
     try {
-      const settings: ArchiveSettings = {
+      const settings = {
         format: archiveFormat,
         compressionLevel,
         createFomod,
         excludePatterns,
-      };
+        includeReadme: !!generatedReadme,
+        includeScreenshots: false,
+      } satisfies ArchiveSettings & { createFomod: boolean; excludePatterns: string[] };
 
       const result = await window.electron.api.modPackagingCreateArchive(
         modPath!,
@@ -636,7 +638,7 @@ export default function ModPackagingWizard() {
         label="Requirements (comma-separated)"
         value={modInfo.requirements.join(', ')}
         onChange={(e: any) =>
-          setModInfo({ ...modInfo, requirements: e.target.value.split(',').map((s) => s.trim()) })
+          setModInfo({ ...modInfo, requirements: e.target.value.split(',').map((s: string) => s.trim()) })
         }
         sx={{ mb: 2 }}
       />
@@ -646,7 +648,7 @@ export default function ModPackagingWizard() {
         label="Tags (comma-separated)"
         value={modInfo.tags.join(', ')}
         onChange={(e: any) =>
-          setModInfo({ ...modInfo, tags: e.target.value.split(',').map((s) => s.trim()) })
+          setModInfo({ ...modInfo, tags: e.target.value.split(',').map((s: string) => s.trim()) })
         }
         sx={{ mb: 2 }}
       />
@@ -1020,7 +1022,7 @@ export default function ModPackagingWizard() {
           <List dense>
             <ListItem>
               <ListItemIcon>
-                {nexusPrep.checks.hasReadme ? (
+                {nexusPrep.checks?.hasReadme ? (
                   <CheckCircle color="success" />
                 ) : (
                   <ErrorIcon color="error" />
@@ -1030,7 +1032,7 @@ export default function ModPackagingWizard() {
             </ListItem>
             <ListItem>
               <ListItemIcon>
-                {nexusPrep.checks.hasChangelog ? (
+                {nexusPrep.checks?.hasChangelog ? (
                   <CheckCircle color="success" />
                 ) : (
                   <ErrorIcon color="error" />
@@ -1040,7 +1042,7 @@ export default function ModPackagingWizard() {
             </ListItem>
             <ListItem>
               <ListItemIcon>
-                {nexusPrep.checks.hasProperStructure ? (
+                {nexusPrep.checks?.hasProperStructure ? (
                   <CheckCircle color="success" />
                 ) : (
                   <ErrorIcon color="error" />
@@ -1050,14 +1052,14 @@ export default function ModPackagingWizard() {
             </ListItem>
           </List>
 
-          {nexusPrep.recommendations.length > 0 && (
+          {(nexusPrep.recommendations?.length ?? 0) > 0 && (
             <>
               <Divider sx={{ my: 2 }} />
               <Typography variant="subtitle2" gutterBottom>
                 Recommendations:
               </Typography>
               <List dense>
-                {nexusPrep.recommendations.map((rec: string, idx: number) => (
+                {(nexusPrep.recommendations ?? []).map((rec: string, idx: number) => (
                   <ListItem key={idx}>
                     <ListItemIcon>
                       <Info color="info" />

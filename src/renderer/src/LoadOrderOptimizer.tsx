@@ -64,7 +64,7 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
   }, [conflicts]);
 
   const orderedPlugins = useMemo(() => {
-    return [...plugins].sort((a, b) => a.loadIndex - b.loadIndex);
+    return [...plugins].sort((a, b) => (a.loadIndex ?? 0) - (b.loadIndex ?? 0));
   }, [plugins]);
 
   const setLoadIndices = (items: PluginInfo[]): PluginInfo[] => {
@@ -254,7 +254,7 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
   const compareList = useMemo(() => {
     if (!optimized) return [];
     const before = orderedPlugins.map(p => p.fileName);
-    const after = optimized.plugins;
+    const after = optimized.plugins ?? [];
     return after.map((name, index) => {
       const beforeIndex = before.indexOf(name);
       return { name, beforeIndex, afterIndex: index, changed: beforeIndex !== index };
@@ -357,7 +357,7 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
                     >
                       <div>
                         <div className="font-semibold text-slate-100">{plugin.fileName}</div>
-                        <div className="text-[10px] text-slate-400">{plugin.type.toUpperCase()} • {plugin.enabled ? 'Enabled' : 'Disabled'}</div>
+                        <div className="text-[10px] text-slate-400">{(plugin.type ?? "").toUpperCase()} • {plugin.enabled ? 'Enabled' : 'Disabled'}</div>
                       </div>
                       <div className="flex items-center gap-2">
                         {conflictCount > 0 && (
@@ -411,7 +411,7 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
                       <div
                         key={`${cell.x}-${cell.y}-${idx}`}
                         className={`h-3 w-3 rounded ${cell.severity === 'critical' ? 'bg-rose-500' : cell.severity === 'major' ? 'bg-orange-500' : cell.severity === 'minor' ? 'bg-yellow-400' : 'bg-slate-700'}`}
-                        title={`${cell.plugins[0]} vs ${cell.plugins[1]}: ${cell.value}`}
+                        title={`${cell.plugins?.[0] ?? "?"} vs ${cell.plugins?.[1] ?? "?"}: ${cell.value}`}
                       />
                     ))}
                   </div>
