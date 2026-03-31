@@ -189,7 +189,7 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
   const loadBackups = async () => {
     try {
       const backupList = await window.electronAPI?.versionControlListBackups?.();
-      setBackups(backupList);
+      setBackups(backupList ?? []);
     } catch (err) {
       setError('Failed to load backups');
     }

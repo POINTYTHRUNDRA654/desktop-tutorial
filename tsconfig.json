@@ -12,7 +12,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": ["node", "vite/client", "@testing-library/jest-dom"],
+    "types": ["node", "vite/client", "@testing-library/jest-dom", "vitest/globals"],
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["./src/shared/*"]

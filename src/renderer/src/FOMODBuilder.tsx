@@ -841,7 +841,7 @@ export default function FOMODBuilder() {
                     <Typography variant="subtitle2" gutterBottom>
                       Files (drag from right panel):
                     </Typography>
-                    {option.filePatterns.length === 0 ? (
+                    {(option.filePatterns?.length ?? 0) === 0 ? (
                       <Alert severity="info" sx={{ mb: 1 }}>
                         No files yet. Drag files from the right panel to add them.
                       </Alert>

@@ -74,6 +74,7 @@ export const IPC_CHANNELS = {
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
   AUDITOR_SCAN_MOD_DIRECTORY: 'auditor-scan-mod-directory',
+  AUDITOR_SCAN_MOD_DIRECTORY_PATH: 'auditor-scan-mod-directory-path',
 
   // Project Management
   PROJECT_LIST: 'project-list',
@@ -473,6 +474,10 @@ export interface ElectronAPI {
   pickNifFile: () => Promise<string[]>;
   pickDdsFile: () => Promise<string[]>;
   pickBgsmFile: () => Promise<string[]>;
+  /** Scan a mod directory for mod files (opens OS folder dialog) */
+  scanModDirectory: () => Promise<Array<{ path: string; type: string }>>;
+  /** Scan a mod directory for mod files using a pre-selected path (no OS dialog) */
+  scanModDirectoryPath: (folderPath: string) => Promise<Array<{ path: string; type: string }>>;
 
   // Generic file helpers
   pickJsonFile: () => Promise<string>;
