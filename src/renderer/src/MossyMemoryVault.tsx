@@ -5,6 +5,7 @@ import { LocalAIEngine } from './LocalAIEngine';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 import { openExternal } from './utils/openExternal';
+import { saveKnowledgeVaultToFile, restoreKnowledgeVaultFromFile } from './knowledgeRetrieval';
 
 interface MemoryItem {
     id: string;
@@ -59,18 +60,42 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
     const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
 
     useEffect(() => {
-        const stored = localStorage.getItem('mossy_knowledge_vault');
-        if (stored) {
-            const parsed = JSON.parse(stored) as MemoryItem[];
-            const normalized = Array.isArray(parsed)
-                ? parsed.map((m) => ({
-                    ...m,
-                    trustLevel: m.trustLevel || 'personal',
-                }))
-                : [];
-            setMemories(normalized);
-        }
-        
+        const loadVault = async () => {
+            const stored = localStorage.getItem('mossy_knowledge_vault');
+            if (stored) {
+                const parsed = JSON.parse(stored) as MemoryItem[];
+                const normalized = Array.isArray(parsed)
+                    ? parsed.map((m) => ({
+                        ...m,
+                        trustLevel: m.trustLevel || 'personal',
+                    }))
+                    : [];
+                setMemories(normalized);
+            } else {
+                // localStorage is empty — try to restore from the file backup so user data
+                // fed to Mossy is never lost after a reinstall or a storage clear.
+                const restored = await restoreKnowledgeVaultFromFile();
+                if (restored.length > 0) {
+                    // restoreKnowledgeVaultFromFile already validates each item has an id;
+                    // normalise the remaining optional fields to safe defaults.
+                    const normalized: MemoryItem[] = restored.map((m) => ({
+                        id: m.id ?? String(Date.now() + Math.random()),
+                        title: m.title ?? 'Untitled',
+                        content: m.content ?? '',
+                        source: m.source ?? '',
+                        creditName: m.creditName,
+                        creditUrl: m.creditUrl,
+                        trustLevel: m.trustLevel ?? 'personal',
+                        date: m.date ?? new Date().toISOString(),
+                        tags: Array.isArray(m.tags) ? m.tags : [],
+                        status: (m.status as MemoryItem['status']) ?? 'learned',
+                    }));
+                    setMemories(normalized);
+                }
+            }
+        };
+        loadVault().catch(console.error);
+
         // Auto-import bundled knowledge on first run
         const hasImportedBundled = localStorage.getItem('mossy_bundled_imported');
         if (!hasImportedBundled) {
@@ -83,6 +108,9 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
 
     useEffect(() => {
         localStorage.setItem('mossy_knowledge_vault', JSON.stringify(memories));
+        // Also persist to a file in userData so the data survives localStorage clears
+        // and app reinstalls. Fire-and-forget — failures are logged but not surfaced.
+        saveKnowledgeVaultToFile(memories).catch(console.error);
         // Broadcast to other components if needed
         window.dispatchEvent(new Event('mossy-knowledge-updated'));
     }, [memories]);
