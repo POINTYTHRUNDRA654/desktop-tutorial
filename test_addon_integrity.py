@@ -1499,24 +1499,25 @@ class TestPyTorchWarningAndToolCaching(unittest.TestCase):
         )
 
     def test_deferred_startup_invalidates_zoedepth_cache(self):
-        """startup_helpers.deferred_startup() must clear the ZoeDepth TTL cache."""
+        """startup_helpers.deferred_startup() must refresh the ZoeDepth status at startup."""
         source = _read("startup_helpers.py")
         self.assertIn(
-            "clear_availability_cache",
+            "check_zoedepth_availability",
             source,
-            "startup_helpers.py does not call clear_availability_cache() for "
-            "ZoeDepth.  Without this the stale False cached at register()-time "
-            "persists for 5 s, showing 'Not installed' on startup.",
+            "startup_helpers.py does not call check_zoedepth_availability() for "
+            "ZoeDepth.  Without this the deferred-startup check is skipped and "
+            "diagnostics reports 'status not yet checked' until a UI draw occurs.",
         )
 
     def test_deferred_startup_invalidates_rignet_cache(self):
-        """startup_helpers.deferred_startup() must invalidate the RigNet status cache."""
+        """startup_helpers.deferred_startup() must populate the RigNet status cache at startup."""
         source = _read("startup_helpers.py")
         self.assertIn(
-            "_invalidate_rignet_cache",
+            "_cached_rignet_status",
             source,
-            "startup_helpers.py does not call _invalidate_rignet_cache(). "
-            "The RigNet panel will show stale status on startup.",
+            "startup_helpers.py does not call _cached_rignet_status(). "
+            "Without this the RigNet panel and diagnostics show 'cache invalidated' "
+            "on every startup until the RigNet panel draws for the first time.",
         )
 
     # =====================================================================

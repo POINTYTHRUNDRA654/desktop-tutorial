@@ -526,8 +526,8 @@ def collect_diagnostics():
     # ── 14. Mossy PyTorch path persistence ───────────────────────────────────
     # When Mossy sends a set_pytorch_path command, mossy_link stores it in
     # prefs.pytorch_path so it survives a Blender restart.  If the pref is
-    # empty but Mossy is enabled, the path will be lost on next restart and
-    # the false "PyTorch required" warning will reappear.
+    # empty but Mossy is enabled AND torch is not available locally, warn the
+    # user so they know to connect Mossy once to persist the path.
     if _prefs is not None and getattr(_prefs, "use_mossy_as_ai", False):
         _saved_pt = getattr(_prefs, "pytorch_path", "").strip()
         if _saved_pt:
@@ -539,9 +539,15 @@ def collect_diagnostics():
                                 f"PyTorch path persisted but NOT in sys.path: {_saved_pt} — "
                                 "click Auto-Fix to apply it for this session"))
         else:
-            results.append(("WARN", "Mossy",
-                            "use_mossy_as_ai is ON but pytorch_path preference is empty. "
-                            "Connect Mossy so it can send the path, then restart Blender to persist it."))
+            # Suppress the warning when torch is already available through a
+            # local install (torch_custom_path) — the pytorch_path pref is only
+            # needed to persist the Mossy-provided path across restarts, and a
+            # working local install makes that unnecessary.
+            _torch_local = importlib.util.find_spec("torch") is not None
+            if not _torch_local:
+                results.append(("WARN", "Mossy",
+                                "use_mossy_as_ai is ON but pytorch_path preference is empty. "
+                                "Connect Mossy so it can send the path, then restart Blender to persist it."))
 
     return results
 
