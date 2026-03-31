@@ -1188,12 +1188,8 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
         if esrgan_available:
             ai_box.label(text=f"Status: {esrgan_status}", icon='CHECKMARK')
         else:
-            ai_box.label(text="Status: Not Installed - click below to auto-install", icon='ERROR')
-            ai_box.operator(
-                "fo4.install_upscaler_deps",
-                text="Auto-Install Real-ESRGAN (One-Click)",
-                icon='IMPORT',
-            )
+            ai_box.label(text="Status: Not Installed", icon='ERROR')
+            ai_box.label(text="→ Install from Setup & Status panel", icon='INFO')
         ai_box.operator("fo4.check_realesrgan_installation", text="Check Status", icon='SYSTEM')
         row = ai_box.row()
         row.enabled = esrgan_available
@@ -1285,12 +1281,12 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
             depth_box.label(text="Status: Available ✓", icon='CHECKMARK')
         else:
             depth_box.label(text="Status: Not Installed ✗", icon='ERROR')
+            depth_box.label(text="→ Install from Setup & Status panel", icon='INFO')
 
         row = depth_box.row()
         row.enabled = available
         row.operator("fo4.estimate_depth", text="Estimate Depth & Create Mesh", icon='MESH_GRID')
 
-        depth_box.operator("fo4.install_zoedepth", text="Auto-Install ZoeDepth", icon='IMPORT')
         depth_box.operator("fo4.show_zoedepth_info", text="Manual Instructions", icon='INFO')
 
         # TripoSR section
@@ -1302,9 +1298,7 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
             triposr_box.label(text="Status: Available ✓", icon='CHECKMARK')
         else:
             triposr_box.label(text="Status: Not Installed ✗", icon='ERROR')
-
-        # Install button (always shown, like ZoeDepth)
-        triposr_box.operator("fo4.install_triposr", text="Auto-Install TripoSR", icon='IMPORT')
+            triposr_box.label(text="→ Install from Setup & Status panel", icon='INFO')
 
         # Generation buttons (enabled when available)
         row = triposr_box.row()
@@ -1350,12 +1344,8 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
         if ngp_available:
             ngp_box.label(text="Status: Found ✓", icon='CHECKMARK')
         else:
-            ngp_box.label(text="Status: Not Found - click below to auto-clone", icon='ERROR')
-            ngp_box.operator(
-                "fo4.install_instantngp",
-                text="Auto-Install Instant-NGP (Clone via git)",
-                icon='IMPORT',
-            )
+            ngp_box.label(text="Status: Not Found ✗", icon='ERROR')
+            ngp_box.label(text="→ Install from Setup & Status panel", icon='INFO')
         # Manual path override - lets users point to a pre-built install
         if context.scene:
             ngp_box.prop(context.scene, "fo4_instantngp_path", text="Path")
@@ -1662,8 +1652,8 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
         layout.separator()
         motion_box = layout.box()
         motion_box.label(text="Motion Generation", icon='ANIM_DATA')
+        motion_box.label(text="→ Install from Setup & Status panel", icon='INFO')
         motion_box.operator("fo4.check_all_motion_systems", text="Check All Motion Systems", icon='SYSTEM')
-        motion_box.operator("fo4.install_motion_generation", text="Auto-Install MotionDiffuse", icon='IMPORT')
         motion_box.operator("fo4.generate_motion_auto", text="Generate Motion (Auto)", icon='PLAY')
         motion_box.operator("fo4.show_motion_generation_info", text="Manual Instructions", icon='INFO')
 
@@ -1752,7 +1742,7 @@ class FO4_PT_RigNetPanel(_FO4SubPanel):
             status_box.label(text=f"  {rignet_dir}", icon='FILE_FOLDER')
         else:
             status_box.label(text="✗ RigNet Not Installed", icon='ERROR')
-            status_box.operator("fo4.install_rignet", text="Auto-Install RigNet", icon='IMPORT')
+            status_box.label(text="→ Install from Setup & Status panel", icon='INFO')
 
         status_box.operator("fo4.check_rignet", text="Check RigNet", icon='INFO')
 
@@ -1769,7 +1759,7 @@ class FO4_PT_RigNetPanel(_FO4SubPanel):
                 libigl_box.label(text=f"  {libigl_dir}", icon='FILE_FOLDER')
         else:
             libigl_box.label(text="✗ libigl Not Installed", icon='ERROR')
-            libigl_box.operator("fo4.install_libigl", text="Auto-Install libigl", icon='IMPORT')
+            libigl_box.label(text="→ Install from Setup & Status panel", icon='INFO')
 
         libigl_box.operator("fo4.check_libigl", text="Check libigl", icon='INFO')
 
@@ -2164,29 +2154,11 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
         box.operator("fo4.open_umodel_tools_page", text="Manual Download Instructions", icon='URL')
 
         # Automated installers for external utilities
+        # All install buttons have been consolidated into the Install Tools hub
+        # at the top of the Setup & Status panel.
         box = layout.box()
         box.label(text="Install External Tools", icon='TOOL_SETTINGS')
-        box.operator("fo4.install_ffmpeg", text="Install FFmpeg", icon='FILE_REFRESH')
-        box.operator("fo4.install_nvtt", text="Install NVTT (nvcompress)", icon='FILE_REFRESH')
-        box.operator("fo4.install_texconv", text="Install texconv", icon='FILE_REFRESH')
-        box.operator("fo4.install_whisper", text="Install Whisper CLI", icon='FILE_REFRESH')
-        box.operator("fo4.install_niftools", text="Install Niftools Add-on", icon='FILE_REFRESH')
-        if bpy.app.version >= (4, 2, 0):
-            nif_note = box.box()
-            nif_note.scale_y = 0.75
-            nif_note.label(text="After install: Edit → Preferences → Add-ons", icon='INFO')
-            nif_note.label(text="→ enable 'Allow Legacy Add-ons'")
-            nif_note.label(text="→ enable 'NetImmerse/Gamebryo (.nif)'")
-            if bpy.app.version >= (5, 0, 0):
-                nif_note.label(text="Blender 5.x API patches applied automatically.", icon='CHECKMARK')
-        # Python requirements - always drawn (Blender 5.x hasattr unreliable)
-        op = box.operator("fo4.install_python_deps", text="Install Python Requirements", icon='FILE_REFRESH')
-        if op is not None:
-            op.optional = False
-        op = box.operator("fo4.install_python_deps", text="Install Python Req (optional)", icon='FILE_REFRESH')
-        if op is not None:
-            op.optional = True
-        box.operator("fo4.install_all_tools", text="Install All Tools", icon='PACKAGE')
+        box.label(text="→ Use 'Install Tools' at the top of Setup & Status to install", icon='INFO')
         box.operator("fo4.self_test", text="Run Environment Self-Test", icon='CHECKMARK')
 
         # Fallout 4 configuration button
@@ -2570,10 +2542,7 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
             active_row.label(text="✗ No NIF exporter installed", icon='ERROR')
             inst_col = nif_box.column(align=True)
             inst_col.scale_y = 0.8
-            inst_col.label(text="Install PyNifly (latest, recommended for Blender 4/5):", icon='INFO')
-            inst_col.operator("fo4.install_pynifly", text="Auto-Install PyNifly (Latest)", icon='IMPORT')
-            inst_col.separator(factor=0.5)
-            inst_col.label(text="Or for Blender 3.6: install Niftools v0.1.1 ZIP", icon='INFO')
+            inst_col.label(text="→ Install PyNifly or Niftools from Setup & Status panel", icon='INFO')
 
         # ── NIF settings reference (always-visible CK compatibility summary) ─
         settings_box = nif_box.box()
@@ -2875,9 +2844,8 @@ class FO4_PT_Havok2FBXPanel(_FO4SubPanel):
         path_box.label(text="Configure Havok2FBX", icon='FILE_FOLDER')
         if scene:
             path_box.prop(scene, "fo4_havok2fbx_path", text="Folder")
-            row = path_box.row()
-            row.operator("fo4.install_havok2fbx", text="Get Havok2FBX", icon='URL')
-            row.operator("fo4.check_tool_paths", text="Check Paths", icon='INFO')
+            path_box.label(text="→ Install from Setup & Status panel", icon='INFO')
+            path_box.operator("fo4.check_tool_paths", text="Check Paths", icon='INFO')
         else:
             path_box.label(text="Preferences not available (addon not registered)", icon='ERROR')
 
@@ -3270,11 +3238,10 @@ class FO4_PT_AddonIntegrationPanel(_FO4SubPanel):
                     op.addon_id = addon_id
 
                 elif addon_id == 'io_scene_niftools':
-                    # Dedicated installer already exists
-                    addon_box.operator(
-                        "fo4.install_niftools",
-                        text="Auto-Install Niftools",
-                        icon='IMPORT',
+                    # Installer lives in Setup & Status panel
+                    addon_box.label(
+                        text="→ Install from Setup & Status panel",
+                        icon='INFO',
                     )
                     op = addon_box.operator(
                         "wm.url_open",
@@ -3415,9 +3382,71 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         scene = context.scene
         prefs = preferences.get_preferences() if preferences else None
 
+        # ── Install Tools Hub ─────────────────────────────────────────────
+        # ALL install buttons live here and ONLY here.  Every other panel
+        # shows status information and points users back to this section.
+        hub = layout.box()
+        hub.label(text="Install Tools", icon='PACKAGE')
+
+        # Core Python dependencies
+        core_col = hub.column(align=True)
+        core_col.label(text="Core Python (required):", icon='SCRIPT')
+        op = core_col.operator(
+            "fo4.install_python_deps",
+            text="Install Core Python Dependencies",
+            icon='IMPORT',
+        )
+        if op is not None:
+            op.optional = False
+        op = core_col.operator(
+            "fo4.install_python_deps",
+            text="Install Optional Python Packages",
+            icon='IMPORT',
+        )
+        if op is not None:
+            op.optional = True
+
+        hub.separator()
+
+        # Modding tools
+        tools_col = hub.column(align=True)
+        tools_col.label(text="Modding Tools:", icon='TOOL_SETTINGS')
+        tools_col.operator("fo4.install_ffmpeg",    text="Install FFmpeg",                              icon='IMPORT')
+        tools_col.operator("fo4.install_nvtt",      text="Install NVTT (nvcompress)",                   icon='IMPORT')
+        tools_col.operator("fo4.install_texconv",   text="Install texconv",                             icon='IMPORT')
+        tools_col.operator("fo4.install_whisper",   text="Install Whisper CLI",                         icon='IMPORT')
+        tools_col.operator("fo4.install_niftools",  text="Install Niftools Add-on",                     icon='IMPORT')
+        tools_col.operator("fo4.install_pynifly",   text="Install PyNifly (recommended NIF exporter)",  icon='IMPORT')
+        tools_col.operator("fo4.install_havok2fbx", text="Get Havok2FBX",                               icon='IMPORT')
+
+        if bpy.app.version >= (4, 2, 0):
+            nif_note = hub.box()
+            nif_note.scale_y = 0.75
+            nif_note.label(text="After Niftools install: Edit → Preferences → Add-ons", icon='INFO')
+            nif_note.label(text="→ enable 'Allow Legacy Add-ons' → enable NIF format")
+            if bpy.app.version >= (5, 0, 0):
+                nif_note.label(text="Blender 5.x: API patches applied automatically", icon='CHECKMARK')
+
+        hub.separator()
+
+        # AI / optional tools
+        ai_col = hub.column(align=True)
+        ai_col.label(text="AI Tools (optional, GPU recommended):", icon='PLUGIN')
+        ai_col.operator("fo4.install_upscaler_deps",     text="Install Real-ESRGAN (texture upscaler)",    icon='IMPORT')
+        ai_col.operator("fo4.install_zoedepth",          text="Install ZoeDepth (depth estimation)",       icon='IMPORT')
+        ai_col.operator("fo4.install_triposr",           text="Install TripoSR (image to 3D)",             icon='IMPORT')
+        ai_col.operator("fo4.install_instantngp",        text="Install Instant-NGP (NeRF)",                icon='IMPORT')
+        ai_col.operator("fo4.install_rignet",            text="Install RigNet (auto-rigging)",             icon='IMPORT')
+        ai_col.operator("fo4.install_libigl",            text="Install libigl (RigNet dependency)",        icon='IMPORT')
+        ai_col.operator("fo4.install_motion_generation", text="Install MotionDiffuse (animation AI)",      icon='IMPORT')
+
+        hub.separator()
+        hub.operator("fo4.install_all_tools", text="Install All Tools (Batch)", icon='FILE_REFRESH')
+
+        layout.separator()
+
         # ── First-Time Setup Banner ───────────────────────────────────────
-        # Shown at the very top so new users see it immediately.
-        # Checks whether Python deps and at least one CLI tool path are ready.
+        # Status-only guide: install buttons are in the hub above.
         _deps_ok = all(
             _check_dep(m) for m in ("PIL", "numpy", "requests", "trimesh", "PyPDF2")
         )
@@ -3427,79 +3456,35 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         _any_tool_ok = _ffmpeg_ok or _nvtt_ok or _texconv_ok
 
         if _deps_ok and _any_tool_ok:
-            # Everything ready - compact green confirmation
             ready_box = layout.box()
             ready_col = ready_box.column(align=True)
             ready_col.label(text="✓  All systems ready!", icon='CHECKMARK')
             ready_col.label(text="   Dependencies installed  •  Tools configured",
                             icon='BLANK1')
         else:
-            # One or more things need attention - show the setup guide
             guide_box = layout.box()
             guide_col = guide_box.column(align=True)
             if not _deps_ok and not _any_tool_ok:
-                guide_col.label(text="FIRST-TIME SETUP", icon='ERROR')
+                guide_col.label(text="FIRST-TIME SETUP – use Install Tools above", icon='ERROR')
             else:
-                guide_col.label(text="SETUP INCOMPLETE", icon='ERROR')
+                guide_col.label(text="SETUP INCOMPLETE – use Install Tools above", icon='ERROR')
             guide_col.separator()
 
-            # Step 1 - Python deps
-            if not _deps_ok:
-                guide_col.label(
-                    text="Step 1 - Install Core Dependencies:", icon='SCRIPT'
-                )
-                guide_col.operator(
-                    "fo4.install_python_deps",
-                    text="  Install Core Dependencies",
-                    icon='PACKAGE',
-                )
-            else:
-                guide_col.label(text="Step 1 - ✓ Core Dependencies installed",
-                                icon='CHECKMARK')
-
-            guide_col.separator()
-
-            # Step 2 - Install external tools
-            if not _any_tool_ok:
-                guide_col.label(text="Step 2 - Install External Tools:", icon='TOOL_SETTINGS')
-                guide_col.operator(
-                    "fo4.install_ffmpeg",
-                    text="  Install FFmpeg",
-                    icon='PACKAGE',
-                )
-                guide_col.operator(
-                    "fo4.install_nvtt",
-                    text="  Install NVTT (nvcompress)",
-                    icon='PACKAGE',
-                )
-                guide_col.operator(
-                    "fo4.install_texconv",
-                    text="  Install texconv",
-                    icon='PACKAGE',
-                )
-                guide_col.operator(
-                    "fo4.install_niftools",
-                    text="  Install Niftools Add-on",
-                    icon='PACKAGE',
-                )
-                guide_col.label(
-                    text="  OR set 'Tools Root' (Tool Paths below) to use existing installations",
-                    icon='BLANK1',
-                )
-            else:
-                guide_col.label(text="Step 2 - ✓ CLI tool paths configured",
-                                icon='CHECKMARK')
-
-            guide_col.separator()
-
-            # Step 3 - Restart
-            guide_col.label(text="Step 3 - Restart Blender:", icon='FILE_REFRESH')
             guide_col.label(
-                text="  Required after installing deps so Python can load them",
-                icon='BLANK1',
+                text="Step 1 - ✓ Core Dependencies installed" if _deps_ok
+                     else "Step 1 - Install Core Python Dependencies (Install Tools above)",
+                icon='CHECKMARK' if _deps_ok else 'BLANK1',
             )
+            guide_col.separator()
             guide_col.label(
-                text="  Tools are auto-registered on the fresh start",
+                text="Step 2 - ✓ CLI tool paths configured" if _any_tool_ok
+                     else "Step 2 - Install External Tools (Install Tools above)",
+                icon='CHECKMARK' if _any_tool_ok else 'BLANK1',
+            )
+            guide_col.separator()
+            guide_col.label(text="Step 3 - Restart Blender after installing:", icon='FILE_REFRESH')
+            guide_col.label(
+                text="  Required so Python can load newly installed packages",
                 icon='BLANK1',
             )
             guide_col.operator(
@@ -3507,10 +3492,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                 text="  Restart Blender Now",
                 icon='QUIT',
             )
-
             guide_col.separator()
-
-            # Step 4 - second restart only if needed
             guide_col.label(text="Step 4 (if tools still show ✗ after restart):",
                             icon='INFO')
             guide_col.label(
@@ -3554,11 +3536,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
 
         if not all_ok:
             box.separator()
-            box.label(text="Click below to install missing packages:", icon='INFO')
-            # Always draw - Blender 5.x hasattr(bpy.types, 'FO4_OT_InstallPythonDeps')
-            # may return False even when the operator IS registered.
-            box.operator("fo4.install_python_deps", text="Install Core Dependencies",
-                         icon='PACKAGE')
+            box.label(text="Install missing packages via 'Install Tools' above.", icon='INFO')
             box.separator()
             box.label(text="Restart Blender after installing.", icon='ERROR')
         else:
@@ -3599,22 +3577,19 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         tools_box = layout.box()
         tools_box.label(text="Connected External Tools", icon='TOOL_SETTINGS')
         if preferences:
-            tool_checks_with_ops = [
-                (ffmpeg_path,     "ffmpeg",            "fo4.install_ffmpeg"),
-                (nvcompress_path, "NVTT (nvcompress)", "fo4.install_nvtt"),
-                (texconv_path,    "texconv",           "fo4.install_texconv"),
-            ]
             any_missing = False
-            for path, label, install_op in tool_checks_with_ops:
+            for path, label in [
+                (ffmpeg_path,     "ffmpeg"),
+                (nvcompress_path, "NVTT (nvcompress)"),
+                (texconv_path,    "texconv"),
+            ]:
                 if path:
                     tools_box.label(text=f"✓ {label}: {path}", icon='CHECKMARK')
                 else:
-                    col = tools_box.column(align=True)
-                    col.label(text=f"✗ {label}: not configured", icon='ERROR')
-                    col.operator(install_op, text=f"Install {label}", icon='IMPORT')
+                    tools_box.label(text=f"✗ {label}: not configured", icon='ERROR')
                     any_missing = True
             if any_missing:
-                tools_box.label(text="Paths auto-save and persist after install", icon='INFO')
+                tools_box.label(text="→ Use 'Install Tools' at the top to install", icon='INFO')
         else:
             tools_box.label(text="Preferences unavailable", icon='ERROR')
 
@@ -3844,9 +3819,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         # ── Quick actions ─────────────────────────────────────────────────
         # Always draw buttons directly - in Blender 5.x hasattr(bpy.types, ...)
         # may return False even for registered operators (RECURRING BUG #1).
-        row = layout.row(align=True)
-        row.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
-        row.operator("fo4.install_python_deps", text="Re-install Deps", icon='FILE_REFRESH')
+        layout.operator("fo4.self_test", text="Environment Check", icon='CHECKMARK')
         # Restart button: uses a timer to defer bpy.ops.wm.quit_blender() so it
         # runs after the confirm popup is closed, avoiding the Blender 5.0.1
         # EXCEPTION_ACCESS_VIOLATION (BLI_addhead / wm_exit_schedule_delayed).
