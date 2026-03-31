@@ -4036,16 +4036,10 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
 classes = (
     FO4_PT_MainPanel,
     FO4_PT_SetupPanel,
-    # AI Generation sub-panels (children of FO4_PT_SetupPanel, nested inside Setup & Status)
+    # AI Generation sub-panels nested inside Setup & Status
     FO4_PT_SetupAIHunyuan3D,
     FO4_PT_SetupAIGradio,
     FO4_PT_SetupAIHyMotion,
-    # Top-level AI / tool panels (direct children of FO4_PT_main_panel, appear near top of sidebar)
-    FO4_PT_GameAssetsLibraryPanel,
-    FO4_PT_ToolsLinks,
-    FO4_PT_SetupAIShapE,
-    FO4_PT_SetupAIPointE,
-    FO4_PT_SetupAIDiffusers,
     FO4_PT_MeshPanel,
     FO4_PT_TexturePanel,
     # Texture Conversion sub-panel (child of FO4_PT_texture_panel)
