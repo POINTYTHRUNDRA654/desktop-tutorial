@@ -203,7 +203,7 @@
       "provider": "github",
       "owner": "POINTYTHRUNDRA654",
       "repo": "desktop-tutorial",
-      "releaseType": "release"
+      "releaseType": "prerelease"
     },
     "mac": {
       "target": "dmg",
