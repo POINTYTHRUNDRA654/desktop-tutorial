@@ -18,6 +18,8 @@ interface TestStep {
     action: 'spawn' | 'teleport' | 'execute-console' | 'wait' | 'interact' | 'screenshot';
     parameters: Record<string, any>;
     description: string;
+    expectedResult: string;
+    riskAreas: string[];
 }
 
 interface TestRun {
@@ -160,19 +162,17 @@ const Holodeck = () => {
                             <button
                                 key={scenario.id}
                                 onClick={() => setActiveScenario(scenario)}
-                                className={`w-full text-left p-3 rounded-lg border transition-all ${
-                                    activeScenario?.id === scenario.id
+                                className={`w-full text-left p-3 rounded-lg border transition-all ${activeScenario?.id === scenario.id
                                         ? 'bg-purple-900/30 border-purple-700/50 ring-1 ring-purple-500/50'
                                         : 'bg-slate-800/30 border-slate-700/30 hover:border-slate-700'
-                                }`}
+                                    }`}
                             >
                                 <div className="flex items-start justify-between gap-2 mb-1">
                                     <span className="text-sm">{getCategoryIcon(scenario.category)}</span>
-                                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                                        scenario.severity === 'critical' ? 'bg-red-900/50' :
-                                        scenario.severity === 'major' ? 'bg-yellow-900/50' :
-                                        'bg-blue-900/50'
-                                    }`}>
+                                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${scenario.severity === 'critical' ? 'bg-red-900/50' :
+                                            scenario.severity === 'major' ? 'bg-yellow-900/50' :
+                                                'bg-blue-900/50'
+                                        }`}>
                                         {scenario.severity}
                                     </span>
                                 </div>
@@ -293,11 +293,10 @@ const Holodeck = () => {
                                         testRuns.filter(r => r.scenarioId === activeScenario.id).map((run) => (
                                             <div
                                                 key={run.id}
-                                                className={`p-3 rounded border text-xs ${
-                                                    run.status === 'pass'
+                                                className={`p-3 rounded border text-xs ${run.status === 'pass'
                                                         ? 'bg-green-900/20 border-green-700/50'
                                                         : 'bg-red-900/20 border-red-700/50'
-                                                }`}
+                                                    }`}
                                             >
                                                 <div className="flex items-center justify-between mb-1">
                                                     <span className={`font-bold ${run.status === 'pass' ? 'text-green-300' : 'text-red-300'}`}>

@@ -239,9 +239,19 @@ export class VoiceService {
       this.recognition.onresult = (event: SpeechRecognitionEvent) => {
         const result = event.results[0];
         if (result.isFinal) {
-          const transcript = result[0].transcript.trim();
-          console.log('[VoiceService] Browser STT result:', transcript);
-          this.onTranscription?.(transcript, this.currentSessionId);
+          const alternative = result[0];
+          const transcript = alternative.transcript.trim();
+          const confidence = alternative.confidence || 0;
+
+          console.log('[VoiceService] Browser STT result:', transcript, 'confidence:', confidence);
+
+          // Only process if transcript is non-empty AND confidence is above 0.5
+          // This prevents "hearing silence" or very low-confidence noise as commands
+          if (transcript.length > 0 && confidence >= 0.5) {
+            this.onTranscription?.(transcript, this.currentSessionId);
+          } else {
+            console.log('[VoiceService] Ignoring STT result - insufficient confidence or empty:', { transcript: transcript.length, confidence });
+          }
         }
       };
 
@@ -407,8 +417,13 @@ export class VoiceService {
             if (this.shouldStop) return;
 
             if (result && result.success && result.text) {
-              // Pass session ID with transcription
-              this.onTranscription?.(result.text.trim(), this.currentSessionId);
+              const trimmedText = result.text.trim();
+              // Only pass non-empty transcriptions to prevent "hearing silence"
+              if (trimmedText.length > 0) {
+                this.onTranscription?.(trimmedText, this.currentSessionId);
+              } else {
+                console.log('[VoiceService] Ignoring empty transcription from backend');
+              }
             } else {
               const errorMsg = result?.error || 'Unknown transcription error';
               console.warn('Backend transcription failed:', errorMsg);
