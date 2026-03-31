@@ -3,6 +3,7 @@ name: Build and Deploy Desktop App
 on:
   push:
     branches: [ master ]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -28,19 +29,10 @@ jobs:
       - name: Build app
         run: npm run build
 
-      - name: Package Windows installer
-        run: npm run package:win
+      - name: Run prepackage steps
+        run: npm run prepackage
+
+      - name: Package and publish to GitHub Releases
+        run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Windows installer artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Mossy-Desktop-Installer
-          path: release/*.exe
-
-      - name: Upload build output
-        uses: actions/upload-artifact@v4
-        with:
-          name: Mossy-Build-Output
-          path: dist/**

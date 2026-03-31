@@ -82,8 +82,8 @@ export class AutoUpdaterService {
   private configureUpdater() {
     if (this.isDevMode || !this.autoUpdater) return;
 
-    // Allow prerelease versions in development
-    this.autoUpdater.allowPrerelease = process.env.NODE_ENV === 'development';
+    // Allow prerelease updates — required for the alpha release channel
+    this.autoUpdater.allowPrerelease = true;
 
     // Auto-download is disabled - we want user approval first
     this.autoUpdater.autoDownload = false;
