@@ -13,6 +13,9 @@ on:
       - "blender_manifest.toml"
       - "build_addon.py"
       - ".github/workflows/build.yml"
+    # Also trigger on version tags so the release step below attaches zips
+    tags:
+      - "v*"
 
   # Also build on pull requests so reviewers can download and test zips
   # directly from the PR's Checks / Actions tab.
@@ -27,10 +30,10 @@ on:
   workflow_dispatch:
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Permissions – read-only; zips are no longer committed back to the repo
+# Permissions
 # ─────────────────────────────────────────────────────────────────────────────
 permissions:
-  contents: read
+  contents: write   # needed to create/update GitHub Releases
 
 jobs:
   build:
@@ -44,7 +47,7 @@ jobs:
 
       # ── 2. Run the build script ────────────────────────────────────────────
       - name: Build zips (all Blender variants)
-        run: python3 build_addon.py --outdir .
+        run: python3 build_addon.py --outdir dist
 
       # ── 3. Run the integrity tests to catch regressions ───────────────────
       - name: Run addon integrity tests
@@ -55,5 +58,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fallout4-addon-zips
-          path: blender_game_tools-v*-blender*.zip
+          path: dist/blender_game_tools-v*-blender*.zip
+          if-no-files-found: error
           retention-days: 90
+
+      # ── 5. On a version tag push: create / update a GitHub Release ─────────
+      #       Testers can then download directly from the Releases page.
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/blender_game_tools-v*-blender*.zip
+          generate_release_notes: true
