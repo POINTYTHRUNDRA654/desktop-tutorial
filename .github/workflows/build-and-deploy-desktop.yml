@@ -4,6 +4,9 @@ on:
   push:
     branches: [ master ]
 
+permissions:
+  contents: write
+
 jobs:
   build-and-package:
     runs-on: windows-latest
@@ -27,12 +30,14 @@ jobs:
 
       - name: Package Windows installer
         run: npm run package:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Windows installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: Mossy-Desktop-Installer
-          path: dist-electron/*.exe
+          path: release/*.exe
 
       - name: Upload build output
         uses: actions/upload-artifact@v4
