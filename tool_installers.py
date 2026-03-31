@@ -544,26 +544,64 @@ def install_niftools(blender_version: str = "3.6") -> tuple[bool, str]:
         return False, f"Niftools download failed: {exc}"
 
     # ── 3. Install into Blender ───────────────────────────────────────────
+    # bpy.ops calls must run on Blender's main thread.  When this function is
+    # invoked from a background install thread, calling bpy.ops directly
+    # triggers UI redraws with a restricted context (_RestrictContext) that
+    # lacks a ``scene`` attribute, causing AttributeError in any panel poll()
+    # method that accesses context.scene (including third-party add-ons such
+    # as BlenderBIM).  Schedule the ops on the main thread via
+    # bpy.app.timers and synchronise via threading.Event.
+    import threading as _threading
+
+    _result = [None, None]  # index 0: bool success, index 1: str message
+    _done = _threading.Event()
+    _zip_str = str(zip_path)
+    _ver = version_tag
+    _url = release_url
+
+    def _do_install():
+        try:
+            import bpy as _bpy
+            _bpy.ops.preferences.addon_install(filepath=_zip_str, overwrite=True)
+            try:
+                _bpy.ops.preferences.addon_enable(module="io_scene_niftools")
+            except Exception:
+                # On Blender 4.2+ the add-on is legacy and cannot be enabled
+                # until "Allow Legacy Add-ons" is turned on in Preferences.
+                pass
+            suffix = (
+                " If running Blender 4.2+, enable 'Allow Legacy Add-ons' in "
+                "Edit → Preferences → Add-ons, then enable "
+                "'NetImmerse/Gamebryo (.nif)'."
+                if _bpy.app.version >= (4, 2, 0) else ""
+            )
+            _result[0] = True
+            _result[1] = (
+                f"Niftools {_ver} installed successfully.{suffix} "
+                f"Credit: Niftools Team - {_url}"
+            )
+        except Exception as exc:
+            _result[0] = False
+            _result[1] = f"Niftools install failed: {exc}"
+        finally:
+            _done.set()
+        return None  # deregisters the timer
+
     try:
         import bpy as _bpy
-        _bpy.ops.preferences.addon_install(filepath=str(zip_path), overwrite=True)
-        try:
-            _bpy.ops.preferences.addon_enable(module="io_scene_niftools")
-        except Exception:
-            # On Blender 4.2+ the add-on is legacy and cannot be enabled until
-            # "Allow Legacy Add-ons" is turned on in Preferences.
-            pass
-        suffix = (
-            " If running Blender 4.2+, enable 'Allow Legacy Add-ons' in "
-            "Edit → Preferences → Add-ons, then enable 'NetImmerse/Gamebryo (.nif)'."
-            if _bpy.app.version >= (4, 2, 0) else ""
-        )
-        return True, (
-            f"Niftools {version_tag} installed successfully.{suffix} "
-            f"Credit: Niftools Team - {release_url}"
-        )
-    except Exception as e:
-        return False, f"Niftools install failed: {e}"
+        if _threading.current_thread() is _threading.main_thread():
+            # Already on the main thread – call directly without a timer to
+            # avoid a self-deadlock from _done.wait().
+            _do_install()
+        else:
+            _bpy.app.timers.register(_do_install, first_interval=0.0, persistent=False)
+            _done.wait(timeout=30)
+    except Exception as exc:
+        return False, f"Niftools install failed: {exc}"
+
+    if _result[0] is None:
+        return False, "Niftools install timed out waiting for main thread"
+    return bool(_result[0]), str(_result[1])
 
 
 
@@ -683,17 +721,53 @@ def install_pynifly() -> tuple[bool, str]:
         )
 
     # ── 3. Install into Blender ───────────────────────────────────────────
+    # bpy.ops calls must run on Blender's main thread.  When this function is
+    # invoked from a background install thread, calling bpy.ops directly
+    # triggers UI redraws with a restricted context (_RestrictContext) that
+    # lacks a ``scene`` attribute, causing AttributeError in any panel poll()
+    # method that accesses context.scene (including third-party add-ons such
+    # as BlenderBIM).  Schedule the ops on the main thread via
+    # bpy.app.timers and synchronise via threading.Event.
+    import threading as _threading
+
+    _result = [None, None]  # index 0: bool success, index 1: str message
+    _done = _threading.Event()
+    _zip_str = str(zip_path)
+    _ver = version_tag
+
+    def _do_install():
+        try:
+            import bpy as _bpy
+            _bpy.ops.preferences.addon_install(filepath=_zip_str, overwrite=True)
+            _bpy.ops.preferences.addon_enable(module="PyNifly")
+            _configure_tool_paths()
+            _result[0] = True
+            _result[1] = (
+                f"PyNifly {_ver} installed from {Path(_zip_str).name}. "
+                f"Credit: BadDog (BadDogSkyrim) - https://github.com/BadDogSkyrim/PyNifly"
+            )
+        except Exception as exc:
+            _result[0] = False
+            _result[1] = f"PyNifly install failed: {exc}"
+        finally:
+            _done.set()
+        return None  # deregisters the timer
+
     try:
-        import bpy  # available when running inside Blender
-        bpy.ops.preferences.addon_install(filepath=str(zip_path), overwrite=True)
-        bpy.ops.preferences.addon_enable(module="PyNifly")
-        _configure_tool_paths()
-        return True, (
-            f"PyNifly {version_tag} installed from {zip_path.name}. "
-            f"Credit: BadDog (BadDogSkyrim) - https://github.com/BadDogSkyrim/PyNifly"
-        )
-    except Exception as e:
-        return False, f"PyNifly install failed: {e}"
+        import bpy as _bpy
+        if _threading.current_thread() is _threading.main_thread():
+            # Already on the main thread – call directly without a timer to
+            # avoid a self-deadlock from _done.wait().
+            _do_install()
+        else:
+            _bpy.app.timers.register(_do_install, first_interval=0.0, persistent=False)
+            _done.wait(timeout=30)
+    except Exception as exc:
+        return False, f"PyNifly install failed: {exc}"
+
+    if _result[0] is None:
+        return False, "PyNifly install timed out waiting for main thread"
+    return bool(_result[0]), str(_result[1])
 
 
 def install_torch_deps(target_path: "str | Path | None" = None) -> tuple[bool, str]:
