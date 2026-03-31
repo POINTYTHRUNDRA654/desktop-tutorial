@@ -113,7 +113,7 @@ def _build_hunyuan3d_candidates() -> list:
     The tools-root location (set by the addon installer or the user's
     ``tools_root`` preference) is checked first so that the auto-installed
     copy on D:\\blender_tools takes priority over any stray clone in the
-    user's home directory that might be missing infer.py.
+    user's home directory that might be missing the hy3dgen package.
     """
     from . import tool_installers as _tli
 
@@ -152,8 +152,12 @@ def _build_hunyuan3d_candidates() -> list:
 
 
 def _is_valid_hunyuan_install(path: str) -> bool:
-    """Return True if *path* is a Hunyuan3D-2 directory that contains infer.py."""
-    return os.path.isdir(path) and os.path.exists(os.path.join(path, "infer.py"))
+    """Return True if *path* is a Hunyuan3D-2 directory with the hy3dgen package.
+
+    The hy3dgen/ sub-directory is the canonical marker for a complete clone of
+    Tencent-Hunyuan/Hunyuan3D-2.  The old infer.py no longer exists in the repo.
+    """
+    return os.path.isdir(path) and os.path.isdir(os.path.join(path, "hy3dgen"))
 
 
 def check_hunyuan3d_availability():
@@ -194,17 +198,17 @@ def check_hunyuan3d_availability():
 
     candidates = _build_hunyuan3d_candidates()
 
-    # First pass: find a directory that actually contains infer.py
+    # First pass: find a directory that actually contains the hy3dgen package
     for path in candidates:
         if _is_valid_hunyuan_install(path):
             result = True, f"Hunyuan3D-2 available at: {path}"
             HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR = result
             return result
 
-    # Second pass: report any directory found but missing infer.py
+    # Second pass: report any directory found but missing the hy3dgen package
     for path in candidates:
         if os.path.isdir(path):
-            result = False, f"Hunyuan3D-2 found at {path} but infer.py not found"
+            result = False, f"Hunyuan3D-2 found at {path} but hy3dgen package not found"
             HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR = result
             return result
 
@@ -220,12 +224,17 @@ def check_hunyuan3d_availability():
 def generate_mesh_from_text(prompt, output_path=None, resolution=256):
     """
     Generate a 3D mesh from a text prompt using Hunyuan3D-2.
-    
+
+    Hunyuan3D-2 uses a text-conditioned DiT pipeline.  The inference is run in
+    a subprocess so that the hy3dgen package (which lives inside the cloned repo
+    and requires torch) is imported in an isolated environment rather than
+    polluting Blender's embedded Python.
+
     Args:
         prompt (str): Text description of the 3D model
         output_path (str): Path to save the generated mesh (optional)
-        resolution (int): Resolution of the generated mesh
-        
+        resolution (int): Unused – kept for API compatibility.
+
     Returns:
         tuple: (success: bool, object/error_message)
     """
@@ -242,23 +251,52 @@ def generate_mesh_from_text(prompt, output_path=None, resolution=256):
             (p for p in _build_hunyuan3d_candidates() if _is_valid_hunyuan_install(p)),
             None,
         )
+        if not hunyuan_path:
+            return False, "Hunyuan3D-2 installation not found"
 
         # Choose / create an output directory
         if output_path is None:
             output_path = tempfile.mkdtemp(prefix="hunyuan3d_text_")
         os.makedirs(output_path, exist_ok=True)
 
-        # Run Hunyuan3D-2 text-to-3D inference
-        cmd = [
-            sys.executable, "infer.py",
-            "--prompt", prompt,
-            "--output_dir", output_path,
-            "--resolution", str(resolution),
-        ]
-        result = subprocess.run(
-            cmd, cwd=hunyuan_path,
-            capture_output=True, text=True, timeout=600
+        # Build an inline inference script so we don't need infer.py to exist.
+        # sys.path.insert(0, hunyuan_path) exposes the hy3dgen package to the
+        # subprocess even though it is not installed as a pip package.
+        # The script is written to a private temp dir (not the user-supplied
+        # output_path) to avoid placing executable code in a world-writable
+        # location.
+        out_file = os.path.join(output_path, "output.glb")
+        _script = (
+            "import sys, os\n"
+            f"sys.path.insert(0, {repr(hunyuan_path)})\n"
+            "from hy3dgen.shapegen import Hunyuan3DDiTFlowMatchingPipeline\n"
+            f"prompt = {repr(prompt)}\n"
+            f"out_file = {repr(out_file)}\n"
+            "pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(\n"
+            "    'tencent/Hunyuan3D-2')\n"
+            "mesh = pipeline(prompt=prompt)[0]\n"
+            "mesh.export(out_file)\n"
+            "print(f'Saved mesh to {out_file}')\n"
         )
+
+        _script_dir = tempfile.mkdtemp(prefix="hy3d_script_")
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.py', delete=False, dir=_script_dir
+        ) as _f:
+            _f.write(_script)
+            _script_path = _f.name
+
+        try:
+            result = subprocess.run(
+                [sys.executable, _script_path],
+                capture_output=True, text=True, timeout=600,
+            )
+        finally:
+            try:
+                os.unlink(_script_path)
+            except OSError:
+                pass
+
         if result.returncode != 0:
             return False, f"Hunyuan3D-2 inference failed:\n{result.stderr}"
 
@@ -285,12 +323,16 @@ def generate_mesh_from_image(image_path, output_path=None, resolution=256):
     """
     Generate a full 3D mesh from a 2D image using Hunyuan3D-2 AI model.
     This is different from height map conversion - it creates a complete 3D object.
-    
+
+    The inference is run in a subprocess so that the hy3dgen package (which
+    lives inside the cloned repo and requires torch) is imported in an isolated
+    environment rather than polluting Blender's embedded Python.
+
     Args:
         image_path (str): Path to the input image
         output_path (str): Path to save the generated mesh (optional)
-        resolution (int): Resolution of the generated mesh
-        
+        resolution (int): Unused – kept for API compatibility.
+
     Returns:
         tuple: (success: bool, object/error_message)
     """
@@ -305,26 +347,65 @@ def generate_mesh_from_image(image_path, output_path=None, resolution=256):
         import subprocess
         import glob as _glob
 
-        possible_paths = _build_hunyuan3d_candidates()
         hunyuan_path = next(
-            (p for p in possible_paths if _is_valid_hunyuan_install(p)),
+            (p for p in _build_hunyuan3d_candidates() if _is_valid_hunyuan_install(p)),
             None,
         )
+        if not hunyuan_path:
+            return False, "Hunyuan3D-2 installation not found"
 
         if output_path is None:
             output_path = tempfile.mkdtemp(prefix="hunyuan3d_img_")
         os.makedirs(output_path, exist_ok=True)
 
-        cmd = [
-            sys.executable, "infer.py",
-            "--image", image_path,
-            "--output_dir", output_path,
-            "--resolution", str(resolution),
-        ]
-        result = subprocess.run(
-            cmd, cwd=hunyuan_path,
-            capture_output=True, text=True, timeout=600
+        # Build an inline inference script so we don't need infer.py to exist.
+        # sys.path.insert(0, hunyuan_path) exposes the hy3dgen package to the
+        # subprocess even though it is not installed as a pip package.
+        # The script is written to a private temp dir (not the user-supplied
+        # output_path) to avoid placing executable code in a world-writable
+        # location.
+        out_file = os.path.join(output_path, "output.glb")
+        _script = (
+            "import sys, os\n"
+            f"sys.path.insert(0, {repr(hunyuan_path)})\n"
+            "from PIL import Image\n"
+            "from hy3dgen.rembg import BackgroundRemover\n"
+            "from hy3dgen.shapegen import Hunyuan3DDiTFlowMatchingPipeline\n"
+            "from hy3dgen.texgen import Hunyuan3DPaintPipeline\n"
+            f"image_path = {repr(image_path)}\n"
+            f"out_file = {repr(out_file)}\n"
+            "image = Image.open(image_path).convert('RGBA')\n"
+            "if image.mode == 'RGB':\n"
+            "    rembg = BackgroundRemover()\n"
+            "    image = rembg(image)\n"
+            "pipeline_shape = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(\n"
+            "    'tencent/Hunyuan3D-2')\n"
+            "pipeline_tex = Hunyuan3DPaintPipeline.from_pretrained(\n"
+            "    'tencent/Hunyuan3D-2')\n"
+            "mesh = pipeline_shape(image=image)[0]\n"
+            "mesh = pipeline_tex(mesh, image=image)\n"
+            "mesh.export(out_file)\n"
+            "print(f'Saved mesh to {out_file}')\n"
         )
+
+        _script_dir = tempfile.mkdtemp(prefix="hy3d_script_")
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.py', delete=False, dir=_script_dir
+        ) as _f:
+            _f.write(_script)
+            _script_path = _f.name
+
+        try:
+            result = subprocess.run(
+                [sys.executable, _script_path],
+                capture_output=True, text=True, timeout=600,
+            )
+        finally:
+            try:
+                os.unlink(_script_path)
+            except OSError:
+                pass
+
         if result.returncode != 0:
             return False, f"Hunyuan3D-2 inference failed:\n{result.stderr}"
 

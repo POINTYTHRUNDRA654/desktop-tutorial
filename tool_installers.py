@@ -1155,8 +1155,9 @@ def install_hunyuan3d() -> tuple[bool, str]:
     """
     dest = _ensure_tools_dir("Hunyuan3D-2")
 
-    # A valid install requires infer.py - README.md alone means a partial clone.
-    if (dest / "infer.py").exists():
+    # A valid install has the hy3dgen package directory.
+    # README.md alone means a partial / interrupted clone.
+    if (dest / "hy3dgen").is_dir():
         return True, f"Hunyuan3D-2 already present at {dest}"
 
     git_exe = shutil.which("git")
@@ -1165,7 +1166,7 @@ def install_hunyuan3d() -> tuple[bool, str]:
             "git not found on PATH - cannot clone Hunyuan3D-2.\n"
             "Install Git from https://git-scm.com/ then try again.\n"
             "Or clone manually:\n"
-            "  git clone https://github.com/Tencent/Hunyuan3D-2.git"
+            "  git clone https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git"
         )
 
     try:
@@ -1179,14 +1180,14 @@ def install_hunyuan3d() -> tuple[bool, str]:
             )
             if result.returncode != 0:
                 return False, (
-                    f"Hunyuan3D-2 directory exists at {dest} but infer.py is missing "
+                    f"Hunyuan3D-2 directory exists at {dest} but the hy3dgen package is missing "
                     f"and git pull failed:\n{result.stderr or result.stdout}\n"
                     "Delete the folder manually and click Install again."
                 )
         elif dest.is_dir():
             # Non-git directory present but incomplete - guide user to remove it.
             return False, (
-                f"Hunyuan3D-2 directory exists at {dest} but infer.py is missing "
+                f"Hunyuan3D-2 directory exists at {dest} but the hy3dgen package is missing "
                 "and it is not a git repository.\n"
                 "Delete the folder manually and click Install again."
             )
@@ -1194,7 +1195,7 @@ def install_hunyuan3d() -> tuple[bool, str]:
             dest.mkdir(parents=True, exist_ok=True)
             result = subprocess.run(
                 [git_exe, "clone", "--depth", "1",
-                 "https://github.com/Tencent/Hunyuan3D-2.git", str(dest)],
+                 "https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git", str(dest)],
                 capture_output=True, text=True, timeout=600,
             )
             if result.returncode != 0:
