@@ -1843,8 +1843,10 @@ class TestKnowledgeBaseDirectoryBundled(unittest.TestCase):
         """knowledge_base/ must contain at least one .txt or .md file.
 
         An empty directory causes knowledge_helpers.status() to return
-        (False, 'Knowledge base empty at ...'), which is misleading for
-        a fresh install with the default configuration.
+        (True, '...no snippets loaded...'), which is not an error, but shipping
+        at least a README.md in the repo gives users useful onboarding content
+        and confirms that load_snippets() returns at least one snippet for a
+        default install.
         """
         import os
         addon_root = os.path.dirname(os.path.abspath(__file__))
@@ -1861,6 +1863,201 @@ class TestKnowledgeBaseDirectoryBundled(unittest.TestCase):
             "knowledge_base/ is empty.  Add at least a README.md so "
             "load_snippets() returns at least one snippet for a default install.",
         )
+
+
+class TestTryImportNoBpyContext(unittest.TestCase):
+    """_try_import() must return None silently when __package__ is empty.
+
+    Pytest 9.x imports __init__.py with __package__ == "" (no Blender package
+    context).  Previously _try_import() computed full = ".preferences" and
+    called importlib.import_module(".preferences") without a package argument,
+    producing a noisy TypeError traceback for every single submodule.  The
+    guard at the top of _try_import now returns None immediately in that case.
+    """
+
+    def test_try_import_returns_none_when_package_empty(self):
+        """_try_import must have a guard for falsy __package__."""
+        with open(os.path.join(ADDON_DIR, "__init__.py")) as fh:
+            source = fh.read()
+        # The guard must appear before the f-string that builds `full`.
+        # 1500 chars is enough to cover the docstring (~750 chars) plus guard.
+        func_start = source.find("def _try_import(")
+        self.assertGreater(func_start, -1, "_try_import not found in __init__.py")
+        func_body = source[func_start : func_start + 1500]
+        self.assertIn(
+            "if not __package__",
+            func_body,
+            "_try_import must guard against falsy __package__ to avoid "
+            "TypeError tracebacks when pytest imports __init__.py outside "
+            "a Blender extension context.",
+        )
+        # The guard must come BEFORE the line that builds `full`
+        guard_pos = func_body.find("if not __package__")
+        full_pos = func_body.find("full = ")
+        self.assertLess(
+            guard_pos,
+            full_pos,
+            "The 'if not __package__: return None' guard must appear before "
+            "'full = f\"{__package__}...' to prevent the TypeError.",
+        )
+
+    def test_no_traceback_printed_for_empty_package(self):
+        """Importing __init__.py with __package__='' must not print tracebacks."""
+        import io
+        import importlib.util
+        import types
+
+        # Build a minimal module object that mimics what pytest does:
+        # __package__ is set to "" (empty string).
+        source_path = os.path.join(ADDON_DIR, "__init__.py")
+        with open(source_path) as fh:
+            source = fh.read()
+
+        # Compile to a code object so we can exec it with a controlled namespace
+        code = compile(source, source_path, "exec")
+        fake_mod = types.ModuleType("_test_init_no_pkg")
+        fake_mod.__package__ = ""  # simulate pytest context
+        fake_mod.__file__ = source_path
+        fake_mod.__spec__ = None
+
+        captured = io.StringIO()
+        import sys as _sys
+        old_stdout = _sys.stdout
+        old_stderr = _sys.stderr
+        _sys.stdout = captured
+        _sys.stderr = captured
+        try:
+            # exec() is safe here: we're running the project's own source file
+            # (not user-supplied input) in an isolated module namespace to
+            # simulate pytest's import context.
+            exec(code, fake_mod.__dict__)  # noqa: S102
+        except Exception:
+            pass  # top-level import failures (bpy missing) are expected
+        finally:
+            _sys.stdout = old_stdout
+            _sys.stderr = old_stderr
+
+        output = captured.getvalue()
+        self.assertNotIn(
+            "TypeError",
+            output,
+            "No TypeError traceback should be printed when __package__ is empty. "
+            "Got output:\n" + output[:500],
+        )
+
+
+class TestInstallLibiglHeadersCheck(unittest.TestCase):
+    """install_libigl() must detect missing Python headers and fail clearly.
+
+    libigl >= 2.5 uses scikit-build-core + CMake and falls back to a source
+    build whenever no binary wheel is available for the running interpreter.
+    Blender's bundled Python does NOT ship C development headers (the
+    ``Include/`` directory), so the CMake configuration step always fails with:
+
+        Development: Cannot find the directory ".../python/Include"
+
+    The fix is a pre-flight check in install_libigl() that detects the missing
+    headers via ``sysconfig.get_path("include")`` and returns a clear,
+    actionable error message instead of dumping a wall of CMake output.
+    """
+
+    def test_headers_preflight_check_present(self):
+        """install_libigl must guard against missing Python development headers."""
+        with open(os.path.join(ADDON_DIR, "tool_installers.py")) as fh:
+            source = fh.read()
+        tree = ast.parse(source)
+        fn_node = next(
+            (n for n in ast.walk(tree)
+             if isinstance(n, ast.FunctionDef) and n.name == "install_libigl"),
+            None,
+        )
+        self.assertIsNotNone(fn_node, "install_libigl not found in tool_installers.py")
+
+        # The function body must reference sysconfig (for get_path("include"))
+        fn_src = ast.get_source_segment(source, fn_node) or ""
+        self.assertIn(
+            "sysconfig",
+            fn_src,
+            "install_libigl must use sysconfig to locate Python include dir "
+            "and detect missing C development headers before calling pip.",
+        )
+
+    def test_headers_preflight_before_pip_call(self):
+        """The headers pre-flight check must appear before _pip_install(['libigl'])."""
+        with open(os.path.join(ADDON_DIR, "tool_installers.py")) as fh:
+            source = fh.read()
+
+        fn_start = source.find("def install_libigl(")
+        self.assertGreater(fn_start, -1, "install_libigl not found")
+        # Find the next function definition to bound the search
+        fn_end = source.find("\ndef ", fn_start + 1)
+        fn_body = source[fn_start:fn_end] if fn_end > fn_start else source[fn_start:]
+
+        sysconfig_pos = fn_body.find("sysconfig")
+        pip_pos = fn_body.find("_pip_install")
+        self.assertGreater(sysconfig_pos, -1, "sysconfig not found in install_libigl")
+        self.assertGreater(pip_pos, -1, "_pip_install not found in install_libigl")
+        self.assertLess(
+            sysconfig_pos,
+            pip_pos,
+            "sysconfig header check must appear BEFORE the _pip_install call "
+            "so that the pre-flight guard fires before pip attempts a source build.",
+        )
+
+    def test_headers_check_returns_false_with_actionable_message(self):
+        """install_libigl must return (False, <informative str>) when headers missing."""
+        import importlib
+        import unittest.mock as mock
+        import sysconfig as _sysconfig
+
+        # Dynamically reload tool_installers so we get a fresh module object
+        # without needing bpy.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "_test_tool_installers",
+            os.path.join(ADDON_DIR, "tool_installers.py"),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        # Stub out bpy so the module-level code doesn't crash
+        import types
+        fake_bpy = types.ModuleType("bpy")
+        fake_bpy.app = types.SimpleNamespace(version=(5, 0, 0))
+        import sys as _sys
+        _sys.modules.setdefault("bpy", fake_bpy)
+        try:
+            spec.loader.exec_module(mod)
+        except Exception:
+            self.skipTest("tool_installers.py could not be loaded outside Blender")
+
+        keywords = ("libigl", "Blender", "Python", "header")
+
+        # Case 1: get_path returns a non-existent directory (Blender scenario)
+        with mock.patch.object(
+            _sysconfig, "get_path", return_value="/nonexistent/python/Include"
+        ):
+            ok, msg = mod.install_libigl()
+        self.assertFalse(ok, "install_libigl must return False when Include dir is missing")
+        for keyword in keywords:
+            self.assertIn(
+                keyword,
+                msg,
+                f"Error message must mention '{keyword}' (non-existent path case). "
+                f"Got: {msg[:300]}",
+            )
+
+        # Case 2: get_path returns None (some embedded/minimal Python builds)
+        with mock.patch.object(
+            _sysconfig, "get_path", return_value=None
+        ):
+            ok2, msg2 = mod.install_libigl()
+        self.assertFalse(ok2, "install_libigl must return False when get_path returns None")
+        for keyword in keywords:
+            self.assertIn(
+                keyword,
+                msg2,
+                f"Error message must mention '{keyword}' (None path case). "
+                f"Got: {msg2[:300]}",
+            )
 
 
 # ---------------------------------------------------------------------------
