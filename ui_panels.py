@@ -2641,7 +2641,8 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
                     for c in obj.children
                 )
             except AttributeError:
-                # bpy.data is restricted in some contexts (e.g. during addon install)
+                # obj.children may not be accessible in some restricted contexts
+                # (e.g. during addon install/register)
                 has_coll = False
 
             # Mesh name + poly count with FO4 budget indicator
@@ -3458,15 +3459,31 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
 
             guide_col.separator()
 
-            # Step 2 - Tool paths (auto-detected or manual)
+            # Step 2 - Install external tools
             if not _any_tool_ok:
-                guide_col.label(text="Step 2 - Configure Tools Root:", icon='TOOL_SETTINGS')
-                guide_col.label(
-                    text="  Set the 'Tools Root' field (Tool Paths section below)",
-                    icon='BLANK1',
+                guide_col.label(text="Step 2 - Install External Tools:", icon='TOOL_SETTINGS')
+                guide_col.operator(
+                    "fo4.install_ffmpeg",
+                    text="  Install FFmpeg",
+                    icon='PACKAGE',
+                )
+                guide_col.operator(
+                    "fo4.install_nvtt",
+                    text="  Install NVTT (nvcompress)",
+                    icon='PACKAGE',
+                )
+                guide_col.operator(
+                    "fo4.install_texconv",
+                    text="  Install texconv",
+                    icon='PACKAGE',
+                )
+                guide_col.operator(
+                    "fo4.install_niftools",
+                    text="  Install Niftools Add-on",
+                    icon='PACKAGE',
                 )
                 guide_col.label(
-                    text="  Tools are auto-detected from that folder on next start",
+                    text="  OR set 'Tools Root' (Tool Paths below) to use existing installations",
                     icon='BLANK1',
                 )
             else:
@@ -3582,20 +3599,22 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         tools_box = layout.box()
         tools_box.label(text="Connected External Tools", icon='TOOL_SETTINGS')
         if preferences:
-            tool_checks = [
-                (ffmpeg_path,     "ffmpeg"),
-                (nvcompress_path, "NVTT (nvcompress)"),
-                (texconv_path,    "texconv"),
+            tool_checks_with_ops = [
+                (ffmpeg_path,     "ffmpeg",            "fo4.install_ffmpeg"),
+                (nvcompress_path, "NVTT (nvcompress)", "fo4.install_nvtt"),
+                (texconv_path,    "texconv",           "fo4.install_texconv"),
             ]
             any_missing = False
-            for path, label in tool_checks:
+            for path, label, install_op in tool_checks_with_ops:
                 if path:
                     tools_box.label(text=f"✓ {label}: {path}", icon='CHECKMARK')
                 else:
-                    tools_box.label(text=f"✗ {label}: not configured", icon='ERROR')
+                    col = tools_box.column(align=True)
+                    col.label(text=f"✗ {label}: not configured", icon='ERROR')
+                    col.operator(install_op, text=f"Install {label}", icon='IMPORT')
                     any_missing = True
             if any_missing:
-                tools_box.label(text="Install tools below - paths auto-save and persist", icon='INFO')
+                tools_box.label(text="Paths auto-save and persist after install", icon='INFO')
         else:
             tools_box.label(text="Preferences unavailable", icon='ERROR')
 
