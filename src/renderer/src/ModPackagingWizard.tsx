@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import type { ModInfo, StructureValidation, ArchiveSettings, ArchiveResult, NexusPrep } from '../../shared/types';
+import type { ArchiveSettings, NexusPrep } from '../../shared/types';
 import {
   Box,
   Stepper,
@@ -98,10 +98,12 @@ interface PackagingDraft {
   generatedReadme: string;
   changelogEntries: string[];
   archiveFormat: '7z' | 'zip' | 'fomod';
-  compressionLevel: 0 | 1 | 3 | 5 | 7 | 9;
+  compressionLevel: number;
   createFomod: boolean;
   currentStep: number;
 }
+
+interface ArchiveResult { success: boolean; archivePath?: string; size?: number; fileCount?: number; error?: string }
 
 interface ModInfo {
   name: string;
@@ -333,10 +335,7 @@ export default function ModPackagingWizard() {
     setLoading(true);
     setError('');
     try {
-      const path = await window.electron.api.pickDirectory({
-        title: 'Select Mod Folder',
-        properties: ['openDirectory'],
-      });
+      const path = await window.electron.api.pickDirectory('Select Mod Folder');
 
       if (path) {
         setModPath(path);

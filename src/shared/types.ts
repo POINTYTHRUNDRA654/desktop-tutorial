@@ -147,8 +147,8 @@ export interface FOMODValidationWarning { severity?: 'error' | 'warning' | 'info
 export interface FOMODValidation { success?: boolean; valid?: boolean; errors: FOMODValidationError[]; warnings: FOMODValidationWarning[]; fileCount?: number; estimatedSize?: number }
 export interface ModInfo { name: string; version: string; author: string; description?: string; category?: string; tags?: string[]; nexusId?: string; website?: string }
 export interface StructureValidation { valid: boolean; errors: string[]; warnings: string[]; fileCount: number; estimatedSize: number }
-export interface ArchiveSettings { format: '7z' | 'zip' | 'rar'; compressionLevel: number; includeReadme: boolean; includeScreenshots: boolean; outputPath?: string }
-export interface NexusPrep { modName: string; version: string; description: string; category: string; tags: string[]; screenshots: string[]; readme: string; checks?: Record<string, any>[]; recommendations?: string[] }
+export interface ArchiveSettings { format: '7z' | 'zip' | 'rar' | 'fomod'; compressionLevel: number; includeReadme: boolean; includeScreenshots: boolean; outputPath?: string }
+export interface NexusPrep { modName: string; version: string; description: string; category: string; tags: string[]; screenshots: string[]; readme: string; checks?: Record<string, boolean>; recommendations?: string[] }
 
 export type FOMODFilePattern = { source: string; destination?: string; pattern?: string; priority?: number; isFolder?: boolean; alwaysInstall?: boolean; installIfUsable?: boolean };
 export interface FOMODPreviewResult { steps: FOMODStep[]; estimatedSize: number; fileList: string[] }

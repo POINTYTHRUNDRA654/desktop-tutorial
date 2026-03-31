@@ -137,11 +137,11 @@ export const DDSConverter: React.FC = () => {
         // Generate preview using image info API
         try {
           const imageInfo = await window.electronAPI.getImageInfo(filePath);
-          if (imageInfo && imageInfo.data) {
+          if (imageInfo && (imageInfo as any).data) {
             // Set preview as base64 data URL
             setSingleFile(prev => prev ? { 
               ...prev, 
-              preview: `data:image/${imageInfo.format || 'png'};base64,${imageInfo.data}` 
+              preview: `data:image/${imageInfo.format || 'png'};base64,${(imageInfo as any).data}` 
             } : null);
           }
         } catch (previewError) {

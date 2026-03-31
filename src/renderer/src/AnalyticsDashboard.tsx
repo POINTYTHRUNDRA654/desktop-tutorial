@@ -33,7 +33,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
   const loadAnalyticsData = useCallback(async () => {
     setLoading(true);
     try {
-      const metricsData = await window.electronAPI.getAnalyticsMetrics(timeRange);
+      const metricsData = await window.electronAPI.getAnalyticsMetrics();
       setMetrics(metricsData);
       // For now, mock the other data structures until the full API is implemented
       setBuildStats({

@@ -61,6 +61,7 @@ export const PerformanceProfiler: React.FC = () => {
 
   // Mock data generator for live profiling
   const generateMockMetrics = (): PerformanceMetrics => ({
+    timestamp: Date.now(),
     fps: {
       average: Math.random() * 30 + 40,
       min: Math.random() * 20 + 20,
@@ -596,8 +597,8 @@ export const PerformanceProfiler: React.FC = () => {
                         }))
                       }
                     >
-                      <span className="rec-severity" data-severity={bottleneck.severity}>
-                        {bottleneck.severity.toUpperCase()}
+                      <span className="rec-severity" data-severity={bottleneck.severity ?? 'medium'}>
+                        {(bottleneck.severity ?? 'UNKNOWN').toUpperCase()}
                       </span>
                       <span className="rec-description">{bottleneck.description}</span>
                     </div>

@@ -831,7 +831,7 @@ const DesktopBridge: React.FC = () => {
             }
         } catch (e: any) {
             console.error('Token regeneration failed:', e);
-            addLog('System', `Token regeneration failed: ${e?.message || e}`, 'error');
+            addLog('System', `Token regeneration failed: ${e?.message || e}`, 'err');
         }
     };
 
