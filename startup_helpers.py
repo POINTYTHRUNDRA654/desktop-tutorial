@@ -336,6 +336,19 @@ def deferred_startup():
     # in place, run a lightweight re-check so the UI panels show correct status
     # immediately after startup without the user having to click "Check Status".
     # These calls are fast (filesystem checks only; no network, no model loads).
+
+    # Safety net: re-apply the Mossy-provided PyTorch path before the tool
+    # caches below run.  mossy_link.register() calls _load_pytorch_path_from_prefs()
+    # synchronously, but get_preferences() can return None on some platforms /
+    # Blender builds during early registration (RECURRING BUG #13).  Calling it
+    # again here (2 s after load, when preferences are fully initialised) ensures
+    # the path is definitely in sys.path before the availability checks below.
+    try:
+        from . import mossy_link as _ml
+        _ml._load_pytorch_path_from_prefs()
+    except Exception as _e:
+        print(f"Mossy PyTorch path re-apply skipped: {_e}")
+
     try:
         from . import hunyuan3d_helpers as _h3d
         if _h3d:

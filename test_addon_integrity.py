@@ -1069,6 +1069,34 @@ class TestMossyLinkRegistrationOrder(unittest.TestCase):
             "_load_pytorch_path_from_prefs() depend on this property.",
         )
 
+    def test_deferred_startup_reapplies_mossy_pytorch_path(self):
+        """deferred_startup() must re-apply the Mossy PyTorch path before AI caches run.
+
+        RECURRING BUG #13: mossy_link.register() calls _load_pytorch_path_from_prefs()
+        synchronously, but get_preferences() can return None on some Blender builds /
+        platforms during early registration (before the preference store is fully
+        initialised).  If the path is not in sys.path by the time hunyuan3d_helpers,
+        hymotion_helpers, and zoedepth_helpers caches run in step 6b of
+        deferred_startup(), the AI tools are shown as unavailable at startup even when
+        the user's Mossy PyTorch path is correctly saved.
+
+        Fix: deferred_startup() (startup_helpers.py) must call
+        mossy_link._load_pytorch_path_from_prefs() as a safety net BEFORE the AI-tool
+        availability caches run in step 6b so the path is definitely in sys.path.
+        """
+        source = _read("startup_helpers.py")
+        self.assertIn(
+            "_load_pytorch_path_from_prefs",
+            source,
+            "startup_helpers.deferred_startup() must call "
+            "mossy_link._load_pytorch_path_from_prefs() before the AI-tool "
+            "availability caches run in step 6b (RECURRING BUG #13). "
+            "mossy_link.register() may have found get_preferences() returning "
+            "None during early registration, so the safety-net re-apply call "
+            "inside deferred_startup() ensures the path is in sys.path by the "
+            "time hunyuan3d_helpers / hymotion_helpers / zoedepth_helpers check.",
+        )
+
 
 # ---------------------------------------------------------------------------
 # Test 16 – PyTorch warning / tool availability cache (RECURRING BUG #11)

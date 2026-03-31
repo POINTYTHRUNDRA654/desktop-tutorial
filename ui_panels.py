@@ -1474,13 +1474,14 @@ class FO4_PT_SetupAIHyMotion(_FO4SubPanel):
 
 
 class FO4_PT_SetupAIShapE(_FO4SubPanel):
-    """Shap-E AI generation - sub-panel inside Setup & Status."""
+    """Shap-E AI generation - top-level sub-panel of the Fallout 4 sidebar."""
     bl_label = "AI: Shap-E (Text/Image to 3D)"
     bl_idname = "FO4_PT_setup_ai_shap_e"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_setup_panel"
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_order = -17
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -1518,13 +1519,14 @@ class FO4_PT_SetupAIShapE(_FO4SubPanel):
 
 
 class FO4_PT_SetupAIPointE(_FO4SubPanel):
-    """Point-E AI generation - sub-panel inside Setup & Status."""
+    """Point-E AI generation - top-level sub-panel of the Fallout 4 sidebar."""
     bl_label = "AI: Point-E (Text/Image to Point Cloud)"
     bl_idname = "FO4_PT_setup_ai_point_e"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_setup_panel"
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_order = -16
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -1566,13 +1568,14 @@ class FO4_PT_SetupAIPointE(_FO4SubPanel):
 
 
 class FO4_PT_SetupAIDiffusers(_FO4SubPanel):
-    """Diffusers / LayerDiffuse and ecosystem resources - sub-panel inside Setup & Status."""
+    """Diffusers / LayerDiffuse and ecosystem resources - top-level sub-panel of the Fallout 4 sidebar."""
     bl_label = "AI: Diffusers & Resources"
     bl_idname = "FO4_PT_setup_ai_diffusers"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_setup_panel"
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_order = -15
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -1954,13 +1957,14 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
 
 
 class FO4_PT_ToolsLinks(_FO4SubPanel):
-    """Quick links and installers for external tools - nested inside Setup & Status."""
+    """Quick links and installers for external tools - top-level sub-panel of the Fallout 4 sidebar."""
     bl_label = "External Tools"
     bl_idname = "FO4_PT_tools_links"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_setup_panel"
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_order = -18
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -2193,13 +2197,14 @@ class FO4_PT_ToolsLinks(_FO4SubPanel):
 
 
 class FO4_PT_GameAssetsLibraryPanel(_FO4SubPanel):
-    """Game asset import and asset library browser – sub-panel of Setup & Status"""
+    """Game asset import and asset library browser – top-level sub-panel of the Fallout 4 sidebar"""
     bl_label = "Game Assets & Library"
     bl_idname = "FO4_PT_game_assets_library_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Fallout 4'
-    bl_parent_id = "FO4_PT_setup_panel"
+    bl_parent_id = "FO4_PT_main_panel"
+    bl_order = -19
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -4031,13 +4036,10 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
 classes = (
     FO4_PT_MainPanel,
     FO4_PT_SetupPanel,
-    # AI Generation sub-panels (children of FO4_PT_SetupPanel)
+    # AI Generation sub-panels nested inside Setup & Status
     FO4_PT_SetupAIHunyuan3D,
     FO4_PT_SetupAIGradio,
     FO4_PT_SetupAIHyMotion,
-    FO4_PT_SetupAIShapE,
-    FO4_PT_SetupAIPointE,
-    FO4_PT_SetupAIDiffusers,
     FO4_PT_MeshPanel,
     FO4_PT_TexturePanel,
     # Texture Conversion sub-panel (child of FO4_PT_texture_panel)
@@ -4046,8 +4048,6 @@ classes = (
     FO4_PT_AnimationPanel,
     FO4_PT_RigNetPanel,
     FO4_PT_AdvisorPanel,
-    FO4_PT_ToolsLinks,
-    FO4_PT_GameAssetsLibraryPanel,
     FO4_PT_ExportPanel,
     # New panels for enhancements
     FO4_PT_BatchProcessingPanel,

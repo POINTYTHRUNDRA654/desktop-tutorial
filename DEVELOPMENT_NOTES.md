@@ -494,6 +494,64 @@ All three operators now call `self.report({'WARNING'}, _instantngp_status_report
 
 ---
 
+## ⚠️ RECURRING BUG #13 — Mossy PyTorch path not applied when Blender opens
+
+### Symptoms
+
+AI tools (RigNet, Shape-E, Point-E, Hunyuan3D, HY-Motion, ZoeDepth) show as
+unavailable on first startup even though the user has previously connected Mossy
+and Mossy sent a `set_pytorch_path` command that was saved to preferences.  The
+Blender System Console contains no error from `mossy_link`, but also no
+`[Mossy Link] Loaded PyTorch path from preferences:` message.
+
+### Root Cause
+
+`mossy_link.register()` calls `_load_pytorch_path_from_prefs()` synchronously
+during the modules registration loop.  `_load_pytorch_path_from_prefs()` calls
+`get_preferences()`, which internally does:
+
+```python
+addon = bpy.context.preferences.addons.get(_addon_name())
+return addon.preferences if addon else None
+```
+
+On some Blender builds / platforms `bpy.context.preferences.addons` is not yet
+fully populated at the time the addon's own `register()` loop runs.  When that
+happens `get_preferences()` returns `None`, the path is silently not applied, and
+the AI tool caches that run later in `deferred_startup()` step 6b see no torch.
+
+### The Fix
+
+`startup_helpers.deferred_startup()` now calls `_load_pytorch_path_from_prefs()`
+as a **safety-net** at the very beginning of step 6b — 2 seconds after Blender
+finishes loading, when `get_preferences()` is guaranteed to return the real prefs
+object.  The call is idempotent: if the path was already in `sys.path` (because
+`register()` succeeded), nothing changes.
+
+```python
+# Safety net: re-apply the Mossy-provided PyTorch path before the tool
+# caches below run.
+try:
+    from . import mossy_link as _ml
+    if _ml:
+        _ml._load_pytorch_path_from_prefs()
+except Exception as _e:
+    print(f"Mossy PyTorch path re-apply skipped: {_e}")
+```
+
+### What NOT to Do
+
+- **Do NOT remove the `_load_pytorch_path_from_prefs()` call from
+  `mossy_link.register()`**.  It handles the normal case where preferences are
+  ready at register time and must run before any torch-dependent module registers.
+- **Do NOT remove the safety-net call from `deferred_startup()` step 6b**.  It
+  handles the edge case where `get_preferences()` returned `None` during
+  `register()`.  Both calls are necessary.
+- The regression test `test_deferred_startup_reapplies_mossy_pytorch_path` in
+  `test_addon_integrity.py` enforces the safety-net call — keep it passing.
+
+---
+
 ## ⚠️ RECURRING BUG #6 — `ModuleNotFoundError: No module named 'bpy'` in multiprocessing workers
 
 ### Symptoms
