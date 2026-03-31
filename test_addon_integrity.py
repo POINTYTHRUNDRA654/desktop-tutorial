@@ -1863,6 +1863,87 @@ class TestKnowledgeBaseDirectoryBundled(unittest.TestCase):
         )
 
 
+class TestTryImportNoBpyContext(unittest.TestCase):
+    """_try_import() must return None silently when __package__ is empty.
+
+    Pytest 9.x imports __init__.py with __package__ == "" (no Blender package
+    context).  Previously _try_import() computed full = ".preferences" and
+    called importlib.import_module(".preferences") without a package argument,
+    producing a noisy TypeError traceback for every single submodule.  The
+    guard at the top of _try_import now returns None immediately in that case.
+    """
+
+    def test_try_import_returns_none_when_package_empty(self):
+        """_try_import must have a guard for falsy __package__."""
+        with open(os.path.join(ADDON_DIR, "__init__.py")) as fh:
+            source = fh.read()
+        # The guard must appear before the f-string that builds `full`.
+        # 1500 chars is enough to cover the docstring (~750 chars) plus guard.
+        func_start = source.find("def _try_import(")
+        self.assertGreater(func_start, -1, "_try_import not found in __init__.py")
+        func_body = source[func_start : func_start + 1500]
+        self.assertIn(
+            "if not __package__",
+            func_body,
+            "_try_import must guard against falsy __package__ to avoid "
+            "TypeError tracebacks when pytest imports __init__.py outside "
+            "a Blender extension context.",
+        )
+        # The guard must come BEFORE the line that builds `full`
+        guard_pos = func_body.find("if not __package__")
+        full_pos = func_body.find("full = ")
+        self.assertLess(
+            guard_pos,
+            full_pos,
+            "The 'if not __package__: return None' guard must appear before "
+            "'full = f\"{__package__}...' to prevent the TypeError.",
+        )
+
+    def test_no_traceback_printed_for_empty_package(self):
+        """Importing __init__.py with __package__='' must not print tracebacks."""
+        import io
+        import importlib.util
+        import types
+
+        # Build a minimal module object that mimics what pytest does:
+        # __package__ is set to "" (empty string).
+        source_path = os.path.join(ADDON_DIR, "__init__.py")
+        with open(source_path) as fh:
+            source = fh.read()
+
+        # Compile to a code object so we can exec it with a controlled namespace
+        code = compile(source, source_path, "exec")
+        fake_mod = types.ModuleType("_test_init_no_pkg")
+        fake_mod.__package__ = ""  # simulate pytest context
+        fake_mod.__file__ = source_path
+        fake_mod.__spec__ = None
+
+        captured = io.StringIO()
+        import sys as _sys
+        old_stdout = _sys.stdout
+        old_stderr = _sys.stderr
+        _sys.stdout = captured
+        _sys.stderr = captured
+        try:
+            # exec() is safe here: we're running the project's own source file
+            # (not user-supplied input) in an isolated module namespace to
+            # simulate pytest's import context.
+            exec(code, fake_mod.__dict__)  # noqa: S102
+        except Exception:
+            pass  # top-level import failures (bpy missing) are expected
+        finally:
+            _sys.stdout = old_stdout
+            _sys.stderr = old_stderr
+
+        output = captured.getvalue()
+        self.assertNotIn(
+            "TypeError",
+            output,
+            "No TypeError traceback should be printed when __package__ is empty. "
+            "Got output:\n" + output[:500],
+        )
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------

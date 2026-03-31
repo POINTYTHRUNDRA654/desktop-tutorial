@@ -73,6 +73,12 @@ def _try_import(name: str):
     Do NOT remove this reload - it is the permanent root-cause fix for the
     extension-reload / stale-sys.modules scenario (DEVELOPMENT_NOTES.md).
     """
+    # __package__ is None or "" when this module is imported outside a Blender
+    # extension context (e.g. pytest). In that case there is no package to
+    # resolve relative imports against, so return None silently instead of
+    # raising a TypeError and printing a noisy traceback.
+    if not __package__:
+        return None
     full = f"{__package__}.{name}"
     try:
         if full in sys.modules:
