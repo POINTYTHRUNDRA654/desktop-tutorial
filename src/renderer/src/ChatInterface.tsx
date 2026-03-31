@@ -61,13 +61,9 @@ interface ToolExecution {
     isManualTrigger?: boolean; // New Flag for manual execution
 }
 
-// Speech Recognition Type Definition
-declare global {
-    interface Window {
-        webkitSpeechRecognition: any;
-        SpeechRecognition: any;
-    }
-}
+// Speech Recognition compatibility shim (avoids conflict with DOM lib types)
+type WebkitSpeechRecognition = typeof window extends { webkitSpeechRecognition: infer T } ? T : any;
+declare let webkitSpeechRecognition: WebkitSpeechRecognition;
 
 
 
@@ -1702,7 +1698,7 @@ export const ChatInterface: React.FC = () => {
         // Track tool execution completion
         trackEvent('tool_execution_completed', {
             toolName: name,
-            success: !result?.error,
+            success: !(result as any)?.error,
             hasResult: !!result
         });
 
@@ -1785,15 +1781,15 @@ export const ChatInterface: React.FC = () => {
         };
 
         const localHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [
-            ...messages.map((msg) => ({ role: msg.role, content: msg.content })),
+            ...messages.filter(m => m.role !== 'system').map((msg) => ({ role: msg.role as 'user' | 'assistant', content: msg.content })),
             { role: 'user', content: textToSend }
         ];
 
         // Prior context to pass to the AI (all previous messages, capped to avoid context overflow)
         const priorHistory = messages
-            .filter(m => m.content && m.content.trim() && m.content !== '..Processing..')
+            .filter(m => m.content && m.content.trim() && m.content !== '..Processing..' && m.role !== 'system')
             .slice(-20)
-            .map(m => ({ role: m.role, content: m.content }));
+            .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
         setMessages(prev => [...prev, userMessage]);
         setInputText('');
@@ -1848,7 +1844,7 @@ export const ChatInterface: React.FC = () => {
                 content: aiResponseText,
                 timestamp: Date.now()
             };
-            autoSaveManager.saveChatMessage(assistantMessage);
+            autoSaveManager.saveChatMessage({ role: assistantMessage.role, content: assistantMessage.content });
             updateChatWorkingMemory([...localHistory, { role: 'assistant', content: aiResponseText }]);
 
             // Record interaction for self-improvement

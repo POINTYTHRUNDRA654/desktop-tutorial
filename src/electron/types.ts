@@ -503,8 +503,8 @@ export interface ElectronAPI {
   invoke: (channel: string, ...args: any[]) => Promise<any>;
   on: (channel: string, callback: (...args: any[]) => void) => (() => void);
   openDialog: (options: any) => Promise<string | null>;
-  listProcesses: () => Promise<any[]>;
-  getProcessMetrics: () => Promise<any[]>;
+  listProcesses: (filter?: string) => Promise<any[]>;
+  getProcessMetrics: (pid: number) => Promise<any>;
   gameLogMonitor: {
     getLastLogPath: () => Promise<string | null>;
     browseLogFile: () => Promise<string | null>;
@@ -536,17 +536,17 @@ export interface ElectronAPI {
     executeScript: (xEditPath: string, plugin: string, scriptId: string) => Promise<{ success: boolean; output: string; errors: string[]; warnings: string[]; duration: number }>;
   };
   fomodCreate: (payload: any) => Promise<any>;
-  fomodPreview: (payload: any) => Promise<any>;
+  fomodPreview: (payload: any, selections?: any) => Promise<any>;
   fomodValidate: (payload: any) => Promise<any>;
-  fomodExport: (payload: any) => Promise<any>;
-  fomodSaveProject: (payload: any) => Promise<any>;
+  fomodExport: (payload: any, outputPath?: any) => Promise<any>;
+  fomodSaveProject: (payload: any, projectPath?: any) => Promise<any>;
   modPackagingValidateStructure: (payload: any) => Promise<any>;
-  modPackagingGenerateReadme: (payload: any) => Promise<any>;
-  modPackagingCreateArchive: (payload: any) => Promise<any>;
+  modPackagingGenerateReadme: (payload: any, template?: any) => Promise<any>;
+  modPackagingCreateArchive: (payload: any, modInfo?: any, readme?: any, settings?: any) => Promise<any>;
   modPackagingPrepareNexus: (payload: any) => Promise<any>;
-  modPackagingIncrementVersion: (payload: any) => Promise<any>;
+  modPackagingIncrementVersion: (version: any, type?: any) => Promise<any>;
   exportAnalyticsReport: (payload: any) => Promise<any>;
-  getAppVersion: () => Promise<string>;
+  getAppVersion: () => Promise<{ success: boolean; version?: string; error?: string }>;
   aiGenerateScript: (payload: any) => Promise<any>;
   aiPlanWorkflow: (payload: any) => Promise<any>;
   aiDiagnoseError: (payload: any) => Promise<any>;

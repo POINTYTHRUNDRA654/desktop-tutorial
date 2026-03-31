@@ -62,7 +62,7 @@ class ErrorBoundary extends Component<Props, State> {
       timestamp: Date.now(),
       error: error.message,
       stack: error.stack,
-      componentStack: errorInfo.componentStack,
+      componentStack: errorInfo.componentStack ?? undefined,
       userAgent: navigator.userAgent,
       url: window.location.href,
       userId: this.getUserId(),
