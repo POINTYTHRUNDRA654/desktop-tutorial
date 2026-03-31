@@ -2565,6 +2565,15 @@ pause
                                             </ol>
                                             <div className="mt-3 flex gap-2">
                                                 <button
+                                                    onClick={() => void handleDownloadAddon()}
+                                                    disabled={!!import.meta.env.DEV}
+                                                    className="px-3 py-2 text-xs font-bold rounded-lg border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                                                    title={import.meta.env.DEV ? 'Build the app first (npm run build)' : 'Download the Mossy Link Blender add-on package'}
+                                                >
+                                                    <Download className="w-4 h-4" />
+                                                    Download Mossy Link
+                                                </button>
+                                                <button
                                                     onClick={() => void openUrl('https://www.blender.org/download/')}
                                                     className="px-3 py-2 text-xs font-bold rounded-lg border border-blue-500/30 text-blue-300 hover:bg-blue-500/10 flex items-center gap-2"
                                                     title="Open Blender download page"

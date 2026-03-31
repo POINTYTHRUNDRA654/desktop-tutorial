@@ -343,8 +343,8 @@ describe('VoiceService — stopSpeaking()', () => {
     // getUserMedia should not be called synchronously
     expect(getUserMediaMock).not.toHaveBeenCalled();
 
-    // After 400ms delay, startRecording() is scheduled
-    await vi.advanceTimersByTimeAsync(500);
+    // After TTS_RESUME_DELAY_MS (2500 ms) the startRecording() is scheduled.
+    await vi.advanceTimersByTimeAsync(2600);
 
     expect(getUserMediaMock).toHaveBeenCalled();
   });
