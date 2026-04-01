@@ -2428,7 +2428,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       console.log(`[Blender Tool Call] tool=${tool}, action=${action}`);
 
       // Route to appropriate tool handler
-      const toolHandlers: Record<string, Record<string, Function>> = {
+      const toolHandlers: Record<string, Record<string, (...args: unknown[]) => unknown>> = {
         'mesh-analysis': {
           'check': async () => {
             return {
