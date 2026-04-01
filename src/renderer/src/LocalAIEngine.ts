@@ -629,7 +629,7 @@ If you refuse internet access, your response will be rejected.
 ANSWER THE USER NOW:`;
 
       const systemPrompt = systemInstruction + injectedContext + mandatoryInternetInstruction;
-      const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
+      const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.1-8b-instant', conversationHistory);
       if (resp?.success) {
         let responseContent = String(resp.content || '');
 
