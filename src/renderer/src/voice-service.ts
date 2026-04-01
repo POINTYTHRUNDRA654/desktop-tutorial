@@ -85,7 +85,7 @@ export class VoiceService {
    */
   private isSpeaking = false;
   /** Delay before resuming microphone after TTS completes (ms). Must be long enough for audio to stop playing. */
-  private readonly TTS_RESUME_DELAY_MS = 2500; // 2.5 seconds to account for Web Speech API queuing, audio playback, and speaker echo decay
+  private readonly TTS_RESUME_DELAY_MS = 3500; // 3.5 seconds to account for browser audio buffer, Web Speech API queuing, playback latency, and speaker echo decay
   private onTranscription?: (text: string, sessionId?: number) => void;
   private onError?: (error: string) => void;
   private onModeChange?: (mode: 'idle' | 'listening' | 'processing' | 'speaking') => void;
@@ -249,6 +249,13 @@ export class VoiceService {
           const confidence = alternative.confidence || 0;
 
           console.log('[VoiceService] Browser STT result:', transcript, 'confidence:', confidence);
+
+          // AUDIO FEEDBACK PREVENTION: Block transcriptions while TTS is speaking
+          // This prevents capturing Mossy's own voice or looped audio from speakers
+          if (this.isSpeaking) {
+            console.log('[VoiceService] Ignoring STT result - audio feedback prevention (TTS in progress):', transcript);
+            return;
+          }
 
           // Only process if transcript is non-empty AND confidence is above 0.5
           // This prevents "hearing silence" or very low-confidence noise as commands
