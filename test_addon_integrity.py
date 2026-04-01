@@ -1955,6 +1955,40 @@ class TestDualInstallDetection(unittest.TestCase):
             "and use that in the warning, not the raw list of all foreign keys.",
         )
 
+    def test_path_comparison_distinguishes_stale_from_genuine(self):
+        """Check #3 must use physical path comparison to tell stale entries from genuine dual-installs.
+
+        When a foreign root module's __file__ lives in the SAME directory as the
+        current addon, it is a stale namespace entry (e.g. 'blender_game_tools'
+        left over after switching to 'bl_ext.blender_org.blender_game_tools') and
+        must be reported as INFO, NOT WARN.  Only roots in a *different* directory
+        warrant the WARN.
+        """
+        block = self._get_dupes_source()
+        # Path-comparison branch must be present.
+        self.assertIn(
+            "stale_roots",
+            block,
+            "addon_diagnostics.py check #3 must classify foreign_roots into "
+            "'stale_roots' (same physical dir → INFO) and 'genuine_roots' "
+            "(different dir → WARN) to avoid false-positive dual-install warnings "
+            "after an extension-prefix change.",
+        )
+        self.assertIn(
+            "genuine_roots",
+            block,
+            "addon_diagnostics.py check #3 must classify foreign_roots into "
+            "'stale_roots' and 'genuine_roots' for accurate reporting.",
+        )
+        # The INFO message for stale entries must mention same physical install.
+        self.assertIn(
+            "same physical install",
+            block,
+            "addon_diagnostics.py check #3 INFO message for stale entries should "
+            "mention 'same physical install' so users understand it is not a "
+            "real dual-install.",
+        )
+
 
 # ---------------------------------------------------------------------------
 # Section J: check_havok2fbx only requires havok2fbx.exe (not libfbxsdk.dll)
