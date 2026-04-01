@@ -666,6 +666,10 @@ export const ChatInterface: React.FC = () => {
                     localStorage.setItem('mossy_messages', JSON.stringify(messages));
                     // Also save to auto-save manager
                     autoSaveManager.updateCurrentChatHistory(messages);
+                    // Durable file backup — survives reinstalls and localStorage clears
+                    window.electron?.api?.saveChatHistory(messages).catch((err: unknown) => {
+                        console.error('[ChatInterface] Failed to write chat history backup:', err);
+                    });
                 } catch (e) {
                     console.error("Failed to save history (Quota Exceeded?)", e);
                 }
@@ -783,7 +787,20 @@ export const ChatInterface: React.FC = () => {
                 } else if (savedMessages) {
                     setMessages(JSON.parse(savedMessages));
                 } else {
-                    initMossy();
+                    // localStorage is empty — try restoring from the durable file backup
+                    // so conversations are never lost after a reinstall.
+                    try {
+                        const fromFile = await window.electron?.api?.loadChatHistoryFromFile?.() ?? [];
+                        if (Array.isArray(fromFile) && fromFile.length > 0) {
+                            console.info('[ChatInterface] Restored', fromFile.length, 'message(s) from file backup.');
+                            localStorage.setItem('mossy_messages', JSON.stringify(fromFile));
+                            setMessages(fromFile as any[]);
+                        } else {
+                            initMossy();
+                        }
+                    } catch {
+                        initMossy();
+                    }
                 }
 
                 if (savedMemory) setWorkingMemory(savedMemory);
@@ -1029,7 +1046,7 @@ export const ChatInterface: React.FC = () => {
         // Stop all active speech via the shared mossyTts helper.
         // stopMossySpeech() applies the pause() + cancel() workaround for the
         // Electron/Chromium bug where cancel() alone sometimes fails to stop TTS,
-        // and also stops any ElevenLabs/cloud audio elements via VoiceService.
+        // and also stops any cloud audio elements via VoiceService.
         try {
             stopMossySpeech();
         } catch (e) {

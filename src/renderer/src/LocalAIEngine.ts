@@ -3,7 +3,6 @@
  * Connects Mossy to local AI backends like Ollama or Groq Cloud.
  */
 
-/// <reference path="./electron.d.ts" />
 
 import {
   buildKnowledgeManifestForModel,
@@ -519,7 +518,9 @@ export const LocalAIEngine = {
 
     // Try Groq Cloud FIRST (primary), then local as fallback support
     // Local LLMs can claim "I'm just a language model" so they're backup-only
-    if (localStatus.ok && false) {  // LOCAL DISABLED: kept for future re-enable, use as fallback only
+    // Set to true to re-enable local-provider-first routing
+    const localProviderPrimaryEnabled = false;
+    if (localStatus.ok && localProviderPrimaryEnabled) {  // LOCAL DISABLED: kept for future re-enable, use as fallback only
       try {
         const api = (window.electron?.api || window.electronAPI) as any;
 
@@ -629,7 +630,7 @@ If you refuse internet access, your response will be rejected.
 ANSWER THE USER NOW:`;
 
       const systemPrompt = systemInstruction + injectedContext + mandatoryInternetInstruction;
-      const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
+      const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.1-8b-instant', conversationHistory);
       if (resp?.success) {
         let responseContent = String(resp.content || '');
 

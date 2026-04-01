@@ -326,7 +326,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Mic level meter and visual status indicators (listening / speaking / processing)',
       'Central Connect / Disconnect action with connection ring animation',
       'ENCRYPTED BEAM active indicator when link is established',
-      'Multiple STT and TTS provider support (browser, Whisper, Deepgram, OpenAI, ElevenLabs)',
+      'Multiple STT and TTS provider support (browser, Whisper, Deepgram, OpenAI)',
       'Embedded Audio Studio and Memory Vault panels for TTS and saved notes',
       'Neural Link monitoring so Mossy adapts to active tools',
     ],
@@ -1213,7 +1213,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'System health & telemetry checks (bridge, storage, permissions)',
       'Tool path & version detection (detectPrograms test)',
       'Microphone & TTS voice availability checks',
-      'Secret status check for backend/OpenAI/Groq/ElevenLabs',
+      'Secret status check for backend/OpenAI/Groq',
       'Exportable diagnostic report (text) and snapshot (JSON)',
       'Crash triage wizard and timeline snapshots',
       'Guided remediation and Tools Install / Verify guidance',
@@ -3701,7 +3701,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'precombine-generator': {
     pageId: 'precombine-generator',
-    pageName: 'PRP Patch Tools',
+    pageName: 'Precombine Generator',
     visualGuidePage: 55,
     route: '/tools/precombine-generator',
     purpose: 'Two-in-one PRP toolset: (1) scan your full MO2 load order and generate a one-click PRP-compatible combined patch for everything; (2) rebuild precombines for a single mod you just built and generate a standalone PRP companion patch for it.',

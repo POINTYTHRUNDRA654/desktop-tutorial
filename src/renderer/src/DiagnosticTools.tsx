@@ -238,10 +238,9 @@ const DiagnosticTools: React.FC<DiagnosticToolsProps> = ({ embedded = false }) =
           const flags = [
             `backend=${status.backendToken ? 'yes' : 'no'}`,
             `openai=${status.openai ? 'yes' : 'no'}`,
-            `elevenlabs=${status.elevenlabs ? 'yes' : 'no'}`,
             `groq=${status.groq ? 'yes' : 'no'}`,
           ].join(' | ');
-          const anyConfigured = status.backendToken || status.openai || status.elevenlabs || status.groq;
+          const anyConfigured = status.backendToken || status.openai || status.groq;
           setCheck('secret-status', { result: flags, status: anyConfigured ? 'success' : 'error' });
         }
       }

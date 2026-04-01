@@ -55,9 +55,6 @@ const IPC_CHANNELS = {
   // voice history persistence
   SAVE_VOICE_HISTORY: 'save-voice-history',
   GET_VOICE_HISTORY_PATH: 'get-voice-history-path',
-  ELEVENLABS_STATUS: 'elevenlabs-status',
-  ELEVENLABS_LIST_VOICES: 'elevenlabs-list-voices',
-  ELEVENLABS_SYNTHESIZE: 'elevenlabs-synthesize',
   CHECK_BLENDER_ADDON: 'check-blender-addon',
   SEND_BLENDER_COMMAND: 'send-blender-command',
   VAULT_RUN_TOOL: 'vault-run-tool',
@@ -236,6 +233,14 @@ const IPC_CHANNELS = {
   CK_CRASH_ANALYZE: 'ck-crash-prevention:analyze-crash',
   CK_CRASH_GENERATE_PLAN: 'ck-crash-prevention:generate-plan',
   CK_CRASH_PICK_LOG: 'ck-crash-prevention:pick-log-file',
+
+  // Mod Projects persistence
+  SAVE_MOD_PROJECTS: 'save-mod-projects',
+  LOAD_MOD_PROJECTS: 'load-mod-projects',
+
+  // Chat History persistence
+  SAVE_CHAT_HISTORY: 'save-chat-history',
+  LOAD_CHAT_HISTORY: 'load-chat-history',
 } as const;
 
 /**
@@ -277,39 +282,6 @@ const electronAPI = {
    */
   onSettingsUpdated: (callback: (settings: any) => void): void => {
     ipcRenderer.on(IPC_CHANNELS.SETTINGS_UPDATED, (_event, settings) => callback(settings));
-  },
-
-  /**
-   * ElevenLabs config status (whether a key is stored in main-process settings).
-   */
-  elevenLabsStatus: (): Promise<
-    | { ok: true; configured: boolean; voiceId?: string; provider?: 'browser' | 'elevenlabs' }
-    | { ok: false; error: string }
-  > => {
-    return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_STATUS);
-  },
-
-  /**
-   * List available ElevenLabs voices.
-   */
-  elevenLabsListVoices: (): Promise<
-    | {
-      ok: true;
-      voices: Array<{ voice_id: string; name: string; category?: string; labels?: Record<string, string> }>;
-    }
-    | { ok: false; error: string }
-  > => {
-    return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_LIST_VOICES);
-  },
-
-  /**
-   * Synthesize speech with ElevenLabs (main process does the network call).
-   */
-  elevenLabsSynthesizeSpeech: (args: { text: string; voiceId?: string }): Promise<
-    | { ok: true; audioBase64: string; mimeType?: string }
-    | { ok: false; error: string }
-  > => {
-    return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_SYNTHESIZE, args);
   },
 
   /**
@@ -573,6 +545,38 @@ const electronAPI = {
    */
   loadKnowledgeVaultFromFile: (): Promise<unknown[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.LOAD_KNOWLEDGE_VAULT);
+  },
+
+  /**
+   * Mod Projects persistence: save all projects to userData/mod-projects.json.
+   * Call this whenever projects change so user mod work survives reinstalls.
+   */
+  saveModProjects: (projects: unknown[]): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SAVE_MOD_PROJECTS, projects);
+  },
+
+  /**
+   * Mod Projects persistence: load projects from userData/mod-projects.json.
+   * Returns [] if the file doesn't exist yet.
+   */
+  loadModProjectsFromFile: (): Promise<unknown[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_MOD_PROJECTS);
+  },
+
+  /**
+   * Chat History persistence: save messages to userData/chat-history.json.
+   * Call this whenever messages change so conversations survive reinstalls.
+   */
+  saveChatHistory: (messages: unknown[]): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SAVE_CHAT_HISTORY, messages);
+  },
+
+  /**
+   * Chat History persistence: load messages from userData/chat-history.json.
+   * Returns [] if the file doesn't exist yet.
+   */
+  loadChatHistoryFromFile: (): Promise<unknown[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_CHAT_HISTORY);
   },
 
   /**
@@ -1771,7 +1775,7 @@ const electronAPI = {
    * Secrets status (presence only). Never returns actual key values.
    */
   getSecretStatus: (): Promise<
-    | { ok: true; openai: boolean; groq: boolean; elevenlabs: boolean }
+    | { ok: true; openai: boolean; groq: boolean; backendToken: boolean }
     | { ok: false; error: string }
   > => {
     return ipcRenderer.invoke(IPC_CHANNELS.SECRET_STATUS);
