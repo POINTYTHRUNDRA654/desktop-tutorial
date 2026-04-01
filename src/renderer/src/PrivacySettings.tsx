@@ -207,7 +207,6 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
           // Remove sensitive data from export
           openaiApiKey: undefined,
           groqApiKey: undefined,
-          elevenLabsApiKey: undefined,
           backendToken: undefined
         },
         exportDate: new Date().toISOString(),

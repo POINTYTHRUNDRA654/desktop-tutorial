@@ -163,7 +163,6 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
       const config: VoiceServiceConfig = {
         sttProvider: 'backend', // Use backend first, fallback to browser
         ttsProvider: 'browser',
-        elevenlabsKey: undefined,
       };
       
       const voiceService = new VoiceService(config);
@@ -318,7 +317,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
         </div>
 
 
-        {/* Cloud TTS and ElevenLabs UI removed: browser TTS only */}
+        {/* Cloud TTS: browser TTS only */}
 
         <div className="bg-black/40 border border-white/10 rounded-xl p-5">
           <div className="text-xs font-black text-white uppercase tracking-widest mb-3">Preferred Voice</div>

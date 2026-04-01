@@ -216,11 +216,6 @@ export const IPC_CHANNELS = {
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
 
-  // ElevenLabs TTS (optional)
-  ELEVENLABS_STATUS: 'elevenlabs-status',
-  ELEVENLABS_LIST_VOICES: 'elevenlabs-list-voices',
-  ELEVENLABS_SYNTHESIZE: 'elevenlabs-synthesize',
-
   // Secrets presence-only status
   SECRET_STATUS: 'secret-status',
 
@@ -354,32 +349,8 @@ export interface ElectronAPI {
   minimizeWindow: () => void;
   closeWindow: () => void;
 
-  elevenLabsStatus: () => Promise<
-    | { ok: true; configured: boolean; voiceId?: string; provider?: 'browser' | 'elevenlabs' }
-    | { ok: false; error: string }
-  >;
-  elevenLabsListVoices: () => Promise<
-    | {
-      ok: true;
-      voices: Array<{
-        voice_id: string;
-        name: string;
-        category?: string;
-        labels?: Record<string, string>;
-      }>;
-    }
-    | { ok: false; error: string }
-  >;
-  elevenLabsSynthesizeSpeech: (args: {
-    text: string;
-    voiceId?: string;
-  }) => Promise<
-    | { ok: true; audioBase64: string; mimeType?: string }
-    | { ok: false; error: string }
-  >;
-
   getSecretStatus: () => Promise<
-    | { ok: true; openai: boolean; groq: boolean; elevenlabs: boolean }
+    | { ok: true; openai: boolean; groq: boolean; backendToken: boolean }
     | { ok: false; error: string }
   >;
 

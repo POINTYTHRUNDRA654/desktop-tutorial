@@ -100,7 +100,7 @@ export function buildTutorialText(context: TutorialPageContext, pageIndex: numbe
   }
 
   if (hasPreconfiguredApiKeys) {
-    detailedText = detailedText.replace(/[^.?!]*(?:API key|api key|OpenAI|openai|Groq|groq|ElevenLabs|elevenlabs|api-key|api_key)[^.?!]*[.?!]?/gi, '');
+    detailedText = detailedText.replace(/[^.?!]*(?:API key|api key|OpenAI|openai|Groq|groq|api-key|api_key)[^.?!]*[.?!]?/gi, '');
     detailedText = detailedText.replace(/\s{2,}/g, ' ').replace(/^[.?!\s]+|[.?!\s]+$/g, '').trim();
   }
 
