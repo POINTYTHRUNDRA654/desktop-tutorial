@@ -176,6 +176,7 @@ def collect_diagnostics():
     # ── 3. Dual-install via sys.modules ──────────────────────────────────────
     name_base = (__package__ or "blender_game_tools").split(".")[-1]
     own_pkg = __package__ or "blender_game_tools"
+    addon_dir = os.path.normcase(os.path.dirname(os.path.abspath(__file__)))
     # Collect every sys.modules key that belongs to a *different* install of
     # this addon (contains the addon name but is not the current package root
     # or any of its sub-modules).
@@ -197,14 +198,44 @@ def collect_diagnostics():
             if k == name_base or k.endswith("." + name_base)
         })
         if foreign_roots:
-            detail = repr(foreign_roots)
+            # Classify each foreign root: same physical directory means a stale
+            # namespace entry from an enable/disable cycle or extension-prefix
+            # change (not a genuine dual-install).  A different directory means
+            # the user truly has two separate copies enabled simultaneously.
+            stale_roots = []
+            genuine_roots = []
+            for root_key in foreign_roots:
+                root_mod = sys.modules.get(root_key)
+                root_file = getattr(root_mod, "__file__", None) if root_mod else None
+                if root_file:
+                    root_dir = os.path.normcase(
+                        os.path.dirname(os.path.abspath(root_file))
+                    )
+                    if root_dir == addon_dir:
+                        stale_roots.append(root_key)
+                    else:
+                        genuine_roots.append(root_key)
+                else:
+                    # No __file__ (namespace package or unloaded stub) — treat as
+                    # genuine to avoid silently ignoring a real dual-install.
+                    genuine_roots.append(root_key)
+            if stale_roots:
+                results.append(("INFO", "Install",
+                                f"Stale sys.modules namespace(s) {repr(stale_roots)} — "
+                                "same physical install, prior Blender extension prefix.  "
+                                "Click 'Auto-Fix Issues' to clear, or restart Blender."))
+            if genuine_roots:
+                results.append(("WARN", "Install",
+                                f"Multiple installs of '{name_base}' found in sys.modules: "
+                                f"{repr(genuine_roots)} - dual-install or stale reload.  "
+                                "Restart Blender to clear."))
         else:
             # Root key not yet populated (partial / stale reload): report count.
             detail = f"{len(foreign_keys)} stale sub-module(s) (no root entry found)"
-        results.append(("WARN", "Install",
-                        f"Multiple installs of '{name_base}' found in sys.modules: "
-                        f"{detail} - dual-install or stale reload.  "
-                        "Restart Blender to clear."))
+            results.append(("WARN", "Install",
+                            f"Multiple installs of '{name_base}' found in sys.modules: "
+                            f"{detail} - dual-install or stale reload.  "
+                            "Restart Blender to clear."))
 
     # ── 4. Module import status ───────────────────────────────────────────────
     init = _addon_init()
@@ -644,6 +675,36 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
         init   = _addon_init()
 
         print("\n[ FO4 Auto-Fix ] Starting repair …")
+
+        # ── Step 0: purge stale sys.modules namespace entries ─────────────────
+        # When the addon transitions between naming conventions (e.g. legacy
+        # 'blender_game_tools' ↔ extension 'bl_ext.blender_org.blender_game_tools')
+        # old namespace entries can persist across enable/disable cycles.  Remove
+        # those that point to the same physical directory — they are stale
+        # leftovers, not a genuine separate install.
+        try:
+            _nb   = (__package__ or "").split(".")[-1]
+            _op   = __package__ or ""
+            _adir = os.path.normcase(os.path.dirname(os.path.abspath(__file__)))
+            _purge = [
+                k for k, m in list(sys.modules.items())
+                if (_nb and _nb in k
+                    and not (k == _op or k.startswith(_op + "."))
+                    and "addon_diagnostics" not in k
+                    and m is not None
+                    and getattr(m, "__file__", None)
+                    and os.path.normcase(
+                        os.path.dirname(os.path.abspath(m.__file__))
+                    ) == _adir)
+            ]
+            for _k in _purge:
+                sys.modules.pop(_k, None)
+            if _purge:
+                fixed.append(
+                    f"purged {len(_purge)} stale sys.modules namespace entry(ies)"
+                )
+        except Exception as exc:
+            failed.append(f"purge stale namespace: {exc}")
 
         # ── Step 1: re-register tutorial_operators (only when operators missing) ─
         tut = getattr(init, "tutorial_operators", None) if init else None

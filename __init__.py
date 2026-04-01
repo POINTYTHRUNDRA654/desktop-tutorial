@@ -24,6 +24,7 @@ bl_info = {
 }
 
 import importlib
+import os
 import sys
 
 try:
@@ -315,6 +316,36 @@ def register():
             "  trimesh / pypdf may show [MISSING] in the self-test even if installed.\n"
             "  Try clicking 'Install Core Dependencies' again to work around this."
         )
+
+    # ── Step 0b: purge stale sys.modules entries from a prior addon namespace ─
+    # When the addon transitions between naming conventions (e.g. legacy
+    # 'blender_game_tools' ↔ extension 'bl_ext.blender_org.blender_game_tools'),
+    # old namespace entries can persist across enable/disable cycles in the same
+    # Blender session, triggering a spurious dual-install WARN in diagnostics
+    # check #3.  Remove those stale entries before module registration so that
+    # check #3 only fires for genuinely separate physical installs.
+    try:
+        _name_base = (__package__ or "").split(".")[-1]
+        _own_pkg   = __package__ or ""
+        _addon_dir = os.path.normcase(os.path.dirname(os.path.abspath(__file__)))
+        if _name_base:
+            _stale = [
+                k for k, m in list(sys.modules.items())
+                if (_name_base in k
+                    and not (k == _own_pkg or k.startswith(_own_pkg + "."))
+                    and m is not None
+                    and getattr(m, "__file__", None)
+                    and os.path.normcase(
+                        os.path.dirname(os.path.abspath(m.__file__))
+                    ) == _addon_dir)
+            ]
+            for k in _stale:
+                sys.modules.pop(k, None)
+            if _stale:
+                print(f"✓ Purged {len(_stale)} stale sys.modules namespace entry(ies) "
+                      "from prior install prefix")
+    except Exception as _e:
+        print(f"⚠ Could not purge stale namespace entries: {_e}")
 
     # ── Step 1: register modules so Blender classes / preferences exist ──────
     # Check Blender version and show compatibility info
