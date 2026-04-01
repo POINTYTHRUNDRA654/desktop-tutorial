@@ -576,6 +576,38 @@ const electronAPI = {
   },
 
   /**
+   * Mod Projects persistence: save all projects to userData/mod-projects.json.
+   * Call this whenever projects change so user mod work survives reinstalls.
+   */
+  saveModProjects: (projects: unknown[]): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SAVE_MOD_PROJECTS, projects);
+  },
+
+  /**
+   * Mod Projects persistence: load projects from userData/mod-projects.json.
+   * Returns [] if the file doesn't exist yet.
+   */
+  loadModProjectsFromFile: (): Promise<unknown[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_MOD_PROJECTS);
+  },
+
+  /**
+   * Chat History persistence: save messages to userData/chat-history.json.
+   * Call this whenever messages change so conversations survive reinstalls.
+   */
+  saveChatHistory: (messages: unknown[]): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SAVE_CHAT_HISTORY, messages);
+  },
+
+  /**
+   * Chat History persistence: load messages from userData/chat-history.json.
+   * Returns [] if the file doesn't exist yet.
+   */
+  loadChatHistoryFromFile: (): Promise<unknown[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_CHAT_HISTORY);
+  },
+
+  /**
    * Workshop: Browse directory and list files/folders
    */
   browseDirectory: (startPath?: string): Promise<{ name: string; type: 'folder' | 'file'; path: string; fileType?: string }[]> => {

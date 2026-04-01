@@ -80,6 +80,14 @@ export const IPC_CHANNELS = {
   SAVE_KNOWLEDGE_VAULT: 'save-knowledge-vault',
   LOAD_KNOWLEDGE_VAULT: 'load-knowledge-vault',
 
+  // Mod Projects file persistence (backup/restore to userData/mod-projects.json)
+  SAVE_MOD_PROJECTS: 'save-mod-projects',
+  LOAD_MOD_PROJECTS: 'load-mod-projects',
+
+  // Chat History file persistence (backup/restore to userData/chat-history.json)
+  SAVE_CHAT_HISTORY: 'save-chat-history',
+  LOAD_CHAT_HISTORY: 'load-chat-history',
+
   // Project Management
   PROJECT_LIST: 'project-list',
   PROJECT_CREATE: 'project-create',
@@ -488,6 +496,16 @@ export interface ElectronAPI {
   saveKnowledgeVault: (items: unknown[]) => Promise<{ ok: boolean; error?: string }>;
   /** Load the Knowledge Vault from userData/knowledge-vault.json (returns [] if not found) */
   loadKnowledgeVaultFromFile: () => Promise<unknown[]>;
+
+  /** Persist all mod projects to userData/mod-projects.json so work survives reinstalls */
+  saveModProjects: (projects: unknown[]) => Promise<{ ok: boolean; error?: string }>;
+  /** Load mod projects from userData/mod-projects.json (returns [] if not found) */
+  loadModProjectsFromFile: () => Promise<unknown[]>;
+
+  /** Persist chat history to userData/chat-history.json so conversations survive reinstalls */
+  saveChatHistory: (messages: unknown[]) => Promise<{ ok: boolean; error?: string }>;
+  /** Load chat history from userData/chat-history.json (returns [] if not found) */
+  loadChatHistoryFromFile: () => Promise<unknown[]>;
 
   // Generic file helpers
   pickJsonFile: () => Promise<string>;

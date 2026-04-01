@@ -2939,6 +2939,63 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // --- Mod Projects: Persist user mod work to userData/mod-projects.json ---
+  // Ensures all mod projects, steps, notes and progress survive app reinstalls
+  // and localStorage clears. Mirrors the same dual-persistence pattern as the
+  // Knowledge Vault — localStorage for fast access, file for durable backup.
+  registerHandler(IPC_CHANNELS.SAVE_MOD_PROJECTS, async (_event, projects: unknown) => {
+    try {
+      const file = path.join(app.getPath('userData'), 'mod-projects.json');
+      const data = Array.isArray(projects) ? projects : [];
+      fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[Main] save-mod-projects error:', e);
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.LOAD_MOD_PROJECTS, async () => {
+    try {
+      const file = path.join(app.getPath('userData'), 'mod-projects.json');
+      if (!fs.existsSync(file)) return [];
+      const raw = fs.readFileSync(file, 'utf-8');
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e: any) {
+      console.error('[Main] load-mod-projects error:', e);
+      return [];
+    }
+  });
+
+  // --- Chat History: Persist conversation to userData/chat-history.json ---
+  // Ensures the user's chat history with Mossy survives reinstalls and
+  // localStorage clears, using the same dual-persistence pattern.
+  registerHandler(IPC_CHANNELS.SAVE_CHAT_HISTORY, async (_event, messages: unknown) => {
+    try {
+      const file = path.join(app.getPath('userData'), 'chat-history.json');
+      const data = Array.isArray(messages) ? messages : [];
+      fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[Main] save-chat-history error:', e);
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.LOAD_CHAT_HISTORY, async () => {
+    try {
+      const file = path.join(app.getPath('userData'), 'chat-history.json');
+      if (!fs.existsSync(file)) return [];
+      const raw = fs.readFileSync(file, 'utf-8');
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e: any) {
+      console.error('[Main] load-chat-history error:', e);
+      return [];
+    }
+  });
+
   // --- Vault: Get DDS width/height (read header) ---
   registerHandler(IPC_CHANNELS.VAULT_GET_DDS_DIMENSIONS, async (_event, filePathStr: string) => {
     try {
