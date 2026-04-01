@@ -1381,11 +1381,14 @@ function setupIpcHandlers() {
             return form;
           };
 
-          // Try OpenAI-compatible endpoint first, then simpler /transcribe path
+          // Try OpenAI-compatible endpoint first, then simpler /transcribe path.
+          // Timeout is 8 s per endpoint (fast enough for a healthy local server;
+          // short enough to fall through to the cloud provider quickly when the
+          // local server is configured but not running).
           const endpoints = [`${whisperLocalUrl}/v1/audio/transcriptions`, `${whisperLocalUrl}/transcribe`];
           for (const endpoint of endpoints) {
             console.log('[Transcription] Trying local Whisper endpoint:', endpoint);
-            const resp = await postFormData(endpoint, buildWhisperForm(), {}, 30000);
+            const resp = await postFormData(endpoint, buildWhisperForm(), {}, 8000);
             if (resp.ok) {
               const text = String(resp.json?.text || '').trim();
               console.log('[Transcription] ✓ Local Whisper success:', text.substring(0, 80));
