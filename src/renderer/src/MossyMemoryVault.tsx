@@ -96,11 +96,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         };
         loadVault().catch(console.error);
 
-        // Auto-import bundled knowledge on first run
-        const hasImportedBundled = localStorage.getItem('mossy_bundled_imported');
-        if (!hasImportedBundled) {
-            importBundledKnowledge().catch(console.error);
-        }
+        // Auto-import bundled knowledge — runs on every mount but skips packs
+        // already imported at the same version, so new packs added in app
+        // updates are imported automatically without duplicating existing ones.
+        importBundledKnowledge().catch(console.error);
         
         // Check for new community knowledge
         checkGitHubForNewKnowledge().catch(console.error);
@@ -114,52 +113,6 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         // Broadcast to other components if needed
         window.dispatchEvent(new Event('mossy-knowledge-updated'));
     }, [memories]);
-
-    // Auto-import bundled knowledge on first run
-    useEffect(() => {
-        const importBundledKnowledge = async () => {
-            const imported = localStorage.getItem('mossy_bundled_knowledge_imported');
-            if (imported) return; // Already imported
-
-            try {
-                const response = await fetch('/bundled-knowledge/manifest.json');
-                if (!response.ok) return;
-                
-                const manifest = await response.json();
-                const autoImportPacks = manifest.packs.filter((p: any) => p.autoImport);
-                
-                for (const pack of autoImportPacks) {
-                    try {
-                        const packResponse = await fetch(`/bundled-knowledge/${pack.file}`);
-                        if (!packResponse.ok) continue;
-                        
-                        const packData = await packResponse.json();
-                        if (!packData.items || !Array.isArray(packData.items)) continue;
-                        
-                        const imported = packData.items.map((item: any) => ({
-                            ...item,
-                            id: `bundled-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                            trustLevel: item.trustLevel || 'official',
-                            status: 'learned',
-                            date: new Date().toLocaleDateString(),
-                            shareWithCommunity: false
-                        }));
-                        
-                        setMemories(prev => [...imported, ...prev]);
-                    } catch (err) {
-                        console.error('Failed to import pack:', pack.name, err);
-                    }
-                }
-                
-                localStorage.setItem('mossy_bundled_knowledge_imported', 'true');
-                localStorage.setItem('mossy_bundled_knowledge_version', manifest.version);
-            } catch (error) {
-                console.error('Failed to import bundled knowledge:', error);
-            }
-        };
-
-        importBundledKnowledge();
-    }, []);
 
     // Check for new knowledge from GitHub (every 6 hours)
     useEffect(() => {
@@ -439,32 +392,79 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         }
     };
 
-    // Import bundled knowledge on first run
+    // Import bundled knowledge — skips packs already imported at the same version
+    // so new packs added in app updates reach existing users without duplicates.
     const importBundledKnowledge = async () => {
         try {
             const manifestRes = await fetch('/bundled-knowledge/manifest.json');
             if (!manifestRes.ok) return;
             
             const manifest = await manifestRes.json();
-            const currentMemories = JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]');
-            let newItems: MemoryItem[] = [];
-            
-            for (const pack of manifest.packs) {
-                if (pack['auto-import']) {
-                    const packRes = await fetch(`/bundled-knowledge/${pack.file}`);
-                    if (packRes.ok) {
-                        const packData = await packRes.json();
-                        newItems = newItems.concat(packData.items);
+
+            // Per-pack import tracking: { [packId]: importedVersion }
+            // Migration: if the old single-flag is set, seed the tracking object so
+            // existing users don't re-import packs they already have.
+            const rawPacks = localStorage.getItem('mossy_imported_pack_ids');
+            let importedPacks: Record<string, string> | null = rawPacks ? JSON.parse(rawPacks) : null;
+            if (importedPacks === null) {
+                const oldFlag = localStorage.getItem('mossy_bundled_imported');
+                if (oldFlag) {
+                    // Treat all current packs as already imported at their current version.
+                    importedPacks = {};
+                    for (const pack of manifest.packs) {
+                        importedPacks[pack.id] = pack.version ?? '1.0.0';
                     }
+                    localStorage.setItem('mossy_imported_pack_ids', JSON.stringify(importedPacks));
+                    return; // Nothing new to import for existing users
+                }
+                importedPacks = {};
+            }
+
+            const currentMemories: MemoryItem[] = JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]');
+            let updatedMemories = [...currentMemories];
+            let didImport = false;
+
+            for (const pack of manifest.packs) {
+                const packId: string = pack.id;
+                const packVersion: string = pack.version ?? '1.0.0';
+                const alreadyImported = importedPacks[packId] === packVersion;
+                const shouldAutoImport = pack.autoImport || pack['auto-import'];
+
+                if (!shouldAutoImport || alreadyImported) continue;
+
+                try {
+                    const packRes = await fetch(`/bundled-knowledge/${pack.file}`);
+                    if (!packRes.ok) continue;
+                    const packData = await packRes.json();
+                    if (!Array.isArray(packData.items)) continue;
+
+                    // Remove any stale items from a previous version of this pack
+                    const packPrefix = `bundled-${packId}-`;
+                    updatedMemories = updatedMemories.filter(m => !m.id?.startsWith(packPrefix));
+
+                    const newItems: MemoryItem[] = packData.items.map((item: any) => ({
+                        ...item,
+                        id: `${packPrefix}${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 9)}`,
+                        trustLevel: item.trustLevel || 'official',
+                        status: 'learned',
+                        date: new Date().toLocaleDateString(),
+                        shareWithCommunity: false,
+                    }));
+
+                    updatedMemories = [...newItems, ...updatedMemories];
+                    importedPacks[packId] = packVersion;
+                    didImport = true;
+                } catch (err) {
+                    console.error('Failed to import pack:', pack.name, err);
                 }
             }
-            
-            if (newItems.length > 0) {
-                const combinedMemories = [...newItems, ...currentMemories];
-                setMemories(combinedMemories);
-                localStorage.setItem('mossy_knowledge_vault', JSON.stringify(combinedMemories));
-                localStorage.setItem('mossy_bundled_imported', 'true');
+
+            if (didImport) {
+                setMemories(updatedMemories);
+                localStorage.setItem('mossy_knowledge_vault', JSON.stringify(updatedMemories));
             }
+            // Always persist the tracking object so future runs skip already-imported packs
+            localStorage.setItem('mossy_imported_pack_ids', JSON.stringify(importedPacks));
         } catch (error) {
             console.error('Failed to import bundled knowledge:', error);
         }
