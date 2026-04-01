@@ -290,6 +290,25 @@ modules = list(
 
 def register():
     """Register all add-on classes and handlers"""
+    # ── Step 0: ensure user site-packages is on sys.path ─────────────────────
+    # pip installs trimesh, pypdf, and other packages into the user
+    # site-packages directory when Blender's system site-packages is not
+    # writable (the common case on Windows and many Linux installs).  Blender's
+    # bundled Python does NOT add the user site directory to sys.path by
+    # default, so packages installed there are invisible to importlib on every
+    # fresh start — producing the [MISSING] indicators in the self-test even
+    # though the packages were successfully installed in a previous session.
+    #
+    # Calling _refresh_import_paths() here (once, synchronously, before any
+    # module registration or dependency checks) ensures that the user site
+    # directory is on sys.path for the entire Blender session.  The call is
+    # idempotent — addsitedir() is a no-op if the path is already present.
+    try:
+        if tool_installers and hasattr(tool_installers, "_refresh_import_paths"):
+            tool_installers._refresh_import_paths()
+    except Exception as _e:
+        print(f"⚠ Could not refresh import paths at startup: {_e}")
+
     # ── Step 1: register modules so Blender classes / preferences exist ──────
     # Check Blender version and show compatibility info
     blender_version = bpy.app.version

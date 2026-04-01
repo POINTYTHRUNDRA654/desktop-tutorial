@@ -1783,6 +1783,43 @@ class TestPipInstallRobustness(unittest.TestCase):
             "panel still shows [MISSING] for trimesh/pypdf after a successful install.",
         )
 
+    def test_register_calls_refresh_import_paths_at_startup(self):
+        """__init__.py register() must call _refresh_import_paths() before Step 1.
+
+        Root cause of the trimesh/pypdf [MISSING]-after-restart bug:
+          pip installs packages into the user site-packages directory (because
+          Blender's system site-packages is not writable).  _refresh_import_paths()
+          adds that directory to sys.path during the install session, but on the
+          NEXT Blender startup sys.path reverts to defaults — Blender's bundled
+          Python never includes user site-packages automatically.
+
+        Fix: call _refresh_import_paths() at the very start of register() so the
+        user site directory is on sys.path before any importlib.find_spec() calls
+        or UI dependency checks run.  The call must be guarded with try/except so
+        a missing tool_installers module never prevents the addon from loading.
+        """
+        import re
+        source = _read("__init__.py")
+        # Extract the register() function body up to the first nested def or class.
+        m = re.search(
+            r"^def register\(\).*?(?=^def |\Z)",
+            source,
+            re.DOTALL | re.MULTILINE,
+        )
+        self.assertIsNotNone(m, "register() function not found in __init__.py")
+        register_body = m.group(0)
+
+        self.assertIn(
+            "_refresh_import_paths",
+            register_body,
+            "__init__.py register() must call tool_installers._refresh_import_paths() "
+            "at startup so the user site-packages directory is added to sys.path before "
+            "any dependency checks run.  Without this, trimesh and pypdf remain [MISSING] "
+            "after every Blender restart even though they were successfully installed "
+            "(pip places them in user site-packages, which Blender's Python omits from "
+            "sys.path by default).  Add the call at the very top of register(), before "
+            "the modules-registration loop.",
+        )
 
 
 
