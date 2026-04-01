@@ -386,7 +386,9 @@ def collect_diagnostics():
         if not _p:
             results.append(("INFO", "Tools", "UModel: not configured (optional)"))
         elif (os.path.isfile(os.path.join(_p, "umodel.exe"))
-              or os.path.isfile(os.path.join(_p, "umodel"))):
+              or os.path.isfile(os.path.join(_p, "umodel"))
+              or any(f in ("umodel.exe", "umodel")
+                     for _, _, files in os.walk(_p) for f in files)):
             results.append(("OK",   "Tools", f"UModel: found in {_p}"))
         elif os.path.isdir(_p):
             results.append(("WARN", "Tools",

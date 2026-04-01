@@ -466,9 +466,19 @@ def check_havok2fbx(path: str) -> bool:
     Only the executable is required — some builds (e.g. statically linked
     releases) do not ship a separate libfbxsdk.dll, and discover_installed_tools()
     also uses only the exe to locate the tool, so this check must be consistent.
+
+    The exe may land in a versioned sub-folder when a GitHub zip extracts to a
+    nested directory (e.g. ``havok2fbx-win64/havok2fbx.exe``).
+    discover_installed_tools() uses ``rglob()`` to find the exe and then stores
+    the *root* tool folder in the preference, so this function mirrors that
+    recursive search behaviour to avoid false-positive "expected files missing"
+    diagnostics warnings.
     """
-    exe = Path(path) / "havok2fbx.exe"
-    return exe.is_file()
+    root = Path(path)
+    if (root / "havok2fbx.exe").is_file():
+        return True
+    # Recursive fallback: exe may be one or more levels deeper.
+    return next(root.rglob("havok2fbx.exe"), None) is not None
 
 
 def install_havok2fbx() -> tuple[bool, str]:

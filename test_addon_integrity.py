@@ -1944,11 +1944,67 @@ class TestCheckHavok2FBX(unittest.TestCase):
             "statically-linked and newer releases don't ship it as a separate file.",
         )
 
+    def test_exe_in_subfolder_passes(self):
+        """check_havok2fbx must return True when the exe is in a sub-folder.
+
+        discover_installed_tools() uses rglob() to find the exe recursively
+        and then stores the *root* tool folder in the preference.  If
+        check_havok2fbx() only checks the top level it will fire a false-positive
+        "folder found but expected files missing" warning for that exact scenario.
+
+        Regression guard: the original implementation did only a direct
+        top-level check (`Path(path) / "havok2fbx.exe"`).
+        """
+        import tempfile, os
+        from pathlib import Path as _Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Exe lives one level deeper, like a GitHub release zip that extracts
+            # into a versioned sub-directory.
+            subfolder = os.path.join(tmpdir, "havok2fbx-win64")
+            os.makedirs(subfolder)
+            _Path(os.path.join(subfolder, "havok2fbx.exe")).touch()
+
+            import importlib.util, types
+            bpy_stub = types.ModuleType("bpy")
+            bpy_stub.props = types.ModuleType("bpy.props")
+            bpy_stub.types = types.ModuleType("bpy.types")
+            bpy_stub.path = types.SimpleNamespace(abspath=lambda p: p)
+            original_bpy = sys.modules.get("bpy")
+            sys.modules["bpy"] = bpy_stub
+            try:
+                spec = importlib.util.spec_from_file_location(
+                    "_ti_test2", _path("tool_installers.py"))
+                ti = importlib.util.module_from_spec(spec)
+                try:
+                    spec.loader.exec_module(ti)
+                except Exception:
+                    pass
+                if hasattr(ti, "check_havok2fbx"):
+                    result = ti.check_havok2fbx(tmpdir)
+                    self.assertTrue(
+                        result,
+                        "check_havok2fbx() returned False when havok2fbx.exe is in a "
+                        "sub-folder of the configured path.  The function must search "
+                        "recursively (like discover_installed_tools()) so the diagnostics "
+                        "check never fires a false-positive 'expected files missing' "
+                        "warning for a path set by auto_configure_preferences().",
+                    )
+            finally:
+                if original_bpy is None:
+                    sys.modules.pop("bpy", None)
+
+    def test_rglob_fallback_in_source(self):
+        """check_havok2fbx source must contain rglob for the recursive search."""
+        block = self._get_check_source()
+        self.assertIn(
+            "rglob",
+            block,
+            "check_havok2fbx() must use rglob() to search recursively so it stays "
+            "consistent with discover_installed_tools() which also uses rglob().",
+        )
 
 
-# ---------------------------------------------------------------------------
-# Section K: bundled knowledge_base/ directory must exist
-# ---------------------------------------------------------------------------
+
 
 class TestKnowledgeBaseDirectoryBundled(unittest.TestCase):
     """Verify that the bundled knowledge_base/ directory is present in the add-on root.
