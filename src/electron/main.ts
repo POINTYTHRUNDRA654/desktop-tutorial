@@ -4834,8 +4834,12 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
    * Primary model (70b) gives the best answers; on rate-limit we retry once with
    * the 8b-instant model which has ~28× higher free-tier quota.
    */
-  const GROQ_PRIMARY_MODEL = 'llama-3.3-70b-versatile';
-  const GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant';
+  // 8b-instant is 3–5× faster and has ~28× higher free-tier quota.
+  // 70b is kept as the rate-limit fallback for queries that need deeper reasoning.
+  const GROQ_PRIMARY_MODEL = 'llama-3.1-8b-instant';
+  const GROQ_FALLBACK_MODEL = 'llama-3.3-70b-versatile';
+  // Hard cap on direct Groq SDK calls — prevents indefinite hangs when Groq is slow.
+  const GROQ_SDK_TIMEOUT_MS = 15000;
 
   const callGroqWithFallback = async (
     client: { chat: { completions: { create: (params: { model: string; messages: unknown; max_tokens?: number }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } },
@@ -4844,13 +4848,20 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     maxTokens = 1024,
   ): Promise<string> => {
     const { RateLimitError } = await import('groq-sdk');
+    const withTimeout = <T>(p: Promise<T>): Promise<T> =>
+      Promise.race([
+        p,
+        new Promise<T>((_, reject) =>
+          setTimeout(() => reject(new Error(`Groq request timed out after ${GROQ_SDK_TIMEOUT_MS}ms`)), GROQ_SDK_TIMEOUT_MS)
+        ),
+      ]);
     try {
-      const response = await client.chat.completions.create({ model: preferredModel, messages, max_tokens: maxTokens });
+      const response = await withTimeout(client.chat.completions.create({ model: preferredModel, messages, max_tokens: maxTokens }));
       return response.choices[0]?.message?.content || '';
     } catch (e) {
       if (e instanceof RateLimitError && preferredModel !== GROQ_FALLBACK_MODEL) {
         console.warn(`[Groq] Rate-limited on ${preferredModel}, retrying with ${GROQ_FALLBACK_MODEL}`);
-        const response = await client.chat.completions.create({ model: GROQ_FALLBACK_MODEL, messages, max_tokens: maxTokens });
+        const response = await withTimeout(client.chat.completions.create({ model: GROQ_FALLBACK_MODEL, messages, max_tokens: maxTokens }));
         return response.choices[0]?.message?.content || '';
       }
       throw e;
@@ -4873,7 +4884,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const systemPrompt = rawSystemPrompt.length > MAX_SYSTEM_PROMPT_CHARS
         ? rawSystemPrompt.slice(0, MAX_SYSTEM_PROMPT_CHARS)
         : rawSystemPrompt;
-      const model = payload.model || 'llama-3.3-70b-versatile';
+      const model = payload.model || GROQ_PRIMARY_MODEL;
 
       // Build messages array with conversation history for multi-turn context
       const rawHistory = Array.isArray(payload.conversationHistory) ? payload.conversationHistory : [];
@@ -5072,7 +5083,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
       // Use Groq for voice responses (real-time)
       const systemPrompt = 'You are Mossy, a helpful AI assistant for Fallout 4 modding. Keep responses concise and conversational for voice chat.' + contextSuffix;
-      const model = 'llama-3.3-70b-versatile';
+      const model = GROQ_PRIMARY_MODEL;
       const messages = [
         { role: 'system', content: systemPrompt },
         ...history.map((entry: any) => ({ role: entry.role, content: entry.content })),
@@ -8433,7 +8444,7 @@ app.whenReady().then(() => {
           const { default: Groq } = await import('groq-sdk') as { default: new (opts: { apiKey: string }) => { chat: { completions: { create: (p: { model: string; messages: unknown }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } } };
           const groqClient = new Groq({ apiKey });
           const aiText = await groqClient.chat.completions.create({
-            model: 'llama-3.3-70b-versatile',
+            model: GROQ_PRIMARY_MODEL,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: query + contextStr },
