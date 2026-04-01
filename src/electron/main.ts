@@ -2899,6 +2899,35 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // --- Knowledge Vault: Persist user-added knowledge to a plain JSON file ---
+  // This ensures that information fed to Mossy via the Memory Vault survives
+  // app reinstalls and localStorage clears (data is stored in userData which
+  // persists independently of Electron's browser storage).
+  registerHandler(IPC_CHANNELS.SAVE_KNOWLEDGE_VAULT, async (_event, items: unknown) => {
+    try {
+      const file = path.join(app.getPath('userData'), 'knowledge-vault.json');
+      const data = Array.isArray(items) ? items : [];
+      fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[Main] save-knowledge-vault error:', e);
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.LOAD_KNOWLEDGE_VAULT, async () => {
+    try {
+      const file = path.join(app.getPath('userData'), 'knowledge-vault.json');
+      if (!fs.existsSync(file)) return [];
+      const raw = fs.readFileSync(file, 'utf-8');
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e: any) {
+      console.error('[Main] load-knowledge-vault error:', e);
+      return [];
+    }
+  });
+
   // --- Vault: Get DDS width/height (read header) ---
   registerHandler(IPC_CHANNELS.VAULT_GET_DDS_DIMENSIONS, async (_event, filePathStr: string) => {
     try {
@@ -3070,6 +3099,46 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     return result.filePaths;
   });
 
+  // --- Auditor: Shared helper — scan a directory and collect mod files ---
+  /**
+   * Recursively walks `modDir` and collects every file whose extension is one of
+   * the recognised Fallout 4 mod asset types (NIF, DDS, BGSM, BGEM, ESP, ESM, ESL).
+   *
+   * @param modDir  Absolute path to the root directory to scan.
+   * @returns       Array of `{ path, type }` objects for each matching file found.
+   *
+   * Recursion is capped at `MAX_SCAN_DEPTH` levels to prevent runaway traversal in
+   * deeply or circularly linked directories.
+   */
+  const MAX_SCAN_DEPTH = 10;
+  const scanModDirectoryForFiles = (modDir: string): Array<{ path: string; type: string }> => {
+    const modFiles: Array<{ path: string; type: string }> = [];
+    const validExtensions = new Set(['nif', 'dds', 'bgsm', 'bgem', 'esp', 'esm', 'esl']);
+
+    const scanDirectory = (dir: string, depth = 0): void => {
+      if (depth > MAX_SCAN_DEPTH) return;
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            scanDirectory(fullPath, depth + 1);
+          } else if (entry.isFile()) {
+            const ext = entry.name.split('.').pop()?.toLowerCase();
+            if (ext && validExtensions.has(ext)) {
+              modFiles.push({ path: fullPath, type: ext });
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[Auditor] Error scanning directory ${dir}:`, err);
+      }
+    };
+
+    scanDirectory(modDir);
+    return modFiles;
+  };
+
   // --- Auditor: Scan entire mod directory for all asset types ---
   registerHandler(IPC_CHANNELS.AUDITOR_SCAN_MOD_DIRECTORY, async (_event) => {
     const result = await dialog.showOpenDialog({
@@ -3080,42 +3149,14 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     if (result.canceled || !result.filePaths?.length) return [];
 
     const modDir = result.filePaths[0];
-    const modFiles: Array<{ path: string; type: string }> = [];
-    const validExtensions = ['nif', 'dds', 'bgsm', 'bgem', 'esp', 'esm', 'esl'];
+    return scanModDirectoryForFiles(modDir);
+  });
 
-    /**
-     * Recursively scan directory for mod files
-     */
-    const scanDirectory = (dir: string, depth = 0): void => {
-      // Limit recursion depth to avoid deep directory traversals
-      if (depth > 10) return;
-
-      try {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-
-          if (entry.isDirectory()) {
-            // Recursively scan subdirectories
-            scanDirectory(fullPath, depth + 1);
-          } else if (entry.isFile()) {
-            const ext = entry.name.split('.').pop()?.toLowerCase();
-            if (ext && validExtensions.includes(ext)) {
-              modFiles.push({
-                path: fullPath,
-                type: ext
-              });
-            }
-          }
-        }
-      } catch (err) {
-        console.error(`Error scanning directory ${dir}:`, err);
-      }
-    };
-
-    scanDirectory(modDir);
-    return modFiles;
+  // --- Auditor: Scan a mod folder by pre-selected path (no dialog) ---
+  registerHandler(IPC_CHANNELS.AUDITOR_SCAN_MOD_DIRECTORY_PATH, async (_event, folderPath: string) => {
+    if (!folderPath || typeof folderPath !== 'string') return [];
+    if (!fs.existsSync(folderPath)) return [];
+    return scanModDirectoryForFiles(folderPath);
   });
 
   // --- Auditor: Analyze ESP/ESM files ---

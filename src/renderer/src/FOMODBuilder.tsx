@@ -41,7 +41,6 @@ import {
   FormControlLabel,
   Tabs,
   Tab,
-  Menu,
   Snackbar,
 } from '@mui/material';
 import {
@@ -146,10 +145,7 @@ export default function FOMODBuilder() {
     setError('');
 
     try {
-      const path = await window.electron.api.pickDirectory({
-        title: 'Select Mod Folder',
-        properties: ['openDirectory'],
-      });
+      const path = await window.electron.api.pickDirectory('Select Mod Folder');
 
       if (path) {
         setModPath(path);
@@ -460,7 +456,7 @@ export default function FOMODBuilder() {
             ...group,
             options: group.options.map(option =>
               option.id === optionId
-                ? { ...option, filePatterns: [...option.filePatterns, newPattern] }
+                ? { ...option, filePatterns: [...(option.filePatterns ?? []), newPattern] }
                 : option
             ),
           };
@@ -494,7 +490,7 @@ export default function FOMODBuilder() {
               option.id === optionId
                 ? {
                     ...option,
-                    filePatterns: option.filePatterns.filter((_, i) => i !== patternIndex),
+                    filePatterns: (option.filePatterns ?? []).filter((_, i) => i !== patternIndex),
                   }
                 : option
             ),
@@ -556,10 +552,7 @@ export default function FOMODBuilder() {
 
     setLoading(true);
     try {
-      const outputPath = await window.electron.api.pickDirectory({
-        title: 'Select Export Destination',
-        properties: ['openDirectory'],
-      });
+      const outputPath = await window.electron.api.pickDirectory('Select Export Destination');
 
       if (outputPath) {
         const result = await window.electron.api.fomodExport(project, outputPath);
@@ -848,13 +841,13 @@ export default function FOMODBuilder() {
                     <Typography variant="subtitle2" gutterBottom>
                       Files (drag from right panel):
                     </Typography>
-                    {option.filePatterns.length === 0 ? (
+                    {(option.filePatterns?.length ?? 0) === 0 ? (
                       <Alert severity="info" sx={{ mb: 1 }}>
                         No files yet. Drag files from the right panel to add them.
                       </Alert>
                     ) : (
                       <List dense>
-                        {option.filePatterns.map((pattern, index) => (
+                        {(option.filePatterns ?? []).map((pattern, index) => (
                           <ListItem
                             key={index}
                             secondaryAction={

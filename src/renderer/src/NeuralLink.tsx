@@ -48,7 +48,7 @@ const NeuralLink: React.FC<NeuralLinkProps> = ({ embedded = false }) => {
             try {
                 localStorage.setItem('mossy_active_tools', JSON.stringify({
                     at: Date.now(),
-                    tools: tools.map(t => ({
+                    tools: tools.map((t: any) => ({
                         name: t.name,
                         pid: t.pid,
                         windowTitle: t.windowTitle || ''
@@ -59,7 +59,7 @@ const NeuralLink: React.FC<NeuralLinkProps> = ({ embedded = false }) => {
             }
 
             // Update context-aware AI service
-            const toolContexts: ToolContext[] = tools.map(tool => ({
+            const toolContexts: ToolContext[] = tools.map((tool: any) => ({
                 name: tool.name,
                 processName: tool.name.toLowerCase(),
                 windowTitle: tool.windowTitle,

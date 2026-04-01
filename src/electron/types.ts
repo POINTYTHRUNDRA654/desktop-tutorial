@@ -74,6 +74,11 @@ export const IPC_CHANNELS = {
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
   AUDITOR_SCAN_MOD_DIRECTORY: 'auditor-scan-mod-directory',
+  AUDITOR_SCAN_MOD_DIRECTORY_PATH: 'auditor-scan-mod-directory-path',
+
+  // Knowledge Vault file persistence (backup/restore to userData/knowledge-vault.json)
+  SAVE_KNOWLEDGE_VAULT: 'save-knowledge-vault',
+  LOAD_KNOWLEDGE_VAULT: 'load-knowledge-vault',
 
   // Project Management
   PROJECT_LIST: 'project-list',
@@ -473,6 +478,16 @@ export interface ElectronAPI {
   pickNifFile: () => Promise<string[]>;
   pickDdsFile: () => Promise<string[]>;
   pickBgsmFile: () => Promise<string[]>;
+  /** Scan a mod directory for mod files (opens OS folder dialog) */
+  scanModDirectory: () => Promise<Array<{ path: string; type: string }>>;
+  /** Scan a mod directory for mod files using a pre-selected path (no OS dialog) */
+  scanModDirectoryPath: (folderPath: string) => Promise<Array<{ path: string; type: string }>>;
+
+  // Knowledge Vault file persistence
+  /** Persist the full Knowledge Vault to userData/knowledge-vault.json */
+  saveKnowledgeVault: (items: unknown[]) => Promise<{ ok: boolean; error?: string }>;
+  /** Load the Knowledge Vault from userData/knowledge-vault.json (returns [] if not found) */
+  loadKnowledgeVaultFromFile: () => Promise<unknown[]>;
 
   // Generic file helpers
   pickJsonFile: () => Promise<string>;
@@ -503,8 +518,8 @@ export interface ElectronAPI {
   invoke: (channel: string, ...args: any[]) => Promise<any>;
   on: (channel: string, callback: (...args: any[]) => void) => (() => void);
   openDialog: (options: any) => Promise<string | null>;
-  listProcesses: () => Promise<any[]>;
-  getProcessMetrics: () => Promise<any[]>;
+  listProcesses: (filter?: string) => Promise<any[]>;
+  getProcessMetrics: (pid: number) => Promise<any>;
   gameLogMonitor: {
     getLastLogPath: () => Promise<string | null>;
     browseLogFile: () => Promise<string | null>;
@@ -518,9 +533,13 @@ export interface ElectronAPI {
     scanConflicts: (path: string) => Promise<{ count: number; conflicts: any[] }>;
     remapFormIds: (path: string) => Promise<{ success: boolean }>;
   };
-  modComparisonTool: (action: string, payload?: any) => Promise<any>;
-  modConflictVisualizer: (action: string, payload?: any) => Promise<any>;
-  projectTemplates: (action: string, payload?: any) => Promise<any>;
+  modComparisonTool: { compare: (mod1: string, mod2: string) => Promise<{ differences: any[] }>; merge?: () => Promise<any>; export?: () => Promise<any> };
+  modConflictVisualizer: { scanLoadOrder: () => Promise<{ plugins: string[]; conflicts: any[] }>; analyze?: () => Promise<any>; resolve?: () => Promise<any> };
+  projectTemplates: {
+    browsePath: () => Promise<string | null>;
+    createProject: (config: { templateId: string; projectName: string; projectPath: string; authorName: string }) => Promise<{ success: boolean; path?: string; error?: string }>;
+    downloadTemplate: (templateId: string) => Promise<boolean>;
+  };
   voiceCommands: {
     startListening: () => Promise<void>;
     stopListening: () => Promise<void>;
@@ -536,17 +555,17 @@ export interface ElectronAPI {
     executeScript: (xEditPath: string, plugin: string, scriptId: string) => Promise<{ success: boolean; output: string; errors: string[]; warnings: string[]; duration: number }>;
   };
   fomodCreate: (payload: any) => Promise<any>;
-  fomodPreview: (payload: any) => Promise<any>;
+  fomodPreview: (payload: any, selections?: any) => Promise<any>;
   fomodValidate: (payload: any) => Promise<any>;
-  fomodExport: (payload: any) => Promise<any>;
-  fomodSaveProject: (payload: any) => Promise<any>;
+  fomodExport: (payload: any, outputPath?: any) => Promise<any>;
+  fomodSaveProject: (payload: any, projectPath?: any) => Promise<any>;
   modPackagingValidateStructure: (payload: any) => Promise<any>;
-  modPackagingGenerateReadme: (payload: any) => Promise<any>;
-  modPackagingCreateArchive: (payload: any) => Promise<any>;
+  modPackagingGenerateReadme: (payload: any, template?: any) => Promise<any>;
+  modPackagingCreateArchive: (payload: any, modInfo?: any, readme?: any, settings?: any) => Promise<any>;
   modPackagingPrepareNexus: (payload: any) => Promise<any>;
-  modPackagingIncrementVersion: (payload: any) => Promise<any>;
+  modPackagingIncrementVersion: (version: any, type?: any) => Promise<any>;
   exportAnalyticsReport: (payload: any) => Promise<any>;
-  getAppVersion: () => Promise<string>;
+  getAppVersion: () => Promise<{ success: boolean; version?: string; error?: string }>;
   aiGenerateScript: (payload: any) => Promise<any>;
   aiPlanWorkflow: (payload: any) => Promise<any>;
   aiDiagnoseError: (payload: any) => Promise<any>;

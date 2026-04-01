@@ -145,6 +145,7 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
       // Add to history
       setCommandHistory(prev => [...prev, {
         command,
+        timestamp: Date.now(),
         description: result.output,
         category: 'utility',
       }]);
@@ -227,7 +228,7 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
             </Button>
             {runningGame && (
               <Badge variant={runningGame.f4seDetected || runningGame.skseDetected ? 'default' : 'secondary'}>
-                {runningGame.game.toUpperCase()} Running (PID: {runningGame.pid})
+                {runningGame.game?.toUpperCase() ?? runningGame.name.toUpperCase()} Running (PID: {runningGame.pid})
               </Badge>
             )}
           </div>
@@ -346,15 +347,15 @@ const GameMonitorTab: React.FC<GameMonitorTabProps> = ({
                 </div>
                 <div>
                   <p className="text-sm font-medium">Uptime</p>
-                  <p className="text-lg">{Math.floor(runningGame.uptime / 60)}m</p>
+                  <p className="text-lg">{Math.floor((runningGame.uptime ?? 0) / 60)}m</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium">Memory Usage</p>
-                  <p className="text-lg">{(runningGame.memoryUsage / 1024 / 1024).toFixed(1)} MB</p>
+                  <p className="text-lg">{(( runningGame.memoryUsage ?? 0) / 1024 / 1024).toFixed(1)} MB</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium">CPU Usage</p>
-                  <p className="text-lg">{runningGame.cpuUsage.toFixed(1)}%</p>
+                  <p className="text-lg">{(runningGame.cpuUsage ?? 0).toFixed(1)}%</p>
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
@@ -401,7 +402,7 @@ const GameMonitorTab: React.FC<GameMonitorTabProps> = ({
                   </div>
                   <div>
                     <p className="text-sm font-medium">Frame Time</p>
-                    <p className="text-lg">{performanceData.frameTime.toFixed(2)}ms</p>
+                    <p className="text-lg">{(performanceData.frameTime ?? 0).toFixed(2)}ms</p>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -625,7 +626,7 @@ const SaveGameAnalyzerTab: React.FC<SaveGameAnalyzerTabProps> = ({
                 </div>
                 <div>
                   <p className="text-sm font-medium">File Size</p>
-                  <p>{(saveAnalysis.fileSize / 1024 / 1024).toFixed(2)} MB</p>
+                  <p>{((saveAnalysis.fileSize ?? 0) / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium">Player Name</p>
@@ -654,21 +655,21 @@ const SaveGameAnalyzerTab: React.FC<SaveGameAnalyzerTabProps> = ({
             <CardContent>
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm font-medium mb-2">Active Plugins ({saveAnalysis.plugins.length})</p>
+                  <p className="text-sm font-medium mb-2">Active Plugins ({(saveAnalysis.plugins?.length ?? 0)})</p>
                   <ScrollArea className="h-32 bg-gray-50 p-2 rounded">
-                    {saveAnalysis.plugins.map((plugin, i) => (
+                    {(saveAnalysis.plugins ?? []).map((plugin, i) => (
                       <div key={i} className="text-sm">{plugin}</div>
                     ))}
                   </ScrollArea>
                 </div>
 
-                {saveAnalysis.missingPlugins.length > 0 && (
+                {( saveAnalysis.missingPlugins?.length ?? 0) > 0 && (
                   <div>
                     <p className="text-sm font-medium mb-2 text-red-600">
-                      Missing Plugins ({saveAnalysis.missingPlugins.length})
+                      Missing Plugins ({saveAnalysis.missingPlugins?.length ?? 0})
                     </p>
                     <ScrollArea className="h-32 bg-red-50 p-2 rounded">
-                      {saveAnalysis.missingPlugins.map((plugin, i) => (
+                      {(saveAnalysis.missingPlugins ?? []).map((plugin, i) => (
                         <div key={i} className="text-sm text-red-600">{plugin}</div>
                       ))}
                     </ScrollArea>
@@ -678,14 +679,14 @@ const SaveGameAnalyzerTab: React.FC<SaveGameAnalyzerTabProps> = ({
             </CardContent>
           </Card>
 
-          {saveAnalysis.recommendations.length > 0 && (
+          {(saveAnalysis.recommendations?.length ?? 0) > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Recommendations</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {saveAnalysis.recommendations.map((rec, i) => (
+                  {(saveAnalysis.recommendations ?? []).map((rec, i) => (
                     <Alert key={i}>
                       <AlertDescription>{rec}</AlertDescription>
                     </Alert>
@@ -759,8 +760,8 @@ const PerformanceDashboardTab: React.FC<PerformanceDashboardTabProps> = ({
               </div>
               <div>
                 <p className="text-sm font-medium">Script Lag</p>
-                <Badge variant={performanceData.scriptLag > 0 ? 'destructive' : 'default'}>
-                  {performanceData.scriptLag > 0 ? `${performanceData.scriptLag}ms` : 'None'}
+                <Badge variant={( performanceData.scriptLag ?? 0) > 0 ? 'destructive' : 'default'}>
+                  {( performanceData.scriptLag ?? 0) > 0 ? `${performanceData.scriptLag ?? 0}ms` : 'None'}
                 </Badge>
               </div>
             </div>

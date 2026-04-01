@@ -107,6 +107,11 @@ export class VoiceService {
     this.config = { ...config, ttsProvider: 'browser' };
   }
 
+  /** Update the STT provider without restarting the service. */
+  setSttProvider(provider: VoiceServiceConfig['sttProvider']): void {
+    this.config.sttProvider = provider;
+  }
+
   async initialize(): Promise<void> {
     // Get available audio inputs
     try {

@@ -44,6 +44,25 @@ const TheAuditor: React.FC = () => {
     const issuesScrollRef = useRef<HTMLDivElement | null>(null);
     const adviceScrollRef = useRef<HTMLDivElement | null>(null);
     const wheelProxy = useWheelScrollProxyFrom(() => issuesScrollRef.current ?? fileListScrollRef.current ?? adviceScrollRef.current);
+    // Set to true when the user clicks "Quick Scan Folder". On the next React
+    // render that includes pending files the useEffect below auto-starts the
+    // audit so the user doesn't need to click "Run Audit" separately.
+    const pendingAutoScan = useRef(false);
+
+    // Auto-start audit when pendingAutoScan is set (triggered after loading a folder via Quick Scan)
+    useEffect(() => {
+        if (pendingAutoScan.current && files.some(f => f.status === 'pending')) {
+            pendingAutoScan.current = false;
+            setIsScanning(true);
+            setScanProgress(0);
+            setMossyAdvice(null);
+            performAnalysis();
+        }
+    // performAnalysis is intentionally omitted from deps: it reads `files` via
+    // closure at call-time and adding it would cause an infinite loop because
+    // performAnalysis itself calls setFiles.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [files]);
 
     // Helper function to read file as ArrayBuffer
     const readFileAsArrayBuffer = async (filePath: string): Promise<ArrayBuffer> => {
@@ -304,6 +323,65 @@ const TheAuditor: React.FC = () => {
         } catch (error) {
             console.error('Directory scan error:', error);
             alert('Failed to scan directory. Please try again.');
+        }
+    };
+
+    /**
+     * Quick Scan Folder: pick a mod folder with a simple directory picker, load ALL
+     * recognised mod files (ESP/ESM/ESL, NIF, DDS, BGSM/BGEM), then automatically
+     * start the audit — no extra button presses required.
+     */
+    const handleQuickScanFolder = async () => {
+        try {
+            const bridge = (window as any).electron?.api || (window as any).electronAPI;
+            if (!bridge) {
+                alert('File browser not available. Please use the desktop app.');
+                return;
+            }
+
+            // 1. Let the user pick a folder
+            const folderPath: string | null = await bridge.pickDirectory?.('Select Mod Folder to Scan');
+            if (!folderPath) return; // User cancelled
+
+            // 2. Scan that folder for all recognised mod file types (no extra OS dialog)
+            const rawScanResult = await bridge.scanModDirectoryPath?.(folderPath);
+            if (!rawScanResult) {
+                // IPC returned null/undefined — scanModDirectoryPath not available or failed
+                alert('Scan failed: the scanModDirectoryPath API is unavailable. Please restart the app.');
+                return;
+            }
+            const modFiles: Array<{ path: string; type: string }> = rawScanResult;
+            if (modFiles.length === 0) {
+                alert(`No recognised mod files (ESP, NIF, DDS, BGSM/BGEM) were found in:\n${folderPath}\n\nMake sure you selected the mod's root or Data folder.`);
+                return;
+            }
+
+            // 3. Build file list entries (all marked 'pending' so the audit picks them up)
+            const newFiles: ModFile[] = modFiles.map((file: { path: string; type: string }) => {
+                const fileName = file.path.split(/[\\\/]/).pop() || 'Unknown';
+                let fileType: ModFile['type'] = 'script';
+                if (file.type === 'nif') fileType = 'mesh';
+                else if (file.type === 'dds') fileType = 'texture';
+                else if (file.type === 'bgsm' || file.type === 'bgem') fileType = 'material';
+                else if (file.type === 'esp' || file.type === 'esm' || file.type === 'esl') fileType = 'plugin';
+                return {
+                    id: `${Date.now()}-${Math.random()}`,
+                    name: fileName,
+                    type: fileType,
+                    path: file.path,
+                    size: 'Analyzing...',
+                    issues: [],
+                    status: 'pending' as const
+                };
+            });
+
+            // 4. Replace the current file list (fresh scan) and flag auto-start
+            pendingAutoScan.current = true;
+            setFiles(newFiles);
+            setSelectedFileId(newFiles[0]?.id ?? null);
+        } catch (error) {
+            console.error('[Auditor] Quick scan error:', error);
+            alert('Failed to scan folder. Please try again.');
         }
     };
 
@@ -754,6 +832,17 @@ const TheAuditor: React.FC = () => {
                         </div>
                     )}
                     <div className="flex flex-wrap gap-2">
+                        <button
+                            data-testid="quick-scan-folder"
+                            onClick={handleQuickScanFolder}
+                            disabled={isScanning}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-all shadow-[0_0_18px_rgba(5,150,105,0.4)]"
+                            title="Pick a mod folder — scans ALL files (ESP, NIF, DDS, BGSM) and starts the audit automatically"
+                            aria-label="Quick Scan Folder"
+                        >
+                            <Scan className="w-4 h-4" />
+                            Quick Scan Folder
+                        </button>
                         <button
                             data-testid="batch-mod-directory"
                             onClick={handleBatchModDirectoryUpload}

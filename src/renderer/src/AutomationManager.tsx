@@ -43,7 +43,7 @@ export default function AutomationManager() {
 
   const loadSettings = async () => {
     try {
-      const settings = await window.api.automation.getSettings();
+      const settings = await window.automationAPI?.automation.getSettings();
       setIsEnabled(settings.enabled);
       setRules(settings.rules);
     } catch (error) {
@@ -53,7 +53,7 @@ export default function AutomationManager() {
 
   const loadStatistics = async () => {
     try {
-      const statistics = await window.api.automation.getStatistics();
+      const statistics = await window.automationAPI?.automation.getStatistics();
       setStats(statistics);
     } catch (error) {
       console.error('Failed to load statistics:', error);
@@ -63,10 +63,10 @@ export default function AutomationManager() {
   const toggleEngine = async () => {
     try {
       if (stats?.isRunning) {
-        await window.api.automation.stop();
+        await window.automationAPI?.automation.stop();
         showMessage('Automation engine stopped');
       } else {
-        await window.api.automation.start();
+        await window.automationAPI?.automation.start();
         showMessage('Automation engine started');
       }
       await loadStatistics();
@@ -77,7 +77,7 @@ export default function AutomationManager() {
 
   const toggleRule = async (ruleId: string, enabled: boolean) => {
     try {
-      await window.api.automation.toggleRule(ruleId, enabled);
+      await window.automationAPI?.automation.toggleRule(ruleId, enabled);
       await loadSettings();
       showMessage(`Rule ${enabled ? 'enabled' : 'disabled'}`);
     } catch (error) {
@@ -87,7 +87,7 @@ export default function AutomationManager() {
 
   const triggerRule = async (ruleId: string) => {
     try {
-      await window.api.automation.triggerRule(ruleId);
+      await window.automationAPI?.automation.triggerRule(ruleId);
       showMessage('Rule triggered manually');
       await loadStatistics();
     } catch (error) {
@@ -97,7 +97,7 @@ export default function AutomationManager() {
 
   const resetStatistics = async () => {
     try {
-      await window.api.automation.resetStatistics();
+      await window.automationAPI?.automation.resetStatistics();
       await loadStatistics();
       showMessage('Statistics reset');
     } catch (error) {

@@ -78,6 +78,12 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
   const [installLog, setInstallLog] = useState<string[]>([]);
   const [foundTools, setFoundTools] = useState<Array<{name: string, category: string}>>([]);
 
+  // Deployment / build state
+  const [buildStatus, setBuildStatus] = useState<'idle' | 'building' | 'complete' | 'error'>('idle');
+  const [buildProgress, setBuildProgress] = useState(0);
+  const [buildLog, setBuildLog] = useState<string[]>([]);
+  const [releaseUrl, setReleaseUrl] = useState<string>('');
+
   const logsEndRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const buildLogRef = useRef<HTMLDivElement>(null);
@@ -228,7 +234,7 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
 
     // STEP 1: Get System Hardware Info
     let sysInfo: any = null;
-    if (window.electron?.api?.getSystemInfo) {
+    if (typeof window.electron?.api?.getSystemInfo === 'function') {
         try {
             addLog("[STEP 1/3] Scanning system hardware...", 'info');
             setScanProgress(10);
