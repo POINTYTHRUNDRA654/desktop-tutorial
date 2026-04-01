@@ -27,6 +27,30 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 37. Fix: Resolve unmerged commits from prior session — README version sync ✅
+
+**Request:** "The last session closed with unmerged commitments. We need to fix that."
+
+**Background:** The prior session (branch `copilot/create-package-for-release`, PR #104) made a
+single commit that updated README.md version references from 5.4.24 → 5.4.26 to match `package.json`.
+That commit was applied to master via a direct branch merge (commit `750dc56`) but the PR was closed
+as a draft without going through GitHub's merge button, and no CHANGES.md entry was created.
+
+This session confirmed the commit is present in master (HEAD = origin/master = `750dc56`), the
+working tree is clean, and no work was lost. The fix here is to document the prior session's change
+and confirm the state is healthy.
+
+**Changes applied in the prior session (already in master):**
+- `README.md` — replaced all v5.4.24 references with v5.4.26: header tagline, section heading,
+  version badge, download link, installer example path, packaging note. Replaced the "New in v5.4.24"
+  release notes block with a proper v5.4.26 entry (Anniversary Edition awareness), demoted the old
+  v5.4.24 content to a historical entry alongside v5.4.25.
+
+Files changed:
+- `CHANGES.md` — this entry (documents the prior-session fix)
+
+---
+
 ### 36. Enhancement: Add Anniversary Edition (AE) to version awareness (v5.4.26) ✅
 
 **Request:** "What about the anniversary edition? I don't notice that in here."
