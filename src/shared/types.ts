@@ -467,7 +467,6 @@ export interface Settings {
   // Secure API keys for backend TTS/STT (main process only)
   openaiApiKey?: string;
   groqApiKey?: string;
-  elevenLabsApiKey?: string;
   // Backend configuration
   backendBaseUrl?: string;
   backendTokenConfigured?: boolean;

@@ -55,9 +55,6 @@ const IPC_CHANNELS = {
   // voice history persistence
   SAVE_VOICE_HISTORY: 'save-voice-history',
   GET_VOICE_HISTORY_PATH: 'get-voice-history-path',
-  ELEVENLABS_STATUS: 'elevenlabs-status',
-  ELEVENLABS_LIST_VOICES: 'elevenlabs-list-voices',
-  ELEVENLABS_SYNTHESIZE: 'elevenlabs-synthesize',
   CHECK_BLENDER_ADDON: 'check-blender-addon',
   SEND_BLENDER_COMMAND: 'send-blender-command',
   VAULT_RUN_TOOL: 'vault-run-tool',
@@ -277,39 +274,6 @@ const electronAPI = {
    */
   onSettingsUpdated: (callback: (settings: any) => void): void => {
     ipcRenderer.on(IPC_CHANNELS.SETTINGS_UPDATED, (_event, settings) => callback(settings));
-  },
-
-  /**
-   * ElevenLabs config status (whether a key is stored in main-process settings).
-   */
-  elevenLabsStatus: (): Promise<
-    | { ok: true; configured: boolean; voiceId?: string; provider?: 'browser' | 'elevenlabs' }
-    | { ok: false; error: string }
-  > => {
-    return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_STATUS);
-  },
-
-  /**
-   * List available ElevenLabs voices.
-   */
-  elevenLabsListVoices: (): Promise<
-    | {
-      ok: true;
-      voices: Array<{ voice_id: string; name: string; category?: string; labels?: Record<string, string> }>;
-    }
-    | { ok: false; error: string }
-  > => {
-    return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_LIST_VOICES);
-  },
-
-  /**
-   * Synthesize speech with ElevenLabs (main process does the network call).
-   */
-  elevenLabsSynthesizeSpeech: (args: { text: string; voiceId?: string }): Promise<
-    | { ok: true; audioBase64: string; mimeType?: string }
-    | { ok: false; error: string }
-  > => {
-    return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_SYNTHESIZE, args);
   },
 
   /**
@@ -1803,7 +1767,7 @@ const electronAPI = {
    * Secrets status (presence only). Never returns actual key values.
    */
   getSecretStatus: (): Promise<
-    | { ok: true; openai: boolean; groq: boolean; elevenlabs: boolean }
+    | { ok: true; openai: boolean; groq: boolean; backendToken: boolean }
     | { ok: false; error: string }
   > => {
     return ipcRenderer.invoke(IPC_CHANNELS.SECRET_STATUS);

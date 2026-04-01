@@ -190,7 +190,6 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const config: VoiceServiceConfig = {
       sttProvider: 'backend', // Use backend STT if available, fallback to browser
       ttsProvider: 'browser',
-      elevenlabsKey: undefined, // API keys accessed through main process
     };
 
     voiceServiceRef.current = new VoiceService(config);

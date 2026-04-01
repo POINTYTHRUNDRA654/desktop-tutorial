@@ -665,7 +665,7 @@ const settingsPath = (() => {
   }
 })();
 
-type SecretField = 'elevenLabsApiKey' | 'openaiApiKey' | 'groqApiKey' | 'backendToken';
+type SecretField = 'openaiApiKey' | 'groqApiKey' | 'backendToken';
 const secretEncKey = (k: SecretField) => `${k}Enc` as const;
 const hasOwn = (obj: any, key: string) => Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -727,7 +727,7 @@ const migratePlainSecretsToEncrypted = (settings: any): { next: any; migrated: b
   const next = { ...settings };
   let migrated = false;
 
-  const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'backendToken'];
+  const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken'];
   for (const field of fields) {
     const encKey = secretEncKey(field);
     const plain = String(next?.[field] || '').trim();
@@ -810,8 +810,7 @@ const loadSettings = (): any => {
       const seeded =
         seedSecretFromEnv(next, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
         seedSecretFromEnv(next, 'openaiApiKey', 'OPENAI_API_KEY') ||
-        seedSecretFromEnv(next, 'groqApiKey', 'GROQ_API_KEY') ||
-        seedSecretFromEnv(next, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
+        seedSecretFromEnv(next, 'groqApiKey', 'GROQ_API_KEY');
 
       // Initialize Blender token on first run
       let tokenInitialized = false;
@@ -930,11 +929,8 @@ const loadSettings = (): any => {
     workflowRunnerWorkflows: [],
     workflowRunnerRunHistory: [],
 
-    // TTS output (optional)
+    // TTS output
     ttsOutputProvider: 'browser',
-    elevenLabsApiKey: '',
-    elevenLabsApiKeyEnc: '',
-    elevenLabsVoiceId: '',
 
     // Optional backend proxy (server holds provider keys)
     backendBaseUrl: defaultBackendBaseUrl,
@@ -956,8 +952,7 @@ const loadSettings = (): any => {
   const seeded =
     seedSecretFromEnv(defaults, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
     seedSecretFromEnv(defaults, 'openaiApiKey', 'OPENAI_API_KEY') ||
-    seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY') ||
-    seedSecretFromEnv(defaults, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
+    seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY');
   if (seeded) {
     try {
       fs.writeFileSync(settingsPath, JSON.stringify(defaults, null, 2), 'utf-8');
@@ -976,8 +971,6 @@ const redactSettingsForRenderer = (settings: any): any => {
   // Never expose secrets to the renderer.
   if (clone.backendToken) clone.backendToken = '';
   if (clone.backendTokenEnc) clone.backendTokenEnc = '';
-  if (clone.elevenLabsApiKey) clone.elevenLabsApiKey = '';
-  if (clone.elevenLabsApiKeyEnc) clone.elevenLabsApiKeyEnc = '';
   if (clone.openaiApiKey) clone.openaiApiKey = '';
   if (clone.openaiApiKeyEnc) clone.openaiApiKeyEnc = '';
   if (clone.groqApiKey) clone.groqApiKey = '';
@@ -1795,7 +1788,7 @@ function setupIpcHandlers() {
     // be able to directly inject pre-computed encrypted values — all secret fields
     // must go through encryptSecretForStorage() in this process.
     const sanitizedInput: any = { ...(newSettings || {}) };
-    const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'backendToken'];
+    const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken'];
     for (const field of fields) {
       delete sanitizedInput[secretEncKey(field)];
     }
@@ -1834,32 +1827,6 @@ function setupIpcHandlers() {
     return { baseUrl, token: tokenRaw ? tokenRaw : undefined };
   };
 
-  const getElevenLabsConfig = (): { apiKey: string; voiceId: string; provider: 'browser' | 'elevenlabs' } => {
-    const s = loadSettings();
-
-    // Prefer per-user settings, but allow env vars for dev/shared installs.
-    // IMPORTANT: Do NOT use VITE_* here (those are renderer-exposed in Vite).
-    const apiKey = getSecretValue(s, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
-
-    const voiceIdFromSettings = String(s?.elevenLabsVoiceId || '').trim();
-    const voiceIdFromEnv = String(process.env.ELEVENLABS_VOICE_ID || '').trim();
-    const voiceId = voiceIdFromSettings || voiceIdFromEnv;
-
-    const provider = s?.ttsOutputProvider === 'elevenlabs' ? 'elevenlabs' : 'browser';
-    return { apiKey, voiceId, provider };
-  };
-
-  registerHandler('elevenlabs-status', async () => {
-    return { ok: true, configured: false, voiceId: undefined, provider: 'browser' };
-  });
-
-  registerHandler('elevenlabs-list-voices', async () => {
-    return { ok: false, error: 'ElevenLabs TTS disabled. Backend service does not support TTS yet.' };
-  });
-
-  registerHandler('elevenlabs-synthesize', async (_event, args: { text: string; voiceId?: string }) => {
-    return { ok: false, error: 'ElevenLabs TTS disabled. Backend service does not support TTS yet. Use browser TTS instead.' };
-  });
 
   // --- Roadmap & Project Management ---
   registerHandler(IPC_CHANNELS.PROJECT_LIST, async () => {
@@ -4959,9 +4926,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const s = loadSettings();
       const openai = Boolean(getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY'));
       const groq = Boolean(getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY'));
-      const elevenlabs = Boolean(getElevenLabsConfig().apiKey);
       const backendToken = Boolean(getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
-      return { ok: true, openai, groq, elevenlabs, backendToken };
+      return { ok: true, openai, groq, backendToken };
     } catch (e: any) {
       return { ok: false, error: String(e?.message || e) };
     }

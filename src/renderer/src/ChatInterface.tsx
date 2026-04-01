@@ -1046,7 +1046,7 @@ export const ChatInterface: React.FC = () => {
         // Stop all active speech via the shared mossyTts helper.
         // stopMossySpeech() applies the pause() + cancel() workaround for the
         // Electron/Chromium bug where cancel() alone sometimes fails to stop TTS,
-        // and also stops any ElevenLabs/cloud audio elements via VoiceService.
+        // and also stops any cloud audio elements via VoiceService.
         try {
             stopMossySpeech();
         } catch (e) {
