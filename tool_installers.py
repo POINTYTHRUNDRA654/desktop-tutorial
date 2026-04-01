@@ -90,6 +90,14 @@ TOOLS_DIR_DISPLAY = str(DEFAULT_TOOLS_ROOT)
 ADDON_ROOT = Path(__file__).resolve().parent
 FALLBACK_TOOLS_ROOT = ADDON_ROOT / "tools"
 
+# Directory inside the addon where pip packages are installed via --target.
+# Storing packages here (rather than relying on user or system site-packages)
+# guarantees they persist across Blender restarts regardless of the Python
+# environment configuration (PYTHONNOUSERSITE, read-only system site-packages,
+# Blender isolated mode, etc.).  _refresh_import_paths() adds this directory
+# to sys.path on every startup so the packages are always importable.
+_PIP_LIB_DIR = ADDON_ROOT / "lib"
+
 # The parent of the addon folder.  When the addon lives at e.g.
 #   D:\Blender addon\blender_game_tools\
 # the user's tools are typically kept at the sibling path
@@ -185,23 +193,35 @@ def _ensure_pip() -> tuple[bool, str]:
 
 
 def _refresh_import_paths() -> None:
-    """Flush Python's import caches and ensure the user site-packages directory
-    is on ``sys.path``.
+    """Flush Python's import caches and ensure installed packages are on ``sys.path``.
 
-    Called after every successful pip install so that newly installed packages
-    are immediately importable inside the running Blender session without a
-    restart.
+    Called after every successful pip install *and* at the very top of
+    ``register()`` so that packages installed in a previous Blender session
+    are immediately importable on the next startup.
 
-    Two things can make a just-installed package invisible to ``find_spec``:
+    Three things can make an installed package invisible to ``find_spec``:
       1. Stale path-finder caches – cleared by ``importlib.invalidate_caches()``.
-      2. Packages landing in the user site directory – this happens when Blender's
-         system site-packages is not writable (e.g. installed under
-         ``C:\\Program Files``).  The user site directory is often absent from
-         Blender's ``sys.path``, so we add it explicitly via
-         ``site.addsitedir()``.
+      2. Packages landing in ``_PIP_LIB_DIR`` (our ``--target`` directory) which
+         is not on ``sys.path`` by default.  We append it here so it is always
+         searched.  This is the primary fix: because ``_pip_install`` uses
+         ``--target _PIP_LIB_DIR``, packages always end up in a location we
+         control, so we only need to add one predictable path rather than
+         guessing between user-site, system-site, or sysconfig variants.
+      3. Packages landing in the user site directory when installed without
+         ``--target`` (pre-fix installs).  We still add the user site via
+         ``site.addsitedir()`` as a backward-compat fallback.
     """
     import importlib
     importlib.invalidate_caches()
+
+    # Primary: add the addon-local lib dir that _pip_install targets.
+    _lib = str(_PIP_LIB_DIR)
+    if _PIP_LIB_DIR.exists() and _lib not in sys.path:
+        sys.path.append(_lib)
+        importlib.invalidate_caches()
+
+    # Fallback: also add user site-packages for packages installed in sessions
+    # before the --target fix was introduced (backward compat).
     try:
         import site as _site
         user_site = _site.getusersitepackages()
@@ -212,8 +232,20 @@ def _refresh_import_paths() -> None:
         pass
 
 
+def _ensure_pip_lib_dir() -> None:
+    """Create ``_PIP_LIB_DIR`` (``<addon>/lib/``) if it does not yet exist."""
+    _PIP_LIB_DIR.mkdir(parents=True, exist_ok=True)
+
+
 def _pip_install(packages: list[str]) -> tuple[bool, str]:
     """Install *packages* using the bundled Python's pip.
+
+    Packages are installed to ``_PIP_LIB_DIR`` (``<addon>/lib/``) via
+    ``--target`` so they always land in a predictable location that
+    ``_refresh_import_paths()`` adds to ``sys.path`` on every Blender startup.
+    This avoids the [MISSING]-after-restart problem caused by packages being
+    installed to user or system site-packages directories that Blender's
+    embedded Python may not include in ``sys.path`` by default.
 
     Handles the two main cross-version concerns:
       1. ensurepip bootstrap for older Blender builds without pip.
@@ -223,10 +255,14 @@ def _pip_install(packages: list[str]) -> tuple[bool, str]:
     if not ok:
         return False, msg
 
-    cmd = [sys.executable, "-m", "pip", "install", "--quiet", "--upgrade"]
+    _ensure_pip_lib_dir()
 
-    # Python 3.11+ / PEP 668: installing into a system-managed interpreter
-    # fails without this flag.  It is silently ignored on older Pythons.
+    cmd = [
+        sys.executable, "-m", "pip", "install", "--quiet", "--upgrade",
+        "--target", str(_PIP_LIB_DIR),
+    ]
+
+    # Python 3.11+ / PEP 668: retained for compatibility; harmless with --target.
     if _python_version() >= (3, 11):
         cmd.append("--break-system-packages")
 
@@ -252,7 +288,11 @@ def _pip_install(packages: list[str]) -> tuple[bool, str]:
 
 
 def _pip_install_requirements(req_file: Path) -> tuple[bool, str]:
-    """Install packages listed in *req_file*, adapting to the running Python."""
+    """Install packages listed in *req_file*, adapting to the running Python.
+
+    Uses the same ``--target _PIP_LIB_DIR`` strategy as ``_pip_install`` so
+    that packages always land in a persistent, predictable location.
+    """
     if not req_file.exists():
         return False, f"Requirements file not found: {req_file}"
 
@@ -260,7 +300,12 @@ def _pip_install_requirements(req_file: Path) -> tuple[bool, str]:
     if not ok:
         return False, msg
 
-    cmd = [sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "-r", str(req_file)]
+    _ensure_pip_lib_dir()
+
+    cmd = [
+        sys.executable, "-m", "pip", "install", "--quiet", "--upgrade",
+        "--target", str(_PIP_LIB_DIR), "-r", str(req_file),
+    ]
     if _python_version() >= (3, 11):
         cmd.append("--break-system-packages")
 

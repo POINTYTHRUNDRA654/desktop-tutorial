@@ -1690,25 +1690,23 @@ class TestPipInstallRobustness(unittest.TestCase):
     """
 
     def _get_pip_install_body(self) -> str:
-        source = _read("tool_installers.py")
-        import re
-        m = re.search(
-            r"def _pip_install\b.*?(?=\ndef |\Z)",
-            source,
-            re.DOTALL,
-        )
-        self.assertIsNotNone(m, "_pip_install not found in tool_installers.py")
-        return m.group(0)
+        return self._get_function_body("_pip_install")
 
     def _get_refresh_paths_body(self) -> str:
+        return self._get_function_body("_refresh_import_paths")
+
+    def _get_pip_install_requirements_body(self) -> str:
+        return self._get_function_body("_pip_install_requirements")
+
+    def _get_function_body(self, func_name: str) -> str:
         source = _read("tool_installers.py")
         import re
         m = re.search(
-            r"def _refresh_import_paths\b.*?(?=\ndef |\Z)",
+            rf"def {re.escape(func_name)}\b.*?(?=\ndef |\Z)",
             source,
             re.DOTALL,
         )
-        self.assertIsNotNone(m, "_refresh_import_paths not found in tool_installers.py")
+        self.assertIsNotNone(m, f"{func_name} not found in tool_installers.py")
         return m.group(0)
 
     def test_pip_install_uses_subprocess_run(self):
@@ -1823,6 +1821,56 @@ class TestPipInstallRobustness(unittest.TestCase):
             "(pip places them in user site-packages, which Blender's Python omits from "
             "sys.path by default).  Add the call at the very top of register(), before "
             "the modules-registration loop.",
+        )
+
+    def test_pip_install_uses_target_dir(self):
+        """_pip_install must pass --target pointing to _PIP_LIB_DIR.
+
+        Root cause of RECURRING BUG #14 (trimesh/pypdf [MISSING] after restart):
+          pip may install packages to user or system site-packages, and Blender's
+          embedded Python may not add those paths to sys.path at startup.  Using
+          --target with a known addon-local directory guarantees packages always
+          end up somewhere _refresh_import_paths() can reliably add to sys.path.
+        """
+        body = self._get_pip_install_body()
+        self.assertIn(
+            "--target",
+            body,
+            "_pip_install must pass '--target' to pip so packages are installed to "
+            "_PIP_LIB_DIR (addon/lib/).  Without this, packages may end up in user or "
+            "system site-packages directories that Blender's Python does not include in "
+            "sys.path at startup, causing trimesh/pypdf to show [MISSING] after every "
+            "Blender restart.",
+        )
+
+    def test_pip_install_requirements_uses_target_dir(self):
+        """_pip_install_requirements must also pass --target pointing to _PIP_LIB_DIR."""
+        body = self._get_pip_install_requirements_body()
+        self.assertIn(
+            "--target",
+            body,
+            "_pip_install_requirements must pass '--target' to pip so packages from "
+            "requirements files are also installed to the addon-local lib/ directory.  "
+            "This ensures they persist across Blender restarts in the same way as "
+            "packages installed via _pip_install().",
+        )
+
+    def test_refresh_import_paths_adds_lib_dir(self):
+        """_refresh_import_paths must append the addon lib/ dir to sys.path.
+
+        The _PIP_LIB_DIR (addon/lib/) is the primary install target used by
+        _pip_install() and _pip_install_requirements().  _refresh_import_paths()
+        must add it to sys.path so that packages installed there are importable
+        on every Blender startup.
+        """
+        body = self._get_refresh_paths_body()
+        self.assertIn(
+            "_PIP_LIB_DIR",
+            body,
+            "_refresh_import_paths must add _PIP_LIB_DIR (the addon-local lib/ dir) "
+            "to sys.path.  This is the primary mechanism that makes pip-installed packages "
+            "importable after a Blender restart.  The addsitedir(user_site) call is a "
+            "secondary backward-compat fallback only.",
         )
 
 
