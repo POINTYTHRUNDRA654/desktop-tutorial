@@ -10,6 +10,10 @@
 torch>=2.0.0
 torchvision>=0.15.0
 
+# 3D mesh processing and PDF parsing
+trimesh>=4.0.0
+pypdf>=6.0.0
+
 # gradio>=3.50.0
 # diffusers>=0.21.0
 # transformers>=4.30.0
