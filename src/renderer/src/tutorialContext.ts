@@ -3701,7 +3701,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'precombine-generator': {
     pageId: 'precombine-generator',
-    pageName: 'PRP Patch Tools',
+    pageName: 'Precombine Generator',
     visualGuidePage: 55,
     route: '/tools/precombine-generator',
     purpose: 'Two-in-one PRP toolset: (1) scan your full MO2 load order and generate a one-click PRP-compatible combined patch for everything; (2) rebuild precombines for a single mod you just built and generate a standalone PRP companion patch for it.',
