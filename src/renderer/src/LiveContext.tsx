@@ -448,6 +448,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (voiceServiceRef.current) {
         const speakStartTime = Date.now();
         console.log('[LiveContext] 🔊 Starting TTS playback - response length:', response.length, 'chars');
+        setMode('speaking'); // Prevent transcriptions from capturing TTS audio
         await voiceServiceRef.current.speak(response);
         const speakDuration = Date.now() - speakStartTime;
         console.log('[LiveContext] 🔊 TTS playback complete - duration:', speakDuration, 'ms');
