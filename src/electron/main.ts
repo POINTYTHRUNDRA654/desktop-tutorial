@@ -992,6 +992,11 @@ const saveSettings = (settings: any): void => {
   }
 };
 
+// Primary Groq model used across IPC handlers and the Blender bridge HTTP server.
+// Defined at module level so it is accessible from both setupIpcHandlers() and
+// the app.whenReady() callback without requiring a re-declaration.
+const GROQ_PRIMARY_MODEL = 'llama-3.1-8b-instant';
+
 /**
  * Setup IPC handlers for renderer communication
  */
@@ -4803,7 +4808,6 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
    */
   // 8b-instant is 3–5× faster and has ~28× higher free-tier quota.
   // 70b is kept as the rate-limit fallback for queries that need deeper reasoning.
-  const GROQ_PRIMARY_MODEL = 'llama-3.1-8b-instant';
   const GROQ_FALLBACK_MODEL = 'llama-3.3-70b-versatile';
   // Hard cap on direct Groq SDK calls — prevents indefinite hangs when Groq is slow.
   const GROQ_SDK_TIMEOUT_MS = 15000;

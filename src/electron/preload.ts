@@ -233,6 +233,14 @@ const IPC_CHANNELS = {
   CK_CRASH_ANALYZE: 'ck-crash-prevention:analyze-crash',
   CK_CRASH_GENERATE_PLAN: 'ck-crash-prevention:generate-plan',
   CK_CRASH_PICK_LOG: 'ck-crash-prevention:pick-log-file',
+
+  // Mod Projects persistence
+  SAVE_MOD_PROJECTS: 'save-mod-projects',
+  LOAD_MOD_PROJECTS: 'load-mod-projects',
+
+  // Chat History persistence
+  SAVE_CHAT_HISTORY: 'save-chat-history',
+  LOAD_CHAT_HISTORY: 'load-chat-history',
 } as const;
 
 /**
