@@ -1,6 +1,9 @@
 // Global error overlay for fatal errors outside React
 function showGlobalFatalErrorOverlay(message: string) {
   if (document.getElementById('fatal-error-overlay')) return;
+  // Escape HTML so that error messages containing < > & never break the overlay markup.
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const overlay = document.createElement('div');
   overlay.id = 'fatal-error-overlay';
   overlay.style.position = 'fixed';
@@ -16,7 +19,7 @@ function showGlobalFatalErrorOverlay(message: string) {
   overlay.style.justifyContent = 'center';
   overlay.style.alignItems = 'center';
   overlay.style.fontSize = '1.2rem';
-  overlay.innerHTML = `<div style="max-width:600px;text-align:center;"><h2 style="color:#ffb4b4;">Fatal Error</h2><div style="margin:1em 0;white-space:pre-wrap;">${message}</div><button id="fatal-error-reload" style="margin-top:2em;padding:0.7em 2em;font-size:1rem;background:#222;color:#fff;border-radius:8px;border:none;cursor:pointer;">Reload</button></div>`;
+  overlay.innerHTML = `<div style="max-width:600px;text-align:center;"><h2 style="color:#ffb4b4;">Fatal Error</h2><div style="margin:1em 0;white-space:pre-wrap;">${escapeHtml(message)}</div><button id="fatal-error-reload" style="margin-top:2em;padding:0.7em 2em;font-size:1rem;background:#222;color:#fff;border-radius:8px;border:none;cursor:pointer;">Reload</button></div>`;
   document.body.appendChild(overlay);
   document.getElementById('fatal-error-reload')?.addEventListener('click', () => window.location.reload());
 }

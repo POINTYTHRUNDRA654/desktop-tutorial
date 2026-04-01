@@ -843,6 +843,17 @@ const loadSettings = (): any => {
     }
   } catch (e) {
     console.error('[Settings] Failed to load settings:', e);
+    // Rename the corrupted file so future loads don't keep failing on the same bad data.
+    // The backup is kept for diagnostic purposes.
+    try {
+      if (fs.existsSync(settingsPath)) {
+        const backupPath = settingsPath.replace(/\.json$/, `.corrupt-${Date.now()}.json`);
+        fs.renameSync(settingsPath, backupPath);
+        console.warn('[Settings] Corrupted settings file moved to:', backupPath);
+      }
+    } catch (renameErr) {
+      console.warn('[Settings] Could not rename corrupted settings file:', renameErr);
+    }
   }
   // Return comprehensive default settings with all tool paths
   const defaultBackendBaseUrl = String(
@@ -8471,6 +8482,15 @@ app.on('will-quit', () => {
 // Global Crash Protection
 process.on('uncaughtException', (error) => {
   console.error('[CRITICAL] Uncaught Exception:', error);
+  try {
+    dialog.showErrorBox(
+      'Mossy — Unexpected Error',
+      `An unexpected error occurred and Mossy may be in an unstable state.\n\nPlease save your work and restart the app.\n\n${error?.message || error}`
+    );
+  } catch (_dialogErr) {
+    // dialog may not be available before app is ready — already logged above
+    console.warn('[CRITICAL] Could not show error dialog:', _dialogErr);
+  }
 });
 
 process.on('unhandledRejection', (reason) => {

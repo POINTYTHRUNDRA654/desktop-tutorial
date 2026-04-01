@@ -278,28 +278,31 @@ export class VoiceService {
       };
 
       this.recognition.onresult = (event: SpeechRecognitionEvent) => {
+        // Guard against empty results arrays — the Web Speech API can fire
+        // onresult with zero entries in some browser/OS combinations.
+        if (!event.results || event.results.length === 0) return;
         const result = event.results[0];
-        if (result.isFinal) {
-          const alternative = result[0];
-          const transcript = alternative.transcript.trim();
-          const confidence = alternative.confidence || 0;
+        if (!result || !result.isFinal) return;
+        const alternative = result[0];
+        if (!alternative) return;
+        const transcript = alternative.transcript.trim();
+        const confidence = alternative.confidence || 0;
 
-          console.log('[VoiceService] Browser STT result:', transcript, 'confidence:', confidence);
+        console.log('[VoiceService] Browser STT result:', transcript, 'confidence:', confidence);
 
-          // AUDIO FEEDBACK PREVENTION: Block transcriptions while TTS is speaking
-          // This prevents capturing Mossy's own voice or looped audio from speakers
-          if (this.isSpeaking) {
-            console.log('[VoiceService] Ignoring STT result - audio feedback prevention (TTS in progress):', transcript);
-            return;
-          }
+        // AUDIO FEEDBACK PREVENTION: Block transcriptions while TTS is speaking
+        // This prevents capturing Mossy's own voice or looped audio from speakers
+        if (this.isSpeaking) {
+          console.log('[VoiceService] Ignoring STT result - audio feedback prevention (TTS in progress):', transcript);
+          return;
+        }
 
-          // Only process if transcript is non-empty AND confidence is above 0.5
-          // This prevents "hearing silence" or very low-confidence noise as commands
-          if (transcript.length > 0 && confidence >= 0.5) {
-            this.onTranscription?.(transcript, this.currentSessionId);
-          } else {
-            console.log('[VoiceService] Ignoring STT result - insufficient confidence or empty:', { transcript: transcript.length, confidence });
-          }
+        // Only process if transcript is non-empty AND confidence is above 0.5
+        // This prevents "hearing silence" or very low-confidence noise as commands
+        if (transcript.length > 0 && confidence >= 0.5) {
+          this.onTranscription?.(transcript, this.currentSessionId);
+        } else {
+          console.log('[VoiceService] Ignoring STT result - insufficient confidence or empty:', { transcript: transcript.length, confidence });
         }
       };
 
@@ -321,7 +324,11 @@ export class VoiceService {
         if (this.isListening && !this.shouldStop && this.isUsingBrowserStt) {
           setTimeout(() => {
             if (this.recognition && this.isListening && !this.shouldStop && !this.isBrowserSttActive && !this.isBrowserSttStarting) {
-              this.recognition.start();
+              try {
+                this.recognition.start();
+              } catch (e) {
+                console.warn('[VoiceService] Browser STT auto-restart failed:', e);
+              }
             }
           }, 1000);
         }
