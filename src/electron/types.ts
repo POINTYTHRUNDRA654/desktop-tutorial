@@ -80,6 +80,14 @@ export const IPC_CHANNELS = {
   SAVE_KNOWLEDGE_VAULT: 'save-knowledge-vault',
   LOAD_KNOWLEDGE_VAULT: 'load-knowledge-vault',
 
+  // Mod Projects file persistence (backup/restore to userData/mod-projects.json)
+  SAVE_MOD_PROJECTS: 'save-mod-projects',
+  LOAD_MOD_PROJECTS: 'load-mod-projects',
+
+  // Chat History file persistence (backup/restore to userData/chat-history.json)
+  SAVE_CHAT_HISTORY: 'save-chat-history',
+  LOAD_CHAT_HISTORY: 'load-chat-history',
+
   // Project Management
   PROJECT_LIST: 'project-list',
   PROJECT_CREATE: 'project-create',
@@ -207,11 +215,6 @@ export const IPC_CHANNELS = {
   // Local LLM (optional, if installed)
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
-
-  // ElevenLabs TTS (optional)
-  ELEVENLABS_STATUS: 'elevenlabs-status',
-  ELEVENLABS_LIST_VOICES: 'elevenlabs-list-voices',
-  ELEVENLABS_SYNTHESIZE: 'elevenlabs-synthesize',
 
   // Secrets presence-only status
   SECRET_STATUS: 'secret-status',
@@ -346,32 +349,8 @@ export interface ElectronAPI {
   minimizeWindow: () => void;
   closeWindow: () => void;
 
-  elevenLabsStatus: () => Promise<
-    | { ok: true; configured: boolean; voiceId?: string; provider?: 'browser' | 'elevenlabs' }
-    | { ok: false; error: string }
-  >;
-  elevenLabsListVoices: () => Promise<
-    | {
-      ok: true;
-      voices: Array<{
-        voice_id: string;
-        name: string;
-        category?: string;
-        labels?: Record<string, string>;
-      }>;
-    }
-    | { ok: false; error: string }
-  >;
-  elevenLabsSynthesizeSpeech: (args: {
-    text: string;
-    voiceId?: string;
-  }) => Promise<
-    | { ok: true; audioBase64: string; mimeType?: string }
-    | { ok: false; error: string }
-  >;
-
   getSecretStatus: () => Promise<
-    | { ok: true; openai: boolean; groq: boolean; elevenlabs: boolean }
+    | { ok: true; openai: boolean; groq: boolean; backendToken: boolean }
     | { ok: false; error: string }
   >;
 
@@ -488,6 +467,16 @@ export interface ElectronAPI {
   saveKnowledgeVault: (items: unknown[]) => Promise<{ ok: boolean; error?: string }>;
   /** Load the Knowledge Vault from userData/knowledge-vault.json (returns [] if not found) */
   loadKnowledgeVaultFromFile: () => Promise<unknown[]>;
+
+  /** Persist all mod projects to userData/mod-projects.json so work survives reinstalls */
+  saveModProjects: (projects: unknown[]) => Promise<{ ok: boolean; error?: string }>;
+  /** Load mod projects from userData/mod-projects.json (returns [] if not found) */
+  loadModProjectsFromFile: () => Promise<unknown[]>;
+
+  /** Persist chat history to userData/chat-history.json so conversations survive reinstalls */
+  saveChatHistory: (messages: unknown[]) => Promise<{ ok: boolean; error?: string }>;
+  /** Load chat history from userData/chat-history.json (returns [] if not found) */
+  loadChatHistoryFromFile: () => Promise<unknown[]>;
 
   // Generic file helpers
   pickJsonFile: () => Promise<string>;

@@ -665,7 +665,7 @@ const settingsPath = (() => {
   }
 })();
 
-type SecretField = 'elevenLabsApiKey' | 'openaiApiKey' | 'groqApiKey' | 'backendToken';
+type SecretField = 'openaiApiKey' | 'groqApiKey' | 'backendToken';
 const secretEncKey = (k: SecretField) => `${k}Enc` as const;
 const hasOwn = (obj: any, key: string) => Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -727,7 +727,7 @@ const migratePlainSecretsToEncrypted = (settings: any): { next: any; migrated: b
   const next = { ...settings };
   let migrated = false;
 
-  const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'backendToken'];
+  const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken'];
   for (const field of fields) {
     const encKey = secretEncKey(field);
     const plain = String(next?.[field] || '').trim();
@@ -810,8 +810,7 @@ const loadSettings = (): any => {
       const seeded =
         seedSecretFromEnv(next, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
         seedSecretFromEnv(next, 'openaiApiKey', 'OPENAI_API_KEY') ||
-        seedSecretFromEnv(next, 'groqApiKey', 'GROQ_API_KEY') ||
-        seedSecretFromEnv(next, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
+        seedSecretFromEnv(next, 'groqApiKey', 'GROQ_API_KEY');
 
       // Initialize Blender token on first run
       let tokenInitialized = false;
@@ -930,11 +929,8 @@ const loadSettings = (): any => {
     workflowRunnerWorkflows: [],
     workflowRunnerRunHistory: [],
 
-    // TTS output (optional)
+    // TTS output
     ttsOutputProvider: 'browser',
-    elevenLabsApiKey: '',
-    elevenLabsApiKeyEnc: '',
-    elevenLabsVoiceId: '',
 
     // Optional backend proxy (server holds provider keys)
     backendBaseUrl: defaultBackendBaseUrl,
@@ -956,8 +952,7 @@ const loadSettings = (): any => {
   const seeded =
     seedSecretFromEnv(defaults, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
     seedSecretFromEnv(defaults, 'openaiApiKey', 'OPENAI_API_KEY') ||
-    seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY') ||
-    seedSecretFromEnv(defaults, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
+    seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY');
   if (seeded) {
     try {
       fs.writeFileSync(settingsPath, JSON.stringify(defaults, null, 2), 'utf-8');
@@ -976,8 +971,6 @@ const redactSettingsForRenderer = (settings: any): any => {
   // Never expose secrets to the renderer.
   if (clone.backendToken) clone.backendToken = '';
   if (clone.backendTokenEnc) clone.backendTokenEnc = '';
-  if (clone.elevenLabsApiKey) clone.elevenLabsApiKey = '';
-  if (clone.elevenLabsApiKeyEnc) clone.elevenLabsApiKeyEnc = '';
   if (clone.openaiApiKey) clone.openaiApiKey = '';
   if (clone.openaiApiKeyEnc) clone.openaiApiKeyEnc = '';
   if (clone.groqApiKey) clone.groqApiKey = '';
@@ -998,6 +991,11 @@ const saveSettings = (settings: any): void => {
     throw e;
   }
 };
+
+// Primary Groq model used across IPC handlers and the Blender bridge HTTP server.
+// Defined at module level so it is accessible from both setupIpcHandlers() and
+// the app.whenReady() callback without requiring a re-declaration.
+const GROQ_PRIMARY_MODEL = 'llama-3.1-8b-instant';
 
 /**
  * Setup IPC handlers for renderer communication
@@ -1795,7 +1793,7 @@ function setupIpcHandlers() {
     // be able to directly inject pre-computed encrypted values — all secret fields
     // must go through encryptSecretForStorage() in this process.
     const sanitizedInput: any = { ...(newSettings || {}) };
-    const fields: SecretField[] = ['elevenLabsApiKey', 'openaiApiKey', 'groqApiKey', 'backendToken'];
+    const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken'];
     for (const field of fields) {
       delete sanitizedInput[secretEncKey(field)];
     }
@@ -1834,32 +1832,6 @@ function setupIpcHandlers() {
     return { baseUrl, token: tokenRaw ? tokenRaw : undefined };
   };
 
-  const getElevenLabsConfig = (): { apiKey: string; voiceId: string; provider: 'browser' | 'elevenlabs' } => {
-    const s = loadSettings();
-
-    // Prefer per-user settings, but allow env vars for dev/shared installs.
-    // IMPORTANT: Do NOT use VITE_* here (those are renderer-exposed in Vite).
-    const apiKey = getSecretValue(s, 'elevenLabsApiKey', 'ELEVENLABS_API_KEY');
-
-    const voiceIdFromSettings = String(s?.elevenLabsVoiceId || '').trim();
-    const voiceIdFromEnv = String(process.env.ELEVENLABS_VOICE_ID || '').trim();
-    const voiceId = voiceIdFromSettings || voiceIdFromEnv;
-
-    const provider = s?.ttsOutputProvider === 'elevenlabs' ? 'elevenlabs' : 'browser';
-    return { apiKey, voiceId, provider };
-  };
-
-  registerHandler('elevenlabs-status', async () => {
-    return { ok: true, configured: false, voiceId: undefined, provider: 'browser' };
-  });
-
-  registerHandler('elevenlabs-list-voices', async () => {
-    return { ok: false, error: 'ElevenLabs TTS disabled. Backend service does not support TTS yet.' };
-  });
-
-  registerHandler('elevenlabs-synthesize', async (_event, args: { text: string; voiceId?: string }) => {
-    return { ok: false, error: 'ElevenLabs TTS disabled. Backend service does not support TTS yet. Use browser TTS instead.' };
-  });
 
   // --- Roadmap & Project Management ---
   registerHandler(IPC_CHANNELS.PROJECT_LIST, async () => {
@@ -2461,7 +2433,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       console.log(`[Blender Tool Call] tool=${tool}, action=${action}`);
 
       // Route to appropriate tool handler
-      const toolHandlers: Record<string, Record<string, Function>> = {
+      const toolHandlers: Record<string, Record<string, (...args: unknown[]) => unknown>> = {
         'mesh-analysis': {
           'check': async () => {
             return {
@@ -2935,6 +2907,63 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       return Array.isArray(parsed) ? parsed : [];
     } catch (e: any) {
       console.error('[Main] load-knowledge-vault error:', e);
+      return [];
+    }
+  });
+
+  // --- Mod Projects: Persist user mod work to userData/mod-projects.json ---
+  // Ensures all mod projects, steps, notes and progress survive app reinstalls
+  // and localStorage clears. Mirrors the same dual-persistence pattern as the
+  // Knowledge Vault — localStorage for fast access, file for durable backup.
+  registerHandler(IPC_CHANNELS.SAVE_MOD_PROJECTS, async (_event, projects: unknown) => {
+    try {
+      const file = path.join(app.getPath('userData'), 'mod-projects.json');
+      const data = Array.isArray(projects) ? projects : [];
+      fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[Main] save-mod-projects error:', e);
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.LOAD_MOD_PROJECTS, async () => {
+    try {
+      const file = path.join(app.getPath('userData'), 'mod-projects.json');
+      if (!fs.existsSync(file)) return [];
+      const raw = fs.readFileSync(file, 'utf-8');
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e: any) {
+      console.error('[Main] load-mod-projects error:', e);
+      return [];
+    }
+  });
+
+  // --- Chat History: Persist conversation to userData/chat-history.json ---
+  // Ensures the user's chat history with Mossy survives reinstalls and
+  // localStorage clears, using the same dual-persistence pattern.
+  registerHandler(IPC_CHANNELS.SAVE_CHAT_HISTORY, async (_event, messages: unknown) => {
+    try {
+      const file = path.join(app.getPath('userData'), 'chat-history.json');
+      const data = Array.isArray(messages) ? messages : [];
+      fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[Main] save-chat-history error:', e);
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.LOAD_CHAT_HISTORY, async () => {
+    try {
+      const file = path.join(app.getPath('userData'), 'chat-history.json');
+      if (!fs.existsSync(file)) return [];
+      const raw = fs.readFileSync(file, 'utf-8');
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e: any) {
+      console.error('[Main] load-chat-history error:', e);
       return [];
     }
   });
@@ -4777,8 +4806,11 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
    * Primary model (70b) gives the best answers; on rate-limit we retry once with
    * the 8b-instant model which has ~28× higher free-tier quota.
    */
-  const GROQ_PRIMARY_MODEL = 'llama-3.3-70b-versatile';
-  const GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant';
+  // 8b-instant is 3–5× faster and has ~28× higher free-tier quota.
+  // 70b is kept as the rate-limit fallback for queries that need deeper reasoning.
+  const GROQ_FALLBACK_MODEL = 'llama-3.3-70b-versatile';
+  // Hard cap on direct Groq SDK calls — prevents indefinite hangs when Groq is slow.
+  const GROQ_SDK_TIMEOUT_MS = 15000;
 
   const callGroqWithFallback = async (
     client: { chat: { completions: { create: (params: { model: string; messages: unknown; max_tokens?: number }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } },
@@ -4787,13 +4819,20 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     maxTokens = 1024,
   ): Promise<string> => {
     const { RateLimitError } = await import('groq-sdk');
+    const withTimeout = <T>(p: Promise<T>): Promise<T> =>
+      Promise.race([
+        p,
+        new Promise<T>((_, reject) =>
+          setTimeout(() => reject(new Error(`Groq request timed out after ${GROQ_SDK_TIMEOUT_MS}ms`)), GROQ_SDK_TIMEOUT_MS)
+        ),
+      ]);
     try {
-      const response = await client.chat.completions.create({ model: preferredModel, messages, max_tokens: maxTokens });
+      const response = await withTimeout(client.chat.completions.create({ model: preferredModel, messages, max_tokens: maxTokens }));
       return response.choices[0]?.message?.content || '';
     } catch (e) {
       if (e instanceof RateLimitError && preferredModel !== GROQ_FALLBACK_MODEL) {
         console.warn(`[Groq] Rate-limited on ${preferredModel}, retrying with ${GROQ_FALLBACK_MODEL}`);
-        const response = await client.chat.completions.create({ model: GROQ_FALLBACK_MODEL, messages, max_tokens: maxTokens });
+        const response = await withTimeout(client.chat.completions.create({ model: GROQ_FALLBACK_MODEL, messages, max_tokens: maxTokens }));
         return response.choices[0]?.message?.content || '';
       }
       throw e;
@@ -4816,7 +4855,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const systemPrompt = rawSystemPrompt.length > MAX_SYSTEM_PROMPT_CHARS
         ? rawSystemPrompt.slice(0, MAX_SYSTEM_PROMPT_CHARS)
         : rawSystemPrompt;
-      const model = payload.model || 'llama-3.3-70b-versatile';
+      const model = payload.model || GROQ_PRIMARY_MODEL;
 
       // Build messages array with conversation history for multi-turn context
       const rawHistory = Array.isArray(payload.conversationHistory) ? payload.conversationHistory : [];
@@ -4891,9 +4930,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const s = loadSettings();
       const openai = Boolean(getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY'));
       const groq = Boolean(getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY'));
-      const elevenlabs = Boolean(getElevenLabsConfig().apiKey);
       const backendToken = Boolean(getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
-      return { ok: true, openai, groq, elevenlabs, backendToken };
+      return { ok: true, openai, groq, backendToken };
     } catch (e: any) {
       return { ok: false, error: String(e?.message || e) };
     }
@@ -5015,7 +5053,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
       // Use Groq for voice responses (real-time)
       const systemPrompt = 'You are Mossy, a helpful AI assistant for Fallout 4 modding. Keep responses concise and conversational for voice chat.' + contextSuffix;
-      const model = 'llama-3.3-70b-versatile';
+      const model = GROQ_PRIMARY_MODEL;
       const messages = [
         { role: 'system', content: systemPrompt },
         ...history.map((entry: any) => ({ role: entry.role, content: entry.content })),
@@ -8376,7 +8414,7 @@ app.whenReady().then(() => {
           const { default: Groq } = await import('groq-sdk') as { default: new (opts: { apiKey: string }) => { chat: { completions: { create: (p: { model: string; messages: unknown }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } } };
           const groqClient = new Groq({ apiKey });
           const aiText = await groqClient.chat.completions.create({
-            model: 'llama-3.3-70b-versatile',
+            model: GROQ_PRIMARY_MODEL,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: query + contextStr },

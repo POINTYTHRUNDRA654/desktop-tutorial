@@ -2,9 +2,7 @@ import { loadBrowserTtsSettings, pickBrowserTtsVoice } from './browserTts';
 
 export interface VoiceServiceConfig {
   sttProvider: 'browser' | 'backend';
-  ttsProvider: 'browser' | 'elevenlabs' | 'cloud';
-  elevenlabsKey?: string;
-  elevenlabsVoiceId?: string;
+  ttsProvider: 'browser' | 'cloud';
 }
 
 // Declare SpeechRecognition for TypeScript
@@ -239,7 +237,7 @@ export class VoiceService {
       window.speechSynthesis.cancel();
     }
 
-    // Stop ElevenLabs/URL audio
+    // Stop URL audio
     if (this.currentAudioElement) {
       this.currentAudioElement.pause();
       this.currentAudioElement.src = "";
@@ -654,9 +652,6 @@ export class VoiceService {
         const ttsDuration = Date.now() - browserStartTime;
         console.log('[VoiceService] 🎙️ speak() complete - TTS duration:', ttsDuration, 'ms | TEXT:', text.substring(0, 80));
         return result;
-      } else if (this.config.ttsProvider === 'elevenlabs') {
-        console.log('[VoiceService] Using ElevenLabs TTS provider');
-        return await this.speakElevenLabs(text);
       } else if (this.config.ttsProvider === 'cloud') {
         console.log('[VoiceService] Using cloud TTS provider (main process)');
         if (!('electron' in window) || !window.electron?.api?.ttsSpeak || !window.electron?.api?.onTtsSpeak) {
@@ -927,74 +922,6 @@ export class VoiceService {
     });
   }
 
-  private async speakElevenLabs(text: string): Promise<void> {
-    if (this.shouldStop) return;
-
-    if (!this.config.elevenlabsKey) {
-      throw new Error('ElevenLabs API key not configured');
-    }
-
-    try {
-      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${this.config.elevenlabsVoiceId || '21m00Tcm4TlvDq8ikWAM'}`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'audio/mpeg',
-          'Content-Type': 'application/json',
-          'xi-api-key': this.config.elevenlabsKey
-        },
-        body: JSON.stringify({
-          text,
-          model_id: 'eleven_monolingual_v1',
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.5
-          }
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`ElevenLabs API error: ${response.status}`);
-      }
-
-      if (this.shouldStop) return;
-
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      this.currentAudioElement = audio;
-
-      return new Promise((resolve, reject) => {
-        this.onModeChange?.('speaking');
-        audio.onended = () => {
-          this.onModeChange?.('idle');
-          if (this.currentAudioElement === audio) {
-            this.currentAudioElement = null;
-          }
-          URL.revokeObjectURL(audioUrl);
-          resolve();
-        };
-        audio.onerror = () => {
-          this.onModeChange?.('idle');
-          if (this.currentAudioElement === audio) {
-            this.currentAudioElement = null;
-          }
-          URL.revokeObjectURL(audioUrl);
-          if (this.shouldStop) resolve();
-          else reject(new Error('Audio playback failed'));
-        };
-
-        if (this.shouldStop) {
-          URL.revokeObjectURL(audioUrl);
-          resolve();
-        } else {
-          audio.play();
-        }
-      });
-    } catch (error) {
-      if (this.shouldStop) return;
-      throw new Error(`ElevenLabs TTS failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
 
   private async speakCloud(text: string): Promise<void> {
     console.log('[VoiceService] speakCloud() called');
