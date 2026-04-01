@@ -2126,7 +2126,79 @@ class TestCheckHavok2FBX(unittest.TestCase):
             "consistent with discover_installed_tools() which also uses rglob().",
         )
 
+# ---------------------------------------------------------------------------
+# Section K: Havok2FBX diagnostic check uses inline os.walk (not _ti-dependent)
+# ---------------------------------------------------------------------------
 
+class TestHavok2FBXDiagnosticInlineCheck(unittest.TestCase):
+    """The Havok2FBX block in addon_diagnostics.py must verify the folder with
+    an inline os.walk loop — NOT by delegating to ``_ti.check_havok2fbx()``.
+
+    When tool_installers fails to load (_ti is None) the old code short-
+    circuited the check entirely and fell straight to 'folder found but
+    expected files missing', a false-positive that confused users who had a
+    valid installation.  The UModel block already uses os.walk inline; the
+    Havok2FBX block must match that pattern.
+
+    Regression guard: the original code was:
+        elif _ti and hasattr(_ti, "check_havok2fbx") and _ti.check_havok2fbx(_p):
+    """
+
+    def _get_havok_diag_source(self) -> str:
+        source = _read("addon_diagnostics.py")
+        import re
+        m = re.search(
+            r"# Havok2FBX\s*[─\-]+.*?(?=\n\s*# [A-Z])",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(
+            m,
+            "Havok2FBX diagnostic block not found in addon_diagnostics.py",
+        )
+        return m.group(0)
+
+    def test_uses_os_walk_not_ti(self):
+        """The Havok2FBX diagnostic block must use os.walk, not _ti.check_havok2fbx."""
+        block = self._get_havok_diag_source()
+        self.assertIn(
+            "os.walk",
+            block,
+            "addon_diagnostics.py Havok2FBX block must use os.walk() for inline "
+            "path verification so the check works even when tool_installers (_ti) "
+            "fails to load.  Without this, a valid installation produces a false-"
+            "positive 'folder found but expected files missing' warning whenever "
+            "the module load fails.",
+        )
+
+    def test_does_not_gate_on_ti(self):
+        """The Havok2FBX OK branch must NOT require _ti to be truthy."""
+        block = self._get_havok_diag_source()
+        # The elif that sets OK must not contain "_ti and"
+        ok_line = next(
+            (ln for ln in block.splitlines() if "OK" in ln and "Havok2FBX" in ln),
+            None,
+        )
+        # If the OK line is found it should not have the _ti guard; if it is
+        # absent the test below will catch the missing os.walk.
+        if ok_line:
+            self.assertNotIn(
+                "_ti and",
+                ok_line,
+                "The Havok2FBX OK branch must not guard on '_ti and …' — the "
+                "inline os.walk check must be used instead so the result is "
+                "independent of whether tool_installers loaded successfully.",
+            )
+
+    def test_checks_exe_name(self):
+        """The inline check must look for 'havok2fbx.exe' or 'havok2fbx'."""
+        block = self._get_havok_diag_source()
+        self.assertIn(
+            "havok2fbx.exe",
+            block,
+            "addon_diagnostics.py Havok2FBX block must check for 'havok2fbx.exe' "
+            "inside the configured folder.",
+        )
 
 
 class TestKnowledgeBaseDirectoryBundled(unittest.TestCase):

@@ -818,6 +818,61 @@ and registers its own operator classes.
 
 ---
 
+## ⚠️ RECURRING BUG #15 — Havok2FBX "folder found but expected files missing" false-positive
+
+### Symptoms
+
+The Diagnostics panel shows:
+
+```
+⚠ [Tools]  Havok2FBX: folder found but expected files missing - D:\blender_tools\havok2fbx\
+```
+
+even though the folder contains a valid `havok2fbx.exe`.
+
+### Root Cause
+
+The Havok2FBX diagnostic block in `addon_diagnostics.py` delegated the exe check entirely
+to `_ti.check_havok2fbx()`:
+
+```python
+elif _ti and hasattr(_ti, "check_havok2fbx") and _ti.check_havok2fbx(_p):
+    results.append(("OK", ...))
+elif os.path.isdir(_p):
+    results.append(("WARN", "...: folder found but expected files missing - {_p}"))
+```
+
+When `tool_installers` fails to load (`_ti is None`), the guard `_ti and …` evaluates
+to `False` immediately and the check is skipped entirely.  The code falls straight to
+`os.path.isdir(_p)`, which is `True`, so it emits the false-positive warning even though
+no file check was ever performed.
+
+The UModel block already used an inline `os.walk` loop that does not touch `_ti` at all;
+the Havok2FBX block was inconsistent with this pattern.
+
+### The Fix
+
+Replace the `_ti`-dependent guard with an inline `os.walk` loop, matching the UModel
+pattern exactly:
+
+```python
+elif (os.path.isfile(os.path.join(_p, "havok2fbx.exe"))
+      or os.path.isfile(os.path.join(_p, "havok2fbx"))
+      or any(f in ("havok2fbx.exe", "havok2fbx")
+             for _, _, files in os.walk(_p) for f in files)):
+    results.append(("OK", "Tools", f"Havok2FBX: verified at {_p}"))
+```
+
+This is independent of `_ti`, handles both the direct top-level case (fast path) and
+nested sub-directories (e.g. a GitHub zip that extracts to `havok2fbx-win64/`), and
+covers both Windows (`.exe`) and Linux/Mac (no extension) executables.
+
+### Test
+
+`test_addon_integrity.py` — `TestHavok2FBXDiagnosticInlineCheck`
+
+---
+
 ## How to Add a New Module Without Breaking Things
 
 1. Add `new_module = _try_import("new_module")` near the top of `__init__.py`.
