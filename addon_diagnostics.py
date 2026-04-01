@@ -404,7 +404,10 @@ def collect_diagnostics():
         _p = bpy.path.abspath(_prefs.havok2fbx_path).strip()
         if not _p:
             results.append(("INFO", "Tools", "Havok2FBX: not configured (optional)"))
-        elif _ti and hasattr(_ti, "check_havok2fbx") and _ti.check_havok2fbx(_p):
+        elif (os.path.isfile(os.path.join(_p, "havok2fbx.exe"))
+              or os.path.isfile(os.path.join(_p, "havok2fbx"))
+              or any(f in ("havok2fbx.exe", "havok2fbx")
+                     for _, _, files in os.walk(_p) for f in files)):
             results.append(("OK",   "Tools", f"Havok2FBX: verified at {_p}"))
         elif os.path.isdir(_p):
             results.append(("WARN", "Tools",
