@@ -61,6 +61,35 @@ declare const SpeechRecognition: {
   new(): SpeechRecognition;
 };
 
+/**
+ * Phrases that Whisper commonly produces on near-silent or very short audio clips
+ * instead of real speech. These are matched case-insensitively against the full
+ * trimmed transcript. Only exact whole-string matches are checked so that
+ * legitimate sentences that happen to contain one of these words are never filtered.
+ */
+const WHISPER_HALLUCINATION_PATTERNS: RegExp[] = [
+  /^\[blank_audio\]$/i,
+  /^\[silence\]$/i,
+  /^\[music\]$/i,
+  /^\(music\)$/i,
+  /^♪+$/,
+  /^♫+$/,
+  /^\.+$/,
+  /^,+$/,
+  /^thank you\.?$/i,
+  /^thanks for watching\.?$/i,
+  /^thank you for watching\.?$/i,
+  /^bye\.?$/i,
+  /^bye-bye\.?$/i,
+  /^bye bye\.?$/i,
+  /^see you next time\.?$/i,
+  /^see you soon\.?$/i,
+  /^\[noise\]$/i,
+  /^\[laughter\]$/i,
+  /^\(laughter\)$/i,
+  /^\[applause\]$/i,
+];
+
 export class VoiceService {
   private config: VoiceServiceConfig;
   private mediaRecorder: MediaRecorder | null = null;
@@ -76,6 +105,13 @@ export class VoiceService {
   private recordingStartTime = 0;
   /** Maximum recording length: 60 seconds. Prevents "File too large" errors. */
   private readonly MAX_RECORDING_DURATION = 60000; // 60 seconds
+  /**
+   * Minimum recording length before attempting transcription (ms). Very short clips
+   * are almost always noise triggers (a brief thump, click, or room sound that
+   * momentarily crossed the silence threshold) and cause Whisper to produce
+   * hallucinated stock phrases instead of real speech.
+   */
+  private readonly MIN_AUDIO_DURATION_MS = 1200; // 1.2 seconds
   /** Flag to enable longer delay on restart after transcription errors */
   private hadRecentTranscriptionError = false;
   /**
@@ -242,28 +278,31 @@ export class VoiceService {
       };
 
       this.recognition.onresult = (event: SpeechRecognitionEvent) => {
+        // Guard against empty results arrays — the Web Speech API can fire
+        // onresult with zero entries in some browser/OS combinations.
+        if (!event.results || event.results.length === 0) return;
         const result = event.results[0];
-        if (result.isFinal) {
-          const alternative = result[0];
-          const transcript = alternative.transcript.trim();
-          const confidence = alternative.confidence || 0;
+        if (!result || !result.isFinal) return;
+        const alternative = result[0];
+        if (!alternative) return;
+        const transcript = alternative.transcript.trim();
+        const confidence = alternative.confidence || 0;
 
-          console.log('[VoiceService] Browser STT result:', transcript, 'confidence:', confidence);
+        console.log('[VoiceService] Browser STT result:', transcript, 'confidence:', confidence);
 
-          // AUDIO FEEDBACK PREVENTION: Block transcriptions while TTS is speaking
-          // This prevents capturing Mossy's own voice or looped audio from speakers
-          if (this.isSpeaking) {
-            console.log('[VoiceService] Ignoring STT result - audio feedback prevention (TTS in progress):', transcript);
-            return;
-          }
+        // AUDIO FEEDBACK PREVENTION: Block transcriptions while TTS is speaking
+        // This prevents capturing Mossy's own voice or looped audio from speakers
+        if (this.isSpeaking) {
+          console.log('[VoiceService] Ignoring STT result - audio feedback prevention (TTS in progress):', transcript);
+          return;
+        }
 
-          // Only process if transcript is non-empty AND confidence is above 0.5
-          // This prevents "hearing silence" or very low-confidence noise as commands
-          if (transcript.length > 0 && confidence >= 0.5) {
-            this.onTranscription?.(transcript, this.currentSessionId);
-          } else {
-            console.log('[VoiceService] Ignoring STT result - insufficient confidence or empty:', { transcript: transcript.length, confidence });
-          }
+        // Only process if transcript is non-empty AND confidence is above 0.5
+        // This prevents "hearing silence" or very low-confidence noise as commands
+        if (transcript.length > 0 && confidence >= 0.5) {
+          this.onTranscription?.(transcript, this.currentSessionId);
+        } else {
+          console.log('[VoiceService] Ignoring STT result - insufficient confidence or empty:', { transcript: transcript.length, confidence });
         }
       };
 
@@ -285,7 +324,11 @@ export class VoiceService {
         if (this.isListening && !this.shouldStop && this.isUsingBrowserStt) {
           setTimeout(() => {
             if (this.recognition && this.isListening && !this.shouldStop && !this.isBrowserSttActive && !this.isBrowserSttStarting) {
-              this.recognition.start();
+              try {
+                this.recognition.start();
+              } catch (e) {
+                console.warn('[VoiceService] Browser STT auto-restart failed:', e);
+              }
             }
           }, 1000);
         }
@@ -400,13 +443,24 @@ export class VoiceService {
         }
 
         if (this.audioChunks.length > 0) {
+          const recordingDuration = Date.now() - this.recordingStartTime;
+
+          // Skip very short recordings — they are almost certainly noise triggers
+          // (a brief thump, click, or ambient sound that momentarily crossed the
+          // silence threshold). Whisper reliably hallucinates stock phrases on
+          // sub-second clips, which then get sent to the AI as fake user speech.
+          if (recordingDuration < this.MIN_AUDIO_DURATION_MS) {
+            console.log(`[VoiceService] Skipping transcription - recording too short (${recordingDuration}ms < ${this.MIN_AUDIO_DURATION_MS}ms)`);
+            this.audioChunks = [];
+            return;
+          }
+
           // Combine audio chunks
           const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
           const fileSizeKB = (audioBlob.size / 1024).toFixed(2);
-          console.log(`[VoiceService] Audio blob size: ${audioBlob.size} bytes (${fileSizeKB} KB), chunks: ${this.audioChunks.length}`);
+          console.log(`[VoiceService] Audio blob size: ${audioBlob.size} bytes (${fileSizeKB} KB), chunks: ${this.audioChunks.length}, duration: ${recordingDuration}ms`);
 
           // Warn if file is approaching backend limits (typically 25-50 MB)
-          const recordingDuration = Date.now() - this.recordingStartTime;
           if (audioBlob.size > 5000000) { // 5 MB warning threshold
             console.warn(`[VoiceService] ⚠️ LARGE AUDIO FILE: ${fileSizeKB} KB after ${recordingDuration}ms. Backend may reject this.`);
           }
@@ -432,7 +486,13 @@ export class VoiceService {
               const trimmedText = result.text.trim();
               // Only pass non-empty transcriptions to prevent "hearing silence"
               if (trimmedText.length > 0) {
-                this.onTranscription?.(trimmedText, this.currentSessionId);
+                // Filter known Whisper hallucination phrases that are produced on
+                // near-silent or very short audio even after the duration gate.
+                if (WHISPER_HALLUCINATION_PATTERNS.some(p => p.test(trimmedText))) {
+                  console.log('[VoiceService] Ignoring Whisper hallucination phrase:', trimmedText);
+                } else {
+                  this.onTranscription?.(trimmedText, this.currentSessionId);
+                }
               } else {
                 console.log('[VoiceService] Ignoring empty transcription from backend');
               }
