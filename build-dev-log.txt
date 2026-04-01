@@ -74,3 +74,7 @@ Packaging Blender add-ons...
 [1] 
 [1] 10:08:40 AM - Found 0 errors. Watching for file changes.
 [0] npm run dev:vite exited with code 1
+[1] c5:10:45 PM - File change detected. Starting incremental compilation...
+[1] 
+[1] 
+[1] 5:10:50 PM - Found 0 errors. Watching for file changes.
