@@ -113,6 +113,15 @@ export class VoiceService {
   /** Flag to enable longer delay on restart after transcription errors */
   private hadRecentTranscriptionError = false;
   /**
+   * Tracks the highest average amplitude seen during the current recording.
+   * Used by the speech onset gate: recordings where the amplitude never
+   * exceeded SPEECH_ONSET_THRESHOLD are considered ambient noise (HVAC,
+   * traffic, breathing) and discarded without calling Whisper.
+   */
+  private maxAmplitudeInRecording = 0;
+  /** Minimum peak average amplitude required for a recording to be sent to Whisper. */
+  private readonly SPEECH_ONSET_THRESHOLD = 22;
+  /**
    * True while TTS is actively playing. Used to pause microphone recording
    * during speech playback and prevent the audio feedback loop where Mossy
    * hears and transcribes her own voice.
@@ -395,6 +404,7 @@ export class VoiceService {
       this.audioChunks = []; // Clear any leftover chunks
       this.isRecording = true;
       this.recordingStartTime = Date.now();
+      this.maxAmplitudeInRecording = 0; // Reset peak tracker for new recording
       console.log('[VoiceService] Recording started, will auto-stop if exceeds', this.MAX_RECORDING_DURATION, 'ms');
 
       console.log(`[VoiceService] Created MediaRecorder for session ${this.currentSessionId} (recordingId=${myRecordingId}), setting up event handlers...`);
@@ -449,6 +459,17 @@ export class VoiceService {
           // sub-second clips, which then get sent to the AI as fake user speech.
           if (recordingDuration < this.MIN_AUDIO_DURATION_MS) {
             console.log(`[VoiceService] Skipping transcription - recording too short (${recordingDuration}ms < ${this.MIN_AUDIO_DURATION_MS}ms)`);
+            this.audioChunks = [];
+            return;
+          }
+
+          // Speech onset gate: discard recordings that never had a loud enough
+          // audio peak to be real speech. Ambient noise (HVAC, traffic, TV in
+          // another room) typically stays below SPEECH_ONSET_THRESHOLD even when
+          // it keeps the silence timer from firing. This prevents Whisper from
+          // receiving and hallucinating text from ambient-noise recordings.
+          if (this.maxAmplitudeInRecording < this.SPEECH_ONSET_THRESHOLD) {
+            console.log(`[VoiceService] Skipping transcription - no speech onset detected (peak: ${this.maxAmplitudeInRecording.toFixed(2)} < ${this.SPEECH_ONSET_THRESHOLD})`);
             this.audioChunks = [];
             return;
           }
@@ -580,6 +601,9 @@ export class VoiceService {
 
         analyser.getByteFrequencyData(dataArray);
         const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+
+        // Track peak amplitude for the speech onset gate in onstop.
+        if (average > this.maxAmplitudeInRecording) this.maxAmplitudeInRecording = average;
 
         // Log audio levels periodically for debugging (every 100 frames)
         if (Math.random() < 0.01) {
