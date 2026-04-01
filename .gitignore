@@ -137,3 +137,4 @@ user-profile.json
 # The directory itself is tracked via .gitkeep; its contents are generated
 resources/python-embedded/*
 !resources/python-embedded/.gitkeep
+release/
