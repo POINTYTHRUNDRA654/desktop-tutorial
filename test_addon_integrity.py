@@ -2606,6 +2606,238 @@ class TestMossyPytorchPathJsonPersistence(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Section N: Auto-Fix Step 5 conditional AI cache refresh
+# ---------------------------------------------------------------------------
+
+class TestAutoFixStep5Conditional(unittest.TestCase):
+    """Auto-Fix Step 5 must only refresh AI tool caches when the status is
+    actually unknown/stale.
+
+    The old code ran all four cache refreshes unconditionally, so every call
+    to Auto-Fix reported '4 fixed' even when all tools were already available.
+    This was misleading and caused users to think something was broken.
+
+    Fix: each refresh must be guarded by a check of the relevant global/cache
+    state so it only fires (and only adds to fixed[]) when there is something
+    to fix.
+    """
+
+    def _get_autofix_source(self) -> str:
+        source = _read("addon_diagnostics.py")
+        import re
+        m = re.search(
+            r"# ── Step 5: refresh AI tool availability caches.*?# ── Step 6:",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "Step 5 block not found in addon_diagnostics.py")
+        return m.group(0)
+
+    def test_hunyuan3d_refresh_guarded_by_available_check(self):
+        """Hunyuan3D refresh must only run when HUNYUAN3D_AVAILABLE is None."""
+        block = self._get_autofix_source()
+        self.assertIn(
+            "HUNYUAN3D_AVAILABLE",
+            block,
+            "Auto-Fix Step 5 Hunyuan3D refresh must check HUNYUAN3D_AVAILABLE "
+            "before calling check_hunyuan3d_availability().  Without this guard "
+            "the refresh runs every time even when the tool is already available.",
+        )
+
+    def test_hymotion_refresh_guarded_by_available_check(self):
+        """HY-Motion refresh must only run when HYMOTION_AVAILABLE is None."""
+        block = self._get_autofix_source()
+        self.assertIn(
+            "HYMOTION_AVAILABLE",
+            block,
+            "Auto-Fix Step 5 HY-Motion refresh must check HYMOTION_AVAILABLE "
+            "before calling check_hymotion_availability().  Without this guard "
+            "the refresh runs every time even when the tool is already available.",
+        )
+
+    def test_zoedepth_cache_clear_guarded_by_available_check(self):
+        """ZoeDepth cache clear must only run when ZOEDEPTH_AVAILABLE is not True."""
+        block = self._get_autofix_source()
+        self.assertIn(
+            "ZOEDEPTH_AVAILABLE",
+            block,
+            "Auto-Fix Step 5 ZoeDepth cache clear must check ZOEDEPTH_AVAILABLE "
+            "before calling clear_availability_cache().  Without this guard the "
+            "cache is cleared every time, resetting a confirmed-available result.",
+        )
+
+    def test_rignet_invalidation_guarded_by_cache_state(self):
+        """RigNet cache invalidation must only run when the cache ts > 0 and not available."""
+        block = self._get_autofix_source()
+        self.assertIn(
+            "_rignet_status_cache",
+            block,
+            "Auto-Fix Step 5 RigNet invalidation must inspect _rignet_status_cache "
+            "before calling _invalidate_rignet_cache().  Without this guard the "
+            "cache is invalidated every time, including when RigNet is already "
+            "confirmed available.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Section O: Auto-Fix Step 7 — knowledge_base directory auto-creation
+# ---------------------------------------------------------------------------
+
+class TestAutoFixStep7KnowledgeBase(unittest.TestCase):
+    """Auto-Fix Step 7 must create the knowledge_base/ directory when it is
+    missing and knowledge_base_enabled is True in preferences.
+
+    The knowledge_base/ directory is bundled in the repo but may be absent
+    on older installs or if it was accidentally deleted.  The diagnostic check
+    fires '⚠ Knowledge base enabled but path not found' in that case.  Auto-Fix
+    should resolve this silently rather than leaving the user with a persistent
+    warning they cannot clear.
+    """
+
+    def _get_autofix_source(self) -> str:
+        source = _read("addon_diagnostics.py")
+        import re
+        m = re.search(
+            r"# ── Step 7: auto-create missing knowledge_base directory.*?# ── Report",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(
+            m,
+            "Step 7 (knowledge_base auto-create) not found in addon_diagnostics.py.  "
+            "Add a Step 7 block that calls os.makedirs() to create the directory "
+            "when knowledge_base_enabled is True and the directory is missing.",
+        )
+        return m.group(0)
+
+    def test_step7_block_present(self):
+        """Step 7 block must be present in Auto-Fix."""
+        block = self._get_autofix_source()
+        self.assertIn(
+            "knowledge_base",
+            block,
+            "Auto-Fix Step 7 must reference 'knowledge_base' to handle the "
+            "'Knowledge base enabled but path not found' warning.",
+        )
+
+    def test_step7_uses_makedirs(self):
+        """Step 7 must call os.makedirs to create the missing directory."""
+        block = self._get_autofix_source()
+        self.assertIn(
+            "makedirs",
+            block,
+            "Auto-Fix Step 7 must call os.makedirs() (or equivalent) to create "
+            "the knowledge_base directory when it is absent.",
+        )
+
+    def test_step7_checks_knowledge_base_enabled(self):
+        """Step 7 must only create the directory when knowledge_base_enabled is True."""
+        block = self._get_autofix_source()
+        self.assertIn(
+            "knowledge_base_enabled",
+            block,
+            "Auto-Fix Step 7 must check 'knowledge_base_enabled' before creating "
+            "the directory to avoid silently creating it for users who have the "
+            "feature disabled.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Section P: Dual-install check classifies ghost entries as stale
+# ---------------------------------------------------------------------------
+
+class TestDualInstallGhostEntriesClassifiedAsStale(unittest.TestCase):
+    """Check #3 must classify foreign roots whose __file__ no longer exists on
+    disk as stale (INFO), not genuine (WARN).
+
+    When a previous copy of the addon is uninstalled the files are deleted but
+    the sys.modules entry may linger until Blender restarts.  Before this fix,
+    the deleted-file path was classified as 'genuine' (different directory →
+    WARN) even though the install was gone.  The correct classification is
+    'stale' (ghost entry from deleted install → INFO + Auto-Fix can clear it).
+    """
+
+    def _get_check3_source(self) -> str:
+        source = _read("addon_diagnostics.py")
+        import re
+        m = re.search(
+            r"# ── 3\. Dual-install via sys\.modules.*?(?=\n    # ──)",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "Check #3 (Dual-install via sys.modules) not found in addon_diagnostics.py")
+        return m.group(0)
+
+    def test_ghost_entry_check_present(self):
+        """Check #3 must inspect os.path.isfile(root_file) to catch ghost entries."""
+        block = self._get_check3_source()
+        self.assertIn(
+            "isfile",
+            block,
+            "addon_diagnostics.py check #3 must call os.path.isfile(root_file) to "
+            "detect ghost entries whose file has been deleted.  Without this check, "
+            "a previously uninstalled copy remains classified as 'genuine dual-install' "
+            "and raises a persistent WARN that Auto-Fix cannot clear.",
+        )
+
+    def test_ghost_entry_goes_to_stale_roots(self):
+        """Ghost entries (file deleted) must be appended to stale_roots, not genuine_roots."""
+        block = self._get_check3_source()
+        # The block must contain logic that appends to stale_roots when the file
+        # does not exist: `not os.path.isfile(root_file)` → stale_roots.append(...)
+        import re
+        # Verify the stale_roots append happens in the branch that checks isfile.
+        # We look for the isfile guard followed (within a short span) by stale_roots.append
+        has_ghost_to_stale = bool(re.search(
+            r"isfile\(root_file\)[^\n]*\n(?:\s+.*\n){0,3}\s+stale_roots\.append",
+            block,
+        ))
+        self.assertTrue(
+            has_ghost_to_stale,
+            "addon_diagnostics.py check #3 must route ghost entries (not isfile) to "
+            "stale_roots so they are reported as INFO (fixable) rather than WARN "
+            "(dual-install requiring user action).",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Section Q: Auto-Fix Step 0 purges ghost entries (deleted-file installs)
+# ---------------------------------------------------------------------------
+
+class TestAutoFixStep0PurgesGhostEntries(unittest.TestCase):
+    """Auto-Fix Step 0 must also remove ghost sys.modules entries whose __file__
+    no longer exists on disk.
+
+    The old code only purged entries pointing to the SAME physical directory as
+    the current install.  Entries from a previously uninstalled copy (different
+    directory, file deleted) were left in place, keeping the dual-install WARN
+    alive even after the other copy was removed.
+    """
+
+    def _get_step0_source(self) -> str:
+        source = _read("addon_diagnostics.py")
+        import re
+        m = re.search(
+            r"# ── Step 0: purge stale sys\.modules namespace entries.*?# ── Step 1:",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "Step 0 block not found in addon_diagnostics.py")
+        return m.group(0)
+
+    def test_step0_purges_nonexistent_file_entries(self):
+        """Step 0 purge list must include entries where __file__ does not exist."""
+        block = self._get_step0_source()
+        self.assertIn(
+            "isfile",
+            block,
+            "Auto-Fix Step 0 must call os.path.isfile() to detect ghost entries "
+            "whose underlying file has been deleted.  Without this, 'bl_ext.blender_org.…' "
+            "namespace entries from a removed install are never purged by Auto-Fix.",
+        )
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
