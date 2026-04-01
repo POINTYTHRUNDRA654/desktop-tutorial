@@ -1800,9 +1800,13 @@ class TestPipInstallRobustness(unittest.TestCase):
         """
         import re
         source = _read("__init__.py")
-        # Extract the register() function body up to the first nested def or class.
+        # Extract the register() function body.  The pattern stops at the next
+        # top-level `def ` or end of file.  register() in __init__.py has no
+        # nested top-level defs (nested helpers live in startup_helpers.py), so
+        # this reliably captures the whole function body including the early
+        # _refresh_import_paths() call that must be present.
         m = re.search(
-            r"^def register\(\).*?(?=^def |\Z)",
+            r"^def register\(\).*?(?=^def unregister\b|\Z)",
             source,
             re.DOTALL | re.MULTILINE,
         )

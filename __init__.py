@@ -307,7 +307,14 @@ def register():
         if tool_installers and hasattr(tool_installers, "_refresh_import_paths"):
             tool_installers._refresh_import_paths()
     except Exception as _e:
-        print(f"⚠ Could not refresh import paths at startup: {_e}")
+        # Non-fatal: the addon will still load, but packages installed into the
+        # user site-packages directory (trimesh, pypdf, etc.) may not be visible
+        # until the user restarts Blender a second time or adds the path manually.
+        print(
+            f"⚠ Could not refresh import paths at startup: {_e}\n"
+            "  trimesh / pypdf may show [MISSING] in the self-test even if installed.\n"
+            "  Try clicking 'Install Core Dependencies' again to work around this."
+        )
 
     # ── Step 1: register modules so Blender classes / preferences exist ──────
     # Check Blender version and show compatibility info
