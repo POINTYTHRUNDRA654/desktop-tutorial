@@ -27,6 +27,23 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 36. Enhancement: Add Anniversary Edition (AE) to version awareness (v5.4.26) ✅
+
+**Request:** "What about the anniversary edition? I don't notice that in here."
+
+**Changes made:**
+- Added **AE / Anniversary Edition** bullet to `getFullSystemInstruction` GAME VERSION AWARENESS block. Key points taught to Mossy: AE is NOT a separate executable (same NG EXE, 1.10.984); it is NG + 76 bundled free CC items; mods often have AE patches; PRP 81+ required for AE cells; CC items are `.esl` masters that can conflict; unlike Skyrim AE it was **free**; if user says "I have AE" without a runtime number, assume NG (1.10.984).
+- Updated count from "three distinct runtime states" to "four distinct version states."
+- Added AE line to `MASTER_TECHNICAL_GUIDE` version snapshot (sent on every request).
+- Bumped version to **5.4.26**.
+
+Files changed:
+- `src/renderer/src/MossyBrain.ts` — AE bullet + snapshot update
+- `package.json` — version 5.4.25 → 5.4.26
+- `CHANGES.md` — this entry
+
+---
+
 ### 35. Enhancement: Deep scan — updated Fallout 4 modding knowledge & version awareness (v5.4.25) ✅
 
 **Request:** Nine-month deep scan to make sure Mossy is professional, up-to-date, and has the most advanced knowledge for Fallout 4 modding assistance.

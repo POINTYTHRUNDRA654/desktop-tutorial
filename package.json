@@ -1,8 +1,8 @@
 {
   "name": "mossy-desktop",
   "private": true,
-  "version": "5.4.25",
-  "description": "Mossy v5.4.25 - Professional Fallout 4 modding assistant with AI, full next-gen update awareness (OG/NG/1.11.x), real system metrics, and professional asset optimization",
+  "version": "5.4.26",
+  "description": "Mossy v5.4.26 - Professional Fallout 4 modding assistant with AI, full OG/NG/AE/Creations Menu version awareness, and professional asset optimization",
   "main": "dist-electron/electron/main.js",
   "author": "POINTYTHRUNDRA654",
   "license": "MIT",
