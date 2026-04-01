@@ -85,6 +85,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // and therefore closes over a stale isMuted state) sees the live value.
   const isMutedRef = useRef(false);
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+  // Ref-backed mode flag for the same reason: mode state is stale inside the
+  // handleTranscription callback registered at connect() time.
+  const modeRef = useRef<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
+  useEffect(() => { modeRef.current = mode; }, [mode]);
 
   // Flag to prevent disconnect during active AI processing
   const isProcessingResponseRef = useRef(false);
@@ -390,14 +394,16 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    // Check if we're disconnecting (user manually ended the session)
-    if (isDisconnecting) {
+    // Check if we're disconnecting (user manually ended the session).
+    // Use the ref so the stale closure always sees the current value.
+    if (isDisconnectingRef.current) {
       console.log('[LiveContext] Ignoring transcription - voice session is disconnecting');
       return;
     }
 
-    // Prevent audio feedback - don't transcribe while TTS is active
-    if (mode === 'speaking') {
+    // Prevent audio feedback - don't transcribe while TTS is active.
+    // Use modeRef so the stale closure always sees the current mode value.
+    if (modeRef.current === 'speaking') {
       console.log('[LiveContext] Ignoring transcription - currently speaking (audio feedback prevention)');
       return;
     }
