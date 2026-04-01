@@ -42,7 +42,7 @@ export async function crawlAndIngestTutorials() {
             const vaultKey = 'mossy_knowledge_vault';
             const prev = typeof window !== 'undefined' ? window.localStorage.getItem(vaultKey) : null;
             let memories = [];
-            try { memories = prev ? JSON.parse(prev) : []; } catch { }
+            try { memories = prev ? JSON.parse(prev) : []; } catch { /* ignore malformed JSON; start fresh */ }
             memories.push({
                 title: tutorial.title,
                 content: tutorial.content,
