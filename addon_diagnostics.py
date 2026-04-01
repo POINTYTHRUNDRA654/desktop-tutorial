@@ -26,11 +26,13 @@ Adds two operators that appear in the Setup & Status panel:
 
   fo4.fix_addon_issues
       Attempts to automatically repair the most common registration failures:
+        • Purges stale/ghost sys.modules entries (same-dir and deleted install)
         • Re-registers tutorial_operators and setup_operators
         • Re-imports and re-registers any module that failed to load
         • Restores extra Python paths and scene properties from preferences
-        • Re-runs AI tool availability checks with correct sys.path (Step 5)
+        • Re-runs AI tool availability checks when status is unknown (Step 5)
         • Applies persisted Mossy PyTorch path to sys.path (Step 6)
+        • Auto-creates the knowledge_base directory if missing (Step 7)
 
 These operators are lightweight and safe to call repeatedly.  They do NOT
 touch any scene data or addon preferences destructively.
@@ -208,13 +210,19 @@ def collect_diagnostics():
                 root_mod = sys.modules.get(root_key)
                 root_file = getattr(root_mod, "__file__", None) if root_mod else None
                 if root_file:
-                    root_dir = os.path.normcase(
-                        os.path.dirname(os.path.abspath(root_file))
-                    )
-                    if root_dir == addon_dir:
+                    if not os.path.isfile(root_file):
+                        # The file no longer exists on disk — this is a ghost entry
+                        # from a previously uninstalled copy.  Treat as stale so
+                        # Auto-Fix can clear it without requiring a full restart.
                         stale_roots.append(root_key)
                     else:
-                        genuine_roots.append(root_key)
+                        root_dir = os.path.normcase(
+                            os.path.dirname(os.path.abspath(root_file))
+                        )
+                        if root_dir == addon_dir:
+                            stale_roots.append(root_key)
+                        else:
+                            genuine_roots.append(root_key)
                 else:
                     # No __file__ (namespace package or unloaded stub) — treat as
                     # genuine to avoid silently ignoring a real dual-install.
@@ -683,8 +691,8 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
         # When the addon transitions between naming conventions (e.g. legacy
         # 'blender_game_tools' ↔ extension 'bl_ext.blender_org.blender_game_tools')
         # old namespace entries can persist across enable/disable cycles.  Remove
-        # those that point to the same physical directory — they are stale
-        # leftovers, not a genuine separate install.
+        # those that point to the same physical directory OR whose __file__ no
+        # longer exists on disk (ghost entries from a previously uninstalled copy).
         try:
             _nb   = (__package__ or "").split(".")[-1]
             _op   = __package__ or ""
@@ -696,9 +704,17 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
                     and "addon_diagnostics" not in k
                     and m is not None
                     and getattr(m, "__file__", None)
-                    and os.path.normcase(
-                        os.path.dirname(os.path.abspath(m.__file__))
-                    ) == _adir)
+                    and (
+                        # Case A: Same physical directory — stale namespace from
+                        # an extension-prefix change (e.g. blender_org → user_default).
+                        os.path.normcase(
+                            os.path.dirname(os.path.abspath(m.__file__))
+                        ) == _adir
+                        or
+                        # Case B: File no longer exists on disk — ghost entry from
+                        # a previously uninstalled copy of the addon.
+                        not os.path.isfile(m.__file__)
+                    ))
             ]
             for _k in _purge:
                 sys.modules.pop(_k, None)
@@ -787,15 +803,21 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
         # (restore_extra_python_paths) so torch_custom_path is already in sys.path
         # when the availability checks run.  This is the direct in-session fix for
         # "shows Not Installed even though the tool is present" after restart.
+        #
+        # Each refresh is CONDITIONAL: if the cached status is already a known-good
+        # result from this session we skip the refresh so that Auto-Fix does not
+        # spuriously report "4 fixed" when all tools are already available.
 
         # Hunyuan3D-2
         try:
             _h3d = getattr(init, "hunyuan3d_helpers", None)
             if _h3d and hasattr(_h3d, "check_hunyuan3d_availability"):
-                avail, msg = _h3d.check_hunyuan3d_availability()
-                fixed.append(
-                    f"Hunyuan3D-2 status refreshed: {'available' if avail else 'not available'}"
-                )
+                # Only refresh when the status has never been probed (None = unknown).
+                if getattr(_h3d, "HUNYUAN3D_AVAILABLE", None) is None:
+                    avail, msg = _h3d.check_hunyuan3d_availability()
+                    fixed.append(
+                        f"Hunyuan3D-2 status refreshed: {'available' if avail else 'not available'}"
+                    )
         except Exception as exc:
             failed.append(f"Hunyuan3D-2 status refresh: {exc}")
 
@@ -803,28 +825,41 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
         try:
             _hym = getattr(init, "hymotion_helpers", None)
             if _hym and hasattr(_hym, "check_hymotion_availability"):
-                avail, msg = _hym.check_hymotion_availability()
-                fixed.append(
-                    f"HY-Motion-1.0 status refreshed: {'available' if avail else 'not available'}"
-                )
+                # Only refresh when the status has never been probed (None = unknown).
+                if getattr(_hym, "HYMOTION_AVAILABLE", None) is None:
+                    avail, msg = _hym.check_hymotion_availability()
+                    fixed.append(
+                        f"HY-Motion-1.0 status refreshed: {'available' if avail else 'not available'}"
+                    )
         except Exception as exc:
             failed.append(f"HY-Motion-1.0 status refresh: {exc}")
 
-        # ZoeDepth — clear the TTL cache so next UI draw probes with fresh paths
+        # ZoeDepth — clear the TTL cache so next UI draw probes with fresh paths,
+        # but only when the module has not yet returned a confirmed True result.
         try:
             _zdh = getattr(init, "zoedepth_helpers", None)
             if _zdh and hasattr(_zdh, "clear_availability_cache"):
-                _zdh.clear_availability_cache()
-                fixed.append("ZoeDepth availability cache cleared (will re-probe on next draw)")
+                if getattr(_zdh, "ZOEDEPTH_AVAILABLE", None) is not True:
+                    _zdh.clear_availability_cache()
+                    fixed.append("ZoeDepth availability cache cleared (will re-probe on next draw)")
         except Exception as exc:
             failed.append(f"ZoeDepth cache clear: {exc}")
 
-        # RigNet — invalidate ui_panels TTL cache
+        # RigNet — invalidate ui_panels TTL cache, but only when the cache was
+        # actually populated (ts > 0) and RigNet is not yet confirmed available.
         try:
             _up = getattr(init, "ui_panels", None)
             if _up and hasattr(_up, "_invalidate_rignet_cache"):
-                _up._invalidate_rignet_cache()
-                fixed.append("RigNet status cache invalidated (will re-probe on next draw)")
+                _rc = getattr(_up, "_rignet_status_cache", {"ts": 0.0, "rignet": (False, "")})
+                if isinstance(_rc, dict):
+                    _rc_ts = _rc.get("ts", 0.0)
+                    _rc_ok = _rc.get("rignet", (False,))[0]
+                else:
+                    _rc_ts, _rc_ok = 0.0, False
+                # Only invalidate when the cache has been set and shows not-available.
+                if _rc_ts > 0.0 and not _rc_ok:
+                    _up._invalidate_rignet_cache()
+                    fixed.append("RigNet status cache invalidated (will re-probe on next draw)")
         except Exception as exc:
             failed.append(f"RigNet cache invalidate: {exc}")
 
@@ -844,6 +879,32 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
                         fixed.append(f"Mossy PyTorch path already in sys.path: {_pt_path}")
             except Exception as exc:
                 failed.append(f"apply Mossy pytorch_path: {exc}")
+
+        # ── Step 7: auto-create missing knowledge_base directory ──────────────
+        # If the knowledge base is enabled in preferences but the directory is
+        # absent (e.g. older installs before knowledge_base/ was added to the
+        # repo), try to create it so the diagnostic check clears next time.
+        try:
+            if prefs_mod:
+                prefs = prefs_mod.get_preferences()
+                if prefs and getattr(prefs, "knowledge_base_enabled", False):
+                    _kb_path = ""
+                    try:
+                        import bpy as _bpy
+                        _kb_path = _bpy.path.abspath(
+                            getattr(prefs, "knowledge_base_path", "")
+                        ).strip()
+                    except Exception:
+                        pass
+                    if not _kb_path:
+                        _kb_path = os.path.join(
+                            os.path.dirname(os.path.abspath(__file__)), "knowledge_base"
+                        )
+                    if not os.path.isdir(_kb_path):
+                        os.makedirs(_kb_path, exist_ok=True)
+                        fixed.append(f"knowledge_base directory created at {_kb_path}")
+        except Exception as exc:
+            failed.append(f"create knowledge_base dir: {exc}")
 
         # ── Report ────────────────────────────────────────────────────────────
         print("[ FO4 Auto-Fix ] Results:")
