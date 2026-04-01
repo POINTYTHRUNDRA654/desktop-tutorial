@@ -42,8 +42,9 @@ export class AnalyticsTracker {
     try {
       const event: AnalyticsEvent = {
         id: Math.random().toString(36).substr(2, 9),
+        event: eventType,
         type: eventType,
-        timestamp: new Date().toISOString(),
+        timestamp: Date.now(),
         userId: this.userId!,
         properties: {
           ...properties,

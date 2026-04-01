@@ -339,7 +339,7 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
                       <div className="conflict-types">
                         {prediction.conflictTypes.map((conflictType, typeIdx) => (
                           <span key={typeIdx} className="conflict-type">
-                            {conflictType}
+                            {typeof conflictType === 'string' ? conflictType : conflictType.type}
                           </span>
                         ))}
                       </div>
@@ -347,7 +347,7 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
                       <div className="recommendations">
                         <h5>Recommendations:</h5>
                         <ul>
-                          {prediction.mitigationStrategies.map((rec, recIdx) => (
+                          {(prediction.mitigationStrategies ?? []).map((rec, recIdx) => (
                             <li key={recIdx}>{rec}</li>
                           ))}
                         </ul>

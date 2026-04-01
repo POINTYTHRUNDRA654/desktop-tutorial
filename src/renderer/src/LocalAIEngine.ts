@@ -528,21 +528,23 @@ export const LocalAIEngine = {
         // which accepts a single prompt string, so history is serialised as dialogue text.
         // The Groq/OpenAI cloud path below uses the structured messages array format instead.
         let historyText = '';
-        if (conversationHistory && conversationHistory.length > 0) {
-          historyText = '\n\nConversation so far:\n' + conversationHistory
+        const safeHistory = conversationHistory ?? [];
+        if (safeHistory.length > 0) {
+          historyText = '\n\nConversation so far:\n' + safeHistory
             .filter(m => m.content && m.content.trim())
             .map(m => m.role === 'user' ? `User: ${m.content}` : `Mossy: ${m.content}`)
             .join('\n') + '\n';
         }
         const prompt = `${enhancedSystemInstruction}${injectedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
 
-        const provider = localStatus.provider;
+        const localStatusAny = localStatus as any;
+        const provider = localStatusAny.provider as string | undefined;
 
         const model = provider === 'ollama'
           ? String(localSettings.ollamaModel || 'llama3')
           : provider === 'cosmos'
-            ? String(localSettings.cosmosModel || localStatus.models?.[0] || '')
-            : String(localSettings.openaiCompatModel || localStatus.models?.[0] || '');
+            ? String(localSettings.cosmosModel || localStatusAny.models?.[0] || '')
+            : String(localSettings.openaiCompatModel || localStatusAny.models?.[0] || '');
 
         if (!model.trim()) {
           return { content: 'Local AI is detected but no model is selected. Configure a model in Local Capabilities.' };

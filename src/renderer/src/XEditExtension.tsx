@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Database, Play, RefreshCw, AlertTriangle, CheckCircle2, Code, Zap, FileText, Terminal, Search } from 'lucide-react';
 
 interface XEditScript {
@@ -79,12 +79,15 @@ const XEDIT_SCRIPTS: XEditScript[] = [
 ];
 
 export const XEditExtension: React.FC = () => {
+  const navigate = useNavigate();
   const [isConnected, setIsConnected] = useState(false);
   const [selectedScript, setSelectedScript] = useState<XEditScript | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [scriptOutput, setScriptOutput] = useState<string[]>([]);
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [customScriptName, setCustomScriptName] = useState('');
+  const [showCustomScript, setShowCustomScript] = useState(false);
 
   // Check if xEdit is running via Neural Link
   useEffect(() => {
@@ -335,15 +338,54 @@ export const XEditExtension: React.FC = () => {
                   <Search className="w-4 h-4 mx-auto mb-1" />
                   Find Conflicts
                 </button>
-                <button className="px-4 py-3 bg-blue-900/20 border border-blue-500/30 text-blue-300 rounded-lg hover:bg-blue-900/30 transition-colors">
+                <button
+                  className="px-4 py-3 bg-blue-900/20 border border-blue-500/30 text-blue-300 rounded-lg hover:bg-blue-900/30 transition-colors"
+                  onClick={() => setShowCustomScript(prev => !prev)}
+                  disabled={isRunning}
+                >
                   <FileText className="w-4 h-4 mx-auto mb-1" />
                   Custom Script
                 </button>
-                <button className="px-4 py-3 bg-cyan-900/20 border border-cyan-500/30 text-cyan-300 rounded-lg hover:bg-cyan-900/30 transition-colors">
+                <button
+                  className="px-4 py-3 bg-cyan-900/20 border border-cyan-500/30 text-cyan-300 rounded-lg hover:bg-cyan-900/30 transition-colors"
+                  onClick={() => navigate('/ai-mod-assistant')}
+                >
                   <Code className="w-4 h-4 mx-auto mb-1" />
                   Script Editor
                 </button>
               </div>
+              {showCustomScript && (
+                <div className="mt-4 flex items-center gap-3">
+                  <input
+                    type="text"
+                    aria-label="Custom xEdit script name"
+                    value={customScriptName}
+                    onChange={(e) => setCustomScriptName(e.target.value)}
+                    placeholder="Enter xEdit script name (e.g. MyCustomScript.pas)"
+                    className="flex-1 px-4 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-white text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      if (!customScriptName.trim()) return;
+                      const custom: XEditScript = {
+                        id: `custom-${Date.now()}`,
+                        name: customScriptName.trim(),
+                        description: 'Custom user script',
+                        category: 'batch',
+                        icon: Code,
+                        estimatedTime: 'varies',
+                      };
+                      runScript(custom);
+                      setCustomScriptName('');
+                      setShowCustomScript(false);
+                    }}
+                    disabled={isRunning || !customScriptName.trim()}
+                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Run
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

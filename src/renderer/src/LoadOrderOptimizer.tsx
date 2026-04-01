@@ -64,7 +64,7 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
   }, [conflicts]);
 
   const orderedPlugins = useMemo(() => {
-    return [...plugins].sort((a, b) => a.loadIndex - b.loadIndex);
+    return [...plugins].sort((a, b) => (a.loadIndex ?? 0) - (b.loadIndex ?? 0));
   }, [plugins]);
 
   const setLoadIndices = (items: PluginInfo[]): PluginInfo[] => {
@@ -254,7 +254,7 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
   const compareList = useMemo(() => {
     if (!optimized) return [];
     const before = orderedPlugins.map(p => p.fileName);
-    const after = optimized.plugins;
+    const after = optimized.plugins ?? [];
     return after.map((name, index) => {
       const beforeIndex = before.indexOf(name);
       return { name, beforeIndex, afterIndex: index, changed: beforeIndex !== index };
@@ -357,7 +357,7 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
                     >
                       <div>
                         <div className="font-semibold text-slate-100">{plugin.fileName}</div>
-                        <div className="text-[10px] text-slate-400">{plugin.type.toUpperCase()} • {plugin.enabled ? 'Enabled' : 'Disabled'}</div>
+                        <div className="text-[10px] text-slate-400">{(plugin.type ?? "").toUpperCase()} • {plugin.enabled ? 'Enabled' : 'Disabled'}</div>
                       </div>
                       <div className="flex items-center gap-2">
                         {conflictCount > 0 && (
@@ -411,7 +411,7 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
                       <div
                         key={`${cell.x}-${cell.y}-${idx}`}
                         className={`h-3 w-3 rounded ${cell.severity === 'critical' ? 'bg-rose-500' : cell.severity === 'major' ? 'bg-orange-500' : cell.severity === 'minor' ? 'bg-yellow-400' : 'bg-slate-700'}`}
-                        title={`${cell.plugins[0]} vs ${cell.plugins[1]}: ${cell.value}`}
+                        title={`${cell.plugins?.[0] ?? "?"} vs ${cell.plugins?.[1] ?? "?"}: ${cell.value}`}
                       />
                     ))}
                   </div>
@@ -439,7 +439,7 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
                       <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5" />
                       <div>
                         <div className="text-slate-200">{issue.description}</div>
-                        <div className="text-slate-500">Affected: {issue.affectedPlugins.join(', ')}</div>
+                        <div className="text-slate-500">Affected: {(issue.affectedPlugins ?? []).join(', ')}</div>
                       </div>
                     </div>
                   ))}
@@ -454,7 +454,7 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
                 <div className="space-y-2">
                   {(analysis?.recommendations || []).slice(0, 4).map((rec, idx) => (
                     <div key={`rec-${idx}`} className="text-xs text-slate-200">
-                      <strong>{rec.priority.toUpperCase()}</strong> {rec.description} — {rec.suggestedAction}
+                      <strong>{(rec.priority?.toString().toUpperCase() ?? "INFO")}</strong> {rec.description} — {rec.suggestedAction}
                     </div>
                   ))}
                   {(analysis?.recommendations || []).length === 0 && (
@@ -643,15 +643,15 @@ const LoadOrderOptimizer: React.FC<LoadOrderOptimizerProps> = ({ embedded = fals
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-xs">
                     <div className="text-slate-400">Conflicts Resolved</div>
-                    <div className="text-lg font-black text-white">{optimized.improvements.conflictsResolved}</div>
+                    <div className="text-lg font-black text-white">{(optimized.improvements?.conflictsResolved ?? 0)}</div>
                   </div>
                   <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-xs">
                     <div className="text-slate-400">Stability Gain</div>
-                    <div className="text-lg font-black text-white">{optimized.improvements.stabilityGain}</div>
+                    <div className="text-lg font-black text-white">{(optimized.improvements?.stabilityGain ?? 0)}</div>
                   </div>
                   <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-xs">
                     <div className="text-slate-400">Performance Gain</div>
-                    <div className="text-lg font-black text-white">{optimized.improvements.performanceGain}</div>
+                    <div className="text-lg font-black text-white">{(optimized.improvements?.performanceGain ?? 0)}</div>
                   </div>
                 </div>
               )}

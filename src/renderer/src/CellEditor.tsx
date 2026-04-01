@@ -228,7 +228,8 @@ export const CellEditor: React.FC = () => {
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d < 12 && d < minDist) { found = r; minDist = d; }
     });
-    setSelectedId(found ? found.id : null);
+    // TypeScript narrows 'found' to null after a forEach callback mutation; cast back to the declared type
+    setSelectedId((found as Reference | null)?.id ?? null);
   };
 
   // keyboard controls: WASD (move), R rotate, S scale (increment)
