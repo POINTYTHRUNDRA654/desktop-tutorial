@@ -27,6 +27,44 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 36. Enhancement: Add Anniversary Edition (AE) to version awareness (v5.4.26) ✅
+
+**Request:** "What about the anniversary edition? I don't notice that in here."
+
+**Changes made:**
+- Added **AE / Anniversary Edition** bullet to `getFullSystemInstruction` GAME VERSION AWARENESS block. Key points taught to Mossy: AE is NOT a separate executable (same NG EXE, 1.10.984); it is NG + 76 bundled free CC items; mods often have AE patches; PRP 81+ required for AE cells; CC items are `.esl` masters that can conflict; unlike Skyrim AE it was **free**; if user says "I have AE" without a runtime number, assume NG (1.10.984).
+- Updated count from "three distinct runtime states" to "four distinct version states."
+- Added AE line to `MASTER_TECHNICAL_GUIDE` version snapshot (sent on every request).
+- Bumped version to **5.4.26**.
+
+Files changed:
+- `src/renderer/src/MossyBrain.ts` — AE bullet + snapshot update
+- `package.json` — version 5.4.25 → 5.4.26
+- `CHANGES.md` — this entry
+
+---
+
+### 35. Enhancement: Deep scan — updated Fallout 4 modding knowledge & version awareness (v5.4.25) ✅
+
+**Request:** Nine-month deep scan to make sure Mossy is professional, up-to-date, and has the most advanced knowledge for Fallout 4 modding assistance.
+
+**Changes made:**
+- Added **GAME VERSION AWARENESS** block to `getFullSystemInstruction` system prompt: Mossy now always asks which FO4 version (OG 1.10.163 / NG 1.10.984 / Creations Menu 1.11.191) the user is on before giving version-sensitive advice. Includes downgrader note (Nexus #81463).
+- Added **2024–2026 stability tools reference** to system prompt: Addictol/X-Cell #84214 (primary stability), Buffout 4 NG #64880 (crash logger), CLASSIC #56255 (crash auto-scanner), Address Library AiO #47327, High FPS Physics Fix #44798, MCM NG build, UFO4P.
+- Updated **CK→Blender workflow prerequisites**: Updated PyNifly reference to mention latest version + BA2 V7/V8 note for NG users.
+- Updated **MASTER_TECHNICAL_GUIDE preamble**: Added a version snapshot table (OG/NG/1.11.x) at the top — this section IS sent to the AI on every request (first 3000 chars), so Mossy now always has current version context.
+- Updated **F4SE Plugin Development section**: Clarified OG vs NG header/lib/runtime-version differences; added Address Library as the recommended modern approach for NG plugins; added commentary to the code example distinguishing OG vs NG runtime checks.
+- Updated **Load Order Best Practices**: Added version-sensitive note, updated structure to include Address Library/Addictol/Buffout 4 in proper position, added LOOT 0.21+ note.
+- Updated **Fallout-Specific Diagnostics**: Updated Buffout 4 to mention NG fork (alandtse/Buffout4, v1.37.0+); added Addictol, CLASSIC, PRP 81.5.
+- Bumped version to **5.4.25** in `package.json`.
+
+Files changed:
+- `src/renderer/src/MossyBrain.ts` — all system prompt + knowledge guide updates
+- `package.json` — version 5.4.24 → 5.4.25
+- `CHANGES.md` — this entry
+
+---
+
 ### 34. Fix: Mossy keeps asking to redo the scan after an app rebuild ✅
 
 **Request:** "She's wanting me to redo the scan, which she should already remember. Because the scans already been ran. And this for some reason we've completely rebuilt her without Remembering that this is just an update."
