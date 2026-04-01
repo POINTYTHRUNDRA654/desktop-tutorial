@@ -606,6 +606,76 @@ except Exception as _e:
 
 ---
 
+## ⚠️ RECURRING BUG #14 — trimesh / pypdf show [MISSING] after every Blender restart
+
+### Symptoms
+
+The self-test ("Run Environment Self-Test") shows:
+
+```
+[MISSING] trimesh (3D mesh processing)
+[MISSING] pypdf (PDF parsing)
+```
+
+…even though clicking "Install Core Dependencies" succeeds and shows `[OK]` in the
+*same* Blender session.  After restarting Blender the packages are [MISSING] again.
+
+### Root Cause
+
+Earlier fix attempts added `_refresh_import_paths()` (which calls
+`site.addsitedir(getusersitepackages())`) to the top of `register()`.  This was
+meant to add the user site-packages directory to `sys.path` so that pip-installed
+packages would be found.  It works when pip installs to user site-packages, but
+Blender's embedded Python can be configured with `PYTHONNOUSERSITE=1` (or the
+equivalent Blender-internal isolation mechanism for the extension system in
+Blender 5.x), which means:
+  1. `getusersitepackages()` may return a path that is NOT where pip actually
+     installed the packages, and
+  2. even if it returns the right path, the packages may not be there because pip
+     chose a different install scheme (e.g. the prefix scheme into Blender's own
+     `lib/site-packages` which might be read-only, causing pip to silently fail
+     or fall back to an unexpected location).
+
+### The Fix
+
+Instead of relying on guessing which site-packages directory pip used, we now
+pass `--target <addon_root>/lib/` to every `pip install` command.  This means:
+
+- Packages are **always** installed into a single known directory
+  (`ADDON_ROOT/lib/`, i.e. the `lib/` subdirectory of the add-on itself).
+- `_refresh_import_paths()` appends `str(_PIP_LIB_DIR)` to `sys.path` on
+  every Blender startup (via the call in `register()`), so the packages are
+  importable immediately without any further guessing.
+- The old `site.addsitedir(getusersitepackages())` call is kept as a
+  backward-compat fallback for users who installed packages before this fix.
+
+### Key Files
+
+- `tool_installers.py`: `_PIP_LIB_DIR` constant; `_pip_install()` and
+  `_pip_install_requirements()` now both pass `--target str(_PIP_LIB_DIR)`;
+  `_refresh_import_paths()` appends the lib dir before the user-site fallback.
+- `__init__.py` `register()`: unchanged — already calls
+  `tool_installers._refresh_import_paths()` as Step 0.
+
+### Do NOT
+
+- Remove the `--target` flag from `_pip_install()` or `_pip_install_requirements()`.
+- Remove the `_PIP_LIB_DIR.exists()` guard + `sys.path.append` from
+  `_refresh_import_paths()` (this is the primary path-addition, not a fallback).
+- Remove the `_refresh_import_paths()` call from `register()` in `__init__.py`
+  (Step 0) — this must run before any `importlib.find_spec()` calls.
+
+### Tests
+
+`TestPipInstallRobustness` in `test_addon_integrity.py` now includes:
+- `test_pip_install_uses_target_dir` — verifies `--target` is in `_pip_install`.
+- `test_pip_install_requirements_uses_target_dir` — verifies `--target` is in
+  `_pip_install_requirements`.
+- `test_refresh_import_paths_adds_lib_dir` — verifies `_PIP_LIB_DIR` is appended
+  to `sys.path` in `_refresh_import_paths`.
+
+---
+
 ## ⚠️ RECURRING BUG #6 — `ModuleNotFoundError: No module named 'bpy'` in multiprocessing workers
 
 ### Symptoms
