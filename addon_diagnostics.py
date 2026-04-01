@@ -176,19 +176,35 @@ def collect_diagnostics():
     # ── 3. Dual-install via sys.modules ──────────────────────────────────────
     name_base = (__package__ or "blender_game_tools").split(".")[-1]
     own_pkg = __package__ or "blender_game_tools"
-    # Exclude the current package root AND all of its own sub-modules so that
-    # the warning only fires when a genuinely *different* install of the addon
-    # is also loaded (e.g. bl_ext.blender_org.* alongside bl_ext.user_default.*).
-    # Without this guard every submodule of the current package would appear in
-    # the list, producing a false-positive warning on every single-install run.
-    dupes = [k for k in sys.modules
-             if name_base in k
-             and not (k == own_pkg or k.startswith(own_pkg + "."))
-             and "addon_diagnostics" not in k]
-    if dupes:
+    # Collect every sys.modules key that belongs to a *different* install of
+    # this addon (contains the addon name but is not the current package root
+    # or any of its sub-modules).
+    foreign_keys = [
+        k for k in sys.modules
+        if name_base in k
+        and not (k == own_pkg or k.startswith(own_pkg + "."))
+        and "addon_diagnostics" not in k
+    ]
+    if foreign_keys:
+        # A single dual-installed addon can produce 30+ sub-module entries in
+        # sys.modules (one per file in the package).  Listing all of them makes
+        # the warning extremely noisy and hard to act on.  Instead, report only
+        # the *root* package key of each foreign install — the entry whose
+        # qualified name ends with the bare addon name, e.g.
+        # "bl_ext.blender_org.blender_game_tools".
+        foreign_roots = sorted({
+            k for k in foreign_keys
+            if k == name_base or k.endswith("." + name_base)
+        })
+        if foreign_roots:
+            detail = repr(foreign_roots)
+        else:
+            # Root key not yet populated (partial / stale reload): report count.
+            detail = f"{len(foreign_keys)} stale sub-module(s) (no root entry found)"
         results.append(("WARN", "Install",
-                        f"Multiple sys.modules entries for '{name_base}': {dupes!r} - "
-                        "dual-install or stale reload.  Restart Blender to clear."))
+                        f"Multiple installs of '{name_base}' found in sys.modules: "
+                        f"{detail} - dual-install or stale reload.  "
+                        "Restart Blender to clear."))
 
     # ── 4. Module import status ───────────────────────────────────────────────
     init = _addon_init()
@@ -370,7 +386,9 @@ def collect_diagnostics():
         if not _p:
             results.append(("INFO", "Tools", "UModel: not configured (optional)"))
         elif (os.path.isfile(os.path.join(_p, "umodel.exe"))
-              or os.path.isfile(os.path.join(_p, "umodel"))):
+              or os.path.isfile(os.path.join(_p, "umodel"))
+              or any(f in ("umodel.exe", "umodel")
+                     for _, _, files in os.walk(_p) for f in files)):
             results.append(("OK",   "Tools", f"UModel: found in {_p}"))
         elif os.path.isdir(_p):
             results.append(("WARN", "Tools",

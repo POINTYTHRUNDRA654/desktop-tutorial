@@ -1679,6 +1679,112 @@ class TestCoreDependencyInstallList(unittest.TestCase):
         )
 
 
+class TestPipInstallRobustness(unittest.TestCase):
+    """Verify robustness improvements to _pip_install in tool_installers.py.
+
+    These are regression guards for the bug where trimesh/pypdf remained
+    [MISSING] even after clicking 'Install Core Dependencies' because:
+      1. pip errors were swallowed (check_call didn't capture stderr).
+      2. Packages installed to the user site-packages were not on sys.path.
+      3. The UI panel's _dep_cache was never cleared after installation.
+    """
+
+    def _get_pip_install_body(self) -> str:
+        source = _read("tool_installers.py")
+        import re
+        m = re.search(
+            r"def _pip_install\b.*?(?=\ndef |\Z)",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "_pip_install not found in tool_installers.py")
+        return m.group(0)
+
+    def _get_refresh_paths_body(self) -> str:
+        source = _read("tool_installers.py")
+        import re
+        m = re.search(
+            r"def _refresh_import_paths\b.*?(?=\ndef |\Z)",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "_refresh_import_paths not found in tool_installers.py")
+        return m.group(0)
+
+    def test_pip_install_uses_subprocess_run(self):
+        """_pip_install must use subprocess.run (not check_call) to capture stderr."""
+        body = self._get_pip_install_body()
+        self.assertIn(
+            "subprocess.run",
+            body,
+            "_pip_install must use subprocess.run so that stderr is captured and "
+            "included in the error message.  Replace subprocess.check_call with "
+            "subprocess.run(cmd, ..., capture_output=True, text=True).",
+        )
+
+    def test_pip_install_captures_stderr(self):
+        """_pip_install must pass capture_output=True so pip errors are surfaced."""
+        body = self._get_pip_install_body()
+        self.assertIn(
+            "capture_output=True",
+            body,
+            "_pip_install must pass capture_output=True to subprocess.run so that "
+            "pip's error output is included in the failure message shown to the user.",
+        )
+
+    def test_refresh_import_paths_adds_user_site(self):
+        """_refresh_import_paths must add the user site-packages dir to sys.path.
+
+        When Blender's system site-packages is not writable, pip falls back to
+        the user site directory.  That directory is often absent from Blender's
+        sys.path, so packages installed there are not importable until it is
+        added explicitly via site.addsitedir().
+        """
+        body = self._get_refresh_paths_body()
+        self.assertIn(
+            "addsitedir",
+            body,
+            "_refresh_import_paths must call site.addsitedir(user_site) to ensure "
+            "packages installed to the user site-packages are immediately importable "
+            "in Blender without restarting.",
+        )
+
+    def test_pip_install_calls_refresh_import_paths(self):
+        """_pip_install must call _refresh_import_paths() after a successful install."""
+        body = self._get_pip_install_body()
+        self.assertIn(
+            "_refresh_import_paths",
+            body,
+            "_pip_install must call _refresh_import_paths() after a successful install "
+            "to flush import caches and add the user site-packages to sys.path.",
+        )
+
+    def test_invalidate_dep_cache_exists_in_ui_panels(self):
+        """ui_panels.py must expose invalidate_dep_cache() for post-install refresh."""
+        source = _read("ui_panels.py")
+        self.assertIn(
+            "def invalidate_dep_cache",
+            source,
+            "ui_panels.py must define invalidate_dep_cache() so that "
+            "FO4_OT_InstallPythonDeps can clear the stale _dep_cache after a "
+            "successful installation.  Without this, the Setup & Status panel "
+            "continues to show [MISSING] for newly installed packages.",
+        )
+
+    def test_setup_operators_calls_invalidate_dep_cache(self):
+        """setup_operators.py must call invalidate_dep_cache() after a successful install."""
+        source = _read("setup_operators.py")
+        self.assertIn(
+            "invalidate_dep_cache",
+            source,
+            "setup_operators.py must call ui_panels.invalidate_dep_cache() after "
+            "install_python_requirements() succeeds.  Without this, the _dep_cache "
+            "in ui_panels.py keeps its stale False entries and the Setup & Status "
+            "panel still shows [MISSING] for trimesh/pypdf after a successful install.",
+        )
+
+
+
 
 # ---------------------------------------------------------------------------
 # Section I: dual-install detection in addon_diagnostics.py
@@ -1729,6 +1835,36 @@ class TestDualInstallDetection(unittest.TestCase):
             "and use it in the dupes filter.",
         )
 
+    def test_warning_shows_only_foreign_roots(self):
+        """The warning message must report only the root package(s) of other installs.
+
+        A dual-installed addon produces 30+ sub-module entries in sys.modules
+        (one per Python file in the package).  Listing all of them makes the
+        warning extremely noisy.  The check must extract only the *root* keys
+        (entries that end with the bare addon name, e.g.
+        "bl_ext.blender_org.blender_game_tools") and display those.
+
+        Regression guard: the original code dumped the raw ``dupes`` list which
+        contained every sub-module of the other install.
+        """
+        block = self._get_dupes_source()
+        # The root-extraction logic must identify root keys by checking that the
+        # key equals name_base OR ends with ("." + name_base).
+        self.assertIn(
+            "endswith",
+            block,
+            "addon_diagnostics.py check #3 must extract foreign ROOT packages by "
+            "checking `k.endswith('.' + name_base)` so the warning shows only "
+            "'bl_ext.blender_org.blender_game_tools' instead of all 30+ sub-modules.",
+        )
+        # The extracted roots must be stored in a dedicated variable so the warning
+        # message uses them instead of the raw full list.
+        self.assertIn(
+            "foreign_roots",
+            block,
+            "addon_diagnostics.py check #3 must store root packages in 'foreign_roots' "
+            "and use that in the warning, not the raw list of all foreign keys.",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1808,11 +1944,67 @@ class TestCheckHavok2FBX(unittest.TestCase):
             "statically-linked and newer releases don't ship it as a separate file.",
         )
 
+    def test_exe_in_subfolder_passes(self):
+        """check_havok2fbx must return True when the exe is in a sub-folder.
+
+        discover_installed_tools() uses rglob() to find the exe recursively
+        and then stores the *root* tool folder in the preference.  If
+        check_havok2fbx() only checks the top level it will fire a false-positive
+        "folder found but expected files missing" warning for that exact scenario.
+
+        Regression guard: the original implementation did only a direct
+        top-level check (`Path(path) / "havok2fbx.exe"`).
+        """
+        import tempfile, os
+        from pathlib import Path as _Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Exe lives one level deeper, like a GitHub release zip that extracts
+            # into a versioned sub-directory.
+            subfolder = os.path.join(tmpdir, "havok2fbx-win64")
+            os.makedirs(subfolder)
+            _Path(os.path.join(subfolder, "havok2fbx.exe")).touch()
+
+            import importlib.util, types
+            bpy_stub = types.ModuleType("bpy")
+            bpy_stub.props = types.ModuleType("bpy.props")
+            bpy_stub.types = types.ModuleType("bpy.types")
+            bpy_stub.path = types.SimpleNamespace(abspath=lambda p: p)
+            original_bpy = sys.modules.get("bpy")
+            sys.modules["bpy"] = bpy_stub
+            try:
+                spec = importlib.util.spec_from_file_location(
+                    "_ti_test2", _path("tool_installers.py"))
+                ti = importlib.util.module_from_spec(spec)
+                try:
+                    spec.loader.exec_module(ti)
+                except Exception:
+                    pass
+                if hasattr(ti, "check_havok2fbx"):
+                    result = ti.check_havok2fbx(tmpdir)
+                    self.assertTrue(
+                        result,
+                        "check_havok2fbx() returned False when havok2fbx.exe is in a "
+                        "sub-folder of the configured path.  The function must search "
+                        "recursively (like discover_installed_tools()) so the diagnostics "
+                        "check never fires a false-positive 'expected files missing' "
+                        "warning for a path set by auto_configure_preferences().",
+                    )
+            finally:
+                if original_bpy is None:
+                    sys.modules.pop("bpy", None)
+
+    def test_rglob_fallback_in_source(self):
+        """check_havok2fbx source must contain rglob for the recursive search."""
+        block = self._get_check_source()
+        self.assertIn(
+            "rglob",
+            block,
+            "check_havok2fbx() must use rglob() to search recursively so it stays "
+            "consistent with discover_installed_tools() which also uses rglob().",
+        )
 
 
-# ---------------------------------------------------------------------------
-# Section K: bundled knowledge_base/ directory must exist
-# ---------------------------------------------------------------------------
+
 
 class TestKnowledgeBaseDirectoryBundled(unittest.TestCase):
     """Verify that the bundled knowledge_base/ directory is present in the add-on root.
