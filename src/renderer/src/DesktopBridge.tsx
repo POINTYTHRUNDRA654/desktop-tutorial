@@ -2786,12 +2786,12 @@ pause
 
                                         <button onClick={() => void openUrl('https://www.nexusmods.com/fallout4/mods/78')} className="text-left rounded border border-slate-800 bg-black/40 px-3 py-2 hover:bg-black/50">
                                             <div className="text-xs text-slate-200 font-bold">BA2 extractor: Bethesda Archive Extractor</div>
-                                            <div className="text-[10px] text-slate-400">Nexus Mods (creator credited on mod page)</div>
+                                            <div className="text-[10px] text-slate-400">Nexus Mods — by jonwd7</div>
                                         </button>
 
                                         <button onClick={() => void openUrl('https://www.nexusmods.com/fallout4/mods/17061')} className="text-left rounded border border-slate-800 bg-black/40 px-3 py-2 hover:bg-black/50">
                                             <div className="text-xs text-slate-200 font-bold">BA2 extractor: BSA Browser</div>
-                                            <div className="text-[10px] text-slate-400">Nexus Mods (creator credited on mod page)</div>
+                                            <div className="text-[10px] text-slate-400">Nexus Mods — by AlexxEG</div>
                                         </button>
 
                                         <button onClick={() => void openUrl('https://www.nexusmods.com/fallout4/mods/63243')} className="text-left rounded border border-slate-800 bg-black/40 px-3 py-2 hover:bg-black/50">
