@@ -2838,6 +2838,107 @@ class TestAutoFixStep0PurgesGhostEntries(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Section R: Diagnostics quick-access panel
+# ---------------------------------------------------------------------------
+
+class TestDiagnosticsPanel(unittest.TestCase):
+    """FO4_PT_DiagnosticsPanel must exist, be in the classes tuple, and wire
+    up all three essential diagnostic buttons.
+
+    This panel was added so users can always find the Environment Self-Test,
+    Run Diagnostics, and Auto-Fix Issues buttons without having to scroll to
+    the very bottom of the long DEFAULT_CLOSED Setup & Status panel.
+    """
+
+    def _panel_source(self):
+        src = _read("ui_panels.py")
+        # Extract just the FO4_PT_DiagnosticsPanel class body
+        start = src.find("class FO4_PT_DiagnosticsPanel(")
+        if start == -1:
+            return ""
+        # End at the next top-level class definition
+        end = src.find("\nclass ", start + 1)
+        return src[start:end] if end != -1 else src[start:]
+
+    def test_panel_class_exists(self):
+        src = _read("ui_panels.py")
+        self.assertIn(
+            "class FO4_PT_DiagnosticsPanel(",
+            src,
+            "FO4_PT_DiagnosticsPanel must be defined in ui_panels.py — "
+            "it is the quick-access panel for Environment Check, Run Diagnostics, "
+            "and Auto-Fix Issues buttons.",
+        )
+
+    def test_panel_id(self):
+        body = self._panel_source()
+        self.assertIn(
+            '"FO4_PT_diagnostics_panel"',
+            body,
+            "FO4_PT_DiagnosticsPanel must declare bl_idname = 'FO4_PT_diagnostics_panel'",
+        )
+
+    def test_not_default_closed(self):
+        body = self._panel_source()
+        self.assertNotIn(
+            "'DEFAULT_CLOSED'",
+            body,
+            "FO4_PT_DiagnosticsPanel must NOT use DEFAULT_CLOSED — "
+            "the whole point is that it opens by default so users can always see "
+            "the diagnostic buttons without expanding anything.",
+        )
+
+    def test_bl_order_near_top(self):
+        body = self._panel_source()
+        self.assertIn(
+            "bl_order",
+            body,
+            "FO4_PT_DiagnosticsPanel must set bl_order so it appears near the "
+            "top of the sidebar (e.g. bl_order = -15).",
+        )
+
+    def test_has_self_test_button(self):
+        body = self._panel_source()
+        self.assertIn(
+            '"fo4.self_test"',
+            body,
+            "FO4_PT_DiagnosticsPanel must include the fo4.self_test (Environment "
+            "Self-Test) button.",
+        )
+
+    def test_has_run_diagnostics_button(self):
+        body = self._panel_source()
+        self.assertIn(
+            '"fo4.run_addon_diagnostics"',
+            body,
+            "FO4_PT_DiagnosticsPanel must include the fo4.run_addon_diagnostics "
+            "(Run Diagnostics) button.",
+        )
+
+    def test_has_auto_fix_button(self):
+        body = self._panel_source()
+        self.assertIn(
+            '"fo4.fix_addon_issues"',
+            body,
+            "FO4_PT_DiagnosticsPanel must include the fo4.fix_addon_issues "
+            "(Auto-Fix Issues) button.",
+        )
+
+    def test_registered_in_classes_tuple(self):
+        src = _read("ui_panels.py")
+        # Find the classes tuple
+        start = src.find("classes = (")
+        end   = src.find("\ndef register()", start)
+        classes_block = src[start:end] if end != -1 else src[start:]
+        self.assertIn(
+            "FO4_PT_DiagnosticsPanel",
+            classes_block,
+            "FO4_PT_DiagnosticsPanel must be listed in the classes tuple in "
+            "ui_panels.py so Blender registers it at startup.",
+        )
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":

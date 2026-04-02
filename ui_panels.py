@@ -3862,6 +3862,46 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
 
 
 
+class FO4_PT_DiagnosticsPanel(_FO4SubPanel):
+    """Quick-access diagnostics panel — always visible at the top of the sidebar."""
+    bl_label      = "Diagnostics & Health"
+    bl_idname     = "FO4_PT_diagnostics_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category   = 'Fallout 4'
+    bl_parent_id  = "FO4_PT_main_panel"
+    bl_order      = -15  # Just below Setup & Status (-20), above all other sub-panels
+
+    def draw(self, context):
+        layout = self.layout
+
+        env_box = layout.box()
+        env_box.label(text="Environment", icon='CHECKMARK')
+        env_box.operator(
+            "fo4.self_test",
+            text="Run Environment Self-Test",
+            icon='CHECKMARK',
+        )
+
+        diag_box = layout.box()
+        diag_box.label(text="Add-on Diagnostics", icon='VIEWZOOM')
+        diag_row = diag_box.row(align=True)
+        diag_row.operator(
+            "fo4.run_addon_diagnostics",
+            text="Run Diagnostics",
+            icon='VIEWZOOM',
+        )
+        diag_row.operator(
+            "fo4.fix_addon_issues",
+            text="Auto-Fix Issues",
+            icon='TOOL_SETTINGS',
+        )
+        diag_box.label(
+            text="Results appear in Window > Toggle System Console.",
+            icon='INFO',
+        )
+
+
 class FO4_PT_OperationLogPanel(_FO4SubPanel):
     """Panel that shows every operation recorded by the add-on"""
     bl_label = "Operation Log"
@@ -4073,6 +4113,8 @@ classes = (
     FO4_PT_ArmorClothingPanel,
     FO4_PT_AddonIntegrationPanel,
     FO4_PT_DesktopTutorialPanel,
+    # Diagnostics quick-access panel — always visible, no DEFAULT_CLOSED
+    FO4_PT_DiagnosticsPanel,
     # Operation log - records every process for reference
     FO4_PT_OperationLogPanel,
     # Mossy tab - dedicated 'Mossy' category in the sidebar
