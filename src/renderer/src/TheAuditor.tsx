@@ -5,7 +5,7 @@ import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import ProjectWizard from './components/ProjectWizard';
 import GameLogMonitor from './GameLogMonitor';
 import { Scan, CheckCircle2, AlertTriangle, FileImage, Box, FileCode, Search, Wrench, ArrowRight, ShieldCheck, RefreshCw, XCircle, File, Bug } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
 import { workerManager } from './WorkerManager';
 import { cacheManager } from './CacheManager';
@@ -33,6 +33,7 @@ interface ModFile {
 const initialFiles: ModFile[] = [];
 
 const TheAuditor: React.FC = () => {
+    const navigate = useNavigate();
     const [files, setFiles] = useState<ModFile[]>(initialFiles);
     const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
     const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
@@ -1256,6 +1257,13 @@ const TheAuditor: React.FC = () => {
                                         <Wrench className="w-3 h-3" /> {isFixing ? 'Fixing...' : 'Fix-It'} <ArrowRight className="w-3 h-3" />
                                     </button>
                                 </div>
+                                <button
+                                    onClick={() => navigate('/chat', { state: { prefill: `I just ran an audit on my mod files. Here is the analysis result:\n\n${mossyAdvice}\n\nCan you help me understand and fix these issues?` } })}
+                                    className="mt-3 w-full py-2 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
+                                    title="Open full chat with this audit result as context"
+                                >
+                                    Ask Mossy about this
+                                </button>
                             </div>
                         ) : (
                             <div className="text-slate-500 text-sm italic">

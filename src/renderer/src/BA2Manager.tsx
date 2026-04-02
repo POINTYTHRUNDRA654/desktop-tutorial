@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Archive, FolderOpen, ArrowDownToLine, Upload, FileArchive, HardDrive, AlertCircle, Info, Merge, Plus, X } from 'lucide-react';
 
 interface BA2File {
@@ -27,6 +27,7 @@ interface MergeJob {
 }
 
 export const BA2Manager: React.FC = () => {
+  const navigate = useNavigate();
   const [archivePath, setArchivePath] = useState('');
   const [files, setFiles] = useState<BA2File[]>([]);
   const [loading, setLoading] = useState(false);
@@ -478,6 +479,15 @@ export const BA2Manager: React.FC = () => {
                         <p className={job.result.success ? 'text-green-400' : 'text-red-400'}>
                           {job.result.message}
                         </p>
+                      )}
+                      {job.status === 'completed' && job.result && (
+                        <button
+                          onClick={() => navigate('/chat', { state: { prefill: `I just completed a BA2 archive merge.\n\nType: ${job.archiveType}\nInput archives: ${job.inputArchives.length}\nOutput: ${job.outputArchive}\nResult: ${job.result?.message || 'Success'}\n\nCan you help me verify everything looks correct or suggest next steps?` } })}
+                          className="mt-2 w-full py-1.5 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
+                          title="Ask Mossy about this merge result"
+                        >
+                          Ask Mossy about this
+                        </button>
                       )}
                     </div>
                   </div>

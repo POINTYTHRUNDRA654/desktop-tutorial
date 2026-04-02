@@ -1681,6 +1681,7 @@ function setupIpcHandlers() {
   });
 
 
+  registerHandler(IPC_CHANNELS.OPEN_EXTERNAL, async (_event, filePath: string) => {
     try {
       // Validate input
       if (!filePath || typeof filePath !== 'string') {
