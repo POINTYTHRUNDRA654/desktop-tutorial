@@ -53,8 +53,8 @@ export class MemoryAnalysisEngine implements IMemoryAnalysisEngine {
       const progress = i / intervals;
 
       // Simulate memory usage pattern (gradual increase with some variation)
-      const baseUsage = sessionData.peakVRAM * (0.7 + 0.3 * progress); // 70% to 100% of peak
-      const variation = (Math.random() - 0.5) * 0.1 * sessionData.peakVRAM; // ±5% variation
+      const baseUsage = (sessionData.peakVRAM ?? 0) * (0.7 + 0.3 * progress); // 70% to 100% of peak
+      const variation = (Math.random() - 0.5) * 0.1 * (sessionData.peakVRAM ?? 0); // ±5% variation
       const usage = Math.max(0, baseUsage + variation);
 
       trends.push({
