@@ -141,14 +141,14 @@ const PAPYRUS_PATTERNS: PatternRule[] = [
     level: 'crash',
     category: 'memory',
     fixHint:
-      'Memory exhaustion. Install Addictol/X-Cell (Nexus #84214) — the primary memory tool for NG/1.11.x. If Buffout 4 NG is also installed, set MemoryManager=false, HavokMemorySystem=false, BSTextureStreamerLocalHeap=false in Buffout4.toml.',
+      'Memory exhaustion. Install Addictol (Nexus #84214) — the all-in-one stability tool for OG/NG/1.11.x. Do NOT also install Buffout 4 or X-Cell alongside it.',
   },
   {
     regex: /failed to allocate/i,
     level: 'error',
     category: 'memory',
     fixHint:
-      'Memory allocation failure. Update or install Addictol (#84214) and check for memory conflicts in Buffout4.toml.',
+      'Memory allocation failure. Update or install Addictol (#84214) — do NOT also install Buffout 4 or X-Cell.',
   },
   {
     regex: /precombine|previs/i,
@@ -193,7 +193,7 @@ const GAME_PATTERNS: PatternRule[] = [
     level: 'crash',
     category: 'memory',
     fixHint:
-      'Memory exhaustion. Install Addictol/X-Cell (Nexus #84214) as primary memory tool for NG/1.11.x.',
+      'Memory exhaustion. Install Addictol (Nexus #84214) — the all-in-one stability tool for OG/NG/1.11.x. Do NOT also install Buffout 4 or X-Cell.',
   },
   {
     regex: /master file not found|missing master/i,
@@ -616,7 +616,7 @@ export default function GameLogMonitor() {
     if (!buffoutDiagnosis) return;
     setIsLoadingCrashAdvice(true);
     const prompt = [
-      'Buffout 4 crash log analysis for Fallout 4:',
+      'Crash log analysis for Fallout 4 (Addictol crash logger):',
       `Crash Type: ${buffoutDiagnosis.crashType}`,
       `Root Cause: ${buffoutDiagnosis.rootCause}`,
       `Affected Component: ${buffoutDiagnosis.affectedComponent}`,
@@ -625,7 +625,7 @@ export default function GameLogMonitor() {
       buffoutDiagnosis.stackTrace
         ? `Stack trace: ${buffoutDiagnosis.stackTrace.slice(0, MAX_STACK_FRAMES_FOR_AI).join(' | ')}`
         : '',
-      'Give me a detailed step-by-step fix plan. Reference specific tools (xEdit, Addictol, Buffout4.toml, CLASSIC scanner) as appropriate.',
+      'Give me a detailed step-by-step fix plan. Reference specific tools (xEdit, Addictol, CLASSIC scanner) as appropriate.',
     ]
       .filter(Boolean)
       .join('\n');
@@ -684,7 +684,7 @@ export default function GameLogMonitor() {
           [
             { id: 'papyrus', label: '📜 Papyrus Log', desc: 'Script errors' },
             { id: 'game', label: '🎮 Game Log', desc: 'Engine events' },
-            { id: 'buffout', label: '💥 Crash Analysis', desc: 'Buffout logs' },
+            { id: 'buffout', label: '💥 Crash Analysis', desc: 'Addictol crash logs' },
           ] as { id: TabId; label: string; desc: string }[]
         ).map(tab => (
           <button
@@ -1062,10 +1062,10 @@ export default function GameLogMonitor() {
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {skillLevel === 'beginner' && (
               <div className="bg-slate-800 rounded-lg p-4 text-sm text-slate-300">
-                <p className="font-semibold text-white mb-1">What is Buffout 4?</p>
+                <p className="font-semibold text-white mb-1">What are crash logs?</p>
                 <p>
-                  Buffout 4 NG is a crash logger (Nexus{' '}
-                  <span className="text-green-400">#64880</span>) that writes a detailed{' '}
+                  Addictol (Nexus{' '}
+                  <span className="text-green-400">#84214</span>) — the all-in-one stability tool — writes a detailed{' '}
                   <code className="text-yellow-300">.log</code> file every time Fallout 4
                   crashes. Files are saved to{' '}
                   <code className="text-yellow-300">
@@ -1081,7 +1081,7 @@ export default function GameLogMonitor() {
               <div className="flex items-center gap-2 mb-3">
                 <FileText className="w-4 h-4 text-red-400" />
                 <span className="font-semibold text-white text-sm">
-                  Buffout Crash Log
+                  Crash Log (Addictol)
                 </span>
               </div>
               <div className="flex gap-2">
@@ -1090,7 +1090,7 @@ export default function GameLogMonitor() {
                   value={buffoutPath}
                   onChange={e => setBuffoutPath(e.target.value)}
                   placeholder="%LOCALAPPDATA%\Fallout4\F4SE\crash-XXXX.log"
-                  aria-label="Buffout crash log file path"
+                  aria-label="Crash log file path"
                   className="flex-1 px-3 py-2 text-xs bg-slate-700 text-white rounded border border-slate-600 focus:outline-none focus:border-green-500"
                 />
                 <button
@@ -1116,7 +1116,7 @@ export default function GameLogMonitor() {
                 <p className="mt-2 text-[10px] text-slate-500">
                   Crash logs are at{' '}
                   <code className="text-slate-400">%LOCALAPPDATA%\Fallout4\F4SE\</code>{' '}
-                  — requires Buffout 4 NG (Nexus #64880) + Address Library AiO (#47327)
+                  — written by Addictol (Nexus #84214); requires Address Library AiO (#47327)
                 </p>
               )}
             </div>
@@ -1224,7 +1224,7 @@ export default function GameLogMonitor() {
             {!buffoutDiagnosis && !isAnalyzing && (
               <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                 <Bug className="w-10 h-10 mb-3 opacity-30" />
-                <p className="text-sm">Select a Buffout crash log and click Analyze</p>
+                <p className="text-sm">Select a crash log and click Analyze</p>
                 <p className="text-xs mt-1 text-slate-600">
                   Requires Buffout 4 NG (Nexus #64880)
                 </p>
