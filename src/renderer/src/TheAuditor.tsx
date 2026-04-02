@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import ProjectWizard from './components/ProjectWizard';
-import { Scan, CheckCircle2, AlertTriangle, FileImage, Box, FileCode, Search, Wrench, ArrowRight, ShieldCheck, RefreshCw, XCircle, File } from 'lucide-react';
+import GameLogMonitor from './GameLogMonitor';
+import { Scan, CheckCircle2, AlertTriangle, FileImage, Box, FileCode, Search, Wrench, ArrowRight, ShieldCheck, RefreshCw, XCircle, File, Bug } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
 import { workerManager } from './WorkerManager';
@@ -39,6 +40,7 @@ const TheAuditor: React.FC = () => {
     const [mossyAdvice, setMossyAdvice] = useState<string | null>(null);
     const [isFixing, setIsFixing] = useState(false);
     const [texturePreview, setTexturePreview] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'audit' | 'debug'>('audit');
 
     const fileListScrollRef = useRef<HTMLDivElement | null>(null);
     const issuesScrollRef = useRef<HTMLDivElement | null>(null);
@@ -804,6 +806,23 @@ const TheAuditor: React.FC = () => {
                     </h2>
                     <p className="text-xs text-slate-400 font-mono mt-1">Asset Integrity & Code Compliance</p>
                 </div>
+                {/* Tab switcher */}
+                <div className="flex gap-1 bg-slate-800/60 rounded-lg p-1 border border-slate-700">
+                    <button
+                        onClick={() => setActiveTab('audit')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-colors ${activeTab === 'audit' ? 'bg-emerald-700 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                        aria-label="Switch to Audit tab"
+                    >
+                        <ShieldCheck className="w-3.5 h-3.5" /> Audit
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('debug')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-colors ${activeTab === 'debug' ? 'bg-red-800 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                        aria-label="Switch to Debug tab"
+                    >
+                        <Bug className="w-3.5 h-3.5" /> Debug
+                    </button>
+                </div>
                 <Link
                     to="/reference"
                     className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
@@ -811,7 +830,7 @@ const TheAuditor: React.FC = () => {
                 >
                     Help
                 </Link>
-                <div className="flex gap-4 items-center">
+                {activeTab === 'audit' && <div className="flex gap-4 items-center">
                     {isScanning && (
                         <div className="w-48">
                             <div className="flex justify-between text-[10px] text-emerald-400 mb-1">
@@ -896,7 +915,7 @@ const TheAuditor: React.FC = () => {
                         {isScanning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Scan className="w-4 h-4" />}
                         {isScanning ? 'Analyzing...' : 'Run Audit'}
                     </button>
-                </div>
+                </div>}
                 {/* Helpful external tool links */}
                 <div className="flex items-center gap-3 ml-4 text-[11px]">
                     <span className="text-slate-500">Need tools?</span>
@@ -934,11 +953,14 @@ const TheAuditor: React.FC = () => {
                 </div>
             </div>
             {/* Quick access to external tools */}
+            {activeTab === 'audit' && (
             <div className="px-4 pb-3 bg-slate-900 flex flex-col gap-2">
                 <ExternalToolNotice toolKey="xeditPath" toolName="xEdit / FO4Edit" nexusUrl="https://www.nexusmods.com/fallout4/mods/2737" description="Clean plugins (ITM/UDR), resolve conflicts, and generate patches." />
                 <ExternalToolNotice toolKey="nifSkopePath" toolName="NifSkope" nexusUrl="https://github.com/niftools/nifskope/releases" description="Inspect and fix NIFs: materials, collision, texture paths, and more." />
             </div>
+            )}
 
+            {activeTab === 'audit' && (
             <div className="flex-1 min-h-0 flex overflow-hidden">
 
                 {/* Left: File Manifest */}
@@ -1159,6 +1181,13 @@ const TheAuditor: React.FC = () => {
                     </div>
                 </div>
             </div>
+            )}
+
+            {activeTab === 'debug' && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+                <GameLogMonitor />
+            </div>
+            )}
         </div>
     );
 };
