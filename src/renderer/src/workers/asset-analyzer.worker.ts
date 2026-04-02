@@ -2,13 +2,19 @@
 // Handles ESP, NIF, and DDS file analysis in the background
 
 interface AssetAnalysisMessage {
-  type: 'analyze';
+  // Legacy format (type='analyze', data nested)
+  type: 'analyze' | 'analyze-asset';
   id: string;
-  data: {
+  // Legacy nested format
+  data?: {
     buffer: ArrayBuffer;
     filename: string;
     type: 'esp' | 'nif' | 'dds';
   };
+  // Flat format used by WorkerManager
+  assetType?: 'esp' | 'nif' | 'dds';
+  fileData?: ArrayBuffer;
+  fileName?: string;
 }
 
 interface WorkerMessage {
@@ -21,6 +27,7 @@ interface WorkerMessage {
 
 interface ESPAnalysis {
   filename: string;
+  type: 'esp';
   header: {
     signature: string;
     version: number;
@@ -33,6 +40,7 @@ interface ESPAnalysis {
     flags: number;
   }>;
   fileSize: number;
+  fileSizeMB: number;
   warnings: string[];
 }
 
@@ -92,6 +100,7 @@ function readString(buffer: ArrayBuffer, offset: number, length: number): string
 function analyzeESP(buffer: ArrayBuffer, filename: string): ESPAnalysis {
   const analysis: ESPAnalysis = {
     filename,
+    type: 'esp',
     header: {
       signature: '',
       version: 0,
@@ -100,6 +109,7 @@ function analyzeESP(buffer: ArrayBuffer, filename: string): ESPAnalysis {
     },
     records: [],
     fileSize: buffer.byteLength,
+    fileSizeMB: Math.round((buffer.byteLength / (1024 * 1024)) * 100) / 100,
     warnings: []
   };
 
@@ -324,31 +334,47 @@ function analyzeDDS(buffer: ArrayBuffer, filename: string): DDSAnalysis {
 
 // Worker message handler
 self.onmessage = function(e: MessageEvent<AssetAnalysisMessage>) {
-  const { type, id, data } = e.data;
+  const { type, id } = e.data;
 
   try {
-    if (type === 'analyze') {
-      const { buffer, filename, type: assetType } = data;
+    // Resolve payload from either message format:
+    // • Legacy: { type: 'analyze', id, data: { buffer, filename, type } }
+    // • WorkerManager: { type: 'analyze-asset', id, assetType, fileData, fileName }
+    let buffer: ArrayBuffer;
+    let filename: string;
+    let assetType: 'esp' | 'nif' | 'dds';
 
-      let result: ESPAnalysis | NIFAnalysis | DDSAnalysis;
-
-      switch (assetType) {
-        case 'esp':
-          result = analyzeESP(buffer, filename);
-          break;
-        case 'nif':
-          result = analyzeNIF(buffer, filename);
-          break;
-        case 'dds':
-          result = analyzeDDS(buffer, filename);
-          break;
-        default:
-          throw new Error(`Unknown asset type: ${assetType}`);
-      }
-
-      const message: WorkerMessage = { type: 'result', id, data: result };
-      self.postMessage(message);
+    if (type === 'analyze' && e.data.data) {
+      buffer = e.data.data.buffer;
+      filename = e.data.data.filename;
+      assetType = e.data.data.type;
+    } else if (type === 'analyze-asset' && e.data.fileData) {
+      buffer = e.data.fileData;
+      filename = e.data.fileName ?? '';
+      assetType = e.data.assetType!;
+    } else {
+      // Unknown message format — ignore silently
+      return;
     }
+
+    let result: ESPAnalysis | NIFAnalysis | DDSAnalysis;
+
+    switch (assetType) {
+      case 'esp':
+        result = analyzeESP(buffer, filename);
+        break;
+      case 'nif':
+        result = analyzeNIF(buffer, filename);
+        break;
+      case 'dds':
+        result = analyzeDDS(buffer, filename);
+        break;
+      default:
+        throw new Error(`Unknown asset type: ${assetType}`);
+    }
+
+    const message: WorkerMessage = { type: 'result', id, data: result };
+    self.postMessage(message);
   } catch (error) {
     const message: WorkerMessage = {
       type: 'error',
