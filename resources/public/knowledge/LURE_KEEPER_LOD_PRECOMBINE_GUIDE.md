@@ -399,7 +399,7 @@ Testing Procedure:
 1. Copy: MyMod_Precombined.esp → Fallout 4\Data\
 2. Update: plugins.txt with new plugin
 3. Launch: Fallout 4 with validation enabled
-   - If using Buffout 4: Automatically checks precombines
+   - If using Buffout 4 NG (Nexus #64880): Automatically checks precombines
    - If using MO2: Enable warning system
 
 In-Game Verification:
