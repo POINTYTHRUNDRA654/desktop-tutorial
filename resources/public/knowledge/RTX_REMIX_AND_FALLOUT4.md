@@ -208,18 +208,15 @@ Since RTX Remix doesn't work with Fallout 4, here are the **actual tools** for g
 
 ### **Step 1: Base Game Optimization**
 
-> **Version note:** Steps below target NG/AE/1.11.x (1.10.980+). OG (1.10.163) users: replace "Buffout 4 NG" with the original Buffout 4 and skip Addictol.
+> **Version note:** Addictol supports OG (1.10.163), NG (1.10.980+), and 1.11.x. It is the recommended all-in-one stability tool for all versions.
 
 ```
-1. Install Buffout 4 NG (Nexus #64880) — crash logger for NG/AE/1.11.x
-2. Install Addictol (Nexus #84214) — PRIMARY memory & stutter fix for NG/AE
-   → Required: set MemoryManager=false, HavokMemorySystem=false,
-     BSTextureStreamerLocalHeap=false in Buffout4.toml when both are active
-   → Replaces: Baka ScrapHeap, Fallout Priority, Private Profile Redirector
-   → Install Address Library AiO (Nexus #47327) — required by both
-3. Install High FPS Physics Fix (Nexus #44798) — replaces Boston FPS Fix for NG/AE
-4. Configure Fallout4Prefs.ini for your hardware
-5. Disable god rays if low-end (or use FO4 God Rays Performance Fix)
+1. Install Addictol (Nexus #84214) — ALL-IN-ONE stability tool (memory, crashes, FaceGen, script perf, and more)
+   → Do NOT also install Buffout 4, X-Cell, BakaMaxPapyrusOps, or other superseded mods
+   → Requires: F4SE + Address Library AiO (Nexus #47327)
+2. Install High FPS Physics Fix (Nexus #44798) — critical for play above 60 FPS
+3. Configure Fallout4Prefs.ini for your hardware
+4. Disable god rays if low-end (or use FO4 God Rays Performance Fix)
 ```
 
 ### **Step 2: Texture Overhaul**
