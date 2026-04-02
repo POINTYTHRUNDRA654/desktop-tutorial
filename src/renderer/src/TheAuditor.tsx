@@ -136,6 +136,16 @@ const TheAuditor: React.FC = () => {
         }
     }, []);
 
+    // Keep Mossy's context in sync: persist the full file list (including pending
+    // uploads) to localStorage every time it changes so ChatInterface can inject
+    // it into Mossy's system prompt even before an audit is run.
+    useEffect(() => {
+        if (files.length > 0) {
+            localStorage.setItem('mossy_scan_auditor', JSON.stringify(files));
+            window.dispatchEvent(new Event('mossy-memory-update'));
+        }
+    }, [files]);
+
     // Handle ESP file upload
     const handleFileUpload = async () => {
         try {
@@ -485,11 +495,15 @@ const TheAuditor: React.FC = () => {
                     }
                 } catch (error) {
                     console.error('Error analyzing ESP:', error);
+                    const errMsg = error instanceof Error ? error.message : 'Unknown error';
+                    const isReadError = errMsg.toLowerCase().includes('could not read') || errMsg.toLowerCase().includes('file');
                     newIssues.push({
                         id: 'esp-error',
                         severity: 'error',
-                        message: 'Analysis error',
-                        technicalDetails: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                        message: isReadError ? 'Could Not Read Plugin File' : 'Plugin Analysis Failed',
+                        technicalDetails: isReadError
+                            ? `The file could not be loaded for analysis. This usually means the file is locked by another program (close xEdit/CK/MO2 and retry), the path contains special characters, or the file is corrupted. Raw error: ${errMsg}`
+                            : `The analysis engine encountered an unexpected error while parsing this plugin. Try re-uploading the file. If the problem persists, open it in xEdit to check for structural corruption. Raw error: ${errMsg}`,
                         fixAvailable: false
                     });
                     status = 'error';
@@ -658,6 +672,9 @@ const TheAuditor: React.FC = () => {
         const cleanCount = updatedFiles.filter(f => f.status === 'clean').length;
 
         let adviceMessage = `✅ Audit complete. Scanned ${updatedFiles.length} file(s): ${cleanCount} clean, ${warningCount} warnings, ${errorCount} errors (${totalIssues} total issues).`;
+        if (totalIssues > 0) {
+            adviceMessage += ` Click any issue in the inspector to get a detailed explanation and fix steps.`;
+        }
 
         // Proactively surface navmesh errors so the user notices immediately
         const navmeshErrors = updatedFiles.flatMap(f =>
@@ -671,6 +688,19 @@ const TheAuditor: React.FC = () => {
         }
 
         setMossyAdvice(adviceMessage);
+
+        // Auto-select the first file with issues so the inspector opens immediately.
+        // Also auto-fetch Mossy AI advice for the most critical issue found.
+        const firstFileWithIssues = updatedFiles.find(f => f.issues.length > 0);
+        if (firstFileWithIssues) {
+            setSelectedFileId(firstFileWithIssues.id);
+            const criticalIssue = firstFileWithIssues.issues.find(i => i.severity === 'error')
+                ?? firstFileWithIssues.issues[0];
+            if (criticalIssue) {
+                // Defer so the state updates above settle first
+                setTimeout(() => getMossyAdvice(criticalIssue), 100);
+            }
+        }
     };
 
     const getMossyAdvice = async (issue: AuditIssue) => {
