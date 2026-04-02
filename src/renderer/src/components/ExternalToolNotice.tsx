@@ -10,6 +10,7 @@ interface ExternalToolNoticeProps {
   nexusUrl?: string;
   description?: string;
   className?: string;
+  author?: string;
 }
 
 const ExternalToolNotice: React.FC<ExternalToolNoticeProps> = ({
@@ -18,6 +19,7 @@ const ExternalToolNotice: React.FC<ExternalToolNoticeProps> = ({
   nexusUrl,
   description,
   className,
+  author,
 }) => {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [launching, setLaunching] = useState(false);
@@ -71,6 +73,9 @@ const ExternalToolNotice: React.FC<ExternalToolNoticeProps> = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="font-bold text-white">{toolName}</span>
+          {author && (
+            <span className="text-slate-400 text-[11px]">by <span className="text-amber-400 font-semibold">{author}</span></span>
+          )}
           {canLaunch ? (
             <span className="text-emerald-400 font-bold">Configured</span>
           ) : (
@@ -105,9 +110,9 @@ const ExternalToolNotice: React.FC<ExternalToolNoticeProps> = ({
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 font-bold"
-            title={`Download ${toolName} from Nexus Mods`}
+            title={`Download ${toolName}${author ? ` by ${author}` : ''} from Nexus Mods`}
           >
-            <ExternalLink className="w-3 h-3" /> Download from Nexus Mods
+            <ExternalLink className="w-3 h-3" /> Download from Nexus Mods{author ? ` · by ${author}` : ''}
           </a>
         </div>
       )}

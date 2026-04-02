@@ -843,7 +843,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             <div className="flex items-center gap-2 mb-2">
               <Package className="w-5 h-5 text-blue-400" />
               <div>
-                <div className="text-sm font-bold text-white">FOMOD Creation Tool</div>
+                <div className="text-sm font-bold text-white">FOMOD Creation Tool <span className="text-amber-400 font-normal text-xs">by AlexxEG</span></div>
                 <a href="https://www.nexusmods.com/fallout4/mods/6821" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
               </div>
             </div>
