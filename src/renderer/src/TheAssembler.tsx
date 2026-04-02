@@ -431,7 +431,7 @@ After installing, you may need to update the tool path in settings.`;
                             <Package className="w-6 h-6 text-purple-400" />
                             The Assembler
                         </h2>
-                        <p className="text-xs text-slate-400 font-mono mt-1">FOMOD Creation Tool v1.7</p>
+                        <p className="text-xs text-slate-400 font-mono mt-1">FOMOD Creation Tool v1.7 <span className="text-amber-400">by AlexxEG</span></p>
                     </div>
                     <div className="flex gap-2">
                         <Link
@@ -444,7 +444,7 @@ After installing, you may need to update the tool path in settings.`;
                         <button 
                             onClick={handleLaunchExternalTool}
                             className="px-4 py-2 bg-blue-700 hover:bg-blue-600 border border-blue-500 rounded text-xs font-bold flex items-center gap-2 transition-all group relative"
-                            title="Launch FOMOD Creation Tool 1.7\n\nRequires: FOMOD Creation Tool (Download from Nexus Mods)\nhttps://www.nexusmods.com/fallout4/mods/6821"
+                            title="Launch FOMOD Creation Tool 1.7 by AlexxEG\n\nRequires: FOMOD Creation Tool (Download from Nexus Mods)\nhttps://www.nexusmods.com/fallout4/mods/6821"
                         >
                             <ExternalLink className="w-4 h-4" /> Launch Tool
                             <Info className="w-3 h-3 text-blue-300 opacity-50 group-hover:opacity-100 transition-opacity" />
@@ -486,7 +486,7 @@ After installing, you may need to update the tool path in settings.`;
                             description="Assembler lets you design a FOMOD structure and export it. Launching an external FOMOD editor is optional and only works if you set a real path in Tool Settings."
                             tools={[
                                 {
-                                    label: 'FOMOD Creation Tool (optional external editor)',
+                                    label: 'FOMOD Creation Tool by AlexxEG (optional external editor)',
                                     href: 'https://www.nexusmods.com/fallout4/mods/6821',
                                     note: 'Optional. Use Tool Settings to point Mossy at the executable you installed.',
                                     kind: 'official',
@@ -515,6 +515,7 @@ After installing, you may need to update the tool path in settings.`;
                                 toolName="FOMOD Creation Tool" 
                                 nexusUrl="https://www.nexusmods.com/fallout4/mods/6821"
                                 description="Use the external designer to finalize your installer. Configure the path and launch directly from here."
+                                author="AlexxEG"
                             />
                     </div>
                 </>

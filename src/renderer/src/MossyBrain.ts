@@ -502,8 +502,7 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n- **v1.11.x / Creations Menu (1.11.169+)** — Released November 10, 2025. Broke DLL mods again. Adds the unified in-game Creations Menu (replaces Creation Club tab) and the Verified Creator Program. F4SE 0.7.7 required for runtime 1.11.191. Address Library AiO "Anniversary Edition" build required for all DLL mods.' +
       '\n- **Downgrading**: The Downgrade Patcher (Nexus #81463) by Hador-sCZ lets users roll back to OG (1.10.163) or NG (1.10.984). Some Wabbajack lists require the downgrade.' +
       '\n\n**Key 2024–2026 stability tools every modder needs to know:**' +
-      '\n- **Addictol** (formerly X-Cell, Nexus #84214) — *PRIMARY stability tool* for NG/1.11.x. Handles memory, micro-stutter, FaceGen bugs. Replaces Baka ScrapHeap, Fallout Priority, Private Profile Redirector. When using it alongside Buffout 4 NG, set `MemoryManager=false`, `HavokMemorySystem=false`, `BSTextureStreamerLocalHeap=false` in Buffout4.toml.' +
-      '\n- **Buffout 4 NG** (Nexus #64880, GitHub: alandtse/Buffout4) — Crash logger for NG/1.11.x. Version 1.37.0+ is the unified OG+NG build.' +
+      '\n- **Addictol** (Nexus #84214) — *ALL-IN-ONE stability tool* for OG/NG/1.11.x. Supersedes and includes Buffout 4 (all variants), X-Cell, BakaMaxPapyrusOps, Faster Workshop, and more. Do NOT install Buffout 4 alongside it.' +
       '\n- **Address Library for F4SE Plugins** (Nexus #47327) — Required by nearly all DLL mods. Install the "All In One (Anniversary Edition)" option for NG/1.11.x.' +
       '\n- **CLASSIC** (Nexus #56255) — Crash log auto-scanner. Run it after any CTD to get a human-readable explanation. Essential for debugging.' +
       '\n- **High FPS Physics Fix** (Nexus #44798, v0.8.13+) — Critical for playing above 60 FPS without physics bugs.' +
@@ -723,7 +722,7 @@ export const MASTER_TECHNICAL_GUIDE = `
 - AE / Anniversary Edition: **same EXE as NG (1.10.984)** — NG + 76 bundled free CC items; mods often need AE patches; PRP 81+ required for AE cells
 - Creations Menu: **1.11.191** — November 2025 update; F4SE 0.7.7; new in-game Creations browser
 **Always ask which version the user is on for any F4SE, DLL mod, CK, or tool version question. Note: "AE" = NG exe + CC content, not a separate runtime.**
-Key tools for NG/1.11.x: Address Library AiO #47327, Buffout 4 NG #64880 (v1.37.0+), Addictol #84214, CLASSIC #56255, High FPS Physics Fix #44798, MCM NG build, UFO4P (latest).
+Key tools for NG/1.11.x: Address Library AiO #47327, Addictol #84214 (ALL-IN-ONE; supersedes Buffout 4), CLASSIC #56255, High FPS Physics Fix #44798, MCM NG build, UFO4P (latest).
 
 ---
 
@@ -8563,7 +8562,7 @@ ESL requires compact form ID range (0x800 - 0xFFF):
 2. DLC (Automatron, Far Harbor, Nuka-World, etc.)
 3. Unofficial Fallout 4 Patch (UFO4P) — always latest version
 4. Framework mods (F4SE plugins, Address Library, MCM NG, etc.)
-5. Stability layer (Buffout 4 NG + Addictol — load before everything else that needs them)
+5. Stability layer (Addictol — all-in-one; loads via F4SE automatically)
 6. Large overhauls (SS2, Weather mods)
 7. Asset mods (weapons, armor, building)
 8. Quest mods
@@ -11121,9 +11120,8 @@ EndFunction
 
 **Fallout-Specific Diagnostics**
 
-- **Buffout 4 NG** (Nexus #64880, GitHub: alandtse/Buffout4): Crash logger for NG/1.11.x. Provides callstacks, precombine warnings, form cap alerts. Version 1.37.0+ is the unified OG+NG build. Note: memory management was removed in the NG version — use Addictol for memory/stutter fixes.
-- **Addictol** (formerly X-Cell, Nexus #84214): PRIMARY stability tool for NG/1.11.x. Handles memory allocation, micro-stutter, FaceGen (missing head) bugs. When pairing with Buffout 4 NG, disable its memory settings in Buffout4.toml (MemoryManager=false, HavokMemorySystem=false, BSTextureStreamerLocalHeap=false).
-- **CLASSIC** (Nexus #56255): Crash log auto-scanner. Reads Buffout 4 logs and gives plain-English explanations. Run after every CTD.
+- **Addictol** (Nexus #84214): ALL-IN-ONE stability tool for OG/NG/1.11.x. Supersedes Buffout 4 (all variants), X-Cell, BakaMaxPapyrusOps, Faster Workshop, and more. Do NOT install Buffout 4 or any of those mods alongside Addictol.
+- **CLASSIC** (Nexus #56255): Crash log auto-scanner. Run after every CTD.
 - **Previsibines Repair Pack (PRP):** For Commonwealth edits; fixes broken precombines/previs to improve FPS. Current stable: 81.5 (March 2026).
 - **xEdit Stats:** Check record counts and deleted references (deleted refs hurt performance)
 
