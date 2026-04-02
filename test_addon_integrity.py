@@ -2201,7 +2201,172 @@ class TestHavok2FBXDiagnosticInlineCheck(unittest.TestCase):
         )
 
 
-class TestKnowledgeBaseDirectoryBundled(unittest.TestCase):
+# ---------------------------------------------------------------------------
+# Section J2: check_ckcmd only requires ck-cmd.exe
+# ---------------------------------------------------------------------------
+
+class TestCheckCKCmd(unittest.TestCase):
+    """Verify that check_ckcmd() finds ck-cmd.exe (top-level and sub-folder)."""
+
+    def _get_check_source(self) -> str:
+        source = _read("tool_installers.py")
+        import re
+        m = re.search(
+            r"def check_ckcmd\(.*?\n(?=\ndef |\nclass )",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "check_ckcmd() not found in tool_installers.py")
+        return m.group(0)
+
+    def test_toplevel_exe_found(self):
+        """check_ckcmd should succeed with ck-cmd.exe in the root folder."""
+        import tempfile
+        from pathlib import Path as _Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (_Path(tmpdir) / "ck-cmd.exe").touch()
+
+            import importlib.util, types
+            bpy_stub = types.ModuleType("bpy")
+            bpy_stub.props = types.ModuleType("bpy.props")
+            bpy_stub.types = types.ModuleType("bpy.types")
+            bpy_stub.path = types.SimpleNamespace(abspath=lambda p: p)
+            original_bpy = sys.modules.get("bpy")
+            sys.modules["bpy"] = bpy_stub
+            try:
+                spec = importlib.util.spec_from_file_location(
+                    "_ti_ckcmd1", _path("tool_installers.py"))
+                ti = importlib.util.module_from_spec(spec)
+                try:
+                    spec.loader.exec_module(ti)
+                except Exception:
+                    pass
+                if hasattr(ti, "check_ckcmd"):
+                    self.assertTrue(
+                        ti.check_ckcmd(tmpdir),
+                        "check_ckcmd() returned False for a folder containing ck-cmd.exe.",
+                    )
+            finally:
+                if original_bpy is None:
+                    sys.modules.pop("bpy", None)
+
+    def test_subfolder_exe_found(self):
+        """check_ckcmd must return True when ck-cmd.exe is in a sub-folder."""
+        import tempfile, os
+        from pathlib import Path as _Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            subfolder = os.path.join(tmpdir, "ck-cmd-win64")
+            os.makedirs(subfolder)
+            (_Path(subfolder) / "ck-cmd.exe").touch()
+
+            import importlib.util, types
+            bpy_stub = types.ModuleType("bpy")
+            bpy_stub.props = types.ModuleType("bpy.props")
+            bpy_stub.types = types.ModuleType("bpy.types")
+            bpy_stub.path = types.SimpleNamespace(abspath=lambda p: p)
+            original_bpy = sys.modules.get("bpy")
+            sys.modules["bpy"] = bpy_stub
+            try:
+                spec = importlib.util.spec_from_file_location(
+                    "_ti_ckcmd2", _path("tool_installers.py"))
+                ti = importlib.util.module_from_spec(spec)
+                try:
+                    spec.loader.exec_module(ti)
+                except Exception:
+                    pass
+                if hasattr(ti, "check_ckcmd"):
+                    self.assertTrue(
+                        ti.check_ckcmd(tmpdir),
+                        "check_ckcmd() returned False when ck-cmd.exe is in a sub-folder.",
+                    )
+            finally:
+                if original_bpy is None:
+                    sys.modules.pop("bpy", None)
+
+    def test_rglob_fallback_in_source(self):
+        """check_ckcmd source must use rglob for recursive search."""
+        block = self._get_check_source()
+        self.assertIn(
+            "rglob",
+            block,
+            "check_ckcmd() must use rglob() to search recursively.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Section K2: ck-cmd diagnostic block uses inline os.walk
+# ---------------------------------------------------------------------------
+
+class TestCKCmdDiagnosticBlock(unittest.TestCase):
+    """The ck-cmd block in addon_diagnostics.py must use inline os.walk."""
+
+    def _get_ckcmd_diag_source(self) -> str:
+        source = _read("addon_diagnostics.py")
+        import re
+        m = re.search(
+            r"# ck-cmd\s*[─\-]+.*?(?=\n\s*# [A-Z])",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(
+            m,
+            "ck-cmd diagnostic block not found in addon_diagnostics.py",
+        )
+        return m.group(0)
+
+    def test_uses_os_walk(self):
+        """The ck-cmd diagnostic block must use os.walk for inline verification."""
+        block = self._get_ckcmd_diag_source()
+        self.assertIn(
+            "os.walk",
+            block,
+            "addon_diagnostics.py ck-cmd block must use os.walk() for inline path verification.",
+        )
+
+    def test_checks_exe_name(self):
+        """The ck-cmd block must look for 'ck-cmd.exe'."""
+        block = self._get_ckcmd_diag_source()
+        self.assertIn(
+            "ck-cmd.exe",
+            block,
+            "addon_diagnostics.py ck-cmd block must check for 'ck-cmd.exe'.",
+        )
+
+    def test_install_ckcmd_in_tool_installers(self):
+        """tool_installers.py must define install_ckcmd()."""
+        source = _read("tool_installers.py")
+        self.assertIn(
+            "def install_ckcmd(",
+            source,
+            "tool_installers.py must define install_ckcmd().",
+        )
+
+    def test_ckcmd_in_discover_installed_tools(self):
+        """discover_installed_tools() must include a 'ckcmd' key."""
+        source = _read("tool_installers.py")
+        self.assertIn(
+            '"ckcmd"',
+            source,
+            "discover_installed_tools() must include a 'ckcmd' key.",
+        )
+
+    def test_ckcmd_path_in_preferences(self):
+        """preferences.py must define ckcmd_path StringProperty."""
+        source = _read("preferences.py")
+        self.assertIn(
+            "ckcmd_path",
+            source,
+            "preferences.py must define ckcmd_path for ck-cmd folder.",
+        )
+
+    def test_install_ckcmd_operator_registered(self):
+        """install_operators.py must register FO4_OT_InstallCKCmd."""
+        source = _read("install_operators.py")
+        self.assertIn(
+            "FO4_OT_InstallCKCmd",
+            source,
+            "install_operators.py must define and register FO4_OT_InstallCKCmd.",
+        )
     """Verify that the bundled knowledge_base/ directory is present in the add-on root.
 
     knowledge_helpers._kb_root() falls back to <addon_dir>/knowledge_base/ when
@@ -2739,6 +2904,60 @@ class TestAutoFixStep7KnowledgeBase(unittest.TestCase):
             "Auto-Fix Step 7 must check 'knowledge_base_enabled' before creating "
             "the directory to avoid silently creating it for users who have the "
             "feature disabled.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Section O2: Diagnostic check auto-creates default knowledge_base/ dir
+# ---------------------------------------------------------------------------
+
+class TestKnowledgeBaseDiagnosticAutoCreate(unittest.TestCase):
+    """The knowledge-base diagnostic check (check #12) must auto-create the
+    default ``knowledge_base/`` directory when it does not exist and no custom
+    path is configured — mirroring the behaviour of ``_kb_root()``.
+
+    Regression guard: before this fix the check only called ``os.path.isdir``
+    and emitted ``"Knowledge base enabled but path not found"`` for fresh
+    extension installs where the sub-directory had never been created.
+    """
+
+    def _get_kb_check_source(self) -> str:
+        source = _read("addon_diagnostics.py")
+        import re
+        # Locate the knowledge-base diagnostic block (after "knowledge_base_enabled")
+        m = re.search(
+            r"_kb_on\s*=\s*getattr.*?(?=\n\s*# ──|\n\s*# ===|\Z)",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(
+            m,
+            "_kb_on block not found in addon_diagnostics.py",
+        )
+        return m.group(0)
+
+    def test_diagnostic_attempts_makedirs_for_default_path(self):
+        """The diagnostic check must call os.makedirs when the default dir is absent."""
+        block = self._get_kb_check_source()
+        self.assertIn(
+            "makedirs",
+            block,
+            "The knowledge-base diagnostic check must call os.makedirs() to "
+            "auto-create the default directory before emitting WARN, so that "
+            "fresh extension installs do not persistently show "
+            "'Knowledge base enabled but path not found'.",
+        )
+
+    def test_auto_create_only_for_default_path(self):
+        """Auto-create must be gated on the path being the default (no custom path)."""
+        block = self._get_kb_check_source()
+        # The guard variable name used in the fix
+        self.assertIn(
+            "_kb_is_default",
+            block,
+            "The auto-create logic in the diagnostic check must be gated on "
+            "'_kb_is_default' so it only fires for the bundled default path, "
+            "not for a user-configured custom path that truly doesn't exist.",
         )
 
 

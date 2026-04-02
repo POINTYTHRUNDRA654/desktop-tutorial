@@ -188,6 +188,20 @@ def is_havok2fbx_configured() -> bool:
     return get_havok2fbx_path() is not None
 
 
+def get_ckcmd_path() -> str | None:
+    """Return the configured ck-cmd directory if set and exists."""
+    prefs = get_preferences()
+    if not prefs:
+        return None
+    path = bpy.path.abspath(prefs.ckcmd_path)
+    return path if path and os.path.isdir(path) else None
+
+
+def is_ckcmd_configured() -> bool:
+    """True if the ck-cmd path is configured and points to an existing directory."""
+    return get_ckcmd_path() is not None
+
+
 def get_llm_config() -> dict:
     prefs = get_preferences()
     if not prefs:
@@ -387,6 +401,7 @@ def restore_scene_props_from_prefs(scene) -> None:
         # Tool/runtime paths – backed by addon preferences so they survive
         # opening a new .blend file.
         "havok2fbx_path":       "fo4_havok2fbx_path",
+        "ckcmd_path":           "fo4_ckcmd_path",
         "torch_custom_path":    "fo4_torch_root",
         "tools_root":           "fo4_tools_root",
         "instantngp_path":      "fo4_instantngp_path",
@@ -520,6 +535,23 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         subtype="DIR_PATH",
         default=_DEFAULT_HAVOK2FBX_PATH,
         description="Folder containing Havok2FBX binaries (existing install)",
+    )
+
+    ckcmd_path: bpy.props.StringProperty(
+        name="ck-cmd Folder",
+        subtype="DIR_PATH",
+        default="",
+        description="Folder containing ck-cmd.exe (aerisarn/ck-cmd — open-source FBX→HKX converter)",
+    )
+
+    ckcmd_skeleton_path: bpy.props.StringProperty(
+        name="Skeleton HKX",
+        subtype="FILE_PATH",
+        default="",
+        description=(
+            "Path to the Fallout 4 skeleton.hkx required by ck-cmd importanimation. "
+            "Usually found at Data\\Meshes\\Actors\\Character\\CharacterAssets\\skeleton.hkx"
+        ),
     )
 
     mesh_panel_unified: bpy.props.BoolProperty(

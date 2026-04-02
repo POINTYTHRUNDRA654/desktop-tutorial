@@ -572,6 +572,72 @@ def install_havok2fbx() -> tuple[bool, str]:
     except Exception as exc:
         return False, f"Havok2FBX download failed: {exc}"
 
+
+def check_ckcmd(path: str) -> bool:
+    """Return True if the given folder appears to contain ck-cmd binaries.
+
+    ck-cmd (aerisarn/ck-cmd) is the open-source, no-SDK-required replacement
+    for havok2fbx.  Only the main executable is required.
+
+    The exe may land in a versioned sub-folder when a GitHub zip extracts to a
+    nested directory.  This function mirrors discover_installed_tools()'s
+    recursive search to avoid false-positive diagnostics warnings.
+    """
+    root = Path(path)
+    if (root / "ck-cmd.exe").is_file():
+        return True
+    # Recursive fallback: exe may be one or more levels deeper.
+    return next(root.rglob("ck-cmd.exe"), None) is not None
+
+
+def install_ckcmd() -> tuple[bool, str]:
+    """Download ck-cmd from GitHub releases and wire it into preferences.
+
+    Queries the GitHub Releases API for aerisarn/ck-cmd, downloads the first
+    Windows zip or exe asset, extracts it to the tools/ck-cmd folder, and
+    persists the path in add-on preferences so it is usable immediately.
+
+    ck-cmd is the open-source FBX→HKX converter that replaces havok2fbx — it
+    requires no commercial Havok or Autodesk SDKs and has pre-built binaries.
+    """
+    dest = _ensure_tools_dir("ck-cmd")
+
+    # Already installed?
+    if check_ckcmd(str(dest)):
+        _configure_tool_paths()
+        return True, f"ck-cmd already installed at {dest}"
+
+    url = _get_github_release_asset("aerisarn/ck-cmd", ".zip")
+    if not url:
+        url = _get_github_release_asset("aerisarn/ck-cmd", "ck-cmd")
+    if not url:
+        return False, (
+            "Could not resolve ck-cmd download URL from GitHub. "
+            "Please download manually from https://github.com/aerisarn/ck-cmd/releases "
+            f"and extract to {dest}."
+        )
+
+    zip_path = dest / "ckcmd_download.zip"
+    try:
+        _download(url, zip_path)
+        _extract_zip(zip_path, dest)
+        zip_path.unlink(missing_ok=True)
+        # Move files out of any sub-folder the zip may have created
+        for sub in dest.iterdir():
+            if sub.is_dir():
+                for item in list(sub.iterdir()):
+                    target = dest / item.name
+                    if not target.exists():
+                        shutil.move(str(item), str(target))
+                try:
+                    sub.rmdir()
+                except OSError:
+                    pass
+        _configure_tool_paths()
+        return True, f"ck-cmd downloaded and configured at {dest}"
+    except Exception as exc:
+        return False, f"ck-cmd download failed: {exc}"
+
 def install_niftools(blender_version: str = "3.6") -> tuple[bool, str]:
     """Download and install the latest Niftools NIF add-on from GitHub.
 
@@ -896,9 +962,9 @@ def discover_installed_tools() -> dict[str, "str | None"]:
     during installation.
 
     Returns a dict with keys ``"ffmpeg"``, ``"nvcompress"``, ``"texconv"``,
-    ``"umodel"``, ``"havok2fbx"``, and ``"cm_toolkit"``, each mapped to the
-    absolute executable path string (or directory string for umodel/havok2fbx),
-    or ``None`` if not found.
+    ``"umodel"``, ``"havok2fbx"``, ``"ckcmd"``, and ``"cm_toolkit"``, each
+    mapped to the absolute executable path string (or directory string for
+    umodel/havok2fbx/ckcmd), or ``None`` if not found.
     """
     found: dict[str, "str | None"] = {
         "ffmpeg": None,
@@ -906,6 +972,7 @@ def discover_installed_tools() -> dict[str, "str | None"]:
         "texconv": None,
         "umodel": None,
         "havok2fbx": None,
+        "ckcmd": None,
         "cm_toolkit": None,
     }
 
@@ -926,8 +993,11 @@ def discover_installed_tools() -> dict[str, "str | None"]:
         "texconv":    ("texconv",    ("texconv.exe",     "texconv")),
         "umodel":     ("umodel",     ("umodel.exe",      "umodel")),
         "havok2fbx":  ("havok2fbx",  ("havok2fbx.exe",)),
+        "ckcmd":      ("ck-cmd",     ("ck-cmd.exe",)),
         "cm_toolkit": ("cm_toolkit", ("cm-toolkit.exe",)),
     }
+
+    _dir_based = ("umodel", "havok2fbx", "ckcmd")
 
     for key, (subdir, exe_names) in binary_map.items():
         for root in search_roots:
@@ -938,13 +1008,13 @@ def discover_installed_tools() -> dict[str, "str | None"]:
                 # Direct hit
                 direct = tool_dir / exe
                 if direct.is_file():
-                    # For directory-based tools (umodel, havok2fbx) store the folder
-                    found[key] = str(tool_dir) if key in ("umodel", "havok2fbx") else str(direct)
+                    # For directory-based tools (umodel, havok2fbx, ckcmd) store the folder
+                    found[key] = str(tool_dir) if key in _dir_based else str(direct)
                     break
                 # Recursive search (zip may extract a nested folder)
                 matches = sorted(tool_dir.rglob(exe))
                 if matches:
-                    found[key] = str(tool_dir) if key in ("umodel", "havok2fbx") else str(matches[0])
+                    found[key] = str(tool_dir) if key in _dir_based else str(matches[0])
                     break
             if found[key]:
                 break
@@ -1017,6 +1087,15 @@ def auto_configure_preferences() -> list[str]:
             print(f"✓ Havok2FBX auto-configured: {installed['havok2fbx']}")
         except Exception as exc:
             print(f"auto_configure_preferences: Havok2FBX path set failed: {exc}")
+
+    # ck-cmd - persist the folder in preferences
+    if installed["ckcmd"] and not _prefs.get_ckcmd_path():
+        try:
+            prefs.ckcmd_path = installed["ckcmd"]
+            results.append(f"ck-cmd auto-configured: {installed['ckcmd']}")
+            print(f"✓ ck-cmd auto-configured: {installed['ckcmd']}")
+        except Exception as exc:
+            print(f"auto_configure_preferences: ck-cmd path set failed: {exc}")
 
     return results
 

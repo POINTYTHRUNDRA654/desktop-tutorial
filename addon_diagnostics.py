@@ -17,7 +17,7 @@ Adds two operators that appear in the Setup & Status panel:
         7.  Python version
         8.  PyTorch availability (local install AND Mossy bridge)
         9.  __init__ presence in sys.modules
-        10. External tool binaries (FFmpeg, NVTT, TexConv, Havok2FBX,
+        10. External tool binaries (FFmpeg, NVTT, TexConv, Havok2FBX, ck-cmd,
             UModel, Instant-NGP, RealESRGAN, tools root)
         11. Mossy Bridge connectivity (when Mossy is enabled in preferences)
         12. Asset & knowledge-base paths
@@ -418,10 +418,24 @@ def collect_diagnostics():
                      for _, _, files in os.walk(_p) for f in files)):
             results.append(("OK",   "Tools", f"Havok2FBX: verified at {_p}"))
         elif os.path.isdir(_p):
-            results.append(("WARN", "Tools",
-                            f"Havok2FBX: folder found but expected files missing - {_p}"))
+            results.append(("INFO", "Tools",
+                            f"Havok2FBX: folder found but executable not present (must be compiled from source) - {_p}"))
         else:
             results.append(("WARN", "Tools", f"Havok2FBX: configured path not found - {_p}"))
+
+        # ck-cmd ──────────────────────────────────────────────────────────────
+        _ckcmd_p = bpy.path.abspath(getattr(_prefs, "ckcmd_path", "")).strip()
+        if not _ckcmd_p:
+            results.append(("INFO", "Tools", "ck-cmd: not configured (recommended — replaces Havok2FBX)"))
+        elif (os.path.isfile(os.path.join(_ckcmd_p, "ck-cmd.exe"))
+              or any(f == "ck-cmd.exe"
+                     for _, _, files in os.walk(_ckcmd_p) for f in files)):
+            results.append(("OK",   "Tools", f"ck-cmd: verified at {_ckcmd_p}"))
+        elif os.path.isdir(_ckcmd_p):
+            results.append(("WARN", "Tools",
+                            f"ck-cmd: folder found but ck-cmd.exe not inside - {_ckcmd_p}"))
+        else:
+            results.append(("WARN", "Tools", f"ck-cmd: configured path not found - {_ckcmd_p}"))
 
         # UModel ──────────────────────────────────────────────────────────────
         _p = bpy.path.abspath(_prefs.umodel_path).strip()
@@ -522,10 +536,19 @@ def collect_diagnostics():
 
         _kb_on = getattr(_prefs, "knowledge_base_enabled", False)
         _kb    = bpy.path.abspath(_prefs.knowledge_base_path).strip()
+        _kb_is_default = not _kb
         if not _kb:
             # Mirror _kb_root() fallback: bundled knowledge_base/ folder
             _kb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "knowledge_base")
         if _kb_on:
+            if not os.path.isdir(_kb) and _kb_is_default:
+                # Auto-create the default bundled directory (mirrors _kb_root()).
+                # Fresh extension installs ship without the sub-directory; creating
+                # it here silences the recurring "path not found" false-positive.
+                try:
+                    os.makedirs(_kb, exist_ok=True)
+                except OSError:
+                    pass  # read-only install — handled below
             if os.path.isdir(_kb):
                 results.append(("OK",   "Assets", f"Knowledge base: {_kb}"))
             else:

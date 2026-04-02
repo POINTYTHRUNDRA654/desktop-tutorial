@@ -724,6 +724,29 @@ class FO4_OT_InstallHavok2FBX(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_InstallCKCmd(Operator):
+    """Download and install ck-cmd (aerisarn/ck-cmd) — open-source FBX to HKX converter."""
+    bl_idname = "fo4.install_ckcmd"
+    bl_label = "Install ck-cmd (FBX→HKX)"
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            ok, msg = tool_installers.install_ckcmd()
+            level = 'INFO' if ok else 'ERROR'
+            print("CK-CMD INSTALL", msg)
+
+            def _notify():
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+            bpy.app.timers.register(_notify, first_interval=0.0)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "ck-cmd download started in background.")
+        return {'FINISHED'}
+
+
 class FO4_OT_InstallNiftools(Operator):
     """Run the PowerShell script to install Niftools Blender add-on."""
     bl_idname = "fo4.install_niftools"
@@ -895,6 +918,7 @@ class FO4_OT_CheckToolPaths(Operator):
             nv = preferences.get_configured_nvcompress_path()
             tx = preferences.get_configured_texconv_path()
             hb = preferences.get_havok2fbx_path()
+            ck = preferences.get_ckcmd_path()
             def version(path, args):
                 try:
                     out = subprocess.check_output([path] + args, stderr=subprocess.STDOUT, text=True)
@@ -908,10 +932,20 @@ class FO4_OT_CheckToolPaths(Operator):
             if hb and tool_installers.check_havok2fbx(hb):
                 exe = os.path.join(hb, 'havok2fbx.exe')
                 hbv = version(exe, ['--version']) or 'present'
+            ckv = None
+            if ck and tool_installers.check_ckcmd(ck):
+                from pathlib import Path as _P
+                _ck_root = _P(ck)
+                _ck_exe = _ck_root / "ck-cmd.exe"
+                if not _ck_exe.is_file():
+                    _ck_exe = next(_ck_root.rglob("ck-cmd.exe"), None)
+                if _ck_exe:
+                    ckv = version(str(_ck_exe), ['--version']) or 'present'
             lines.append(f"ffmpeg: {ff or 'not set'}{('  '+ffv) if ffv else ''}")
             lines.append(f"nvcompress: {nv or 'not set'}{('  '+nvv) if nvv else ''}")
             lines.append(f"texconv: {tx or 'not set'}{('  '+txv) if txv else ''}")
             lines.append(f"Havok2FBX: {hb or 'not set'}{('  '+hbv) if hbv else ''}")
+            lines.append(f"ck-cmd: {ck or 'not set'}{('  '+ckv) if ckv else ''}")
         else:
             lines.append("Preferences not available")
         for l in lines:
@@ -1447,6 +1481,7 @@ classes = (
     FO4_OT_InstallTexconv,
     FO4_OT_InstallWhisper,
     FO4_OT_InstallHavok2FBX,
+    FO4_OT_InstallCKCmd,
     FO4_OT_InstallNiftools,
     FO4_OT_EnableAddon,
     FO4_OT_ConfigureFallout4Settings,

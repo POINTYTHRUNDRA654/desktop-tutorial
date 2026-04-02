@@ -2829,8 +2829,8 @@ class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
 
 
 class FO4_PT_Havok2FBXPanel(_FO4SubPanel):
-    """Havok2FBX configuration and animation export settings."""
-    bl_label = "Havok2FBX"
+    """ck-cmd / Havok2FBX configuration and animation export settings."""
+    bl_label = "Animation Export (HKX)"
     bl_idname = "FO4_PT_havok2fbx_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -2839,27 +2839,50 @@ class FO4_PT_Havok2FBXPanel(_FO4SubPanel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
+        import os
         layout = self.layout
         scene = context.scene
         prefs = preferences.get_preferences() if preferences else None
-        path = preferences.get_havok2fbx_path() if preferences else None
+        ckcmd_path = preferences.get_ckcmd_path() if preferences else None
+        havok_path = preferences.get_havok2fbx_path() if preferences else None
         obj = context.active_object
 
-        # ── Tool path ──────────────────────────────────────────────────────
+        # ── ck-cmd (recommended) ────────────────────────────────────────────
+        ck_box = layout.box()
+        ck_box.label(text="ck-cmd (Recommended — open-source FBX→HKX)", icon='FILE_FOLDER')
+        if scene:
+            ck_box.prop(scene, "fo4_ckcmd_path", text="ck-cmd Folder")
+            ck_box.prop(scene, "fo4_havok_skeleton_path", text="Skeleton HKX")
+            ck_box.label(text="→ Install from Setup & Status panel", icon='INFO')
+            ck_box.operator("fo4.check_tool_paths", text="Check Paths", icon='INFO')
+        else:
+            ck_box.label(text="Preferences not available (addon not registered)", icon='ERROR')
+
+        ck_status = ck_box.row()
+        if ckcmd_path:
+            ck_status.label(text=f"ck-cmd: {ckcmd_path}", icon='CHECKMARK')
+        else:
+            ck_status.label(text="ck-cmd not found — install or set folder above.", icon='ERROR')
+        skel_raw = getattr(scene, "fo4_havok_skeleton_path", "") if scene else ""
+        skel_abs = bpy.path.abspath(skel_raw).strip() if skel_raw else ""
+        if skel_abs and os.path.isfile(skel_abs):
+            ck_box.label(text=f"Skeleton: {skel_abs}", icon='CHECKMARK')
+        else:
+            ck_box.label(
+                text="Skeleton HKX not set — needed for ck-cmd conversion.",
+                icon='ERROR' if ckcmd_path else 'INFO',
+            )
+
+        # ── Havok2FBX (legacy fallback) ─────────────────────────────────────
         path_box = layout.box()
-        path_box.label(text="Configure Havok2FBX", icon='FILE_FOLDER')
+        path_box.label(text="Havok2FBX (legacy — requires compiled binaries)", icon='FILE_FOLDER')
         if scene:
             path_box.prop(scene, "fo4_havok2fbx_path", text="Folder")
-            path_box.label(text="→ Install from Setup & Status panel", icon='INFO')
-            path_box.operator("fo4.check_tool_paths", text="Check Paths", icon='INFO')
-        else:
-            path_box.label(text="Preferences not available (addon not registered)", icon='ERROR')
-
         status_row = path_box.row()
-        if path:
-            status_row.label(text=f"Configured: {path}", icon='CHECKMARK')
+        if havok_path:
+            status_row.label(text=f"Configured: {havok_path}", icon='CHECKMARK')
         else:
-            status_row.label(text="Path not found - set folder above.", icon='ERROR')
+            status_row.label(text="Not configured (optional — ck-cmd preferred)", icon='INFO')
 
         # ── Animation type ─────────────────────────────────────────────────
         type_box = layout.box()
@@ -2906,9 +2929,15 @@ class FO4_PT_Havok2FBXPanel(_FO4SubPanel):
         col = export_box.column()
         col.enabled = armature_ok
         col.scale_y = 1.4
+        if ckcmd_path and skel_abs and os.path.isfile(skel_abs):
+            label = "Export Animation → HKX (ck-cmd)"
+        elif havok_path:
+            label = "Export Animation → HKX (Havok2FBX)"
+        else:
+            label = "Export Animation → FBX"
         col.operator(
             "fo4.export_animation_havok2fbx",
-            text="Export Animation" + (" → HKX" if path else " → FBX"),
+            text=label,
             icon='EXPORT',
         )
 
@@ -3423,7 +3452,8 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         tools_col.operator("fo4.install_whisper",   text="Install Whisper CLI",                         icon='IMPORT')
         tools_col.operator("fo4.install_niftools",  text="Install Niftools Add-on",                     icon='IMPORT')
         tools_col.operator("fo4.install_pynifly",   text="Install PyNifly (recommended NIF exporter)",  icon='IMPORT')
-        tools_col.operator("fo4.install_havok2fbx", text="Get Havok2FBX",                               icon='IMPORT')
+        tools_col.operator("fo4.install_havok2fbx", text="Get Havok2FBX (legacy)",                         icon='IMPORT')
+        tools_col.operator("fo4.install_ckcmd",    text="Install ck-cmd (FBX→HKX, recommended)",          icon='IMPORT')
 
         if bpy.app.version >= (4, 2, 0):
             nif_note = hub.box()
@@ -3653,17 +3683,30 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                             icon="ERROR")
 
         if prefs is not None:
-            tool_paths_box.prop(prefs, "havok2fbx_path", text="Havok2FBX Folder")
+            tool_paths_box.prop(prefs, "ckcmd_path", text="ck-cmd Folder")
+            ck_path = bpy.path.abspath(prefs.ckcmd_path) if prefs.ckcmd_path else ""
+        else:
+            tool_paths_box.prop(scene, "fo4_ckcmd_path", text="ck-cmd Folder")
+            ck_path_raw = getattr(scene, "fo4_ckcmd_path", "")
+            ck_path = bpy.path.abspath(ck_path_raw) if ck_path_raw else ""
+        if ck_path and os.path.isdir(ck_path):
+            tool_paths_box.label(text=f"✓ {ck_path}", icon="CHECKMARK")
+        else:
+            tool_paths_box.label(text="ck-cmd not found — click 'Install ck-cmd' above",
+                            icon="ERROR")
+
+        if prefs is not None:
+            tool_paths_box.prop(prefs, "havok2fbx_path", text="Havok2FBX Folder (legacy)")
             h_path = bpy.path.abspath(prefs.havok2fbx_path) if prefs.havok2fbx_path else ""
         else:
-            tool_paths_box.prop(scene, "fo4_havok2fbx_path", text="Havok2FBX Folder")
+            tool_paths_box.prop(scene, "fo4_havok2fbx_path", text="Havok2FBX Folder (legacy)")
             h_path_raw = getattr(scene, "fo4_havok2fbx_path", "")
             h_path = bpy.path.abspath(h_path_raw) if h_path_raw else ""
         if h_path and os.path.isdir(h_path):
             tool_paths_box.label(text=f"✓ {h_path}", icon="CHECKMARK")
         else:
-            tool_paths_box.label(text="Path not found – set to your Havok2FBX folder",
-                            icon="ERROR")
+            tool_paths_box.label(text="Havok2FBX not found (optional — ck-cmd preferred)",
+                            icon="INFO")
 
         tool_paths_box.separator()
         tool_paths_box.label(text="Texture Converters:", icon="IMAGE_DATA")
