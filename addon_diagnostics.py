@@ -418,8 +418,8 @@ def collect_diagnostics():
                      for _, _, files in os.walk(_p) for f in files)):
             results.append(("OK",   "Tools", f"Havok2FBX: verified at {_p}"))
         elif os.path.isdir(_p):
-            results.append(("WARN", "Tools",
-                            f"Havok2FBX: folder found but expected files missing - {_p}"))
+            results.append(("INFO", "Tools",
+                            f"Havok2FBX: folder found but executable not present (must be compiled from source) - {_p}"))
         else:
             results.append(("WARN", "Tools", f"Havok2FBX: configured path not found - {_p}"))
 
