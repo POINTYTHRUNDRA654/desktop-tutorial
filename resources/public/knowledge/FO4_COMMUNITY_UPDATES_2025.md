@@ -81,27 +81,19 @@ Bethesda released this update on **November 10, 2025**. It is the largest change
 - Use **4.0.3+** for all cleaning and conflict resolution — older guides referencing 3.x cleaning procedures are no longer valid with xEdit 4.x.
 - Required for navmesh repair workflows (see `NAVMESH_FIX_GUIDE.md`).
 
-### X-Cell / Addictol — PRIMARY Stability Tool
-- **Nexus mod ID: 84214** | Rebranded from X-Cell to Addictol in mid-2025
-- **X-Cell is the new Buffout for memory.** Buffout 4 NG lost its memory management features in the NG update — X-Cell fills that entire gap.
-- Handles: memory allocation and fragmentation, micro-stutter (especially in NPC-heavy/scripted scenes), FaceGen (missing head) bugs in modded setups.
-- **Replaces** (do not use alongside X-Cell): Baka ScrapHeap, Fallout Priority, Private Profile Redirector.
-- **CRITICAL TOML config** when using Buffout 4 NG + X-Cell together — disable these in `Buffout4.toml`:
-  ```
-  MemoryManager = false
-  HavokMemorySystem = false
-  BSTextureStreamerLocalHeap = false
-  ```
-- Community TOML configs: nexusmods.com/fallout4/articles/5976
-- Great for Fallout: London, Sim Settlements 2, and any overhaul with large settlement builds — community reports X-Cell eliminated crashes where Buffout 4 NG alone did not.
+### Addictol — ALL-IN-ONE Stability Tool (supersedes Buffout 4)
+- **Nexus mod ID: 84214** | Evolved from X-Cell; now a complete engine-patch suite
+- **Addictol supersedes and includes Buffout 4 (OG / NG / AE).** Do NOT install any flavour of Buffout 4 alongside Addictol — they will conflict.
+- **What it handles**: memory manager (vmm allocator), small-block/scaleform allocators, FaceGen bugs, micro-stutter, BakaMaxPapyrusOps, Interior NavCut Fix, Faster Workshop, Long Save Bug Fix, Disk Cache Enabler, Drop 7FFF Fix, Escape Freeze fix, and many engine crash fixes. See the full `[Patches]` / `[Fixes]` / `[Additional]` config for the complete list.
+- **Do NOT install alongside Addictol** (superseded/included): Buffout 4 (all variants), X-Cell, Mentats, Baka ScrapHeap, Fallout Priority, Private Profile Redirector, Escape Freeze, BakaMaxPapyrusOps, Interior NavCut Fix, Persistent Volume Sliders, Long Save Bug Fix, Disk Cache Enabler, Drop 7FFF Fix, Faster Workshop.
+- Great for Fallout: London, Sim Settlements 2, and any overhaul with large settlement builds.
+- Required: F4SE + Address Library AiO (Nexus #47327).
 
-### Buffout 4 NG — Crash Logger
+### Buffout 4 NG — ⚠️ Superseded by Addictol
 - **Nexus mod ID: 64880** | **GitHub: alandtse/Buffout4**
-- Version **1.37.0** (March 2025) — unified DLL for OG + NG, PDB support for readable crash logs.
-- **Role**: Crash logging and engine bugfixes ONLY — memory management was removed from the NG version. X-Cell handles memory.
-- Requires: Address Library, F4SE, Microsoft Visual C++ Redistributables (2022 x64).
-- Crash logs written to `%LOCALAPPDATA%\Fallout4\F4SE\` — share logs in the Collective Modding Discord for help.
-- **Pair with CLASSIC** for automated crash log scanning.
+- **⚠️ If you are using Addictol, do NOT install Buffout 4 (any variant: OG / NG / AE).** Addictol includes all of Buffout 4's functionality. Installing both will cause conflicts.
+- Buffout 4 NG remains relevant **only** if you specifically need it without Addictol (uncommon), or for historical reference in older guides.
+- **Pair with CLASSIC** for crash log scanning if not using Addictol.
 
 ### High FPS Physics Fix
 - **Nexus mod ID: 44798**
@@ -248,21 +240,17 @@ Install these in order for a stable foundation before adding any content mods:
 ```
 1. F4SE 0.7.7+ (from f4se.silverlock.org)
 2. Address Library for F4SE — All In One (Nexus #47327)
-3. Buffout 4 NG v1.37.0+ (Nexus #64880) — crash logger
-4. X-Cell / Addictol (Nexus #84214) — PRIMARY memory/stability tool
-   → After installing both: set MemoryManager=false, HavokMemorySystem=false,
-     BSTextureStreamerLocalHeap=false in Buffout4.toml
-5. High FPS Physics Fix 0.8.13+ (Nexus #44798)
-6. BakaMaxPapyrusOps (matching F4SE version)
-7. Unofficial Fallout 4 Patch (UFO4P) — latest
-8. PRP 81.5 (Nexus #46403)
-9. MCM NG (NG build)
-10. CLASSIC crash scanner (Nexus #56255)
-11. Canary Save Scummer
+3. Addictol (Nexus #84214) — ALL-IN-ONE stability tool (memory, crashes, script perf, workshop, and more)
+   ⚠️ Do NOT also install Buffout 4, X-Cell, BakaMaxPapyrusOps, Faster Workshop, or any other superseded mod (see Addictol mod page for full list)
+4. High FPS Physics Fix 0.8.13+ (Nexus #44798)
+5. Unofficial Fallout 4 Patch (UFO4P) — latest
+6. PRP 81.5 (Nexus #46403)
+7. MCM NG (NG build)
+8. CLASSIC crash scanner (Nexus #56255)
+9. Canary Save Scummer
 ```
 
-Load order for stability mods: **Buffout 4 NG → X-Cell** load via F4SE automatically; **PRP loads late** (after worldspace mods); **UFO4P loads after all DLC**.
-Community TOML reference: nexusmods.com/fallout4/articles/5976
+Load order for stability mods: **Addictol** loads via F4SE automatically; **PRP loads late** (after worldspace mods); **UFO4P loads after all DLC**.
 
 ---
 
