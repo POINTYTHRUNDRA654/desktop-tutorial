@@ -204,7 +204,7 @@ function analyzeESP(buffer: ArrayBuffer, filename: string): ESPAnalysis {
       const gSize  = rU32(pos + 4);
       const gLabel = rStr(pos + 8, 4);
       const gType  = rU32(pos + 12);
-      if (gSize < 24 || pos + gSize > u8.length + 1) { pos += 24; continue; }
+      if (gSize < 24 || pos + gSize > u8.length) { pos += 24; continue; }
 
       // Group type 0 = top-level; type 1 = world-children; 4/5 = exterior cell blocks
       const nowWrld    = inWrld    || (gType === 0 && gLabel === 'WRLD') || gType === 1;
