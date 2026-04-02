@@ -214,7 +214,7 @@ export class MeshOptimizationMiningEngineImpl implements MeshOptimizationMiningE
       targetTriangleCount: analysis.triangleCount, // No triangle change
       method: 'texture_atlas',
       qualityPreservation: 0.95,
-      performanceGain: analysis.materials * 0.5, // Small performance gain per consolidated material
+      performanceGain: (analysis.materials ?? 0) * 0.5, // Small performance gain per consolidated material
       implementationSteps: [
         '1. Identify similar materials in the mesh',
         '2. Create texture atlas combining diffuse/normal/specular maps',
@@ -273,7 +273,7 @@ export class MeshOptimizationMiningEngineImpl implements MeshOptimizationMiningE
     let adjustment = 0;
     if (analysis.isSkinned) adjustment += 0.1; // Skinned meshes lose more quality
     if (analysis.hasTangents) adjustment += 0.05; // Normal mapping sensitive
-    if (analysis.materials > 1) adjustment += 0.05; // Multi-material meshes
+    if ((analysis.materials ?? 0) > 1) adjustment += 0.05; // Multi-material meshes
 
     return Math.min(baseLoss + adjustment, 1.0);
   }
