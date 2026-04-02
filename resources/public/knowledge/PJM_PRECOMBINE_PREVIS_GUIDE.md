@@ -916,7 +916,7 @@ OtherWorldspaceEdit - Precombines.esp
 
 ### Optional but Recommended
 - **PRP (PreVis Repair Pack)** - https://www.nexusmods.com/fallout4/mods/46403
-- **Buffout 4** - Crash logger that detects precombine issues
+- **Buffout 4 NG** (Nexus #64880) - Crash logger that detects precombine issues (NG/AE/1.11.x; use original Buffout 4 on OG)
 - **NifSkope** - Verify generated combined meshes
 - **7-Zip** - Archive management
 
