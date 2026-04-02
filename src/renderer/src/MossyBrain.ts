@@ -655,19 +655,28 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n- **Quality Assurance & Asset Scanning (The Auditor (/auditor))**: This is your primary tool for plugin, mesh, texture, and material quality control. THE AUDITOR IS ESSENTIAL FOR MOD SCANNING AND REPAIR.' +
       '\n  **When to recommend The Auditor:**' +
       '\n  • User asks to "scan my mod", "check my plugin", "find issues in my ESP", "look for errors", "scan for problems", or anything about mod QA/integrity' +
-      '\n  • User mentions crashes, CTDs, deleted navmesh, missing masters, textures, meshes, materials, or asset issues' +
+      '\n  • User mentions crashes, CTDs, deleted navmesh, precombines, FPS drops, missing masters, textures, meshes, materials, or asset issues' +
       '\n  • User wants to analyze an existing mod or plugin before packaging/uploading to Nexus' +
       '\n  • User is preparing a mod for release and wants a final integrity check' +
       '\n  **How to direct them:**' +
-      '\n  • Say: "You can upload that to **The Auditor** tab (/auditor) where I can scan it for issues like deleted navmesh, missing masters, texture/mesh problems, and material errors. Then I\'ll show you what needs fixing and which issues I can auto-fix."' +
-      '\n  • Alternatively: "Let\'s use **The Auditor** to scan your plugin. Upload your ESP/ESM there and I\'ll analyze it for you."' +
-      '\n  **What The Auditor can scan:**' +
-      '\n  • ESP/ESM plugins: Scans for deleted navmesh (CTD risk), missing master files, FormID conflicts, navmesh errors' +
-      '\n  • NIF meshes: Checks for corruption, missing data, geometry errors, material references' +
-      '\n  • DDS textures: Reads resolution, format, corruption indicators, color space issues' +
-      '\n  • BGSM materials: Validates PBR properties, texture paths, rendering flags' +
-      '\n  **Always be proactive:** If a user mentions scanning, analyzing, or fixing a mod, assume they need The Auditor and suggest it. Make it the first step in any QA/debugging workflow.' +
-      '\n  **Use control_interface to navigate:** You can use the control_interface tool with target="/auditor" to help them navigate directly to The Auditor if needed.' +
+      '\n  • Say: "Upload your ESP to **The Auditor** (/auditor) — I\'ll scan it and tell you exactly what\'s broken and how to fix it. After scanning, I\'ll see all the issues in our chat context and can walk you through each fix step by step."' +
+      '\n  **What The Auditor comprehensively scans in ESP/ESM/ESL plugins:**' +
+      '\n  • **Deleted Navmesh (NAVM)** — detects deleted-flag NAVM records that cause NPC pathfinding CTDs. Provides xEdit Change FormID fix steps.' +
+      '\n  • **Worldspace Navmesh Edits** — flags exterior cell NAVM that will crash the Creation Kit. Provides CK finalize-navmesh workflow.' +
+      '\n  • **Broken Precombines (LAND edits)** — detects landscape edits that destroy precombined geometry, causing FPS drops and flickering. Provides PRP patch and CK previs regeneration steps.' +
+      '\n  • **Static Collection Records (SCOL)** — flags precombine containers that may need updated previs data.' +
+      '\n  • **Deleted References (REFR/ACHR)** — UDR detection with xEdit Undelete script instructions.' +
+      '\n  • **Papyrus Scripts (VMAD)** — extracts script names, flags F4SE dependencies, checks for missing .pex files.' +
+      '\n  • **Absolute Mesh Paths** — detects hardcoded drive-letter paths in MODEL subrecords.' +
+      '\n  • **Missing Masters** — verifies Fallout4.esm and declared masters are present.' +
+      '\n  • **ESL Eligibility** — checks if the plugin can be light-flagged to save a load order slot.' +
+      '\n  • **File Size** — flags oversized plugins with optimization guidance.' +
+      '\n  • **NIF meshes**: Vertex/triangle counts, absolute texture paths, block integrity.' +
+      '\n  • **DDS textures**: Resolution, format (DXT1/3/5/BC7), power-of-two, compression.' +
+      '\n  • **BGSM materials**: Signature validation, PBR property checks.' +
+      '\n  **After scanning, I can see all issues in context.** When the user asks "what did you find?", I will list every issue from the scan results and walk through each fix.' +
+      '\n  **One-click tool launch:** The Auditor has "Open in xEdit", "Open in CK", "Open in NifSkope", and "Open in Blender" buttons on every scanned file. These launch the appropriate tool with the file loaded. I can tell users to click these buttons to fix what I found.' +
+      '\n  **Use control_interface to navigate:** You can use the control_interface tool with target="/auditor" to navigate directly to The Auditor if needed.' +
       '\n- **Advanced App Integration (Phase 4)**: ' +
       '\n  1) **The Scribe**: Features a "Technical Inspector" sidebar with real-time function references and Wiki indexing.' +
       '\n  2) **The Hive**: Features a "Live Build Console" that tracks the output of Papyrus/xEdit/Blender build pipelines in real-time.' +
