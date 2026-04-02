@@ -776,7 +776,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <Swords className="w-5 h-5 text-emerald-400" />
               <div>
                 <div className="text-sm font-bold text-white flex items-center gap-2">
-                  xEdit / FO4Edit
+                  xEdit / FO4Edit <span className="text-amber-400 font-normal text-xs">by ElminsterAU</span>
                   <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${draft.xeditPath ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
                     {getPathStatusIcon(draft.xeditPath)}
                   </span>
@@ -826,7 +826,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             <div className="flex items-center gap-2 mb-2">
               <FileCog className="w-5 h-5 text-purple-400" />
               <div>
-                <div className="text-sm font-bold text-white">NifSkope</div>
+                <div className="text-sm font-bold text-white">NifSkope <span className="text-amber-400 font-normal text-xs">by hexabits</span></div>
                 <a href="https://www.nexusmods.com/newvegas/mods/75969" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
               </div>
             </div>
@@ -1004,7 +1004,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             <div className="flex items-center gap-2 mb-2">
               <ShieldCheck className="w-5 h-5 text-emerald-400" />
               <div>
-                <div className="text-sm font-bold text-white">LOOT</div>
+                <div className="text-sm font-bold text-white">LOOT <span className="text-amber-400 font-normal text-xs">by WrinklyNinja / LOOT Team</span></div>
                 <a href="https://loot.github.io/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Official Site</a>
               </div>
             </div>
@@ -1022,7 +1022,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <Package className="w-5 h-5 text-blue-500" />
               <div>
                 <div className="text-sm font-bold text-white flex items-center gap-2">
-                  Mod Organizer 2
+                  Mod Organizer 2 <span className="text-amber-400 font-normal text-xs">by Tannin42 / MO2 Team</span>
                   <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${draft.mo2Path ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
                     {getPathStatusIcon(draft.mo2Path)}
                   </span>
@@ -1061,7 +1061,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             <div className="flex items-center gap-2 mb-2">
               <Terminal className="w-5 h-5 text-red-400" />
               <div>
-                <div className="text-sm font-bold text-white">F4SE Loader</div>
+                <div className="text-sm font-bold text-white">F4SE Loader <span className="text-amber-400 font-normal text-xs">by ianpatt & behippo</span></div>
                 <a href="https://f4se.silverlock.org/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Official Site</a>
               </div>
             </div>
@@ -1078,7 +1078,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             <div className="flex items-center gap-2 mb-2">
               <Palette className="w-5 h-5 text-pink-400" />
               <div>
-                <div className="text-sm font-bold text-white">BodySlide & Outfit Studio</div>
+                <div className="text-sm font-bold text-white">BodySlide & Outfit Studio <span className="text-amber-400 font-normal text-xs">by ousnius & Caliente</span></div>
                 <a href="https://www.nexusmods.com/fallout4/mods/25" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
               </div>
             </div>
@@ -1095,7 +1095,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             <div className="flex items-center gap-2 mb-2">
               <Archive className="w-5 h-5 text-amber-500" />
               <div>
-                <div className="text-sm font-bold text-white">B.A.E. (Archive Extractor)</div>
+                <div className="text-sm font-bold text-white">B.A.E. (Archive Extractor) <span className="text-amber-400 font-normal text-xs">by jonwd7</span></div>
                 <a href="https://www.nexusmods.com/fallout4/mods/78" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
               </div>
             </div>
@@ -1248,7 +1248,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             <div className="flex items-center gap-2 mb-2">
               <ShieldCheck className="w-5 h-5 text-cyan-400" />
               <div>
-                <div className="text-sm font-bold text-white">Wrye Bash</div>
+                <div className="text-sm font-bold text-white">Wrye Bash <span className="text-amber-400 font-normal text-xs">by Wrye / Wrye Bash Team</span></div>
                 <a href="https://www.nexusmods.com/fallout4/mods/22562" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
               </div>
             </div>

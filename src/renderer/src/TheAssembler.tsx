@@ -515,6 +515,7 @@ After installing, you may need to update the tool path in settings.`;
                                 toolName="FOMOD Creation Tool" 
                                 nexusUrl="https://www.nexusmods.com/fallout4/mods/6821"
                                 description="Use the external designer to finalize your installer. Configure the path and launch directly from here."
+                                author="AlexxEG"
                             />
                     </div>
                 </>

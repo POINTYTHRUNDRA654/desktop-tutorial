@@ -938,7 +938,7 @@ const TheAuditor: React.FC = () => {
                     <button
                         onClick={() => openUrl('https://www.nexusmods.com/fallout4/mods/6821')}
                         className="text-blue-400 hover:text-blue-300 font-bold"
-                        title="Open FOMOD Creation Tool"
+                        title="Open FOMOD Creation Tool by AlexxEG (Nexus #6821)"
                     >
                         FOMOD Creator
                     </button>
