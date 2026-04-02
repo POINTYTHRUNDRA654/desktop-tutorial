@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import {
   Layers, Wand2, Sparkles, Image as ImageIcon, Download, Upload,
   Settings, Grid3x3, Zap, Eye, RefreshCw, Check, X, Info,
@@ -119,13 +120,13 @@ export const TextureGenerator: React.FC = () => {
       }
     } catch (error) {
       console.error('Image upload error:', error);
-      alert('Failed to upload image');
+      toast.error('Failed to upload image');
     }
   };
 
   const handleGenerateMaterial = async () => {
     if (!sourceImage) {
-      alert('Please upload a source image first');
+      toast.error('Please upload a source image first');
       return;
     }
 
@@ -151,13 +152,13 @@ export const TextureGenerator: React.FC = () => {
           maps: result.maps,
           timestamp: Date.now()
         });
-        alert(`Material generation complete!\nTotal size: ${(result.totalSize / 1024 / 1024).toFixed(2)} MB\nTime: ${(result.totalProcessingTime / 1000).toFixed(2)}s`);
+        toast.success(`Material generation complete!. Total size: ${(result.totalSize / 1024 / 1024).toFixed(2)} MB. Time: ${(result.totalProcessingTime / 1000).toFixed(2)}s`);
       } else {
-        alert(`Material generation failed: ${result.error}`);
+        toast.error(`Material generation failed: ${result.error}`);
       }
     } catch (error: any) {
       console.error('Material generation error:', error);
-      alert(`Failed to generate material: ${error.message}`);
+      toast.error(`Failed to generate material: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -165,7 +166,7 @@ export const TextureGenerator: React.FC = () => {
 
   const handleDownloadMap = async (map: GeneratedMap) => {
     if (map.success && map.path) {
-      alert(`Map saved to: ${map.path}`);
+      toast.success(`Map saved to: ${map.path}`);
     }
   };
 
@@ -173,14 +174,14 @@ export const TextureGenerator: React.FC = () => {
     if (!generatedMaterial) return;
     
     const successfulMaps = Object.values(generatedMaterial.maps).filter(m => m?.success);
-    alert(`All ${successfulMaps.length} maps have been saved to the output directory`);
+    toast.success(`All ${successfulMaps.length} maps have been saved to the output directory`);
   };
 
   const handleSaveMaterial = () => {
     if (!generatedMaterial) return;
     
     setSavedMaterials(prev => [...prev, generatedMaterial]);
-    alert('Material saved to gallery!');
+    toast.success('Material saved to gallery!');
   };
 
   // ============================================================================
@@ -205,13 +206,13 @@ export const TextureGenerator: React.FC = () => {
       
       if (result.success) {
         setProceduralPreview(result.outputPath);
-        alert(`Procedural texture generated!\nSize: ${result.width}x${result.height}\nFile: ${(result.fileSize / 1024).toFixed(2)} KB`);
+        toast.success(`Procedural texture generated!. Size: ${result.width}x${result.height}. File: ${(result.fileSize / 1024).toFixed(2)} KB`);
       } else {
-        alert(`Procedural generation failed: ${result.error}`);
+        toast.error(`Procedural generation failed: ${result.error}`);
       }
     } catch (error: any) {
       console.error('Procedural generation error:', error);
-      alert(`Failed to generate procedural texture: ${error.message}`);
+      toast.error(`Failed to generate procedural texture: ${error.message}`);
     } finally {
       setIsGeneratingProcedural(false);
     }
@@ -238,7 +239,7 @@ export const TextureGenerator: React.FC = () => {
 
   const handleMakeSeamless = async () => {
     if (!toolInputFile) {
-      alert('Please select an image first');
+      toast.error('Please select an image first');
       return;
     }
 
@@ -254,7 +255,7 @@ export const TextureGenerator: React.FC = () => {
           progress: 100, 
           result 
         });
-        alert(`Seamless texture created!\nSaved to: ${result.outputPath}\nProcessing time: ${result.processingTime}ms`);
+        toast.success(`Seamless texture created!. Saved to: ${result.outputPath}. Processing time: ${result.processingTime}ms`);
       } else {
         setToolOperation({ 
           type: 'seamless', 
@@ -262,7 +263,7 @@ export const TextureGenerator: React.FC = () => {
           progress: 0, 
           error: result.error 
         });
-        alert(`Failed to make seamless: ${result.error}`);
+        toast.error(`Failed to make seamless: ${result.error}`);
       }
     } catch (error: any) {
       setToolOperation({ 
@@ -271,13 +272,13 @@ export const TextureGenerator: React.FC = () => {
         progress: 0, 
         error: error.message 
       });
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     }
   };
 
   const handleUpscale = async () => {
     if (!toolInputFile) {
-      alert('Please select an image first');
+      toast.error('Please select an image first');
       return;
     }
 
@@ -293,7 +294,7 @@ export const TextureGenerator: React.FC = () => {
           progress: 100, 
           result 
         });
-        alert(`Upscale complete!\nOriginal: ${result.originalWidth}x${result.originalHeight}\nUpscaled: ${result.upscaledWidth}x${result.upscaledHeight}\nSaved to: ${result.outputPath}`);
+        toast.success(`Upscale complete!. Original: ${result.originalWidth}x${result.originalHeight}. Upscaled: ${result.upscaledWidth}x${result.upscaledHeight}. Saved to: ${result.outputPath}`);
       } else {
         setToolOperation({ 
           type: 'upscale', 
@@ -301,7 +302,7 @@ export const TextureGenerator: React.FC = () => {
           progress: 0, 
           error: result.error 
         });
-        alert(`Upscale failed: ${result.error}`);
+        toast.error(`Upscale failed: ${result.error}`);
       }
     } catch (error: any) {
       setToolOperation({ 
@@ -310,7 +311,7 @@ export const TextureGenerator: React.FC = () => {
         progress: 0, 
         error: error.message 
       });
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     }
   };
 
@@ -810,7 +811,7 @@ export const TextureGenerator: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-400">{proceduralPreview.split('\\').pop()}</span>
                 <button
-                  onClick={() => alert(`Saved to: ${proceduralPreview}`)}
+                  onClick={() => toast.success(`Saved to: ${proceduralPreview}`)}
                   className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 rounded text-sm flex items-center gap-2"
                 >
                   <Download size={14} />
