@@ -536,10 +536,19 @@ def collect_diagnostics():
 
         _kb_on = getattr(_prefs, "knowledge_base_enabled", False)
         _kb    = bpy.path.abspath(_prefs.knowledge_base_path).strip()
+        _kb_is_default = not _kb
         if not _kb:
             # Mirror _kb_root() fallback: bundled knowledge_base/ folder
             _kb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "knowledge_base")
         if _kb_on:
+            if not os.path.isdir(_kb) and _kb_is_default:
+                # Auto-create the default bundled directory (mirrors _kb_root()).
+                # Fresh extension installs ship without the sub-directory; creating
+                # it here silences the recurring "path not found" false-positive.
+                try:
+                    os.makedirs(_kb, exist_ok=True)
+                except OSError:
+                    pass  # read-only install — handled below
             if os.path.isdir(_kb):
                 results.append(("OK",   "Assets", f"Knowledge base: {_kb}"))
             else:

@@ -2908,6 +2908,60 @@ class TestAutoFixStep7KnowledgeBase(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Section O2: Diagnostic check auto-creates default knowledge_base/ dir
+# ---------------------------------------------------------------------------
+
+class TestKnowledgeBaseDiagnosticAutoCreate(unittest.TestCase):
+    """The knowledge-base diagnostic check (check #12) must auto-create the
+    default ``knowledge_base/`` directory when it does not exist and no custom
+    path is configured — mirroring the behaviour of ``_kb_root()``.
+
+    Regression guard: before this fix the check only called ``os.path.isdir``
+    and emitted ``"Knowledge base enabled but path not found"`` for fresh
+    extension installs where the sub-directory had never been created.
+    """
+
+    def _get_kb_check_source(self) -> str:
+        source = _read("addon_diagnostics.py")
+        import re
+        # Locate the knowledge-base diagnostic block (after "knowledge_base_enabled")
+        m = re.search(
+            r"_kb_on\s*=\s*getattr.*?(?=\n\s*# ──|\n\s*# ===|\Z)",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(
+            m,
+            "_kb_on block not found in addon_diagnostics.py",
+        )
+        return m.group(0)
+
+    def test_diagnostic_attempts_makedirs_for_default_path(self):
+        """The diagnostic check must call os.makedirs when the default dir is absent."""
+        block = self._get_kb_check_source()
+        self.assertIn(
+            "makedirs",
+            block,
+            "The knowledge-base diagnostic check must call os.makedirs() to "
+            "auto-create the default directory before emitting WARN, so that "
+            "fresh extension installs do not persistently show "
+            "'Knowledge base enabled but path not found'.",
+        )
+
+    def test_auto_create_only_for_default_path(self):
+        """Auto-create must be gated on the path being the default (no custom path)."""
+        block = self._get_kb_check_source()
+        # The guard variable name used in the fix
+        self.assertIn(
+            "_kb_is_default",
+            block,
+            "The auto-create logic in the diagnostic check must be gated on "
+            "'_kb_is_default' so it only fires for the bundled default path, "
+            "not for a user-configured custom path that truly doesn't exist.",
+        )
+
+
+# ---------------------------------------------------------------------------
 # Section P: Dual-install check classifies ghost entries as stale
 # ---------------------------------------------------------------------------
 
