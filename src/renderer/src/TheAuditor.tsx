@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import ProjectWizard from './components/ProjectWizard';
@@ -180,7 +181,7 @@ const TheAuditor: React.FC = () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
             if (!bridge) {
-                alert('File browser not available. Please use the desktop app.');
+                toast.error('File browser not available. Please use the desktop app.');
                 return;
             }
 
@@ -204,7 +205,7 @@ const TheAuditor: React.FC = () => {
             setSelectedFileId(newFile.id);
         } catch (error) {
             console.error('File upload error:', error);
-            alert('Failed to load file. Please try again.');
+            toast.error('Failed to load file. Please try again.');
         }
     };
 
@@ -213,7 +214,7 @@ const TheAuditor: React.FC = () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
             if (!bridge) {
-                alert('File browser not available. Please use the desktop app.');
+                toast.error('File browser not available. Please use the desktop app.');
                 return;
             }
 
@@ -240,7 +241,7 @@ const TheAuditor: React.FC = () => {
             }
         } catch (error) {
             console.error('File upload error:', error);
-            alert('Failed to load file(s). Please try again.');
+            toast.error('Failed to load file(s). Please try again.');
         }
     };
 
@@ -249,7 +250,7 @@ const TheAuditor: React.FC = () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
             if (!bridge) {
-                alert('File browser not available. Please use the desktop app.');
+                toast.error('File browser not available. Please use the desktop app.');
                 return;
             }
 
@@ -276,7 +277,7 @@ const TheAuditor: React.FC = () => {
             }
         } catch (error) {
             console.error('File upload error:', error);
-            alert('Failed to load file(s). Please try again.');
+            toast.error('Failed to load file(s). Please try again.');
         }
     };
 
@@ -285,7 +286,7 @@ const TheAuditor: React.FC = () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
             if (!bridge) {
-                alert('File browser not available. Please use the desktop app.');
+                toast.error('File browser not available. Please use the desktop app.');
                 return;
             }
 
@@ -312,7 +313,7 @@ const TheAuditor: React.FC = () => {
             }
         } catch (error) {
             console.error('File upload error:', error);
-            alert('Failed to load file(s). Please try again.');
+            toast.error('Failed to load file(s). Please try again.');
         }
     };
 
@@ -321,7 +322,7 @@ const TheAuditor: React.FC = () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
             if (!bridge) {
-                alert('File browser not available. Please use the desktop app.');
+                toast.error('File browser not available. Please use the desktop app.');
                 return;
             }
 
@@ -351,7 +352,7 @@ const TheAuditor: React.FC = () => {
             });
 
             if (newFiles.length === 0) {
-                alert('No mod files found in the selected directory.');
+                toast.error('No mod files found in the selected directory.');
                 return;
             }
 
@@ -360,10 +361,10 @@ const TheAuditor: React.FC = () => {
                 setSelectedFileId(newFiles[0].id);
             }
 
-            alert(`Successfully loaded ${newFiles.length} files from the mod directory.`);
+            toast.success(`Successfully loaded ${newFiles.length} files from the mod directory.`);
         } catch (error) {
             console.error('Directory scan error:', error);
-            alert('Failed to scan directory. Please try again.');
+            toast.error('Failed to scan directory. Please try again.');
         }
     };
 
@@ -376,7 +377,7 @@ const TheAuditor: React.FC = () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
             if (!bridge) {
-                alert('File browser not available. Please use the desktop app.');
+                toast.error('File browser not available. Please use the desktop app.');
                 return;
             }
 
@@ -388,12 +389,12 @@ const TheAuditor: React.FC = () => {
             const rawScanResult = await bridge.scanModDirectoryPath?.(folderPath);
             if (!rawScanResult) {
                 // IPC returned null/undefined — scanModDirectoryPath not available or failed
-                alert('Scan failed: the scanModDirectoryPath API is unavailable. Please restart the app.');
+                toast.error('Scan failed: the scanModDirectoryPath API is unavailable. Please restart the app.');
                 return;
             }
             const modFiles: Array<{ path: string; type: string }> = rawScanResult;
             if (modFiles.length === 0) {
-                alert(`No recognised mod files (ESP, NIF, DDS, BGSM/BGEM) were found in:\n${folderPath}\n\nMake sure you selected the mod's root or Data folder.`);
+                toast.error(`No recognised mod files (ESP, NIF, DDS, BGSM/BGEM) were found in:. ${folderPath}. . Make sure you selected the mod's root or Data folder.`);
                 return;
             }
 
@@ -422,7 +423,7 @@ const TheAuditor: React.FC = () => {
             setSelectedFileId(newFiles[0]?.id ?? null);
         } catch (error) {
             console.error('[Auditor] Quick scan error:', error);
-            alert('Failed to scan folder. Please try again.');
+            toast.error('Failed to scan folder. Please try again.');
         }
     };
 
@@ -432,7 +433,7 @@ const TheAuditor: React.FC = () => {
         const filesToScan = files.filter(f => f.status === 'pending' || f.status === 'warning' || f.status === 'error');
 
         if (filesToScan.length === 0) {
-            alert('No files to scan. Please upload files first.');
+            toast.error('No files to scan. Please upload files first.');
             return;
         }
 
