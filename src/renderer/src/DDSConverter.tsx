@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { 
   Image, FileImage, Layers, Zap, Download, Upload, 
   Settings, CheckCircle, XCircle, AlertCircle, 
@@ -153,7 +154,7 @@ export const DDSConverter: React.FC = () => {
       }
     } catch (error) {
       console.error('File picker error:', error);
-      alert('Failed to open file picker');
+      toast.error('Failed to open file picker');
     }
   };
 
@@ -179,9 +180,9 @@ export const DDSConverter: React.FC = () => {
       setSingleResult(result);
       
       if (result.success) {
-        alert(`Conversion successful!\nSaved to: ${result.outputPath}\nCompression: ${result.compressionRatio.toFixed(2)}x`);
+        toast.success(`Conversion successful! Saved to: ${result.outputPath}. Compression: ${result.compressionRatio.toFixed(2)}x`);
       } else {
-        alert(`Conversion failed: ${result.error}`);
+        toast.error(`Conversion failed: ${result.error}`);
       }
     } catch (error: any) {
       console.error('Conversion error:', error);
@@ -217,7 +218,7 @@ export const DDSConverter: React.FC = () => {
       }
     } catch (error) {
       console.error('File picker error:', error);
-      alert('Failed to open file picker');
+      toast.error('Failed to open file picker');
     }
   };
 
@@ -286,10 +287,10 @@ export const DDSConverter: React.FC = () => {
         error: result.results[index]?.error
       })));
       
-      alert(`Batch conversion complete!\nSuccess: ${result.successCount}/${result.totalFiles}\nTotal time: ${(result.totalProcessingTime / 1000).toFixed(2)}s`);
+      toast.success(`Batch conversion complete! Success: ${result.successCount}/${result.totalFiles}. Total time: ${(result.totalProcessingTime / 1000).toFixed(2)}s`);
     } catch (error: any) {
       console.error('Batch conversion error:', error);
-      alert(`Batch conversion failed: ${error.message}`);
+      toast.error(`Batch conversion failed: ${error.message}`);
     } finally {
       setBatchConverting(false);
     }

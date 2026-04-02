@@ -299,22 +299,18 @@ export const XEditTools: React.FC = () => {
           setMessage(`Script failed: ${result.errors.join(', ')}`);
         }
       } else {
-        // Fallback mock execution
+        // xEdit IPC not available — report the real situation
         clearInterval(progressInterval);
-        setProgress(100);
-        setProgressText('Complete');
-        
-        const mockResult: ExecutionResult = {
-          success: true,
-          output: `Executed ${selectedScript.name} on ${selectedPlugin}\nProcessing complete.`,
-          errors: [],
+        setProgress(0);
+        setProgressText('');
+        setExecutionResult({
+          success: false,
+          output: '',
+          errors: ['xEdit IPC is not available. Make sure xEdit is configured in Settings → External Tools and that the Desktop Bridge is running.'],
           warnings: [],
-          duration: 2.5
-        };
-        
-        setExecutionResult(mockResult);
-        setScriptOutput([mockResult.output]);
-        setMessage('Script executed successfully (mock mode)');
+          duration: 0
+        });
+        setMessage('xEdit IPC not available — configure xEdit path in Settings');
       }
     } catch (error: any) {
       console.error('Script execution failed:', error);

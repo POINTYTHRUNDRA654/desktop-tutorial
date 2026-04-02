@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { Database, Activity, Zap, TrendingUp, Settings } from 'lucide-react';
 import type { DataSource, MiningResult, ExtendedMiningResult } from '../../shared/types';
@@ -140,7 +141,7 @@ const PipelineTab: React.FC = () => {
 
   const startMining = async () => {
     if (!window.electronAPI?.startMiningPipeline) {
-      alert('Mining pipeline not available');
+      toast.error('Mining pipeline not available');
       return;
     }
 
@@ -150,7 +151,7 @@ const PipelineTab: React.FC = () => {
       setMiningResult(result);
     } catch (error) {
       console.error('Mining error:', error);
-      alert('Mining failed: ' + (error as Error).message);
+      toast.error('Mining failed: ' + (error as Error).message);
     } finally {
       setIsMining(false);
     }

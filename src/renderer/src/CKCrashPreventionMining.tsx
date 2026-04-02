@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { 
   Shield, AlertTriangle, CheckCircle, Activity, 
   Zap, Clock, TrendingUp, AlertCircle, Play, Square,
@@ -121,13 +122,12 @@ export const CKCrashPrevention: React.FC = () => {
       }
     } catch (error) {
       console.error('File picker error:', error);
-      alert('Failed to open file picker');
-    }
+      toast.error('Failed to open file picker');    }
   };
 
   const handleValidate = async () => {
     if (!espPath) {
-      alert('Please select an ESP file first');
+      toast.error('Please select an ESP file first');
       return;
     }
 
@@ -146,7 +146,7 @@ export const CKCrashPrevention: React.FC = () => {
       setPreventionPlan(plan);
     } catch (error) {
       console.error('Validation error:', error);
-      alert('Validation failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Validation failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
       setValidationStatus('idle');
     }
   };
@@ -160,7 +160,7 @@ export const CKCrashPrevention: React.FC = () => {
       await window.electron.api.listProcesses('CreationKit') : [];
     
     if (processes.length === 0) {
-      alert('Creation Kit is not running. Please launch CK first.');
+      toast.error('Creation Kit is not running. Please launch CK first.');
       return;
     }
 
@@ -216,7 +216,7 @@ export const CKCrashPrevention: React.FC = () => {
       }
     } catch (error) {
       console.error('Log file picker error:', error);
-      alert('Failed to open log file');
+      toast.error('Failed to open log file');
     }
   };
 
@@ -224,7 +224,7 @@ export const CKCrashPrevention: React.FC = () => {
     const pathToAnalyze = logPath || crashLogPath;
     
     if (!pathToAnalyze) {
-      alert('Please select a crash log file first');
+      toast.error('Please select a crash log file first');
       return;
     }
 
@@ -236,7 +236,7 @@ export const CKCrashPrevention: React.FC = () => {
       setCrashDiagnosis(diagnosis);
     } catch (error) {
       console.error('Crash analysis error:', error);
-      alert('Analysis failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Analysis failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setIsAnalyzing(false);
     }

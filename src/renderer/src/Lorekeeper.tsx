@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { Mountain, AlertTriangle, Zap, RefreshCw, Folder, Database, Copy, CheckCircle2 } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
@@ -183,7 +184,7 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
 
   const runLODGen = async (asset: LODAsset) => {
     if (!lodgenPath) {
-      alert('Set LODGEN tool path first');
+      toast.error('Set LODGEN tool path first');
       return;
     }
     setProcessingIds(prev => new Set(prev).add(asset.id));
@@ -225,7 +226,7 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
 
   const runPrecombineJob = async (job: PrecombineJob) => {
     if (!pjmPath) {
-      alert('Set PJM tool path first');
+      toast.error('Set PJM tool path first');
       return;
     }
     setProcessingIds(prev => new Set(prev).add(job.id));

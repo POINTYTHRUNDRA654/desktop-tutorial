@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files, Download, Share2, Github, Bell, PackageOpen, RefreshCw, Box } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
@@ -197,11 +198,11 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             // Check if it's an auth error or missing local whisper
             const errorMsg = error.message || '';
             if (errorMsg.includes('401') || errorMsg.includes('Incorrect API key')) {
-                alert(`❌ Video transcription failed\n\n🔑 Your OpenAI API key has an issue (401 error)\n\n💡 Solutions:\n\n1. LOCAL (Recommended):\n   • Download whisper.cpp.exe from: https://github.com/ggerganov/whisper.cpp/releases\n   • Download ggml-base.en.bin from: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin\n   • Place both in: external/whisper/\n   • Try uploading the video again (no API key needed!)\n\n2. CLOUD:\n   • Get a fresh API key from: https://platform.openai.com/api-keys\n   • Make sure billing is set up\n   • Update key in Privacy Settings`);
+                toast.error(`Video transcription failed. Your OpenAI API key has an issue (401 error). Solutions: 1. LOCAL (Recommended): Download whisper.cpp.exe and ggml-base.en.bin, place both in: external/whisper/, try uploading the video again (no API key needed!). 2. CLOUD: Get a fresh API key from platform.openai.com/api-keys, make sure billing is set up, update key in Privacy Settings`);
             } else if (errorMsg.includes('whisper') || errorMsg.includes('not found')) {
-                alert(`❌ Video transcription failed\n\n📁 Missing local transcription files\n\nTo transcribe videos offline:\n1. Download whisper.cpp.exe from: https://github.com/ggerganov/whisper.cpp/releases\n2. Download ggml-base.en.bin (~150MB) from: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin\n3. Create folder: external/whisper/\n4. Place both files there\n5. Try again!\n\nOr add an OpenAI API key in Privacy Settings for cloud transcription.`);
+                toast.error(`Video transcription failed. Missing local transcription files. To transcribe videos offline: 1. Download whisper.cpp.exe. 2. Download ggml-base.en.bin (~150MB). 3. Create folder: external/whisper/. 4. Place both files there. 5. Try again! Or add an OpenAI API key in Privacy Settings for cloud transcription.`);
             } else {
-                alert(`❌ Transcription failed: ${errorMsg}\n\nPlease check:\n1. Video file is not corrupted\n2. Internet connection (for cloud transcription)\n3. Whisper files in external/whisper/ (for offline)`);
+                toast.error(`Transcription failed: ${errorMsg}. Please check: 1. Video file is not corrupted. 2. Internet connection (for cloud transcription). 3. Whisper files in external/whisper/ (for offline)`);
             }
         }
     };
@@ -266,7 +267,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                 setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
                 setShowUploadModal(true);
                 setTimeout(() => {
-                    alert(`❌ Auto-extraction failed.\n\nPlease describe the PSD tutorial content:\n1. What the tutorial covers\n2. Key steps or techniques\n3. Important layers or settings`);
+                    toast.error(`Auto-extraction failed. Please describe the PSD tutorial content: 1. What the tutorial covers. 2. Key steps or techniques. 3. Important layers or settings`);
                 }, 100);
             }
             return;
@@ -310,7 +311,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                 setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
                 setShowUploadModal(true);
                 setTimeout(() => {
-                    alert(`❌ Auto-extraction failed.\n\nPlease describe the brush set:\n1. What brushes are included\n2. Best use cases (texturing, painting, etc.)\n3. Recommended settings`);
+                    toast.error(`Auto-extraction failed. Please describe the brush set: 1. What brushes are included. 2. Best use cases (texturing, painting, etc.). 3. Recommended settings`);
                 }, 100);
             }
             return;
@@ -353,7 +354,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                 setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
                 setShowUploadModal(true);
                 setTimeout(() => {
-                    alert(`❌ Auto-extraction failed.\n\nPlease:\n1. Open "${file.name}"\n2. Select all (Ctrl+A) & copy (Ctrl+C)\n3. Paste (Ctrl+V) below`);
+                    toast.error(`Auto-extraction failed. Please: 1. Open "${file.name}". 2. Select all (Ctrl+A) & copy (Ctrl+C). 3. Paste (Ctrl+V) below`);
                 }, 100);
             }
             return;
@@ -376,7 +377,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             
             reader.readAsText(file);
         } else {
-            alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .psd, .abr, .pdf, .txt, .md, .json, .bat, .cmd, .xml, .ini, .cfg, .ps1, .sh, .py, .js, .ts, .html, .css, .scss, .sass, .yaml, .yml, .mp4, .webm, .mov, .avi, .mkv, .flv, .wmv, .m4v, .3gp, .mp3, .wav, .flac, .aac, .ogg, .m4a, .wma`);
+            toast.error(`Unsupported file type: ${file.name}. Supported: .psd, .abr, .pdf, .txt, .md, .json, .bat, .cmd, .xml, .ini, .cfg, .ps1, .sh, .py, .js, .ts, .html, .css, .scss, .sass, .yaml, .yml, .mp4, .webm, .mov, .avi, .mkv, .flv, .wmv, .m4v, .3gp, .mp3, .wav, .flac, .aac, .ogg, .m4a, .wma`);
         }
     };
 
@@ -540,7 +541,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             setCommunityPacks(packs);
         } catch (error) {
             console.error('Failed to fetch community knowledge:', error);
-            alert('Failed to load community knowledge. Please check your internet connection.');
+            toast.error('Failed to load community knowledge. Please check your internet connection.');
         } finally {
             setIsLoadingLibrary(false);
         }
@@ -573,10 +574,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             // Update badge count
             setNewKnowledgeCount(prev => Math.max(0, prev - 1));
             
-            alert(`✅ Imported "${pack.packName}" (${pack.items.length} items)`);
+            toast.success(`Imported "${pack.packName}" (${pack.items.length} items)`);
         } catch (error) {
             console.error('Failed to import pack:', error);
-            alert('Failed to import knowledge pack. Please try again.');
+            toast.error('Failed to import knowledge pack. Please try again.');
         }
     };
 
@@ -585,7 +586,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         const selectedItems = memories.filter(m => m.trustLevel === 'community' || m.trustLevel === 'official');
         
         if (selectedItems.length === 0) {
-            alert('No community or official knowledge to export. Mark items as "Community" trust level to share them.');
+            toast.error('No community or official knowledge to export. Mark items as "Community" trust level to share them.');
             return;
         }
         
@@ -731,10 +732,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            alert(`✅ Exported ${sharedItems.length} shared knowledge item(s)!\n\nNext steps to share with community:\n1. Upload the downloaded JSON to your GitHub repo\n2. Share the link with other Mossy users\n3. They can import it via "Import Community Knowledge"`);
+            toast.success(`Exported ${sharedItems.length} shared knowledge item(s)! Next steps to share with community: 1. Upload the downloaded JSON to your GitHub repo. 2. Share the link with other Mossy users. 3. They can import it via "Import Community Knowledge"`);
         } catch (error) {
             console.error('Community sync error:', error);
-            alert('❌ Failed to export community knowledge. Please try again.');
+            toast.error('Failed to export community knowledge. Please try again.');
         }
     };
 
@@ -763,10 +764,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                 }));
 
                 setMemories([...imported, ...memories]);
-                alert(`✅ Imported ${imported.length} community knowledge item(s)!`);
+                toast.success(`Imported ${imported.length} community knowledge item(s)!`);
             } catch (error) {
                 console.error('Import error:', error);
-                alert('❌ Failed to import community knowledge. Please check the file format.');
+                toast.error('Failed to import community knowledge. Please check the file format.');
             }
         };
         input.click();
@@ -775,7 +776,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
     const handleExportSharedOnly = () => {
         const sharedItems = memories.filter(m => m.shareWithCommunity);
         if (sharedItems.length === 0) {
-            alert('No shared items to export. Mark items as "Share with Community" first.');
+            toast.error('No shared items to export. Mark items as "Share with Community" first.');
             return;
         }
         handleSyncCommunityKnowledge(sharedItems);
@@ -830,7 +831,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             const data = await response.json();
             
             if (!data.items || !Array.isArray(data.items)) {
-                alert('Invalid knowledge pack format');
+                toast.error('Invalid knowledge pack format');
                 return;
             }
             
@@ -853,10 +854,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             // Decrease new knowledge count
             setNewKnowledgeCount(Math.max(0, newKnowledgeCount - 1));
             
-            alert(`✅ Imported ${imported.length} knowledge items from "${pack.packName}"!`);
+            toast.success(`Imported ${imported.length} knowledge items from "${pack.packName}"!`);
         } catch (error) {
             console.error('Import error:', error);
-            alert('❌ Failed to import knowledge pack. Please try again.');
+            toast.error('Failed to import knowledge pack. Please try again.');
         }
     };
 

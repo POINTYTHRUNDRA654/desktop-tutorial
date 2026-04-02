@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Package, Search, AlertTriangle, CheckCircle, Info, TrendingUp, Filter } from 'lucide-react';
 import { POPULAR_MODS, MOD_CATEGORIES, getModsByCategory, PopularMod } from './PopularModsKnowledge';
 
@@ -214,7 +215,7 @@ export const PopularModsDatabase: React.FC = () => {
                   onClick={() => {
                     const tips = selectedMod.compatibility.tips.join('\n');
                     navigator.clipboard.writeText(tips);
-                    alert('Tips copied to clipboard!');
+                    toast.success('Tips copied to clipboard!');
                   }}
                   className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded transition-colors"
                 >
