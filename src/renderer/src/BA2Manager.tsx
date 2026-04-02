@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { Archive, FolderOpen, ArrowDownToLine, Upload, FileArchive, HardDrive, AlertCircle, Info, Merge, Plus, X } from 'lucide-react';
 
@@ -59,11 +60,11 @@ export const BA2Manager: React.FC = () => {
       
       if (response.ok) {
         const data = await response.json();
-        alert(`Extracted ${data.fileCount} files to ${data.destination}`);
+        toast.success(`Extracted ${data.fileCount} files to ${data.destination}`);
       }
     } catch (error) {
       console.error('BA2 extraction failed:', error);
-      alert('BA2 extraction requires Desktop Bridge server with ba2toolkit library.\n\nInstall: pip install ba2toolkit');
+      toast.error('BA2 extraction requires Desktop Bridge server with ba2toolkit library. Install: pip install ba2toolkit');
     } finally {
       setLoading(false);
     }
@@ -92,9 +93,9 @@ export const BA2Manager: React.FC = () => {
       ));
       
       if (result.success) {
-        alert(`BA2 merge completed!\n\nMerged ${result.extractedFiles} files into ${result.finalFiles} final files.\nOutput: ${result.outputPath}`);
+        toast.success(`BA2 merge completed!. Merged ${result.extractedFiles} files into ${result.finalFiles} final files.. Output: ${result.outputPath}`);
       } else {
-        alert(`BA2 merge failed: ${result.message}`);
+        toast.error(`BA2 merge failed: ${result.message}`);
       }
     } catch (error) {
       console.error('BA2 merge error:', error);
@@ -103,7 +104,7 @@ export const BA2Manager: React.FC = () => {
           ? { ...j, status: 'failed', result: { success: false, message: String(error) } }
           : j
       ));
-      alert(`BA2 merge failed: ${error}`);
+      toast.error(`BA2 merge failed: ${error}`);
     } finally {
       setCurrentMergeJob(null);
     }
@@ -128,11 +129,11 @@ export const BA2Manager: React.FC = () => {
       
       if (response.ok) {
         const data = await response.json();
-        alert(`Packed ${data.fileCount} files into ${data.output}`);
+        toast.success(`Packed ${data.fileCount} files into ${data.output}`);
       }
     } catch (error) {
       console.error('BA2 packing failed:', error);
-      alert('BA2 packing requires Desktop Bridge server with ba2toolkit library.\n\nInstall: pip install ba2toolkit');
+      toast.error('BA2 packing requires Desktop Bridge server with ba2toolkit library. Install: pip install ba2toolkit');
     } finally {
       setLoading(false);
     }
@@ -160,7 +161,7 @@ export const BA2Manager: React.FC = () => {
       console.error('BA2 listing failed:', error);
       setFiles([]);
       setArchiveInfo(null);
-      alert('Bridge offline - real data unavailable.\n\nTo use real BA2 archives:\n1. Start Desktop Bridge server\n2. Install: pip install ba2toolkit');
+      toast.error('Bridge offline - real data unavailable.. To use real BA2 archives:. 1. Start Desktop Bridge server. 2. Install: pip install ba2toolkit');
     } finally {
       setLoading(false);
     }
@@ -196,11 +197,11 @@ export const BA2Manager: React.FC = () => {
     const handleMerge = async () => {
       const validArchives = inputArchives.filter(archive => archive.trim());
       if (validArchives.length < 2) {
-        alert('Please add at least 2 input archives to merge.');
+        toast.error('Please add at least 2 input archives to merge.');
         return;
       }
       if (!outputArchive.trim()) {
-        alert('Please specify an output archive path.');
+        toast.error('Please specify an output archive path.');
         return;
       }
 

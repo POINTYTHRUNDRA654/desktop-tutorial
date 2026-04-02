@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Hexagon, Plus, Trash2, GitBranch, CheckCircle2, AlertTriangle, ArrowDownToLine, Upload, Package, Zap, Wrench, Play, StopCircle, Clock, FileText, Copy } from 'lucide-react';
 
 interface ModProject {
@@ -113,7 +114,7 @@ const TheHive: React.FC = () => {
         
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         if (!bridgeActive) {
-            alert('Bridge Offline: Build pipelines require a running Desktop Bridge server.');
+            toast.error('Bridge Offline: Build pipelines require a running Desktop Bridge server.');
             return;
         }
 

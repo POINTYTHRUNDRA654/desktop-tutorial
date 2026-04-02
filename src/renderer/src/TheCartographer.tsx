@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import OpenAI from 'openai';
 import { Map, Layout, Box, Target, Shield, Skull, Zap, ArrowDownToLine, RefreshCw, ZoomIn, ZoomOut, Maximize, Navigation, Layers, Wind, Sun, Volume2, Thermometer, Radio } from 'lucide-react';
 
@@ -225,7 +226,7 @@ const TheCartographer: React.FC = () => {
 
         } catch (e) {
             console.error(e);
-            alert("Generation failed. Try simplifying the prompt.");
+            toast.error("Generation failed. Try simplifying the prompt.");
         } finally {
             setIsGenerating(false);
         }
