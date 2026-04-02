@@ -73,7 +73,7 @@ Bethesda released this update on **November 10, 2025**. It is the largest change
 ### Address Library for F4SE Plugins
 - **Nexus mod ID: 47327**
 - Install the **"All In One (Anniversary Edition)"** option for all NG/1.11.x versions.
-- Required by Buffout 4 NG, Addictol, High FPS Physics Fix, MCM NG, and almost every `.dll` mod.
+- Required by Addictol, High FPS Physics Fix, MCM NG, and almost every `.dll` mod.
 - Latest version: **1.11.191** (matches the runtime).
 
 ### xEdit / FO4Edit
@@ -168,7 +168,7 @@ Bethesda released this update on **November 10, 2025**. It is the largest change
 ### The Midnight Ride
 - Community modding guide at **themidnightride.moddinglinked.com**.
 - Considered the authoritative NG modding setup guide.
-- Covers Addictol, Buffout 4 NG, High FPS Physics Fix, FallUI, MCM NG, and full load order guidance.
+- Covers Addictol, High FPS Physics Fix, FallUI, MCM NG, and full load order guidance.
 - Changelog kept up to date with every new Bethesda patch.
 
 ### Wabbajack NG-Ready Lists

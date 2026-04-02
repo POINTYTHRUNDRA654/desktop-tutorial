@@ -273,55 +273,49 @@ export const POPULAR_MODS: PopularMod[] = [
 
   // Stability & Crash Tools (2025+)
   {
-    name: 'X-Cell / Addictol (PRIMARY stability tool)',
+    name: 'Addictol (ALL-IN-ONE stability tool)',
     category: 'Framework',
-    description: 'X-Cell is the new Buffout. The primary stability and memory management tool for NG/1.11.x. Buffout 4 NG lost its memory manager in the NG update — X-Cell fills that entire gap. Handles memory allocation, micro-stutter, FaceGen (missing head) bugs. Replaces Baka ScrapHeap, Fallout Priority, and Private Profile Redirector. Nexus #84214.',
+    description: 'ALL-IN-ONE engine patch suite for OG/NG/1.11.x. Supersedes and includes Buffout 4 (all variants), X-Cell, BakaMaxPapyrusOps, Faster Workshop, Interior NavCut Fix, Escape Freeze, Long Save Bug Fix, Disk Cache Enabler, Drop 7FFF Fix, and more. Do NOT install Buffout 4, X-Cell, or any of those mods alongside Addictol. Nexus #84214.',
     compatibility: {
-      conflicts: ['Baka ScrapHeap (X-Cell replaces it)', 'Fallout Priority (X-Cell replaces it)', 'Private Profile Redirector (X-Cell replaces it)'],
+      conflicts: [
+        'Buffout 4 (all variants) — superseded by Addictol',
+        'X-Cell — superseded by Addictol',
+        'BakaMaxPapyrusOps — included in Addictol',
+        'Faster Workshop / NG / AE — included in Addictol',
+        'Interior NavCut Fix — included in Addictol',
+        'Escape Freeze OG/NG — included in Addictol',
+        'Long Save Bug Fix — included in Addictol',
+        'Disk Cache Enabler — included in Addictol',
+        'Drop 7FFF Fix — included in Addictol',
+        'Baka ScrapHeap — superseded',
+        'Fallout Priority — superseded',
+        'Private Profile Redirector — superseded',
+      ],
       patches: [],
-      loadOrder: 'Load AFTER Buffout 4 NG, BEFORE High FPS Physics Fix',
+      loadOrder: 'Loads via F4SE automatically — no manual load order position needed',
       tips: [
-        'X-Cell is the primary stability tool — install it on every NG/1.11.x setup',
-        'Load order: Buffout 4 NG → X-Cell → High FPS Physics Fix',
-        'When using both X-Cell and Buffout 4 NG, disable in Buffout4.toml: MemoryManager=false, HavokMemorySystem=false, BSTextureStreamerLocalHeap=false',
-        'Do NOT install Baka ScrapHeap, Fallout Priority, or Private Profile Redirector alongside X-Cell',
-        'Community TOML configs at: nexusmods.com/fallout4/articles/5976'
+        'Addictol is the ALL-IN-ONE stability tool — install it on every OG/NG/1.11.x setup',
+        'Do NOT install Buffout 4, X-Cell, or any of the superseded mods alongside Addictol',
+        'Requires: F4SE + Address Library AiO (Nexus #47327)',
+        'Configure via Addictol.toml — see the mod page for all [Patches], [Fixes], and [Additional] options',
+        'Crash logs are written to %LOCALAPPDATA%\\Fallout4\\F4SE\\ — run CLASSIC on them'
       ]
     },
     records: ['F4SE plugin (.dll)'],
-    usage: '68%'
-  },
-
-  {
-    name: 'Buffout 4 NG (crash logger)',
-    category: 'Framework',
-    description: 'Provides crash logs and engine bugfixes for NG/1.11.x. Always use the NG fork (Nexus #64880, github.com/alandtse/Buffout4) — the original is not compatible. NOTE: memory management features were removed from the NG version. X-Cell handles memory instead. CRITICAL: when using both, disable MemoryManager, HavokMemorySystem, BSTextureStreamerLocalHeap in Buffout4.toml.',
-    compatibility: {
-      conflicts: [],
-      patches: [],
-      loadOrder: 'Load BEFORE X-Cell',
-      tips: [
-        'Use Buffout 4 NG for crash logs — run CLASSIC (Nexus #56255) on the logs for auto-diagnosis',
-        'Memory management is handled by X-Cell, NOT Buffout 4 NG on NG/1.11.x',
-        'Disable in Buffout4.toml when using X-Cell: MemoryManager=false, HavokMemorySystem=false, BSTextureStreamerLocalHeap=false',
-        'Requires Address Library (Nexus #47327) — install the All In One Anniversary Edition build'
-      ]
-    },
-    records: ['F4SE plugin (.dll)'],
-    usage: '72%'
+    usage: '75%'
   },
 
   {
     name: 'CLASSIC (Crash Log Auto Scanner)',
     category: 'Utility',
-    description: 'Scans Buffout 4 NG crash logs and checks setup integrity. Covers 250+ error scenarios with recommended fixes. Validates F4SE, Address Library, and dependency versions. Run it after every CTD. Nexus #56255.',
+    description: 'Scans crash logs (written to %LOCALAPPDATA%\\Fallout4\\F4SE\\ by Addictol) and checks setup integrity. Covers 250+ error scenarios with recommended fixes. Validates F4SE, Address Library, and dependency versions. Run it after every CTD. Nexus #56255.',
     compatibility: {
       conflicts: [],
       patches: [],
       loadOrder: 'External tool',
       tips: [
         'Run CLASSIC on every CTD before asking for help — it identifies the root cause automatically',
-        'Validates that Buffout 4 NG, F4SE, and Address Library are correctly installed',
+        'Validates that Addictol, F4SE, and Address Library are correctly installed',
         'Also checks for corrupt mod files and missing assets'
       ]
     },
@@ -476,7 +470,7 @@ export function getCompatibilityTips(userModType: string): string[] {
     tips.push('⚠️ 70% expect MCM NG (not legacy MCM) - use the NG build');
     tips.push('⚠️ 42% use Survival Options - don\'t force settings');
     tips.push('💡 Test script load with SS2 running');
-    tips.push('💡 Include Buffout 4 NG and Address Library in requirements if using F4SE');
+    tips.push('💡 Include Addictol (Nexus #84214) and Address Library in recommended requirements if using F4SE');
   }
 
   if (userModType.includes('physics') || userModType.includes('animation')) {
@@ -508,8 +502,8 @@ export function getCompatibilityTips(userModType: string): string[] {
   tips.push('✅ 92% have UFO4P - make sure it\'s compatible');
   tips.push('✅ 95% use LOOT 0.21+ - add proper metadata');
   tips.push('✅ Always specify which game version your mod targets: OG (1.10.163), NG (1.10.980+), or 1.11.x (1.11.169+)');
-  tips.push('⚠️ X-Cell (Nexus #84214) is the primary stability tool now — if advising users on crashes, check X-Cell is installed and Buffout4.toml MemoryManager is disabled');
-  tips.push('⚠️ Do NOT recommend Baka ScrapHeap, Fallout Priority, or Private Profile Redirector — X-Cell replaces all three');
+  tips.push('⚠️ Addictol (Nexus #84214) is the ALL-IN-ONE stability tool — if advising users on crashes, confirm Addictol is installed and Buffout 4 / X-Cell are NOT also installed');
+  tips.push('⚠️ Do NOT recommend Baka ScrapHeap, Fallout Priority, Private Profile Redirector, or Buffout 4 alongside Addictol — they are all superseded');
   
   return tips;
 }
