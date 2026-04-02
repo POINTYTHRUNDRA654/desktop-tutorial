@@ -703,8 +703,7 @@ texconv -f BC1_UNORM -m 0 *.png
 
 ### Essential Testing Tools
 
-1. **Buffout 4 NG** (Nexus #64880) - Crash logger for NG/AE/1.11.x; use original Buffout 4 on OG
-2. **Addictol** (Nexus #84214) - PRIMARY memory & stutter fix for NG/AE; replaces Baka ScrapHeap, Fallout Priority, Private Profile Redirector
+1. **Addictol** (Nexus #84214) - ALL-IN-ONE stability tool (crash fixes, memory, script perf, FaceGen); supersedes Buffout 4 (all variants), X-Cell, BakaMaxPapyrusOps, and others — do NOT install those alongside it
 2. **Papyrus Profiler** - Script performance
 3. **FallUI** - Better UI for testing
 4. **Achievement Mod Enabler** - Test with achievements
