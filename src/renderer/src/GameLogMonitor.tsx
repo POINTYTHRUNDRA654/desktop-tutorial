@@ -234,6 +234,10 @@ const GAME_PATTERNS: PatternRule[] = [
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+const MAX_LOG_ENTRIES = 2000;
+const MAX_VISIBLE_AFFECTED_MODS = 12;
+const MAX_STACK_FRAMES_FOR_AI = 10;
+
 const LEVEL_ORDER: Record<LogLevel, number> = { info: 0, warning: 1, error: 2, crash: 3 };
 
 const CATEGORY_COLORS: Record<LogCategory, string> = {
@@ -263,7 +267,7 @@ const GAME_PATH_HINT = 'Documents\\My Games\\Fallout4\\Fallout4.log';
 let _entryCounter = 0;
 
 function extractMod(line: string): string | undefined {
-  const m = line.match(/\[([A-Za-z0-9_\-'. ]+\.es[mpl])\]/i);
+  const m = line.match(/\[([A-Za-z0-9_\- .]+\.es[mpl])\]/i);
   return m ? m[1] : undefined;
 }
 
@@ -290,7 +294,7 @@ function enrichLine(raw: string, patterns: PatternRule[]): Partial<LogEntry> {
 }
 
 function buildEntry(rawLine: string, tab: TabId): LogEntry {
-  const id = `e-${Date.now()}-${_entryCounter++}`;
+  const id = `e-${_entryCounter++}`;
   const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
   const patterns = tab === 'papyrus' ? PAPYRUS_PATTERNS : GAME_PATTERNS;
   const enriched = enrichLine(rawLine, patterns);
@@ -365,7 +369,7 @@ const MOSSY_SYSTEM =
 
 async function askMossy(prompt: string): Promise<string> {
   const api = (window as any).electron?.api ?? (window as any).electronAPI;
-  if (!api?.aiChatGroq) return 'AI unavailable in this build.';
+  if (!api?.aiChatGroq) return 'AI assistant not configured.';
   const res = await api.aiChatGroq(prompt, MOSSY_SYSTEM, GROQ_MODEL);
   if (res?.success && res?.content) return String(res.content);
   return String(res?.error ?? 'AI request failed.');
@@ -480,7 +484,7 @@ export default function GameLogMonitor() {
     if (!rawLine.trim()) return;
     const entry = buildEntry(rawLine, tab);
     setLogEntries(prev => {
-      const next = [...prev, entry].slice(-2000);
+      const next = [...prev, entry].slice(-MAX_LOG_ENTRIES);
       setCrashPrediction(computeCrashPrediction(next));
       return next;
     });
@@ -556,13 +560,14 @@ export default function GameLogMonitor() {
       setSelectedEntry(entry);
       setEntryAdvice('');
       setIsLoadingEntryAdvice(true);
+      const safeRaw = entry.raw.slice(0, 500);
       const prompt = [
         `Fallout 4 ${activeTab === 'papyrus' ? 'Papyrus' : 'game'} log error:`,
         `Level: ${entry.level.toUpperCase()}`,
         `Category: ${entry.category}`,
         entry.mod ? `Mod: ${entry.mod}` : '',
         entry.scriptName ? `Script: ${entry.scriptName}` : '',
-        `Message: ${entry.raw}`,
+        `Message: ${safeRaw}`,
         entry.fixHint ? `Known fix hint: ${entry.fixHint}` : '',
         'Explain this error and how to fix it. Be specific and actionable.',
       ]
@@ -618,7 +623,7 @@ export default function GameLogMonitor() {
       `Preventable: ${buffoutDiagnosis.preventable ? 'Yes' : 'Unknown'}`,
       `Recommendations: ${buffoutDiagnosis.recommendations.join('; ')}`,
       buffoutDiagnosis.stackTrace
-        ? `Stack trace: ${buffoutDiagnosis.stackTrace.slice(0, 10).join(' | ')}`
+        ? `Stack trace: ${buffoutDiagnosis.stackTrace.slice(0, MAX_STACK_FRAMES_FOR_AI).join(' | ')}`
         : '',
       'Give me a detailed step-by-step fix plan. Reference specific tools (xEdit, Addictol, Buffout4.toml, CLASSIC scanner) as appropriate.',
     ]
@@ -659,6 +664,7 @@ export default function GameLogMonitor() {
             <button
               key={s}
               onClick={() => setSkillLevel(s)}
+              aria-label={`Set skill level to ${s}`}
               className={`px-2 py-1 text-xs capitalize ${
                 skillLevel === s
                   ? 'bg-slate-600 text-white'
@@ -855,7 +861,7 @@ export default function GameLogMonitor() {
                   Affected Mods ({affectedMods.length})
                 </div>
                 <div className="space-y-1">
-                  {affectedMods.slice(0, 12).map(mod => (
+                  {affectedMods.slice(0, MAX_VISIBLE_AFFECTED_MODS).map(mod => (
                     <button
                       key={mod}
                       onClick={() => setFilterMod(filterMod === mod ? '' : mod)}
@@ -869,9 +875,9 @@ export default function GameLogMonitor() {
                       {mod}
                     </button>
                   ))}
-                  {affectedMods.length > 12 && (
+                  {affectedMods.length > MAX_VISIBLE_AFFECTED_MODS && (
                     <div className="text-[10px] text-slate-500">
-                      +{affectedMods.length - 12} more…
+                      +{affectedMods.length - MAX_VISIBLE_AFFECTED_MODS} more…
                     </div>
                   )}
                 </div>
@@ -1084,6 +1090,7 @@ export default function GameLogMonitor() {
                   value={buffoutPath}
                   onChange={e => setBuffoutPath(e.target.value)}
                   placeholder="%LOCALAPPDATA%\Fallout4\F4SE\crash-XXXX.log"
+                  aria-label="Buffout crash log file path"
                   className="flex-1 px-3 py-2 text-xs bg-slate-700 text-white rounded border border-slate-600 focus:outline-none focus:border-green-500"
                 />
                 <button
