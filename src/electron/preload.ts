@@ -356,6 +356,14 @@ const electronAPI = {
   },
 
   /**
+   * Launch an external tool (xEdit, NifSkope, CK, Blender) with a specific
+   * file passed as a command-line argument so it opens directly in that tool.
+   */
+  launchToolWithFile: (toolPath: string, filePath: string): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_TOOL_WITH_FILE, toolPath, filePath);
+  },
+
+  /**
    * Open an external file or URL
    * @param path - Path to file or URL
    * @returns Promise resolving when opened
