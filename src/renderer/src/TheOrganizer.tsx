@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { BookOpen, Box, Check, Database, ArrowDownToLine, Layers, Library, Lock, MapPin, Play, RefreshCw, Scroll, Search, Settings, Wrench, Zap } from 'lucide-react';
 
 interface QuestStage {
@@ -158,7 +159,7 @@ const TheOrganizer: React.FC = () => {
 
     const handleLaunchUtility = async (path?: string, name?: string) => {
         if (!path) {
-            alert('Desktop Bridge not available or no path provided.');
+            toast.error('Desktop Bridge not available or no path provided.');
             return;
         }
 
@@ -166,19 +167,19 @@ const TheOrganizer: React.FC = () => {
             try {
                 const result = await api.openProgram(path);
                 if (!result.success) {
-                    alert(`Error launching ${name || 'Utility'}: ${result.error || 'The executable could not be started.'}`);
+                    toast.error(`Error launching ${name || 'Utility'}: ${result.error || 'The executable could not be started.'}`);
                 }
             } catch (e) {
-                alert(`Bridge error launching ${name || 'Utility'}: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                toast.error(`Bridge error launching ${name || 'Utility'}: ${e instanceof Error ? e.message : 'Unknown error'}`);
             }
         } else if (api?.openExternal) {
             try {
                 await api.openExternal(path);
             } catch (e) {
-                alert(`Error launching ${name || 'Utility'}: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                toast.error(`Error launching ${name || 'Utility'}: ${e instanceof Error ? e.message : 'Unknown error'}`);
             }
         } else {
-            alert('Desktop Bridge not available.');
+            toast.error('Desktop Bridge not available.');
         }
     };
 
