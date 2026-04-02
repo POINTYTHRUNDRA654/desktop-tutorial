@@ -209,7 +209,7 @@ export function CloudSync() {
       status: 'error',
     }));
     setTimeout(() => {
-      setDashboard((prev) => ({ ...prev, status: 'idle' }));
+      setDashboard((prev) => ({ ...prev, status: 'synced' as const }));
     }, 3000);
   }, []);
 

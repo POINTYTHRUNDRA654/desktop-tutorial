@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { LocalAIEngine } from './LocalAIEngine';
 import { 
   Database, Play, RefreshCw, AlertTriangle, CheckCircle2, 
   Code, Zap, FileText, Terminal, Search, Download, Save, 
@@ -146,6 +147,7 @@ const XEDIT_SCRIPTS: XEditScript[] = [
 ];
 
 export const XEditTools: React.FC = () => {
+  const navigate = useNavigate();
   // Tab state
   const [activeTab, setActiveTab] = useState<'scripts' | 'settings'>('scripts');
   
@@ -292,6 +294,13 @@ export const XEditTools: React.FC = () => {
         setProgressText('Complete');
         setExecutionResult(result);
         setScriptOutput(result.output ? [result.output] : []);
+        LocalAIEngine.recordAction('xedit_script_execution', {
+          scriptId: selectedScript.id,
+          scriptName: selectedScript.name,
+          plugin: selectedPlugin,
+          success: result.success,
+          duration: result.duration,
+        }).catch(() => {/* non-critical */});
         
         if (result.success) {
           setMessage(`Script executed successfully in ${result.duration}s`);
@@ -608,6 +617,16 @@ export const XEditTools: React.FC = () => {
                           </ul>
                         </div>
                       )}
+                      <button
+                        onClick={() => {
+                          const summary = `I just ran the xEdit script "${selectedScript?.name}" on plugin "${selectedPlugin}".\n\nResult: ${executionResult.success ? 'Success' : 'Failed'} (${executionResult.duration}s)\n${executionResult.output ? `Output:\n${executionResult.output}\n` : ''}${executionResult.errors.length > 0 ? `Errors:\n${executionResult.errors.join('\n')}\n` : ''}${executionResult.warnings.length > 0 ? `Warnings:\n${executionResult.warnings.join('\n')}` : ''}\n\nCan you help me understand these results?`;
+                          navigate('/chat', { state: { prefill: summary } });
+                        }}
+                        className="mt-3 w-full py-2 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
+                        title="Open full chat with this result as context"
+                      >
+                        Ask Mossy about this
+                      </button>
                     </div>
                   )}
                 </div>

@@ -19,7 +19,8 @@ import AutoUpdateNotifier from './components/AutoUpdateNotifier';
 import { ensureBrowserTtsSettingsStored } from './browserTts';
 import toast from 'react-hot-toast';
 
-import { Command, Loader2, Radio, Zap } from 'lucide-react';
+import { Command, Loader2, MessageSquare, Radio, Zap } from 'lucide-react';
+import AvatarOverlay from './AvatarOverlay';
 import { LiveProvider } from './LiveContext';
 import { OpenAIVoiceProvider } from './OpenAIVoiceContext';
 import { ModProject } from '../../shared/types';
@@ -194,6 +195,39 @@ const WhatsNewRedirect: React.FC<{ enabled: boolean }> = ({ enabled }) => {
   }, [enabled]);
 
   return null;
+};
+
+// Floating "Ask Mossy" button — available on every panel except /chat itself
+const AskMossyButton: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  if (location.pathname === '/chat') return null;
+
+  const handleClick = () => {
+    const panelName = location.pathname.replace(/^\//, '').replace(/-/g, ' ') || 'home';
+    navigate('/chat', {
+      state: { prefill: `I'm currently on the ${panelName} panel. Can you help me with what I'm working on here?` }
+    });
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      title="Ask Mossy about this panel"
+      aria-label="Ask Mossy"
+      style={{
+        position: 'fixed',
+        bottom: 60, // above the Pip-Boy toggle button (bottom: 16 + ~40px height)
+        right: 16,
+        zIndex: 9990,
+      }}
+      className="flex items-center gap-2 px-4 py-2 bg-green-700/90 hover:bg-green-600 text-white text-sm font-bold rounded-full shadow-lg border border-green-500/50 transition-all focus-visible"
+    >
+      <MessageSquare className="w-4 h-4" />
+      Ask Mossy
+    </button>
+  );
 };
 
 const App: React.FC = () => {
@@ -1301,6 +1335,8 @@ const App: React.FC = () => {
               }}
             />
           )}
+          <AvatarOverlay />
+          <AskMossyButton />
         </div>
       </HashRouter>
     );

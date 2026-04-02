@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 // prefer preload API when available, otherwise fall back to in-memory engine for dev
 let bridge: any = (window as any).electron?.api || (window as any).electronAPI;
@@ -21,6 +22,7 @@ function readLocal(key: string, fallback: any) {
 }
 
 const SecurityValidator: React.FC = () => {
+  const navigate = useNavigate();
   const [path, setPath] = useState('');
   const [code, setCode] = useState('Event OnUpdate()\nEndEvent');
   const [progress, setProgress] = useState(0);
@@ -201,6 +203,15 @@ const SecurityValidator: React.FC = () => {
                 <button className="px-3 py-2 bg-rose-700/10 rounded text-sm" onClick={() => quarantineItem(lastReport.path)}>Quarantine</button>
                 <button className="ml-2 px-3 py-2 bg-slate-700/10 rounded text-sm" onClick={() => addWhitelist(lastReport.path)}>Whitelist</button>
               </div>
+            )}
+            {lastReport && (
+              <button
+                onClick={() => navigate('/chat', { state: { prefill: `I just ran a security scan and got the following result:\n\n${JSON.stringify(lastReport, null, 2)}\n\nCan you help me interpret this and advise on any threats?` } })}
+                className="mt-3 w-full py-2 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
+                title="Open full chat with this report as context"
+              >
+                Ask Mossy about this
+              </button>
             )}
           </div>
 

@@ -4,6 +4,7 @@ import { Code, FileCode, Palette, Check, X, AlertTriangle, Zap, Copy, Play, Book
 import ProjectWizard from './components/ProjectWizard';
 import type { ScriptBundle, ScriptTemplate, Settings } from '../../shared/types';
 import { openExternal } from './utils/openExternal';
+import { LocalAIEngine } from './LocalAIEngine';
 
 type ScriptType = 'papyrus' | 'xedit' | 'blender';
 
@@ -769,6 +770,7 @@ export const TheScribe: React.FC = () => {
       
       if (result && result.success) {
         setXeditScriptStatus(`Installed to: ${result.path}`);
+        LocalAIEngine.recordAction('scribe_install_xedit_script', { name: base, path: result.path }).catch(() => {/* non-critical */});
         
         // Try to reveal the new file for convenience
         try {
@@ -808,6 +810,7 @@ export const TheScribe: React.FC = () => {
       
       if (result && result.success) {
         setXeditScriptStatus(`Installed to: ${result.path}`);
+        LocalAIEngine.recordAction('scribe_install_papyrus_script', { name: scriptName, path: result.path }).catch(() => {/* non-critical */});
       } else {
         setXeditScriptStatus(`Failed: ${result?.error || 'Unknown error'}`);
       }
