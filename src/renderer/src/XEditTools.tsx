@@ -665,7 +665,7 @@ export const XEditTools: React.FC = () => {
                     className="block p-3 bg-slate-800 hover:bg-slate-700 rounded text-sm text-slate-300 transition-colors"
                   >
                     <span className="font-bold text-white">Download FO4Edit</span>
-                    <span className="block text-xs text-slate-500">Official Nexus Mods page</span>
+                    <span className="block text-xs text-slate-500">by ElminsterAU — Official Nexus Mods page</span>
                   </a>
                   <a
                     href="https://tes5edit.github.io/"
