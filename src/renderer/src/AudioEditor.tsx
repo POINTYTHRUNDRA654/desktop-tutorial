@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Play, StopCircle, Pause, Plus, Upload, Save, Music, Volume2, FileAudio } from 'lucide-react';
 import './AudioEditor.css';
 
@@ -117,21 +118,20 @@ export const AudioEditor: React.FC = () => {
     setSelectedId(newFile.id);
   };
 
-  // Action handlers (call electronAPI if available, otherwise operate locally)
   const handleConvertToXWM = async () => {
     if (!selected) return;
     const api = (window as any).electronAPI ?? (window as any).electron?.api;
     if (api?.audioEditor?.convertToXWM) {
       try {
         const resp = await api.audioEditor.convertToXWM(selected.path || selected.name, 90);
-        if (resp?.success) alert(`Converted → ${resp.outputPath}`);
-      } catch (err) {
-        alert('Conversion failed');
+        if (resp?.success) toast.success(`Converted → ${resp.outputPath}`);
+        else toast.error('Conversion failed');
+      } catch {
+        toast.error('Conversion failed');
       }
       return;
     }
-    // local stub feedback
-    alert('Converted locally (stub) → ' + selected.name.replace(/\.[^.]+$/, '.xwm'));
+    toast.error('XWM conversion requires the Desktop Bridge and xWMAEncode. Configure the tool path in Settings → External Tools.');
   };
 
   const handleGenerateLipSync = async () => {
@@ -139,20 +139,21 @@ export const AudioEditor: React.FC = () => {
     const api = (window as any).electronAPI ?? (window as any).electron?.api;
     if (api?.audioEditor?.generateLipSync) {
       const lip = await api.audioEditor.generateLipSync(selected.path || selected.name, 'Hello world');
-      alert('Lip file generated: ' + JSON.stringify(lip));
+      toast.success('Lip file generated');
+      console.log('Lip file data:', lip);
       return;
     }
-    alert('Lip-Sync (stub) generated for ' + selected.name);
+    toast.error('Lip-sync generation requires the Desktop Bridge with FaceFX/CK access.');
   };
 
   const handleNormalize = async () => {
     const api = (window as any).electronAPI ?? (window as any).electron?.api;
     if (api?.audioEditor?.normalizeVolume) {
       await api.audioEditor.normalizeVolume([selected?.path || selected?.name]);
-      alert('Normalization complete');
+      toast.success('Normalization complete');
       return;
     }
-    alert('Normalization (stub) complete');
+    toast.error('Audio normalization requires the Desktop Bridge.');
   };
 
   const handleRemoveNoise = async () => {
@@ -160,15 +161,20 @@ export const AudioEditor: React.FC = () => {
     const api = (window as any).electronAPI ?? (window as any).electron?.api;
     if (api?.audioEditor?.removeNoise) {
       const out = await api.audioEditor.removeNoise(selected.path || selected.name, 0.6);
-      alert('Noise removal output: ' + out);
+      toast.success('Noise removal complete');
+      console.log('Noise removal output:', out);
       return;
     }
-    alert('Noise removal (stub) complete');
+    toast.error('Noise removal requires the Desktop Bridge.');
   };
 
   const handleSaveDescriptor = () => {
-    // naive save into local state (would call engine/preload in a real app)
-    alert('Descriptor saved: ' + JSON.stringify(descriptor));
+    // Save descriptor to localStorage for use with CK sound editor
+    const saved = JSON.parse(localStorage.getItem('audio-descriptors') || '[]');
+    const idx = saved.findIndex((d: any) => d.name === descriptor.name);
+    if (idx >= 0) saved[idx] = descriptor; else saved.push(descriptor);
+    localStorage.setItem('audio-descriptors', JSON.stringify(saved));
+    toast.success(`Descriptor "${descriptor.name}" saved`);
   };
 
   return (
@@ -215,7 +221,7 @@ export const AudioEditor: React.FC = () => {
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div className="legend">Drag files here to import</div>
             <div style={{display:'flex',gap:8}}>
-              <button className="small-btn" onClick={() => alert('Bulk import (stub)')}><Plus size={14}/> Import</button>
+              <button className="small-btn" onClick={() => document.querySelector<HTMLInputElement>('input[type="file"][accept="audio/*"]')?.click()}><Plus size={14}/> Import</button>
             </div>
           </div>
         </div>
@@ -225,7 +231,7 @@ export const AudioEditor: React.FC = () => {
         <div className="center-header"><div style={{fontWeight:700}}>{selected ? `${selected.name}` : 'No file selected'}</div></div>
 
         <div className="waveform-area">
-          <div className="waveform-canvas" onDoubleClick={() => alert('Open full waveform editor (stub)')}>
+          <div className="waveform-canvas">
             <canvas ref={canvasRef} style={{width:'100%',height:180,borderRadius:8,display:'block'}} />
           </div>
 
@@ -293,7 +299,7 @@ export const AudioEditor: React.FC = () => {
 
           <div style={{marginTop:12,display:'flex',gap:8}}>
             <button className="btn-primary" onClick={handleSaveDescriptor}><Save size={14}/> Save Descriptor</button>
-            <button className="btn-ghost" onClick={() => alert('Test in-game (stub)')}>Test In-Game</button>
+            <button className="btn-ghost" onClick={() => toast.error('In-game test requires Desktop Bridge + game running.')}>Test In-Game</button>
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import { FileText, File, Printer, Copy, Download, Image as ImageIcon, Check } from 'lucide-react';
 import { readmeTemplate, readmeVariables, TEMPLATES } from '../../shared/templates';
@@ -97,9 +98,9 @@ export const DocumentationGenerator: React.FC = () => {
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(previewContent);
-      alert('Copied to clipboard');
+      toast.success('Copied to clipboard');
     } catch (err) {
-      alert('Copy failed');
+      toast.error('Copy failed');
     }
   };
 

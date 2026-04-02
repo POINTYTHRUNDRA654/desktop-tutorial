@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, Database, Zap } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
@@ -131,7 +132,7 @@ const CosmosWorkflow: React.FC = () => {
             if (!picked) return;
             target = String(picked);
           } else {
-            alert(`${repo.label} folder not found. Add a root manually in Knowledge Search.`);
+            toast.error(`${repo.label} folder not found. Add a root manually in Knowledge Search.`);
             return;
           }
         }
@@ -141,16 +142,16 @@ const CosmosWorkflow: React.FC = () => {
       const parsed = raw ? JSON.parse(raw) : [];
       const existing = Array.isArray(parsed) ? parsed : [];
       if (existing.includes(target)) {
-        alert(`${repo.label} is already in Knowledge Search roots.`);
+        toast.error(`${repo.label} is already in Knowledge Search roots.`);
         return;
       }
 
       localStorage.setItem(ROOTS_KEY, JSON.stringify([...existing, target]));
       refreshRoots();
-      alert(`Added ${repo.label} to Knowledge Search roots.`);
+      toast.success(`Added ${repo.label} to Knowledge Search roots.`);
     } catch (e) {
       console.warn('[CosmosWorkflow] Failed to add knowledge root', e);
-      alert('Failed to add Knowledge Search root.');
+      toast.error('Failed to add Knowledge Search root.');
     } finally {
       setBusyId(null);
     }

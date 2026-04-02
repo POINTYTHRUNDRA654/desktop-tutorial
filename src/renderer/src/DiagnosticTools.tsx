@@ -632,7 +632,7 @@ ${listAvailableAPIs()}
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(testOutput);
-                      alert('Output copied to clipboard');
+                      toast.success('Output copied to clipboard');
                     }}
                     className="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1"
                   >
@@ -666,7 +666,7 @@ ${listAvailableAPIs()}
                   if ((window as any).electron?.webContents?.openDevTools) {
                     (window as any).electron.webContents.openDevTools();
                   } else {
-                    alert('Dev tools not available. Try pressing F12 or check if you are running the desktop app.');
+                    toast.error('Dev tools not available. Try pressing F12 or check if you are running the desktop app.');
                   }
                 }
               }}

@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import {
   Cloud,
   Share2,
@@ -270,7 +271,7 @@ export function CloudSync() {
   const handleRestoreVersion = useCallback((versionId: string) => {
     const version = versions.find((v) => v.id === versionId);
     if (version) {
-      alert(`Would restore to: ${version.message}`);
+      toast.success(`Would restore to: ${version.message}`);
       // Trigger actual restore
     }
   }, [versions]);

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Code, FileCode, Palette, Check, X, AlertTriangle, Zap, Copy, Play, BookOpen, Save, Trash2, Upload, ArrowDownToLine, Info, Search, ExternalLink } from 'lucide-react';
 import ProjectWizard from './components/ProjectWizard';
 import type { ScriptBundle, ScriptTemplate, Settings } from '../../shared/types';
@@ -669,7 +670,7 @@ export const TheScribe: React.FC = () => {
     const path = getActiveToolPath();
     const toolName = getActiveToolName();
     if (!path || !path.trim()) {
-      alert(`Set a path for ${toolName} in Tool Settings before launching.`);
+      toast.error(`Set a path for ${toolName} in Tool Settings before launching.`);
       return;
     }
     setLaunching(true);
@@ -680,11 +681,11 @@ export const TheScribe: React.FC = () => {
       } else if (bridge?.openExternal) {
         await bridge.openExternal(path);
       } else {
-        alert('Launching external tools requires the Desktop Bridge (Electron).');
+        toast.error('Launching external tools requires the Desktop Bridge (Electron).');
       }
     } catch (err) {
       console.error('Failed to launch tool:', err);
-      alert(`Could not launch ${toolName}. Check the configured path in Tool Settings.`);
+      toast.error(`Could not launch ${toolName}. Check the configured path in Tool Settings.`);
     } finally {
       setLaunching(false);
     }
@@ -824,7 +825,7 @@ export const TheScribe: React.FC = () => {
     if (activeTab !== 'blender') return;
     const exe = getActiveToolPath().trim();
     if (!exe) {
-      alert('Set a Blender path in Tool Settings before running scripts.');
+      toast.error('Set a Blender path in Tool Settings before running scripts.');
       return;
     }
 
