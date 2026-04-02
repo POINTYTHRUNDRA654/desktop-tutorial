@@ -720,7 +720,7 @@ const TheAuditor: React.FC = () => {
             const criticalIssue = firstFileWithIssues.issues.find(i => i.severity === 'error')
                 ?? firstFileWithIssues.issues[0];
             if (criticalIssue) {
-                // Defer so the state updates above settle first
+                // Small defer so setSelectedFileId state settles before getMossyAdvice reads it
                 setTimeout(() => getMossyAdvice(criticalIssue), 100);
             }
         }
