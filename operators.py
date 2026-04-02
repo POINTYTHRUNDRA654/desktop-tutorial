@@ -2026,9 +2026,9 @@ class FO4_OT_ValidateExport(Operator):
 
 
 class FO4_OT_ExportAnimationHavok2FBX(Operator):
-    """Export the active armature animation to FBX and optionally convert to HKX via Havok2FBX."""
+    """Export the active armature animation to FBX and optionally convert to HKX via ck-cmd or Havok2FBX."""
     bl_idname = "fo4.export_animation_havok2fbx"
-    bl_label = "Export Animation (Havok2FBX)"
+    bl_label = "Export Animation (FBX → HKX)"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -2055,6 +2055,9 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
         anim_name_override = scene.fo4_havok_anim_name.strip()
         simplify_value = scene.fo4_havok_simplify_value
         force_frame_range = scene.fo4_havok_force_frame_range
+        skeleton_path = bpy.path.abspath(
+            getattr(scene, "fo4_havok_skeleton_path", "")
+        ).strip()
 
         # Resolve animation name
         anim_name = anim_name_override
@@ -2153,10 +2156,69 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
 
         self.report({'INFO'}, f"FBX exported: {fbx_path}")
 
-        # Attempt Havok2FBX conversion if configured - run in background so
-        # Blender's UI stays responsive during the conversion (can take ~2 min).
+        # Attempt HKX conversion — try ck-cmd first (open-source, no SDK required),
+        # then fall back to Havok2FBX if configured.
+        ckcmd_dir = preferences.get_ckcmd_path()
         havok_dir = preferences.get_havok2fbx_path()
-        if havok_dir:
+
+        if ckcmd_dir and skeleton_path and os.path.isfile(skeleton_path):
+            from . import tool_installers
+            if tool_installers.check_ckcmd(ckcmd_dir):
+                # Locate ck-cmd.exe (may be in a sub-folder)
+                from pathlib import Path as _Path
+                _ckcmd_root = _Path(ckcmd_dir)
+                exe_direct = _ckcmd_root / "ck-cmd.exe"
+                if exe_direct.is_file():
+                    exe = str(exe_direct)
+                else:
+                    _found = next(_ckcmd_root.rglob("ck-cmd.exe"), None)
+                    exe = str(_found) if _found else str(exe_direct)
+
+                cmd = [exe, "importanimation", skeleton_path, fbx_path,
+                       f"--e={output_dir}"]
+
+                def _convert_ckcmd(cmd=cmd, exe=exe, fbx_path=fbx_path, hkx_path=hkx_path):
+                    import subprocess
+                    try:
+                        result = subprocess.run(
+                            cmd,
+                            capture_output=True,
+                            text=True,
+                            timeout=120,
+                        )
+                        if result.returncode == 0:
+                            msg, level = f"HKX created via ck-cmd: {output_dir}", 'INFO'
+                        else:
+                            err = (result.stderr or result.stdout or "unknown error").strip()
+                            msg = f"ck-cmd conversion failed: {err}. FBX saved at {fbx_path}"
+                            level = 'WARNING'
+                    except FileNotFoundError:
+                        msg = f"ck-cmd.exe not found at {exe}. FBX saved at {fbx_path}"
+                        level = 'WARNING'
+                    except subprocess.TimeoutExpired:
+                        msg = f"ck-cmd timed out. FBX saved at {fbx_path}"
+                        level = 'WARNING'
+                    except Exception as exc:
+                        msg = f"ck-cmd error: {exc}. FBX saved at {fbx_path}"
+                        level = 'WARNING'
+
+                    def _notify(msg=msg, level=level):
+                        notification_system.FO4_NotificationSystem.notify(msg, level)
+                        print(f"CK-CMD [{level}]", msg)
+
+                    bpy.app.timers.register(_notify, first_interval=0.0)
+
+                threading.Thread(target=_convert_ckcmd, daemon=True).start()
+                self.report({'INFO'}, "HKX conversion (ck-cmd) started in background - Blender stays responsive")
+            else:
+                self.report({'WARNING'}, f"ck-cmd binaries missing from {ckcmd_dir}. FBX saved at {fbx_path}")
+
+        elif ckcmd_dir and not skeleton_path:
+            self.report({'WARNING'},
+                        "ck-cmd is configured but no Skeleton HKX path is set — "
+                        f"set it in the Havok panel or preferences. FBX saved at {fbx_path}.")
+
+        elif havok_dir:
             from . import tool_installers
             if tool_installers.check_havok2fbx(havok_dir):
                 exe = os.path.join(havok_dir, "havok2fbx.exe")
@@ -2206,7 +2268,10 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
             else:
                 self.report({'WARNING'}, f"Havok2FBX binaries missing from {havok_dir}. FBX saved at {fbx_path}")
         else:
-            self.report({'INFO'}, f"Havok2FBX not configured - FBX saved at {fbx_path}. Set the folder in preferences to enable HKX conversion.")
+            self.report({'INFO'},
+                        f"No HKX converter configured — FBX saved at {fbx_path}. "
+                        "Install ck-cmd from the Setup & Status panel and set a Skeleton HKX path "
+                        "to enable automatic HKX conversion.")
 
         return {'FINISHED'}
 
@@ -8632,6 +8697,16 @@ def register():
             default=True,
             update=_make_scene_to_pref_sync("fo4_havok_force_frame_range", "havok_force_frame_range"),
         )
+        bpy.types.Scene.fo4_havok_skeleton_path = bpy.props.StringProperty(
+            name="Skeleton HKX",
+            description=(
+                "Path to the game's skeleton.hkx required by ck-cmd importanimation. "
+                "Usually Data\\Meshes\\Actors\\Character\\CharacterAssets\\skeleton.hkx"
+            ),
+            default="",
+            subtype='FILE_PATH',
+            update=_make_scene_to_pref_sync("fo4_havok_skeleton_path", "ckcmd_skeleton_path"),
+        )
 
     except Exception as _e:
         print(f"⚠ Failed to register Havok animation properties: {_e}")
@@ -8700,6 +8775,13 @@ def register():
             default="",
             subtype='DIR_PATH',
             update=_make_scene_to_pref_sync("fo4_havok2fbx_path", "havok2fbx_path"),
+        )
+        bpy.types.Scene.fo4_ckcmd_path = bpy.props.StringProperty(
+            name="ck-cmd Folder",
+            description="Folder containing ck-cmd.exe (aerisarn/ck-cmd — open-source FBX→HKX converter)",
+            default="",
+            subtype='DIR_PATH',
+            update=_make_scene_to_pref_sync("fo4_ckcmd_path", "ckcmd_path"),
         )
 
     except Exception as _e:
@@ -9036,6 +9118,8 @@ def unregister():
         "fo4_torch_root",
         "fo4_instantngp_path",
         "fo4_havok2fbx_path",
+        "fo4_ckcmd_path",
+        "fo4_havok_skeleton_path",
         "fo4_game_version",
         # Asset folder paths (per-scene mirrors of addon preferences)
         "fo4_assets_path",
