@@ -24,7 +24,7 @@ $ErrorActionPreference = "Stop"
 $RepoDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host " Fallout 4 Mod Assistant  --  Build and Install"             -ForegroundColor Cyan
+Write-Host " Mossy's Blender Add-On  --  Build and Install"             -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 

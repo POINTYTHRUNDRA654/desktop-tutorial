@@ -1,5 +1,5 @@
 """
-Addon preferences for Fallout 4 Tutorial Helper.
+Addon preferences for Mossy's Blender Add-On.
 Provides a single path field for the Havok2FBX toolkit so users can point to an
 existing install instead of duplicating binaries.
 """

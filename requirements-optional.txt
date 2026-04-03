@@ -1,4 +1,4 @@
-# Optional Python packages for the Fallout 4 Tutorial Helper add-on.
+# Optional Python packages for the Mossy's Blender Add-On add-on.
 # These are NOT required for core functionality; they enable additional
 # AI-powered or heavy-processing features.
 #

@@ -1,5 +1,5 @@
 """
-Core tutorial and welcome operators for the Fallout 4 Mod Assistant.
+Core tutorial and welcome operators for the Mossy's Blender Add-On.
 
 These operators are registered as a standalone module *before* the main
 operators.py bundle so they are always available in the UI even if the

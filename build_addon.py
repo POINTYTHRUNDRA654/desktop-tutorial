@@ -2,7 +2,7 @@
 """
 build_addon.py
 ==============
-Cross-platform build script for the Fallout 4 Tutorial Helper add-on.
+Cross-platform build script for the Mossy's Blender Add-On add-on.
 
 Produces one zip per supported Blender version range:
 
@@ -141,7 +141,7 @@ def _make_manifest(addon_version: str, blender_min: tuple,
 
         id = "blender_game_tools"
         version = "{addon_version}"
-        name = "Fallout 4 Mod Assistant"
+        name = "Mossy's Blender Add-On"
         tagline = "Professional Fallout 4 modding tools for Blender"
         maintainer = "Tutorial Team"
         type = "add-on"
@@ -174,7 +174,7 @@ def build_nexus_bundle(outdir: Path, addon_version: str,
     bundle_path.unlink(missing_ok=True)
 
     install_guide = textwrap.dedent(f"""\
-        Fallout 4 Mod Assistant  v{addon_version}  — Nexus Mods Bundle
+        Mossy's Blender Add-On  v{addon_version}  — Nexus Mods Bundle
         ===============================================================
 
         WHICH ZIP DO I INSTALL?
@@ -194,7 +194,7 @@ def build_nexus_bundle(outdir: Path, addon_version: str,
             "Install from Disk…".
         4.  Select the matching zip from this bundle.
         5.  Enable the add-on by checking the checkbox next to
-            "Fallout 4 Mod Assistant".
+            "Mossy's Blender Add-On".
 
         HOW TO INSTALL — Blender 3.6 and 4.0-4.1 (legacy add-on format)
         ------------------------------------------------------------------
@@ -202,14 +202,14 @@ def build_nexus_bundle(outdir: Path, addon_version: str,
         2.  Go to Edit → Preferences → Add-ons → Install.
         3.  Select the matching zip from this bundle.
         4.  Enable the add-on by checking the checkbox next to
-            "Fallout 4 Mod Assistant".
+            "Mossy's Blender Add-On".
 
         ALTERNATIVE: Get Extensions (Blender 4.2+)
         -------------------------------------------
         If the add-on is listed on extensions.blender.org you can install it
         directly inside Blender without downloading anything manually:
         Edit → Preferences → Add-ons → Get Extensions → search
-        "Fallout 4 Mod Assistant" → Install.
+        "Mossy's Blender Add-On" → Install.
 
         SOURCE / UPDATES
         ----------------
@@ -283,7 +283,7 @@ def build_variant(root: Path, outdir: Path, addon_version: str,
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Build Fallout 4 Tutorial Helper add-on zips."
+        description="Build Mossy's Blender Add-On add-on zips."
     )
     parser.add_argument(
         "--version",
@@ -303,7 +303,7 @@ def main(argv=None):
     outdir.mkdir(parents=True, exist_ok=True)
 
     addon_version = _read_addon_version(root)
-    print(f"Building Fallout 4 Tutorial Helper  v{addon_version}")
+    print(f"Building Mossy's Blender Add-On  v{addon_version}")
     print(f"Output → {outdir}")
 
     # Show the git branch and commit so you can verify you're building the

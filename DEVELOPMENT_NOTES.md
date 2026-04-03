@@ -1,4 +1,4 @@
-# Development Notes — Fallout 4 Mod Assistant
+# Development Notes — Mossy's Blender Add-On
 
 ---
 
