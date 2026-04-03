@@ -513,7 +513,6 @@ class FO4_OT_ShowCredits(Operator):
         return {'FINISHED'}
 
     def invoke(self, context, event):
-        self.page = 0
         return context.window_manager.invoke_popup(self, width=480)
 
     def draw(self, context):
