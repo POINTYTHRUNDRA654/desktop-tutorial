@@ -486,8 +486,8 @@ _CREDITS_SECTIONS = [
         "Standard body reference mesh for armor/clothing creation in FO4.",
     ]),
     # Page 5 – Unity / UE tools & Python libs
-    ('INFO', "FO4 Outfit/Armor in Blender - Free Tools Guide (Nexus 17785)", [
-        "Author - https://www.nexusmods.com/fallout4/mods/17785",
+    ('INFO', "Creating Armor & Clothing with Blender (Nexus 17785)", [
+        "Vugluscris - https://www.nexusmods.com/fallout4/mods/17785",
         "Complete free-tools workflow: Blender + Outfit Studio + CBBE.",
         "Includes skeleton fo4.blend, FBX import/export settings,",
         "UV seam edge-split fix, weight transfer, and NIF export steps.",
@@ -552,7 +552,7 @@ _CREDITS_SECTIONS = [
     ]),
 ]
 
-_CREDITS_PAGE_SIZE = 2
+_CREDITS_PAGE_SIZE = 4
 
 
 class FO4_OT_CreditsNav(Operator):
