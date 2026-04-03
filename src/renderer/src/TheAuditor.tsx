@@ -71,10 +71,10 @@ const TheAuditor: React.FC = () => {
     // Helper function to read file as ArrayBuffer
     const readFileAsArrayBuffer = async (filePath: string): Promise<ArrayBuffer> => {
         const bridge = (window as any).electron?.api || (window as any).electronAPI;
-        if (bridge?.readFile) {
-            const result = await bridge.readFile(filePath);
-            if (result.success) {
-                // Convert base64 to ArrayBuffer
+        if (bridge?.readBinaryFile) {
+            const result = await bridge.readBinaryFile(filePath);
+            if (result.success && result.data) {
+                // Decode base64 → ArrayBuffer
                 const binaryString = atob(result.data);
                 const bytes = new Uint8Array(binaryString.length);
                 for (let i = 0; i < binaryString.length; i++) {
@@ -82,8 +82,9 @@ const TheAuditor: React.FC = () => {
                 }
                 return bytes.buffer;
             }
+            throw new Error(result.error ?? 'Failed to read file as binary data');
         }
-        throw new Error('Could not read file');
+        throw new Error('readBinaryFile bridge not available');
     };
 
     const openUrl = (url: string) => {

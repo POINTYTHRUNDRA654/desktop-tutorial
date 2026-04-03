@@ -70,6 +70,7 @@ export const IPC_CHANNELS = {
 
   // Auditor ESP Analysis
   AUDITOR_ANALYZE_ESP: 'auditor-analyze-esp',
+  AUDITOR_READ_BINARY_FILE: 'auditor-read-binary-file',
   AUDITOR_PICK_ESP_FILE: 'auditor-pick-esp-file',
   AUDITOR_PICK_NIF_FILE: 'auditor-pick-nif-file',
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
@@ -454,6 +455,8 @@ export interface ElectronAPI {
   fomodExportPackage: (outputPath: string, structure: any, files: any[]) => Promise<{ success: boolean; path?: string; error?: string }>;
   // Auditor
   analyzeEsp: (filePath: string) => Promise<{ success: boolean; fileSize?: number; recordCount?: number; issues?: any[]; error?: string }>;
+  /** Read any mod asset file as binary — returns base64-encoded bytes for the renderer worker */
+  readBinaryFile: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
   pickEspFile: () => Promise<string>;
   pickNifFile: () => Promise<string[]>;
   pickDdsFile: () => Promise<string[]>;
