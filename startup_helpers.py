@@ -477,7 +477,10 @@ def deferred_startup():
         # After all checks complete, trigger a VIEW_3D redraw so panels refresh.
         def _redraw_after_ai_checks():
             try:
-                for _win in bpy.context.window_manager.windows:
+                wm = getattr(bpy.context, "window_manager", None)
+                if wm is None:
+                    return
+                for _win in wm.windows:
                     for _area in _win.screen.areas:
                         if _area.type == 'VIEW_3D':
                             _area.tag_redraw()

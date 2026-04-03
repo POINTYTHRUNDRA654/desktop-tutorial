@@ -506,7 +506,10 @@ def _tag_redraw_all_view3d() -> None:
     def _redraw():
         try:
             import bpy as _bpy
-            for _win in _bpy.context.window_manager.windows:
+            wm = getattr(_bpy.context, "window_manager", None)
+            if wm is None:
+                return
+            for _win in wm.windows:
                 for _area in _win.screen.areas:
                     if _area.type == 'VIEW_3D':
                         _area.tag_redraw()
