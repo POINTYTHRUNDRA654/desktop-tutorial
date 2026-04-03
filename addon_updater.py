@@ -1,5 +1,5 @@
 """
-GitHub update checker for the Mossy's Blender Add-On add-on.
+GitHub update checker for the Mossy Fallout 4 Blender Add-on add-on.
 
 Operators
 ---------

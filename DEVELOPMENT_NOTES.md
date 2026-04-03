@@ -1,4 +1,4 @@
-# Development Notes — Mossy's Blender Add-On
+# Development Notes — Mossy Fallout 4 Blender Add-on
 
 ---
 

@@ -2,14 +2,14 @@
 """
 build_addon.py
 ==============
-Cross-platform build script for the Mossy's Blender Add-On add-on.
+Cross-platform build script for the Mossy Fallout 4 Blender Add-on add-on.
 
 Produces one zip per supported Blender version range:
 
-  mossys-blender-addon-v{ADDON_VER}-blender3x.zip   Blender 3.6 LTS
-  mossys-blender-addon-v{ADDON_VER}-blender4x.zip   Blender 4.0–4.1
-  mossys-blender-addon-v{ADDON_VER}-blender42.zip   Blender 4.2+ (Extensions)
-  mossys-blender-addon-v{ADDON_VER}-blender5x.zip   Blender 5.x
+  mossy-fo4-blender-addon-v{ADDON_VER}-blender3x.zip   Blender 3.6 LTS
+  mossy-fo4-blender-addon-v{ADDON_VER}-blender4x.zip   Blender 4.0–4.1
+  mossy-fo4-blender-addon-v{ADDON_VER}-blender42.zip   Blender 4.2+ (Extensions)
+  mossy-fo4-blender-addon-v{ADDON_VER}-blender5x.zip   Blender 5.x
 
 Each zip contains a single folder  ``blender_game_tools/``  that Blender
 can install directly via Edit → Preferences → Add-ons → Install.
@@ -39,7 +39,7 @@ from pathlib import Path
 # Configuration
 # ---------------------------------------------------------------------------
 ADDON_FOLDER_NAME = "blender_game_tools"
-ZIP_FILE_PREFIX   = "mossys-blender-addon"
+ZIP_FILE_PREFIX   = "mossy-fo4-blender-addon"
 
 # Files and directories to EXCLUDE from every zip
 EXCLUDE = {
@@ -142,7 +142,7 @@ def _make_manifest(addon_version: str, blender_min: tuple,
 
         id = "blender_game_tools"
         version = "{addon_version}"
-        name = "Mossy's Blender Add-On"
+        name = "Mossy Fallout 4 Blender Add-on"
         tagline = "Professional Fallout 4 modding tools for Blender"
         maintainer = "Tutorial Team"
         type = "add-on"
@@ -175,17 +175,17 @@ def build_nexus_bundle(outdir: Path, addon_version: str,
     bundle_path.unlink(missing_ok=True)
 
     install_guide = textwrap.dedent(f"""\
-        Mossy's Blender Add-On  v{addon_version}  — Nexus Mods Bundle
+        Mossy Fallout 4 Blender Add-on  v{addon_version}  — Nexus Mods Bundle
         ===============================================================
 
         WHICH ZIP DO I INSTALL?
         -----------------------
         Pick the zip that matches your Blender version:
 
-          mossys-blender-addon-v{addon_version}-blender3x.zip  →  Blender 3.6 LTS
-          mossys-blender-addon-v{addon_version}-blender4x.zip  →  Blender 4.0 – 4.1
-          mossys-blender-addon-v{addon_version}-blender42.zip  →  Blender 4.2 – 4.9  (Extension format)
-          mossys-blender-addon-v{addon_version}-blender5x.zip  →  Blender 5.0+       (Extension format)
+          mossy-fo4-blender-addon-v{addon_version}-blender3x.zip  →  Blender 3.6 LTS
+          mossy-fo4-blender-addon-v{addon_version}-blender4x.zip  →  Blender 4.0 – 4.1
+          mossy-fo4-blender-addon-v{addon_version}-blender42.zip  →  Blender 4.2 – 4.9  (Extension format)
+          mossy-fo4-blender-addon-v{addon_version}-blender5x.zip  →  Blender 5.0+       (Extension format)
 
         HOW TO INSTALL — Blender 4.2 and 5.x (Extension format)
         ---------------------------------------------------------
@@ -195,7 +195,7 @@ def build_nexus_bundle(outdir: Path, addon_version: str,
             "Install from Disk…".
         4.  Select the matching zip from this bundle.
         5.  Enable the add-on by checking the checkbox next to
-            "Mossy's Blender Add-On".
+            "Mossy Fallout 4 Blender Add-on".
 
         HOW TO INSTALL — Blender 3.6 and 4.0-4.1 (legacy add-on format)
         ------------------------------------------------------------------
@@ -203,14 +203,14 @@ def build_nexus_bundle(outdir: Path, addon_version: str,
         2.  Go to Edit → Preferences → Add-ons → Install.
         3.  Select the matching zip from this bundle.
         4.  Enable the add-on by checking the checkbox next to
-            "Mossy's Blender Add-On".
+            "Mossy Fallout 4 Blender Add-on".
 
         ALTERNATIVE: Get Extensions (Blender 4.2+)
         -------------------------------------------
         If the add-on is listed on extensions.blender.org you can install it
         directly inside Blender without downloading anything manually:
         Edit → Preferences → Add-ons → Get Extensions → search
-        "Mossy's Blender Add-On" → Install.
+        "Mossy Fallout 4 Blender Add-on" → Install.
 
         SOURCE / UPDATES
         ----------------
@@ -284,7 +284,7 @@ def build_variant(root: Path, outdir: Path, addon_version: str,
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Build Mossy's Blender Add-On add-on zips."
+        description="Build Mossy Fallout 4 Blender Add-on add-on zips."
     )
     parser.add_argument(
         "--version",
@@ -304,7 +304,7 @@ def main(argv=None):
     outdir.mkdir(parents=True, exist_ok=True)
 
     addon_version = _read_addon_version(root)
-    print(f"Building Mossy's Blender Add-On  v{addon_version}")
+    print(f"Building Mossy Fallout 4 Blender Add-on  v{addon_version}")
     print(f"Output → {outdir}")
 
     # Show the git branch and commit so you can verify you're building the

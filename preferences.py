@@ -1,5 +1,5 @@
 """
-Addon preferences for Mossy's Blender Add-On.
+Addon preferences for Mossy Fallout 4 Blender Add-on.
 Provides a single path field for the Havok2FBX toolkit so users can point to an
 existing install instead of duplicating binaries.
 """

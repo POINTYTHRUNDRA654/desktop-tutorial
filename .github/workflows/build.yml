@@ -53,16 +53,16 @@ jobs:
       - name: Upload variant zips as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mossys-blender-addon-zips
-          path: dist/mossys-blender-addon-v*-blender*.zip
+          name: mossy-fo4-blender-addon-zips
+          path: dist/mossy-fo4-blender-addon-v*-blender*.zip
           if-no-files-found: error
           retention-days: 90
 
       - name: Upload Nexus bundle as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mossys-blender-addon-nexus-bundle
-          path: dist/mossys-blender-addon-v*-nexus-bundle.zip
+          name: mossy-fo4-blender-addon-nexus-bundle
+          path: dist/mossy-fo4-blender-addon-v*-nexus-bundle.zip
           if-no-files-found: error
           retention-days: 90
 
@@ -73,6 +73,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/mossys-blender-addon-v*-blender*.zip
-            dist/mossys-blender-addon-v*-nexus-bundle.zip
+            dist/mossy-fo4-blender-addon-v*-blender*.zip
+            dist/mossy-fo4-blender-addon-v*-nexus-bundle.zip
           generate_release_notes: true

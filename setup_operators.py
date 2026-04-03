@@ -1,5 +1,5 @@
 """
-Critical setup / environment operators for the Mossy's Blender Add-On.
+Critical setup / environment operators for the Mossy Fallout 4 Blender Add-on.
 
 These three operators are registered as a standalone module *before* the main
 operators.py bundle so they are always available in the UI (Setup & Status
