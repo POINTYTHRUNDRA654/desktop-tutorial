@@ -1206,3 +1206,87 @@ for the Credits button itself — a natural match for "featured/important" items
 
 - `tutorial_operators.py` — `_CREDITS_SECTIONS` (two `'STAR'` → `'FUND'` replacements)
 - `test_addon_integrity.py` — `TestNoInvalidIcons.REMOVED_ICONS` now includes `'STAR'`; `test_no_removed_icons_in_tutorial_operators` guards `tutorial_operators.py`
+
+
+## ⚠️ RECURRING BUG #18 — Extension policy violations from UE4 importer (fo4_blender_ue4_importer, uasset, umat, umesh, umap, register_helper, sys.path)
+
+### Symptom
+
+After packaging the add-on as a Blender 4.2+/5.x extension (.zip) and installing
+via "Install from Disk", Blender's Preferences → Add-ons panel shows a warning
+triangle with multiple "Policy violation" messages:
+
+```
+Policy violation with top level module: fo4_blender_ue4_importer
+Policy violation with top level module: uasset
+Policy violation with top level module: register_helper
+Policy violation with top level module: umat
+Policy violation with top level module: umesh
+Policy violation with top level module: umap
+Policy violation with sys.path: .\tools\Blender-UE4-Importer
+```
+
+### Root cause
+
+`ue_importer_helpers._load_module()` used to call:
+
+```python
+spec = importlib.util.spec_from_file_location("fo4_blender_ue4_importer", ...)
+sys.modules["fo4_blender_ue4_importer"] = module
+spec.loader.exec_module(module)
+```
+
+Blender's Extension policy checker (introduced in 4.2) forbids extensions from:
+1. Registering **bare top-level names** in `sys.modules` (must be namespaced under
+   the extension's own package, e.g. `bl_ext.user_default.blender_game_tools.*`).
+2. **Mutating `sys.path`** to add directories outside the extension folder.
+
+The upstream Blender-UE4-Importer add-on does both: it inserts its own folder into
+`sys.path` and imports `uasset`, `umat`, `umesh`, `umap`, `register_helper` as bare
+top-level module names.  Our old loader made it worse by also registering
+`fo4_blender_ue4_importer` as a bare name.
+
+### Fix (applied to `ue_importer_helpers.py`)
+
+Three changes inside `_load_module()`:
+
+**A – Namespaced module key**
+Derive the key from `__name__` so it inherits the extension's package namespace:
+```python
+_pkg = __name__.rsplit(".", 1)[0]  # e.g. "bl_ext.user_default.blender_game_tools"
+_module_key = f"{_pkg}.fo4_blender_ue4_importer"
+sys.modules[_module_key] = module
+```
+
+**B – Restore `sys.path`**
+Snapshot `sys.path` before `exec_module()` and remove any new entry that resolves
+to `IMPORTER_DIR` afterwards:
+```python
+_path_before = list(sys.path)
+...
+sys.path[:] = [p for p in sys.path
+               if p in _path_before or os.path.realpath(p) != _importer_real]
+```
+
+**C – Relocate bare sub-modules**
+After `exec_module()`, find every new bare (non-dotted) key in `sys.modules` whose
+`__file__` is inside `IMPORTER_DIR` and move it to `{_module_key}.{name}`:
+```python
+for key in _new_keys:
+    if "." in key: continue
+    if _importer_dir_str in getattr(sys.modules[key], "__file__", ""):
+        sys.modules[f"{_module_key}.{key}"] = sys.modules.pop(key)
+```
+
+`unregister()` also received a matching cleanup loop that purges the namespaced
+entries from `sys.modules` when the add-on unloads.
+
+### Tests
+
+`TestUEImporterPolicyCompliance` in `test_addon_integrity.py` (Section S) —
+seven source-level tests guard all three fixes.
+
+### Key files
+
+- `ue_importer_helpers.py` — `_load_module()` (namespaced key, sys.path cleanup, sub-module relocation); `unregister()` (cleanup loop)
+- `test_addon_integrity.py` — `TestUEImporterPolicyCompliance` (Section S)

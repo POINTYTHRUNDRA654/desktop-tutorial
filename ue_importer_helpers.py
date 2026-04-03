@@ -7,6 +7,7 @@ so our add-on can expose its operators without forcing users to install a second
 from __future__ import annotations
 
 import importlib.util
+import os
 import shutil
 import sys
 import tempfile
@@ -27,21 +28,75 @@ _state: dict[str, object | None] = {
 
 
 def _load_module():
-    """Load the upstream importer module from its __init__.py."""
+    """Load the upstream importer module from its __init__.py.
+
+    Blender's Extension policy checker (4.2+) forbids:
+      1. Registering bare (non-namespaced) top-level names in sys.modules
+      2. Injecting paths into sys.path that point outside the extension
+    The upstream Blender-UE4-Importer add-on does both.  We fix this by:
+      a. Registering the module under a namespaced key derived from our own
+         package name (e.g. bl_ext.user_default.blender_game_tools.fo4_blender_ue4_importer).
+      b. Snapshotting sys.path/sys.modules before exec_module() and then:
+         - Removing any new sys.path entry pointing into IMPORTER_DIR.
+         - Moving any bare sub-module names the importer registered (uasset,
+           umat, umesh, umap, register_helper …) to namespaced keys so Blender
+           no longer reports policy violations.  The already-loaded code keeps
+           working because it holds direct references to the module objects.
+    """
 
     if not IMPORTER_INIT.exists():
         _state["status"] = "missing"
         _state["error"] = f"Missing importer at {IMPORTER_DIR}"
         return False, _state["error"]
 
+    # Build a namespaced module key.
+    # Inside Blender's Extension system __name__ is something like
+    # "bl_ext.user_default.blender_game_tools.ue_importer_helpers".
+    # Outside Blender (pytest) it is just "ue_importer_helpers".
+    if "." in __name__:
+        _pkg = __name__.rsplit(".", 1)[0]
+    else:
+        _pkg = ADDON_ROOT.name  # fallback: "blender_game_tools"
+    _module_key = f"{_pkg}.fo4_blender_ue4_importer"
+
     try:
-        spec = importlib.util.spec_from_file_location("fo4_blender_ue4_importer", str(IMPORTER_INIT))
+        spec = importlib.util.spec_from_file_location(_module_key, str(IMPORTER_INIT))
         if not spec or not spec.loader:
             raise ImportError("Unable to create spec for Blender-UE4-Importer")
 
         module = importlib.util.module_from_spec(spec)
-        sys.modules["fo4_blender_ue4_importer"] = module
+
+        # Snapshot state before executing so we can undo policy-violating side-effects
+        _path_before = list(sys.path)
+        _mods_before = set(sys.modules.keys())
+
+        sys.modules[_module_key] = module
         spec.loader.exec_module(module)
+
+        # ── 1. Restore sys.path ──────────────────────────────────────────────
+        # Remove any entries the importer injected that point into IMPORTER_DIR.
+        _importer_real = str(IMPORTER_DIR.resolve())
+        sys.path[:] = [
+            p for p in sys.path
+            if p in _path_before or os.path.realpath(p) != _importer_real
+        ]
+
+        # ── 2. Relocate bare top-level sub-module names ──────────────────────
+        # The upstream importer may have imported uasset, umat, umesh, umap,
+        # register_helper etc. as bare names.  Move them under our namespaced
+        # prefix so Blender's policy checker no longer flags them.
+        _new_keys = set(sys.modules.keys()) - _mods_before - {_module_key}
+        _importer_dir_str = str(IMPORTER_DIR)
+        for key in list(_new_keys):
+            if "." in key:
+                continue  # already namespaced – leave as-is
+            mod_obj = sys.modules.get(key)
+            if mod_obj is None:
+                continue
+            mod_file = getattr(mod_obj, "__file__", None) or ""
+            if _importer_dir_str in mod_file:
+                sys.modules[f"{_module_key}.{key}"] = mod_obj
+                del sys.modules[key]
 
         _state["module"] = module
         _state["status"] = "loaded"
@@ -151,6 +206,13 @@ def unregister():
         # Silence unload issues; Blender is shutting down
         pass
     finally:
+        # Remove all sys.modules entries that belong to this importer
+        # (both the root namespaced key and any sub-module keys).
+        mod_name = getattr(module, "__name__", None) if module else None
+        if mod_name:
+            prefix = mod_name + "."
+            for key in [k for k in list(sys.modules) if k == mod_name or k.startswith(prefix)]:
+                sys.modules.pop(key, None)
         _state["module"] = None
         _state["status"] = "uninitialized"
         _state["error"] = None
