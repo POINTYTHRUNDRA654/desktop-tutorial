@@ -1882,6 +1882,107 @@ class TestPipInstallRobustness(unittest.TestCase):
             "secondary backward-compat fallback only.",
         )
 
+    def test_ml_lib_dir_constant_defined(self):
+        """_ML_LIB_DIR must be defined as a separate directory for heavy ML packages.
+
+        scipy and open3d are installed to _ML_LIB_DIR (addon/lib/ml/) rather
+        than _PIP_LIB_DIR (addon/lib/).  _PIP_LIB_DIR is added to sys.path at
+        startup; keeping scipy/open3d out of it prevents Blender 5's extension
+        policy checker from flagging their many compiled submodules as
+        "Policy violation with top level module".
+        """
+        source = _read("tool_installers.py")
+        self.assertIn(
+            "_ML_LIB_DIR",
+            source,
+            "_ML_LIB_DIR constant must be defined in tool_installers.py.  "
+            "It holds heavy ML packages (scipy, open3d) that must NOT be in "
+            "_PIP_LIB_DIR because their compiled submodules cause Blender 5 "
+            "extension policy violations when lib/ is on sys.path at startup.",
+        )
+
+    def test_install_rignet_uses_ml_lib_dir(self):
+        """install_rignet() must install scipy/open3d to _ML_LIB_DIR, not _PIP_LIB_DIR.
+
+        Installs to _PIP_LIB_DIR would expose scipy submodules via the startup
+        sys.path, triggering Blender 5 policy violations for every compiled
+        scipy extension.  By routing these packages to _ML_LIB_DIR they are
+        only added to sys.path lazily (via _ensure_ml_on_path()) when
+        RigNet functionality is actually invoked.
+        """
+        source = _read("tool_installers.py")
+        import re
+        m = re.search(
+            r"def install_rignet\b.*?(?=\ndef |\Z)",
+            source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(m, "install_rignet not found in tool_installers.py")
+        body = m.group(0)
+        self.assertIn(
+            "_ML_LIB_DIR",
+            body,
+            "install_rignet() must pass target_dir=_ML_LIB_DIR to _pip_install() "
+            "so that scipy and open3d land in lib/ml/ rather than lib/.  "
+            "Without this, scipy submodules are exposed on sys.path at startup "
+            "and Blender 5 flags them as policy violations.",
+        )
+
+    def test_ensure_ml_on_path_defined(self):
+        """_ensure_ml_on_path() must exist in tool_installers.py."""
+        source = _read("tool_installers.py")
+        self.assertIn(
+            "def _ensure_ml_on_path",
+            source,
+            "_ensure_ml_on_path() must be defined in tool_installers.py.  "
+            "It lazily adds _ML_LIB_DIR to sys.path right before ML packages "
+            "(scipy, open3d) are imported, so they are never exposed at startup.",
+        )
+
+    def test_migrate_ml_packages_defined(self):
+        """_migrate_ml_packages() must exist in tool_installers.py."""
+        source = _read("tool_installers.py")
+        self.assertIn(
+            "def _migrate_ml_packages",
+            source,
+            "_migrate_ml_packages() must be defined in tool_installers.py.  "
+            "It moves existing scipy/open3d installs from lib/ to lib/ml/ so "
+            "users who installed RigNet before this fix stop seeing policy "
+            "violation warnings on the next Blender restart.",
+        )
+
+    def test_register_calls_migrate_ml_packages(self):
+        """__init__.py register() must call _migrate_ml_packages() at startup."""
+        import re
+        source = _read("__init__.py")
+        m = re.search(
+            r"^def register\(\).*?(?=^def unregister\b|\Z)",
+            source,
+            re.DOTALL | re.MULTILINE,
+        )
+        self.assertIsNotNone(m, "register() not found in __init__.py")
+        register_body = m.group(0)
+        self.assertIn(
+            "_migrate_ml_packages",
+            register_body,
+            "__init__.py register() must call tool_installers._migrate_ml_packages() "
+            "at startup to move any existing scipy/open3d files from lib/ to lib/ml/. "
+            "Without this, users who installed RigNet before this fix continue to "
+            "see Blender 5 policy violation warnings for scipy submodules.",
+        )
+
+    def test_rignet_helpers_calls_ensure_ml_on_path(self):
+        """rignet_helpers.py must call _ensure_ml_on_path() before importing scipy."""
+        source = _read("rignet_helpers.py")
+        self.assertIn(
+            "_ensure_ml_on_path",
+            source,
+            "rignet_helpers.py must call tool_installers._ensure_ml_on_path() "
+            "before 'from scipy...' so that lib/ml/ is on sys.path at the "
+            "point of import.  Without this, scipy is not found when RigNet "
+            "is used after the ML lib dir change.",
+        )
+
 
 
 # ---------------------------------------------------------------------------

@@ -485,25 +485,69 @@ def invalidate_dep_cache(*module_names: str) -> None:
 # noticeable lag when sub-panels are open.  Each cache holds the last result
 # and a timestamp; if the result is fresher than _STATUS_CACHE_TTL seconds it
 # is returned immediately without re-running the probe.
+#
+# Non-blocking refresh pattern: when the cache is stale the *current* (stale)
+# value is returned immediately so the draw() call never waits.  A daemon
+# background thread is started to refresh the cache, and once it finishes it
+# schedules a tag_redraw() via bpy.app.timers so panels update automatically.
 # ──────────────────────────────────────────────────────────────────────────
 _STATUS_CACHE_TTL = 10.0   # seconds between expensive re-checks
 
 _rignet_status_cache: dict = {"ts": 0.0, "rignet": (False, ""), "libigl": (False, "")}
 _tool_status_cache: dict = {"ts": 0.0, "status": {}}
 
+# Guards to prevent spawning multiple concurrent refresh threads.
+_rignet_refresh_pending: bool = False
+_tool_refresh_pending: bool = False
+
+
+def _tag_redraw_all_view3d() -> None:
+    """Schedule a VIEW_3D redraw on the main thread via bpy.app.timers."""
+    def _redraw():
+        try:
+            import bpy as _bpy
+            wm = getattr(_bpy.context, "window_manager", None)
+            if wm is None:
+                return
+            for _win in wm.windows:
+                for _area in _win.screen.areas:
+                    if _area.type == 'VIEW_3D':
+                        _area.tag_redraw()
+        except Exception:
+            pass
+    try:
+        import bpy as _bpy
+        _bpy.app.timers.register(_redraw, first_interval=0.0, persistent=False)
+    except Exception:
+        pass
+
 
 def _cached_rignet_status() -> tuple[tuple, tuple]:
-    """Return (rignet_result, libigl_result), refreshed at most every TTL seconds."""
-    global _rignet_status_cache
+    """Return (rignet_result, libigl_result), refreshed at most every TTL seconds.
+
+    The refresh is non-blocking: stale data is returned immediately while a
+    background thread updates the cache and triggers a redraw when done.
+    """
+    global _rignet_status_cache, _rignet_refresh_pending
     if _time.monotonic() - _rignet_status_cache["ts"] > _STATUS_CACHE_TTL:
-        try:
-            from . import rignet_helpers as _rh
-            rn = _rh.RigNetHelpers.check_rignet_available()
-            lg = _rh.RigNetHelpers.check_libigl_available()
-        except Exception:
-            rn = (False, "rignet_helpers unavailable")
-            lg = (False, "rignet_helpers unavailable")
-        _rignet_status_cache = {"ts": _time.monotonic(), "rignet": rn, "libigl": lg}
+        if not _rignet_refresh_pending:
+            _rignet_refresh_pending = True
+
+            def _refresh_rignet():
+                global _rignet_status_cache, _rignet_refresh_pending
+                try:
+                    from . import rignet_helpers as _rh
+                    rn = _rh.RigNetHelpers.check_rignet_available()
+                    lg = _rh.RigNetHelpers.check_libigl_available()
+                except Exception:
+                    rn = (False, "rignet_helpers unavailable")
+                    lg = (False, "rignet_helpers unavailable")
+                _rignet_status_cache = {"ts": _time.monotonic(), "rignet": rn, "libigl": lg}
+                _rignet_refresh_pending = False
+                _tag_redraw_all_view3d()
+
+            import threading as _thr
+            _thr.Thread(target=_refresh_rignet, daemon=True).start()
     return _rignet_status_cache["rignet"], _rignet_status_cache["libigl"]
 
 
@@ -513,15 +557,29 @@ def _invalidate_rignet_cache() -> None:
 
 
 def _cached_tool_status() -> dict:
-    """Return knowledge_helpers.tool_status(), refreshed at most every TTL seconds."""
-    global _tool_status_cache
+    """Return knowledge_helpers.tool_status(), refreshed at most every TTL seconds.
+
+    The refresh is non-blocking: stale data is returned immediately while a
+    background thread updates the cache and triggers a redraw when done.
+    """
+    global _tool_status_cache, _tool_refresh_pending
     if _time.monotonic() - _tool_status_cache["ts"] > _STATUS_CACHE_TTL:
-        try:
-            from . import knowledge_helpers as _kh
-            status = _kh.tool_status()
-        except Exception:
-            status = {}
-        _tool_status_cache = {"ts": _time.monotonic(), "status": status}
+        if not _tool_refresh_pending:
+            _tool_refresh_pending = True
+
+            def _refresh_tools():
+                global _tool_status_cache, _tool_refresh_pending
+                try:
+                    from . import knowledge_helpers as _kh
+                    status = _kh.tool_status()
+                except Exception:
+                    status = {}
+                _tool_status_cache = {"ts": _time.monotonic(), "status": status}
+                _tool_refresh_pending = False
+                _tag_redraw_all_view3d()
+
+            import threading as _thr
+            _thr.Thread(target=_refresh_tools, daemon=True).start()
     return _tool_status_cache["status"]
 
 hunyuan3d_helpers = _safe_import("hunyuan3d_helpers")

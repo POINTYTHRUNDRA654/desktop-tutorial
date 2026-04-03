@@ -28,6 +28,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from . import tool_installers as _ti
+except ImportError:
+    _ti = None  # type: ignore[assignment]
+
 class RigNetHelpers:
     """Helper functions for RigNet automatic rigging integration"""
 
@@ -896,6 +901,8 @@ For more details:
             # --- Compute BBW ---
             # igl.bbw expects: V (n×3), F (m×3), b (k,) boundary vertex indices, bc (k×p) boundary conditions
             # We snap each handle to the nearest mesh vertex to form boundary conditions.
+            if _ti is not None:
+                _ti._ensure_ml_on_path()
             from scipy.spatial import cKDTree
             tree = cKDTree(verts)
             _, boundary_indices = tree.query(handle_pts)
