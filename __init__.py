@@ -317,6 +317,18 @@ def register():
             "  Try clicking 'Install Core Dependencies' again to work around this."
         )
 
+    # ── Step 0a: migrate ML packages from lib/ to lib/ml/ ────────────────────
+    # scipy and open3d installed before this fix landed in lib/ directly, which
+    # causes Blender 5's extension policy checker to flag every scipy submodule
+    # as a "Policy violation" on startup.  _migrate_ml_packages() reads each
+    # package's pip RECORD file and moves all associated files from lib/ to
+    # lib/ml/ so they are no longer visible to the startup sys.path scan.
+    try:
+        if tool_installers and hasattr(tool_installers, "_migrate_ml_packages"):
+            tool_installers._migrate_ml_packages()
+    except Exception as _e:
+        print(f"⚠ Could not migrate ML packages to lib/ml/: {_e}")
+
     # ── Step 0b: purge stale sys.modules entries from a prior addon namespace ─
     # When the addon transitions between naming conventions (e.g. legacy
     # 'blender_game_tools' ↔ extension 'bl_ext.blender_org.blender_game_tools'),
