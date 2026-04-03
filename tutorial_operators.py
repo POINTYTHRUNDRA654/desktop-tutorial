@@ -336,6 +336,14 @@ class FO4_OT_ShowCredits(Operator):
             "NVIDIA Research - https://github.com/NVlabs/instant-ngp",
             "Real-time NeRF reconstruction from photos",
         ])
+        _section('MESH_DATA', "DreamGaussian (image / text-to-3D)", [
+            "dreamgaussian - https://github.com/dreamgaussian/dreamgaussian",
+            "Generative Gaussian splatting for efficient 3D content creation",
+        ])
+        _section('IMAGE_DATA', "StyleGAN2 (AI texture / image generation)", [
+            "NVIDIA Research - https://github.com/NVlabs/stylegan2",
+            "GAN-based texture and image synthesis for game assets",
+        ])
         _section('ARMATURE_DATA', "RigNet (auto-rigging)", [
             "Zhan Xu et al. - https://github.com/zhan-xu/RigNet",
             "Automatic skeleton prediction for 3D meshes",
@@ -343,6 +351,19 @@ class FO4_OT_ShowCredits(Operator):
         _section('ANIM_DATA', "HY-Motion-1.0 (motion generation)", [
             "Tencent Hunyuan - https://github.com/Tencent-Hunyuan/HY-Motion-1.0",
             "AI-powered human motion sequence generation",
+        ])
+        _section('ANIM_DATA', "MotionDiffuse (text-driven motion generation)", [
+            "MotrixLab - https://github.com/MotrixLab/MotionDiffuse",
+            "Text-driven human motion with diffusion models",
+            "SMPL-X extension: https://github.com/ellemcfarlane/MotionDiffuse",
+        ])
+        _section('ARMATURE_DATA', "MediaPipe (motion tracking / pose estimation)", [
+            "Google - https://github.com/google/mediapipe",
+            "Real-time hand, face, and body pose tracking for motion capture",
+        ])
+        _section('ARMATURE_DATA', "BlendArMocap (Blender motion capture add-on)", [
+            "cgtinker - https://github.com/cgtinker/BlendArMocap",
+            "Blender add-on for real-time MediaPipe motion capture retargeting",
         ])
         _section('IMAGE_RGB', "ZoeDepth (depth estimation)", [
             "Intel ISL - https://github.com/isl-org/ZoeDepth",
@@ -361,6 +382,16 @@ class FO4_OT_ShowCredits(Operator):
             "Shiagur - https://www.nexusmods.com/fallout4/mods/82537",
             "Blender rig for 1st and 3rd person weapon, pose, and interaction",
             "animations. Includes IK/FK, skeletons, Havok settings, and guide.",
+        ])
+        _section('EXPORT', "ck-cmd  \u2605  PRIMARY FBX \u2192 HKX CONVERTER", [
+            "aerisarn - https://github.com/aerisarn/ck-cmd",
+            "Open-source FBX \u2192 HKX converter (no commercial SDK required).",
+            "Recommended replacement for Havok2FBX in the FO4 animation pipeline.",
+        ])
+        _section('EXPORT', "havok2fbx (Havok \u2194 FBX fallback converter)", [
+            "dfm - https://github.com/dfm/havok2fbx",
+            "Converts Havok HKX/HKT files to/from FBX. Fallback when ck-cmd",
+            "is unavailable. Requires Havok SDK 2014-1-0 + Autodesk FBX SDK to build.",
         ])
         _section('EXPORT', "FBXImporter (FBX \u2192 HKT conversion)", [
             "andrelo1 - https://www.nexusmods.com/fallout4/mods/59849",
@@ -426,6 +457,64 @@ class FO4_OT_ShowCredits(Operator):
             "Complete free-tools workflow: Blender + Outfit Studio + CBBE.",
             "Includes skeleton fo4.blend, FBX import/export settings,",
             "UV seam edge-split fix, weight transfer, and NIF export steps.",
+        ])
+        _section('IMPORT', "AssetRipper (Unity asset extraction)", [
+            "AssetRipper Team - https://github.com/AssetRipper/AssetRipper",
+            "Extracts assets (meshes, textures, audio) from Unity .assets files",
+            "and AssetBundle files for use in modding pipelines.",
+        ])
+        _section('IMPORT', "AssetStudio (Unity asset viewer & extractor)", [
+            "Perfare - https://github.com/Perfare/AssetStudio",
+            "GUI tool for browsing and exporting Unity game assets",
+        ])
+        _section('PLUGIN', "umodel_tools (UModel Blender integration)", [
+            "skarndev - https://github.com/skarndev/umodel_tools",
+            "Blender add-on companion for UModel; imports UE assets directly",
+            "into Blender scenes. Must be installed as a separate add-on",
+        ])
+        _section('PLUGIN', "TexTools for Blender (UV & texture tools)", [
+            "SavMartin - https://github.com/SavMartin/TexTools-Blender",
+            "Comprehensive UV mapping and texture baking tools for Blender",
+        ])
+        _section('PLUGIN', "UnityFBX-To-Blender-Importer", [
+            "Varneon - https://github.com/Varneon/UnityFBX-To-Blender-Importer",
+            "Imports Unity-exported FBX files into Blender with correct settings",
+        ])
+        _section('PLUGIN', "Blender-UE4-Importer", [
+            "Waffle1434 - https://github.com/Waffle1434/Blender-UE4-Importer",
+            "Imports Unreal Engine 4 assets (meshes, materials) into Blender",
+        ])
+        _section('STAR', "ComfyUI-BlenderAI-node  \u2605  RECOMMENDED AI WORKFLOW", [
+            "AIGODLIKE - https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node",
+            "Integrates ComfyUI AI nodes directly into the Blender interface.",
+            "Enables Stable Diffusion, ControlNet, and other AI workflows in Blender.",
+        ])
+        _section('ANIM_DATA', "ComfyUI-MotionDiff (motion diffusion in ComfyUI)", [
+            "Fannovel16 - https://github.com/Fannovel16/ComfyUI-MotionDiff",
+            "ComfyUI nodes for MDM, MotionGPT, MotionDiffuse, and related models.",
+        ])
+        _section('ANIM_DATA', "comfyui_controlnet_aux (ControlNet preprocessors)", [
+            "Fannovel16 - https://github.com/Fannovel16/comfyui_controlnet_aux",
+            "ControlNet auxiliary preprocessors (pose, depth, canny, etc.)",
+            "for ComfyUI image generation pipelines.",
+        ])
+        _section('MESH_DATA', "libigl (geometry processing library)", [
+            "libigl Team - https://github.com/libigl/libigl",
+            "C++ library for geometry processing algorithms",
+            "Python bindings: https://github.com/libigl/libigl-python-bindings",
+        ])
+        _section('MESH_DATA', "BBW (Bounded Biharmonic Weights for skinning)", [
+            "azer89 - https://github.com/azer89/BBW",
+            "shanmukhabharat - https://github.com/shanmukhabharat/BBW",
+            "Automatic skin weight computation based on bounded biharmonic weights",
+        ])
+        _section('SCRIPT', "trimesh (Python 3D mesh library)", [
+            "mikedh - https://github.com/mikedh/trimesh",
+            "Pure Python library for loading, processing, and analyzing 3D meshes",
+        ])
+        _section('SCRIPT', "pypdf (Python PDF library)", [
+            "py-pdf Team - https://github.com/py-pdf/pypdf",
+            "Pure Python library for reading, writing, and merging PDF files",
         ])
         layout.separator()
         layout.label(text="All trademarks belong to their respective owners.", icon='INFO')
