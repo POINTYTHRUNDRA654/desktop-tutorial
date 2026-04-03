@@ -43,6 +43,7 @@ interface InstalledProgram {
 const IPC_CHANNELS = {
   DETECT_PROGRAMS: 'detect-programs',
   OPEN_PROGRAM: 'open-program',
+  LAUNCH_TOOL_WITH_FILE: 'launch-tool-with-file',
   OPEN_EXTERNAL: 'open-external',
   REVEAL_IN_FOLDER: 'reveal-in-folder',
   REVEAL_SETTINGS_FILE: 'reveal-settings-file',
