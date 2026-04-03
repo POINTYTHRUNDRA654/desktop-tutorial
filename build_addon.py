@@ -46,7 +46,7 @@ EXCLUDE = {
     "build_temp", "build_addon.py", "build.ps1", "build.log",
     "*.zip", "*.pyc", "__pycache__",
     "README.md", "GIT_RECOVERY_GUIDE.md", "BUTTON_PATTERN_GUIDE.md",
-    "DEVELOPMENT_NOTES.md", "fix_git_remote.bat", "resolve_conflicts.bat",
+    "DEVELOPMENT_NOTES.md", "RELEASE_GUIDE.md", "fix_git_remote.bat", "resolve_conflicts.bat",
     ".DS_Store", "Thumbs.db",
     # The repo-root manifest is only used for direct-folder installation;
     # it is regenerated dynamically for each zip variant.
@@ -129,6 +129,9 @@ def _patch_blender_min(src: str, blender_min: tuple) -> str:
     )
 
 
+ADDON_WEBSITE = "https://github.com/POINTYTHRUNDRA654/Blender-add-on."
+
+
 def _make_manifest(addon_version: str, blender_min: tuple,
                    blender_max: tuple | None = None) -> str:
     """Generate a blender_manifest.toml for the Extension system."""
@@ -142,6 +145,7 @@ def _make_manifest(addon_version: str, blender_min: tuple,
         tagline = "Professional Fallout 4 modding tools for Blender"
         maintainer = "Tutorial Team"
         type = "add-on"
+        website = "{ADDON_WEBSITE}"
 
         blender_version_min = "{bmin}"
         """)
@@ -159,6 +163,67 @@ def _make_manifest(addon_version: str, blender_min: tuple,
         files = "Read / write FO4 data folder and export NIF files"
         """)
     return lines
+
+
+def build_nexus_bundle(outdir: Path, addon_version: str,
+                       variant_zips: list) -> Path:
+    """Create a single Nexus Mods bundle zip containing all variant zips
+    plus a plain-text install guide so users know which zip to pick."""
+    bundle_name = f"blender_game_tools-v{addon_version}-nexus-bundle.zip"
+    bundle_path = outdir / bundle_name
+    bundle_path.unlink(missing_ok=True)
+
+    install_guide = textwrap.dedent(f"""\
+        Fallout 4 Mod Assistant  v{addon_version}  — Nexus Mods Bundle
+        ===============================================================
+
+        WHICH ZIP DO I INSTALL?
+        -----------------------
+        Pick the zip that matches your Blender version:
+
+          blender_game_tools-v{addon_version}-blender3x.zip  →  Blender 3.6 LTS
+          blender_game_tools-v{addon_version}-blender4x.zip  →  Blender 4.0 – 4.1
+          blender_game_tools-v{addon_version}-blender42.zip  →  Blender 4.2 – 4.9  (Extension format)
+          blender_game_tools-v{addon_version}-blender5x.zip  →  Blender 5.0+       (Extension format)
+
+        HOW TO INSTALL — Blender 4.2 and 5.x (Extension format)
+        ---------------------------------------------------------
+        1.  Open Blender.
+        2.  Go to Edit → Preferences → Add-ons.
+        3.  Click the drop-down arrow next to "Install" and choose
+            "Install from Disk…".
+        4.  Select the matching zip from this bundle.
+        5.  Enable the add-on by checking the checkbox next to
+            "Fallout 4 Mod Assistant".
+
+        HOW TO INSTALL — Blender 3.6 and 4.0-4.1 (legacy add-on format)
+        ------------------------------------------------------------------
+        1.  Open Blender.
+        2.  Go to Edit → Preferences → Add-ons → Install.
+        3.  Select the matching zip from this bundle.
+        4.  Enable the add-on by checking the checkbox next to
+            "Fallout 4 Mod Assistant".
+
+        ALTERNATIVE: Get Extensions (Blender 4.2+)
+        -------------------------------------------
+        If the add-on is listed on extensions.blender.org you can install it
+        directly inside Blender without downloading anything manually:
+        Edit → Preferences → Add-ons → Get Extensions → search
+        "Fallout 4 Mod Assistant" → Install.
+
+        SOURCE / UPDATES
+        ----------------
+        {ADDON_WEBSITE}
+    """)
+
+    with zipfile.ZipFile(bundle_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("INSTALL_GUIDE.txt", install_guide)
+        for zp in variant_zips:
+            zf.write(zp, zp.name)
+
+    size_kb = bundle_path.stat().st_size // 1024
+    print(f"  ✓  {bundle_name}  ({size_kb} KB)  [Nexus bundle — all variants + install guide]")
+    return bundle_path
 
 
 def build_variant(root: Path, outdir: Path, addon_version: str,
@@ -271,6 +336,12 @@ def main(argv=None):
     built = []
     for key in keys:
         built.append(build_variant(root, outdir, addon_version, key, VARIANTS[key]))
+
+    # Build the Nexus bundle whenever all variants are requested
+    if args.version == "all":
+        print()
+        print("Building Nexus Mods bundle…")
+        build_nexus_bundle(outdir, addon_version, built)
 
     print()
     print(f"Done - {len(built)} zip(s) built.")

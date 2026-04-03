@@ -14,6 +14,7 @@ name        = "Fallout 4 Mod Assistant"
 tagline     = "Professional Fallout 4 modding tools for Blender 5"
 maintainer  = "Tutorial Team"
 type        = "add-on"
+website     = "https://github.com/POINTYTHRUNDRA654/Blender-add-on."
 
 blender_version_min = "5.0.0"
 
