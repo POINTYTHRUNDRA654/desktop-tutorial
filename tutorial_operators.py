@@ -501,26 +501,42 @@ _CREDITS_SECTIONS = [
 _CREDITS_PAGE_SIZE = 2
 
 
+class FO4_OT_CreditsNav(Operator):
+    """Navigate to the previous or next credits page"""
+    bl_idname = "fo4.credits_nav"
+    bl_label = "Navigate Credits"
+    bl_options = {'INTERNAL'}
+
+    delta: IntProperty(name="Delta", default=1)
+
+    def execute(self, context):
+        total = len(_CREDITS_SECTIONS)
+        num_pages = max(1, (total + _CREDITS_PAGE_SIZE - 1) // _CREDITS_PAGE_SIZE)
+        wm = context.window_manager
+        wm.fo4_credits_page = max(0, min(num_pages - 1, wm.fo4_credits_page + self.delta))
+        return {'FINISHED'}
+
+
 class FO4_OT_ShowCredits(Operator):
     """Show credits for all third-party tools used by this add-on"""
     bl_idname = "fo4.show_credits"
     bl_label = "Credits"
-    bl_options = {'REGISTER'}
-
-    page: IntProperty(name="Page", default=0, min=0)
+    bl_options = {'INTERNAL'}
 
     def execute(self, context):
         return {'FINISHED'}
 
     def invoke(self, context, event):
+        context.window_manager.fo4_credits_page = 0
         return context.window_manager.invoke_popup(self, width=480)
 
     def draw(self, context):
         layout = self.layout
+        wm = context.window_manager
 
         total = len(_CREDITS_SECTIONS)
         num_pages = max(1, (total + _CREDITS_PAGE_SIZE - 1) // _CREDITS_PAGE_SIZE)
-        page = max(0, min(self.page, num_pages - 1))
+        page = max(0, min(wm.fo4_credits_page, num_pages - 1))
 
         title_row = layout.row()
         title_row.label(text="Third-Party Tools & Credits", icon='FUND')
@@ -539,11 +555,11 @@ class FO4_OT_ShowCredits(Operator):
         layout.separator()
 
         nav_row = layout.row(align=True)
-        prev_op = nav_row.operator("fo4.show_credits", text="< Prev", icon='TRIA_LEFT')
-        prev_op.page = max(0, page - 1)
+        prev_op = nav_row.operator("fo4.credits_nav", text="< Prev", icon='TRIA_LEFT')
+        prev_op.delta = -1
         nav_row.label(text=f"Page {page + 1} / {num_pages}")
-        next_op = nav_row.operator("fo4.show_credits", text="Next >", icon='TRIA_RIGHT')
-        next_op.page = min(num_pages - 1, page + 1)
+        next_op = nav_row.operator("fo4.credits_nav", text="Next >", icon='TRIA_RIGHT')
+        next_op.delta = 1
 
         layout.separator()
         layout.label(text="All trademarks belong to their respective owners.", icon='INFO')
@@ -557,11 +573,15 @@ classes = (
     FO4_OT_ShowDetailedSetup,
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
+    FO4_OT_CreditsNav,
     FO4_OT_ShowCredits,
 )
 
 
 def register():
+    bpy.types.WindowManager.fo4_credits_page = IntProperty(
+        name="Credits Page", default=0, min=0
+    )
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
@@ -608,3 +628,5 @@ def unregister():
                     f"tutorial_operators: Could not unregister "
                     f"{cls.__name__}: {e2}"
                 )
+    if hasattr(bpy.types.WindowManager, "fo4_credits_page"):
+        del bpy.types.WindowManager.fo4_credits_page
