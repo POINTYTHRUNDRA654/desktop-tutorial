@@ -237,6 +237,10 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
 
   return (
     <div className="advanced-analysis-panel">
+      <div className="mb-3 p-3 bg-amber-900/20 border border-amber-700/40 text-amber-200 rounded text-sm flex items-center gap-2">
+        <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-400" />
+        <span>ℹ️ Demo/Prototype Feature: The Advanced Analysis Panel is a prototype demonstration of planned ML-assisted mod analysis capabilities.</span>
+      </div>
       <div className="panel-header">
         <div className="mb-2 p-2 bg-emerald-900/20 border border-emerald-700/40 text-emerald-200 rounded text-sm flex items-center gap-2">
           <Zap className="w-4 h-4 flex-shrink-0 text-emerald-400" />
