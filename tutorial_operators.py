@@ -306,7 +306,7 @@ _CREDITS_SECTIONS = [
         "NifTools Team - https://github.com/niftools/blender_nif_plugin",
         "Enables direct .nif export for Fallout 4 / Skyrim (Blender 3.6 LTS)",
     ]),
-    ('STAR', "PyNifly  \u2605  PRIMARY NIF EXPORTER", [
+    ('FUND', "PyNifly  \u2605  PRIMARY NIF EXPORTER", [
         "BadDog (BadDogSkyrim) - https://github.com/BadDogSkyrim/PyNifly",
         "The recommended NIF exporter for Blender 4.x and 5.x.",
         "Supports Fallout 4, Skyrim SE, and Starfield with full",
@@ -510,7 +510,7 @@ _CREDITS_SECTIONS = [
         "Waffle1434 - https://github.com/Waffle1434/Blender-UE4-Importer",
         "Imports Unreal Engine 4 assets (meshes, materials) into Blender",
     ]),
-    ('STAR', "ComfyUI-BlenderAI-node  \u2605  RECOMMENDED AI WORKFLOW", [
+    ('FUND', "ComfyUI-BlenderAI-node  \u2605  RECOMMENDED AI WORKFLOW", [
         "AIGODLIKE - https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node",
         "Integrates ComfyUI AI nodes directly into the Blender interface.",
         "Enables Stable Diffusion, ControlNet, and other AI workflows in Blender.",
@@ -544,7 +544,7 @@ _CREDITS_SECTIONS = [
     ]),
 ]
 
-_CREDITS_PAGE_SIZE = 2
+_CREDITS_PAGE_SIZE = 8
 
 
 class FO4_OT_ShowCredits(Operator):
@@ -568,10 +568,27 @@ class FO4_OT_ShowCredits(Operator):
         num_pages = max(1, (total + _CREDITS_PAGE_SIZE - 1) // _CREDITS_PAGE_SIZE)
         page = max(0, min(self.page, num_pages - 1))
 
+        # ── Title ──────────────────────────────────────────────────────────
         title_row = layout.row()
         title_row.label(text="Third-Party Tools & Credits", icon='FUND')
         layout.separator()
 
+        # ── Navigation at TOP so buttons are always visible ────────────────
+        nav_row = layout.row(align=True)
+        if page > 0:
+            prev_op = nav_row.operator("fo4.show_credits", text="< Prev", icon='TRIA_LEFT')
+            prev_op.page = page - 1
+        else:
+            nav_row.label(text="")
+        nav_row.label(text=f"Page {page + 1} / {num_pages}  ({total} tools total)")
+        if page < num_pages - 1:
+            next_op = nav_row.operator("fo4.show_credits", text="Next >", icon='TRIA_RIGHT')
+            next_op.page = page + 1
+        else:
+            nav_row.label(text="")
+        layout.separator()
+
+        # ── Credit entries for this page ────────────────────────────────────
         start = page * _CREDITS_PAGE_SIZE
         end = min(start + _CREDITS_PAGE_SIZE, total)
         for icon, heading, lines in _CREDITS_SECTIONS[start:end]:
@@ -581,21 +598,6 @@ class FO4_OT_ShowCredits(Operator):
             col.scale_y = 0.85
             for line in lines:
                 col.label(text=line)
-
-        layout.separator()
-
-        nav_row = layout.row(align=True)
-        if page > 0:
-            prev_op = nav_row.operator("fo4.show_credits", text="< Prev", icon='TRIA_LEFT')
-            prev_op.page = page - 1
-        else:
-            nav_row.label(text="")
-        nav_row.label(text=f"Page {page + 1} / {num_pages}")
-        if page < num_pages - 1:
-            next_op = nav_row.operator("fo4.show_credits", text="Next >", icon='TRIA_RIGHT')
-            next_op.page = page + 1
-        else:
-            nav_row.label(text="")
 
         layout.separator()
         layout.label(text="All trademarks belong to their respective owners.", icon='INFO')

@@ -494,6 +494,227 @@ All three operators now call `self.report({'WARNING'}, _instantngp_status_report
 
 ---
 
+## ⚠️ RECURRING BUG #7 — Knowledge base directory missing causes false-positive WARN
+
+### Symptoms
+
+Diagnostics shows a warning about the knowledge base even on a fresh install:
+
+```
+⚠ [Knowledge]  knowledge_base/ directory not found
+```
+
+Even though no custom snippets directory was configured and the Advisor AI still works.
+
+### Root Cause
+
+`knowledge_helpers._kb_root()` returned the default path `<addon_dir>/knowledge_base/` but
+did not create it if absent. `addon_diagnostics.py` check #12 then tested `os.path.isdir()`
+and emitted a WARN when the directory did not exist on disk.  An empty-but-absent directory
+is not an error — the Advisor still works without any snippets.
+
+### The Fix
+
+1. `knowledge_helpers._kb_root()` now calls `os.makedirs(default_path, exist_ok=True)` when
+   the default (non-custom) path is used, so the directory always exists after the first run.
+2. `knowledge_helpers.status()` returns `(True, "…no snippets loaded…")` for an
+   **empty-but-existing** directory instead of `(False, "empty")`.  No snippets is INFO, not
+   an error.
+3. A `knowledge_base/README.md` placeholder is shipped in the repo so the directory is never
+   absent on a fresh clone.
+4. `addon_diagnostics.py` check #12 mirrors `_kb_root()` by calling `os.makedirs` (gated on
+   `_kb_is_default`) before the `os.path.isdir` test.
+
+### Key Files
+
+- `knowledge_helpers.py` — `_kb_root()` auto-create; `status()` empty-dir true result
+- `addon_diagnostics.py` — check #12 pre-create guard
+- `knowledge_base/README.md` — bundled placeholder
+
+### Test
+
+`test_addon_integrity.py` — `TestKnowledgeBaseDirectoryBundled`,
+`TestKnowledgeBaseDiagnosticAutoCreate`
+
+---
+
+## ⚠️ RECURRING BUG #8 — Dual-install warning lists every sub-module (30+ entries)
+
+### Symptoms
+
+Diagnostics check #3 emits a warning that lists every sub-module key:
+
+```
+⚠ [Addon]  Dual install detected: ['bl_ext.blender_org.blender_game_tools.operators',
+   'bl_ext.blender_org.blender_game_tools.ui_panels', … 28 more …]
+```
+
+instead of just the foreign root package name.
+
+### Root Cause
+
+The check iterated `sys.modules` and collected **all** keys whose module object had a
+different `__file__` path.  Sub-modules share their root's `__file__` path so all 30+
+sub-module keys were included in the detail string.
+
+Additionally, same-directory installs (stale namespace, e.g. after a rename) were reported
+as genuine dual-install warnings instead of INFO-level stale-namespace notices.
+
+### The Fix
+
+1. Collect only **root keys** (keys ending with `"." + name_base`, i.e. the top-level
+   package entry) when building `foreign_roots`.  Sub-module keys are discarded.
+2. Compare `os.path` of each foreign root's `__file__` against the current addon's directory:
+   - **Same physical path** → stale namespace, same install → INFO (not a warning).
+   - **Different physical path** → genuine dual install → WARN.
+3. Auto-Fix Step 0 purges stale same-directory entries from `sys.modules`.
+4. `register()` Step 0b also proactively purges stale entries at every startup.
+
+### Key Files
+
+- `addon_diagnostics.py` — check #3 (`foreign_roots` extraction, `stale_roots` /
+  `genuine_roots` classification); Auto-Fix Step 0 purge; `register()` Step 0b purge
+- `__init__.py` — Step 0b purge in `register()`
+
+### Test
+
+`test_addon_integrity.py` — `TestDualInstallDetection`
+
+---
+
+## ⚠️ RECURRING BUG #9 — pip-installed packages (trimesh/pypdf) missing after restart
+
+### Symptoms
+
+After installing trimesh or pypdf via the Setup panel:
+
+```
+[MISSING]  trimesh
+[MISSING]  pypdf
+```
+
+The packages show as MISSING on the next Blender startup even though they were successfully
+installed.
+
+### Root Cause
+
+Blender's bundled Python omits the user site-packages directory from `sys.path` at boot.
+`pip install` without `--target` placed packages into user site-packages, which is never
+searched.
+
+Additionally, `_pip_install()` used `subprocess.check_call()` which swallowed output and
+did not update `sys.path` after installation, so even within the same session the packages
+could appear missing.
+
+### The Fix
+
+1. `_pip_install()` and `_pip_install_requirements()` now use `--target str(_PIP_LIB_DIR)`
+   where `_PIP_LIB_DIR = ADDON_ROOT / "lib"`.  Packages land in the addon's own `lib/`
+   folder, which Blender always loads.
+2. `_refresh_import_paths()` appends `_PIP_LIB_DIR` to `sys.path` and calls
+   `site.addsitedir()` on the user site as a backward-compat fallback.
+3. `register()` in `__init__.py` calls `_refresh_import_paths()` at the very top (Step 0,
+   before the module registration loop) so paths are restored every startup.
+4. `setup_operators._run()` calls `ui_panels.invalidate_dep_cache()` after a successful
+   install so the UI clears the stale MISSING status immediately.
+
+### Key Files
+
+- `tool_installers.py` — `_PIP_LIB_DIR`, `_ensure_pip_lib_dir()`, `_pip_install()`,
+  `_pip_install_requirements()`, `_refresh_import_paths()`
+- `__init__.py` — Step 0 `_refresh_import_paths()` call in `register()`
+- `ui_panels.py` — `invalidate_dep_cache()`
+- `setup_operators.py` — `invalidate_dep_cache()` call after successful install
+
+### Test
+
+`test_addon_integrity.py` — `TestPipInstallRobustness`
+
+---
+
+## ⚠️ RECURRING BUG #10 — libigl install fails silently (Blender Python has no dev headers)
+
+### Symptoms
+
+Clicking "Install libigl" appears to do something but libigl remains missing.  No clear
+error message is shown.  The underlying `pip install` fails because libigl requires a
+source build (C++ compilation) and Blender's bundled Python has no `Include/` headers.
+
+### Root Cause
+
+`install_libigl()` called `pip install igl` directly without checking for Python development
+headers first.  On Blender's Python (which ships without `Include/`), any source-build pip
+package silently fails.  The failure exit code from pip was not surfaced to the user.
+
+### The Fix
+
+`install_libigl()` now pre-checks `sysconfig.get_path("include")` before calling pip:
+
+```python
+inc_dir = sysconfig.get_path("include")
+if not (inc_dir and os.path.isdir(inc_dir)):
+    return False, ("Python dev headers not found. Blender's bundled Python cannot "
+                   "build C extensions. Install libigl manually or use a system Python.")
+```
+
+This guard surfaces a clear, actionable message instead of a silent failure.
+
+### Key Files
+
+- `tool_installers.py` — `install_libigl()` pre-flight header check (lines ~1369–1415)
+
+### Test
+
+`test_addon_integrity.py` — `TestInstallLibiglHeadersCheck`
+
+---
+
+## ⚠️ RECURRING BUG #11 — AI tool cache stale / pytorch_path not persisted in Diagnostics
+
+### Symptoms
+
+The Diagnostics panel shows AI tools as "unknown" or "not installed" even though they are
+installed.  After running Auto-Fix, the status refreshes but reverts to stale on next open.
+`prefs.pytorch_path` is empty in Diagnostics even though it was set via Mossy.
+
+### Root Cause
+
+The Diagnostics Auto-Fix had no steps to:
+1. Refresh AI tool status caches (each tool helper has its own cached status).
+2. Apply the saved `pytorch_path` from preferences to `sys.path`.
+
+Without these steps, Diagnostics showed stale cache values and did not benefit from the
+pytorch_path persistence fix (Bug #12).
+
+Additionally, Auto-Fix Step 5 was unconditionally refreshing ALL AI caches on every run,
+causing unnecessary slowdowns, and Step 0 was leaving ghost `sys.modules` entries for
+add-on sub-modules whose `__file__` no longer existed on disk.
+
+### The Fix
+
+1. Added diagnostic check #13 — AI tool stale cache detection.
+2. Added diagnostic check #14 — Mossy `pytorch_path` persistence check.
+3. Added Auto-Fix Step 5 — refresh all AI tool caches, **conditional** (only fires when
+   status is `None` or stale, not on every run).
+4. Added Auto-Fix Step 6 — apply saved `pytorch_path` to `sys.path`.
+5. Added Auto-Fix Step 7 — auto-create `knowledge_base/` directory if missing.
+6. Auto-Fix Step 0 now purges ghost `sys.modules` entries where `__file__` no longer exists.
+7. Diagnostic check #3 classifies ghost entries (same path, file gone) as stale, not genuine
+   dual-install warnings.
+
+### Key Files
+
+- `addon_diagnostics.py` — check #13 (AI cache), check #14 (pytorch_path pref),
+  Auto-Fix Steps 0 (ghost purge), 5 (conditional cache refresh), 6 (pytorch_path),
+  7 (knowledge_base mkdir)
+
+### Tests
+
+`test_addon_integrity.py` — `TestAutoFixStep5Conditional`, `TestAutoFixStep7KnowledgeBase`,
+`TestDualInstallGhostEntriesClassifiedAsStale`, `TestAutoFixStep0PurgesGhostEntries`
+
+---
+
 ## ⚠️ RECURRING BUG #12 — Mossy PyTorch path lost on Blender restart
 
 ### Symptoms
@@ -884,3 +1105,103 @@ covers both Windows (`.exe`) and Linux/Mac (no extension) executables.
    `test_addon_integrity.py`.
 4. Run `python3 -m unittest test_addon_integrity -v` — all tests must pass.
 5. Do NOT reorder existing entries in the modules list.
+
+
+---
+
+## ⚠️ RECURRING BUG #16 — Credits popup shows only 2 entries; nav buttons cut off
+
+### Symptoms
+
+Clicking the "Credits" button in the main panel opens a popup that shows only **2** entries
+out of 59 total tools.  The popup has no obvious way to see the remaining 57 entries.  In
+earlier versions the "Next >" nav button was present but rendered below the visible popup
+area and could not be clicked.
+
+### Root Cause
+
+`_CREDITS_PAGE_SIZE` was set to 2 (previously 4, then reduced to 2 to "fix" the cut-off
+nav button).  With 59 entries / 2 per page = **30 pages** of navigation.  Users see page
+1 of 30 and reasonably conclude only 2 tools are credited.
+
+The root issue with the cut-off nav button was that the navigation row was placed **at the
+bottom** of the popup.  When the popup content exceeded the screen height, Blender clipped
+the bottom rather than adding a scrollbar (version-dependent behaviour), so the nav buttons
+disappeared below the visible area.  Reducing the page size to 2 "fixed" the cut-off but
+made the content useless.
+
+### The Fix
+
+1. **`_CREDITS_PAGE_SIZE` raised to 8** — 59 entries / 8 per page = 8 pages, which is
+   navigable and shows meaningful content per page.
+2. **Navigation row moved to the TOP** of the popup, immediately below the title.  This
+   guarantees "< Prev" and "Next >" are always visible regardless of how tall the entry
+   boxes are or where Blender clips the popup bottom.
+3. Page indicator now shows total tool count: `"Page 1 / 8  (59 tools total)"` so users
+   know the full scope at a glance.
+
+### What NOT to Do
+
+- **Do NOT reduce `_CREDITS_PAGE_SIZE` to fix cut-off nav buttons.**  The correct fix is
+  to move the nav row to the top of the popup.
+- **Do NOT move the nav row back to the bottom.**  It will be clipped on smaller displays
+  or in Blender versions that do not scroll popup content.
+
+### Key Files
+
+- `tutorial_operators.py` — `_CREDITS_PAGE_SIZE = 8`; `FO4_OT_ShowCredits.draw()` nav row
+  at top
+
+---
+
+## ⚠️ RECURRING BUG #17 — Credits popup crashes: `enum "STAR" not found`
+
+### Symptoms
+
+Opening the Credits popup in Blender 5.0 immediately throws:
+
+```
+TypeError: UILayout.label(): error with keyword argument "icon" -
+enum "STAR" not found in (...)
+Python script error in FO4_OT_show_credits.draw
+```
+
+The popup fails to draw at all.
+
+### Root Cause
+
+`_CREDITS_SECTIONS` in `tutorial_operators.py` used `'STAR'` as the icon for two
+"primary/recommended" entries:
+
+```python
+('STAR', "PyNifly  ★  PRIMARY NIF EXPORTER", [...])
+('STAR', "ComfyUI-BlenderAI-node  ★  RECOMMENDED AI WORKFLOW", [...])
+```
+
+The `STAR` icon was removed from Blender's icon enum between Blender 4.x and 5.0.
+Any call to `layout.label(icon='STAR')` crashes the entire `draw()` method, making
+the popup completely unusable.
+
+### The Fix
+
+Replace both `'STAR'` occurrences with `'FUND'` (the heart/donate icon already used
+for the Credits button itself — a natural match for "featured/important" items):
+
+```python
+('FUND', "PyNifly  ★  PRIMARY NIF EXPORTER", [...])
+('FUND', "ComfyUI-BlenderAI-node  ★  RECOMMENDED AI WORKFLOW", [...])
+```
+
+### What NOT to Do
+
+- **Do NOT use `'STAR'`** — it does not exist in Blender 5.0.
+- **Always cross-check new icons** against Blender's actual enum before adding them.
+  The full valid enum is visible in the traceback when an invalid icon is used, or
+  by running `bpy.types.UILayout.bl_rna.properties['icon'].enum_items.keys()` in the
+  Blender Python console.
+- If adding new "featured" entries to `_CREDITS_SECTIONS`, use `'FUND'` or `'CHECKMARK'`
+  as the highlight icon — both are confirmed present in Blender 5.0.
+
+### Key Files
+
+- `tutorial_operators.py` — `_CREDITS_SECTIONS` (two `'STAR'` → `'FUND'` replacements)
