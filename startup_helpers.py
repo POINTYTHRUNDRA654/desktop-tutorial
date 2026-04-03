@@ -406,70 +406,91 @@ def deferred_startup():
     except Exception as e:
         print(f"⚠ Deferred setup-operator check failed: {e}")
 
-    # ── Step 6b: refresh AI-tool availability caches ─────────────────────────
+    # ── Step 6b: refresh AI-tool availability caches (background thread) ────────
     # hunyuan3d_helpers, hymotion_helpers, and zoedepth_helpers intentionally
     # skip their availability check during register() because torch_custom_path
     # has not yet been added to sys.path at that point.  Now that all paths are
-    # in place, run a lightweight re-check so the UI panels show correct status
-    # immediately after startup without the user having to click "Check Status".
-    # These calls are fast (filesystem checks only; no network, no model loads).
+    # in place, run a re-check so the UI panels show correct status after startup.
+    #
+    # IMPORTANT: These checks may call ``importlib.import_module("torch")`` on
+    # first use, which can take several seconds on slow machines or when CUDA
+    # drivers need to initialise.  Running them on the main thread would freeze
+    # Blender's UI at exactly the moment the user is clicking the Setup panel or
+    # install buttons.  We therefore run them in a daemon background thread and
+    # push a tag_redraw() back to the main thread via bpy.app.timers when done.
+    def _background_ai_checks():
+        """Run all AI-tool availability probes off the main thread."""
+        # Safety net: re-apply the Mossy-provided PyTorch path before checks run.
+        # mossy_link.register() calls _load_pytorch_path_from_prefs() synchronously,
+        # but get_preferences() can return None on some platforms / Blender builds
+        # during early registration (RECURRING BUG #13).  Calling it here (2 s after
+        # load, when preferences are fully initialised) ensures the path is definitely
+        # in sys.path before the availability checks below.
+        try:
+            from . import mossy_link as _ml_bg
+            _ml_bg._load_pytorch_path_from_prefs()
+        except Exception as _e:
+            print(f"Mossy PyTorch path re-apply skipped: {_e}")
 
-    # Safety net: re-apply the Mossy-provided PyTorch path before the tool
-    # caches below run.  mossy_link.register() calls _load_pytorch_path_from_prefs()
-    # synchronously, but get_preferences() can return None on some platforms /
-    # Blender builds during early registration (RECURRING BUG #13).  Calling it
-    # again here (2 s after load, when preferences are fully initialised) ensures
-    # the path is definitely in sys.path before the availability checks below.
-    try:
-        from . import mossy_link as _ml
-        _ml._load_pytorch_path_from_prefs()
-    except Exception as _e:
-        print(f"Mossy PyTorch path re-apply skipped: {_e}")
+        try:
+            from . import hunyuan3d_helpers as _h3d
+            if _h3d:
+                _h3d.check_hunyuan3d_availability()
+                if _h3d.HUNYUAN3D_AVAILABLE:
+                    print("✓ Hunyuan3D-2 is available")
+        except Exception as _e:
+            print(f"Hunyuan3D-2 deferred check skipped: {_e}")
 
-    try:
-        from . import hunyuan3d_helpers as _h3d
-        if _h3d:
-            _h3d.check_hunyuan3d_availability()
-            if _h3d.HUNYUAN3D_AVAILABLE:
-                print("✓ Hunyuan3D-2 is available")
-    except Exception as _e:
-        print(f"Hunyuan3D-2 deferred check skipped: {_e}")
+        try:
+            from . import hymotion_helpers as _hym
+            if _hym:
+                _hym.check_hymotion_availability()
+                if _hym.HYMOTION_AVAILABLE:
+                    print("✓ HY-Motion-1.0 is available")
+        except Exception as _e:
+            print(f"HY-Motion-1.0 deferred check skipped: {_e}")
 
-    try:
-        from . import hymotion_helpers as _hym
-        if _hym:
-            _hym.check_hymotion_availability()
-            if _hym.HYMOTION_AVAILABLE:
-                print("✓ HY-Motion-1.0 is available")
-    except Exception as _e:
-        print(f"HY-Motion-1.0 deferred check skipped: {_e}")
+        try:
+            from . import zoedepth_helpers as _zdh
+            if _zdh:
+                avail, msg = _zdh.check_zoedepth_availability()
+                if avail:
+                    print("✓ ZoeDepth is available")
+                else:
+                    print(f"  ZoeDepth not available: {msg}")
+        except Exception as _e:
+            print(f"ZoeDepth deferred check skipped: {_e}")
 
-    try:
-        from . import zoedepth_helpers as _zdh
-        if _zdh:
-            # Run a full availability check now that torch paths are ready,
-            # so the UI panel shows the correct status immediately and the
-            # diagnostics report does not show "status not yet checked".
-            avail, msg = _zdh.check_zoedepth_availability()
-            if avail:
-                print("✓ ZoeDepth is available")
-            else:
-                print(f"  ZoeDepth not available: {msg}")
-    except Exception as _e:
-        print(f"ZoeDepth deferred check skipped: {_e}")
+        # Populate the RigNet status cache so diagnostics does not report
+        # "cache invalidated" when the user runs a check before the RigNet
+        # panel has had a chance to draw (which is what triggers the probe
+        # under normal operation).
+        try:
+            from . import ui_panels as _ui
+            if _ui and hasattr(_ui, '_cached_rignet_status'):
+                rignet_status, _libigl_status = _ui._cached_rignet_status()
+                if rignet_status[0]:
+                    print("✓ RigNet is available")
+        except Exception as _e:
+            print(f"RigNet deferred check skipped: {_e}")
 
-    # Populate the RigNet status cache so diagnostics does not report
-    # "cache invalidated" when the user runs a check before the RigNet
-    # panel has had a chance to draw (which is what triggers the probe
-    # under normal operation).
-    try:
-        from . import ui_panels as _ui
-        if _ui and hasattr(_ui, '_cached_rignet_status'):
-            rignet_status, _libigl_status = _ui._cached_rignet_status()
-            if rignet_status[0]:
-                print("✓ RigNet is available")
-    except Exception as _e:
-        print(f"RigNet deferred check skipped: {_e}")
+        # After all checks complete, trigger a VIEW_3D redraw so panels refresh.
+        def _redraw_after_ai_checks():
+            try:
+                for _win in bpy.context.window_manager.windows:
+                    for _area in _win.screen.areas:
+                        if _area.type == 'VIEW_3D':
+                            _area.tag_redraw()
+            except Exception:
+                pass
+
+        try:
+            bpy.app.timers.register(_redraw_after_ai_checks, first_interval=0.0, persistent=False)
+        except Exception:
+            pass
+
+    import threading as _thr
+    _thr.Thread(target=_background_ai_checks, daemon=True).start()
 
     # ── Step 7: auto-check Mossy bridge (safety net) ─────────────────────────
     # The background torch probe already checks Mossy at probe time, but
@@ -506,7 +527,6 @@ def deferred_startup():
         except Exception:
             pass
 
-    import threading as _thr
     _thr.Thread(target=_auto_check_mossy_bridge, daemon=True).start()
 
     return None  # Do not reschedule
