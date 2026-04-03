@@ -82,7 +82,7 @@ const TheAuditor: React.FC = () => {
                 }
                 return bytes.buffer;
             }
-            throw new Error(result.error ?? 'Could not read file');
+            throw new Error(result.error ?? 'Failed to read file as binary data');
         }
         throw new Error('readBinaryFile bridge not available');
     };

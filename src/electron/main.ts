@@ -3315,12 +3315,12 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       if (!stats.isFile()) {
         return { success: false, error: 'Path is not a file' };
       }
-      const MAX_BYTES = 512 * 1024 * 1024; // 512 MB hard cap
-      if (stats.size > MAX_BYTES) {
+      const MAX_FILE_SIZE_BYTES = 512 * 1024 * 1024; // 512 MB hard cap
+      if (stats.size > MAX_FILE_SIZE_BYTES) {
         return { success: false, error: `File too large to load (${(stats.size / 1024 / 1024).toFixed(0)} MB > 512 MB limit)` };
       }
-      const buf = fs.readFileSync(filePath);
-      return { success: true, data: buf.toString('base64') };
+      const fileBuffer = fs.readFileSync(filePath);
+      return { success: true, data: fileBuffer.toString('base64') };
     } catch (e: any) {
       return { success: false, error: String(e?.message || e) };
     }
