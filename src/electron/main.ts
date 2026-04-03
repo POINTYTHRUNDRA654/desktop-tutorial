@@ -3300,6 +3300,32 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // --- Auditor: Binary file reader (ESP/NIF/DDS/BGSM) ---
+  // Returns file contents as a base64 string so the renderer worker can parse
+  // the raw binary without going through a lossy text codec.
+  registerHandler(IPC_CHANNELS.AUDITOR_READ_BINARY_FILE, async (_event, filePath: string) => {
+    try {
+      if (!filePath || typeof filePath !== 'string') {
+        return { success: false, error: 'No file path provided' };
+      }
+      if (!fs.existsSync(filePath)) {
+        return { success: false, error: `File not found: ${filePath}` };
+      }
+      const stats = fs.statSync(filePath);
+      if (!stats.isFile()) {
+        return { success: false, error: 'Path is not a file' };
+      }
+      const MAX_FILE_SIZE_BYTES = 512 * 1024 * 1024; // 512 MB hard cap
+      if (stats.size > MAX_FILE_SIZE_BYTES) {
+        return { success: false, error: `File too large to load (${(stats.size / 1024 / 1024).toFixed(0)} MB > 512 MB limit)` };
+      }
+      const fileBuffer = fs.readFileSync(filePath);
+      return { success: true, data: fileBuffer.toString('base64') };
+    } catch (e: any) {
+      return { success: false, error: String(e?.message || e) };
+    }
+  });
+
   // --- CK Crash Prevention Handlers ---
   registerHandler('ck-crash-prevention:validate', async (_event, espPath: string, modName?: string, cellCount?: number) => {
     try {
