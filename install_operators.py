@@ -919,6 +919,11 @@ class FO4_OT_CheckToolPaths(Operator):
                     _ck_exe = next(_ck_root.rglob("ck-cmd.exe"), None)
                 if _ck_exe:
                     ckv = version(str(_ck_exe), ['--version']) or 'present'
+                    # aerisarn/ck-cmd outputs "PLACEHOLDER VERSION" as its
+                    # --version string.  Suppress it so users don't see a
+                    # confusing message; report the tool as simply 'present'.
+                    if isinstance(ckv, str) and ckv.strip().upper() == 'PLACEHOLDER VERSION':
+                        ckv = 'present'
             lines.append(f"ffmpeg: {ff or 'not set'}{('  '+ffv) if ffv else ''}")
             lines.append(f"nvcompress: {nv or 'not set'}{('  '+nvv) if nvv else ''}")
             lines.append(f"texconv: {tx or 'not set'}{('  '+txv) if txv else ''}")
