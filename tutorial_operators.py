@@ -544,7 +544,23 @@ _CREDITS_SECTIONS = [
     ]),
 ]
 
-_CREDITS_PAGE_SIZE = 8
+_CREDITS_PAGE_SIZE = 5
+
+
+def _draw_credits_nav(layout, page, num_pages, total):
+    """Draw Prev / page-counter / Next navigation row."""
+    nav_row = layout.row(align=True)
+    if page > 0:
+        prev_op = nav_row.operator("fo4.show_credits", text="< Prev", icon='TRIA_LEFT')
+        prev_op.page = page - 1
+    else:
+        nav_row.label(text="")
+    nav_row.label(text=f"Page {page + 1} / {num_pages}  ({total} tools total)")
+    if page < num_pages - 1:
+        next_op = nav_row.operator("fo4.show_credits", text="Next >", icon='TRIA_RIGHT')
+        next_op.page = page + 1
+    else:
+        nav_row.label(text="")
 
 
 class FO4_OT_ShowCredits(Operator):
@@ -574,18 +590,7 @@ class FO4_OT_ShowCredits(Operator):
         layout.separator()
 
         # ── Navigation at TOP so buttons are always visible ────────────────
-        nav_row = layout.row(align=True)
-        if page > 0:
-            prev_op = nav_row.operator("fo4.show_credits", text="< Prev", icon='TRIA_LEFT')
-            prev_op.page = page - 1
-        else:
-            nav_row.label(text="")
-        nav_row.label(text=f"Page {page + 1} / {num_pages}  ({total} tools total)")
-        if page < num_pages - 1:
-            next_op = nav_row.operator("fo4.show_credits", text="Next >", icon='TRIA_RIGHT')
-            next_op.page = page + 1
-        else:
-            nav_row.label(text="")
+        _draw_credits_nav(layout, page, num_pages, total)
         layout.separator()
 
         # ── Credit entries for this page ────────────────────────────────────
@@ -599,6 +604,9 @@ class FO4_OT_ShowCredits(Operator):
             for line in lines:
                 col.label(text=line)
 
+        layout.separator()
+        # ── Navigation at BOTTOM so it is visible after scrolling ──────────
+        _draw_credits_nav(layout, page, num_pages, total)
         layout.separator()
         layout.label(text="All trademarks belong to their respective owners.", icon='INFO')
 
