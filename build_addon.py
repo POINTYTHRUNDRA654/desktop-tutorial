@@ -6,10 +6,10 @@ Cross-platform build script for the Mossy's Blender Add-On add-on.
 
 Produces one zip per supported Blender version range:
 
-  blender_game_tools-v{ADDON_VER}-blender3x.zip   Blender 3.6 LTS
-  blender_game_tools-v{ADDON_VER}-blender4x.zip   Blender 4.0–4.1
-  blender_game_tools-v{ADDON_VER}-blender42.zip   Blender 4.2+ (Extensions)
-  blender_game_tools-v{ADDON_VER}-blender5x.zip   Blender 5.x
+  mossys-blender-addon-v{ADDON_VER}-blender3x.zip   Blender 3.6 LTS
+  mossys-blender-addon-v{ADDON_VER}-blender4x.zip   Blender 4.0–4.1
+  mossys-blender-addon-v{ADDON_VER}-blender42.zip   Blender 4.2+ (Extensions)
+  mossys-blender-addon-v{ADDON_VER}-blender5x.zip   Blender 5.x
 
 Each zip contains a single folder  ``blender_game_tools/``  that Blender
 can install directly via Edit → Preferences → Add-ons → Install.
@@ -39,6 +39,7 @@ from pathlib import Path
 # Configuration
 # ---------------------------------------------------------------------------
 ADDON_FOLDER_NAME = "blender_game_tools"
+ZIP_FILE_PREFIX   = "mossys-blender-addon"
 
 # Files and directories to EXCLUDE from every zip
 EXCLUDE = {
@@ -169,7 +170,7 @@ def build_nexus_bundle(outdir: Path, addon_version: str,
                        variant_zips: list) -> Path:
     """Create a single Nexus Mods bundle zip containing all variant zips
     plus a plain-text install guide so users know which zip to pick."""
-    bundle_name = f"blender_game_tools-v{addon_version}-nexus-bundle.zip"
+    bundle_name = f"{ZIP_FILE_PREFIX}-v{addon_version}-nexus-bundle.zip"
     bundle_path = outdir / bundle_name
     bundle_path.unlink(missing_ok=True)
 
@@ -181,10 +182,10 @@ def build_nexus_bundle(outdir: Path, addon_version: str,
         -----------------------
         Pick the zip that matches your Blender version:
 
-          blender_game_tools-v{addon_version}-blender3x.zip  →  Blender 3.6 LTS
-          blender_game_tools-v{addon_version}-blender4x.zip  →  Blender 4.0 – 4.1
-          blender_game_tools-v{addon_version}-blender42.zip  →  Blender 4.2 – 4.9  (Extension format)
-          blender_game_tools-v{addon_version}-blender5x.zip  →  Blender 5.0+       (Extension format)
+          mossys-blender-addon-v{addon_version}-blender3x.zip  →  Blender 3.6 LTS
+          mossys-blender-addon-v{addon_version}-blender4x.zip  →  Blender 4.0 – 4.1
+          mossys-blender-addon-v{addon_version}-blender42.zip  →  Blender 4.2 – 4.9  (Extension format)
+          mossys-blender-addon-v{addon_version}-blender5x.zip  →  Blender 5.0+       (Extension format)
 
         HOW TO INSTALL — Blender 4.2 and 5.x (Extension format)
         ---------------------------------------------------------
@@ -230,7 +231,7 @@ def build_variant(root: Path, outdir: Path, addon_version: str,
                   variant_key: str, variant: dict) -> Path:
     """Build one zip for *variant_key* and return the zip path."""
     zip_name = (
-        f"blender_game_tools-v{addon_version}-{variant_key}.zip"
+        f"{ZIP_FILE_PREFIX}-v{addon_version}-{variant_key}.zip"
     )
     zip_path = outdir / zip_name
     zip_path.unlink(missing_ok=True)
