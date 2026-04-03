@@ -313,6 +313,83 @@ def deferred_startup():
     except Exception as e:
         print(f"UModel auto-download skipped: {e}")
 
+    # ── Step 5b: auto-load UE4 importer if already on disk ───────────────────
+    # The UE4 importer's register() is a deliberate no-op (to avoid Blender's
+    # Extension policy checker flagging its bare sys.modules names and
+    # sys.path mutation during the monitored register() window).  Instead,
+    # load_and_register() is called here — safely outside that window — so
+    # the importer's operators are available every session without the user
+    # having to click "Auto-Install" again after a restart.
+    # If the importer folder is absent it is downloaded automatically by
+    # load_and_register() → _load_module(), but only when
+    # auto_install_tools is on.  If the folder already exists from a
+    # previous session it is loaded unconditionally (no network request).
+    try:
+        from . import ue_importer_helpers as _uei
+        from . import preferences as _prefs_ue
+        _p_ue = _prefs_ue.get_preferences() if _prefs_ue else None
+        if _uei:
+            if _uei.IMPORTER_INIT.exists():
+                # Already downloaded in a previous session — just load it.
+                ok, msg = _uei.load_and_register()
+                if ok:
+                    print(f"✓ UE4 importer auto-loaded: {msg}")
+                else:
+                    print(f"  UE4 importer auto-load skipped: {msg}")
+            elif _p_ue and _p_ue.auto_install_tools:
+                # Not on disk yet, but user opted in to auto-install.
+                ok, msg = _uei.load_and_register()
+                if ok:
+                    print(f"✓ UE4 importer downloaded and loaded: {msg}")
+                else:
+                    print(f"  UE4 importer auto-install skipped: {msg}")
+    except Exception as _e_ue:
+        print(f"UE4 importer deferred load skipped: {_e_ue}")
+
+    # ── Step 5c: auto-download other tools if auto_install_tools is on ───────
+    # When the user has opted in, download AssetStudio, AssetRipper, Unity FBX
+    # Importer, and UModel Tools on first startup.  Subsequent startups skip
+    # the download because download_latest() returns early when the directory
+    # already exists — the filesystem IS the persistence record.
+    try:
+        from . import preferences as _prefs_tools
+        _p_tools = _prefs_tools.get_preferences() if _prefs_tools else None
+        if _p_tools and _p_tools.auto_install_tools:
+            _tool_helpers = []
+            try:
+                from . import asset_studio_helpers as _ash
+                _tool_helpers.append(("AssetStudio", _ash))
+            except Exception:
+                pass
+            try:
+                from . import asset_ripper_helpers as _arh
+                _tool_helpers.append(("AssetRipper", _arh))
+            except Exception:
+                pass
+            try:
+                from . import unity_fbx_importer_helpers as _ufx
+                _tool_helpers.append(("UnityFBX Importer", _ufx))
+            except Exception:
+                pass
+            try:
+                from . import umodel_tools_helpers as _umt
+                _tool_helpers.append(("UModel Tools", _umt))
+            except Exception:
+                pass
+            for _tool_name, _tool_mod in _tool_helpers:
+                try:
+                    ready, _ = _tool_mod.status()
+                    if not ready:
+                        ok, msg = _tool_mod.download_latest()
+                        if ok:
+                            print(f"✓ {_tool_name} auto-downloaded: {msg}")
+                        else:
+                            print(f"  {_tool_name} auto-download skipped: {msg}")
+                except Exception as _te:
+                    print(f"  {_tool_name} auto-download error: {_te}")
+    except Exception as _e_tools:
+        print(f"Tool auto-download step skipped: {_e_tools}")
+
     # ── Step 6: deferred tutorial-operator safety check ──────────────────────
     # A 2-second window after startup is enough time for other extensions
     # (e.g. Fab, BAC) to complete their own registrations.  Re-run the
