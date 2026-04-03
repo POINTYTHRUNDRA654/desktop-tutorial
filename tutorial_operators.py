@@ -49,81 +49,135 @@ def _get_notification_system():
 
 
 # ---------------------------------------------------------------------------
-# FO4_OT_ShowDetailedSetup
+# FO4_OT_ShowDetailedSetup  (paged popup wizard)
 # ---------------------------------------------------------------------------
 
-class FO4_OT_ShowDetailedSetup(Operator):
-    """Show detailed setup guide for first-time users"""
-    bl_idname = "fo4.show_detailed_setup"
-    bl_label = "Detailed Setup Guide"
-    bl_options = {'REGISTER'}
+# One entry per setup step shown in the popup.
+# Each tuple: (icon, heading, [lines])
+_SETUP_STEPS = [
+    ('LIGHT_HEMI', "Step 1 – Connect Mossy AI (Recommended First!)", [
+        "Why first? Mossy can guide you through the entire setup process!",
+        "",
+        "1. Download & launch the Mossy desktop app.",
+        "2. Press N in the 3D Viewport to open the sidebar.",
+        "3. Switch to the 'Mossy' tab and click 'Start Server'.",
+        "4. Mossy will auto-connect and help with the remaining steps.",
+        "5. Go to Fallout 4 → Advisor tab to ask Mossy questions.",
+    ]),
+    ('PACKAGE', "Step 2 – Install Python Dependencies", [
+        "1. Open the 'Setup & Status' tab below the main panel.",
+        "2. Check for any red ✗ marks next to packages.",
+        "3. Click 'Install Core Dependencies' if prompted.",
+        "4. Wait for installation to finish (watch the system console).",
+        "5. Click the 'Restart Blender' button when done.",
+    ]),
+    ('PLUGIN', "Step 3 – Install Niftools", [
+        "For Blender 5.0+:",
+        "  1. In the Setup tab, click 'Install Niftools Add-on'.",
+        "  2. Open Edit → Preferences → Add-ons.",
+        "  3. Enable the 'Allow Legacy Add-ons' checkbox.",
+        "  4. Enable the 'NetImmerse/Gamebryo' add-on.",
+        "  5. Restart Blender.",
+        "",
+        "For Blender 3.6 LTS:",
+        "  1. Download Niftools v0.1.1 for Blender 3.6.",
+        "  2. Edit → Preferences → Add-ons → Install → select .zip.",
+        "  Alternative: Use the FBX export + Cathedral Assets Optimizer.",
+    ]),
+    ('CHECKMARK', "Step 4 – Verify Your Setup", [
+        "1. Open the 'Setup & Status' tab.",
+        "2. Click the 'Environment Check' button.",
+        "3. All items should show green checkmarks.",
+        "4. If anything fails, ask Mossy for help!",
+    ]),
+    ('PLAY', "Step 5 – Start Creating!", [
+        "1. Try the Tutorial System in the main panel.",
+        "2. Explore Mesh Helpers for quick asset creation.",
+        "3. Use AI features: ZoeDepth, TripoSR, Hunyuan3D-2, …",
+        "4. Export to .nif and test in the Creation Kit.",
+        "",
+        "Need help?",
+        "  → Ask Mossy (Fallout 4 → Advisor → Ask Mossy)",
+        "  → Start a Tutorial (Main panel → Start Tutorial)",
+        "  → Read README.md in the add-on directory",
+    ]),
+]
+
+
+class FO4_OT_SetupNav(Operator):
+    """Navigate to the previous or next setup guide page"""
+    bl_idname = "fo4.setup_nav"
+    bl_label = "Navigate Setup Guide"
+    bl_options = {'INTERNAL'}
+
+    delta: IntProperty(name="Delta", default=1)
 
     def execute(self, context):
+        num_pages = len(_SETUP_STEPS)
+        wm = context.window_manager
+        wm.fo4_setup_page = max(0, min(num_pages - 1, wm.fo4_setup_page + self.delta))
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowDetailedSetup(Operator):
+    """Show the step-by-step setup guide for first-time users"""
+    bl_idname = "fo4.show_detailed_setup"
+    bl_label = "Detailed Setup Guide"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fo4_setup_page = 0
+        # Also print the full guide to the system console as a bonus.
+        self._print_to_console()
+        return context.window_manager.invoke_popup(self, width=480)
+
+    def draw(self, context):
+        layout = self.layout
+        wm = context.window_manager
+        num_pages = len(_SETUP_STEPS)
+        page = max(0, min(wm.fo4_setup_page, num_pages - 1))
+
+        title_row = layout.row()
+        title_row.label(text="Fallout 4 Add-on – Setup Guide", icon='TEXT')
+        layout.separator()
+
+        icon, heading, lines = _SETUP_STEPS[page]
+        box = layout.box()
+        box.label(text=heading, icon=icon)
+        col = box.column(align=True)
+        col.scale_y = 0.85
+        for line in lines:
+            col.label(text=line)
+
+        layout.separator()
+
+        nav_row = layout.row(align=True)
+        prev_op = nav_row.operator("fo4.setup_nav", text="< Prev", icon='TRIA_LEFT')
+        prev_op.delta = -1
+        nav_row.label(text=f"Step {page + 1} / {num_pages}")
+        next_op = nav_row.operator("fo4.setup_nav", text="Next >", icon='TRIA_RIGHT')
+        next_op.delta = 1
+
+    @staticmethod
+    def _print_to_console():
+        bv = bpy.app.version
         print("\n" + "=" * 60)
         print("FALLOUT 4 ADD-ON - COMPLETE SETUP GUIDE")
         print("=" * 60)
-        print("")
-        print("STEP 1: CONNECT MOSSY AI (RECOMMENDED FIRST!)")
-        print("  Why first? Mossy can guide you through the entire setup process!")
-        print("  1. Download & launch Mossy desktop app")
-        print("  2. Switch to 'Mossy' tab in Blender sidebar (press N)")
-        print("  3. Click 'Start Server' in Mossy Link panel")
-        print("  4. Mossy will auto-connect and help with remaining setup")
-        print("  5. Go to Fallout 4 -> Advisor tab to ask Mossy questions")
-        print("")
-        print("STEP 2: INSTALL PYTHON DEPENDENCIES")
-        print("  1. Open 'Setup & Status' tab below main panel")
-        print("  2. Check for any red X marks next to packages")
-        print("  3. Click 'Install Core Dependencies' if prompted")
-        print("  4. Wait for installation to complete (check console)")
-        print("  5. Click 'Restart Blender' button when done")
-        print("")
-        print("STEP 3: INSTALL NIFTOOLS")
-        bv = bpy.app.version
+        for _icon, heading, lines in _SETUP_STEPS:
+            print("")
+            print(heading.upper())
+            for line in lines:
+                if line:
+                    print(f"  {line}")
         if bv >= (5, 0, 0):
-            print("  For Blender 5.0+:")
-            print("  1. In Setup tab, click 'Install Niftools Add-on'")
-            print("  2. Edit -> Preferences -> Add-ons")
-            print("  3. Enable 'Allow Legacy Add-ons' checkbox")
-            print("  4. Enable 'NetImmerse/Gamebryo' add-on")
-            print("  5. Restart Blender")
-        else:
-            print("  For Blender 3.6 LTS:")
-            print("  1. Download Niftools v0.1.1 for Blender 3.6")
-            print("  2. Edit -> Preferences -> Add-ons -> Install")
-            print("  3. Select the .zip file and enable the add-on")
-            print("  Alternative: Use FBX export + Cathedral Assets Optimizer")
-        print("")
-        print("STEP 4: VERIFY SETUP")
-        print("  1. Open 'Setup & Status' tab")
-        print("  2. Click 'Environment Check' button")
-        print("  3. All items should show green checkmarks")
-        print("  4. If anything fails, ask Mossy for help!")
-        print("")
-        print("STEP 5: START CREATING!")
-        print("  1. Try the Tutorial System in main panel")
-        print("  2. Explore Mesh Helpers for asset creation")
-        print("  3. Use AI features like ZoeDepth, TripoSR")
-        print("  4. Export to .nif and test in Creation Kit")
-        print("")
-        print("NEED HELP?")
-        print("  -> Ask Mossy! (Fallout 4 -> Advisor -> Ask Mossy)")
-        print("  -> Check tutorials (Main panel -> Start Tutorial)")
-        print("  -> Read README.md in add-on directory")
+            print("")
+            print("  (Blender 5.0+ detected – use 'Install Niftools Add-on')")
         print("")
         print("=" * 60 + "\n")
-
-        try:
-            ns = _get_notification_system()
-            if ns:
-                ns.FO4_NotificationSystem.notify(
-                    "Detailed setup guide displayed in system console "
-                    "(Window -> Toggle System Console)",
-                    'INFO'
-                )
-        except Exception:
-            pass
-        return {'FINISHED'}
 
 
 # ---------------------------------------------------------------------------
@@ -570,6 +624,7 @@ class FO4_OT_ShowCredits(Operator):
 # ---------------------------------------------------------------------------
 
 classes = (
+    FO4_OT_SetupNav,
     FO4_OT_ShowDetailedSetup,
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
@@ -581,6 +636,9 @@ classes = (
 def register():
     bpy.types.WindowManager.fo4_credits_page = IntProperty(
         name="Credits Page", default=0, min=0
+    )
+    bpy.types.WindowManager.fo4_setup_page = IntProperty(
+        name="Setup Guide Page", default=0, min=0
     )
     for cls in classes:
         try:
@@ -630,3 +688,5 @@ def unregister():
                 )
     if hasattr(bpy.types.WindowManager, "fo4_credits_page"):
         del bpy.types.WindowManager.fo4_credits_page
+    if hasattr(bpy.types.WindowManager, "fo4_setup_page"):
+        del bpy.types.WindowManager.fo4_setup_page
