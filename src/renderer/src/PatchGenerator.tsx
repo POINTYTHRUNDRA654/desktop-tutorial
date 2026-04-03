@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { GitMerge, AlertTriangle, Check, ArrowDownToLine, Zap, Info } from 'lucide-react';
 
 interface Conflict {
@@ -80,7 +81,7 @@ export const PatchGenerator: React.FC = () => {
 
   const analyzeConflicts = async () => {
     if (!modA || !modB) {
-      alert('Please specify both mods');
+      toast.error('Please specify both mods');
       return;
     }
 
@@ -190,7 +191,7 @@ export const PatchGenerator: React.FC = () => {
       });
 
       if (response.ok) {
-        alert(`Patch created: ${result.patchName}`);
+        toast.success(`Patch created: ${result.patchName}`);
       } else {
         throw new Error('Generation failed');
       }
@@ -208,7 +209,7 @@ export const PatchGenerator: React.FC = () => {
       a.click();
       URL.revokeObjectURL(url);
 
-      alert(`Patch downloaded: ${result.patchName} (demo mode)`);
+      toast.success(`Patch downloaded: ${result.patchName} (demo mode)`);
     }
   };
 

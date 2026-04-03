@@ -1647,8 +1647,41 @@ function setupIpcHandlers() {
     }
   });
 
-  // Open external file/executable handler
-  registerHandler(IPC_CHANNELS.OPEN_EXTERNAL, async (event, filePath: string) => {
+  // Launch an external tool (xEdit, NifSkope, CK, Blender) with a specific file
+  // as a command-line argument so it opens directly in that tool.
+  registerHandler(IPC_CHANNELS.LAUNCH_TOOL_WITH_FILE, async (_event, toolPath: string, filePath: string) => {
+    try {
+      if (!toolPath || typeof toolPath !== 'string') {
+        return { success: false, error: 'Invalid tool path.' };
+      }
+      if (!filePath || typeof filePath !== 'string') {
+        return { success: false, error: 'Invalid file path.' };
+      }
+      // Normalise both paths to remove any traversal sequences
+      const resolvedTool = path.resolve(toolPath);
+      const resolvedFile = path.resolve(filePath);
+      if (!fs.existsSync(resolvedTool)) {
+        return { success: false, error: `Tool not found at: ${resolvedTool}. Configure the path in Settings → External Tools.` };
+      }
+      if (!fs.existsSync(resolvedFile)) {
+        return { success: false, error: `File not found: ${resolvedFile}` };
+      }
+      // Use spawn with an explicit args array — never shell interpolation
+      const child = spawn(resolvedTool, [resolvedFile], {
+        cwd: path.dirname(resolvedTool),
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+      console.log(`[Main] LAUNCH_TOOL_WITH_FILE: launched ${path.basename(resolvedTool)} with ${path.basename(resolvedFile)}`);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Unknown error' };
+    }
+  });
+
+
+  registerHandler(IPC_CHANNELS.OPEN_EXTERNAL, async (_event, filePath: string) => {
     try {
       // Validate input
       if (!filePath || typeof filePath !== 'string') {

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { Save, TestTube2, Wrench, FileCog, Swords, Package, ExternalLink, Play, Palette, FolderOpen, ShieldCheck, Zap, Archive, Image as ImageIcon, Terminal, Maximize2, RefreshCw } from 'lucide-react';
 import { executeMossyTool } from './MossyTools';
@@ -96,7 +97,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
       }
 
       if (issues.length > 0) {
-        alert(`❌ Configuration issues found:\n\n${issues.join('\n')}\n\nPlease fix these before saving.`);
+        toast.error(`Configuration issues found:. ${issues.join('. ')}. Please fix these before saving.`);
         setSaving(false);
         return;
       }
@@ -109,10 +110,10 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
       window.dispatchEvent(new CustomEvent('mossy-settings-updated', { detail: updated }));
       console.log('[ExternalToolsSettings] Saved settings and broadcast update:', updated);
 
-      alert("✅ [MOSSY] Configuration protocols updated, Architect. Your workspace is now synced with your external toolchain.");
+      toast.success('[MOSSY] Configuration protocols updated, Architect. Your workspace is now synced with your external toolchain.');
     } catch (e) {
       console.error('Failed to save settings', e);
-      alert(`❌ Failed to save settings: ${String(e)}`);
+      toast.error(`Failed to save settings: ${String(e)}`);
     } finally {
       setSaving(false);
     }
@@ -132,13 +133,13 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
       console.log('[AILaunchTest] Result:', res);
       const msg = typeof res?.result === 'string' ? res.result : JSON.stringify(res);
       if (res?.success === false) {
-        alert(`❌ AI Launch failed for ${label}\n\n${res?.result || res?.error || 'Unknown error'}`);
+        toast.error(`AI Launch failed for ${label}. ${res?.result || res?.error || 'Unknown error'}`);
       } else {
-        alert(`✅ AI Launch executed for ${label}.\n\n${msg || 'Process initialized.'}`);
+        toast.success(`AI Launch executed for ${label}. ${msg || 'Process initialized.'}`);
       }
     } catch (e) {
       console.error('[AILaunchTest] Exception', e);
-      alert(`❌ AI Launch exception for ${label}:\n${String(e)}`);
+      toast.error(`AI Launch exception for ${label}: ${String(e)}`);
     }
   };
 
@@ -147,7 +148,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
 
     if (!path || path.trim() === '') {
       console.warn(`[TestLaunch] Path is empty for ${label}`);
-      alert(`❌ No path configured for ${label || 'this tool'}.\n\nPlease:\n1. Click "Browse" to select the executable\n2. Click "Save Settings"\n3. Then try "Test Launch" again`);
+      toast.error(`No path configured for ${label || 'this tool'}. Please: 1. Click "Browse" to select the executable. 2. Click "Save Settings". 3. Then try "Test Launch" again`);
       return;
     }
 
@@ -164,24 +165,24 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
         console.log(`[TestLaunch] Result from openProgram:`, result);
 
         if (result && result.success === false) {
-          const errorMsg = `❌ Could not launch ${label || 'tool'}:\n\n${result.error || 'Unknown error'}\n\nPath was: ${path}`;
+          const errorMsg = `Could not launch ${label || 'tool'}: ${result.error || 'Unknown error'}. Path was: ${path}`;
           console.error(`[TestLaunch]`, errorMsg);
-          alert(errorMsg);
+          toast.error(errorMsg);
         } else if (result && result.success === true) {
-          const msg = `✅ Successfully launched ${label || 'tool'}!`;
+          const msg = `Successfully launched ${label || 'tool'}!`;
           console.log(`[TestLaunch]`, msg);
-          alert(msg);
+          toast.success(msg);
         }
       } else if (bridge?.openExternal) {
         console.log(`[TestLaunch] Using openExternal fallback`);
         await bridge.openExternal(path);
       } else {
         console.error(`[TestLaunch] No bridge methods available`);
-        alert('Launching external tools requires the Desktop Bridge (Electron).');
+        toast.error('Launching external tools requires the Desktop Bridge (Electron).');
       }
     } catch (e) {
       console.error('[TestLaunch] Exception:', e);
-      alert(`❌ Could not launch ${label || 'tool'}. Check the configured path: ${path}\n\nError: ${String(e)}`);
+      toast.error(`Could not launch ${label || 'tool'}. Check the configured path: ${path}. Error: ${String(e)}`);
     }
   };
 
@@ -202,9 +203,9 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
 
           // Validate that the selected path is an executable
           if (!selectedPath.toLowerCase().endsWith('.exe')) {
-            const msg = `❌ Invalid selection.\n\nPlease select a .exe file.\n\nYou selected: ${selectedPath}`;
+            const msg = `Invalid selection. Please select a .exe file. You selected: ${selectedPath}`;
             console.error(`[BrowsePath]`, msg);
-            alert(msg);
+            toast.error(msg);
             return;
           }
 
@@ -220,9 +221,9 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
         if (manualPath && manualPath.trim()) {
           if (manualPath.toLowerCase().endsWith('.exe')) {
             handleChange(toolKey, manualPath);
-            alert(`✅ Path set to:\n${manualPath}`);
+            toast.success(`Path set to: ${manualPath}`);
           } else {
-            alert(`❌ Invalid path.\n\nMust be a .exe file.\n\nYou provided: ${manualPath}`);
+            toast.error(`Invalid path. Must be a .exe file. You provided: ${manualPath}`);
           }
         }
       }
@@ -232,9 +233,9 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
       if (manualPath && manualPath.trim()) {
         if (manualPath.toLowerCase().endsWith('.exe')) {
           handleChange(toolKey, manualPath);
-          alert(`✅ Path set to:\n${manualPath}`);
+          toast.success(`Path set to: ${manualPath}`);
         } else {
-          alert(`❌ Invalid path.\n\nMust be a .exe file.`);
+          toast.error('Invalid path. Must be a .exe file.');
         }
       }
     }
@@ -370,7 +371,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             if (!picked) return;
             target = String(picked);
           } else {
-            alert(`${label} folder not found. Please use Knowledge Search to add a root manually.`);
+            toast.error(`${label} folder not found. Please use Knowledge Search to add a root manually.`);
             return;
           }
         }
@@ -380,15 +381,15 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
       const parsed = raw ? JSON.parse(raw) : [];
       const roots = Array.isArray(parsed) ? parsed : [];
       if (roots.includes(target)) {
-        alert(`${label} is already in Knowledge Search roots.`);
+        toast.error(`${label} is already in Knowledge Search roots.`);
         return;
       }
 
       localStorage.setItem(ROOTS_KEY, JSON.stringify([...roots, target]));
-      alert(`Added ${label} to Knowledge Search roots.`);
+      toast.success(`Added ${label} to Knowledge Search roots.`);
     } catch (e) {
       console.warn('[ExternalToolsSettings] Failed to add knowledge root', e);
-      alert('Failed to add Knowledge Search root.');
+      toast.error('Failed to add Knowledge Search root.');
     }
   };
 
@@ -398,7 +399,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
     try {
       const api = (window as any).electron?.api || (window as any).electronAPI;
       if (!api?.pickDirectory) {
-        alert('Folder picker not available. Add a root manually in Knowledge Search.');
+        toast.error('Folder picker not available. Add a root manually in Knowledge Search.');
         return;
       }
 
@@ -410,15 +411,15 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
       const parsed = raw ? JSON.parse(raw) : [];
       const roots = Array.isArray(parsed) ? parsed : [];
       if (roots.includes(target)) {
-        alert(`${label} is already in Knowledge Search roots.`);
+        toast.error(`${label} is already in Knowledge Search roots.`);
         return;
       }
 
       localStorage.setItem(ROOTS_KEY, JSON.stringify([...roots, target]));
-      alert(`Added ${label} to Knowledge Search roots.`);
+      toast.success(`Added ${label} to Knowledge Search roots.`);
     } catch (e) {
       console.warn('[ExternalToolsSettings] Failed to add knowledge root (picker)', e);
-      alert('Failed to add Knowledge Search root.');
+      toast.error('Failed to add Knowledge Search root.');
     }
   };
 
@@ -426,7 +427,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
     try {
       const appsRaw = localStorage.getItem('mossy_apps');
       if (!appsRaw) {
-        alert("No scan data found. Please run a 'Full System Scan' in the System Monitor first.");
+        toast.error("No scan data found. Please run a 'Full System Scan' in the System Monitor first.");
         return;
       }
 
@@ -511,13 +512,13 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
       console.log('[ExternalToolsSettings] Auto-detect complete: found', foundCount, 'tools');
 
       if (foundCount > 0) {
-        alert(`Auto-detected ${foundCount} tools from your recent system scan. Don't forget to Save!`);
+        toast.success(`Auto-detected ${foundCount} tools from your recent system scan. Don't forget to Save!`);
       } else {
-        alert(`No matching tools found (scanned ${apps.length} programs). You may need to set them manually.`);
+        toast.error(`No matching tools found (scanned ${apps.length} programs). You may need to set them manually.`);
       }
     } catch (e) {
       console.error('[ExternalToolsSettings] Auto-detect error:', e);
-      alert("Error during auto-detection: " + String(e));
+      toast.error("Error during auto-detection: " + String(e));
     }
   };
 

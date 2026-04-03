@@ -29,6 +29,7 @@ export const IPC_CHANNELS = {
   GET_VOICE_HISTORY_PATH: 'get-voice-history-path',
   OPEN_PROGRAM: 'open-program',
   OPEN_EXTERNAL: 'open-external',
+  LAUNCH_TOOL_WITH_FILE: 'launch-tool-with-file',
   REVEAL_IN_FOLDER: 'reveal-in-folder',
   GET_TOOL_VERSION: 'get-tool-version',
   GET_RUNNING_PROCESSES: 'get-running-processes',

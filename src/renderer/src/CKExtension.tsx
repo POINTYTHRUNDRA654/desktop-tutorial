@@ -73,16 +73,17 @@ export const CKExtension: React.FC = () => {
     return () => clearInterval(saveInterval);
   }, [isConnected, autoSaveEnabled, autoSaveInterval]);
 
-  const loadCKData = () => {
-    // Mock data for demonstration
-    const mockScripts: CKScript[] = [
-      { name: 'MyQuestScript.psc', path: 'Data\\Scripts\\Source', lastModified: new Date(), compiled: true },
-      { name: 'CustomFollower.psc', path: 'Data\\Scripts\\Source', lastModified: new Date(Date.now() - 3600000), compiled: false },
-      { name: 'WorkshopHelper.psc', path: 'Data\\Scripts\\Source', lastModified: new Date(Date.now() - 7200000), compiled: true },
-    ];
-    setRecentScripts(mockScripts);
-
-    setActiveCell('Diamond City - Market');
+  const loadCKData = async () => {
+    // Try to load recently compiled scripts from settings if the IPC is available
+    const api: any = (window as any).electron?.api || (window as any).electronAPI;
+    if (api?.getSettings) {
+      try {
+        const settings = await api.getSettings();
+        const savedScripts: CKScript[] = settings?.ckRecentScripts ?? [];
+        setRecentScripts(savedScripts);
+      } catch { /* settings unavailable */ }
+    }
+    // Active cell is only knowable via a live CK IPC; leave as null until connected
   };
 
   const performAutoSave = () => {
@@ -103,7 +104,8 @@ export const CKExtension: React.FC = () => {
     setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save interval set to ${minutes} minutes`]);
   };
 
-  const compileScript = (scriptName: string) => {
+  const compileScript = async (scriptName: string) => {
+    const api: any = (window as any).electron?.api || (window as any).electronAPI;
     const job: CompilationJob = {
       id: Date.now().toString(),
       scriptName,
@@ -113,26 +115,38 @@ export const CKExtension: React.FC = () => {
     setCompilationQueue(prev => [...prev, job]);
     setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Queued: ${scriptName}`]);
 
-    // Simulate compilation
-    setTimeout(() => {
-      setCompilationQueue(prev => 
+    // Use real Papyrus compiler IPC when available
+    if (api?.compileScript || api?.papyrusCompiler?.compile) {
+      setCompilationQueue(prev =>
         prev.map(j => j.id === job.id ? { ...j, status: 'compiling', startTime: new Date() } : j)
       );
       setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Compiling: ${scriptName}`]);
-
-      setTimeout(() => {
-        const success = Math.random() > 0.2; // 80% success rate
-        setCompilationQueue(prev => 
-          prev.map(j => j.id === job.id ? { 
-            ...j, 
-            status: success ? 'success' : 'error',
-            endTime: new Date(),
-            errors: success ? [] : ['Error: Undefined variable at line 42']
-          } : j)
+      try {
+        const result = await (api.compileScript ?? api.papyrusCompiler.compile)(scriptName);
+        const success = result?.success ?? false;
+        const errors = result?.errors ?? (success ? [] : ['Compilation failed — check CK output']);
+        setCompilationQueue(prev =>
+          prev.map(j => j.id === job.id ? { ...j, status: success ? 'success' : 'error', endTime: new Date(), errors } : j)
         );
         setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${success ? 'Success' : 'Failed'}: ${scriptName}`]);
-      }, 2000);
-    }, 500);
+      } catch (err: any) {
+        setCompilationQueue(prev =>
+          prev.map(j => j.id === job.id ? { ...j, status: 'error', endTime: new Date(), errors: [err?.message || 'IPC error'] } : j)
+        );
+        setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Error: ${scriptName} — ${err?.message}`]);
+      }
+    } else {
+      // IPC not available — mark as error with clear explanation
+      setCompilationQueue(prev =>
+        prev.map(j => j.id === job.id ? {
+          ...j,
+          status: 'error',
+          endTime: new Date(),
+          errors: ['Papyrus compiler IPC not available. Use The Scribe (Script Editor) to compile .psc files via the configured CK path.']
+        } : j)
+      );
+      setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Cannot compile ${scriptName}: no IPC bridge`]);
+    }
   };
 
   const compileAllQueued = () => {

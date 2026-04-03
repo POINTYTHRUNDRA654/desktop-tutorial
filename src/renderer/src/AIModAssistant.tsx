@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Mic, Send, MessageCircle, Code, Zap, Book } from 'lucide-react';
 import type { ChatContext, ChatResponse } from '../../shared/types';
 
@@ -17,6 +18,7 @@ try {
 const USER_ID = 'local-user';
 
 const AIModAssistant: React.FC = () => {
+  const navigate = useNavigate();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Array<{ role: 'user'|'assistant'; text: string }>>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -40,17 +42,25 @@ const AIModAssistant: React.FC = () => {
   };
 
   const handleQuickAction = async (action: any) => {
-    // For UI demo: execute a few common actions locally
     if (action.type === 'create-file') {
       await bridge.saveFile(action.parameters.content || '// new file', action.parameters.name || 'new.txt');
-      alert('File created (simulated)');
+      setMessages(m => [...m, { role: 'assistant', text: `File created: ${action.parameters.name || 'new.txt'}` }]);
     }
     if (action.type === 'edit-code') {
       setCodePreview(action.parameters.patch || '// patched code');
     }
     if (action.type === 'open-panel') {
-      // navigate would normally be used, for demo show alert
-      alert(`Open panel: ${action.parameters.panel}`);
+      const routeMap: Record<string, string> = {
+        chat: '/chat',
+        vault: '/vault',
+        auditor: '/auditor',
+        scribe: '/scribe',
+        holo: '/holo',
+        bridge: '/bridge',
+        settings: '/settings',
+      };
+      const route = routeMap[action.parameters.panel] || `/${action.parameters.panel}`;
+      navigate(route);
     }
   };
 
