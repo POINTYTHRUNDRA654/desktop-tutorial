@@ -1,5 +1,5 @@
 """
-GitHub update checker for the Fallout 4 Mod Assistant add-on.
+GitHub update checker for the Mossy Fallout 4 Blender Add-on add-on.
 
 Operators
 ---------

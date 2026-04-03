@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-run_diagnostics.py - Fallout 4 Mod Assistant Static Diagnostics
+run_diagnostics.py - Mossy Fallout 4 Blender Add-on Static Diagnostics
 ================================================================
 
 Run this script from a Windows Command Prompt or PowerShell BEFORE loading

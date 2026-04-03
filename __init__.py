@@ -4,7 +4,7 @@ A comprehensive tutorial and helper system for creating Fallout 4 mods in Blende
 """
 
 bl_info = {
-    "name": "Fallout 4 Mod Assistant",
+    "name": "Mossy Fallout 4 Blender Add-on",
     "author": "Tutorial Team",
     "version": (5, 1, 0),
     "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x
@@ -352,7 +352,7 @@ def register():
     blender_version = bpy.app.version
     version_string = f"{blender_version[0]}.{blender_version[1]}.{blender_version[2]}"
 
-    print(f"Fallout 4 Mod Assistant - Initializing for Blender {version_string}")
+    print(f"Mossy Fallout 4 Blender Add-on - Initializing for Blender {version_string}")
 
     # Register all modules, but continue even if one fails so the
     # user can see the error in the console and report it.
@@ -494,7 +494,7 @@ def register():
     #     print("✓ All core Python dependencies present")
 
     print(
-        f"✓ Fallout 4 Mod Assistant registered successfully (Blender {version_string})"
+        f"✓ Mossy Fallout 4 Blender Add-on registered successfully (Blender {version_string})"
     )
 
     # schedule a quick environment check once Blender is ready
@@ -598,7 +598,7 @@ def unregister():
 
             traceback.print_exc()
 
-    print("Fallout 4 Tutorial Helper unregistered")
+    print("Mossy Fallout 4 Blender Add-on unregistered")
 
 
 if __name__ == "__main__":

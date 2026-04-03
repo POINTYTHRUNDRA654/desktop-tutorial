@@ -1,5 +1,5 @@
 """
-Animation Helper sub-package for the Fallout 4 Mod Assistant add-on.
+Animation Helper sub-package for the Mossy Fallout 4 Blender Add-on add-on.
 
 Sub-modules
 -----------

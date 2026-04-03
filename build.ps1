@@ -1,4 +1,4 @@
-# Build script for Fallout 4 Tutorial Helper addon
+# Build script for Mossy's Blender Add-On addon
 #
 # Delegates all packaging to build_addon.py so that the zips produced here
 # are identical to those created by the GitHub Actions CI workflow:

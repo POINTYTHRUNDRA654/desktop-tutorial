@@ -1,4 +1,4 @@
-# Release Guide — Fallout 4 Mod Assistant
+# Release Guide — Mossy Fallout 4 Blender Add-on
 
 Complete checklist for publishing a new version of the add-on.
 
@@ -75,7 +75,7 @@ GitHub Actions will automatically:
 ### After approval
 
 Once approved, any Blender 4.2+ user can install via
-*Get Extensions → search "Fallout 4 Mod Assistant" → Install*.
+*Get Extensions → search "Mossy Fallout 4 Blender Add-on" → Install*.
 Blender automatically handles version filtering.
 
 ---

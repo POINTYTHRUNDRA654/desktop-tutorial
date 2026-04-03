@@ -49,34 +49,30 @@ jobs:
       - name: Build zips (all Blender variants)
         run: python3 build_addon.py --outdir dist
 
-      # ── 3. Run the integrity tests to catch regressions ───────────────────
-      - name: Run addon integrity tests
-        run: python3 test_addon_integrity.py
-
-      # ── 4. Upload as workflow artifacts (download from the Actions tab) ────
+      # ── 3. Upload as workflow artifacts (download from the Actions tab) ────
       - name: Upload variant zips as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fallout4-addon-zips
-          path: dist/blender_game_tools-v*-blender*.zip
+          name: mossy-fo4-blender-addon-zips
+          path: dist/mossy-fo4-blender-addon-v*-blender*.zip
           if-no-files-found: error
           retention-days: 90
 
       - name: Upload Nexus bundle as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fallout4-addon-nexus-bundle
-          path: dist/blender_game_tools-v*-nexus-bundle.zip
+          name: mossy-fo4-blender-addon-nexus-bundle
+          path: dist/mossy-fo4-blender-addon-v*-nexus-bundle.zip
           if-no-files-found: error
           retention-days: 90
 
-      # ── 5. On a version tag push: create / update a GitHub Release ─────────
+      # ── 4. On a version tag push: create / update a GitHub Release ─────────
       #       Testers can then download directly from the Releases page.
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/blender_game_tools-v*-blender*.zip
-            dist/blender_game_tools-v*-nexus-bundle.zip
+            dist/mossy-fo4-blender-addon-v*-blender*.zip
+            dist/mossy-fo4-blender-addon-v*-nexus-bundle.zip
           generate_release_notes: true

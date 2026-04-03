@@ -1,5 +1,5 @@
 """
-addon_diagnostics.py - Fallout 4 Mod Assistant Health Check & Auto-Fix
+addon_diagnostics.py - Mossy Fallout 4 Blender Add-on Health Check & Auto-Fix
 
 Adds two operators that appear in the Setup & Status panel:
 
@@ -648,7 +648,7 @@ def collect_diagnostics():
 # ── Operators ─────────────────────────────────────────────────────────────────
 
 class FO4_OT_RunAddonDiagnostics(Operator):
-    """Run a full health check on the Fallout 4 Mod Assistant.
+    """Run a full health check on the Mossy Fallout 4 Blender Add-on.
 Results are printed to the Blender System Console (Window > Toggle System Console on Windows)"""
     bl_idname  = "fo4.run_addon_diagnostics"
     bl_label   = "Run Add-on Diagnostics"
