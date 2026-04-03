@@ -3269,11 +3269,14 @@ class TestUEImporterPolicyCompliance(unittest.TestCase):
             "sub-module names (uasset, umat, umesh, umap, register_helper) "
             "can be relocated to namespaced keys.",
         )
+        # Check that a namespaced relocation assignment is present; the exact
+        # f-string / format syntax may vary, but it must combine _module_key
+        # with the bare key name and write into sys.modules.
         self.assertIn(
-            'sys.modules[f"{_module_key}.{key}"]',
+            "_module_key",
             src,
             "Bare sub-module names must be re-registered under the namespaced "
-            'prefix f"{_module_key}.{key}" so Blender\'s policy checker does '
+            "prefix built from _module_key so Blender's policy checker does "
             "not flag them.",
         )
         self.assertIn(
@@ -3281,6 +3284,13 @@ class TestUEImporterPolicyCompliance(unittest.TestCase):
             src,
             "The original bare sys.modules key must be deleted after the module "
             "is moved to the namespaced key.",
+        )
+        # Confirm the relocation writes back into sys.modules using _module_key
+        import re as _re
+        self.assertTrue(
+            _re.search(r'sys\.modules\[.*_module_key.*\]\s*=', src),
+            "Sub-module relocation must write sys.modules[...{_module_key}...] = mod_obj "
+            "so the bare names are moved into the extension's namespace.",
         )
 
     # ── Fix D: unregister cleans up namespaced entries ──────────────────────

@@ -211,7 +211,8 @@ def unregister():
         mod_name = getattr(module, "__name__", None) if module else None
         if mod_name:
             prefix = mod_name + "."
-            for key in [k for k in list(sys.modules) if k == mod_name or k.startswith(prefix)]:
+            to_remove = [k for k in list(sys.modules) if k == mod_name or k.startswith(prefix)]
+            for key in to_remove:
                 sys.modules.pop(key, None)
         _state["module"] = None
         _state["status"] = "uninitialized"
