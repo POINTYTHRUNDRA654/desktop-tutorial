@@ -544,7 +544,7 @@ _CREDITS_SECTIONS = [
     ]),
 ]
 
-_CREDITS_PAGE_SIZE = 4
+_CREDITS_PAGE_SIZE = 2
 
 
 class FO4_OT_ShowCredits(Operator):
