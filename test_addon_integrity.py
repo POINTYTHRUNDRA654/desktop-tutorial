@@ -3371,8 +3371,35 @@ class TestUEImporterPolicyCompliance(unittest.TestCase):
             "importer is loaded outside Blender's policy-check window.",
         )
 
+    def test_deferred_startup_auto_loads_ue4_importer(self):
+        """deferred_startup() must call load_and_register() when the importer is on disk.
+
+        register() is now a deliberate no-op.  The UE4 importer must be
+        loaded in deferred_startup() (the bpy.app.timers callback that fires
+        2 s after Blender loads) so it is available every session without the
+        user having to click 'Auto-Install' again.  This is the 'memory' that
+        persists across sessions: if IMPORTER_INIT exists on disk the importer
+        is loaded automatically.
+        """
+        src = _read("startup_helpers.py")
+        self.assertIn(
+            "load_and_register",
+            src,
+            "startup_helpers.deferred_startup() must call "
+            "ue_importer_helpers.load_and_register() when IMPORTER_INIT "
+            "already exists on disk so the UE4 importer is available every "
+            "session without re-downloading or requiring a manual install click.",
+        )
+        self.assertIn(
+            "IMPORTER_INIT.exists()",
+            src,
+            "startup_helpers.deferred_startup() must check "
+            "ue_importer_helpers.IMPORTER_INIT.exists() to decide whether to "
+            "load from disk (fast, no network) or skip / auto-download.",
+        )
 
 
+if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(sys.modules[__name__])
     runner = unittest.TextTestRunner(verbosity=2)

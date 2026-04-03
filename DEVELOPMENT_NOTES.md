@@ -1289,6 +1289,20 @@ then loads and registers it.
 If `IMPORTER_INIT` doesn't exist, `_load_module()` now calls `download_latest()`
 before attempting to load, so the folder is never required to be pre-populated.
 
+**D – `deferred_startup()` provides cross-session persistence**
+`startup_helpers.deferred_startup()` (the `bpy.app.timers` callback that runs
+2 s after Blender loads) now includes a step that checks
+`ue_importer_helpers.IMPORTER_INIT.exists()`.  If the importer was downloaded
+in a previous session, `load_and_register()` is called automatically so the
+UE4 importer is fully ready every startup without re-downloading or requiring
+the user to click "Auto-Install" again.
+
+For other tools (AssetStudio, AssetRipper, Unity FBX Importer, UModel Tools),
+`deferred_startup()` calls `download_latest()` automatically when
+`auto_install_tools` is enabled.  Their persistence record is the filesystem
+itself — `download_latest()` returns early when the directory already exists,
+so no network request is made on subsequent startups.
+
 The earlier A/B/C fixes (namespaced `_module_key`, `sys.path` snapshot, bare
 sub-module relocation) remain in `_load_module()` as a secondary defence against
 any stale-entry or ghost-module edge cases.
@@ -1298,19 +1312,19 @@ any stale-entry or ghost-module edge cases.
 ### Tests
 
 `TestUEImporterPolicyCompliance` in `test_addon_integrity.py` (Section S) —
-tests A–E now guard:
+tests A–F now guard:
 
 - A: namespaced `_module_key` (not bare `fo4_blender_ue4_importer`)
 - B: `__name__`-derived package prefix
 - C: `_module_key` variable used in `sys.modules`
 - D (path): `_path_before` snapshot + `sys.path[:] =` cleanup
 - D (subs): `_new_keys` relocation + `del sys.modules[key]` + `sys.modules.pop`
-- **E (new): `register()` must NOT contain `_load_module()` call**
-- **E (new): `load_and_register()` must exist**
-- **E (new): `install_operators.py` must use `load_and_register()`**
+- E: `register()` must NOT contain `_load_module()` call; `load_and_register()` must exist; `install_operators.py` must use it
+- **F (new): `deferred_startup()` must call `load_and_register()` and check `IMPORTER_INIT.exists()`**
 
 ### Key files
 
 - `ue_importer_helpers.py` — `register()` (no-op); `load_and_register()` (deferred entry-point with auto-download); `_load_module()` (namespaced key, sys.path cleanup, sub-module relocation, auto-download); `unregister()` (cleanup loop)
 - `install_operators.py` — `FO4_OT_CheckUEImporter`, `FO4_OT_InstallUEImporter` (both delegate to `load_and_register()`)
-- `test_addon_integrity.py` — `TestUEImporterPolicyCompliance` (Section S, fixes A–E)
+- `startup_helpers.py` — `deferred_startup()` Step 5b (UE4 auto-load from disk) + Step 5c (other tools auto-download)
+- `test_addon_integrity.py` — `TestUEImporterPolicyCompliance` (Section S, fixes A–F)
