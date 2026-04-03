@@ -828,7 +828,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <FileCog className="w-5 h-5 text-purple-400" />
               <div>
                 <div className="text-sm font-bold text-white">NifSkope <span className="text-amber-400 font-normal text-xs">by hexabits</span></div>
-                <a href="https://www.nexusmods.com/newvegas/mods/75969" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
+                <a href="https://github.com/hexabits/nifskope/releases" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from GitHub (hexabits)</a>
               </div>
             </div>
             <input value={draft.nifSkopePath || ''} onChange={(e) => handleChange('nifSkopePath', e.target.value)} placeholder="C:\\Path\\To\\NifSkope.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
@@ -1114,7 +1114,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <ImageIcon className="w-5 h-5 text-indigo-400" />
               <div>
                 <div className="text-sm font-bold text-white">Texture Editor (GIMP/Photoshop)</div>
-                <span className="text-[11px] text-slate-400">Used for DDS editing and texture creation</span>
+                <a href="https://www.gimp.org/downloads/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download GIMP (free)</a>
               </div>
             </div>
             <input value={draft.gimpPath || ''} onChange={(e) => handleChange('gimpPath', e.target.value)} placeholder="C:\\Program Files\\GIMP 3\\bin\\gimp-3.0.exe or C:\\Program Files\\GIMP 2\\bin\\gimp-2.10.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
@@ -1148,7 +1148,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <Zap className="w-5 h-5 text-indigo-400" />
               <div>
                 <div className="text-sm font-bold text-white">Upscayl (AI Image Upscaler)</div>
-                <span className="text-[11px] text-slate-400">Free, open-source AI upscaling tool</span>
+                <a href="https://github.com/upscayl/upscayl/releases" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from GitHub (free)</a>
               </div>
             </div>
             <input value={draft.upscaylPath || ''} onChange={(e) => handleChange('upscaylPath', e.target.value)} placeholder="C:\\Path\\To\\Upscayl.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
@@ -1165,7 +1165,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <ImageIcon className="w-5 h-5 text-green-400" />
               <div>
                 <div className="text-sm font-bold text-white">NVIDIA Texture Tools Exporter</div>
-                <span className="text-[11px] text-slate-400">Professional DDS creation & compression</span>
+                <a href="https://developer.nvidia.com/texture-tools-exporter" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from NVIDIA Developer</a>
               </div>
             </div>
             <input value={draft.nvidiaTextureToolsPath || ''} onChange={(e) => handleChange('nvidiaTextureToolsPath', e.target.value)} placeholder="C:\\Path\\To\\nvcompress.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
@@ -1182,7 +1182,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <Palette className="w-5 h-5 text-orange-400" />
               <div>
                 <div className="text-sm font-bold text-white">ShaderMap 4</div>
-                <span className="text-[11px] text-slate-400">Generate Normal, AO, and Displacement maps</span>
+                <a href="https://shadermap.com/download/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download ShaderMap 4</a>
               </div>
             </div>
             <input value={draft.shaderMapPath || ''} onChange={(e) => handleChange('shaderMapPath', e.target.value)} placeholder="C:\\Path\\To\\ShaderMap 4.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
@@ -1199,7 +1199,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <Package className="w-5 h-5 text-blue-400" />
               <div>
                 <div className="text-sm font-bold text-white">Autodesk FBX Converter</div>
-                <span className="text-[11px] text-slate-400">Convert 3D files to legacy FBX for modding</span>
+                <a href="https://www.autodesk.com/developer-network/platform-technologies/fbx-sdk-downloads" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Autodesk Developer Network</a>
               </div>
             </div>
             <input value={draft.autodeskFbxPath || ''} onChange={(e) => handleChange('autodeskFbxPath', e.target.value)} placeholder="C:\\Path\\To\\FBXConverter.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
@@ -1216,7 +1216,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <Zap className="w-5 h-5 text-green-500" />
               <div>
                 <div className="text-sm font-bold text-white">NVIDIA Omniverse</div>
-                <span className="text-[11px] text-slate-400">Advanced 3D collaboration & simulation</span>
+                <a href="https://www.nvidia.com/en-us/omniverse/download/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download NVIDIA Omniverse</a>
               </div>
             </div>
             <input value={draft.nvidiaOmniversePath || ''} onChange={(e) => handleChange('nvidiaOmniversePath', e.target.value)} placeholder="C:\\Path\\To\\Omniverse.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
@@ -1233,7 +1233,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <Wrench className="w-5 h-5 text-amber-600" />
               <div>
                 <div className="text-sm font-bold text-white">NifUtilsSuite</div>
-                <span className="text-[11px] text-slate-400">Essential tools for NIF file manipulation</span>
+                <a href="https://www.nexusmods.com/skyrim/mods/11692" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download from Nexus Mods</a>
               </div>
             </div>
             <input value={draft.nifUtilsSuitePath || ''} onChange={(e) => handleChange('nifUtilsSuitePath', e.target.value)} placeholder="C:\\Path\\To\\NifUtilsSuite.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
@@ -1267,7 +1267,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <ExternalLink className="w-5 h-5 text-blue-400" />
               <div>
                 <div className="text-sm font-bold text-white">Photopea</div>
-                <span className="text-[11px] text-slate-400">Desktop wrapper or local shortcut</span>
+                <a href="https://www.photopea.com/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Open Photopea (free web app)</a>
               </div>
             </div>
             <input value={draft.photopeaPath || ''} onChange={(e) => handleChange('photopeaPath', e.target.value)} placeholder="C:\\Path\\To\\Photopea.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
@@ -1284,7 +1284,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <Palette className="w-5 h-5 text-red-500" />
               <div>
                 <div className="text-sm font-bold text-white">PhotoDemon</div>
-                <span className="text-[11px] text-slate-400">Portable photo editor</span>
+                <a href="https://photodemon.org/download/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download PhotoDemon (free, portable)</a>
               </div>
             </div>
             <input value={draft.photoDemonPath || ''} onChange={(e) => handleChange('photoDemonPath', e.target.value)} placeholder="C:\\Path\\To\\PhotoDemon.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
@@ -1301,7 +1301,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <Maximize2 className="w-5 h-5 text-yellow-500" />
               <div>
                 <div className="text-sm font-bold text-white">UnWrap3</div>
-                <span className="text-[11px] text-slate-400">UV Unwrapping tool</span>
+                <a href="https://www.unwrap3d.com/u3d/downloads.aspx" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download UnWrap3D</a>
               </div>
             </div>
             <input value={draft.unWrap3Path || ''} onChange={(e) => handleChange('unWrap3Path', e.target.value)} placeholder="C:\\Path\\To\\UnWrap3.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
@@ -1317,7 +1317,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <RefreshCw className="w-5 h-5 text-violet-400" />
               <div>
                 <div className="text-sm font-bold text-white">Spin 3D</div>
-                <span className="text-[11px] text-slate-400">Mesh file converter</span>
+                <a href="https://www.nchsoftware.com/3dconvert/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download Spin 3D</a>
               </div>
             </div>
             <input value={draft.spin3dPath || ''} onChange={(e) => handleChange('spin3dPath', e.target.value)} placeholder="C:\\Path\\To\\spin3d.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
@@ -1333,7 +1333,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <Palette className="w-5 h-5 text-green-300" />
               <div>
                 <div className="text-sm font-bold text-white">NVIDIA Canvas <span className="text-slate-500 text-xs">(Vita Canvas)</span></div>
-                <span className="text-[11px] text-slate-400">AI-powered landscape painting - Look for Canvas.exe</span>
+                <a href="https://www.nvidia.com/en-us/studio/canvas/" target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Download NVIDIA Canvas</a>
               </div>
             </div>
             <input value={draft.nvidiaCanvasPath || ''} onChange={(e) => handleChange('nvidiaCanvasPath', e.target.value)} placeholder="D:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
