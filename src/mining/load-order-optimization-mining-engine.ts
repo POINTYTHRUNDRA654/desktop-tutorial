@@ -38,7 +38,7 @@ export class LoadOrderOptimizationMiningEngineImpl implements LoadOrderOptimizat
       }
     }
 
-    return optimizations.sort((a, b) => b.performanceImprovement - a.performanceImprovement);
+    return optimizations.sort((a, b) => (b.performanceImprovement ?? 0) - (a.performanceImprovement ?? 0));
   }
 
   async suggestOptimalOrder(currentOrder: string[], constraints: LoadOrderConstraints): Promise<OptimizedLoadOrder> {

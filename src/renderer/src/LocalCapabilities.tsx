@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 
 type CapsStatus = {
   ok: true;
@@ -139,7 +140,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
         return;
       }
 
-      alert(String(resp.text || '').trim() || '(empty response)');
+      toast.success(String(resp.text || '').trim() || '(empty response)');
     } catch (e: any) {
       setError(String(e?.message || e));
     } finally {

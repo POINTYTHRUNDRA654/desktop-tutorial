@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import { LocalAIEngine } from './LocalAIEngine';
 import { getFullSystemInstruction } from './MossyBrain';
@@ -1072,14 +1073,14 @@ export const ChatInterface: React.FC = () => {
 
     const startListening = async () => {
         if (isLiveActive) {
-            alert("Live Voice is currently active. Please disconnect Live Voice to use the chat microphone.");
+            toast.error('Live Voice is currently active. Disconnect Live Voice to use the chat microphone.');
             return;
         }
 
         // Check if transcription is available
         const api = (window as any).electron?.api || (window as any).electronAPI;
         if (!api?.transcribeAudio) {
-            alert('Voice transcription is not available. Please configure an OpenAI API key in Settings.');
+            toast.error('Voice transcription is not available. Configure an OpenAI API key in Settings.');
             return;
         }
 
@@ -1135,7 +1136,7 @@ export const ChatInterface: React.FC = () => {
                     const api = (window as any).electron?.api || (window as any).electronAPI;
                     if (!api?.transcribeAudio) {
                         console.warn('[VoiceInput] transcribeAudio IPC not available - check if API keys are configured');
-                        alert('Voice transcription is not available. Please configure an OpenAI API key in Settings.');
+                        toast.error('Voice transcription is not available. Configure an OpenAI API key in Settings.');
                         return;
                     } else {
                         console.log('[VoiceInput] Transcribing audio via main process... (size:', audioBlob.size, 'bytes)');
@@ -1159,7 +1160,7 @@ export const ChatInterface: React.FC = () => {
                                 audioSize: audioBlob.size
                             });
 
-                            alert(`Voice transcription failed: ${resp?.error || 'Unknown error'}`);
+                            toast.error(`Voice transcription failed: ${resp?.error || 'Unknown error'}`);
                         }
                     }
                 } catch (err) {
@@ -1189,7 +1190,7 @@ export const ChatInterface: React.FC = () => {
                         reason: 'no_transcription'
                     });
 
-                    alert('Voice transcription failed. If you want STT, configure OpenAI in Desktop settings, then try again.');
+                    toast.error('Voice transcription failed. Configure OpenAI in Desktop settings to use STT.');
                 }
             };
 
@@ -1232,7 +1233,7 @@ export const ChatInterface: React.FC = () => {
         } catch (err) {
             console.error('[VoiceInput] Mic access failed:', err);
             setIsListening(false);
-            alert(`Microphone access failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please check your microphone permissions and try again.`);
+            toast.error(`Microphone access failed: ${err instanceof Error ? err.message : 'Unknown error'}. Check your microphone permissions.`);
         }
     };
 
@@ -2141,7 +2142,7 @@ export const ChatInterface: React.FC = () => {
                             <div className="flex justify-start">
                                 <div className="bg-forge-panel border border-slate-700 rounded-2xl rounded-tl-none p-4 flex items-center gap-3 shadow-sm">
                                     {isStreaming ? <Bot className="w-4 h-4 text-emerald-400 animate-pulse" /> : <Loader2 className="animate-spin text-emerald-400 w-4 h-4" />}
-                                    <span className="text-slate-400 text-sm font-medium">{isStreaming ? 'Mossy is typing...' : 'Mossy is thinking...'}</span>
+                                    <span className="text-slate-400 text-sm font-medium">{isStreaming ? 'Mossy is typing...' : 'Mossy is thinking… (responses can take 30–60 seconds)'}</span>
                                     <button onClick={handleStopGeneration} className="ml-4 p-1 hover:bg-slate-700 rounded-full text-slate-500 hover:text-white" title="Stop Generation">
                                         <Square className="w-3 h-3 fill-current" />
                                     </button>

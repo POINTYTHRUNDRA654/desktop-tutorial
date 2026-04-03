@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
+import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 // prefer preload API when available, otherwise fall back to in-memory engine for dev
 let bridge: any = (window as any).electron?.api || (window as any).electronAPI;
@@ -20,11 +22,13 @@ function readLocal(key: string, fallback: any) {
 }
 
 const SecurityValidator: React.FC = () => {
+  const navigate = useNavigate();
   const [path, setPath] = useState('');
   const [code, setCode] = useState('Event OnUpdate()\nEndEvent');
   const [progress, setProgress] = useState(0);
   const [scanning, setScanning] = useState(false);
   const [lastReport, setLastReport] = useState<any>(null);
+  const [pathError, setPathError] = useState<string | null>(null);
   const [quarantine, setQuarantine] = useState<string[]>(() => readLocal(LOCAL_QUARANTINE_KEY, []));
   const [whitelist, setWhitelist] = useState<string[]>(() => readLocal(LOCAL_WHITELIST_KEY, []));
   const [autoScanOnDownload, setAutoScanOnDownload] = useState(false);
@@ -67,7 +71,8 @@ const SecurityValidator: React.FC = () => {
 
   const doScanFile = async (p?: string) => {
     const target = p || path;
-    if (!target) return alert('Provide a file path');
+    if (!target) { setPathError('Provide a file path'); return; }
+    setPathError(null);
     if (whitelist.includes(target)) return setLastReport({ info: 'Whitelisted — skipped' });
 
     setScanning(true);
@@ -83,7 +88,8 @@ const SecurityValidator: React.FC = () => {
   };
 
   const doScanArchive = async () => {
-    if (!path) return alert('Provide archive path');
+    if (!path) { setPathError('Provide archive path'); return; }
+    setPathError(null);
     setScanning(true); startProgress();
     try {
       const res = await bridge.security.scanArchive(path);
@@ -93,7 +99,8 @@ const SecurityValidator: React.FC = () => {
   };
 
   const doScanScript = async () => {
-    if (!path) return alert('Provide script path');
+    if (!path) { setPathError('Provide script path'); return; }
+    setPathError(null);
     setScanning(true); startProgress();
     try {
       const res = await bridge.security.scanScript(path);
@@ -112,12 +119,12 @@ const SecurityValidator: React.FC = () => {
   };
 
   const generateReportFile = async () => {
-    if (!lastReport) return alert('No report to export');
+    if (!lastReport) { toast.error('No report to export'); return; }
     const filename = `security-report-${Date.now()}.json`;
     try {
       await bridge.saveFile(JSON.stringify(lastReport, null, 2), filename);
-      alert(`Report saved: ${filename}`);
-    } catch (err) { alert('Failed to save report'); }
+      toast.success(`Report saved: ${filename}`);
+    } catch (err) { toast.error('Failed to save report'); }
   };
 
   const quarantineItem = (p: string) => {
@@ -145,14 +152,15 @@ const SecurityValidator: React.FC = () => {
           <h1 className="text-2xl font-bold">Security Validator</h1>
           <div className="flex items-center gap-4">
             <label className="text-xs text-slate-400 flex items-center gap-2"><input type="checkbox" checked={autoScanOnDownload} onChange={e=>setAutoScanOnDownload(e.target.checked)} /> Auto-scan on download</label>
-            <button className="px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={() => bridge.security.updateThreatDatabase?.() && alert('Threat DB update requested')}>Update DB</button>
+            <button className="px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={() => { bridge.security.updateThreatDatabase?.(); toast.success('Threat DB update requested'); }}>Update DB</button>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-6">
           <div className="p-4 bg-[#08120c] border border-slate-800 rounded" onDrop={onDrop} onDragOver={onDragOver}>
             <label className="text-sm text-slate-300">File / Folder / Script (drag & drop supported)</label>
-            <input className="w-full mt-2 p-2 bg-black/10 border border-slate-800 rounded text-sm" value={path} onChange={e => setPath(e.target.value)} placeholder="C:/path/to/file or folder" />
+            <input className="w-full mt-2 p-2 bg-black/10 border border-slate-800 rounded text-sm" value={path} onChange={e => { setPath(e.target.value); setPathError(null); }} placeholder="C:/path/to/file or folder" />
+            {pathError && <p className="mt-1 text-xs text-rose-400">{pathError}</p>}
 
             <div className="mt-4 flex gap-2">
               <button className="px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={() => doScanFile()} disabled={scanning}>Scan File</button>
@@ -195,6 +203,15 @@ const SecurityValidator: React.FC = () => {
                 <button className="px-3 py-2 bg-rose-700/10 rounded text-sm" onClick={() => quarantineItem(lastReport.path)}>Quarantine</button>
                 <button className="ml-2 px-3 py-2 bg-slate-700/10 rounded text-sm" onClick={() => addWhitelist(lastReport.path)}>Whitelist</button>
               </div>
+            )}
+            {lastReport && (
+              <button
+                onClick={() => navigate('/chat', { state: { prefill: `I just ran a security scan and got the following result:\n\n${JSON.stringify(lastReport, null, 2)}\n\nCan you help me interpret this and advise on any threats?` } })}
+                className="mt-3 w-full py-2 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
+                title="Open full chat with this report as context"
+              >
+                Ask Mossy about this
+              </button>
             )}
           </div>
 

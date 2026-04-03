@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { ExternalLink, Play } from 'lucide-react';
 import type { Settings } from '../../../shared/types';
 
@@ -53,16 +54,16 @@ const ExternalToolNotice: React.FC<ExternalToolNoticeProps> = ({
       if (bridge?.openProgram) {
         const result: any = await bridge.openProgram(path);
         if (result && result.success === false) {
-           alert(`Could not launch ${toolName}: ${result.error || 'Unknown error'}`);
-        }
+           toast.error(`Could not launch ${toolName}: ${result.error || 'Unknown error'}`);
+         }
       } else if (bridge?.openExternal) {
         await bridge.openExternal(path);
       } else {
-        alert('Launching external tools requires the Desktop Bridge (Electron).');
+        toast.error('Launching external tools requires the Desktop Bridge (Electron).');
       }
     } catch (e) {
       console.error('Failed to launch tool:', e);
-      alert(`Could not launch ${toolName}. Check the configured path in Settings.`);
+      toast.error(`Could not launch ${toolName}. Check the configured path in Settings.`);
     } finally {
       setLaunching(false);
     }

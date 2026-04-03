@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import ProjectWizard from './components/ProjectWizard';
 import GameLogMonitor from './GameLogMonitor';
 import { Scan, CheckCircle2, AlertTriangle, FileImage, Box, FileCode, Search, Wrench, ArrowRight, ShieldCheck, RefreshCw, XCircle, File, Bug } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
 import { workerManager } from './WorkerManager';
 import { cacheManager } from './CacheManager';
@@ -32,6 +33,7 @@ interface ModFile {
 const initialFiles: ModFile[] = [];
 
 const TheAuditor: React.FC = () => {
+    const navigate = useNavigate();
     const [files, setFiles] = useState<ModFile[]>(initialFiles);
     const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
     const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
@@ -88,9 +90,36 @@ const TheAuditor: React.FC = () => {
         void openExternal(url);
     };
 
+    /** Format a raw file-size number to a human-readable MB string. */
+    const fmtMB = (analysis: any): string => {
+        const mb = analysis.fileSizeMB ?? ((analysis.fileSize ?? 0) / 1024 / 1024);
+        return `${(Math.round(mb * 100) / 100).toFixed(2)} MB`;
+    };
+
     const openNexusSearch = (keywords: string) => {
         const query = encodeURIComponent(keywords);
         openUrl(`https://www.nexusmods.com/fallout4/search/?BH=0&search%5Bsearch_keywords%5D=${query}`);
+    };
+
+    // Launch an external tool with the selected file as a command-line argument.
+    // Falls back to a settings notice if the tool path isn't configured.
+    const launchToolWithFile = async (toolSettingsKey: 'xeditPath' | 'nifSkopePath' | 'creationKitPath' | 'blenderPath', filePath: string, toolLabel: string) => {
+        const bridge = (window as any).electron?.api || (window as any).electronAPI;
+        if (!bridge) return;
+        try {
+            const settings = await bridge.getSettings?.();
+            const toolPath: string = settings?.[toolSettingsKey] ?? '';
+            if (!toolPath) {
+                setMossyAdvice(`⚙️ ${toolLabel} path is not configured. Go to Settings → External Tools and set the path to ${toolLabel}, then try again.`);
+                return;
+            }
+            const result = await bridge.launchToolWithFile?.(toolPath, filePath);
+            if (result && !result.success) {
+                setMossyAdvice(`⚠️ Could not launch ${toolLabel}: ${result.error}`);
+            }
+        } catch (e) {
+            console.error(`launchToolWithFile(${toolLabel}):`, e);
+        }
     };
 
     const selectedFile = files.find(f => f.id === selectedFileId);
@@ -136,12 +165,24 @@ const TheAuditor: React.FC = () => {
         }
     }, []);
 
+    // Keep Mossy's context in sync: persist the full file list (including pending
+    // uploads) to localStorage every time it changes so ChatInterface can inject
+    // it into Mossy's system prompt even before an audit is run.
+    useEffect(() => {
+        if (files.length > 0) {
+            localStorage.setItem('mossy_scan_auditor', JSON.stringify(files));
+        } else {
+            localStorage.removeItem('mossy_scan_auditor');
+        }
+        window.dispatchEvent(new Event('mossy-memory-update'));
+    }, [files]);
+
     // Handle ESP file upload
     const handleFileUpload = async () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
             if (!bridge) {
-                alert('File browser not available. Please use the desktop app.');
+                toast.error('File browser not available. Please use the desktop app.');
                 return;
             }
 
@@ -165,7 +206,7 @@ const TheAuditor: React.FC = () => {
             setSelectedFileId(newFile.id);
         } catch (error) {
             console.error('File upload error:', error);
-            alert('Failed to load file. Please try again.');
+            toast.error('Failed to load file. Please try again.');
         }
     };
 
@@ -174,7 +215,7 @@ const TheAuditor: React.FC = () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
             if (!bridge) {
-                alert('File browser not available. Please use the desktop app.');
+                toast.error('File browser not available. Please use the desktop app.');
                 return;
             }
 
@@ -201,7 +242,7 @@ const TheAuditor: React.FC = () => {
             }
         } catch (error) {
             console.error('File upload error:', error);
-            alert('Failed to load file(s). Please try again.');
+            toast.error('Failed to load file(s). Please try again.');
         }
     };
 
@@ -210,7 +251,7 @@ const TheAuditor: React.FC = () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
             if (!bridge) {
-                alert('File browser not available. Please use the desktop app.');
+                toast.error('File browser not available. Please use the desktop app.');
                 return;
             }
 
@@ -237,7 +278,7 @@ const TheAuditor: React.FC = () => {
             }
         } catch (error) {
             console.error('File upload error:', error);
-            alert('Failed to load file(s). Please try again.');
+            toast.error('Failed to load file(s). Please try again.');
         }
     };
 
@@ -246,7 +287,7 @@ const TheAuditor: React.FC = () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
             if (!bridge) {
-                alert('File browser not available. Please use the desktop app.');
+                toast.error('File browser not available. Please use the desktop app.');
                 return;
             }
 
@@ -273,7 +314,7 @@ const TheAuditor: React.FC = () => {
             }
         } catch (error) {
             console.error('File upload error:', error);
-            alert('Failed to load file(s). Please try again.');
+            toast.error('Failed to load file(s). Please try again.');
         }
     };
 
@@ -282,7 +323,7 @@ const TheAuditor: React.FC = () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
             if (!bridge) {
-                alert('File browser not available. Please use the desktop app.');
+                toast.error('File browser not available. Please use the desktop app.');
                 return;
             }
 
@@ -312,7 +353,7 @@ const TheAuditor: React.FC = () => {
             });
 
             if (newFiles.length === 0) {
-                alert('No mod files found in the selected directory.');
+                toast.error('No mod files found in the selected directory.');
                 return;
             }
 
@@ -321,10 +362,10 @@ const TheAuditor: React.FC = () => {
                 setSelectedFileId(newFiles[0].id);
             }
 
-            alert(`Successfully loaded ${newFiles.length} files from the mod directory.`);
+            toast.success(`Successfully loaded ${newFiles.length} files from the mod directory.`);
         } catch (error) {
             console.error('Directory scan error:', error);
-            alert('Failed to scan directory. Please try again.');
+            toast.error('Failed to scan directory. Please try again.');
         }
     };
 
@@ -337,7 +378,7 @@ const TheAuditor: React.FC = () => {
         try {
             const bridge = (window as any).electron?.api || (window as any).electronAPI;
             if (!bridge) {
-                alert('File browser not available. Please use the desktop app.');
+                toast.error('File browser not available. Please use the desktop app.');
                 return;
             }
 
@@ -349,12 +390,12 @@ const TheAuditor: React.FC = () => {
             const rawScanResult = await bridge.scanModDirectoryPath?.(folderPath);
             if (!rawScanResult) {
                 // IPC returned null/undefined — scanModDirectoryPath not available or failed
-                alert('Scan failed: the scanModDirectoryPath API is unavailable. Please restart the app.');
+                toast.error('Scan failed: the scanModDirectoryPath API is unavailable. Please restart the app.');
                 return;
             }
             const modFiles: Array<{ path: string; type: string }> = rawScanResult;
             if (modFiles.length === 0) {
-                alert(`No recognised mod files (ESP, NIF, DDS, BGSM/BGEM) were found in:\n${folderPath}\n\nMake sure you selected the mod's root or Data folder.`);
+                toast.error(`No recognised mod files (ESP, NIF, DDS, BGSM/BGEM) were found in:. ${folderPath}. . Make sure you selected the mod's root or Data folder.`);
                 return;
             }
 
@@ -383,7 +424,7 @@ const TheAuditor: React.FC = () => {
             setSelectedFileId(newFiles[0]?.id ?? null);
         } catch (error) {
             console.error('[Auditor] Quick scan error:', error);
-            alert('Failed to scan folder. Please try again.');
+            toast.error('Failed to scan folder. Please try again.');
         }
     };
 
@@ -393,7 +434,7 @@ const TheAuditor: React.FC = () => {
         const filesToScan = files.filter(f => f.status === 'pending' || f.status === 'warning' || f.status === 'error');
 
         if (filesToScan.length === 0) {
-            alert('No files to scan. Please upload files first.');
+            toast.error('No files to scan. Please upload files first.');
             return;
         }
 
@@ -423,73 +464,71 @@ const TheAuditor: React.FC = () => {
             let status: 'clean' | 'warning' | 'error' | 'pending' = 'clean';
             let fileSize = f.size; // Keep existing size as default
 
-            if (f.name.endsWith('.esp') || f.name.endsWith('.esm')) {
+            if (f.name.endsWith('.esp') || f.name.endsWith('.esm') || f.name.endsWith('.esl')) {
                 try {
-                    // Check cache first
+                    // Helper: convert structured ESPIssue array → AuditIssue array
+                    const mapESPIssues = (espIssues: any[], prefix: string): AuditIssue[] =>
+                        espIssues.map((issue: any, i: number) => ({
+                            id: `${prefix}-${i}`,
+                            severity: (issue.severity === 'error' ? 'error'
+                                : issue.severity === 'warning' ? 'warning' : 'info') as 'error' | 'warning' | 'info',
+                            message: `[${issue.category}] ${issue.message}`,
+                            technicalDetails: `${issue.details}\n\n💡 HOW TO FIX:\n${issue.fix}`,
+                            fixAvailable: issue.severity === 'error' || issue.severity === 'warning'
+                        }));
+
+                    // Derive status from issues
+                    const statusFromIssues = (issueList: any[]): 'clean' | 'warning' | 'error' =>
+                        issueList.some((i: any) => i.severity === 'error') ? 'error'
+                        : issueList.some((i: any) => i.severity === 'warning') ? 'warning'
+                        : issueList.length > 0 ? 'warning' : 'clean';
+
+                    // Check cache first (cached result may already have structured issues)
                     const cached = await cacheManager.getCachedAnalysisResult(f.name);
                     if (cached) {
                         console.log('Using cached ESP analysis for:', f.name);
-                        fileSize = `${cached.fileSizeMB} MB`;
-                        if (cached.warnings && cached.warnings.length > 0) {
-                            newIssues.push(...cached.warnings.map((w: string, i: number) => {
-                                const isNavmeshDeleted = w.includes('Deleted navmesh');
-                                const isNavmesh = w.includes('navmesh') || w.includes('NAVM');
-                                const isLarge = w.includes('Large ESP file') || w.includes('exceeds recommended limit');
-                                return {
-                                    id: `esp-warning-${i}`,
-                                    severity: (isNavmeshDeleted || isLarge ? 'error' : 'warning') as 'error' | 'warning',
-                                    message: isNavmeshDeleted
-                                        ? 'Deleted Navmesh (CTD Risk)'
-                                        : isNavmesh
-                                            ? 'Navmesh Data Present'
-                                            : isLarge ? 'Large Plugin File' : 'Plugin Warning',
-                                    technicalDetails: w,
-                                    fixAvailable: isNavmeshDeleted || isNavmesh
-                                };
-                            }));
-                            status = cached.warnings.some((w: string) => w.includes('Deleted navmesh') || w.includes('exceeds recommended limit')) ? 'error' : 'warning';
+                        fileSize = fmtMB(cached);
+                        if (cached.issues && cached.issues.length > 0) {
+                            newIssues.push(...mapESPIssues(cached.issues, 'esp-cached'));
+                            status = statusFromIssues(cached.issues);
+                        } else if (cached.warnings && cached.warnings.length > 0) {
+                            // Legacy flat-string cache — still show something useful
+                            newIssues.push(...cached.warnings.map((w: string, i: number) => ({
+                                id: `esp-cached-${i}`,
+                                severity: 'warning' as const,
+                                message: 'Plugin Warning',
+                                technicalDetails: w,
+                                fixAvailable: false
+                            })));
+                            status = 'warning';
                         } else {
                             status = 'clean';
                         }
                     } else {
-                        // Use worker for ESP analysis
+                        // Run the comprehensive ESP scanner via the worker
                         const fileBuffer = await readFileAsArrayBuffer(f.path);
                         const analysis = await workerManager.analyzeAsset('esp', fileBuffer, f.name);
 
-                        fileSize = `${analysis.fileSizeMB} MB`;
-                        if (analysis.warnings && analysis.warnings.length > 0) {
-                            newIssues.push(...analysis.warnings.map((w: string, i: number) => {
-                                const isNavmeshDeleted = w.includes('Deleted navmesh');
-                                const isNavmesh = w.includes('navmesh') || w.includes('NAVM');
-                                const isLarge = w.includes('Large ESP file') || w.includes('exceeds recommended limit');
-                                return {
-                                    id: `esp-warning-${i}`,
-                                    severity: (isNavmeshDeleted || isLarge ? 'error' : 'warning') as 'error' | 'warning',
-                                    message: isNavmeshDeleted
-                                        ? 'Deleted Navmesh (CTD Risk)'
-                                        : isNavmesh
-                                            ? 'Navmesh Data Present'
-                                            : isLarge ? 'Large Plugin File' : 'Plugin Warning',
-                                    technicalDetails: w,
-                                    fixAvailable: isNavmeshDeleted || isNavmesh
-                                };
-                            }));
-                            if (analysis.warnings.some((w: string) => w.includes('Deleted navmesh') || w.includes('Large ESP file') || w.includes('exceeds recommended limit'))) {
-                                status = 'error';
-                            } else {
-                                status = 'warning';
-                            }
+                        fileSize = fmtMB(analysis);
+
+                        if (analysis.issues && analysis.issues.length > 0) {
+                            newIssues.push(...mapESPIssues(analysis.issues, 'esp-issue'));
+                            status = statusFromIssues(analysis.issues);
                         } else {
                             status = 'clean';
                         }
                     }
                 } catch (error) {
                     console.error('Error analyzing ESP:', error);
+                    const errMsg = error instanceof Error ? error.message : 'Unknown error';
+                    const isReadError = errMsg.toLowerCase().includes('could not read') || errMsg.toLowerCase().includes('file');
                     newIssues.push({
                         id: 'esp-error',
                         severity: 'error',
-                        message: 'Analysis error',
-                        technicalDetails: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                        message: isReadError ? '[File] Could Not Read Plugin File' : '[File] Plugin Analysis Failed',
+                        technicalDetails: isReadError
+                            ? `The file could not be loaded for analysis. This usually means the file is locked by another program (close xEdit/CK/MO2 and retry), the path contains special characters, or the file is corrupted.\n\n💡 HOW TO FIX:\nClose all tools that may have the file open (xEdit, CK, MO2), then click Run Audit again. If it still fails, try copying the file to your Desktop first. Raw error: ${errMsg}`
+                            : `The analysis engine encountered an error while parsing this plugin.\n\n💡 HOW TO FIX:\nTry re-uploading the file. If the problem persists, open it in xEdit to check for structural corruption. Raw error: ${errMsg}`,
                         fixAvailable: false
                     });
                     status = 'error';
@@ -658,6 +697,9 @@ const TheAuditor: React.FC = () => {
         const cleanCount = updatedFiles.filter(f => f.status === 'clean').length;
 
         let adviceMessage = `✅ Audit complete. Scanned ${updatedFiles.length} file(s): ${cleanCount} clean, ${warningCount} warnings, ${errorCount} errors (${totalIssues} total issues).`;
+        if (totalIssues > 0) {
+            adviceMessage += ` Click any issue in the inspector to get a detailed explanation and fix steps.`;
+        }
 
         // Proactively surface navmesh errors so the user notices immediately
         const navmeshErrors = updatedFiles.flatMap(f =>
@@ -671,6 +713,19 @@ const TheAuditor: React.FC = () => {
         }
 
         setMossyAdvice(adviceMessage);
+
+        // Auto-select the first file with issues so the inspector opens immediately.
+        // Also auto-fetch Mossy AI advice for the most critical issue found.
+        const firstFileWithIssues = updatedFiles.find(f => f.issues.length > 0);
+        if (firstFileWithIssues) {
+            setSelectedFileId(firstFileWithIssues.id);
+            const criticalIssue = firstFileWithIssues.issues.find(i => i.severity === 'error')
+                ?? firstFileWithIssues.issues[0];
+            if (criticalIssue) {
+                // Small defer so setSelectedFileId state settles before getMossyAdvice reads it
+                setTimeout(() => getMossyAdvice(criticalIssue), 100);
+            }
+        }
     };
 
     const getMossyAdvice = async (issue: AuditIssue) => {
@@ -1027,6 +1082,43 @@ const TheAuditor: React.FC = () => {
                                             }`}>
                                             STATUS: {selectedFile.status.toUpperCase()}
                                         </div>
+                                        {/* Open-in-Tool buttons — only show when path is accessible */}
+                                        {selectedFile.type === 'plugin' && (
+                                            <button
+                                                onClick={() => launchToolWithFile('xeditPath', selectedFile.path, 'xEdit')}
+                                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 rounded text-xs font-bold transition-colors"
+                                                title="Open this ESP/ESM in xEdit (FO4Edit) to inspect and fix issues"
+                                            >
+                                                <Wrench className="w-3.5 h-3.5" /> Open in xEdit
+                                            </button>
+                                        )}
+                                        {selectedFile.type === 'plugin' && (
+                                            <button
+                                                onClick={() => launchToolWithFile('creationKitPath', selectedFile.path, 'Creation Kit')}
+                                                className="flex items-center gap-1.5 px-3 py-2 bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 border border-blue-500/30 rounded text-xs font-bold transition-colors"
+                                                title="Open this plugin in the Creation Kit"
+                                            >
+                                                <FileCode className="w-3.5 h-3.5" /> Open in CK
+                                            </button>
+                                        )}
+                                        {selectedFile.type === 'mesh' && (
+                                            <button
+                                                onClick={() => launchToolWithFile('nifSkopePath', selectedFile.path, 'NifSkope')}
+                                                className="flex items-center gap-1.5 px-3 py-2 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-500/30 rounded text-xs font-bold transition-colors"
+                                                title="Open this NIF mesh in NifSkope"
+                                            >
+                                                <Box className="w-3.5 h-3.5" /> Open in NifSkope
+                                            </button>
+                                        )}
+                                        {selectedFile.type === 'mesh' && (
+                                            <button
+                                                onClick={() => launchToolWithFile('blenderPath', selectedFile.path, 'Blender')}
+                                                className="flex items-center gap-1.5 px-3 py-2 bg-orange-900/30 hover:bg-orange-900/50 text-orange-300 border border-orange-500/30 rounded text-xs font-bold transition-colors"
+                                                title="Open this NIF in Blender (requires PyNifly addon)"
+                                            >
+                                                <Box className="w-3.5 h-3.5" /> Open in Blender
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1165,6 +1257,13 @@ const TheAuditor: React.FC = () => {
                                         <Wrench className="w-3 h-3" /> {isFixing ? 'Fixing...' : 'Fix-It'} <ArrowRight className="w-3 h-3" />
                                     </button>
                                 </div>
+                                <button
+                                    onClick={() => navigate('/chat', { state: { prefill: `I just ran an audit on my mod files. Here is the analysis result:\n\n${mossyAdvice}\n\nCan you help me understand and fix these issues?` } })}
+                                    className="mt-3 w-full py-2 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
+                                    title="Open full chat with this audit result as context"
+                                >
+                                    Ask Mossy about this
+                                </button>
                             </div>
                         ) : (
                             <div className="text-slate-500 text-sm italic">

@@ -327,9 +327,9 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
       case 'Display.iShadowMapResolution': {
         let recommendedShadowRes = 2048; // Default
 
-        if (gpu.vram < 4) recommendedShadowRes = 1024; // Low VRAM
-        else if (gpu.vram < 8) recommendedShadowRes = 1536; // Medium VRAM
-        else if (gpu.vram > 12) recommendedShadowRes = 4096; // High VRAM
+        if ((gpu?.vram ?? 0) < 4) recommendedShadowRes = 1024; // Low VRAM
+        else if ((gpu?.vram ?? 0) < 8) recommendedShadowRes = 1536; // Medium VRAM
+        else if ((gpu?.vram ?? 0) > 12) recommendedShadowRes = 4096; // High VRAM
 
         if (parseInt(parameter.value) !== recommendedShadowRes) {
           return {
@@ -339,7 +339,7 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
             expectedPerformanceGain: Math.abs(parseInt(parameter.value) - recommendedShadowRes) / 1000,
             stabilityImpact: 0.1,
             visualQualityImpact: recommendedShadowRes > parseInt(parameter.value) ? 0.3 : -0.2,
-            reason: `Optimized for ${gpu.vram}GB VRAM GPU`,
+            reason: `Optimized for ${gpu?.vram ?? 0}GB VRAM GPU`,
             implementationSteps: [
               '1. Open SkyrimPrefs.ini',
               '2. Locate [Display] section',
@@ -479,7 +479,7 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
   }
 
   private calculateExpectedPerformanceGain(recommendations: ParameterRecommendation[]): number {
-    return recommendations.reduce((total, rec) => total + rec.expectedPerformanceGain, 0);
+    return recommendations.reduce((total, rec) => total + (rec.expectedPerformanceGain ?? 0), 0);
   }
 
   private async calculateStabilityScore(recommendations: ParameterRecommendation[]): Promise<number> {
@@ -487,7 +487,7 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
     let baseScore = 100;
 
     for (const rec of recommendations) {
-      baseScore -= rec.stabilityImpact * 20; // Convert to percentage points
+      baseScore -= (rec.stabilityImpact ?? 0) * 20; // Convert to percentage points
     }
 
     return Math.max(0, Math.min(100, baseScore));
@@ -506,7 +506,7 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
         warnings.push('High shadow resolution may not be supported on all GPUs');
       }
 
-      if (rec.visualQualityImpact < -0.3) {
+      if ((rec.visualQualityImpact ?? 0) < -0.3) {
         warnings.push('Significant visual quality reduction may be noticeable');
       }
     }

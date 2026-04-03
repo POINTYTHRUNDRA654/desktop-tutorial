@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
+import toast from 'react-hot-toast';
 import {
   Box,
   Button,
@@ -195,7 +196,7 @@ const AssetValidator: React.FC = () => {
     const issuesToFix = report.issues.filter(issue => selectedIssues.has(issue.id) && issue.autoFixable);
 
     if (issuesToFix.length === 0) {
-      alert('No fixable issues selected');
+      toast.error('No fixable issues selected');
       return;
     }
 
@@ -203,11 +204,11 @@ const AssetValidator: React.FC = () => {
       const result = await window.electron.invoke('asset-validator:auto-fix', issuesToFix);
 
       if (result.success) {
-        alert(`Fixed ${result.issuesFixed} issues. Backup saved to: ${result.backupPath}`);
+        toast.success(`Fixed ${result.issuesFixed} issues. Backup saved to: ${result.backupPath}`);
         // Re-scan to update results
         handleStartScan();
       } else {
-        alert('Auto-fix failed. Check the log for details.');
+        toast.error('Auto-fix failed. Check the log for details.');
       }
     } catch (error: any) {
       console.error('Auto-fix error:', error);
@@ -222,9 +223,9 @@ const AssetValidator: React.FC = () => {
       const result = await window.electron.invoke('asset-validator:export-report', report, format);
       
       if (result.success) {
-        alert(`Report exported to: ${result.path}\nSize: ${(result.size / 1024).toFixed(2)} KB`);
+        toast.success(`Report exported to: ${result.path}. Size: ${(result.size / 1024).toFixed(2)} KB`);
       } else {
-        alert(`Export failed: ${result.error || result.message}`);
+        toast.error(`Export failed: ${result.error || result.message}`);
       }
     } catch (error: any) {
       console.error('Export error:', error);

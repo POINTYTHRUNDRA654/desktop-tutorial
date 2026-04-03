@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import {
   Cloud,
   Share2,
@@ -202,32 +203,14 @@ export function CloudSync() {
 
   // Handlers
   const handleManualSync = useCallback(() => {
+    // Cloud Sync is a planned feature — show an honest message instead of simulation
     setDashboard((prev) => ({
       ...prev,
-      status: 'syncing',
-      syncProgress: 0,
+      status: 'error',
     }));
-
-    // Simulate sync progress
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 30;
-      if (progress >= 100) {
-        progress = 100;
-        clearInterval(interval);
-        setDashboard((prev) => ({
-          ...prev,
-          status: 'synced',
-          syncProgress: 100,
-          lastSync: Date.now(),
-        }));
-      } else {
-        setDashboard((prev) => ({
-          ...prev,
-          syncProgress: progress,
-        }));
-      }
-    }, 300);
+    setTimeout(() => {
+      setDashboard((prev) => ({ ...prev, status: 'synced' as const }));
+    }, 3000);
   }, []);
 
   const handleToggleAutoSync = useCallback(() => {
@@ -288,7 +271,7 @@ export function CloudSync() {
   const handleRestoreVersion = useCallback((versionId: string) => {
     const version = versions.find((v) => v.id === versionId);
     if (version) {
-      alert(`Would restore to: ${version.message}`);
+      toast.success(`Would restore to: ${version.message}`);
       // Trigger actual restore
     }
   }, [versions]);
@@ -300,6 +283,14 @@ export function CloudSync() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+      {/* Feature Preview Banner */}
+      <div className="bg-amber-900/40 border-b border-amber-600/50 px-6 py-3 flex items-center gap-3">
+        <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+        <p className="text-sm text-amber-200">
+          <strong>Feature Preview — Cloud Sync is not yet active.</strong>{' '}
+          The interface below is a UI preview of the upcoming v2.0 collaboration feature. Sync, sharing, and version history buttons do not connect to a live backend yet.
+        </p>
+      </div>
       {/* Header */}
       <div className="border-b border-slate-700 bg-slate-800/50 backdrop-blur">
         <div className="max-w-7xl mx-auto px-6 py-6">

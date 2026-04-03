@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import {
   Shield,
   AlertTriangle,
@@ -134,7 +135,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
 
   const handleValidate = async () => {
     if (!selectedPlugin) {
-      alert('Select a plugin first');
+      toast.error('Select a plugin first');
       return;
     }
 
@@ -162,7 +163,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
     } catch (err) {
       console.error('Validation failed', err);
       setPhase('idle');
-      alert('Validation failed.');
+      toast.error('Validation failed.');
     }
   };
 

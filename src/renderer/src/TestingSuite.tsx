@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Play, PlusCircle, Download, RotateCw, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
 import type {
   TestSuite,
@@ -131,8 +132,7 @@ export const TestingSuite: React.FC = () => {
   };
 
   const createSuite = async () => {
-    const name = window.prompt('New suite name', 'New Suite');
-    if (!name) return;
+    const name = prompt('New suite name') || 'New Suite';
     try {
       const api = (window as any).electron?.api || (window as any).electronAPI || bridge;
       const s: TestSuite = await api.testingSuite.createTestSuite(name, 'unit');
@@ -148,7 +148,7 @@ export const TestingSuite: React.FC = () => {
     try {
       const api = (window as any).electron?.api || (window as any).electronAPI || bridge;
       const report = await api.testingSuite.generateTestReport(selectedResults);
-      alert(`Report generated: ${report.title}\n${new Date(report.timestamp).toLocaleString()}\n\nSummary: Passed ${report.summary.passed}/${report.summary.totalTests} (${Math.round(report.summary.passRate * 100)}%)`);
+      toast.success(`Report generated: ${report.title}. Passed ${report.summary.passed}/${report.summary.totalTests} (${Math.round(report.summary.passRate * 100)}%)`);
     } catch (err) {
       console.error(err);
     }

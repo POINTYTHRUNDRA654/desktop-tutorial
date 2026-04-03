@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Package, Plus, Trash2, Eye, Code, Wand2, RefreshCw, FileText, Layers, CheckSquare, Image as ImageIcon, ChevronRight, ChevronDown, ArrowDownToLine, ExternalLink, Info } from 'lucide-react';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
@@ -104,7 +105,7 @@ const TheAssembler: React.FC<TheAssemblerProps> = ({ embedded = false }) => {
             : '';
 
         if (!toolPath) {
-            alert('Set the FOMOD Creation Tool path in Tool Settings first.');
+            toast.error('Set the FOMOD Creation Tool path in Tool Settings first.');
             openUrl('https://www.nexusmods.com/fallout4/mods/6821');
             return;
         }
@@ -112,19 +113,11 @@ const TheAssembler: React.FC<TheAssemblerProps> = ({ embedded = false }) => {
             if (window.electronAPI?.openExternal) {
                 await window.electronAPI.openExternal(toolPath);
             } else {
-                alert('External tool launch requires Desktop Bridge connection.');
+                toast.error('External tool launch requires Desktop Bridge connection.');
             }
         } catch (error) {
             console.error('Failed to launch FOMOD Tool:', error);
-            const errorMsg = `Could not launch FOMOD Creation Tool.
-
-Check the configured path in Tool Settings.
-
-Download the tool from Nexus Mods:
-https://www.nexusmods.com/fallout4/mods/6821
-
-After installing, you may need to update the tool path in settings.`;
-            alert(errorMsg);
+            toast.error('Could not launch FOMOD Creation Tool. Check the configured path in Tool Settings.');
         }
     };
 
@@ -216,7 +209,7 @@ After installing, you may need to update the tool path in settings.`;
 
         } catch (e) {
             console.error(e);
-            alert("Failed to auto-generate structure. AI returned invalid format.");
+            toast.error('Failed to auto-generate structure. AI returned invalid format.');
         } finally {
             setIsGenerating(false);
         }
@@ -310,7 +303,7 @@ After installing, you may need to update the tool path in settings.`;
             URL.revokeObjectURL(infoUrl);
         }, 100);
         
-        alert('FOMOD files downloaded! Place ModuleConfig.xml in /fomod/ folder and info.xml in root.');
+        toast.success('FOMOD files downloaded! Place ModuleConfig.xml in /fomod/ folder and info.xml in root.');
     };
 
     // --- Renderers ---

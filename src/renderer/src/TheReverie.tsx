@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { Sparkles, BrainCircuit, Play, Pause, Save, ThumbsUp, ThumbsDown, ArrowRight, Lightbulb, Code, Palette, Zap, Layers } from 'lucide-react';
 
 interface Dream {
@@ -80,8 +81,11 @@ const TheReverie: React.FC = () => {
     };
 
     const harvestDream = (dream: Dream) => {
-        // Logic to save to Vault or Workshop would go here
-        alert(`Harvested thought: "${dream.content}" to Long-Term Memory.`);
+        // Save to localStorage Knowledge Vault
+        const vault = JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]');
+        vault.push({ content: dream.content, source: 'Reverie', timestamp: Date.now() });
+        localStorage.setItem('mossy_knowledge_vault', JSON.stringify(vault));
+        toast.success(`Harvested thought to Long-Term Memory.`);
     };
 
     return (

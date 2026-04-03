@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { Box, RotateCw, Eye, Info, Layers, Triangle, Upload } from 'lucide-react';
 
 interface AssetInfo {
@@ -73,7 +74,7 @@ export const AssetViewer3D: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load asset:', error);
-      alert('Could not load asset. Make sure Desktop Bridge is running.');
+      toast.error('Could not load asset. Make sure Desktop Bridge is running.');
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { Play, FileAudio, Sliders, Radio, Cpu, Music, ArrowDownToLine, Volume2, Activity, Settings, Upload, Trash2, Folder, ExternalLink } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
@@ -123,14 +124,14 @@ const AudioStudio: React.FC<AudioStudioProps> = ({ embedded = false }) => {
           if (fileInputRef.current) fileInputRef.current.value = '';
       } catch (error) {
           console.error('Error loading audio file:', error);
-          alert('Failed to load audio file. Ensure it is a valid WAV, MP3, or OGG file.');
+          toast.error('Failed to load audio file. Ensure it is a valid WAV, MP3, or OGG file.');
       }
   };
 
   // Export audio to WAV file (Fallout 4 compatible format)
   const exportToWAV = async () => {
       if (!audioBuffer || !audioContextRef.current) {
-          alert('No audio to export. Load or process audio first.');
+          toast.error('No audio to export. Load or process audio first.');
           return;
       }
 
@@ -199,10 +200,10 @@ const AudioStudio: React.FC<AudioStudioProps> = ({ embedded = false }) => {
           link.click();
           URL.revokeObjectURL(url);
           
-          alert('Audio exported successfully!');
+          toast.success('Audio exported successfully!');
       } catch (error) {
           console.error('Export error:', error);
-          alert('Failed to export audio.');
+          toast.error('Failed to export audio.');
       }
   };
 

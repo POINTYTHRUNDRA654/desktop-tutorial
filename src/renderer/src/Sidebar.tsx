@@ -4,7 +4,6 @@ import { MessageSquare, Radio, Image, Activity, Heart, Leaf, Monitor, Wifi, Wifi
 import { useLive } from './LiveContext';
 import { useI18n } from './i18n';
 import TourLauncher from './TourLauncher';
-import { useFavorites } from './useFavorites';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -32,8 +31,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
   const liveContext = liveContextValue || { isActive: false, isMuted: false, toggleMute: () => { }, disconnect: () => { } };
   const { isActive, isMuted, toggleMute, disconnect } = liveContext;
 
-  // Favorites functionality
-  const { favorites, toggleFavorite, isFavorite } = useFavorites();
 
 
   // Poll for bridge status check
@@ -270,77 +267,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
                   <span className="flex-1">{item.label}</span>
                 </NavLink>
               )}
-              {!item.isExternal && (
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    toggleFavorite({
-                      id: item.to,
-                      label: item.label,
-                      path: item.to
-                    });
-                  }}
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity ${isFavorite(item.to)
-                    ? 'text-yellow-400 hover:text-yellow-300'
-                    : 'text-slate-500 hover:text-slate-400'
-                    }`}
-                  title={isFavorite(item.to) ? 'Remove from favorites' : 'Add to favorites'}
-                >
-                  <Star className={`w-3 h-3 ${isFavorite(item.to) ? 'fill-current' : ''}`} />
-                </button>
-              )}
             </div>
           ))}
       </nav>
-
-      {/* Favorites Section */}
-      {favorites.length > 0 && (
-        <div className="p-4 border-t border-slate-700">
-          <div className="flex items-center gap-2 mb-3">
-            <Star className="w-4 h-4 text-yellow-400 fill-current" />
-            <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Favorites</span>
-          </div>
-          <div className="space-y-1">
-            {favorites.map((fav) => {
-              const navItem = navItems.find(item => item.to === fav.path);
-              if (!navItem) return null;
-
-              return (
-                <NavLink
-                  key={`fav-${fav.id}`}
-                  to={fav.path}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-xs font-medium focus-visible ${isActive
-                      ? `bg-slate-800 ${moodColor} font-bold border border-slate-700 shadow-md`
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`
-                  }
-                  onClick={onClose}
-                >
-                  <navItem.icon className="w-4 h-4" aria-hidden="true" />
-                  <span className="flex-1">{fav.label}</span>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      toggleFavorite({
-                        id: fav.id,
-                        label: fav.label,
-                        path: fav.path
-                      });
-                    }}
-                    className="p-1 rounded text-yellow-400 hover:text-yellow-300 opacity-60 hover:opacity-100 transition-opacity"
-                    title="Remove from favorites"
-                  >
-                    <Star className="w-3 h-3 fill-current" />
-                  </button>
-                </NavLink>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Tour Launcher for Testing */}
       <TourLauncher className="mx-4 mb-4" />

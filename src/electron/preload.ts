@@ -43,6 +43,7 @@ interface InstalledProgram {
 const IPC_CHANNELS = {
   DETECT_PROGRAMS: 'detect-programs',
   OPEN_PROGRAM: 'open-program',
+  LAUNCH_TOOL_WITH_FILE: 'launch-tool-with-file',
   OPEN_EXTERNAL: 'open-external',
   REVEAL_IN_FOLDER: 'reveal-in-folder',
   REVEAL_SETTINGS_FILE: 'reveal-settings-file',
@@ -353,6 +354,14 @@ const electronAPI = {
    */
   openProgram: (path: string): Promise<{ success: boolean; error?: string; method?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.OPEN_PROGRAM, path);
+  },
+
+  /**
+   * Launch an external tool (xEdit, NifSkope, CK, Blender) with a specific
+   * file passed as a command-line argument so it opens directly in that tool.
+   */
+  launchToolWithFile: (toolPath: string, filePath: string): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_TOOL_WITH_FILE, toolPath, filePath);
   },
 
   /**
