@@ -1151,3 +1151,57 @@ made the content useless.
 
 - `tutorial_operators.py` — `_CREDITS_PAGE_SIZE = 8`; `FO4_OT_ShowCredits.draw()` nav row
   at top
+
+---
+
+## ⚠️ RECURRING BUG #17 — Credits popup crashes: `enum "STAR" not found`
+
+### Symptoms
+
+Opening the Credits popup in Blender 5.0 immediately throws:
+
+```
+TypeError: UILayout.label(): error with keyword argument "icon" -
+enum "STAR" not found in (...)
+Python script error in FO4_OT_show_credits.draw
+```
+
+The popup fails to draw at all.
+
+### Root Cause
+
+`_CREDITS_SECTIONS` in `tutorial_operators.py` used `'STAR'` as the icon for two
+"primary/recommended" entries:
+
+```python
+('STAR', "PyNifly  ★  PRIMARY NIF EXPORTER", [...])
+('STAR', "ComfyUI-BlenderAI-node  ★  RECOMMENDED AI WORKFLOW", [...])
+```
+
+The `STAR` icon was removed from Blender's icon enum between Blender 4.x and 5.0.
+Any call to `layout.label(icon='STAR')` crashes the entire `draw()` method, making
+the popup completely unusable.
+
+### The Fix
+
+Replace both `'STAR'` occurrences with `'FUND'` (the heart/donate icon already used
+for the Credits button itself — a natural match for "featured/important" items):
+
+```python
+('FUND', "PyNifly  ★  PRIMARY NIF EXPORTER", [...])
+('FUND', "ComfyUI-BlenderAI-node  ★  RECOMMENDED AI WORKFLOW", [...])
+```
+
+### What NOT to Do
+
+- **Do NOT use `'STAR'`** — it does not exist in Blender 5.0.
+- **Always cross-check new icons** against Blender's actual enum before adding them.
+  The full valid enum is visible in the traceback when an invalid icon is used, or
+  by running `bpy.types.UILayout.bl_rna.properties['icon'].enum_items.keys()` in the
+  Blender Python console.
+- If adding new "featured" entries to `_CREDITS_SECTIONS`, use `'FUND'` or `'CHECKMARK'`
+  as the highlight icon — both are confirmed present in Blender 5.0.
+
+### Key Files
+
+- `tutorial_operators.py` — `_CREDITS_SECTIONS` (two `'STAR'` → `'FUND'` replacements)

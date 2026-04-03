@@ -306,7 +306,7 @@ _CREDITS_SECTIONS = [
         "NifTools Team - https://github.com/niftools/blender_nif_plugin",
         "Enables direct .nif export for Fallout 4 / Skyrim (Blender 3.6 LTS)",
     ]),
-    ('STAR', "PyNifly  \u2605  PRIMARY NIF EXPORTER", [
+    ('FUND', "PyNifly  \u2605  PRIMARY NIF EXPORTER", [
         "BadDog (BadDogSkyrim) - https://github.com/BadDogSkyrim/PyNifly",
         "The recommended NIF exporter for Blender 4.x and 5.x.",
         "Supports Fallout 4, Skyrim SE, and Starfield with full",
@@ -510,7 +510,7 @@ _CREDITS_SECTIONS = [
         "Waffle1434 - https://github.com/Waffle1434/Blender-UE4-Importer",
         "Imports Unreal Engine 4 assets (meshes, materials) into Blender",
     ]),
-    ('STAR', "ComfyUI-BlenderAI-node  \u2605  RECOMMENDED AI WORKFLOW", [
+    ('FUND', "ComfyUI-BlenderAI-node  \u2605  RECOMMENDED AI WORKFLOW", [
         "AIGODLIKE - https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node",
         "Integrates ComfyUI AI nodes directly into the Blender interface.",
         "Enables Stable Diffusion, ControlNet, and other AI workflows in Blender.",
