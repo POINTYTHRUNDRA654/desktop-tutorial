@@ -120,29 +120,12 @@ class FO4_OT_CheckUEImporter(Operator):
     bl_label = "Check UE Importer"
 
     def execute(self, context):
-        actions = []
-
-        ready, message = ue_importer_helpers.status()
-
-        if not ready and "missing" in message.lower():
-            ok, msg = ue_importer_helpers.download_latest()
-            actions.append(msg)
-            if ok:
-                ue_importer_helpers.register()
-                ready, message = ue_importer_helpers.status()
-
-        # If present but not registered, attempt to register
-        elif not ready:
-            ue_importer_helpers.register()
-            ready, message = ue_importer_helpers.status()
-
-        status_lines = [message] + actions
-        status_text = "; ".join([s for s in status_lines if s])
-        level = 'INFO' if ready else 'ERROR'
-        self.report({level}, status_text)
-        notification_system.FO4_NotificationSystem.notify(status_text, level)
+        ok, message = ue_importer_helpers.load_and_register()
+        level = 'INFO' if ok else 'ERROR'
+        self.report({level}, message)
+        notification_system.FO4_NotificationSystem.notify(message, level)
         print("UE IMPORTER STATUS")
-        print(status_text)
+        print(message)
         print(f"Path: {ue_importer_helpers.importer_path()}")
         return {'FINISHED'}
 
@@ -161,28 +144,23 @@ class FO4_OT_InstallUEImporter(Operator):
             print("INSTALLING UE IMPORTER")
             print("=" * 60)
             try:
-                ok, msg = ue_importer_helpers.download_latest()
-                print(msg)
-                if ok:
-                    # bpy.utils.register_class() cannot be called from a
-                    # background thread - schedule on the main thread via timer.
-                    def _finish():
-                        ue_importer_helpers.register()
-                        _, status_msg = ue_importer_helpers.status()
-                        print("=" * 60 + "\n")
-                        notification_system.FO4_NotificationSystem.notify(
-                            status_msg, 'INFO'
-                        )
-                        return None  # de-register the timer
+                # load_and_register() handles download + load + register in one step.
+                # Schedule the Blender-thread part (register_class calls) via timer.
+                def _finish():
+                    ok, msg = ue_importer_helpers.load_and_register()
+                    print(f"UE Importer: {msg}")
+                    print("=" * 60 + "\n")
+                    level = 'INFO' if ok else 'ERROR'
+                    notification_system.FO4_NotificationSystem.notify(msg, level)
+                    return None  # de-register the timer
 
-                    bpy.app.timers.register(_finish, first_interval=0.0)
-                    return  # notification dispatched from _finish()
+                bpy.app.timers.register(_finish, first_interval=0.0)
+                return
             except Exception as exc:
-                ok, msg = False, f"UE Importer install error: {exc}"
+                msg = f"UE Importer install error: {exc}"
                 print(msg)
             print("=" * 60 + "\n")
-            level = 'INFO' if ok else 'ERROR'
-            notification_system.FO4_NotificationSystem.notify(msg, level)
+            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
 
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Installing UE Importer in background - check console")

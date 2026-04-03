@@ -3307,9 +3307,72 @@ class TestUEImporterPolicyCompliance(unittest.TestCase):
             "entries causes ghost-module warnings on extension reload.",
         )
 
+    # ── Fix E: register() must NOT call _load_module() ──────────────────────
+
+    def test_register_does_not_call_load_module(self):
+        """register() must be a deliberate no-op that defers loading to load_and_register().
+
+        Blender's Extension policy checker monitors sys.modules / sys.path
+        mutations during register().  The upstream Blender-UE4-Importer adds
+        its folder to sys.path and imports uasset / umat / umesh / umap /
+        register_helper as bare top-level names.  Calling _load_module()
+        (which calls exec_module on the importer) inside register() therefore
+        triggers policy violations.
+
+        Loading must be deferred to load_and_register(), which is only called
+        from operator execute() — AFTER Blender's policy-check window has
+        closed.  (RECURRING BUG #18)
+        """
+        import ast, textwrap
+
+        src = self._src()
+
+        # Locate the register() function body in the AST.
+        tree = ast.parse(src)
+        register_body = None
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == "register":
+                register_body = ast.get_source_segment(src, node)
+                break
+
+        self.assertIsNotNone(register_body, "register() function not found in ue_importer_helpers.py")
+
+        self.assertNotIn(
+            "_load_module",
+            register_body,
+            "ue_importer_helpers.register() must NOT call _load_module() — "
+            "doing so runs exec_module() during Blender's policy-check window "
+            "and causes policy violations for bare sys.modules names and the "
+            "sys.path mutation made by the upstream Blender-UE4-Importer. "
+            "Use load_and_register() from operator execute() instead. "
+            "(RECURRING BUG #18)",
+        )
+
+    def test_load_and_register_function_exists(self):
+        """load_and_register() must exist as the deferred entry-point."""
+        src = self._src()
+        self.assertIn(
+            "def load_and_register",
+            src,
+            "ue_importer_helpers must expose a load_and_register() function "
+            "that is called from operator execute() to load the upstream "
+            "importer outside Blender's policy-check window.",
+        )
+
+    def test_install_operators_use_load_and_register(self):
+        """Both install operators must delegate to load_and_register(), not register()."""
+        src = _read("install_operators.py")
+        # Count how many times load_and_register is called vs bare register()
+        self.assertIn(
+            "load_and_register",
+            src,
+            "install_operators.py must call ue_importer_helpers.load_and_register() "
+            "instead of ue_importer_helpers.register() so that the upstream "
+            "importer is loaded outside Blender's policy-check window.",
+        )
 
 
-if __name__ == "__main__":
+
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(sys.modules[__name__])
     runner = unittest.TextTestRunner(verbosity=2)
