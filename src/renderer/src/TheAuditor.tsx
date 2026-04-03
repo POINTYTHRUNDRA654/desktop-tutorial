@@ -4,7 +4,7 @@ import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import ProjectWizard from './components/ProjectWizard';
 import GameLogMonitor from './GameLogMonitor';
-import { Scan, CheckCircle2, AlertTriangle, FileImage, Box, FileCode, Search, Wrench, ArrowRight, ShieldCheck, RefreshCw, XCircle, File, Bug } from 'lucide-react';
+import { Scan, CheckCircle2, AlertTriangle, FileImage, Box, FileCode, Search, Wrench, ArrowRight, ShieldCheck, RefreshCw, XCircle, X, File, Bug } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
 import { workerManager } from './WorkerManager';
@@ -52,6 +52,14 @@ const TheAuditor: React.FC = () => {
     // render that includes pending files the useEffect below auto-starts the
     // audit so the user doesn't need to click "Run Audit" separately.
     const pendingAutoScan = useRef(false);
+
+    const removeFile = (id: string) => {
+        setFiles(prev => prev.filter(f => f.id !== id));
+        if (selectedFileId === id) {
+            setSelectedFileId(null);
+            setMossyAdvice(null);
+        }
+    };
 
     // Auto-start audit when pendingAutoScan is set (triggered after loading a folder via Quick Scan)
     useEffect(() => {
@@ -1029,7 +1037,7 @@ const TheAuditor: React.FC = () => {
                             <div
                                 key={file.id}
                                 onClick={() => { setSelectedFileId(file.id); setMossyAdvice(null); }}
-                                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${selectedFileId === file.id
+                                className={`group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${selectedFileId === file.id
                                     ? 'bg-slate-800 border-slate-600'
                                     : 'bg-transparent border-transparent hover:bg-slate-800/50'
                                     }`}
@@ -1048,9 +1056,17 @@ const TheAuditor: React.FC = () => {
                                     <div className="text-sm font-bold text-slate-200 truncate">{file.name}</div>
                                     <div className="text-[10px] text-slate-500 truncate">{file.size}</div>
                                 </div>
-                                {file.status === 'error' && <XCircle className="w-4 h-4 text-red-500" />}
-                                {file.status === 'warning' && <AlertTriangle className="w-4 h-4 text-yellow-500" />}
-                                {file.status === 'clean' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                                {file.status === 'error' && <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                                {file.status === 'warning' && <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0" />}
+                                {file.status === 'clean' && <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); removeFile(file.id); }}
+                                    className="ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-900/40 hover:text-red-400 text-slate-500 transition-all flex-shrink-0"
+                                    title="Remove from manifest"
+                                    aria-label={`Remove ${file.name} from manifest`}
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
                             </div>
                         ))}
                     </div>
