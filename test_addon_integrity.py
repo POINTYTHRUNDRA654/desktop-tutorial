@@ -3166,9 +3166,149 @@ class TestDiagnosticsPanel(unittest.TestCase):
         )
 
 
+
 # ---------------------------------------------------------------------------
-# Entry point
+# Section S – UE4 Importer Extension-policy compliance  (RECURRING BUG #18)
 # ---------------------------------------------------------------------------
+class TestUEImporterPolicyCompliance(unittest.TestCase):
+    """ue_importer_helpers._load_module() must not cause Blender's Extension
+    policy checker to fire.  The upstream Blender-UE4-Importer registers bare
+    top-level sys.modules names (fo4_blender_ue4_importer, uasset, umat, umesh,
+    umap, register_helper) and injects its folder into sys.path.  Both are
+    forbidden for Blender 4.2+ / 5.x extensions.
+
+    These tests check the *source code* of ue_importer_helpers.py to confirm
+    the three required fixes are present without needing the upstream add-on
+    installed.  (RECURRING BUG #18)
+    """
+
+    def _src(self):
+        return _read("ue_importer_helpers.py")
+
+    # ── Fix A: namespaced module key ────────────────────────────────────────
+
+    def test_module_key_uses_pkg_prefix(self):
+        """spec_from_file_location must use a namespaced key, not bare 'fo4_blender_ue4_importer'."""
+        src = self._src()
+        self.assertNotIn(
+            'spec_from_file_location("fo4_blender_ue4_importer"',
+            src,
+            "spec_from_file_location must NOT use the bare string "
+            "'fo4_blender_ue4_importer' — that registers a top-level module "
+            "name which Blender's Extension policy checker flags as a violation. "
+            "Use a namespaced key derived from __name__ / _pkg instead.",
+        )
+
+    def test_pkg_derived_from_own_name(self):
+        """_pkg must be derived from __name__ so the key follows the extension namespace."""
+        src = self._src()
+        self.assertIn(
+            "__name__",
+            src,
+            "ue_importer_helpers._load_module() must derive the package prefix "
+            "from __name__ so the sys.modules key is properly namespaced under "
+            "the extension's own package (e.g. bl_ext.user_default.blender_game_tools.*).",
+        )
+
+    def test_module_key_variable_used_in_sys_modules(self):
+        """The dynamic _module_key variable must be what's registered in sys.modules."""
+        src = self._src()
+        self.assertIn(
+            "_module_key",
+            src,
+            "ue_importer_helpers must build a _module_key variable and use it "
+            "when registering the module in sys.modules — not a hard-coded bare string.",
+        )
+        self.assertIn(
+            'sys.modules[_module_key]',
+            src,
+            "sys.modules registration must use the namespaced _module_key, "
+            "not a hard-coded bare module name.",
+        )
+
+    # ── Fix B: sys.path cleanup ─────────────────────────────────────────────
+
+    def test_sys_path_snapshot_taken(self):
+        """sys.path must be snapshotted before exec_module so injected paths can be removed."""
+        src = self._src()
+        self.assertIn(
+            "_path_before",
+            src,
+            "ue_importer_helpers._load_module() must snapshot sys.path into "
+            "_path_before before calling exec_module() so the IMPORTER_DIR "
+            "injection added by the upstream add-on can be removed afterwards.",
+        )
+
+    def test_sys_path_cleaned_after_exec(self):
+        """The injected IMPORTER_DIR path must be removed from sys.path after loading."""
+        src = self._src()
+        self.assertIn(
+            "_importer_real",
+            src,
+            "ue_importer_helpers._load_module() must compute _importer_real "
+            "(resolved IMPORTER_DIR path) and use it to filter sys.path after "
+            "exec_module() — Blender's Extension policy forbids sys.path mutations.",
+        )
+        self.assertIn(
+            "sys.path[:] =",
+            src,
+            "ue_importer_helpers._load_module() must reassign sys.path[:] after "
+            "exec_module() to remove the IMPORTER_DIR injection.",
+        )
+
+    # ── Fix C: bare sub-module relocation ───────────────────────────────────
+
+    def test_bare_submodule_relocation_present(self):
+        """Bare top-level sub-module names must be moved to namespaced keys."""
+        src = self._src()
+        self.assertIn(
+            "_new_keys",
+            src,
+            "ue_importer_helpers._load_module() must compute _new_keys "
+            "(set of new sys.modules entries added by exec_module) so bare "
+            "sub-module names (uasset, umat, umesh, umap, register_helper) "
+            "can be relocated to namespaced keys.",
+        )
+        # Check that a namespaced relocation assignment is present; the exact
+        # f-string / format syntax may vary, but it must combine _module_key
+        # with the bare key name and write into sys.modules.
+        self.assertIn(
+            "_module_key",
+            src,
+            "Bare sub-module names must be re-registered under the namespaced "
+            "prefix built from _module_key so Blender's policy checker does "
+            "not flag them.",
+        )
+        self.assertIn(
+            "del sys.modules[key]",
+            src,
+            "The original bare sys.modules key must be deleted after the module "
+            "is moved to the namespaced key.",
+        )
+        # Confirm the relocation writes back into sys.modules using _module_key
+        import re as _re
+        self.assertTrue(
+            _re.search(r'sys\.modules\[.*_module_key.*\]\s*=', src),
+            "Sub-module relocation must write sys.modules[...{_module_key}...] = mod_obj "
+            "so the bare names are moved into the extension's namespace.",
+        )
+
+    # ── Fix D: unregister cleans up namespaced entries ──────────────────────
+
+    def test_unregister_removes_namespaced_entries(self):
+        """unregister() must purge all namespaced sys.modules entries it created."""
+        src = self._src()
+        # Look for the cleanup loop in unregister()
+        self.assertIn(
+            "sys.modules.pop(key, None)",
+            src,
+            "ue_importer_helpers.unregister() must call sys.modules.pop() to "
+            "remove the namespaced module entries it created — leaving stale "
+            "entries causes ghost-module warnings on extension reload.",
+        )
+
+
+
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(sys.modules[__name__])
