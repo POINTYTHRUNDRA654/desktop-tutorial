@@ -87,6 +87,7 @@ const IPC_CHANNELS = {
   FOMOD_EXPORT_PACKAGE: 'fomod-export-package',
   // Auditor
   AUDITOR_ANALYZE_ESP: 'auditor-analyze-esp',
+  AUDITOR_READ_BINARY_FILE: 'auditor-read-binary-file',
   AUDITOR_PICK_ESP_FILE: 'auditor-pick-esp-file',
   AUDITOR_PICK_NIF_FILE: 'auditor-pick-nif-file',
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
@@ -495,6 +496,15 @@ const electronAPI = {
    */
   analyzeEsp: (filePath: string): Promise<{ success: boolean; fileSize?: number; recordCount?: number; issues?: any[]; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_ANALYZE_ESP, filePath);
+  },
+
+  /**
+   * Auditor: Read any mod asset file (ESP/ESM/ESL/NIF/DDS/BGSM) as raw binary.
+   * Returns base64-encoded file data so the renderer worker can parse the true
+   * binary format without going through a lossy UTF-8 text codec.
+   */
+  readBinaryFile: (filePath: string): Promise<{ success: boolean; data?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_READ_BINARY_FILE, filePath);
   },
 
   /**
