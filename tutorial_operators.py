@@ -15,7 +15,7 @@ import bpy
 import importlib
 import sys
 from bpy.types import Operator
-from bpy.props import EnumProperty
+from bpy.props import EnumProperty, IntProperty
 
 
 def _safe_import(name):
@@ -250,26 +250,286 @@ class FO4_OT_ShowHelp(Operator):
 # FO4_OT_ShowCredits
 # ---------------------------------------------------------------------------
 
+_CREDITS_SECTIONS = [
+    # Page 0 – Core tools
+    ('BLENDER', "Blender (3D platform)", [
+        "Blender Foundation - https://www.blender.org",
+        "GNU GPL v2+ license",
+    ]),
+    ('PLUGIN', "Niftools Blender Plugin (NIF export)", [
+        "NifTools Team - https://github.com/niftools/blender_nif_plugin",
+        "Enables direct .nif export for Fallout 4 / Skyrim (Blender 3.6 LTS)",
+    ]),
+    ('STAR', "PyNifly  \u2605  PRIMARY NIF EXPORTER", [
+        "BadDog (BadDogSkyrim) - https://github.com/BadDogSkyrim/PyNifly",
+        "The recommended NIF exporter for Blender 4.x and 5.x.",
+        "Supports Fallout 4, Skyrim SE, and Starfield with full",
+        "body-morph and material path support.",
+        "Huge thanks to BadDog for maintaining this essential tool!",
+    ]),
+    ('IMPORT', "UModel / UE Viewer (Unreal asset extraction)", [
+        "Konstantin Nosov (Gildor) - https://www.gildor.org/en/projects/umodel",
+        "Extracts meshes, textures, and animations from UE games",
+    ]),
+    ('IMAGE_DATA', "NVIDIA Texture Tools (NVTT / nvcompress)", [
+        "NVIDIA Corporation - https://github.com/castano/nvidia-texture-tools",
+        "GPU-accelerated DDS texture compression",
+    ]),
+    ('IMAGE_DATA', "texconv (DirectXTex)", [
+        "Microsoft - https://github.com/microsoft/DirectXTex",
+        "Windows DDS / BC1-BC7 texture conversion",
+    ]),
+    ('LIGHT_HEMI', "PyTorch (AI / ML runtime)", [
+        "Meta AI (PyTorch team) - https://pytorch.org",
+        "Deep-learning framework powering all AI features",
+    ]),
+    ('RENDER_RESULT', "Real-ESRGAN (AI texture upscaling)", [
+        "Xintao Wang et al. - https://github.com/xinntao/Real-ESRGAN",
+        "Upscales and enhances textures using GAN models",
+    ]),
+    # Page 1 – 3-D generation
+    ('MESH_DATA', "TripoSR (image-to-3D)", [
+        "VAST AI Research - https://github.com/VAST-AI-Research/TripoSR",
+        "Single-image 3D mesh reconstruction",
+    ]),
+    ('MESH_DATA', "Shap-E (text / image-to-3D)", [
+        "OpenAI - https://github.com/openai/shap-e",
+        "Text and image conditioned 3D shape generation",
+    ]),
+    ('MESH_DATA', "Point-E (text-to-3D point cloud)", [
+        "OpenAI - https://github.com/openai/point-e",
+        "Text-guided 3D point cloud and mesh generation",
+    ]),
+    ('MESH_DATA', "Hunyuan3D-2 (text / image-to-3D)", [
+        "Tencent - https://github.com/Tencent-Hunyuan/Hunyuan3D-2",
+        "High-quality text and image conditioned 3D generation",
+    ]),
+    ('MESH_DATA', "GET3D (text-to-3D)", [
+        "NVIDIA Research - https://github.com/nVlabs/GET3D",
+        "Generative model for high-quality 3D shapes",
+    ]),
+    ('MESH_DATA', "Instant-NGP (neural radiance field)", [
+        "NVIDIA Research - https://github.com/NVlabs/instant-ngp",
+        "Real-time NeRF reconstruction from photos",
+    ]),
+    ('MESH_DATA', "DreamGaussian (image / text-to-3D)", [
+        "dreamgaussian - https://github.com/dreamgaussian/dreamgaussian",
+        "Generative Gaussian splatting for efficient 3D content creation",
+    ]),
+    ('IMAGE_DATA', "StyleGAN2 (AI texture / image generation)", [
+        "NVIDIA Research - https://github.com/NVlabs/stylegan2",
+        "GAN-based texture and image synthesis for game assets",
+    ]),
+    # Page 2 – Rigging & motion
+    ('ARMATURE_DATA', "RigNet (auto-rigging)", [
+        "Zhan Xu et al. - https://github.com/zhan-xu/RigNet",
+        "Automatic skeleton prediction for 3D meshes",
+    ]),
+    ('ANIM_DATA', "HY-Motion-1.0 (motion generation)", [
+        "Tencent Hunyuan - https://github.com/Tencent-Hunyuan/HY-Motion-1.0",
+        "AI-powered human motion sequence generation",
+    ]),
+    ('ANIM_DATA', "MotionDiffuse (text-driven motion generation)", [
+        "MotrixLab - https://github.com/MotrixLab/MotionDiffuse",
+        "Text-driven human motion with diffusion models",
+        "SMPL-X extension: https://github.com/ellemcfarlane/MotionDiffuse",
+    ]),
+    ('ARMATURE_DATA', "MediaPipe (motion tracking / pose estimation)", [
+        "Google - https://github.com/google/mediapipe",
+        "Real-time hand, face, and body pose tracking for motion capture",
+    ]),
+    ('ARMATURE_DATA', "BlendArMocap (Blender motion capture add-on)", [
+        "cgtinker - https://github.com/cgtinker/BlendArMocap",
+        "Blender add-on for real-time MediaPipe motion capture retargeting",
+    ]),
+    ('IMAGE_RGB', "ZoeDepth (depth estimation)", [
+        "Intel ISL - https://github.com/isl-org/ZoeDepth",
+        "Monocular depth estimation from a single image",
+    ]),
+    ('FILE_MOVIE', "FFmpeg (video & audio processing)", [
+        "FFmpeg Team - https://ffmpeg.org",
+        "GNU LGPL v2.1+ / GPL v2+ license",
+    ]),
+    ('ARMATURE_DATA', "Shiagur - Blender Power Armor Animation Rig v2.6.0", [
+        "Shiagur - https://www.nexusmods.com/fallout4/mods/81279",
+        "Blender rig + guide for Fallout 4 Power Armor animations.",
+        "Includes skeleton, Havok settings, and full workflow documentation.",
+    ]),
+    # Page 3 – FO4 animation pipeline
+    ('ARMATURE_DATA', "Shiagur - Blender Animation Rig (1st & 3rd Person) v2.6.0", [
+        "Shiagur - https://www.nexusmods.com/fallout4/mods/82537",
+        "Blender rig for 1st and 3rd person weapon, pose, and interaction",
+        "animations. Includes IK/FK, skeletons, Havok settings, and guide.",
+    ]),
+    ('EXPORT', "ck-cmd  \u2605  PRIMARY FBX \u2192 HKX CONVERTER", [
+        "aerisarn - https://github.com/aerisarn/ck-cmd",
+        "Open-source FBX \u2192 HKX converter (no commercial SDK required).",
+        "Recommended replacement for Havok2FBX in the FO4 animation pipeline.",
+    ]),
+    ('EXPORT', "havok2fbx (Havok \u2194 FBX fallback converter)", [
+        "dfm - https://github.com/dfm/havok2fbx",
+        "Converts Havok HKX/HKT files to/from FBX. Fallback when ck-cmd",
+        "is unavailable. Requires Havok SDK 2014-1-0 + Autodesk FBX SDK to build.",
+    ]),
+    ('EXPORT', "FBXImporter (FBX \u2192 HKT conversion)", [
+        "andrelo1 - https://www.nexusmods.com/fallout4/mods/59849",
+        "GitHub: https://github.com/andrelo1/fbximporter",
+        "Converts Blender FBX exports to Havok HKT files for FO4 pipeline.",
+    ]),
+    ('TOOL_SETTINGS', "hkxcmd (Havok HKX command-line tools)", [
+        "figment - https://github.com/figment/hkxcmd",
+        "Command-line conversion for Havok HKX / KF animation files.",
+    ]),
+    ('TOOL_SETTINGS', "HKXPack (HKX binary \u2194 XML converter)", [
+        "dexesttp - https://dexesttp.github.io/hkxpack/",
+        "Converts binary Havok HKX files to/from XML for editing.",
+    ]),
+    ('TOOL_SETTINGS', "NifSkope (NIF file editor)", [
+        "NifTools Team - https://github.com/niftools/nifskope",
+        "View, edit, and inspect Bethesda .nif files.",
+    ]),
+    ('TOOL_SETTINGS', "FO4Edit / xEdit (plugin & record editor)", [
+        "Zilav et al. - https://github.com/TES5Edit/TES5Edit",
+        "Edit Fallout 4 plugins (.esp/.esm/.esl) and import animations.",
+    ]),
+    # Page 4 – Modding tools & body mods
+    ('PACKAGE', "FOMOD Creation Tool (mod installer builder)", [
+        "Wenderer - https://www.nexusmods.com/fallout4/mods/6821",
+        "GUI for creating info.xml + ModuleConfig.xml FOMOD installers.",
+        "Supports conditions, flags, images, plugin detection, file priorities.",
+    ]),
+    ('IMAGE_DATA', "Cathedral Assets Optimizer (asset optimization)", [
+        "Arthmoor / G_k - https://www.nexusmods.com/skyrimspecialedition/mods/23316",
+        "Optimizes textures (DDS BC7/BC1), meshes, and BSA/BA2 archives for FO4.",
+    ]),
+    ('TOOL_SETTINGS', "Collective Modding Toolkit (mod setup verification)", [
+        "wxMichael - https://www.nexusmods.com/fallout4/mods/87441",
+        "GitHub: https://github.com/wxMichael/Collective-Modding-Toolkit",
+        "Upgrades/downgrades FO4 OG \u2194 NG \u00b7 patches BA2 v1/v8 \u00b7 scans F4SE DLLs",
+        "Counts plugins (Full/Light) and BA2s \u00b7 scans for mod conflicts",
+    ]),
+    ('ANIM', "Story Action Poses  (1,700+ poses for storytelling/screenshots)", [
+        "EngineGaming - https://www.nexusmods.com/fallout4/mods/58448",
+        "ESL-flagged. Covers standard characters, power armor, and creatures.",
+        "Requires: F4SE, AAF (Advanced Animation Framework), Poser Hotkeys.",
+        "NEXT-GEN v4.0: https://nexusmods.com/fallout4/mods/68000",
+    ]),
+    ('ANIM', "AAF - Advanced Animation Framework (pose/animation manager)", [
+        "dagobaking - https://www.nexusmods.com/fallout4/mods/31304",
+        "Required by Story Action Poses and most pose packs. Needs F4SE.",
+    ]),
+    ('ANIM', "Poser Hotkeys (in-game pose trigger via hotkeys)", [
+        "opparco - https://www.nexusmods.com/fallout4/mods/45967",
+        "Arrow keys cycle poses. Compatible with Story Action Poses.",
+    ]),
+    ('MODIFIER', "BodySlide and Outfit Studio (body/armor conforming)", [
+        "ousnius / Caliente - https://www.nexusmods.com/fallout4/mods/25",
+        "GitHub: https://github.com/ousnius/BodySlide-and-Outfit-Studio",
+        "Conforms armor meshes to CBBE body, creates morph sliders for users.",
+    ]),
+    ('MESH_DATA', "CBBE - Caliente's Beautiful Bodies Enhancer (body mesh)", [
+        "Caliente - https://www.nexusmods.com/fallout4/mods/15",
+        "Standard body reference mesh for armor/clothing creation in FO4.",
+    ]),
+    # Page 5 – Unity / UE tools & Python libs
+    ('INFO', "FO4 Outfit/Armor in Blender - Free Tools Guide (Nexus 17785)", [
+        "Author - https://www.nexusmods.com/fallout4/mods/17785",
+        "Complete free-tools workflow: Blender + Outfit Studio + CBBE.",
+        "Includes skeleton fo4.blend, FBX import/export settings,",
+        "UV seam edge-split fix, weight transfer, and NIF export steps.",
+    ]),
+    ('IMPORT', "AssetRipper (Unity asset extraction)", [
+        "AssetRipper Team - https://github.com/AssetRipper/AssetRipper",
+        "Extracts assets (meshes, textures, audio) from Unity .assets files",
+        "and AssetBundle files for use in modding pipelines.",
+    ]),
+    ('IMPORT', "AssetStudio (Unity asset viewer & extractor)", [
+        "Perfare - https://github.com/Perfare/AssetStudio",
+        "GUI tool for browsing and exporting Unity game assets",
+    ]),
+    ('PLUGIN', "umodel_tools (UModel Blender integration)", [
+        "skarndev - https://github.com/skarndev/umodel_tools",
+        "Blender add-on companion for UModel; imports UE assets directly",
+        "into Blender scenes. Must be installed as a separate add-on",
+    ]),
+    ('PLUGIN', "TexTools for Blender (UV & texture tools)", [
+        "SavMartin - https://github.com/SavMartin/TexTools-Blender",
+        "Comprehensive UV mapping and texture baking tools for Blender",
+    ]),
+    ('PLUGIN', "UnityFBX-To-Blender-Importer", [
+        "Varneon - https://github.com/Varneon/UnityFBX-To-Blender-Importer",
+        "Imports Unity-exported FBX files into Blender with correct settings",
+    ]),
+    ('PLUGIN', "Blender-UE4-Importer", [
+        "Waffle1434 - https://github.com/Waffle1434/Blender-UE4-Importer",
+        "Imports Unreal Engine 4 assets (meshes, materials) into Blender",
+    ]),
+    ('STAR', "ComfyUI-BlenderAI-node  \u2605  RECOMMENDED AI WORKFLOW", [
+        "AIGODLIKE - https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node",
+        "Integrates ComfyUI AI nodes directly into the Blender interface.",
+        "Enables Stable Diffusion, ControlNet, and other AI workflows in Blender.",
+    ]),
+    ('ANIM_DATA', "ComfyUI-MotionDiff (motion diffusion in ComfyUI)", [
+        "Fannovel16 - https://github.com/Fannovel16/ComfyUI-MotionDiff",
+        "ComfyUI nodes for MDM, MotionGPT, MotionDiffuse, and related models.",
+    ]),
+    ('ANIM_DATA', "comfyui_controlnet_aux (ControlNet preprocessors)", [
+        "Fannovel16 - https://github.com/Fannovel16/comfyui_controlnet_aux",
+        "ControlNet auxiliary preprocessors (pose, depth, canny, etc.)",
+        "for ComfyUI image generation pipelines.",
+    ]),
+    ('MESH_DATA', "libigl (geometry processing library)", [
+        "libigl Team - https://github.com/libigl/libigl",
+        "C++ library for geometry processing algorithms",
+        "Python bindings: https://github.com/libigl/libigl-python-bindings",
+    ]),
+    ('MESH_DATA', "BBW (Bounded Biharmonic Weights for skinning)", [
+        "azer89 - https://github.com/azer89/BBW",
+        "shanmukhabharat - https://github.com/shanmukhabharat/BBW",
+        "Automatic skin weight computation based on bounded biharmonic weights",
+    ]),
+    ('SCRIPT', "trimesh (Python 3D mesh library)", [
+        "mikedh - https://github.com/mikedh/trimesh",
+        "Pure Python library for loading, processing, and analyzing 3D meshes",
+    ]),
+    ('SCRIPT', "pypdf (Python PDF library)", [
+        "py-pdf Team - https://github.com/py-pdf/pypdf",
+        "Pure Python library for reading, writing, and merging PDF files",
+    ]),
+]
+
+_CREDITS_PAGE_SIZE = 8
+
+
 class FO4_OT_ShowCredits(Operator):
     """Show credits for all third-party tools used by this add-on"""
     bl_idname = "fo4.show_credits"
     bl_label = "Credits"
     bl_options = {'REGISTER'}
 
+    page: IntProperty(name="Page", default=0, min=0)
+
     def execute(self, context):
         return {'FINISHED'}
 
     def invoke(self, context, event):
+        self.page = 0
         return context.window_manager.invoke_popup(self, width=480)
 
     def draw(self, context):
         layout = self.layout
 
+        total = len(_CREDITS_SECTIONS)
+        num_pages = max(1, (total + _CREDITS_PAGE_SIZE - 1) // _CREDITS_PAGE_SIZE)
+        page = max(0, min(self.page, num_pages - 1))
+
         title_row = layout.row()
         title_row.label(text="Third-Party Tools & Credits", icon='FUND')
         layout.separator()
 
-        def _section(icon, heading, lines):
+        start = page * _CREDITS_PAGE_SIZE
+        end = min(start + _CREDITS_PAGE_SIZE, total)
+        for icon, heading, lines in _CREDITS_SECTIONS[start:end]:
             box = layout.box()
             box.label(text=heading, icon=icon)
             col = box.column(align=True)
@@ -277,245 +537,15 @@ class FO4_OT_ShowCredits(Operator):
             for line in lines:
                 col.label(text=line)
 
-        _section('BLENDER', "Blender (3D platform)", [
-            "Blender Foundation - https://www.blender.org",
-            "GNU GPL v2+ license",
-        ])
-        _section('PLUGIN', "Niftools Blender Plugin (NIF export)", [
-            "NifTools Team - https://github.com/niftools/blender_nif_plugin",
-            "Enables direct .nif export for Fallout 4 / Skyrim (Blender 3.6 LTS)",
-        ])
-        _section('STAR', "PyNifly  \u2605  PRIMARY NIF EXPORTER", [
-            "BadDog (BadDogSkyrim) - https://github.com/BadDogSkyrim/PyNifly",
-            "The recommended NIF exporter for Blender 4.x and 5.x.",
-            "Supports Fallout 4, Skyrim SE, and Starfield with full",
-            "body-morph and material path support.",
-            "Huge thanks to BadDog for maintaining this essential tool!",
-        ])
-        _section('IMPORT', "UModel / UE Viewer (Unreal asset extraction)", [
-            "Konstantin Nosov (Gildor) - https://www.gildor.org/en/projects/umodel",
-            "Extracts meshes, textures, and animations from UE games",
-        ])
-        _section('IMAGE_DATA', "NVIDIA Texture Tools (NVTT / nvcompress)", [
-            "NVIDIA Corporation - https://github.com/castano/nvidia-texture-tools",
-            "GPU-accelerated DDS texture compression",
-        ])
-        _section('IMAGE_DATA', "texconv (DirectXTex)", [
-            "Microsoft - https://github.com/microsoft/DirectXTex",
-            "Windows DDS / BC1-BC7 texture conversion",
-        ])
-        _section('LIGHT_HEMI', "PyTorch (AI / ML runtime)", [
-            "Meta AI (PyTorch team) - https://pytorch.org",
-            "Deep-learning framework powering all AI features",
-        ])
-        _section('RENDER_RESULT', "Real-ESRGAN (AI texture upscaling)", [
-            "Xintao Wang et al. - https://github.com/xinntao/Real-ESRGAN",
-            "Upscales and enhances textures using GAN models",
-        ])
-        _section('MESH_DATA', "TripoSR (image-to-3D)", [
-            "VAST AI Research - https://github.com/VAST-AI-Research/TripoSR",
-            "Single-image 3D mesh reconstruction",
-        ])
-        _section('MESH_DATA', "Shap-E (text / image-to-3D)", [
-            "OpenAI - https://github.com/openai/shap-e",
-            "Text and image conditioned 3D shape generation",
-        ])
-        _section('MESH_DATA', "Point-E (text-to-3D point cloud)", [
-            "OpenAI - https://github.com/openai/point-e",
-            "Text-guided 3D point cloud and mesh generation",
-        ])
-        _section('MESH_DATA', "Hunyuan3D-2 (text / image-to-3D)", [
-            "Tencent - https://github.com/Tencent-Hunyuan/Hunyuan3D-2",
-            "High-quality text and image conditioned 3D generation",
-        ])
-        _section('MESH_DATA', "GET3D (text-to-3D)", [
-            "NVIDIA Research - https://github.com/nVlabs/GET3D",
-            "Generative model for high-quality 3D shapes",
-        ])
-        _section('MESH_DATA', "Instant-NGP (neural radiance field)", [
-            "NVIDIA Research - https://github.com/NVlabs/instant-ngp",
-            "Real-time NeRF reconstruction from photos",
-        ])
-        _section('MESH_DATA', "DreamGaussian (image / text-to-3D)", [
-            "dreamgaussian - https://github.com/dreamgaussian/dreamgaussian",
-            "Generative Gaussian splatting for efficient 3D content creation",
-        ])
-        _section('IMAGE_DATA', "StyleGAN2 (AI texture / image generation)", [
-            "NVIDIA Research - https://github.com/NVlabs/stylegan2",
-            "GAN-based texture and image synthesis for game assets",
-        ])
-        _section('ARMATURE_DATA', "RigNet (auto-rigging)", [
-            "Zhan Xu et al. - https://github.com/zhan-xu/RigNet",
-            "Automatic skeleton prediction for 3D meshes",
-        ])
-        _section('ANIM_DATA', "HY-Motion-1.0 (motion generation)", [
-            "Tencent Hunyuan - https://github.com/Tencent-Hunyuan/HY-Motion-1.0",
-            "AI-powered human motion sequence generation",
-        ])
-        _section('ANIM_DATA', "MotionDiffuse (text-driven motion generation)", [
-            "MotrixLab - https://github.com/MotrixLab/MotionDiffuse",
-            "Text-driven human motion with diffusion models",
-            "SMPL-X extension: https://github.com/ellemcfarlane/MotionDiffuse",
-        ])
-        _section('ARMATURE_DATA', "MediaPipe (motion tracking / pose estimation)", [
-            "Google - https://github.com/google/mediapipe",
-            "Real-time hand, face, and body pose tracking for motion capture",
-        ])
-        _section('ARMATURE_DATA', "BlendArMocap (Blender motion capture add-on)", [
-            "cgtinker - https://github.com/cgtinker/BlendArMocap",
-            "Blender add-on for real-time MediaPipe motion capture retargeting",
-        ])
-        _section('IMAGE_RGB', "ZoeDepth (depth estimation)", [
-            "Intel ISL - https://github.com/isl-org/ZoeDepth",
-            "Monocular depth estimation from a single image",
-        ])
-        _section('FILE_MOVIE', "FFmpeg (video & audio processing)", [
-            "FFmpeg Team - https://ffmpeg.org",
-            "GNU LGPL v2.1+ / GPL v2+ license",
-        ])
-        _section('ARMATURE_DATA', "Shiagur - Blender Power Armor Animation Rig v2.6.0", [
-            "Shiagur - https://www.nexusmods.com/fallout4/mods/81279",
-            "Blender rig + guide for Fallout 4 Power Armor animations.",
-            "Includes skeleton, Havok settings, and full workflow documentation.",
-        ])
-        _section('ARMATURE_DATA', "Shiagur - Blender Animation Rig (1st & 3rd Person) v2.6.0", [
-            "Shiagur - https://www.nexusmods.com/fallout4/mods/82537",
-            "Blender rig for 1st and 3rd person weapon, pose, and interaction",
-            "animations. Includes IK/FK, skeletons, Havok settings, and guide.",
-        ])
-        _section('EXPORT', "ck-cmd  \u2605  PRIMARY FBX \u2192 HKX CONVERTER", [
-            "aerisarn - https://github.com/aerisarn/ck-cmd",
-            "Open-source FBX \u2192 HKX converter (no commercial SDK required).",
-            "Recommended replacement for Havok2FBX in the FO4 animation pipeline.",
-        ])
-        _section('EXPORT', "havok2fbx (Havok \u2194 FBX fallback converter)", [
-            "dfm - https://github.com/dfm/havok2fbx",
-            "Converts Havok HKX/HKT files to/from FBX. Fallback when ck-cmd",
-            "is unavailable. Requires Havok SDK 2014-1-0 + Autodesk FBX SDK to build.",
-        ])
-        _section('EXPORT', "FBXImporter (FBX \u2192 HKT conversion)", [
-            "andrelo1 - https://www.nexusmods.com/fallout4/mods/59849",
-            "GitHub: https://github.com/andrelo1/fbximporter",
-            "Converts Blender FBX exports to Havok HKT files for FO4 pipeline.",
-        ])
-        _section('TOOL_SETTINGS', "hkxcmd (Havok HKX command-line tools)", [
-            "figment - https://github.com/figment/hkxcmd",
-            "Command-line conversion for Havok HKX / KF animation files.",
-        ])
-        _section('TOOL_SETTINGS', "HKXPack (HKX binary \u2194 XML converter)", [
-            "dexesttp - https://dexesttp.github.io/hkxpack/",
-            "Converts binary Havok HKX files to/from XML for editing.",
-        ])
-        _section('TOOL_SETTINGS', "NifSkope (NIF file editor)", [
-            "NifTools Team - https://github.com/niftools/nifskope",
-            "View, edit, and inspect Bethesda .nif files.",
-        ])
-        _section('TOOL_SETTINGS', "FO4Edit / xEdit (plugin & record editor)", [
-            "Zilav et al. - https://github.com/TES5Edit/TES5Edit",
-            "Edit Fallout 4 plugins (.esp/.esm/.esl) and import animations.",
-        ])
-        _section('PACKAGE', "FOMOD Creation Tool (mod installer builder)", [
-            "Wenderer - https://www.nexusmods.com/fallout4/mods/6821",
-            "GUI for creating info.xml + ModuleConfig.xml FOMOD installers.",
-            "Supports conditions, flags, images, plugin detection, file priorities.",
-        ])
-        _section('IMAGE_DATA', "Cathedral Assets Optimizer (asset optimization)", [
-            "Arthmoor / G_k - https://www.nexusmods.com/skyrimspecialedition/mods/23316",
-            "Optimizes textures (DDS BC7/BC1), meshes, and BSA/BA2 archives for FO4.",
-        ])
-        _section('TOOL_SETTINGS', "Collective Modding Toolkit (mod setup verification)", [
-            "wxMichael - https://www.nexusmods.com/fallout4/mods/87441",
-            "GitHub: https://github.com/wxMichael/Collective-Modding-Toolkit",
-            "Upgrades/downgrades FO4 OG \u2194 NG \u00b7 patches BA2 v1/v8 \u00b7 scans F4SE DLLs",
-            "Counts plugins (Full/Light) and BA2s \u00b7 scans for mod conflicts",
-        ])
-        _section('ANIM', "Story Action Poses  (1,700+ poses for storytelling/screenshots)", [
-            "EngineGaming - https://www.nexusmods.com/fallout4/mods/58448",
-            "ESL-flagged. Covers standard characters, power armor, and creatures.",
-            "Requires: F4SE, AAF (Advanced Animation Framework), Poser Hotkeys.",
-            "NEXT-GEN v4.0: https://nexusmods.com/fallout4/mods/68000",
-        ])
-        _section('ANIM', "AAF - Advanced Animation Framework (pose/animation manager)", [
-            "dagobaking - https://www.nexusmods.com/fallout4/mods/31304",
-            "Required by Story Action Poses and most pose packs. Needs F4SE.",
-        ])
-        _section('ANIM', "Poser Hotkeys (in-game pose trigger via hotkeys)", [
-            "opparco - https://www.nexusmods.com/fallout4/mods/45967",
-            "Arrow keys cycle poses. Compatible with Story Action Poses.",
-        ])
-        _section('MODIFIER', "BodySlide and Outfit Studio (body/armor conforming)", [
-            "ousnius / Caliente - https://www.nexusmods.com/fallout4/mods/25",
-            "GitHub: https://github.com/ousnius/BodySlide-and-Outfit-Studio",
-            "Conforms armor meshes to CBBE body, creates morph sliders for users.",
-        ])
-        _section('MESH_DATA', "CBBE - Caliente's Beautiful Bodies Enhancer (body mesh)", [
-            "Caliente - https://www.nexusmods.com/fallout4/mods/15",
-            "Standard body reference mesh for armor/clothing creation in FO4.",
-        ])
-        _section('INFO', "FO4 Outfit/Armor in Blender - Free Tools Guide (Nexus 17785)", [
-            "Author - https://www.nexusmods.com/fallout4/mods/17785",
-            "Complete free-tools workflow: Blender + Outfit Studio + CBBE.",
-            "Includes skeleton fo4.blend, FBX import/export settings,",
-            "UV seam edge-split fix, weight transfer, and NIF export steps.",
-        ])
-        _section('IMPORT', "AssetRipper (Unity asset extraction)", [
-            "AssetRipper Team - https://github.com/AssetRipper/AssetRipper",
-            "Extracts assets (meshes, textures, audio) from Unity .assets files",
-            "and AssetBundle files for use in modding pipelines.",
-        ])
-        _section('IMPORT', "AssetStudio (Unity asset viewer & extractor)", [
-            "Perfare - https://github.com/Perfare/AssetStudio",
-            "GUI tool for browsing and exporting Unity game assets",
-        ])
-        _section('PLUGIN', "umodel_tools (UModel Blender integration)", [
-            "skarndev - https://github.com/skarndev/umodel_tools",
-            "Blender add-on companion for UModel; imports UE assets directly",
-            "into Blender scenes. Must be installed as a separate add-on",
-        ])
-        _section('PLUGIN', "TexTools for Blender (UV & texture tools)", [
-            "SavMartin - https://github.com/SavMartin/TexTools-Blender",
-            "Comprehensive UV mapping and texture baking tools for Blender",
-        ])
-        _section('PLUGIN', "UnityFBX-To-Blender-Importer", [
-            "Varneon - https://github.com/Varneon/UnityFBX-To-Blender-Importer",
-            "Imports Unity-exported FBX files into Blender with correct settings",
-        ])
-        _section('PLUGIN', "Blender-UE4-Importer", [
-            "Waffle1434 - https://github.com/Waffle1434/Blender-UE4-Importer",
-            "Imports Unreal Engine 4 assets (meshes, materials) into Blender",
-        ])
-        _section('STAR', "ComfyUI-BlenderAI-node  \u2605  RECOMMENDED AI WORKFLOW", [
-            "AIGODLIKE - https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node",
-            "Integrates ComfyUI AI nodes directly into the Blender interface.",
-            "Enables Stable Diffusion, ControlNet, and other AI workflows in Blender.",
-        ])
-        _section('ANIM_DATA', "ComfyUI-MotionDiff (motion diffusion in ComfyUI)", [
-            "Fannovel16 - https://github.com/Fannovel16/ComfyUI-MotionDiff",
-            "ComfyUI nodes for MDM, MotionGPT, MotionDiffuse, and related models.",
-        ])
-        _section('ANIM_DATA', "comfyui_controlnet_aux (ControlNet preprocessors)", [
-            "Fannovel16 - https://github.com/Fannovel16/comfyui_controlnet_aux",
-            "ControlNet auxiliary preprocessors (pose, depth, canny, etc.)",
-            "for ComfyUI image generation pipelines.",
-        ])
-        _section('MESH_DATA', "libigl (geometry processing library)", [
-            "libigl Team - https://github.com/libigl/libigl",
-            "C++ library for geometry processing algorithms",
-            "Python bindings: https://github.com/libigl/libigl-python-bindings",
-        ])
-        _section('MESH_DATA', "BBW (Bounded Biharmonic Weights for skinning)", [
-            "azer89 - https://github.com/azer89/BBW",
-            "shanmukhabharat - https://github.com/shanmukhabharat/BBW",
-            "Automatic skin weight computation based on bounded biharmonic weights",
-        ])
-        _section('SCRIPT', "trimesh (Python 3D mesh library)", [
-            "mikedh - https://github.com/mikedh/trimesh",
-            "Pure Python library for loading, processing, and analyzing 3D meshes",
-        ])
-        _section('SCRIPT', "pypdf (Python PDF library)", [
-            "py-pdf Team - https://github.com/py-pdf/pypdf",
-            "Pure Python library for reading, writing, and merging PDF files",
-        ])
+        layout.separator()
+
+        nav_row = layout.row(align=True)
+        prev_op = nav_row.operator("fo4.show_credits", text="< Prev", icon='TRIA_LEFT')
+        prev_op.page = max(0, page - 1)
+        nav_row.label(text=f"Page {page + 1} / {num_pages}")
+        next_op = nav_row.operator("fo4.show_credits", text="Next >", icon='TRIA_RIGHT')
+        next_op.page = min(num_pages - 1, page + 1)
+
         layout.separator()
         layout.label(text="All trademarks belong to their respective owners.", icon='INFO')
 
