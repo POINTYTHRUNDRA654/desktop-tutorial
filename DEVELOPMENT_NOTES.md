@@ -1205,3 +1205,4 @@ for the Credits button itself — a natural match for "featured/important" items
 ### Key Files
 
 - `tutorial_operators.py` — `_CREDITS_SECTIONS` (two `'STAR'` → `'FUND'` replacements)
+- `test_addon_integrity.py` — `TestNoInvalidIcons.REMOVED_ICONS` now includes `'STAR'`; `test_no_removed_icons_in_tutorial_operators` guards `tutorial_operators.py`

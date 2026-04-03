@@ -318,13 +318,14 @@ class TestNoInvalidIcons(unittest.TestCase):
     offending call invisible.
     """
 
-    # Icons that are known to have been removed in Blender 4.0+
+    # Icons that are known to have been removed in Blender 4.0+/5.0+
     REMOVED_ICONS = {
         "FACE_MAPS",        # Removed when Face Maps feature was dropped
         "SNAP_FACE",        # Removed in Blender 4
         "SNAP_FACE_CENTER", # Removed in Blender 4
         "AXIS_SIDE",        # Renamed/removed
         "COLORSET_01_VEC",  # Removed
+        "STAR",             # Removed in Blender 5.0 – use FUND instead
     }
 
     def _check_file(self, filename):
@@ -351,6 +352,14 @@ class TestNoInvalidIcons(unittest.TestCase):
         if bad:
             self.fail(
                 "operators.py uses removed Blender icons:\n"
+                + "\n".join(bad)
+            )
+
+    def test_no_removed_icons_in_tutorial_operators(self):
+        bad = self._check_file("tutorial_operators.py")
+        if bad:
+            self.fail(
+                "tutorial_operators.py uses removed Blender icons (will crash credits draw):\n"
                 + "\n".join(bad)
             )
 
