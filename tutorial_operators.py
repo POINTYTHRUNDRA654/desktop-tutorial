@@ -104,41 +104,27 @@ _SETUP_STEPS = [
 ]
 
 
-class FO4_OT_SetupNav(Operator):
-    """Navigate to the previous or next setup guide page"""
-    bl_idname = "fo4.setup_nav"
-    bl_label = "Navigate Setup Guide"
-    bl_options = {'INTERNAL'}
-
-    delta: IntProperty(name="Delta", default=1)
-
-    def execute(self, context):
-        num_pages = len(_SETUP_STEPS)
-        wm = context.window_manager
-        wm.fo4_setup_page = max(0, min(num_pages - 1, wm.fo4_setup_page + self.delta))
-        return {'FINISHED'}
-
-
 class FO4_OT_ShowDetailedSetup(Operator):
     """Show the step-by-step setup guide for first-time users"""
     bl_idname = "fo4.show_detailed_setup"
     bl_label = "Detailed Setup Guide"
     bl_options = {'INTERNAL'}
 
+    page: IntProperty(name="Page", default=0, min=0)
+
     def execute(self, context):
         return {'FINISHED'}
 
     def invoke(self, context, event):
-        context.window_manager.fo4_setup_page = 0
         # Also print the full guide to the system console as a bonus.
-        self._print_to_console()
+        if self.page == 0:
+            self._print_to_console()
         return context.window_manager.invoke_popup(self, width=480)
 
     def draw(self, context):
         layout = self.layout
-        wm = context.window_manager
         num_pages = len(_SETUP_STEPS)
-        page = max(0, min(wm.fo4_setup_page, num_pages - 1))
+        page = max(0, min(self.page, num_pages - 1))
 
         title_row = layout.row()
         title_row.label(text="Fallout 4 Add-on – Setup Guide", icon='TEXT')
@@ -155,11 +141,17 @@ class FO4_OT_ShowDetailedSetup(Operator):
         layout.separator()
 
         nav_row = layout.row(align=True)
-        prev_op = nav_row.operator("fo4.setup_nav", text="< Prev", icon='TRIA_LEFT')
-        prev_op.delta = -1
+        if page > 0:
+            prev_op = nav_row.operator("fo4.show_detailed_setup", text="< Prev", icon='TRIA_LEFT')
+            prev_op.page = page - 1
+        else:
+            nav_row.label(text="")
         nav_row.label(text=f"Step {page + 1} / {num_pages}")
-        next_op = nav_row.operator("fo4.setup_nav", text="Next >", icon='TRIA_RIGHT')
-        next_op.delta = 1
+        if page < num_pages - 1:
+            next_op = nav_row.operator("fo4.show_detailed_setup", text="Next >", icon='TRIA_RIGHT')
+            next_op.page = page + 1
+        else:
+            nav_row.label(text="")
 
     @staticmethod
     def _print_to_console():
@@ -555,42 +547,26 @@ _CREDITS_SECTIONS = [
 _CREDITS_PAGE_SIZE = 4
 
 
-class FO4_OT_CreditsNav(Operator):
-    """Navigate to the previous or next credits page"""
-    bl_idname = "fo4.credits_nav"
-    bl_label = "Navigate Credits"
-    bl_options = {'INTERNAL'}
-
-    delta: IntProperty(name="Delta", default=1)
-
-    def execute(self, context):
-        total = len(_CREDITS_SECTIONS)
-        num_pages = max(1, (total + _CREDITS_PAGE_SIZE - 1) // _CREDITS_PAGE_SIZE)
-        wm = context.window_manager
-        wm.fo4_credits_page = max(0, min(num_pages - 1, wm.fo4_credits_page + self.delta))
-        return {'FINISHED'}
-
-
 class FO4_OT_ShowCredits(Operator):
     """Show credits for all third-party tools used by this add-on"""
     bl_idname = "fo4.show_credits"
     bl_label = "Credits"
     bl_options = {'INTERNAL'}
 
+    page: IntProperty(name="Page", default=0, min=0)
+
     def execute(self, context):
         return {'FINISHED'}
 
     def invoke(self, context, event):
-        context.window_manager.fo4_credits_page = 0
         return context.window_manager.invoke_popup(self, width=480)
 
     def draw(self, context):
         layout = self.layout
-        wm = context.window_manager
 
         total = len(_CREDITS_SECTIONS)
         num_pages = max(1, (total + _CREDITS_PAGE_SIZE - 1) // _CREDITS_PAGE_SIZE)
-        page = max(0, min(wm.fo4_credits_page, num_pages - 1))
+        page = max(0, min(self.page, num_pages - 1))
 
         title_row = layout.row()
         title_row.label(text="Third-Party Tools & Credits", icon='FUND')
@@ -609,11 +585,17 @@ class FO4_OT_ShowCredits(Operator):
         layout.separator()
 
         nav_row = layout.row(align=True)
-        prev_op = nav_row.operator("fo4.credits_nav", text="< Prev", icon='TRIA_LEFT')
-        prev_op.delta = -1
+        if page > 0:
+            prev_op = nav_row.operator("fo4.show_credits", text="< Prev", icon='TRIA_LEFT')
+            prev_op.page = page - 1
+        else:
+            nav_row.label(text="")
         nav_row.label(text=f"Page {page + 1} / {num_pages}")
-        next_op = nav_row.operator("fo4.credits_nav", text="Next >", icon='TRIA_RIGHT')
-        next_op.delta = 1
+        if page < num_pages - 1:
+            next_op = nav_row.operator("fo4.show_credits", text="Next >", icon='TRIA_RIGHT')
+            next_op.page = page + 1
+        else:
+            nav_row.label(text="")
 
         layout.separator()
         layout.label(text="All trademarks belong to their respective owners.", icon='INFO')
@@ -624,22 +606,14 @@ class FO4_OT_ShowCredits(Operator):
 # ---------------------------------------------------------------------------
 
 classes = (
-    FO4_OT_SetupNav,
     FO4_OT_ShowDetailedSetup,
     FO4_OT_StartTutorial,
     FO4_OT_ShowHelp,
-    FO4_OT_CreditsNav,
     FO4_OT_ShowCredits,
 )
 
 
 def register():
-    bpy.types.WindowManager.fo4_credits_page = IntProperty(
-        name="Credits Page", default=0, min=0
-    )
-    bpy.types.WindowManager.fo4_setup_page = IntProperty(
-        name="Setup Guide Page", default=0, min=0
-    )
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
@@ -686,7 +660,3 @@ def unregister():
                     f"tutorial_operators: Could not unregister "
                     f"{cls.__name__}: {e2}"
                 )
-    if hasattr(bpy.types.WindowManager, "fo4_credits_page"):
-        del bpy.types.WindowManager.fo4_credits_page
-    if hasattr(bpy.types.WindowManager, "fo4_setup_page"):
-        del bpy.types.WindowManager.fo4_setup_page
