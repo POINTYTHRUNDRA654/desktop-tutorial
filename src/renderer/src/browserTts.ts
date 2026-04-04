@@ -6,7 +6,7 @@ export const FEMALE_VOICE_KEYWORDS = [
 ] as const;
 
 const MALE_VOICE_KEYWORDS = [
-  'david', ' mark', 'george', 'james', 'richard', 'fred', 'alex', 'daniel', 'guy',
+  'david', 'mark', 'george', 'james', 'richard', 'fred', 'alex', 'daniel', 'guy',
   'brian', 'thomas', 'paul', 'oliver', 'luca',
 ];
 
