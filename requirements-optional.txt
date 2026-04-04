@@ -7,8 +7,9 @@
 #
 # PyTorch (required for: get3d_helpers, imageto3d_helpers, hunyuan3d_helpers, hymotion_helpers)
 # Use CPU version for smaller download; GPU version available via --index-url
-torch>=2.0.0
-torchvision>=0.15.0
+# WARNING: PyTorch is ~2 GB. Uncomment only when needed for AI features.
+# torch>=2.0.0
+# torchvision>=0.15.0
 
 # 3D mesh processing and PDF parsing
 trimesh>=4.0.0

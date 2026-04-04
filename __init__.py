@@ -171,6 +171,10 @@ mod_packaging_helpers = _try_import("mod_packaging_helpers")
 addon_updater = _try_import("addon_updater")
 native_nif_writer = _try_import("native_nif_writer")
 
+# Shape key → .tri morph export and navmesh validation
+tri_export_helpers = _try_import("tri_export_helpers")
+navmesh_helpers = _try_import("navmesh_helpers")
+
 # Asset library browser (registers PropertyGroups, UIList, and operators)
 asset_library = _try_import("asset_library")
 
@@ -284,6 +288,8 @@ modules = list(
             mod_packaging_helpers,
             addon_updater,
             asset_library,
+            tri_export_helpers,
+            navmesh_helpers,
         ],
     )
 )

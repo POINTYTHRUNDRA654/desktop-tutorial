@@ -3556,6 +3556,412 @@ class TestUEImporterPolicyCompliance(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# Test suite S — tri_export_helpers.py structural checks
+# ---------------------------------------------------------------------------
+class TestTRIExportHelpers(unittest.TestCase):
+    """Structural integrity checks for the TRI morph export module."""
+
+    def _src(self):
+        return _read("tri_export_helpers.py")
+
+    def test_file_exists(self):
+        """tri_export_helpers.py must exist."""
+        self.assertTrue(
+            os.path.isfile(_path("tri_export_helpers.py")),
+            "tri_export_helpers.py is missing — it provides FO4 .tri morph export",
+        )
+
+    def test_tri_magic_constant(self):
+        """Module must define the FRTRI003 magic bytes."""
+        src = self._src()
+        self.assertIn(
+            "FRTRI003",
+            src,
+            "tri_export_helpers must define the FRTRI003 magic constant "
+            "used in the FO4 .tri file header.",
+        )
+
+    def test_tri_export_helpers_class_exists(self):
+        """TRIExportHelpers class must be present."""
+        src = self._src()
+        self.assertIn(
+            "class TRIExportHelpers",
+            src,
+            "tri_export_helpers must define a TRIExportHelpers class.",
+        )
+
+    def test_can_export_method(self):
+        """can_export() static method must exist."""
+        src = self._src()
+        self.assertIn(
+            "def can_export",
+            src,
+            "TRIExportHelpers must provide a can_export() method for "
+            "pre-flight validation before calling export_tri().",
+        )
+
+    def test_export_tri_method(self):
+        """export_tri() static method must exist."""
+        src = self._src()
+        self.assertIn(
+            "def export_tri",
+            src,
+            "TRIExportHelpers must provide an export_tri() method that "
+            "writes the .tri file.",
+        )
+
+    def test_struct_pack_used_for_header(self):
+        """struct.pack must be used to write the binary header."""
+        src = self._src()
+        self.assertIn(
+            "struct.pack",
+            src,
+            "tri_export_helpers must use struct.pack to write binary data "
+            "for the FRTRI003 format header.",
+        )
+
+    def test_int16_deltas(self):
+        """Morph deltas must be written as int16."""
+        src = self._src()
+        self.assertTrue(
+            "'<h'" in src or '"<h"' in src,
+            "tri_export_helpers must write morph deltas as int16 ('<h') "
+            "to match the FRTRI003 morph delta format.",
+        )
+
+    def test_operator_registered_in_operators(self):
+        """FO4_OT_ExportTRIMorphs must appear in operators.py."""
+        src = _read("operators.py")
+        self.assertIn(
+            "FO4_OT_ExportTRIMorphs",
+            src,
+            "operators.py must define FO4_OT_ExportTRIMorphs and add it "
+            "to the classes tuple so it is registered at startup.",
+        )
+
+    def test_operator_in_ui_panels(self):
+        """fo4.export_tri_morphs must be wired into ui_panels.py."""
+        src = _read("ui_panels.py")
+        self.assertIn(
+            "fo4.export_tri_morphs",
+            src,
+            "ui_panels.py must include a call to layout.operator("
+            "'fo4.export_tri_morphs') in the export panel.",
+        )
+
+    def test_module_imported_in_init(self):
+        """tri_export_helpers must be imported in __init__.py."""
+        src = _read("__init__.py")
+        self.assertIn(
+            "tri_export_helpers",
+            src,
+            "__init__.py must import tri_export_helpers so the module is "
+            "loaded as part of the add-on.",
+        )
+
+    def test_register_unregister_present(self):
+        """Module must have register() and unregister() stubs."""
+        src = self._src()
+        self.assertIn("def register", src)
+        self.assertIn("def unregister", src)
+
+
+# ---------------------------------------------------------------------------
+# Test suite T — navmesh_helpers.py structural checks
+# ---------------------------------------------------------------------------
+class TestNavmeshHelpers(unittest.TestCase):
+    """Structural integrity checks for the navmesh validation module."""
+
+    def _src(self):
+        return _read("navmesh_helpers.py")
+
+    def test_file_exists(self):
+        """navmesh_helpers.py must exist."""
+        self.assertTrue(
+            os.path.isfile(_path("navmesh_helpers.py")),
+            "navmesh_helpers.py is missing — it provides navmesh validation",
+        )
+
+    def test_navmesh_helpers_class_exists(self):
+        """NavmeshHelpers class must be present."""
+        src = self._src()
+        self.assertIn(
+            "class NavmeshHelpers",
+            src,
+            "navmesh_helpers must define a NavmeshHelpers class.",
+        )
+
+    def test_validate_method(self):
+        """validate() static method must exist."""
+        src = self._src()
+        self.assertIn(
+            "def validate",
+            src,
+            "NavmeshHelpers must provide a validate() method that checks "
+            "navmesh geometry for CK compatibility.",
+        )
+
+    def test_tag_as_navmesh_method(self):
+        """tag_as_navmesh() helper must exist."""
+        src = self._src()
+        self.assertIn(
+            "def tag_as_navmesh",
+            src,
+            "NavmeshHelpers must provide a tag_as_navmesh() helper that "
+            "marks an object as a navmesh in the viewport.",
+        )
+
+    def test_format_report_method(self):
+        """format_report() helper must exist."""
+        src = self._src()
+        self.assertIn(
+            "def format_report",
+            src,
+            "NavmeshHelpers must provide a format_report() helper to "
+            "produce a human-readable validation summary.",
+        )
+
+    def test_max_verts_constant(self):
+        """MAX_VERTS limit constant must be defined."""
+        src = self._src()
+        self.assertIn(
+            "MAX_VERTS",
+            src,
+            "NavmeshHelpers must expose a MAX_VERTS constant (CK vertex limit).",
+        )
+
+    def test_degenerate_triangle_check(self):
+        """Module must check for zero-area (degenerate) triangles."""
+        src = self._src()
+        self.assertIn(
+            "calc_area",
+            src,
+            "NavmeshHelpers.validate() must call f.calc_area() to detect "
+            "degenerate (zero-area) triangles that crash CK pathfinding.",
+        )
+
+    def test_operator_registered_in_operators(self):
+        """FO4_OT_ValidateNavMesh must appear in operators.py."""
+        src = _read("operators.py")
+        self.assertIn(
+            "FO4_OT_ValidateNavMesh",
+            src,
+            "operators.py must define FO4_OT_ValidateNavMesh and add it "
+            "to the classes tuple.",
+        )
+
+    def test_operator_in_ui_panels(self):
+        """fo4.validate_navmesh must be wired into ui_panels.py."""
+        src = _read("ui_panels.py")
+        self.assertIn(
+            "fo4.validate_navmesh",
+            src,
+            "ui_panels.py must include a call to layout.operator("
+            "'fo4.validate_navmesh').",
+        )
+
+    def test_module_imported_in_init(self):
+        """navmesh_helpers must be imported in __init__.py."""
+        src = _read("__init__.py")
+        self.assertIn(
+            "navmesh_helpers",
+            src,
+            "__init__.py must import navmesh_helpers.",
+        )
+
+    def test_register_unregister_present(self):
+        """Module must have register() and unregister() stubs."""
+        src = self._src()
+        self.assertIn("def register", src)
+        self.assertIn("def unregister", src)
+
+
+# ---------------------------------------------------------------------------
+# Test suite U — Multi-piece convex collision structural checks
+# ---------------------------------------------------------------------------
+class TestMultiConvexCollision(unittest.TestCase):
+    """Structural checks for the multi-piece convex collision operator."""
+
+    def test_operator_class_exists(self):
+        """FO4_OT_GenerateMultiConvexCollision must be defined in operators.py."""
+        src = _read("operators.py")
+        self.assertIn(
+            "FO4_OT_GenerateMultiConvexCollision",
+            src,
+            "operators.py must define FO4_OT_GenerateMultiConvexCollision.",
+        )
+
+    def test_operator_in_classes_tuple(self):
+        """Operator must be included in the classes tuple."""
+        src = _read("operators.py")
+        # Check it appears after the classes = ( line
+        classes_idx = src.find("classes = (")
+        op_idx = src.rfind("FO4_OT_GenerateMultiConvexCollision")
+        self.assertGreater(
+            op_idx, classes_idx,
+            "FO4_OT_GenerateMultiConvexCollision must be inside the classes tuple "
+            "so it is registered with Blender at startup.",
+        )
+
+    def test_operator_in_ui_panels(self):
+        """fo4.generate_multi_convex_collision must be wired into ui_panels.py."""
+        src = _read("ui_panels.py")
+        self.assertIn(
+            "fo4.generate_multi_convex_collision",
+            src,
+            "ui_panels.py must include a button for 'fo4.generate_multi_convex_collision'.",
+        )
+
+    def test_uses_bmesh_convex_hull(self):
+        """Implementation must use bmesh.ops.convex_hull for hull generation."""
+        src = _read("operators.py")
+        self.assertIn(
+            "convex_hull",
+            src,
+            "FO4_OT_GenerateMultiConvexCollision must use bmesh.ops.convex_hull "
+            "to generate manifold convex hull pieces.",
+        )
+
+    def test_ucx_naming_convention(self):
+        """Generated pieces must follow UCX_ naming convention."""
+        src = _read("operators.py")
+        self.assertIn(
+            "UCX_",
+            src,
+            "Multi-piece collision pieces must be named with the UCX_ prefix "
+            "so the FO4 NIF exporter recognises them as collision meshes.",
+        )
+
+    def test_max_pieces_property_exists(self):
+        """max_pieces property must be declared."""
+        src = _read("operators.py")
+        self.assertIn(
+            "max_pieces",
+            src,
+            "FO4_OT_GenerateMultiConvexCollision must expose a max_pieces "
+            "IntProperty so users can control how many collision pieces are created.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Test suite V — Knowledge base content checks
+# ---------------------------------------------------------------------------
+class TestKnowledgeBaseContent(unittest.TestCase):
+    """Check that bundled knowledge-base snippets are present."""
+
+    _KB_DIR = os.path.join(ADDON_DIR, "knowledge_base")
+
+    def _kb_file(self, name):
+        return os.path.join(self._KB_DIR, name)
+
+    def test_nif_structure_snippet_exists(self):
+        """knowledge_base/fo4_nif_structure.md must be present."""
+        self.assertTrue(
+            os.path.isfile(self._kb_file("fo4_nif_structure.md")),
+            "knowledge_base/fo4_nif_structure.md is missing. "
+            "It provides NIF node-hierarchy reference for the AI Advisor.",
+        )
+
+    def test_bsm_format_snippet_exists(self):
+        """knowledge_base/fo4_bsm_format.md must be present."""
+        self.assertTrue(
+            os.path.isfile(self._kb_file("fo4_bsm_format.md")),
+            "knowledge_base/fo4_bsm_format.md is missing. "
+            "It provides BGSM/BGEM material format reference.",
+        )
+
+    def test_common_pitfalls_snippet_exists(self):
+        """knowledge_base/fo4_common_pitfalls.md must be present."""
+        self.assertTrue(
+            os.path.isfile(self._kb_file("fo4_common_pitfalls.md")),
+            "knowledge_base/fo4_common_pitfalls.md is missing. "
+            "It provides a curated list of common FO4 modding mistakes.",
+        )
+
+    def test_animation_pipeline_snippet_exists(self):
+        """knowledge_base/fo4_animation_pipeline.md must be present."""
+        self.assertTrue(
+            os.path.isfile(self._kb_file("fo4_animation_pipeline.md")),
+            "knowledge_base/fo4_animation_pipeline.md is missing. "
+            "It provides the Blender → HKX animation export pipeline reference.",
+        )
+
+    def test_nif_structure_non_empty(self):
+        """NIF structure snippet must contain substantive content."""
+        path = self._kb_file("fo4_nif_structure.md")
+        if not os.path.isfile(path):
+            self.skipTest("fo4_nif_structure.md absent — covered by existence test")
+        content = open(path, encoding="utf-8").read()
+        self.assertIn(
+            "BSTriShape",
+            content,
+            "fo4_nif_structure.md must mention BSTriShape (the FO4 geometry node type).",
+        )
+
+    def test_bsm_format_mentions_texture_slots(self):
+        """BSM format snippet must describe texture slots."""
+        path = self._kb_file("fo4_bsm_format.md")
+        if not os.path.isfile(path):
+            self.skipTest("fo4_bsm_format.md absent — covered by existence test")
+        content = open(path, encoding="utf-8").read()
+        self.assertIn(
+            "DiffuseTexture",
+            content,
+            "fo4_bsm_format.md must describe the DiffuseTexture field.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Test suite W — requirements-optional.txt torch/torchvision commented out
+# ---------------------------------------------------------------------------
+class TestRequirementsOptional(unittest.TestCase):
+    """Verify that PyTorch is not installed by default via optional requirements."""
+
+    def _src(self):
+        return _read("requirements-optional.txt")
+
+    def test_torch_is_commented_out(self):
+        """torch must be commented out so it is not installed by default.
+
+        PyTorch is ~2 GB.  Installing it automatically as part of 'optional
+        requirements' would surprise users who only need trimesh/pypdf.
+        Users who need PyTorch for AI features must uncomment it explicitly.
+        """
+        src = self._src()
+        # Any uncommented 'torch' line should not exist.
+        for line in src.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            self.assertFalse(
+                stripped.startswith("torch"),
+                "requirements-optional.txt must not have an uncommented "
+                "'torch' line.  PyTorch (~2 GB) must be opt-in. "
+                "Prefix the line with # to comment it out.",
+            )
+            self.assertFalse(
+                stripped.startswith("torchvision"),
+                "requirements-optional.txt must not have an uncommented "
+                "'torchvision' line.  Comment it out with #.",
+            )
+
+    def test_trimesh_is_active(self):
+        """trimesh must remain uncommented (it is a core optional dependency)."""
+        src = self._src()
+        active_lines = [
+            line.strip()
+            for line in src.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        trimesh_active = any(l.startswith("trimesh") for l in active_lines)
+        self.assertTrue(
+            trimesh_active,
+            "trimesh must remain uncommented in requirements-optional.txt; "
+            "it is needed for mesh processing features.",
+        )
+
+
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(sys.modules[__name__])

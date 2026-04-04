@@ -88,6 +88,8 @@ unity_game_assets     = _safe_import("unity_game_assets")
 unreal_game_assets    = _safe_import("unreal_game_assets")
 fo4_scene_diagnostics = _safe_import("fo4_scene_diagnostics")
 asset_library         = _safe_import("asset_library")
+tri_export_helpers    = _safe_import("tri_export_helpers")
+navmesh_helpers_mod   = _safe_import("navmesh_helpers")
 
 
 class FO4_OT_NextTutorialStep(Operator):
@@ -8362,6 +8364,412 @@ class WM_OT_MossyCheckHttp(Operator):
         return {'FINISHED'}
 
 
+# ---------------------------------------------------------------------------
+# TRI Morph Export Operator
+# ---------------------------------------------------------------------------
+
+class FO4_OT_ExportTRIMorphs(Operator):
+    """Export shape keys on the active mesh as a Fallout 4 .tri morph file.
+
+    FO4 uses .tri files (FRTRI003 format) for head/face morphs — facial
+    expressions, race sliders, and body morph presets.  Each shape key
+    (excluding Basis) becomes one named morph in the exported file.
+
+    The Basis key supplies the rest-pose vertex positions; all other keys
+    are stored as per-vertex displacement deltas scaled to int16.
+    """
+    bl_idname = "fo4.export_tri_morphs"
+    bl_label  = "Export .tri Morphs"
+    bl_options = {'REGISTER'}
+
+    filepath: StringProperty(
+        name="File Path",
+        description="Output .tri file path",
+        subtype='FILE_PATH',
+        default="",
+    )
+    filter_glob: StringProperty(
+        default="*.tri",
+        options={'HIDDEN'},
+    )
+    basis_name: StringProperty(
+        name="Basis Key Name",
+        description="Name of the basis/reference shape key (leave empty to use the first key)",
+        default="",
+    )
+
+    def execute(self, context):
+        if not tri_export_helpers:
+            self.report({'ERROR'}, "tri_export_helpers module not available")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        ok, msg = tri_export_helpers.TRIExportHelpers.export_tri(
+            obj,
+            bpy.path.abspath(self.filepath),
+            basis_name=self.basis_name,
+        )
+        if ok:
+            self.report({'INFO'}, msg)
+            if notification_system:
+                notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        if not tri_export_helpers:
+            self.report({'ERROR'}, "tri_export_helpers module not available")
+            return {'CANCELLED'}
+        obj = context.active_object
+        ok, msg = tri_export_helpers.TRIExportHelpers.can_export(obj)
+        if not ok:
+            self.report({'ERROR'}, msg)
+            return {'CANCELLED'}
+        # Pre-fill filename from object name
+        if context.active_object:
+            self.filepath = f"{context.active_object.name}.tri"
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+# ---------------------------------------------------------------------------
+# Navmesh Validation Operator
+# ---------------------------------------------------------------------------
+
+class FO4_OT_ValidateNavMesh(Operator):
+    """Validate the active mesh as a Fallout 4 navmesh.
+
+    Checks for common issues that prevent the Creation Kit from importing
+    navmesh objects:
+
+    • All faces must be triangles
+    • No non-manifold (open boundary) edges
+    • Vertex and triangle count within CK limits
+    • No zero-area (degenerate) triangles
+    • Scale must be applied
+    • No near-duplicate vertices
+    • No isolated vertices
+
+    Results are printed to the System Console and reported in the status bar.
+    """
+    bl_idname = "fo4.validate_navmesh"
+    bl_label  = "Validate NavMesh"
+    bl_options = {'REGISTER'}
+
+    tag_on_pass: BoolProperty(
+        name="Tag as NavMesh on Pass",
+        description="Mark the object as a navmesh in the viewport when validation passes",
+        default=True,
+    )
+
+    def execute(self, context):
+        if not navmesh_helpers_mod:
+            self.report({'ERROR'}, "navmesh_helpers module not available")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        result = navmesh_helpers_mod.NavmeshHelpers.validate(obj)
+        report_str = navmesh_helpers_mod.NavmeshHelpers.format_report(result)
+        print(report_str)
+
+        if result['ok']:
+            msg = (
+                f"NavMesh validation PASSED "
+                f"({result['stats'].get('verts', 0)} verts, "
+                f"{result['stats'].get('faces', 0)} tris)"
+            )
+            if result['warnings']:
+                msg += f" — {len(result['warnings'])} warning(s); see console"
+                self.report({'WARNING'}, msg)
+            else:
+                self.report({'INFO'}, msg)
+            if self.tag_on_pass:
+                navmesh_helpers_mod.NavmeshHelpers.tag_as_navmesh(obj)
+        else:
+            n_err = len(result['errors'])
+            n_warn = len(result['warnings'])
+            msg = (
+                f"NavMesh validation FAILED — "
+                f"{n_err} error(s), {n_warn} warning(s). "
+                "See System Console for details."
+            )
+            self.report({'ERROR'}, msg)
+
+        return {'FINISHED'}
+
+
+# ---------------------------------------------------------------------------
+# Multi-Piece Convex Collision Operator (V-HACD-style decomposition)
+# ---------------------------------------------------------------------------
+
+def _build_convex_piece(source_mesh, vert_indices, piece_name):
+    """Build one convex hull object from *vert_indices* of *source_mesh*.
+
+    Returns the new ``bpy.types.Object`` or ``None`` on failure.
+    """
+    import bmesh as _bm
+
+    bm2 = _bm.new()
+    bm2.from_mesh(source_mesh)
+    bm2.verts.ensure_lookup_table()
+
+    # Keep only the vertices in this island/cell
+    to_del = [v for v in bm2.verts if v.index not in vert_indices]
+    if to_del:
+        _bm.ops.delete(bm2, geom=to_del, context='VERTS')
+
+    if not bm2.verts:
+        bm2.free()
+        return None
+
+    _bm.ops.remove_doubles(bm2, verts=bm2.verts, dist=0.001)
+    bm2.verts.ensure_lookup_table()
+
+    if not bm2.verts:
+        bm2.free()
+        return None
+
+    result = _bm.ops.convex_hull(bm2, input=bm2.verts)
+    geom_del = result.get('geom_interior', []) + result.get('geom_unused', [])
+    v_del = [g for g in geom_del if isinstance(g, _bm.types.BMVert)]
+    if v_del:
+        _bm.ops.delete(bm2, geom=v_del, context='VERTS')
+
+    _bm.ops.triangulate(bm2, faces=bm2.faces[:])
+    _bm.ops.recalc_face_normals(bm2, faces=bm2.faces[:])
+    bm2.normal_update()
+
+    # Enforce FO4 convex vertex limit (256)
+    _FO4_LIMIT = 256
+    if len(bm2.verts) > _FO4_LIMIT:
+        # Apply a further convex hull after reducing the vert set
+        target = max(4, _FO4_LIMIT)
+        # Delete excess verts furthest from centroid
+        centroid = sum((v.co for v in bm2.verts), bm2.verts[0].co.copy()) / len(bm2.verts)
+        sorted_verts = sorted(bm2.verts, key=lambda v: (v.co - centroid).length, reverse=True)
+        excess = sorted_verts[target:]
+        if excess:
+            _bm.ops.delete(bm2, geom=excess, context='VERTS')
+        result2 = _bm.ops.convex_hull(bm2, input=bm2.verts)
+        g2 = result2.get('geom_interior', []) + result2.get('geom_unused', [])
+        v2 = [g for g in g2 if isinstance(g, _bm.types.BMVert)]
+        if v2:
+            _bm.ops.delete(bm2, geom=v2, context='VERTS')
+        _bm.ops.triangulate(bm2, faces=bm2.faces[:])
+        _bm.ops.recalc_face_normals(bm2, faces=bm2.faces[:])
+        bm2.normal_update()
+
+    new_mesh = bpy.data.meshes.new(f"{piece_name}_mesh")
+    bm2.to_mesh(new_mesh)
+    bm2.free()
+
+    coll_obj = bpy.data.objects.new(piece_name, new_mesh)
+    coll_obj["fo4_collision"] = True
+    coll_obj.data.materials.clear()
+    return coll_obj
+
+
+def _find_islands(mesh_data) -> list:
+    """Return a list of sets of vertex indices for each disconnected island."""
+    import bmesh as _bm
+
+    bm = _bm.new()
+    bm.from_mesh(mesh_data)
+    bm.verts.ensure_lookup_table()
+
+    visited: set = set()
+    islands: list = []
+    for seed in bm.verts:
+        if seed.index in visited:
+            continue
+        island: set = set()
+        stack = [seed]
+        while stack:
+            v = stack.pop()
+            if v.index in visited:
+                continue
+            visited.add(v.index)
+            island.add(v.index)
+            for edge in v.link_edges:
+                other = edge.other_vert(v)
+                if other.index not in visited:
+                    stack.append(other)
+        islands.append(island)
+    bm.free()
+    return islands
+
+
+def _grid_decompose(obj, grid_res: int, max_pieces: int) -> list:
+    """Decompose a single-island mesh into cells of a bounding-box grid.
+
+    Divides the object's bounding box into ``grid_res × grid_res × grid_res``
+    cells and returns up to ``max_pieces`` non-empty cell vertex sets.
+    """
+    import bmesh as _bm
+    from mathutils import Vector as _V
+
+    bm = _bm.new()
+    bm.from_mesh(obj.data)
+    bm.verts.ensure_lookup_table()
+
+    if not bm.verts:
+        bm.free()
+        return []
+
+    # Bounding box
+    xs = [v.co.x for v in bm.verts]
+    ys = [v.co.y for v in bm.verts]
+    zs = [v.co.z for v in bm.verts]
+    bb_min = _V((min(xs), min(ys), min(zs)))
+    bb_max = _V((max(xs), max(ys), max(zs)))
+    bb_size = bb_max - bb_min
+    # Avoid division by zero on flat dimensions
+    size_x = max(bb_size.x, 1e-6)
+    size_y = max(bb_size.y, 1e-6)
+    size_z = max(bb_size.z, 1e-6)
+
+    cells: dict = {}
+    for v in bm.verts:
+        cx = min(grid_res - 1, int((v.co.x - bb_min.x) / size_x * grid_res))
+        cy = min(grid_res - 1, int((v.co.y - bb_min.y) / size_y * grid_res))
+        cz = min(grid_res - 1, int((v.co.z - bb_min.z) / size_z * grid_res))
+        key = (cx, cy, cz)
+        cells.setdefault(key, set()).add(v.index)
+
+    bm.free()
+
+    # Sort by size descending, keep top max_pieces
+    sorted_cells = sorted(cells.values(), key=len, reverse=True)
+    return sorted_cells[:max_pieces]
+
+
+class FO4_OT_GenerateMultiConvexCollision(Operator):
+    """Decompose the active mesh into multiple UCX_ convex collision pieces.
+
+    Standard single-piece collision (``UCX_ObjectName``) generates one convex
+    hull that encompasses the entire mesh.  For complex shapes — furniture with
+    separate legs, machinery, architectural elements — this produces collision
+    that is either too loose or blocks areas that should be walkable.
+
+    This operator generates one convex-hull piece per disconnected mesh island.
+    For single-island meshes it optionally sub-divides the bounding box into a
+    grid and generates a hull per occupied cell, mimicking V-HACD decomposition
+    using only Blender's built-in bmesh tools (no external libraries required).
+
+    Each piece is named ``UCX_ObjectName_00``, ``UCX_ObjectName_01``, etc.,
+    parented to the source object, and configured as a PASSIVE rigid body.
+    """
+    bl_idname = "fo4.generate_multi_convex_collision"
+    bl_label  = "Multi-Piece Convex Collision"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    max_pieces: IntProperty(
+        name="Max Pieces",
+        description=(
+            "Maximum number of UCX_ pieces to generate. "
+            "Each disconnected island produces one piece. "
+            "For single-island meshes the bounding box is divided into a grid "
+            "to produce multiple sub-hulls."
+        ),
+        default=4,
+        min=1,
+        max=32,
+    )
+    grid_resolution: IntProperty(
+        name="Grid Resolution",
+        description=(
+            "Grid subdivisions used when the mesh is a single island. "
+            "A resolution of 2 divides the bounding box into up to 8 cells (2×2×2)."
+        ),
+        default=2,
+        min=1,
+        max=8,
+    )
+
+    def execute(self, context):
+        import bmesh as _bm
+
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Active object must be a mesh")
+            return {'CANCELLED'}
+
+        # Remove any existing UCX_ children (single-piece and multi-piece)
+        ucx_single = f"UCX_{obj.name}"
+        ucx_prefix = f"UCX_{obj.name}_"
+        for child in list(obj.children):
+            if child.get("fo4_collision") or child.name == ucx_single or \
+                    child.name.startswith(ucx_prefix):
+                bpy.data.objects.remove(child, do_unlink=True)
+
+        # Find disconnected islands
+        islands = _find_islands(obj.data)
+
+        # For single-island meshes use grid decomposition
+        if len(islands) == 1 and self.max_pieces > 1:
+            islands = _grid_decompose(obj, self.grid_resolution, self.max_pieces)
+
+        # Cap at max_pieces (keep largest islands)
+        if len(islands) > self.max_pieces:
+            islands = sorted(islands, key=len, reverse=True)[:self.max_pieces]
+
+        created = []
+        collection = (
+            obj.users_collection[0] if obj.users_collection
+            else context.scene.collection
+        )
+
+        for idx, vert_indices in enumerate(islands):
+            if not vert_indices:
+                continue
+            piece_name = f"UCX_{obj.name}_{idx:02d}"
+            piece = _build_convex_piece(obj.data, vert_indices, piece_name)
+            if piece is None:
+                continue
+
+            piece.parent = obj
+            piece.matrix_parent_inverse = obj.matrix_world.inverted()
+            collection.objects.link(piece)
+
+            # Configure rigid body
+            try:
+                bpy.ops.object.select_all(action='DESELECT')
+                piece.select_set(True)
+                context.view_layer.objects.active = piece
+                bpy.ops.rigidbody.object_add()
+                piece.rigid_body.type = 'PASSIVE'
+                piece.rigid_body.collision_shape = 'CONVEX_HULL'
+                piece.rigid_body.mass = 0.0
+                piece.rigid_body.friction = 0.8
+                piece.rigid_body.restitution = 0.1
+            except Exception:
+                pass
+
+            created.append(piece)
+
+        # Restore selection
+        bpy.ops.object.select_all(action='DESELECT')
+        context.view_layer.objects.active = obj
+        obj.select_set(True)
+
+        if not created:
+            self.report({'ERROR'}, f"Failed to generate any convex pieces for '{obj.name}'")
+            return {'CANCELLED'}
+
+        msg = (
+            f"Generated {len(created)} UCX_ convex piece(s) for '{obj.name}' "
+            f"(from {len(islands)} island(s))"
+        )
+        self.report({'INFO'}, msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
 classes = (
     FO4_OT_OpenShiagurPowerArmorRig,
     FO4_OT_OpenShiagurAnimRig,
@@ -8564,6 +8972,12 @@ classes = (
     # Mossy Link operators
     WM_OT_MossyLinkToggle,
     WM_OT_MossyCheckHttp,
+    # TRI morph export
+    FO4_OT_ExportTRIMorphs,
+    # Navmesh validation
+    FO4_OT_ValidateNavMesh,
+    # Multi-piece convex collision (V-HACD-style decomposition)
+    FO4_OT_GenerateMultiConvexCollision,
 )
 
 def _make_scene_to_pref_sync(scene_attr, pref_attr):

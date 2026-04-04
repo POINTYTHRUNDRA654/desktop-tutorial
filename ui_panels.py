@@ -2759,6 +2759,33 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         mod_row2.scale_y = 1.3
         mod_row2.operator("fo4.export_mod_folder", text="Export Mod Folder", icon='EXPORT')
 
+        # ── TRI Morph Export ─────────────────────────────────────────────────
+        tri_box = layout.box()
+        tri_box.label(text="TRI Morph Export (Head/Face Morphs)", icon='SHAPEKEY_DATA')
+        tri_col = tri_box.column(align=True)
+        tri_col.scale_y = 0.8
+        tri_col.label(text="Exports shape keys as FO4 .tri morph file", icon='INFO')
+        tri_col.label(text="(FRTRI003 — used for face/race morphs)", icon='BLANK1')
+
+        has_shape_keys = (
+            obj and obj.type == 'MESH'
+            and obj.data.shape_keys
+            and len(obj.data.shape_keys.key_blocks) >= 2
+        )
+        if obj and obj.type == 'MESH' and obj.data.shape_keys:
+            key_count = max(0, len(obj.data.shape_keys.key_blocks) - 1)
+            tri_col.label(
+                text=f"Active mesh has {key_count} morph key(s)",
+                icon='CHECKMARK' if key_count > 0 else 'ERROR',
+            )
+        elif obj and obj.type == 'MESH':
+            tri_col.label(text="No shape keys found on active mesh", icon='ERROR')
+
+        tri_row = tri_box.row(align=True)
+        tri_row.enabled = has_shape_keys
+        tri_row.scale_y = 1.3
+        tri_row.operator("fo4.export_tri_morphs", text="Export .tri Morphs", icon='EXPORT')
+
 
 class FO4_PT_BatchProcessingPanel(_FO4SubPanel):
     """Batch processing panel for multiple objects"""
@@ -2868,6 +2895,32 @@ class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
         row = box.row()
         row.enabled = obj and obj.type == 'MESH'
         row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
+
+        # Multi-piece convex collision
+        mc_box = layout.box()
+        mc_box.label(text="Multi-Piece Convex Collision", icon='MESH_ICOSPHERE')
+        mc_col = mc_box.column(align=True)
+        mc_col.scale_y = 0.8
+        mc_col.label(text="One convex hull per mesh island (V-HACD-style)", icon='INFO')
+        mc_col.label(text="Names pieces UCX_Name_00, UCX_Name_01 …", icon='BLANK1')
+        mc_row = mc_box.row(align=True)
+        mc_row.enabled = obj and obj.type == 'MESH'
+        mc_row.scale_y = 1.2
+        mc_row.operator(
+            "fo4.generate_multi_convex_collision",
+            text="Generate Multi-Piece Collision",
+            icon='MESH_ICOSPHERE',
+        )
+
+        # Navmesh validation
+        nav_box = layout.box()
+        nav_box.label(text="NavMesh Validation", icon='GRID')
+        nav_col = nav_box.column(align=True)
+        nav_col.scale_y = 0.8
+        nav_col.label(text="Check navmesh for CK import compatibility", icon='INFO')
+        nav_row = nav_box.row(align=True)
+        nav_row.enabled = obj and obj.type == 'MESH'
+        nav_row.operator("fo4.validate_navmesh", text="Validate NavMesh", icon='CHECKMARK')
 
         # Smart material
         box = layout.box()
