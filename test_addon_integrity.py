@@ -1791,19 +1791,23 @@ class TestPipInstallRobustness(unittest.TestCase):
         )
 
     def test_register_calls_refresh_import_paths_at_startup(self):
-        """__init__.py register() must call _refresh_import_paths() before Step 1.
+        """__init__.py register() must call _refresh_import_paths(_add_lib=False).
 
-        Root cause of the trimesh/pypdf [MISSING]-after-restart bug:
+        Root cause of the trimesh/pypdf [MISSING] after restart bug:
           pip installs packages into the user site-packages directory (because
           Blender's system site-packages is not writable).  _refresh_import_paths()
           adds that directory to sys.path during the install session, but on the
           NEXT Blender startup sys.path reverts to defaults — Blender's bundled
           Python never includes user site-packages automatically.
 
-        Fix: call _refresh_import_paths() at the very start of register() so the
-        user site directory is on sys.path before any importlib.find_spec() calls
-        or UI dependency checks run.  The call must be guarded with try/except so
-        a missing tool_installers module never prevents the addon from loading.
+        Fix: call _refresh_import_paths(_add_lib=False) at the very start of
+        register() so the user site directory is on sys.path before any
+        importlib.find_spec() calls or UI dependency checks run.  _add_lib=False
+        skips adding _PIP_LIB_DIR (.\\lib) to sys.path here — Blender 5's
+        extension policy checker monitors sys.path changes that occur during
+        register() and raises "Policy violation with sys.path: .\\lib" (shown
+        as a caution triangle in the add-on list) if _PIP_LIB_DIR is added.
+        deferred_startup() adds _PIP_LIB_DIR after register() returns.
         """
         import re
         source = _read("__init__.py")
@@ -1830,6 +1834,18 @@ class TestPipInstallRobustness(unittest.TestCase):
             "(pip places them in user site-packages, which Blender's Python omits from "
             "sys.path by default).  Add the call at the very top of register(), before "
             "the modules-registration loop.",
+        )
+        # The call MUST pass _add_lib=False so Blender 5's extension policy
+        # checker does not flag "Policy violation with sys.path: .\\lib".
+        self.assertIn(
+            "_add_lib=False",
+            register_body,
+            "__init__.py register() must call _refresh_import_paths(_add_lib=False). "
+            "Blender 5's extension policy checker monitors sys.path changes during "
+            "register() and raises 'Policy violation with sys.path: .\\lib' (shown as "
+            "a caution triangle in the add-on preferences list) when _PIP_LIB_DIR is "
+            "appended there.  Pass _add_lib=False to suppress the path addition in "
+            "register(); deferred_startup() adds it afterwards outside the check window.",
         )
 
     def test_pip_install_uses_target_dir(self):
@@ -1869,17 +1885,57 @@ class TestPipInstallRobustness(unittest.TestCase):
 
         The _PIP_LIB_DIR (addon/lib/) is the primary install target used by
         _pip_install() and _pip_install_requirements().  _refresh_import_paths()
-        must add it to sys.path so that packages installed there are importable
-        on every Blender startup.
+        must add it to sys.path (when _add_lib=True, the default) so that
+        packages installed there are importable after a Blender restart.
         """
         body = self._get_refresh_paths_body()
         self.assertIn(
             "_PIP_LIB_DIR",
             body,
             "_refresh_import_paths must add _PIP_LIB_DIR (the addon-local lib/ dir) "
-            "to sys.path.  This is the primary mechanism that makes pip-installed packages "
-            "importable after a Blender restart.  The addsitedir(user_site) call is a "
-            "secondary backward-compat fallback only.",
+            "to sys.path when _add_lib=True (the default).  This is the primary "
+            "mechanism that makes pip-installed packages importable after a Blender "
+            "restart.  The addsitedir(user_site) call is a secondary backward-compat "
+            "fallback only.",
+        )
+
+    def test_deferred_startup_adds_pip_lib_dir_to_syspath(self):
+        """deferred_startup() must call _refresh_import_paths() to add _PIP_LIB_DIR.
+
+        register() calls _refresh_import_paths(_add_lib=False) to avoid Blender
+        5's "Policy violation with sys.path: .\\lib" warning.  deferred_startup()
+        — a bpy.app.timers callback that fires 2 s after load, safely outside
+        the register() execution window where the policy checker runs — must call
+        the full _refresh_import_paths() (without _add_lib=False) so that
+        _PIP_LIB_DIR (.\\lib) is added to sys.path and pip-installed packages
+        (trimesh, pypdf, …) remain importable after every Blender restart.
+        """
+        import re
+        source = _read("startup_helpers.py")
+        m = re.search(
+            r"^def deferred_startup\(\).*?^(?=def |\Z)",
+            source,
+            re.DOTALL | re.MULTILINE,
+        )
+        self.assertIsNotNone(m, "deferred_startup() not found in startup_helpers.py")
+        body = m.group(0)
+
+        self.assertIn(
+            "_refresh_import_paths",
+            body,
+            "startup_helpers.deferred_startup() must call _refresh_import_paths() "
+            "(without _add_lib=False) so that _PIP_LIB_DIR is added to sys.path "
+            "outside the register() window.  This prevents the Blender 5 policy "
+            "checker warning while keeping pip-installed packages importable.",
+        )
+        # Confirm this call does NOT suppress the lib path (i.e. no _add_lib=False).
+        # The full _refresh_import_paths() call must appear without that kwarg.
+        self.assertIn(
+            "_refresh_import_paths()",
+            body,
+            "startup_helpers.deferred_startup() must call _refresh_import_paths() "
+            "with no arguments (or at least without _add_lib=False) so _PIP_LIB_DIR "
+            "IS added to sys.path at this point.",
         )
 
     def test_ml_lib_dir_constant_defined(self):

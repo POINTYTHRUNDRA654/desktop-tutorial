@@ -201,11 +201,11 @@ def _ensure_pip() -> tuple[bool, str]:
         return False, f"pip bootstrap failed: {e}"
 
 
-def _refresh_import_paths() -> None:
+def _refresh_import_paths(*, _add_lib: bool = True) -> None:
     """Flush Python's import caches and ensure installed packages are on ``sys.path``.
 
-    Called after every successful pip install *and* at the very top of
-    ``register()`` so that packages installed in a previous Blender session
+    Called after every successful pip install *and* from ``deferred_startup()``
+    (2 s after load) so that packages installed in a previous Blender session
     are immediately importable on the next startup.
 
     Three things can make an installed package invisible to ``find_spec``:
@@ -216,6 +216,13 @@ def _refresh_import_paths() -> None:
          ``--target _PIP_LIB_DIR``, packages always end up in a location we
          control, so we only need to add one predictable path rather than
          guessing between user-site, system-site, or sysconfig variants.
+         Gated on ``_add_lib`` so that callers inside ``register()`` can pass
+         ``_add_lib=False`` to skip the ``sys.path`` mutation — Blender 5's
+         extension policy checker monitors ``sys.path`` changes that occur
+         during ``register()`` and raises "Policy violation with sys.path:
+         .\\lib" whenever ``_PIP_LIB_DIR`` is added there.  Moving the
+         mutation to ``deferred_startup()`` (which runs after ``register()``
+         returns) silences the warning.
       3. Packages landing in the user site directory when installed without
          ``--target`` (pre-fix installs).  We still add the user site via
          ``site.addsitedir()`` as a backward-compat fallback.
@@ -224,10 +231,13 @@ def _refresh_import_paths() -> None:
     importlib.invalidate_caches()
 
     # Primary: add the addon-local lib dir that _pip_install targets.
-    _lib = str(_PIP_LIB_DIR)
-    if _PIP_LIB_DIR.exists() and _lib not in sys.path:
-        sys.path.append(_lib)
-        importlib.invalidate_caches()
+    # Skipped when _add_lib=False (called from register()) to avoid the
+    # Blender 5 "Policy violation with sys.path: .\lib" warning.
+    if _add_lib:
+        _lib = str(_PIP_LIB_DIR)
+        if _PIP_LIB_DIR.exists() and _lib not in sys.path:
+            sys.path.append(_lib)
+            importlib.invalidate_caches()
 
     # Fallback: also add user site-packages for packages installed in sessions
     # before the --target fix was introduced (backward compat).

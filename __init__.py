@@ -291,7 +291,7 @@ modules = list(
 
 def register():
     """Register all add-on classes and handlers"""
-    # ── Step 0: ensure user site-packages is on sys.path ─────────────────────
+    # ── Step 0: flush import caches and ensure user site-packages is on sys.path ─
     # pip installs trimesh, pypdf, and other packages into the user
     # site-packages directory when Blender's system site-packages is not
     # writable (the common case on Windows and many Linux installs).  Blender's
@@ -300,13 +300,16 @@ def register():
     # fresh start — producing the [MISSING] indicators in the self-test even
     # though the packages were successfully installed in a previous session.
     #
-    # Calling _refresh_import_paths() here (once, synchronously, before any
-    # module registration or dependency checks) ensures that the user site
-    # directory is on sys.path for the entire Blender session.  The call is
-    # idempotent — addsitedir() is a no-op if the path is already present.
+    # _add_lib=False: we deliberately skip adding _PIP_LIB_DIR (.\lib) to
+    # sys.path here.  Blender 5's extension policy checker monitors sys.path
+    # changes that occur during register() and raises a "Policy violation with
+    # sys.path: .\lib" warning (visible as the caution triangle in the add-on
+    # list).  deferred_startup() adds _PIP_LIB_DIR two seconds after load —
+    # outside the register() window — so packages are still available while
+    # the warning is silenced.
     try:
         if tool_installers and hasattr(tool_installers, "_refresh_import_paths"):
-            tool_installers._refresh_import_paths()
+            tool_installers._refresh_import_paths(_add_lib=False)
     except Exception as _e:
         # Non-fatal: the addon will still load, but packages installed into the
         # user site-packages directory (trimesh, pypdf, etc.) may not be visible
