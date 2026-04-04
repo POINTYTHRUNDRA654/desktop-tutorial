@@ -271,6 +271,32 @@ const App: React.FC = () => {
   // always knows what is happening without needing to open Settings.
   useEffect(() => {
     const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (!api?.onFreshInstall) return;
+
+    const unsubscribe = api.onFreshInstall(() => {
+      // A fresh-install.marker was found by the main process, meaning the user
+      // just installed (or reinstalled) via the Inno Setup installer.  Clear all
+      // onboarding flags so the first-run wizard runs from scratch even if
+      // stale localStorage data was left behind from a previous installation.
+      const keysToReset = [
+        'mossy_has_booted',
+        'mossy_onboarding_complete',
+        'mossy_onboarding_completed',
+        'mossy_tutorial_completed',
+        'mossy_tutorial_autostart',
+        'mossy_voice_setup_complete',
+      ];
+      keysToReset.forEach(k => localStorage.removeItem(k));
+      setShowFirstRun(true);
+      setShowOnboarding(true);
+      setShowVoiceSetup(false);
+    });
+
+    return () => unsubscribe?.();
+  }, []);
+
+  useEffect(() => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
     if (!api?.onPytorchSetupProgress) return;
 
     let loadingToastId: string | null = null;

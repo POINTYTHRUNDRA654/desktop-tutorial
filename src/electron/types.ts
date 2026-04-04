@@ -226,6 +226,9 @@ export const IPC_CHANNELS = {
 
   // Speech-to-text (main process handles keys)
   TRANSCRIBE_AUDIO: 'transcribe-audio',
+
+  // Fresh-install detection: sent to renderer when a fresh-install.marker is found
+  TRIGGER_FRESH_INSTALL: 'trigger-fresh-install',
 } as const;
 
 export type MlIndexBuildRequest = {
@@ -415,6 +418,7 @@ export interface ElectronAPI {
     troubleshooting?: string[];
   }>;
   onPytorchSetupProgress: (callback: (data: { message: string }) => void) => (() => void);
+  onFreshInstall: (callback: () => void) => (() => void);
 
   // Workshop
   browseDirectory: (startPath?: string) => Promise<{ name: string; type: 'folder' | 'file'; path: string; fileType?: string }[]>;
