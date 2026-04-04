@@ -10,6 +10,7 @@ import { Send, Paperclip, Loader2, Bot, BotOff, Leaf, Search, FolderOpen, Save, 
 import { Message } from '../../shared/types';
 import { useLive } from './LiveContext';
 import { speakMossy, stopMossySpeech } from './mossyTts';
+import { loadBrowserTtsSettings } from './browserTts';
 import { executeMossyTool, sanitizeBlenderScript } from './MossyTools';
 import { ModProjectStorage } from './services/ModProjectStorage';
 import { useActivityMonitor } from './hooks/useActivityMonitor';
@@ -1021,15 +1022,13 @@ export const ChatInterface: React.FC = () => {
         });
 
         // Voice button fix: check TTS settings and available voices
-        const browserTtsSettings = window.localStorage.getItem('mossy_voice_enabled') === 'true';
-        const preferredVoice = window.localStorage.getItem('mossy_preferred_voice');
-        if (!browserTtsSettings) {
+        const browserTtsSettings = loadBrowserTtsSettings();
+        if (!browserTtsSettings.enabled) {
             console.warn('[ChatInterface] TTS is not enabled. Enable TTS in Voice Settings.');
             return;
         }
-        if (!preferredVoice) {
+        if (!browserTtsSettings.preferredVoiceName) {
             console.warn('[ChatInterface] No preferred voice selected. Select a voice in Voice Settings.');
-            return;
         }
         if ('speechSynthesis' in window) {
             const voices = window.speechSynthesis.getVoices();
