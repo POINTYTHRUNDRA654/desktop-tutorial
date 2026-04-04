@@ -22,7 +22,6 @@ export class DesktopShortcutManager {
         return false;
       }
 
-      const appPath = app.getAppPath();
       const exePath = process.execPath; // This gets the Electron executable
       // Use the Electron executable's icon (avoids external icon file dependencies)
       const iconPath = exePath;
@@ -31,17 +30,24 @@ export class DesktopShortcutManager {
       const shortcutName = 'Mossy Pip-Boy';
       const shortcutPath = path.join(desktopPath, `${shortcutName}.lnk`);
       
+      // For packaged builds the exe IS the app – no --app argument needed.
+      // For dev builds pass --app= so Electron loads the right entry point.
+      const appPath = app.getAppPath();
+      const argAssignment = app.isPackaged
+        ? ''
+        : `$Shortcut.Arguments = "--app=${appPath}"; `;
+
       // Create the shortcut using WScript.Shell (VBScript via PowerShell)
-      const psCommand = `
-        $WshShell = New-Object -ComObject WScript.Shell
-        $Shortcut = $WshShell.CreateShortcut("${shortcutPath}")
-        $Shortcut.TargetPath = "${exePath}"
-        $Shortcut.Arguments = "--app=${appPath}"
-        $Shortcut.WorkingDirectory = "${path.dirname(appPath)}"
-        $Shortcut.Description = "Mossy - Fallout 4 Modding AI Assistant with Pip-Boy Interface"
-        $Shortcut.IconLocation = "${iconPath}, 0"
-        $Shortcut.Save()
-      `;
+      const psCommand = [
+        '$WshShell = New-Object -ComObject WScript.Shell',
+        `$Shortcut = $WshShell.CreateShortcut("${shortcutPath}")`,
+        `$Shortcut.TargetPath = "${exePath}"`,
+        ...(argAssignment ? [`${argAssignment}`] : []),
+        `$Shortcut.WorkingDirectory = "${path.dirname(exePath)}"`,
+        '$Shortcut.Description = "Mossy - Fallout 4 Modding AI Assistant with Pip-Boy Interface"',
+        `$Shortcut.IconLocation = "${iconPath}, 0"`,
+        '$Shortcut.Save()',
+      ].join('; ');
 
       execSync(`powershell -NoProfile -Command "${psCommand}"`, { stdio: 'pipe' });
       
