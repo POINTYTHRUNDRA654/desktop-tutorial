@@ -8255,17 +8255,31 @@ app.whenReady().then(() => {
   bridge.start();
 
   // ── Fresh-install detection ───────────────────────────────────────────────
-  // The Inno Setup installer writes a `fresh-install.marker` file into the
-  // application directory.  When we find it we consume it immediately and,
-  // once the renderer signals it is ready, send `trigger-fresh-install` so
-  // the renderer can clear any stale onboarding localStorage flags and replay
-  // the first-run wizard.  This handles the common case where a user previously
-  // had Mossy installed (leaving userData intact) and reinstalled from scratch.
+  // Two complementary signals trigger the first-run wizard:
+  //
+  // 1. fresh-install.marker  – written by the installer (Inno Setup / NSIS
+  //    custom hook).  Consumed once so a reinstall over an existing userData
+  //    folder still replays onboarding.
+  //
+  // 2. No settings.json yet  – when the userData folder has no settings file
+  //    at all this is a completely fresh launch (no installer marker needed).
+  //    This is the reliable fallback for side-loaded / portable builds.
+  //
+  // Both paths send TRIGGER_FRESH_INSTALL to the renderer after it loads,
+  // which clears stale localStorage onboarding flags so the wizard always
+  // starts from scratch.
   if (app.isPackaged) {
     const markerPath = path.join(path.dirname(process.execPath), 'fresh-install.marker');
-    if (fs.existsSync(markerPath)) {
-      try { fs.unlinkSync(markerPath); } catch { /* ignore */ }
-      console.log('[Main] Fresh-install marker found – will trigger onboarding reset.');
+    const isFreshMarker = fs.existsSync(markerPath);
+    const isTrueFirstRun = !fs.existsSync(settingsPath);
+
+    if (isFreshMarker || isTrueFirstRun) {
+      if (isFreshMarker) {
+        try { fs.unlinkSync(markerPath); } catch { /* ignore */ }
+        console.log('[Main] Fresh-install marker found – will trigger onboarding reset.');
+      } else {
+        console.log('[Main] No settings.json found – first-ever launch, triggering onboarding.');
+      }
       // createWindow() is always called just above, so mainWindow is guaranteed.
       // Wait for the renderer to finish loading before sending the event.
       mainWindow!.webContents.once('did-finish-load', () => {
