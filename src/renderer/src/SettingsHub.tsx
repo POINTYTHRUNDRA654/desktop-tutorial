@@ -7,11 +7,12 @@ import ExternalToolsSettings from './ExternalToolsSettings';
 import { SettingsImportExport } from './SettingsImportExport';
 import TutorialResetSettings from './TutorialResetSettings';
 import VersionInfo from './VersionInfo';
+import { CreditsPanel } from './CreditsPanel';
 
 // ─── Credits Section ───────────────────────────────────────────────────────────
 
 const CredsSection: React.FC = () => {
-  const [showFullCredits, setShowFullCredits] = useState(false);
+  const [showCreditPanel, setShowCreditPanel] = useState(false);
 
   return (
     <div className="space-y-4 text-sm">
@@ -19,70 +20,83 @@ const CredsSection: React.FC = () => {
         <div className="font-semibold mb-1">❤️ Built with Love on Amazing Open-Source Software</div>
         <p>
           Mossy stands on the shoulders of giants. Every feature you use is powered by
-          dedicated developers and vibrant communities. Click below to see the full list of
-          credits, licenses, and attributions.
+          dedicated developers and vibrant communities. Click below to see the full searchable
+          credits, licenses, and attributions for all tools and frameworks.
         </p>
       </div>
 
       <button
         type="button"
-        onClick={() => setShowFullCredits(!showFullCredits)}
+        onClick={() => setShowCreditPanel(true)}
         className="flex items-center gap-2 px-4 py-2 rounded-md bg-rose-700 hover:bg-rose-600 text-white font-semibold text-xs transition-colors"
       >
         <Heart className="w-4 h-4" />
-        {showFullCredits ? 'Hide Full Credits' : 'View Full Credits & Licenses'}
+        View Full Credits &amp; Licenses
       </button>
 
-      {showFullCredits && (
-        <div className="rounded-md border border-slate-700 bg-slate-800/30 p-4 max-h-96 overflow-y-auto space-y-3 text-xs">
-          <div>
-            <h4 className="font-semibold text-slate-200 mb-2">📦 Core Framework</h4>
-            <ul className="space-y-1 text-slate-300">
-              <li>• <strong>Electron</strong> - Cross-platform desktop framework (MIT)</li>
-              <li>• <strong>React</strong> - UI library by Meta (MIT)</li>
-              <li>• <strong>TypeScript</strong> - Typed JavaScript by Microsoft (Apache 2.0)</li>
-              <li>• <strong>Vite</strong> - Next-gen build tool (MIT)</li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-slate-200 mb-2">🤖 AI & Machine Learning</h4>
-            <ul className="space-y-1 text-slate-300">
-              <li>• <strong>OpenAI SDK</strong> - ChatGPT integration (Apache 2.0)</li>
-              <li>• <strong>Groq SDK</strong> - Fast LLM inference (Apache 2.0)</li>
-              <li>• <strong>PyTorch</strong> - ML framework by Meta (BSD)</li>
-              <li>• <strong>NumPy</strong> - Numerical computing (BSD 3-Clause)</li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-slate-200 mb-2">🎨 UI & Design</h4>
-            <ul className="space-y-1 text-slate-300">
-              <li>• <strong>TailwindCSS</strong> - Utility-first CSS (MIT)</li>
-              <li>• <strong>Lucide Icons</strong> - Icon library (ISC)</li>
-              <li>• <strong>react-markdown</strong> - Markdown renderer (MIT)</li>
-              <li>• <strong>Recharts</strong> - Charts library (MIT)</li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-slate-200 mb-2">🎮 Modding Tools</h4>
-            <ul className="space-y-1 text-slate-300">
-              <li>• <strong>Blender</strong> - 3D modeling (GPL 2.0)</li>
-              <li>• <strong>xEdit</strong> - Plugin editor (GPL 2.0)</li>
-              <li>• <strong>Mod Organizer 2</strong> - Mod manager (GPL 3.0)</li>
-              <li>• <strong>Creation Kit</strong> - Official Bethesda tool</li>
-            </ul>
-          </div>
-
-          <div className="pt-2 border-t border-slate-700">
-            <p className="text-slate-400">
-              ...and 100+ more dependencies! See <strong>CREDITS.md</strong> in your Mossy installation folder for the
-              complete list with version numbers and license links.
-            </p>
-          </div>
-        </div>
+      {showCreditPanel && (
+        <CreditsPanel onClose={() => setShowCreditPanel(false)} />
       )}
+
+      {/* Quick-reference list of major tools */}
+      <div className="rounded-md border border-slate-700 bg-slate-800/30 p-4 space-y-3 text-xs">
+        <div>
+          <h4 className="font-semibold text-slate-200 mb-2">📦 Core Framework</h4>
+          <ul className="space-y-1 text-slate-300">
+            <li>• <strong>Electron</strong> - Cross-platform desktop framework (MIT)</li>
+            <li>• <strong>React</strong> - UI library by Meta (MIT)</li>
+            <li>• <strong>TypeScript</strong> - Typed JavaScript by Microsoft (Apache 2.0)</li>
+            <li>• <strong>Vite</strong> - Next-gen build tool (MIT)</li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="font-semibold text-slate-200 mb-2">🤖 AI & Machine Learning</h4>
+          <ul className="space-y-1 text-slate-300">
+            <li>• <strong>OpenAI SDK</strong> - ChatGPT integration (Apache 2.0)</li>
+            <li>• <strong>Groq SDK</strong> - Fast LLM inference (Apache 2.0)</li>
+            <li>• <strong>PyTorch</strong> - ML framework by Meta (BSD)</li>
+            <li>• <strong>NumPy</strong> - Numerical computing (BSD 3-Clause)</li>
+            <li>• <strong>Krea AI Suite</strong> - AI image, video &amp; 3D generation</li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="font-semibold text-slate-200 mb-2">🎨 UI & Design</h4>
+          <ul className="space-y-1 text-slate-300">
+            <li>• <strong>TailwindCSS</strong> - Utility-first CSS (MIT)</li>
+            <li>• <strong>Lucide Icons</strong> - Icon library (ISC)</li>
+            <li>• <strong>react-markdown</strong> - Markdown renderer (MIT)</li>
+            <li>• <strong>Recharts</strong> - Charts library (MIT)</li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="font-semibold text-slate-200 mb-2">🎮 Modding Tools (separate downloads)</h4>
+          <ul className="space-y-1 text-slate-300">
+            <li>• <strong>Blender</strong> - 3D modeling (GPL 2.0)</li>
+            <li>• <strong>PyNifly</strong> - NIF import/export for Blender by BadDogSkyrim (MIT)</li>
+            <li>• <strong>xEdit / FO4Edit</strong> - Plugin editor by ElminsterAU (GPL 2.0)</li>
+            <li>• <strong>Creation Kit</strong> - Official Bethesda modding tool</li>
+            <li>• <strong>NifSkope</strong> - NIF mesh &amp; texture viewer by hexabits (GPL 3.0)</li>
+            <li>• <strong>Mod Organizer 2</strong> - Mod manager by Tannin42 / MO2 Team (GPL 3.0)</li>
+            <li>• <strong>Vortex</strong> - Mod manager by Nexus Mods</li>
+            <li>• <strong>F4SE</strong> - Fallout 4 Script Extender by ianpatt &amp; behippo</li>
+            <li>• <strong>LOOT</strong> - Load Order Optimisation Tool (GPL 3.0)</li>
+            <li>• <strong>BodySlide &amp; Outfit Studio</strong> - Body morphing by ousnius &amp; Caliente (MIT)</li>
+            <li>• <strong>B.A.E.</strong> - Bethesda Archive Extractor by jonwd7</li>
+            <li>• <strong>GIMP</strong> - GNU Image Manipulation Program (GPL 3.0)</li>
+            <li>• <strong>UModel (UEViewer)</strong> - Unreal Engine asset viewer by Gildor</li>
+          </ul>
+        </div>
+
+        <div className="pt-2 border-t border-slate-700">
+          <p className="text-slate-400">
+            …and 100+ more dependencies. Click <strong>View Full Credits &amp; Licenses</strong> above for the
+            complete searchable list with version numbers and license links.
+          </p>
+        </div>
+      </div>
 
       <div className="p-3 rounded-md border border-blue-700/30 bg-blue-900/10 text-blue-200 text-xs space-y-2">
         <div className="font-semibold">📋 License Compliance</div>
