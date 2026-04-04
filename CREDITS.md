@@ -224,6 +224,12 @@ Mossy integrates with and respects the licenses of the following tools. All are 
   - Licensed under GPL 2.0
   - Copyright (c) 2023 Blender Foundation
 
+- **PyNifly** - https://www.nexusmods.com/fallout4/mods/52319
+  - NIF import/export add-on for Blender by BadDogSkyrim
+  - Also available on GitHub: https://github.com/BadDogSkyrim/PyNifly
+  - Licensed under MIT
+  - Copyright (c) BadDogSkyrim
+
 - **Creation Kit** (Bethesda) - https://ck.bethesda.net/
   - Official Fallout 4 modding tool
   - Available via Bethesda.net Launcher / Steam Tools
@@ -337,6 +343,11 @@ Mossy integrates with and respects the licenses of the following tools. All are 
 - **NIFTools** - https://nif.readthedocs.io/
   - NIF file format documentation and libraries
   - Open source community project
+
+- **Krea AI Suite** - https://www.krea.ai/
+  - AI-powered image, video, and 3D generation platform
+  - Integrated into Mossy creative and modding asset workflows
+  - Copyright (c) Krea Inc.
 
 ## Game & Content
 

@@ -44,7 +44,7 @@ export const toolDeclarations: FunctionDeclaration[] = [
    },
    {
       name: 'execute_blender_script',
-      description: 'Execute a Python script in the active Blender instance via the Clipboard Relay. MUST start with import bpy.',
+      description: 'Execute a Python script in the active Blender instance via the Desktop Bridge TCP connection (mossy_link_addon.py). This gives Mossy DIRECT PROGRAMMATIC CONTROL over the live Blender session — you can create objects, manipulate meshes, set materials, trigger exports, and run any bpy operation. MUST start with import bpy.',
       parameters: {
          type: Type.OBJECT,
          properties: {
@@ -56,7 +56,7 @@ export const toolDeclarations: FunctionDeclaration[] = [
    },
    {
       name: 'write_blender_script',
-      description: 'Write a Python script into Blender\'s Text Editor (optionally run). Use for animation workflows to edit and iterate inside Blender.',
+      description: 'Write a Python script into Blender\'s Text Editor via the Desktop Bridge TCP connection (mossy_link_addon.py), then optionally run it. Ideal for iterative animation or pipeline workflows where the user wants to review or tweak the script inside Blender before running it.',
       parameters: {
          type: Type.OBJECT,
          properties: {
@@ -70,7 +70,7 @@ export const toolDeclarations: FunctionDeclaration[] = [
    },
    {
       name: 'get_blender_scene_info',
-      description: 'Get information about the current Blender scene (objects, frame, render settings, etc.)',
+      description: 'Query the live Blender session via the Desktop Bridge TCP connection (mossy_link_addon.py) to get current scene state: objects, selected items, active frame, render settings, etc. Use this before sending scripts so you know what is already in the scene.',
       parameters: {
          type: Type.OBJECT,
          properties: {
@@ -754,6 +754,22 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  5) **Export back**: Use PyNifly File → Export → NIF. Match the original game path so the CK/MO2 sees it as an override.' +
       '\n  6) **Re-import to Creation Kit**: Place or reference the NIF in your .esp as a static/activator/etc.' +
       '\n- Full step-by-step guide is available in the app knowledge base under "CK Cell to Blender Workflow".' +
+      '\n\n**MOSSY BLENDER ADD-ON — DIRECT PROGRAMMATIC CONTROL:**' +
+      '\n- Mossy ships with a custom Blender add-on called **Mossy Link** (mossy_link_addon.py). When the user installs it and enables the Desktop Bridge, Mossy gains DIRECT, REAL-TIME CONTROL over the active Blender instance through a TCP connection (port 9999).' +
+      '\n- This is NOT just clipboard paste or manual scripting guidance. The Desktop Bridge is a live two-way channel: Mossy sends commands directly into Blender and reads back results instantly.' +
+      '\n- **What Mossy can do when the add-on is active and the Desktop Bridge is connected:**' +
+      '\n  • Execute any bpy Python script in Blender immediately (create/modify/delete objects, set materials, change bones, trigger renders, etc.) — use `execute_blender_script`.' +
+      '\n  • Write scripts into Blender\'s Text Editor for the user to review before running — use `write_blender_script`.' +
+      '\n  • Query the live scene state (active objects, frame, render settings) at any time — use `get_blender_scene_info`.' +
+      '\n  • Run automation scripts (batch export FBX/NIF, UV unwrap, weight paint, collision setup) without the user having to type anything in Blender.' +
+      '\n- **How the user sets it up:**' +
+      '\n  1) In Mossy → Desktop Bridge → Blender tab: Install the add-on from the "Get Tools" section (downloads mossy_link_addon.py).' +
+      '\n  2) In Blender: Edit → Preferences → Add-ons → Install → select mossy_link_addon.py → Enable it.' +
+      '\n  3) In the Blender add-on panel (N-key sidebar → Mossy Link tab): click **Start Server**. The status should show "Running on 127.0.0.1:9999".' +
+      '\n  4) In Mossy → Desktop Bridge: the Blender section will show "Connected" when the add-on server is running.' +
+      '\n- **If the user says Blender is open but Mossy says "not connected"**, remind them to start the Mossy Link server inside Blender (N-key sidebar → Mossy Link → Start Server).' +
+      '\n- **Token security**: The connection supports an optional shared token. If set, it must match between the add-on preferences and Desktop Bridge settings. Leave blank for local-only use without authentication.' +
+      '\n- When the Desktop Bridge is active and Blender is connected, you should PROACTIVELY offer to execute scripts directly rather than just pasting code for the user to run manually. You have the control — use it.' +
       '\n\n**VOICE & AUDIO CAPABILITIES:**' +
       '\n- You DO have a voice. This app uses browser Text-to-Speech (TTS) to speak your responses out loud.' +
       '\n- Voice output is toggled via the "Voice: ON / Voice: OFF" button in the top-right of the chat toolbar.' +
