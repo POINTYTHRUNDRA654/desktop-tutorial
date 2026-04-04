@@ -34,15 +34,38 @@ Used for: armor, props, architecture, characters, vegetation.
 | `EmittanceColor`       | RGB     | Glow colour when `EmitEnabled` is True     |
 | `EmittanceMult`        | float   | Glow intensity multiplier                  |
 
-### Blender ↔ BGSM mapping (in Niftools exporter)
+### Blender ↔ BGSM mapping (native add-on export via `bgsm_helpers`)
 
-- **Diffuse** image node → `DiffuseTexture`
-- **Normal** image node → `NormalTexture`
-- **Specular** image node → `SmoothSpecTexture`
-- **Emission** / glow node → `GlowMapTexture` + `EmitEnabled = True`
-- Principled BSDF `Roughness` → approx `Glossiness` (invert: 1 - roughness)
-- Principled BSDF `Alpha` → `Alpha`
-- Material `use_backface_culling = False` → `TwoSided = True`
+The add-on now writes `.bgsm` files natively — no external tools required.
+Use **Texture Helpers → BGSM Material Files → Export Active Object .bgsm(s)**
+in the N-panel to export, or **Import .bgsm → Material** to read an existing
+`.bgsm` back into Blender.
+
+| Blender source                              | BGSM field               |
+|---------------------------------------------|--------------------------|
+| Image node named **"Diffuse"**              | `DiffuseTexture`         |
+| Image node named **"Normal"**               | `NormalTexture`          |
+| Image node named **"Specular"**             | `SmoothSpecTexture`      |
+| Image node named **"Glow"**                 | `GreyscaleTexture`       |
+| Image node named **"EnvMap"**               | `EnvmapMaskTexture`      |
+| Principled BSDF `Roughness`                 | `Smoothness` (inverted)  |
+| Principled BSDF `Alpha`                     | `Alpha`                  |
+| Principled BSDF `Emission Strength` > 0     | `EmitEnabled = True`     |
+| Principled BSDF `Emission Color`            | `EmittanceColor`         |
+| `material.use_backface_culling = False`     | `TwoSided = True`        |
+| `material.blend_method == 'CLIP'`           | `AlphaTest = True`       |
+| `material.alpha_threshold`                  | `AlphaTestRef` (×255)    |
+| Material custom prop `fo4_material_preset`  | Shader flag hints        |
+
+**Shader hint presets** (set via Material Browser or the `fo4_shader` custom
+property on the material) automatically add the appropriate `ShaderFlags1`
+bits: `skin` → `SF1_SKIN_TINT`, `hair` → `SF1_HAIR`,
+`glowmap` → `SF1_EMIT_ENABLED`, `env` → `SF1_ENVIRONMENT_MAPPING`,
+`eye` → `SF1_EYE_ENVIRONMENT_MAPPING`, `tree` → `SF1_TREE`.
+
+After exporting the `.bgsm` file, link it to the NIF mesh in the
+**Creation Kit Material Editor** or via NifSkope's
+`BSLightingShaderProperty → Shader Flags` section.
 
 ---
 
@@ -56,6 +79,11 @@ Key differences from BGSM:
 - `EnvironmentMappingMaskTexture` for reflections
 - `BloodEnabled`, `EffectLightingEnabled` toggles
 - `FalloffStartAngle`, `FalloffStopAngle` for angular fade
+
+> **Note:** The add-on writes BGEM files via `bgsm_helpers.write_bgem()` but
+> does not import them into Blender (BGEM uses a particle-effect shader with
+> no Principled BSDF equivalent).  Create BGEM files programmatically or
+> use the Creation Kit Material Editor.
 
 ---
 
@@ -81,13 +109,16 @@ Paths inside .bgsm files use lowercase and backslash separators.
 
 ## Creating .bgsm files
 
-The Creation Kit exports .bgsm automatically when you assign a material to
-a NIF in the CK's Material Editor.  For manual creation:
+Three options, from easiest to most flexible:
 
-- **BSMaterial Editor** (part of the CK) — GUI editor, recommended.
-- **BSMaterialBatch** (nifskope community tool) — batch rename textures.
-- **Python struct** — binary write the 148-byte BGSM header manually.
+1. **Add-on native export** (recommended) — use the BGSM Material Files
+   section in the Texture Helpers N-panel.  No external tools required.
+2. **BSMaterial Editor** (part of the CK) — GUI editor; good for fine-tuning
+   flags the add-on doesn't expose.
+3. **BSMaterialBatch** (nifskope community tool) — batch rename textures in
+   existing `.bgsm` files.
 
-The add-on's Material Browser panel generates a Blender-side preview
-material that matches the BGSM layout.  Export the NIF first, then open
-the CK Material Editor to finalise the .bgsm and link it to the mesh.
+After exporting from Blender, open the CK Material Editor to link the
+`.bgsm` to the NIF mesh and set any additional flags not covered by the
+Blender material settings.
+

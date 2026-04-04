@@ -1282,6 +1282,18 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
             krea_box.label(text="Engine: PIL fallback (install Real-ESRGAN above for best quality)", icon='INFO')
         krea_box.operator("fo4.upscale_krea_legacy", text="Upscale Texture", icon='FULLSCREEN_ENTER')
 
+        # BGSM Material Files
+        bgsm_box = layout.box()
+        bgsm_box.label(text="BGSM Material Files", icon='MATERIAL')
+        bgsm_box.label(text="Export Blender materials as .bgsm for the Creation Kit", icon='INFO')
+        row = bgsm_box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.export_bgsm", text="Export Active Object .bgsm(s)", icon='EXPORT')
+        bgsm_box.operator("fo4.batch_export_bgsm", text="Batch Export All Scene .bgsm(s)", icon='EXPORT')
+        row2 = bgsm_box.row()
+        row2.enabled = has_mesh
+        row2.operator("fo4.import_bgsm", text="Import .bgsm → Material", icon='IMPORT')
+
 class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
     """Image to Mesh helpers panel"""
     bl_label = "Image to Mesh"
@@ -2335,6 +2347,7 @@ class FO4_PT_GameAssetsLibraryPanel(_FO4SubPanel):
             ready, _ = fo4_game_assets.FO4GameAssets.get_status()
             if ready:
                 fo4_box.operator("fo4.browse_fo4_assets", text="Browse FO4 Assets", icon='VIEWZOOM')
+                fo4_box.operator("fo4.extract_ba2_asset", text="Extract BA2 Asset…", icon='PACKAGE')
         else:
             fo4_box.label(text="fo4_game_assets module missing – reinstall add-on", icon='ERROR')
 
