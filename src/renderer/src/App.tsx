@@ -243,6 +243,32 @@ const App: React.FC = () => {
       localStorageBooted: window.localStorage.getItem('mossy_has_booted'),
     });
   }, []);
+  // ── Synchronous fresh-install detection ─────────────────────────────────
+  // When the main process detects a fresh install (marker file or no settings.json)
+  // it loads the renderer with ?freshInstall=true in the URL.  This useState
+  // initialiser runs before all other state hooks so it can clear stale
+  // onboarding localStorage flags before they are read.  This avoids the race
+  // condition of the IPC-based TRIGGER_FRESH_INSTALL approach.
+  //
+  // Note: mossy_has_booted is intentionally NOT cleared here so that returning
+  // users (reinstalls) skip the PipBoy boot animation.
+  const [freshInstallDetected] = useState(() => {
+    try {
+      if (!new URLSearchParams(window.location.search).has('freshInstall')) return false;
+      const staleKeys = [
+        'mossy_onboarding_complete',
+        'mossy_onboarding_completed',
+        'mossy_tutorial_completed',
+        'mossy_tutorial_autostart',
+        'mossy_voice_setup_complete',
+      ];
+      staleKeys.forEach(k => localStorage.removeItem(k));
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
   const [hasBooted, setHasBooted] = useState(() => {
     // Skip boot sequence in test mode - check multiple sources
     const urlParams = new URLSearchParams(window.location.search);
