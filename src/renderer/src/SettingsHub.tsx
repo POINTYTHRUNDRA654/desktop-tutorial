@@ -57,7 +57,7 @@ const CredsSection: React.FC = () => {
             <li>• <strong>Groq SDK</strong> - Fast LLM inference (Apache 2.0)</li>
             <li>• <strong>PyTorch</strong> - ML framework by Meta (BSD)</li>
             <li>• <strong>NumPy</strong> - Numerical computing (BSD 3-Clause)</li>
-            <li>• <strong>Krea AI Suite</strong> - AI image, video &amp; 3D generation</li>
+            <li>• <strong>Krea AI Suite</strong> - AI image, video &amp; 3D generation (Commercial / krea.ai)</li>
           </ul>
         </div>
 
