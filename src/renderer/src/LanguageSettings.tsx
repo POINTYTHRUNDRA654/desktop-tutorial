@@ -136,20 +136,30 @@ const LanguageSettings: React.FC<LanguageSettingsProps> = ({ embedded = false })
           <div className="text-xs font-black text-white uppercase tracking-widest">{t('settings.language.uiLanguageLabel', 'App language')}</div>
           <div className="text-[11px] text-slate-400 mt-1">{t('settings.language.uiLanguageHelp', 'Affects labels, buttons, and UI text (where translated).')}</div>
 
-          <div className="mt-4">
-            <select
-              value={uiLanguage}
-              onChange={(e) => void onChange(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-3 py-2"
-            >
-              <option value="auto">{t('settings.language.auto', 'Auto (system)')}</option>
-              <option value="en">English</option>
-              <option value="es">Español</option>
-              <option value="fr">Français</option>
-              <option value="de">Deutsch</option>
-              <option value="ru">Русский</option>
-              <option value="zh-Hans">中文（简体）</option>
-            </select>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+              {[
+                { value: 'auto', label: t('settings.language.auto', 'Auto (system)') },
+                { value: 'en', label: 'English' },
+                { value: 'es', label: 'Español' },
+                { value: 'fr', label: 'Français' },
+                { value: 'de', label: 'Deutsch' },
+                { value: 'ru', label: 'Русский' },
+                { value: 'zh-Hans', label: '中文（简体）' },
+              ].map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={uiLanguage === value}
+                  onClick={() => void onChange(value)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors text-left ${
+                    uiLanguage === value
+                      ? 'bg-emerald-600 border-emerald-500 text-white'
+                      : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700 hover:border-slate-500'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
           </div>
         </div>
 
