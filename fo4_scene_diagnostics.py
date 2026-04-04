@@ -37,6 +37,17 @@ EXPORT
   - No spaces in object name (NIF exporters may reject)
   - No non-ASCII characters in name
 
+GRASS (only for objects identified as grass)
+  - Polygon count within grass performance budget (≤ 200 aim, ≤ 500 max)
+  - Vertex count within grass budget (≤ 300 aim, ≤ 750 max)
+  - No armature/rigging (engine handles wind; bones break GRAS records)
+  - No UCX_ collision mesh (GRASS collision type = no collision)
+  - Single material only (engine cannot batch multi-material grass)
+  - Alpha Clip transparency set (not Alpha Blend)
+  - No shape keys (not supported on grass NIFs)
+  - UV map present
+  - Scale applied
+
 Severity levels
 ---------------
 ERROR   – will cause export to fail or produce a broken NIF
@@ -68,6 +79,17 @@ SKIP    = "SKIP"
 FO4_MAX_POLYGONS = 65535
 FO4_MAX_BONES    = 256
 FO4_MAX_COLLISION_VERTS = 256
+
+# FO4 grass-specific limits
+# Grass instances are spawned thousands of times simultaneously by the engine.
+# Keep poly counts extremely low so FPS is not destroyed in grassy areas.
+FO4_GRASS_WARN_POLYGONS = 200   # above this is a performance warning
+FO4_GRASS_MAX_POLYGONS  = 500   # above this is a hard performance error
+FO4_GRASS_WARN_VERTS    = 300
+FO4_GRASS_MAX_VERTS     = 750
+
+# Name tokens that identify an object as grass (auto-detection fallback)
+_GRASS_NAME_TOKENS = frozenset({'grass', 'blade', 'fern', 'straw', 'weed'})
 
 # Modifiers that change geometry and MUST be applied before export
 _GEOMETRY_MODS = frozenset({
@@ -171,13 +193,21 @@ class SceneDiagnostics:
             or obj.name.upper().endswith("_COLLISION")
         )
 
+        # Is this a grass object?  Detected via the fo4_collision_type property
+        # (set to 'GRASS') or fo4_mesh_type == 'VEGETATION' with a grass name,
+        # or name-based heuristic when neither property is available.
+        is_grass = SceneDiagnostics._is_grass_object(obj)
+
         results += SceneDiagnostics._check_naming(obj)
 
         if not is_collision:
-            results += SceneDiagnostics._check_mesh(obj)
-            results += SceneDiagnostics._check_material(obj)
-            results += SceneDiagnostics._check_collision_presence(obj)
-            results += SceneDiagnostics._check_rigging(obj)
+            if is_grass:
+                results += SceneDiagnostics._check_grass(obj)
+            else:
+                results += SceneDiagnostics._check_mesh(obj)
+                results += SceneDiagnostics._check_material(obj)
+                results += SceneDiagnostics._check_collision_presence(obj)
+                results += SceneDiagnostics._check_rigging(obj)
         else:
             results += SceneDiagnostics._check_collision_mesh(obj)
 
@@ -188,6 +218,7 @@ class SceneDiagnostics:
         return {
             "name":          obj.name,
             "is_collision":  is_collision,
+            "is_grass":      is_grass,
             "poly_count":    len(obj.data.polygons) if obj.data else 0,
             "error_count":   obj_errors,
             "warning_count": obj_warnings,
@@ -254,6 +285,271 @@ class SceneDiagnostics:
     # ------------------------------------------------------------------
     # Per-object check groups
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _is_grass_object(obj) -> bool:
+        """Return True when *obj* should be treated as a FO4 grass mesh.
+
+        Detection order:
+        1. ``fo4_collision_type`` property == 'GRASS'.
+        2. ``fo4_mesh_type`` property == 'VEGETATION' **and** a grass-name token
+           appears in the object name (avoids misidentifying generic vegetation).
+        3. Name-based heuristic when neither custom property is set – any of the
+           tokens in ``_GRASS_NAME_TOKENS`` (grass, blade, fern, …) in the lower-
+           cased object name.
+
+        Returns
+        -------
+        bool
+            True when the object is identified as a grass mesh and should receive
+            grass-specific diagnostic checks instead of the standard checks.
+        """
+        coll_type = getattr(obj, 'fo4_collision_type', None)
+        if coll_type == 'GRASS':
+            return True
+
+        mesh_type = getattr(obj, 'fo4_mesh_type', None)
+        name_lower = obj.name.lower()
+        if mesh_type == 'VEGETATION' and any(t in name_lower for t in _GRASS_NAME_TOKENS):
+            return True
+
+        # Heuristic fallback when properties are not set
+        if coll_type is None and mesh_type is None:
+            return any(t in name_lower for t in _GRASS_NAME_TOKENS)
+
+        return False
+
+    @staticmethod
+    def _check_grass(obj) -> list[CheckResult]:
+        """Grass-specific diagnostic checks.
+
+        FO4 grass (GRAS records) has very different rules from every other mesh
+        type.  The engine spawns thousands of instances simultaneously, so polygon
+        budgets are tiny.  Wind is 100 % engine-side – bones are forbidden.
+        """
+        results: list[CheckResult] = []
+        mesh = obj.data
+
+        # ── Polygon count ──────────────────────────────────────────────────────
+        poly_count = len(mesh.polygons)
+        if poly_count == 0:
+            results.append(CheckResult(
+                WARNING, "GRASS",
+                "Grass mesh has 0 polygons – empty mesh?",
+            ))
+        elif poly_count > FO4_GRASS_MAX_POLYGONS:
+            results.append(CheckResult(
+                ERROR, "GRASS",
+                f"Grass mesh has {poly_count:,} polygons (max {FO4_GRASS_MAX_POLYGONS:,} "
+                "recommended). The engine spawns thousands of grass instances "
+                "simultaneously – each extra polygon multiplies cost. "
+                "Aim for ≤ 100 polygons. Use Smart Decimate to reduce.",
+            ))
+        elif poly_count > FO4_GRASS_WARN_POLYGONS:
+            results.append(CheckResult(
+                WARNING, "GRASS",
+                f"Grass mesh has {poly_count:,} polygons (aim for ≤ {FO4_GRASS_WARN_POLYGONS}). "
+                "High-density grass areas will have FPS impact. "
+                "Consider reducing further.",
+            ))
+        else:
+            results.append(CheckResult(
+                OK, "GRASS",
+                f"Grass polygon count {poly_count:,} is within performance budget",
+            ))
+
+        # ── Vertex count ───────────────────────────────────────────────────────
+        vert_count = len(mesh.vertices)
+        if vert_count > FO4_GRASS_MAX_VERTS:
+            results.append(CheckResult(
+                ERROR, "GRASS",
+                f"Grass mesh has {vert_count:,} vertices (max {FO4_GRASS_MAX_VERTS:,} "
+                "recommended). Reduce geometry for better performance.",
+            ))
+        elif vert_count > FO4_GRASS_WARN_VERTS:
+            results.append(CheckResult(
+                WARNING, "GRASS",
+                f"Grass mesh has {vert_count:,} vertices (aim for ≤ {FO4_GRASS_WARN_VERTS}). "
+                "Dense grass areas may suffer FPS drops.",
+            ))
+        else:
+            results.append(CheckResult(
+                OK, "GRASS",
+                f"Grass vertex count {vert_count:,} is within performance budget",
+            ))
+
+        # ── No armature / rigging ──────────────────────────────────────────────
+        # FO4 grass wind is handled entirely by the engine shader and the GRAS
+        # record parameters. Adding an armature to a grass mesh will produce a
+        # skinned NIF that the engine cannot animate as GRAS, resulting in static
+        # or broken grass in-game.
+        has_armature = any(m.type == 'ARMATURE' for m in obj.modifiers)
+        if has_armature:
+            results.append(CheckResult(
+                ERROR, "GRASS",
+                "Grass mesh has an armature modifier. "
+                "FO4 grass wind is engine-side (GRAS record parameters) – "
+                "bones are NOT supported and will break the GRAS record. "
+                "Remove the armature modifier.",
+            ))
+        else:
+            results.append(CheckResult(OK, "GRASS", "No armature modifier (correct for grass)"))
+
+        # ── No shape keys ──────────────────────────────────────────────────────
+        if mesh.shape_keys and len(mesh.shape_keys.key_blocks) > 1:
+            results.append(CheckResult(
+                ERROR, "GRASS",
+                "Grass mesh has shape keys. Shape keys are not supported on FO4 "
+                "grass NIFs and will cause export failure or silent data loss. "
+                "Remove all shape keys.",
+            ))
+        else:
+            results.append(CheckResult(OK, "GRASS", "No shape keys (correct for grass)"))
+
+        # ── No UCX_ collision ──────────────────────────────────────────────────
+        ucx_name_upper = f"UCX_{obj.name}".upper()
+        collision_found = any(
+            o.name.upper() == ucx_name_upper
+            for o in bpy.context.scene.objects
+        )
+        if collision_found:
+            results.append(CheckResult(
+                WARNING, "GRASS",
+                f"A UCX_ collision mesh was found for grass object '{obj.name}'. "
+                "GRASS collision type means NO collision – the UCX_ mesh will be "
+                "ignored by the engine and wastes memory. Delete it.",
+            ))
+        else:
+            results.append(CheckResult(OK, "GRASS", "No unnecessary collision mesh"))
+
+        # ── Single material ────────────────────────────────────────────────────
+        mat_count = len([m for m in mesh.materials if m is not None])
+        if mat_count == 0:
+            results.append(CheckResult(
+                ERROR, "GRASS",
+                "Grass mesh has no material. A material with a diffuse texture "
+                "(RGBA, alpha = blade mask) is required.",
+            ))
+        elif mat_count > 1:
+            results.append(CheckResult(
+                ERROR, "GRASS",
+                f"Grass mesh has {mat_count} materials. FO4 grass supports only "
+                "ONE material per NIF. The engine cannot batch-render multi-material "
+                "grass. Remove extra materials and merge into one.",
+            ))
+        else:
+            results.append(CheckResult(OK, "GRASS", "Single material assigned (correct)"))
+
+        # ── Alpha Clip (not Alpha Blend) ───────────────────────────────────────
+        if mat_count >= 1 and mesh.materials[0] is not None:
+            mat = mesh.materials[0]
+            blend_method = getattr(mat, 'blend_method', None)
+            if blend_method == 'BLEND':
+                results.append(CheckResult(
+                    ERROR, "GRASS",
+                    f"Material '{mat.name}' uses Alpha Blend. "
+                    "FO4 grass requires Alpha Clip (Cutout) – alpha blend causes "
+                    "depth-sorting z-fighting between blades and disables engine "
+                    "batching. Set Blend Mode to Clip in the material settings.",
+                ))
+            elif blend_method in ('CLIP', 'HASHED'):
+                results.append(CheckResult(OK, "GRASS", "Material uses Alpha Clip (correct for grass)"))
+            elif blend_method == 'OPAQUE':
+                results.append(CheckResult(
+                    WARNING, "GRASS",
+                    f"Material '{mat.name}' is Opaque. Grass blades need alpha "
+                    "transparency to cut out the blade shape from the texture. "
+                    "Set Blend Mode to Clip and ensure the diffuse texture has "
+                    "an alpha channel.",
+                ))
+            # blend_method is None when material does not use nodes – that will
+            # be caught by the material-node check below.
+
+        # ── Material uses nodes ────────────────────────────────────────────────
+        if mat_count >= 1 and mesh.materials[0] is not None:
+            mat = mesh.materials[0]
+            if not mat.use_nodes:
+                results.append(CheckResult(
+                    ERROR, "GRASS",
+                    f"Material '{mat.name}' does not use nodes. "
+                    "Niftools requires node-based materials.",
+                ))
+            else:
+                results.append(CheckResult(OK, "GRASS", "Material uses nodes"))
+
+                # Diffuse node present and has image
+                diffuse_node = next(
+                    (n for n in mat.node_tree.nodes
+                     if n.type == 'TEX_IMAGE' and (n.label == "Diffuse" or n.name == "Diffuse")),
+                    None,
+                )
+                if diffuse_node is None:
+                    results.append(CheckResult(
+                        ERROR, "GRASS",
+                        "No 'Diffuse' texture node found. Grass needs a diffuse "
+                        "texture (RGBA) with the blade silhouette in the alpha channel.",
+                    ))
+                elif diffuse_node.image is None:
+                    results.append(CheckResult(
+                        WARNING, "GRASS",
+                        "Diffuse texture node has no image loaded – grass will be "
+                        "invisible in-game.",
+                    ))
+                else:
+                    results.append(CheckResult(OK, "GRASS", "Diffuse texture image loaded"))
+
+        # ── UV map ─────────────────────────────────────────────────────────────
+        if not mesh.uv_layers:
+            results.append(CheckResult(
+                ERROR, "GRASS",
+                "No UV map found. A UV map is required for texture projection. "
+                "Run Smart Unwrap or Hybrid Unwrap.",
+                auto_fixable=True, fix_key="smart_uv_unwrap",
+            ))
+        else:
+            results.append(CheckResult(OK, "GRASS", "UV map present"))
+
+        # ── Scale applied ──────────────────────────────────────────────────────
+        scale = obj.scale
+        if abs(scale.x - 1.0) > 0.001 or abs(scale.y - 1.0) > 0.001 or abs(scale.z - 1.0) > 0.001:
+            results.append(CheckResult(
+                ERROR, "GRASS",
+                f"Scale not applied: ({scale.x:.3f}, {scale.y:.3f}, {scale.z:.3f}). "
+                "Apply scale with Ctrl+A → Scale before export.",
+                auto_fixable=True, fix_key="apply_scale",
+            ))
+        else:
+            results.append(CheckResult(OK, "GRASS", "Scale applied (1, 1, 1)"))
+
+        # ── Triangulated ───────────────────────────────────────────────────────
+        has_quads = any(len(p.vertices) == 4 for p in mesh.polygons)
+        has_ngons = any(len(p.vertices) > 4 for p in mesh.polygons)
+        if has_ngons:
+            results.append(CheckResult(
+                ERROR, "GRASS",
+                "Grass mesh contains N-gons. FO4 requires all-triangles.",
+                auto_fixable=True, fix_key="triangulate",
+            ))
+        elif has_quads:
+            results.append(CheckResult(
+                WARNING, "GRASS",
+                "Grass mesh contains quads. Apply triangulate for full control.",
+                auto_fixable=True, fix_key="triangulate",
+            ))
+        else:
+            results.append(CheckResult(OK, "GRASS", "Grass mesh is fully triangulated"))
+
+        # ── Vertex colors (optional but recommended) ───────────────────────────
+        if not mesh.vertex_colors and not mesh.color_attributes:
+            results.append(CheckResult(
+                OK, "GRASS",
+                "No vertex colors (optional). Vertex colors can encode per-vertex "
+                "wind intensity: darker = less sway, brighter = more sway.",
+            ))
+        else:
+            results.append(CheckResult(OK, "GRASS", "Vertex color layer present (used for wind variation)"))
+
+        return results
 
     @staticmethod
     def _check_naming(obj) -> list[CheckResult]:
@@ -706,7 +1002,8 @@ class SceneDiagnostics:
                 lines.append(f"  {icon} [{check['category']}] {check['message']}")
 
             for obj_r in report.get("objects", []):
-                lines.append(f"\n── {obj_r['name']} ({obj_r['poly_count']:,} polys) "
+                grass_tag = " [GRASS]" if obj_r.get("is_grass") else ""
+                lines.append(f"\n── {obj_r['name']}{grass_tag} ({obj_r['poly_count']:,} polys) "
                               f"[{obj_r['error_count']} errors, {obj_r['warning_count']} warnings] ──")
                 for check in obj_r["checks"]:
                     icon = {"ERROR": "❌", "WARNING": "⚠ ", "OK": "✅", "SKIP": "⏭ "}.get(
