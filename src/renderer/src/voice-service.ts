@@ -275,7 +275,20 @@ export class VoiceService {
       this.recognition = new SpeechRecognition();
       this.recognition.continuous = false;
       this.recognition.interimResults = false;
-      this.recognition.lang = 'en-US'; // Default to English, could be made configurable
+
+      // Read STT language from settings; fall back to en-US.
+      let sttLang = 'en-US';
+      try {
+        const api = (window as any)?.electron?.api ?? (window as any)?.electronAPI;
+        if (api?.getSettings) {
+          const s = await api.getSettings();
+          const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim();
+          if (raw && raw !== 'auto') sttLang = raw;
+        }
+      } catch {
+        // ignore — keep default
+      }
+      this.recognition.lang = sttLang;
 
       this.recognition.onstart = () => {
         console.log('[VoiceService] Browser STT started');

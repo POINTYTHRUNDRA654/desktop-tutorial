@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Mic, Volume2, Key, ArrowDownToLine, CheckCircle, AlertTriangle, Settings, Play, Cpu, Wifi, WifiOff } from 'lucide-react';
+import { loadBrowserTtsSettings, saveBrowserTtsSettings } from './browserTts';
 
 interface VoiceRequirement {
   id: string;
@@ -164,12 +165,11 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({ onComplete =
     }
 
     // Check voice settings
-    const voiceEnabled = localStorage.getItem('mossy_voice_enabled') === 'true';
-    const preferredVoice = localStorage.getItem('mossy_preferred_voice');
-    reqs[4].status = voiceEnabled && preferredVoice ? 'ok' : 'missing';
+    const ttsSettings = loadBrowserTtsSettings();
+    const preferredVoice = ttsSettings.preferredVoiceName;
+    reqs[4].status = ttsSettings.enabled && preferredVoice ? 'ok' : 'missing';
     reqs[4].fixAction = async () => {
       setCurrentFixing('voice-settings');
-      localStorage.setItem('mossy_voice_enabled', 'true');
 
       // Find best voice
       if ('speechSynthesis' in window) {
@@ -181,8 +181,12 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({ onComplete =
                          englishVoices[0];
 
         if (preferred) {
-          localStorage.setItem('mossy_preferred_voice', preferred.name);
+          saveBrowserTtsSettings({ ...loadBrowserTtsSettings(), enabled: true, preferredVoiceName: preferred.name });
+        } else {
+          saveBrowserTtsSettings({ ...loadBrowserTtsSettings(), enabled: true });
         }
+      } else {
+        saveBrowserTtsSettings({ ...loadBrowserTtsSettings(), enabled: true });
       }
 
       reqs[4].status = 'ok';
