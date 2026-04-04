@@ -220,6 +220,11 @@
       ],
       "icon": "build/icon.ico"
     },
+    "nsis": {
+      "createDesktopShortcut": "always",
+      "shortcutName": "Mossy",
+      "include": "build/installer-include.nsh"
+    },
     "linux": {
       "target": "AppImage",
       "category": "Utility"
