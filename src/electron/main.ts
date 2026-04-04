@@ -165,6 +165,11 @@ if (typeof (globalThis as any).File === 'undefined') {
 let mainWindow: BrowserWindow | null = null;
 const bridge = new BridgeServer();
 
+// Set to true when the main process detects a fresh install (marker file or no settings.json).
+// createWindow() reads this to append ?freshInstall=true to the production file URL so the
+// renderer can synchronously clear stale onboarding flags before state initialisers run.
+let pendingFreshInstall = false;
+
 type BackendConfig = { baseUrl: string; token?: string };
 
 const getBackendConfig = (): BackendConfig | null => {
@@ -584,6 +589,19 @@ function createWindow() {
       });
       // do not open devtools during automated tests (makes firstWindow wrong)
       console.log('[Main] test mode - skipping devtools');
+    } else if (pendingFreshInstall) {
+      // Fresh install detected: pass the flag via URL param so the renderer's state
+      // initialisers can synchronously clear stale onboarding localStorage keys before
+      // they read them.  This avoids the race condition of the TRIGGER_FRESH_INSTALL IPC.
+      const fileUrl = new URL(`file:///${indexPath.replace(/\\/g, '/')}`);
+      fileUrl.searchParams.set('freshInstall', 'true');
+      console.log('[Main] Fresh install – loading renderer with ?freshInstall=true');
+      mainWindow.loadURL(fileUrl.href).catch(err => {
+        console.error('[Main] Failed to load front-end with freshInstall flag, falling back:', err);
+        mainWindow?.loadFile(indexPath).catch(err2 => {
+          console.error('[Main] Also failed to loadFile:', err2);
+        });
+      });
     } else {
       mainWindow.loadFile(indexPath).catch(err => {
         console.error('Failed to load front-end from dist build:', err);
@@ -8249,12 +8267,7 @@ app.whenReady().then(() => {
     });
   }
 
-  // Continue normal startup
-  createWindow();
-  setupIpcHandlers();
-  bridge.start();
-
-  // ── Fresh-install detection ───────────────────────────────────────────────
+  // ── Fresh-install detection (BEFORE createWindow) ────────────────────────
   // Two complementary signals trigger the first-run wizard:
   //
   // 1. fresh-install.marker  – written by the installer (Inno Setup / NSIS
@@ -8265,9 +8278,12 @@ app.whenReady().then(() => {
   //    at all this is a completely fresh launch (no installer marker needed).
   //    This is the reliable fallback for side-loaded / portable builds.
   //
-  // Both paths send TRIGGER_FRESH_INSTALL to the renderer after it loads,
-  // which clears stale localStorage onboarding flags so the wizard always
-  // starts from scratch.
+  // When either signal is found, pendingFreshInstall is set to true before
+  // createWindow() is called.  createWindow() then loads the renderer with
+  // ?freshInstall=true in the URL so the React state initialisers can
+  // synchronously clear stale onboarding flags – avoiding the race condition
+  // of the earlier TRIGGER_FRESH_INSTALL IPC approach.  The IPC is kept as a
+  // belt-and-suspenders backup.
   if (app.isPackaged) {
     const markerPath = path.join(path.dirname(process.execPath), 'fresh-install.marker');
     const isFreshMarker = fs.existsSync(markerPath);
@@ -8280,14 +8296,25 @@ app.whenReady().then(() => {
       } else {
         console.log('[Main] No settings.json found – first-ever launch, triggering onboarding.');
       }
-      // createWindow() is always called just above, so mainWindow is guaranteed.
-      // Wait for the renderer to finish loading before sending the event.
-      mainWindow!.webContents.once('did-finish-load', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IPC_CHANNELS.TRIGGER_FRESH_INSTALL);
-        }
-      });
+      pendingFreshInstall = true;
     }
+  }
+
+  // Continue normal startup
+  createWindow();
+  setupIpcHandlers();
+  bridge.start();
+
+  // ── IPC backup: send TRIGGER_FRESH_INSTALL after renderer loads ──────────
+  // This is a secondary mechanism in case the ?freshInstall URL param path is
+  // unavailable (e.g. loadURL fell back to loadFile).  The onFreshInstall
+  // handler in App.tsx is idempotent so firing both is safe.
+  if (pendingFreshInstall && mainWindow) {
+    mainWindow.webContents.once('did-finish-load', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(IPC_CHANNELS.TRIGGER_FRESH_INSTALL);
+      }
+    });
   }
 
   // ── Blender Add-on HTTP Bridge (port 8080) ────────────────────────────────
