@@ -52,6 +52,7 @@ import {
   pickBrowserTtsVoice,
   saveBrowserTtsSettings,
   speakBrowserTts,
+  uiLangToBcp47,
   type BrowserTtsSettings,
 } from './browserTts';
 
@@ -71,6 +72,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
   const [isTestingMic, setIsTestingMic] = useState(false);
   const [micTestResult, setMicTestResult] = useState('');
   const [micError, setMicError] = useState('');
+  const [uiLanguage, setUiLanguageState] = useState<string>('');
 
 
 
@@ -110,6 +112,33 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  // Load uiLanguage from electron settings so the auto-selected voice preview
+  // matches the actual TTS voice that will be used at runtime.
+  useEffect(() => {
+    const api = getElectronApi();
+    if (!api?.getSettings) return;
+    let disposed = false;
+    const load = async () => {
+      try {
+        const s = await api.getSettings();
+        if (disposed) return;
+        const raw = String(s?.uiLanguage || '').trim();
+        if (raw && raw !== 'auto') setUiLanguageState(raw);
+      } catch { /* ignore */ }
+    };
+    void load();
+    if (typeof api.onSettingsUpdated === 'function') {
+      try {
+        api.onSettingsUpdated((s: any) => {
+          if (disposed) return;
+          const raw = String(s?.uiLanguage || '').trim();
+          setUiLanguageState(raw && raw !== 'auto' ? raw : '');
+        });
+      } catch { /* ignore */ }
+    }
+    return () => { disposed = true; };
   }, []);
 
   const sortedVoices = useMemo(() => {
@@ -346,7 +375,8 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
               </select>
 
               {!settings.preferredVoiceName && (() => {
-                const autoVoice = pickBrowserTtsVoice(voices, undefined);
+                const langBase = uiLanguage ? uiLanguage.split('-')[0].toLowerCase() : undefined;
+                const autoVoice = pickBrowserTtsVoice(voices, undefined, langBase);
                 return autoVoice ? (
                   <div className="text-[11px] text-slate-400 mt-1">
                     Auto-selecting: <span className="text-slate-200 font-mono">{autoVoice.name}</span>
