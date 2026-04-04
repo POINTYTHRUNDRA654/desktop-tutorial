@@ -8254,6 +8254,28 @@ app.whenReady().then(() => {
   setupIpcHandlers();
   bridge.start();
 
+  // ── Fresh-install detection ───────────────────────────────────────────────
+  // The Inno Setup installer writes a `fresh-install.marker` file into the
+  // application directory.  When we find it we consume it immediately and,
+  // once the renderer signals it is ready, send `trigger-fresh-install` so
+  // the renderer can clear any stale onboarding localStorage flags and replay
+  // the first-run wizard.  This handles the common case where a user previously
+  // had Mossy installed (leaving userData intact) and reinstalled from scratch.
+  if (app.isPackaged) {
+    const markerPath = path.join(path.dirname(process.execPath), 'fresh-install.marker');
+    if (fs.existsSync(markerPath)) {
+      try { fs.unlinkSync(markerPath); } catch { /* ignore */ }
+      console.log('[Main] Fresh-install marker found – will trigger onboarding reset.');
+      // createWindow() is always called just above, so mainWindow is guaranteed.
+      // Wait for the renderer to finish loading before sending the event.
+      mainWindow!.webContents.once('did-finish-load', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(IPC_CHANNELS.TRIGGER_FRESH_INSTALL);
+        }
+      });
+    }
+  }
+
   // ── Blender Add-on HTTP Bridge (port 8080) ────────────────────────────────
   // Serves the REST API expected by desktop_tutorial_client.py in the
   // POINTYTHRUNDRA654/Blender-add-on repository.
