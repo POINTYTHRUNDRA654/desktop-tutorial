@@ -38,6 +38,7 @@ _CORE_MODULE_NAMES = [
     "shap_e_helpers", "point_e_helpers", "advisor_helpers",
     "ue_importer_helpers", "umodel_tools_helpers", "unity_fbx_importer_helpers",
     "post_processing_helpers", "fo4_material_browser", "fo4_reference_helpers",
+    "bgsm_helpers",
 ]
 for _mod_name in _CORE_MODULE_NAMES:
     try:
@@ -8770,6 +8771,263 @@ class FO4_OT_GenerateMultiConvexCollision(Operator):
         return context.window_manager.invoke_props_dialog(self)
 
 
+# ---------------------------------------------------------------------------
+# BGSM / BGEM material file export
+# ---------------------------------------------------------------------------
+
+class FO4_OT_ExportBGSM(Operator):
+    """Export Blender material(s) on the active object as Fallout 4 .bgsm files.
+
+    Each material slot is saved as a separate ``.bgsm`` binary file in the
+    chosen output directory.  Texture node names "Diffuse", "Normal",
+    "Specular", "Glow", and "EnvMap" are mapped to the corresponding BGSM
+    texture slots.
+
+    To generate valid in-game materials you must also set the NIF's
+    BSLightingShaderProperty to reference the exported ``.bgsm`` path via the
+    Creation Kit Material Editor (or Nifskope).
+    """
+    bl_idname = "fo4.export_bgsm"
+    bl_label  = "Export .bgsm Material(s)"
+    bl_options = {'REGISTER'}
+
+    directory: StringProperty(
+        name="Output Directory",
+        description="Folder to write .bgsm files into (usually Data/Materials/...)",
+        subtype='DIR_PATH',
+        default="",
+    )
+    all_slots: BoolProperty(
+        name="All Material Slots",
+        description="Export every material slot; uncheck to export only the active slot",
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return (
+            obj is not None
+            and obj.type == 'MESH'
+            and bool(obj.data.materials)
+        )
+
+    def execute(self, context):
+        if not bgsm_helpers:
+            self.report({'ERROR'}, "bgsm_helpers module not available")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        results = bgsm_helpers.export_bgsm_for_object(
+            obj,
+            self.directory,
+            all_slots=self.all_slots,
+        )
+
+        n_ok = sum(1 for ok, _ in results if ok)
+        n_fail = len(results) - n_ok
+
+        for ok, msg in results:
+            level = 'INFO' if ok else 'WARNING'
+            self.report({level}, msg)
+            if notification_system:
+                notification_system.FO4_NotificationSystem.notify(msg, level)
+
+        if n_fail == 0:
+            self.report({'INFO'}, f"Exported {n_ok} .bgsm file(s) to {self.directory}")
+        else:
+            self.report(
+                {'WARNING'},
+                f"Exported {n_ok} .bgsm file(s); {n_fail} failed — check console",
+            )
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH' or not obj.data.materials:
+            self.report({'ERROR'}, "Active object must be a mesh with at least one material")
+            return {'CANCELLED'}
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_BatchExportBGSM(Operator):
+    """Export .bgsm files for all materials in the entire scene.
+
+    Every unique material that is assigned to at least one mesh object is
+    exported as a ``.bgsm`` file.  Materials with no image nodes are
+    exported with empty texture paths (the material flags still apply).
+    """
+    bl_idname = "fo4.batch_export_bgsm"
+    bl_label  = "Batch Export All .bgsm Materials"
+    bl_options = {'REGISTER'}
+
+    directory: StringProperty(
+        name="Output Directory",
+        description="Folder to write all .bgsm files into",
+        subtype='DIR_PATH',
+        default="",
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return any(
+            o.type == 'MESH' and o.data.materials
+            for o in context.scene.objects
+        )
+
+    def execute(self, context):
+        if not bgsm_helpers:
+            self.report({'ERROR'}, "bgsm_helpers module not available")
+            return {'CANCELLED'}
+
+        import os
+        os.makedirs(self.directory, exist_ok=True)
+
+        seen = set()
+        n_ok = 0
+        n_fail = 0
+        for obj in context.scene.objects:
+            if obj.type != 'MESH':
+                continue
+            for mat in obj.data.materials:
+                if mat is None or mat.name in seen:
+                    continue
+                seen.add(mat.name)
+                try:
+                    data = bgsm_helpers.blender_mat_to_bgsm(mat)
+                    safe = "".join(
+                        c if c.isalnum() or c in "._-" else "_"
+                        for c in mat.name
+                    )
+                    path = os.path.join(self.directory, safe + ".bgsm")
+                    with open(path, "wb") as fh:
+                        fh.write(bgsm_helpers.write_bgsm(data))
+                    n_ok += 1
+                except Exception as exc:
+                    self.report({'WARNING'}, f"Failed to export '{mat.name}': {exc}")
+                    n_fail += 1
+
+        msg = f"Batch BGSM export: {n_ok} written, {n_fail} failed"
+        self.report({'INFO' if n_fail == 0 else 'WARNING'}, msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(
+                msg, 'INFO' if n_fail == 0 else 'WARNING'
+            )
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_ImportBGSM(Operator):
+    """Import a Fallout 4 .bgsm file and apply it to the active object's material.
+
+    Creates or updates a Blender material that mirrors the BGSM fields:
+    texture node connections, alpha mode, specular colour, emission, and
+    two-sided flag.  If the object has no material slot a new one is added.
+    """
+    bl_idname = "fo4.import_bgsm"
+    bl_label  = "Import .bgsm Material"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: StringProperty(
+        name="File Path",
+        description="Path to the .bgsm file to import",
+        subtype='FILE_PATH',
+        default="",
+    )
+    filter_glob: StringProperty(
+        default="*.bgsm;*.bgem",
+        options={'HIDDEN'},
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        if not bgsm_helpers:
+            self.report({'ERROR'}, "bgsm_helpers module not available")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        ok, msg = bgsm_helpers.import_bgsm_for_object(
+            obj,
+            bpy.path.abspath(self.filepath),
+        )
+        level = 'INFO' if ok else 'ERROR'
+        self.report({level}, msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+# ---------------------------------------------------------------------------
+# BA2 archive extraction
+# ---------------------------------------------------------------------------
+
+class FO4_OT_ExtractBA2Asset(Operator):
+    """Extract an asset from a Fallout 4 BA2 archive into a loose-file directory.
+
+    Locates the BA2 archive most likely to contain the requested asset and
+    extracts it using Archive2.exe (part of the Fallout 4 Creation Kit).
+
+    Archive2.exe must be reachable from the Creation Kit path configured in
+    Add-on Preferences, or must be installed alongside Fallout 4 via Steam.
+    """
+    bl_idname = "fo4.extract_ba2_asset"
+    bl_label  = "Extract BA2 Asset"
+    bl_options = {'REGISTER'}
+
+    nif_path: StringProperty(
+        name="Asset Path",
+        description=(
+            "Data/-relative path to extract, e.g. "
+            "'meshes/weapons/10mmpistol/10mmpistol.nif'"
+        ),
+        default="",
+    )
+    output_dir: StringProperty(
+        name="Output Directory",
+        description="Directory to extract the asset into (Data/ structure preserved)",
+        subtype='DIR_PATH',
+        default="",
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return fo4_game_assets is not None
+
+    def execute(self, context):
+        if not fo4_game_assets:
+            self.report({'ERROR'}, "fo4_game_assets module not available")
+            return {'CANCELLED'}
+
+        if not self.nif_path:
+            self.report({'ERROR'}, "Asset path is required")
+            return {'CANCELLED'}
+
+        from pathlib import Path
+        out = Path(bpy.path.abspath(self.output_dir)) if self.output_dir else Path(".")
+
+        ok, msg = fo4_game_assets.FO4GameAssets.extract_asset(self.nif_path, out)
+        level = 'INFO' if ok else 'ERROR'
+        self.report({level}, msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
 classes = (
     FO4_OT_OpenShiagurPowerArmorRig,
     FO4_OT_OpenShiagurAnimRig,
@@ -8978,6 +9236,12 @@ classes = (
     FO4_OT_ValidateNavMesh,
     # Multi-piece convex collision (V-HACD-style decomposition)
     FO4_OT_GenerateMultiConvexCollision,
+    # BGSM / BGEM material file export & import
+    FO4_OT_ExportBGSM,
+    FO4_OT_BatchExportBGSM,
+    FO4_OT_ImportBGSM,
+    # BA2 archive extraction
+    FO4_OT_ExtractBA2Asset,
 )
 
 def _make_scene_to_pref_sync(scene_attr, pref_attr):

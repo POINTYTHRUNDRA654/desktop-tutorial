@@ -3962,6 +3962,432 @@ class TestRequirementsOptional(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# Test suite X — bgsm_helpers.py structural checks
+# ---------------------------------------------------------------------------
+
+class TestBGSMHelpers(unittest.TestCase):
+    """Structural integrity checks for the BGSM/BGEM material writer module."""
+
+    def _src(self):
+        return _read("bgsm_helpers.py")
+
+    def test_file_exists(self):
+        """bgsm_helpers.py must exist."""
+        self.assertTrue(
+            os.path.isfile(_path("bgsm_helpers.py")),
+            "bgsm_helpers.py is missing — it provides FO4 .bgsm binary export",
+        )
+
+    def test_bgsm_magic_constant(self):
+        """Module must define the BGSM magic bytes."""
+        src = self._src()
+        self.assertIn(
+            "BGSM",
+            src,
+            "bgsm_helpers must define the 'BGSM' magic constant.",
+        )
+
+    def test_bgem_magic_constant(self):
+        """Module must define the BGEM magic bytes."""
+        src = self._src()
+        self.assertIn(
+            "BGEM",
+            src,
+            "bgsm_helpers must define the 'BGEM' magic constant.",
+        )
+
+    def test_bgsm_data_class_exists(self):
+        """BGSMData dataclass must be present."""
+        src = self._src()
+        self.assertIn(
+            "class BGSMData",
+            src,
+            "bgsm_helpers must define a BGSMData class.",
+        )
+
+    def test_bgem_data_class_exists(self):
+        """BGEMData dataclass must be present."""
+        src = self._src()
+        self.assertIn(
+            "class BGEMData",
+            src,
+            "bgsm_helpers must define a BGEMData class.",
+        )
+
+    def test_write_bgsm_function_exists(self):
+        """write_bgsm() function must exist."""
+        src = self._src()
+        self.assertIn(
+            "def write_bgsm",
+            src,
+            "bgsm_helpers must provide a write_bgsm() function.",
+        )
+
+    def test_read_bgsm_function_exists(self):
+        """read_bgsm() function must exist."""
+        src = self._src()
+        self.assertIn(
+            "def read_bgsm",
+            src,
+            "bgsm_helpers must provide a read_bgsm() function.",
+        )
+
+    def test_write_bgem_function_exists(self):
+        """write_bgem() function must exist."""
+        src = self._src()
+        self.assertIn(
+            "def write_bgem",
+            src,
+            "bgsm_helpers must provide a write_bgem() function.",
+        )
+
+    def test_blender_mat_to_bgsm_function_exists(self):
+        """blender_mat_to_bgsm() function must exist."""
+        src = self._src()
+        self.assertIn(
+            "def blender_mat_to_bgsm",
+            src,
+            "bgsm_helpers must provide blender_mat_to_bgsm() for Blender→BGSM conversion.",
+        )
+
+    def test_bgsm_to_blender_mat_function_exists(self):
+        """bgsm_to_blender_mat() function must exist."""
+        src = self._src()
+        self.assertIn(
+            "def bgsm_to_blender_mat",
+            src,
+            "bgsm_helpers must provide bgsm_to_blender_mat() for BGSM→Blender import.",
+        )
+
+    def test_export_bgsm_for_object_function_exists(self):
+        """export_bgsm_for_object() must exist."""
+        src = self._src()
+        self.assertIn(
+            "def export_bgsm_for_object",
+            src,
+            "bgsm_helpers must provide export_bgsm_for_object() for the export operator.",
+        )
+
+    def test_import_bgsm_for_object_function_exists(self):
+        """import_bgsm_for_object() must exist."""
+        src = self._src()
+        self.assertIn(
+            "def import_bgsm_for_object",
+            src,
+            "bgsm_helpers must provide import_bgsm_for_object() for the import operator.",
+        )
+
+    def test_struct_pack_used(self):
+        """struct.pack must be used to write binary data."""
+        src = self._src()
+        self.assertIn(
+            "struct.pack",
+            src,
+            "bgsm_helpers must use struct.pack to write binary BGSM/BGEM fields.",
+        )
+
+    def test_little_endian_format(self):
+        """All struct format strings must use little-endian '<' prefix."""
+        src = self._src()
+        self.assertIn(
+            '"<',
+            src,
+            "bgsm_helpers must use little-endian ('<') struct format strings "
+            "(FO4 files are little-endian).",
+        )
+
+    def test_nistring_helpers_present(self):
+        """NiString read/write helpers must be defined."""
+        src = self._src()
+        self.assertIn(
+            "_write_nistring",
+            src,
+            "bgsm_helpers must define _write_nistring() for NiString encoding.",
+        )
+        self.assertIn(
+            "_read_nistring",
+            src,
+            "bgsm_helpers must define _read_nistring() for NiString decoding.",
+        )
+
+    def test_texture_slot_names_present(self):
+        """Standard texture slot names must appear in the source."""
+        src = self._src()
+        for slot in ("diffuse_texture", "normal_texture", "smooth_spec_texture",
+                     "greyscale_texture", "glow_texture"):
+            self.assertIn(
+                slot,
+                src,
+                f"bgsm_helpers.BGSMData must have a '{slot}' field.",
+            )
+
+    def test_shader_flags_defined(self):
+        """ShaderFlags1/2 constants must be defined."""
+        src = self._src()
+        self.assertIn(
+            "SF1_SPECULAR",
+            src,
+            "bgsm_helpers must define SF1_SPECULAR shader flag constant.",
+        )
+        self.assertIn(
+            "SF2_DOUBLE_SIDED",
+            src,
+            "bgsm_helpers must define SF2_DOUBLE_SIDED shader flag constant.",
+        )
+
+    def test_roundtrip_bgsm(self):
+        """write_bgsm → read_bgsm roundtrip must preserve key fields."""
+        import importlib.util
+        spec_name = "bgsm_helpers_test_import"
+        old = sys.modules.pop(spec_name, None)
+        try:
+            spec = importlib.util.spec_from_file_location(
+                spec_name, _path("bgsm_helpers.py")
+            )
+            mod = importlib.util.module_from_spec(spec)
+            # Register in sys.modules before exec so @dataclass can find the module
+            sys.modules[spec_name] = mod
+            spec.loader.exec_module(mod)
+
+            data = mod.BGSMData(
+                diffuse_texture="textures\\clutter\\desk\\desk01_d.dds",
+                normal_texture="textures\\clutter\\desk\\desk01_n.dds",
+                alpha=0.75,
+                alpha_test=True,
+                alpha_test_ref=100,
+                smoothness=180.0,
+                emit_enabled=True,
+                emittance_color=(1.0, 0.5, 0.0),
+                emittance_mult=2.0,
+            )
+            raw = mod.write_bgsm(data)
+            self.assertIsInstance(raw, bytes, "write_bgsm must return bytes")
+            self.assertTrue(raw[:4] == b"BGSM", "BGSM magic must be first 4 bytes")
+
+            data2 = mod.read_bgsm(raw)
+            self.assertEqual(data2.diffuse_texture, data.diffuse_texture)
+            self.assertEqual(data2.normal_texture, data.normal_texture)
+            self.assertAlmostEqual(data2.alpha, data.alpha, places=5)
+            self.assertEqual(data2.alpha_test, data.alpha_test)
+            self.assertEqual(data2.alpha_test_ref, data.alpha_test_ref)
+            self.assertAlmostEqual(data2.smoothness, data.smoothness, places=2)
+            self.assertEqual(data2.emit_enabled, data.emit_enabled)
+            self.assertAlmostEqual(data2.emittance_mult, data.emittance_mult, places=5)
+        finally:
+            sys.modules.pop(spec_name, None)
+            if old is not None:
+                sys.modules[spec_name] = old
+
+    def test_roundtrip_bgem(self):
+        """write_bgem → read_bgem roundtrip must preserve key fields."""
+        import importlib.util
+        spec_name = "bgem_helpers_test_import"
+        old = sys.modules.pop(spec_name, None)
+        try:
+            spec = importlib.util.spec_from_file_location(
+                spec_name, _path("bgsm_helpers.py")
+            )
+            mod = importlib.util.module_from_spec(spec)
+            # Register in sys.modules before exec so @dataclass can find the module
+            sys.modules[spec_name] = mod
+            spec.loader.exec_module(mod)
+
+            data = mod.BGEMData(
+                base_texture="textures\\effects\\fire\\fire01.dds",
+                falloff_start_angle=0.2,
+                falloff_stop_angle=1.4,
+                soft_depth=50.0,
+            )
+            raw = mod.write_bgem(data)
+            self.assertTrue(raw[:4] == b"BGEM", "BGEM magic must be first 4 bytes")
+
+            data2 = mod.read_bgem(raw)
+            self.assertEqual(data2.base_texture, data.base_texture)
+            self.assertAlmostEqual(data2.falloff_start_angle, data.falloff_start_angle, places=5)
+            self.assertAlmostEqual(data2.soft_depth, data.soft_depth, places=3)
+        finally:
+            sys.modules.pop(spec_name, None)
+            if old is not None:
+                sys.modules[spec_name] = old
+
+    def test_export_bgsm_operator_in_operators(self):
+        """FO4_OT_ExportBGSM must appear in operators.py."""
+        src = _read("operators.py")
+        self.assertIn(
+            "FO4_OT_ExportBGSM",
+            src,
+            "operators.py must define FO4_OT_ExportBGSM.",
+        )
+
+    def test_import_bgsm_operator_in_operators(self):
+        """FO4_OT_ImportBGSM must appear in operators.py."""
+        src = _read("operators.py")
+        self.assertIn(
+            "FO4_OT_ImportBGSM",
+            src,
+            "operators.py must define FO4_OT_ImportBGSM.",
+        )
+
+    def test_batch_export_bgsm_operator_in_operators(self):
+        """FO4_OT_BatchExportBGSM must appear in operators.py."""
+        src = _read("operators.py")
+        self.assertIn(
+            "FO4_OT_BatchExportBGSM",
+            src,
+            "operators.py must define FO4_OT_BatchExportBGSM.",
+        )
+
+    def test_bgsm_operators_in_classes_tuple(self):
+        """All three BGSM operators must be in the operators.py classes tuple."""
+        src = _read("operators.py")
+        for cls_name in ("FO4_OT_ExportBGSM", "FO4_OT_ImportBGSM", "FO4_OT_BatchExportBGSM"):
+            # Find if present after 'classes = ('
+            classes_idx = src.find("classes = (")
+            self.assertGreater(classes_idx, 0, "operators.py must have a 'classes = (' tuple")
+            self.assertIn(
+                cls_name,
+                src[classes_idx:],
+                f"{cls_name} must be in the classes tuple so it is registered at startup.",
+            )
+
+    def test_bgsm_buttons_in_ui_panels(self):
+        """BGSM operator IDs must be referenced in ui_panels.py."""
+        src = _read("ui_panels.py")
+        for op_id in ("fo4.export_bgsm", "fo4.import_bgsm", "fo4.batch_export_bgsm"):
+            self.assertIn(
+                op_id,
+                src,
+                f"ui_panels.py must include a call to layout.operator('{op_id}').",
+            )
+
+    def test_bgsm_module_imported_in_init(self):
+        """bgsm_helpers must be imported in __init__.py."""
+        src = _read("__init__.py")
+        self.assertIn(
+            "bgsm_helpers",
+            src,
+            "__init__.py must import bgsm_helpers so the module is loaded at startup.",
+        )
+
+    def test_register_unregister_present(self):
+        """Module must have register() and unregister() stubs."""
+        src = self._src()
+        self.assertIn("def register", src)
+        self.assertIn("def unregister", src)
+
+
+# ---------------------------------------------------------------------------
+# Test suite Y — fo4_game_assets.py BA2 extraction checks
+# ---------------------------------------------------------------------------
+
+class TestBA2Extraction(unittest.TestCase):
+    """Structural integrity checks for the BA2 extraction feature."""
+
+    def _src(self):
+        return _read("fo4_game_assets.py")
+
+    def test_extract_ba2_method_exists(self):
+        """FO4GameAssets.extract_ba2() static method must exist."""
+        src = self._src()
+        self.assertIn(
+            "def extract_ba2",
+            src,
+            "fo4_game_assets.FO4GameAssets must have an extract_ba2() method.",
+        )
+
+    def test_extract_asset_method_exists(self):
+        """FO4GameAssets.extract_asset() static method must exist."""
+        src = self._src()
+        self.assertIn(
+            "def extract_asset",
+            src,
+            "fo4_game_assets.FO4GameAssets must have an extract_asset() method.",
+        )
+
+    def test_find_archive2_method_exists(self):
+        """FO4GameAssets._find_archive2() helper must exist."""
+        src = self._src()
+        self.assertIn(
+            "_find_archive2",
+            src,
+            "fo4_game_assets must define _find_archive2() to locate Archive2.exe.",
+        )
+
+    def test_subprocess_used_for_extraction(self):
+        """subprocess.run must be used to invoke Archive2.exe."""
+        src = self._src()
+        self.assertIn(
+            "subprocess.run",
+            src,
+            "fo4_game_assets must use subprocess.run to call Archive2.exe.",
+        )
+
+    def test_extract_ba2_operator_in_operators(self):
+        """FO4_OT_ExtractBA2Asset must appear in operators.py."""
+        src = _read("operators.py")
+        self.assertIn(
+            "FO4_OT_ExtractBA2Asset",
+            src,
+            "operators.py must define FO4_OT_ExtractBA2Asset.",
+        )
+
+    def test_extract_ba2_operator_in_classes_tuple(self):
+        """FO4_OT_ExtractBA2Asset must be in the operators.py classes tuple."""
+        src = _read("operators.py")
+        classes_idx = src.find("classes = (")
+        self.assertGreater(classes_idx, 0)
+        self.assertIn(
+            "FO4_OT_ExtractBA2Asset",
+            src[classes_idx:],
+            "FO4_OT_ExtractBA2Asset must be in the classes tuple.",
+        )
+
+    def test_extract_ba2_button_in_ui_panels(self):
+        """fo4.extract_ba2_asset must be referenced in ui_panels.py."""
+        src = _read("ui_panels.py")
+        self.assertIn(
+            "fo4.extract_ba2_asset",
+            src,
+            "ui_panels.py must include fo4.extract_ba2_asset operator button.",
+        )
+
+    def test_winreg_import_guarded(self):
+        """winreg import must be inside a try/except for cross-platform safety."""
+        src = self._src()
+        # Should have try: import winreg pattern, not a bare import
+        self.assertNotIn(
+            "\nimport winreg\n",
+            src,
+            "fo4_game_assets must guard 'import winreg' with try/except "
+            "so the module loads on Linux/macOS.",
+        )
+
+    def test_extract_ba2_returns_tuple(self):
+        """extract_ba2 and extract_asset must return (bool, str) tuples."""
+        src = self._src()
+        # Both methods should have 'return (False, ' or 'return False,' + str
+        self.assertIn(
+            "return False",
+            src,
+            "extract_ba2/extract_asset must return (False, message) on failure.",
+        )
+        self.assertIn(
+            "return True",
+            src,
+            "extract_ba2/extract_asset must return (True, message) on success.",
+        )
+
+    def test_archive2_not_found_message_helpful(self):
+        """Missing Archive2.exe error must point the user to the CK."""
+        src = self._src()
+        self.assertIn(
+            "Archive2",
+            src,
+            "fo4_game_assets must mention Archive2.exe in its extraction error messages.",
+        )
+
+
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(sys.modules[__name__])

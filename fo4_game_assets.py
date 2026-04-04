@@ -14,9 +14,15 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import winreg
+import sys
 from pathlib import Path
 from typing import Optional
+
+# winreg is Windows-only; guard the import so the module loads on Linux/macOS too.
+try:
+    import winreg as _winreg
+except ImportError:
+    _winreg = None  # type: ignore[assignment]
 
 
 # Common Fallout 4 installation locations
@@ -77,12 +83,14 @@ class FO4GameAssets:
 
         # Check Windows Registry for Steam installation
         try:
-            key = winreg.OpenKey(
-                winreg.HKEY_LOCAL_MACHINE,
+            if _winreg is None:
+                raise FileNotFoundError("winreg not available on this platform")
+            key = _winreg.OpenKey(
+                _winreg.HKEY_LOCAL_MACHINE,
                 r"SOFTWARE\WOW6432Node\Bethesda Softworks\Fallout4"
             )
-            install_path, _ = winreg.QueryValueEx(key, "installed path")
-            winreg.CloseKey(key)
+            install_path, _ = _winreg.QueryValueEx(key, "installed path")
+            _winreg.CloseKey(key)
 
             fo4_path = Path(install_path)
             if fo4_path.exists() and (fo4_path / "Fallout4.exe").exists():
@@ -308,6 +316,164 @@ class FO4GameAssets:
             "full_path": str(full_path),
             "texture_paths": texture_paths,
         }
+
+    # ------------------------------------------------------------------
+    # BA2 extraction
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _find_archive2() -> Optional[Path]:
+        """Locate Archive2.exe from addon preferences or common CK paths."""
+        # Try preferences first
+        try:
+            from . import preferences
+            # Check a dedicated archive2_path pref if it exists
+            prefs = preferences.get_preferences()
+            if prefs is not None:
+                for attr in ("archive2_path", "ck_path"):
+                    val = getattr(prefs, attr, None)
+                    if val:
+                        p = Path(val)
+                        exe = p if p.suffix.lower() == ".exe" else p / "Archive2.exe"
+                        if exe.is_file():
+                            return exe
+        except Exception:
+            pass
+
+        # Fall back to common Creation Kit installation paths
+        ck_search = [
+            Path("C:/Program Files (x86)/Steam/steamapps/common/Fallout 4/Tools/Archive2/Archive2.exe"),
+            Path("C:/Program Files (x86)/Steam/steamapps/common/Fallout 4 Creation Kit/Archive2.exe"),
+            Path("C:/Games/Fallout 4/Tools/Archive2/Archive2.exe"),
+        ]
+        # Also check beside the game directory
+        game_dir = FO4GameAssets.detect_fo4_installation()
+        if game_dir:
+            ck_search.append(game_dir / "Tools" / "Archive2" / "Archive2.exe")
+        for candidate in ck_search:
+            if candidate.is_file():
+                return candidate
+        return None
+
+    @staticmethod
+    def extract_ba2(archive_path: Path, output_dir: Path) -> tuple[bool, str]:
+        """Extract all files from a BA2 archive into *output_dir*.
+
+        Uses Archive2.exe (Bethesda Creation Kit tool) via subprocess.
+        The tool must be locatable by :meth:`_find_archive2`.
+
+        Args:
+            archive_path: Absolute path to the ``.ba2`` file.
+            output_dir:   Directory to extract into (created if absent).
+
+        Returns:
+            (success, message) tuple.
+        """
+        archive2 = FO4GameAssets._find_archive2()
+        if archive2 is None:
+            return (
+                False,
+                "Archive2.exe not found.  Please set the Creation Kit path in "
+                "Add-on Preferences, or install the Fallout 4 Creation Kit via Steam.",
+            )
+
+        if not archive_path.is_file():
+            return False, f"Archive not found: {archive_path}"
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        cmd = [str(archive2), str(archive_path), "-extract=" + str(output_dir)]
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+        except subprocess.TimeoutExpired:
+            return False, f"Archive2.exe timed out extracting {archive_path.name}"
+        except OSError as exc:
+            return False, f"Failed to launch Archive2.exe: {exc}"
+
+        if result.returncode != 0:
+            stderr = (result.stderr or "").strip()
+            return False, (
+                f"Archive2.exe returned code {result.returncode} "
+                f"extracting {archive_path.name}"
+                + (f": {stderr}" if stderr else "")
+            )
+
+        return True, f"Extracted {archive_path.name} → {output_dir}"
+
+    @staticmethod
+    def extract_asset(
+        nif_path: str,
+        output_dir: Path,
+    ) -> tuple[bool, str]:
+        """Extract a single asset (NIF) from the best-matching BA2 archive.
+
+        Searches all ``.ba2`` archives in the Data directory for one whose
+        name suggests it contains the asset type (``*Meshes*`` for NIFs,
+        ``*Textures*`` for DDS files), then extracts the whole archive so
+        the asset is available as a loose file.  This approach avoids the
+        need for BA2-specific file-listing support.
+
+        Args:
+            nif_path:   Data/-relative path, e.g.
+                        ``meshes/weapons/10mmpistol/10mmpistol.nif``
+            output_dir: Directory to extract into.
+
+        Returns:
+            (success, message) tuple.  On success the NIF should be at
+            ``output_dir / nif_path``.
+        """
+        data_dir = FO4GameAssets.get_data_dir()
+        if not data_dir:
+            return False, "Fallout 4 Data directory not found"
+
+        # First, check if the asset already exists as a loose file
+        loose = data_dir / nif_path
+        if loose.is_file():
+            return True, f"Asset already available as loose file: {loose}"
+
+        ba2_archives = FO4GameAssets.list_ba2_archives()
+        if not ba2_archives:
+            return False, "No BA2 archives found in Fallout 4 Data directory"
+
+        # Pick the best candidate archive by name heuristic
+        asset_lower = nif_path.lower()
+        if asset_lower.endswith(".nif") or "meshes" in asset_lower:
+            keyword = "meshes"
+        elif any(asset_lower.endswith(ext) for ext in (".dds", ".png", ".tga")):
+            keyword = "textures"
+        else:
+            keyword = ""
+
+        candidates = []
+        for arc in ba2_archives:
+            name_lower = arc.stem.lower()
+            if keyword and keyword in name_lower:
+                candidates.append(arc)
+        if not candidates:
+            candidates = ba2_archives  # fall back to all archives
+
+        # Try extraction from the most likely archive first
+        for arc in candidates:
+            ok, msg = FO4GameAssets.extract_ba2(arc, output_dir)
+            if ok:
+                # Verify the file actually appeared
+                extracted = output_dir / nif_path
+                if extracted.is_file():
+                    return True, f"Extracted {nif_path} from {arc.name}"
+                # File not in this archive - continue searching
+            else:
+                # Hard failure (Archive2 not found) - report immediately
+                return False, msg
+
+        return (
+            False,
+            f"'{nif_path}' not found in any of the {len(candidates)} searched BA2 archives",
+        )
 
     @staticmethod
     def get_status() -> tuple[bool, str]:
