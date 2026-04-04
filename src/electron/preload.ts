@@ -243,6 +243,9 @@ const IPC_CHANNELS = {
   // Chat History persistence
   SAVE_CHAT_HISTORY: 'save-chat-history',
   LOAD_CHAT_HISTORY: 'load-chat-history',
+
+  // Fresh-install detection
+  TRIGGER_FRESH_INSTALL: 'trigger-fresh-install',
 } as const;
 
 /**
@@ -1763,6 +1766,18 @@ const electronAPI = {
     const subscription = (_event: any, data: { message: string }) => callback(data);
     ipcRenderer.on('pytorch-setup-progress', subscription);
     return () => ipcRenderer.removeListener('pytorch-setup-progress', subscription);
+  },
+
+  /**
+   * Fresh-install detection: fires once when the main process finds a
+   * fresh-install.marker written by the Inno Setup installer.  The renderer
+   * should reset all onboarding localStorage flags so the wizard runs again.
+   * @returns unsubscribe function
+   */
+  onFreshInstall: (callback: () => void): (() => void) => {
+    const subscription = () => callback();
+    ipcRenderer.on(IPC_CHANNELS.TRIGGER_FRESH_INSTALL, subscription);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.TRIGGER_FRESH_INSTALL, subscription);
   },
 
   /**
