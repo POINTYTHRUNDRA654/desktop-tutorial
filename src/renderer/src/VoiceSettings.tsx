@@ -46,8 +46,10 @@ import ErrorBoundary from './ErrorBoundary';
 import { VoiceService, VoiceServiceConfig } from './voice-service';
 import {
   BROWSER_TTS_STORAGE_KEY,
+  FEMALE_VOICE_KEYWORDS,
   getBrowserTtsVoices,
   loadBrowserTtsSettings,
+  pickBrowserTtsVoice,
   saveBrowserTtsSettings,
   speakBrowserTts,
   type BrowserTtsSettings,
@@ -332,12 +334,28 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
                 className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"
               >
                 <option value="">(Auto)</option>
-                {sortedVoices.map((v) => (
-                  <option key={`${v.name}-${v.lang}-${String((v as any).voiceURI ?? '')}`} value={v.name}>
-                    {v.name} {v.lang ? `(${v.lang})` : ''}
-                  </option>
-                ))}
+                {sortedVoices.map((v) => {
+                  const n = (v.name || '').toLowerCase();
+                  const isFemale = (FEMALE_VOICE_KEYWORDS as readonly string[]).some(k => n.includes(k));
+                  return (
+                    <option key={`${v.name}-${v.lang}-${String((v as any).voiceURI ?? '')}`} value={v.name}>
+                      {v.name} {v.lang ? `(${v.lang})` : ''}{isFemale ? ' ♀' : ''}
+                    </option>
+                  );
+                })}
               </select>
+
+              {!settings.preferredVoiceName && (() => {
+                const autoVoice = pickBrowserTtsVoice(voices, undefined);
+                return autoVoice ? (
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    Auto-selecting: <span className="text-slate-200 font-mono">{autoVoice.name}</span>
+                    {(FEMALE_VOICE_KEYWORDS as readonly string[]).some(k => (autoVoice.name || '').toLowerCase().includes(k)) && (
+                      <span className="ml-1 text-emerald-400">♀</span>
+                    )}
+                  </div>
+                ) : null;
+              })()}
 
               <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <label className="text-xs text-slate-300">
