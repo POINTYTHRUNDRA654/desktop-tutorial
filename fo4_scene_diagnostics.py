@@ -297,6 +297,12 @@ class SceneDiagnostics:
         3. Name-based heuristic when neither custom property is set – any of the
            tokens in ``_GRASS_NAME_TOKENS`` (grass, blade, fern, …) in the lower-
            cased object name.
+
+        Returns
+        -------
+        bool
+            True when the object is identified as a grass mesh and should receive
+            grass-specific diagnostic checks instead of the standard checks.
         """
         coll_type = getattr(obj, 'fo4_collision_type', None)
         if coll_type == 'GRASS':
@@ -545,7 +551,8 @@ class SceneDiagnostics:
 
         return results
 
-
+    @staticmethod
+    def _check_naming(obj) -> list[CheckResult]:
         results = []
         name = obj.name
 

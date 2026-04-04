@@ -92,16 +92,17 @@ FO4 grass NIFs cannot contain NiLight nodes or particle systems.
 The engine spawns thousands of grass instances simultaneously. Every polygon and
 vertex in your grass mesh is multiplied by that count:
 
-| Guideline         | Target         | Absolute Maximum |
-|-------------------|----------------|------------------|
-| Polygons per mesh | ≤ 100          | 500              |
-| Vertices per mesh | ≤ 150          | 750              |
-| Materials         | 1              | 1                |
-| Texture maps      | Diffuse+Normal+Specular | 3 max |
+| Guideline         | Ideal target   | Performance warning | Hard maximum |
+|-------------------|----------------|---------------------|--------------|
+| Polygons per mesh | ≤ 100          | > 200               | 500          |
+| Vertices per mesh | ≤ 150          | > 300               | 750          |
+| Materials         | 1              | —                   | 1            |
+| Texture maps      | Diffuse+Normal+Specular | —          | 3 max        |
 
-Exceeding these targets will cause significant FPS drops in areas with dense
-grass coverage. The FO4 polygon hard limit (65,535) does NOT apply to grass in
-a practical sense — any grass mesh over ~500 polygons is a performance problem.
+The Scene Diagnostics tool raises a **warning** above 200 polygons and an
+**error** above 500 polygons.  The FO4 polygon hard limit (65,535) does NOT
+apply to grass in a practical sense — any grass mesh over ~500 polygons is a
+serious performance problem.
 
 ---
 
