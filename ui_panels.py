@@ -2795,7 +2795,7 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
             tri_col.label(text="No shape keys found on active mesh", icon='ERROR')
 
         tri_row = tri_box.row(align=True)
-        tri_row.enabled = has_shape_keys
+        tri_row.enabled = bool(has_shape_keys)
         tri_row.scale_y = 1.3
         tri_row.operator("fo4.export_tri_morphs", text="Export .tri Morphs", icon='EXPORT')
 
