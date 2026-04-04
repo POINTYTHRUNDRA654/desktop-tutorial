@@ -179,7 +179,7 @@ SF1_VERTEX_ALPHA = 1 << 3
 SF1_GRAYSCALE_TO_PALETTE_COLOR = 1 << 4
 SF1_GRAYSCALE_TO_PALETTE_ALPHA = 1 << 5
 SF1_ENVIRONMENT_MAPPING = 1 << 7
-SF1_RECIEVE_SHADOWS = 1 << 8
+SF1_RECEIVE_SHADOWS = 1 << 8
 SF1_CAST_SHADOWS = 1 << 9
 SF1_FACE = 1 << 10
 SF1_PARALLAX_OCCLUSION = 1 << 11
@@ -352,7 +352,7 @@ class BGSMData(_CommonData):
     inner_layer_texture: str = ""
     wrinkle_mask_texture: str = ""
     displacement_texture: str = ""
-    shader_flags1: int = SF1_SPECULAR | SF1_RECIEVE_SHADOWS | SF1_CAST_SHADOWS
+    shader_flags1: int = SF1_SPECULAR | SF1_RECEIVE_SHADOWS | SF1_CAST_SHADOWS
     shader_flags2: int = SF2_ZBUFFER_TEST | SF2_ZBUFFER_WRITE
 
 
