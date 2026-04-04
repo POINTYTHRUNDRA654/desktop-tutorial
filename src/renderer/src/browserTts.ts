@@ -106,11 +106,19 @@ export function pickBrowserTtsVoice(
     if (found) return found.v;
   }
 
-  // Heuristic: pick a "nicer" voice first if available.
-  for (const keyword of ['zira', 'aria', 'jenny', 'salli', 'eva', 'joanna', 'female', 'woman', 'natural', 'online']) {
+  // Heuristic: prefer a female-sounding voice first if available.
+  for (const keyword of [
+    'zira', 'aria', 'jenny', 'salli', 'eva', 'joanna', 'samantha', 'susan', 'hazel',
+    'helen', 'heera', 'haruka', 'kyoko', 'sinji', 'female', 'woman', 'natural', 'online',
+  ]) {
     const found = voiceIndex.find(({ n }) => n.includes(keyword));
     if (found) return found.v;
   }
+
+  // Secondary fallback: avoid voices with known male names.
+  const MALE_KEYWORDS = ['david', ' mark', 'george', 'james', 'richard', 'fred', 'alex', 'daniel', 'guy', 'brian', 'thomas', 'paul', 'oliver', 'luca'];
+  const nonMale = voiceIndex.find(({ n }) => !MALE_KEYWORDS.some(m => n.includes(m)));
+  if (nonMale) return nonMale.v;
 
   return voices[0];
 }
