@@ -221,34 +221,60 @@ export const CreditsPanel: React.FC<CreditsPanel> = ({ onClose }) => {
 function getFallbackCredits(): string {
     return `# Mossy - Credits & Acknowledgments
 
-Mossy is built on amazing open-source software and frameworks:
+Mossy is built on amazing open-source software and frameworks. This is an embedded
+fallback — the full credits file (CREDITS.md) is included in your installation folder.
 
-## Core
-- **Electron** - Cross-platform desktop framework
-- **React** - UI library
-- **TypeScript** - Type-safe JavaScript
-- **Node.js** - JavaScript runtime
+## Core Framework & Runtime
+- **Electron** - Cross-platform desktop framework (MIT)
+- **React** - UI library by Meta (MIT)
+- **TypeScript** - Typed JavaScript by Microsoft (Apache 2.0)
+- **Node.js** - JavaScript runtime (MIT)
+- **Vite** - Next-gen build tool (MIT)
 
 ## AI & Machine Learning
-- **OpenAI SDK** - ChatGPT integration
-- **Groq SDK** - Fast LLM inference
-- **PyTorch** - Machine learning framework
-- **NumPy** - Numerical computing
+- **OpenAI SDK** - ChatGPT integration (Apache 2.0)
+- **Groq SDK** - Fast LLM inference (Apache 2.0)
+- **Anthropic Claude** - AI model integration
+- **PyTorch** - Machine learning framework by Meta (BSD)
+- **NumPy** - Numerical computing (BSD 3-Clause)
+- **Pillow (PIL)** - Image processing (HPND)
+- **scikit-image** - Image processing algorithms (BSD 3-Clause)
+
+## AI Creative Tools
+- **Krea AI Suite** - AI image, video, and 3D generation (krea.ai)
 
 ## Build & Development
-- **Vite** - Next-gen build tool
-- **TailwindCSS** - Utility-first CSS
-- **electron-builder** - App packaging
+- **TailwindCSS** - Utility-first CSS (MIT)
+- **Lucide Icons** - Icon library (ISC)
+- **react-markdown** - Markdown renderer (MIT)
+- **electron-builder** - App packaging (MIT)
+- **lowdb** - Simple JSON database (MIT)
 
-## External Tools
-- **Blender** - 3D modeling
-- **Creation Kit** - Fallout 4 modding tool
-- **xEdit** - Plugin editor
-- **Mod Organizer 2** - Advanced mod manager
+## Modding Tools (separate downloads — all credits to their respective authors)
+- **Blender** (v3.0+) - 3D modeling and animation — blender.org (GPL 2.0)
+- **PyNifly** - NIF import/export for Blender by BadDogSkyrim — Nexus #52319 (MIT)
+- **Creation Kit** - Official Fallout 4 modding tool — Bethesda Softworks
+- **xEdit / FO4Edit** - Plugin viewer and editor by ElminsterAU (GPL 2.0)
+- **NifSkope** - NIF mesh and texture viewer by hexabits (GPL 3.0)
+- **Mod Organizer 2** - Advanced mod manager by Tannin42 / MO2 Team (GPL 3.0)
+- **Vortex** - Mod manager by Nexus Mods
+- **F4SE (Fallout 4 Script Extender)** - by ianpatt & behippo
+- **LOOT** - Load Order Optimisation Tool by WrinklyNinja / LOOT Team (GPL 3.0)
+- **BodySlide & Outfit Studio** - by ousnius & Caliente (MIT)
+- **B.A.E. (Bethesda Archive Extractor)** - by jonwd7
+- **FOMOD Creation Tool** - by AlexxEG
+- **Wrye Bash** - Advanced mod manager and bashed patch tool (GPL 2.0)
+- **GIMP** - GNU Image Manipulation Program (GPL 3.0)
+- **Upscayl** - AI image upscaler by Nayam Amarshe (AGPL 3.0)
+- **NifSkope** - NIF mesh and texture viewer (GPL 3.0)
+- **NVIDIA Texture Tools Exporter** - DDS texture creation (NVIDIA)
+- **ShaderMap 4** - Normal/AO/displacement map generator (Rendering Systems Inc.)
+- **UModel (UEViewer)** - Unreal Engine asset viewer by Gildor
+- **Archive2** - BSA/BA2 archive tool (part of Creation Kit)
+- **NIFTools** - NIF file format documentation and libraries
 
 ## Community
-Thank you to the Fallout 4 modding community and all contributors!
-
-For the full credits, see: CREDITS.md in the application directory.
+Thank you to the vibrant Fallout 4 modding community on Nexus Mods, Reddit, Discord,
+and forums — and to every contributor, tester, and supporter of Mossy!
 `;
 }
