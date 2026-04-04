@@ -1,4 +1,4 @@
-import { loadBrowserTtsSettings, pickBrowserTtsVoice } from './browserTts';
+import { loadBrowserTtsSettings, pickBrowserTtsVoice, uiLangToBcp47 } from './browserTts';
 
 export interface VoiceServiceConfig {
   sttProvider: 'browser' | 'backend';
@@ -887,6 +887,25 @@ export class VoiceService {
       });
     }
 
+    // Resolve TTS language from settings so the utterance is spoken in the
+    // user's selected language and voice selection is filtered accordingly.
+    let ttsBcp47 = 'en-US';
+    let ttsLangBase = '';
+    try {
+      const api = (window as any)?.electron?.api ?? (window as any)?.electronAPI;
+      if (api?.getSettings) {
+        const s = await api.getSettings();
+        const raw = String(s?.uiLanguage || '').trim();
+        if (raw && raw !== 'auto') {
+          ttsLangBase = raw.split('-')[0].toLowerCase();
+          ttsBcp47 = uiLangToBcp47(raw);
+        }
+      }
+    } catch {
+      // ignore — keep defaults
+    }
+    console.log('[VoiceService] TTS language resolved:', ttsBcp47);
+
     return new Promise((resolve, reject) => {
       if (this.shouldStop) {
         console.log('[VoiceService] speakBrowser: shouldStop is true, resolving early');
@@ -905,17 +924,18 @@ export class VoiceService {
       utterance.rate = browserSettings.rate;
       utterance.pitch = browserSettings.pitch;
       utterance.volume = browserSettings.volume;
-      console.log('[VoiceService] Created SpeechSynthesisUtterance');
+      utterance.lang = ttsBcp47;
+      console.log('[VoiceService] Created SpeechSynthesisUtterance, lang:', ttsBcp47);
 
       // Set voice — voices are now guaranteed to be loaded (or we timed out and will use default).
       const preferredVoice = browserSettings.preferredVoiceName || import.meta.env.VITE_BROWSER_TTS_VOICE || '';
       console.log('[VoiceService] Preferred voice:', preferredVoice);
       const voices = window.speechSynthesis.getVoices();
       console.log('[VoiceService] Available voices:', voices.map(v => ({ name: v.name, lang: v.lang, localService: v.localService })));
-      const selectedVoice = pickBrowserTtsVoice(voices, preferredVoice || undefined);
+      const selectedVoice = pickBrowserTtsVoice(voices, preferredVoice || undefined, ttsLangBase || undefined);
       if (selectedVoice) {
         utterance.voice = selectedVoice;
-        console.log('[VoiceService] Selected voice:', selectedVoice.name);
+        console.log('[VoiceService] Selected voice:', selectedVoice.name, selectedVoice.lang);
       } else {
         console.warn('[VoiceService] No matching voice found, using browser default');
       }
