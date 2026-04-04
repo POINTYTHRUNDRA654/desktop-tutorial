@@ -619,6 +619,15 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 <li>• Use <strong>"Mute"</strong> when you need me to stop listening temporarily</li>
                             </ul>
                         </div>
+                        <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4 mb-6 text-left max-w-lg mx-auto">
+                            <h3 className="text-amber-400 font-bold mb-2 text-sm">⏱️ Response Time — What to Expect</h3>
+                            <p className="text-xs text-slate-300 leading-relaxed">
+                                After you finish speaking there is typically a <strong className="text-amber-300">30 to 60 second</strong> wait
+                                before I start responding. This is normal — I'm processing your speech, thinking through
+                                your request, and preparing a thorough answer. Please be patient and don't repeat
+                                yourself during this window; I've heard you and I'm working on it!
+                            </p>
+                        </div>
                         <p className="text-slate-400 text-sm">
                             Ready to experience the future of AI modding assistance?
                         </p>
