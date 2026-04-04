@@ -4544,6 +4544,8 @@ class FO4_OT_PrepareThirdPartyMesh(Operator):
             bpy.ops.object.transform_apply(
                 location=False, rotation=True, scale=True
             )
+            if prev_mode != 'OBJECT':
+                bpy.ops.object.mode_set(mode=prev_mode)
             steps.append("✓ Transforms applied")
 
         mesh = obj.data
