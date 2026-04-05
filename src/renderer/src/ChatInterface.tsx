@@ -943,25 +943,24 @@ export const ChatInterface: React.FC = () => {
     };
 
     const resetMemory = () => {
-        if (window.confirm("Perform Chat Reset? This will clear the conversation history and current project state, but keep global settings (Avatar, Bridge, Tutorial).")) {
+        if (window.confirm("Perform Chat Reset? This will clear the conversation history and current project state, but keep global settings (Avatar, Bridge, Tutorial) and your scan results.")) {
+            // Clear ONLY conversation-related data.
+            // Scan results (mossy_all_detected_apps, mossy_scan_summary, etc.) and
+            // tool integration choices are kept — they belong to the scan, not the chat.
             localStorage.removeItem('mossy_messages');
             localStorage.removeItem('mossy_state');
             localStorage.removeItem('mossy_project');
-            localStorage.removeItem('mossy_apps');
-            localStorage.removeItem('mossy_integrated_tools');
-            localStorage.removeItem('mossy_tool_preferences');
-            localStorage.removeItem('mossy_all_detected_apps');
-            localStorage.removeItem('mossy_scan_summary');
-            localStorage.removeItem('mossy_last_scan');
-            localStorage.removeItem('mossy_scan_auditor');
-            localStorage.removeItem('mossy_scan_cartographer');
             localStorage.removeItem('mossy_cortex_memory');
             localStorage.removeItem('mossy_conversation_paused');
+            // Also wipe the durable file backup so the cleared history does not
+            // restore itself on the next launch.
+            window.electron?.api?.saveChatHistory([]).catch((err: unknown) => {
+                console.warn('[ChatInterface] Failed to clear chat history file backup:', err);
+            });
 
             setMessages([]);
             setProjectContext(null);
             setProjectData(null);
-            setDetectedApps([]);
             initMossy();
             setShowProjectPanel(false);
         }
