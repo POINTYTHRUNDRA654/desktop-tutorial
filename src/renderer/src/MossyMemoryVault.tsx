@@ -62,7 +62,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
 
     useEffect(() => {
         const initVault = async () => {
-            // 1. Load vault first (localStorage → file backup fallback)
+            // 1. Load vault from localStorage, or restore from durable file backup if empty
+            //    (covers reinstalls, localStorage clears, and first launches).
+            // 2. After the vault is populated, run bundled knowledge import so it never
+            //    races against the restore path and accidentally overwrites user items.
             const stored = localStorage.getItem('mossy_knowledge_vault');
             if (stored) {
                 const parsed = JSON.parse(stored) as MemoryItem[];

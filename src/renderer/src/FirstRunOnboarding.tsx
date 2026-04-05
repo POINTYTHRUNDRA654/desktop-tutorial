@@ -56,9 +56,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             return;
         }
 
-        // If the onboarding flag was cleared by an app update (fresh-install marker)
-        // but prior scan data still exists, skip the re-scan entirely and complete
-        // onboarding silently. User data is preserved; only the "What's New" page
+        // If the onboarding flag was cleared by an app update (e.g. by the NSIS
+        // fresh-install.marker path in main.ts, which calls App.tsx's IPC handler that
+        // removes 'mossy_onboarding_complete') but prior scan data still exists, skip
+        // the re-scan entirely and complete onboarding silently. User data is preserved; only the "What's New" page
         // communicates what changed in the new release.
         const hasScanData =
             !!localStorage.getItem('mossy_scan_summary') &&

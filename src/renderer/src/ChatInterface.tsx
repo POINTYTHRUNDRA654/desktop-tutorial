@@ -953,9 +953,11 @@ export const ChatInterface: React.FC = () => {
             localStorage.removeItem('mossy_cortex_memory');
             localStorage.removeItem('mossy_conversation_paused');
             // Also wipe the durable file backup so the cleared history does not
-            // restore itself on the next launch.
+            // restore itself on the next launch. If this IPC call fails, the file
+            // backup remains but localStorage is still cleared — old messages may
+            // reappear on the next restart in that unlikely case.
             window.electron?.api?.saveChatHistory([]).catch((err: unknown) => {
-                console.warn('[ChatInterface] Failed to clear chat history file backup:', err);
+                console.warn('[ChatInterface] Failed to clear chat history file backup — old messages may restore on next launch:', err);
             });
 
             setMessages([]);
