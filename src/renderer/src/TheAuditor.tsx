@@ -43,6 +43,7 @@ const TheAuditor: React.FC = () => {
     const [isFixing, setIsFixing] = useState(false);
     const [texturePreview, setTexturePreview] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'audit' | 'debug'>('audit');
+    const [userInputText, setUserInputText] = useState<string>('');
 
     const fileListScrollRef = useRef<HTMLDivElement | null>(null);
     const issuesScrollRef = useRef<HTMLDivElement | null>(null);
@@ -70,10 +71,10 @@ const TheAuditor: React.FC = () => {
             setMossyAdvice(null);
             performAnalysis();
         }
-    // performAnalysis is intentionally omitted from deps: it reads `files` via
-    // closure at call-time and adding it would cause an infinite loop because
-    // performAnalysis itself calls setFiles.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // performAnalysis is intentionally omitted from deps: it reads `files` via
+        // closure at call-time and adding it would cause an infinite loop because
+        // performAnalysis itself calls setFiles.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [files]);
 
     // Helper function to read file as ArrayBuffer
@@ -489,8 +490,8 @@ const TheAuditor: React.FC = () => {
                     // Derive status from issues
                     const statusFromIssues = (issueList: any[]): 'clean' | 'warning' | 'error' =>
                         issueList.some((i: any) => i.severity === 'error') ? 'error'
-                        : issueList.some((i: any) => i.severity === 'warning') ? 'warning'
-                        : issueList.length > 0 ? 'warning' : 'clean';
+                            : issueList.some((i: any) => i.severity === 'warning') ? 'warning'
+                                : issueList.length > 0 ? 'warning' : 'clean';
 
                     // Check cache first (cached result may already have structured issues)
                     const cached = await cacheManager.getCachedAnalysisResult(f.name);
@@ -980,6 +981,38 @@ const TheAuditor: React.FC = () => {
                         {isScanning ? 'Analyzing...' : 'Run Audit'}
                     </button>
                 </div>}
+
+                {/* Accessibility: Text Input for Non-English Users or No-Mic Users */}
+                <div className="flex items-center gap-3 px-4 py-3 bg-slate-800/40 border-l border-slate-700 ml-4">
+                    <input
+                        type="text"
+                        placeholder="Can't speak English? Type here... (text displayed for reference)"
+                        value={userInputText}
+                        onChange={(e) => setUserInputText(e.target.value)}
+                        onKeyPress={(e) => {
+                            if (e.key === 'Enter' && userInputText.trim()) {
+                                // Display the text they typed to Mossy's advice panel
+                                setMossyAdvice(`You said: "${userInputText}"\n\nPlease note: Translation or language processing is not yet available. This text is displayed so you can verify what you typed. For now, you can use the file upload and audit features to get technical assistance.`);
+                                setUserInputText('');
+                            }
+                        }}
+                        className="flex-1 px-3 py-2 bg-slate-900/50 border border-slate-600 rounded text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        title="Type text if you can't speak or don't speak English. Press Enter to display."
+                        aria-label="Text input for accessibility"
+                    />
+                    <button
+                        onClick={() => {
+                            if (userInputText.trim()) {
+                                setMossyAdvice(`You said: "${userInputText}"\n\nPlease note: Translation or language processing is not yet available. This text is displayed so you can verify what you typed. For now, you can use the file upload and audit features to get technical assistance.`);
+                                setUserInputText('');
+                            }
+                        }}
+                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold rounded transition-colors"
+                        title="Submit your typed text"
+                    >
+                        Show Text
+                    </button>
+                </div>
                 {/* Helpful external tool links */}
                 <div className="flex items-center gap-3 ml-4 text-[11px]">
                     <span className="text-slate-500">Need tools?</span>
@@ -1018,291 +1051,291 @@ const TheAuditor: React.FC = () => {
             </div>
             {/* Quick access to external tools */}
             {activeTab === 'audit' && (
-            <div className="px-4 pb-3 bg-slate-900 flex flex-col gap-2">
-                <ExternalToolNotice toolKey="xeditPath" toolName="xEdit / FO4Edit" nexusUrl="https://www.nexusmods.com/fallout4/mods/2737" description="Clean plugins (ITM/UDR), resolve conflicts, and generate patches." />
-                <ExternalToolNotice toolKey="nifSkopePath" toolName="NifSkope" nexusUrl="https://github.com/niftools/nifskope/releases" description="Inspect and fix NIFs: materials, collision, texture paths, and more." />
-            </div>
+                <div className="px-4 pb-3 bg-slate-900 flex flex-col gap-2">
+                    <ExternalToolNotice toolKey="xeditPath" toolName="xEdit / FO4Edit" nexusUrl="https://www.nexusmods.com/fallout4/mods/2737" description="Clean plugins (ITM/UDR), resolve conflicts, and generate patches." />
+                    <ExternalToolNotice toolKey="nifSkopePath" toolName="NifSkope" nexusUrl="https://github.com/niftools/nifskope/releases" description="Inspect and fix NIFs: materials, collision, texture paths, and more." />
+                </div>
             )}
 
             {activeTab === 'audit' && (
-            <div className="flex-1 min-h-0 flex overflow-hidden">
+                <div className="flex-1 min-h-0 flex overflow-hidden">
 
-                {/* Left: File Manifest */}
-                <div className="w-80 bg-slate-900/50 border-r border-slate-800 flex flex-col min-h-0">
-                    <div className="p-3 border-b border-slate-800 text-xs font-bold text-slate-500 uppercase tracking-widest bg-slate-900">
-                        Mod Manifest
-                    </div>
-                    <div ref={fileListScrollRef} className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
-                        {files.map(file => (
-                            <div
-                                key={file.id}
-                                onClick={() => { setSelectedFileId(file.id); setMossyAdvice(null); }}
-                                className={`group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${selectedFileId === file.id
-                                    ? 'bg-slate-800 border-slate-600'
-                                    : 'bg-transparent border-transparent hover:bg-slate-800/50'
-                                    }`}
-                            >
-                                <div className={`p-2 rounded-lg ${file.status === 'clean' ? 'bg-emerald-900/20 text-emerald-500' :
-                                    file.status === 'warning' ? 'bg-yellow-900/20 text-yellow-500' :
-                                        file.status === 'error' ? 'bg-red-900/20 text-red-500' :
-                                            'bg-slate-800 text-slate-500'
-                                    }`}>
-                                    {file.type === 'mesh' ? <Box className="w-4 h-4" /> :
-                                        file.type === 'texture' ? <FileImage className="w-4 h-4" /> :
-                                            file.type === 'plugin' ? <FileCode className="w-4 h-4" /> :
-                                                <File className="w-4 h-4" />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-bold text-slate-200 truncate">{file.name}</div>
-                                    <div className="text-[10px] text-slate-500 truncate">{file.size}</div>
-                                </div>
-                                {file.status === 'error' && <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
-                                {file.status === 'warning' && <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0" />}
-                                {file.status === 'clean' && <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); removeFile(file.id); }}
-                                    className="ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-900/40 hover:text-red-400 text-slate-500 transition-all flex-shrink-0"
-                                    title="Remove from manifest"
-                                    aria-label={`Remove ${file.name} from manifest`}
+                    {/* Left: File Manifest */}
+                    <div className="w-80 bg-slate-900/50 border-r border-slate-800 flex flex-col min-h-0">
+                        <div className="p-3 border-b border-slate-800 text-xs font-bold text-slate-500 uppercase tracking-widest bg-slate-900">
+                            Mod Manifest
+                        </div>
+                        <div ref={fileListScrollRef} className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
+                            {files.map(file => (
+                                <div
+                                    key={file.id}
+                                    onClick={() => { setSelectedFileId(file.id); setMossyAdvice(null); }}
+                                    className={`group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${selectedFileId === file.id
+                                        ? 'bg-slate-800 border-slate-600'
+                                        : 'bg-transparent border-transparent hover:bg-slate-800/50'
+                                        }`}
                                 >
-                                    <X className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Center: Inspector */}
-                <div className="flex-1 min-h-0 bg-[#0a0d14] flex flex-col overflow-hidden">
-                    {selectedFile ? (
-                        <div className="flex flex-col h-full">
-                            {/* File Info Header */}
-                            <div className="p-6 border-b border-slate-800 bg-slate-900/30">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <h2 className="text-2xl font-bold text-white">{selectedFile.name}</h2>
-                                            <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 border border-slate-700 text-slate-400 font-mono uppercase">
-                                                {selectedFile.type}
-                                            </span>
-                                        </div>
-                                        <div className="text-sm text-slate-500 font-mono flex gap-4">
-                                            <span>Path: {selectedFile.path}</span>
-                                            <span>Size: {selectedFile.size}</span>
-                                        </div>
+                                    <div className={`p-2 rounded-lg ${file.status === 'clean' ? 'bg-emerald-900/20 text-emerald-500' :
+                                        file.status === 'warning' ? 'bg-yellow-900/20 text-yellow-500' :
+                                            file.status === 'error' ? 'bg-red-900/20 text-red-500' :
+                                                'bg-slate-800 text-slate-500'
+                                        }`}>
+                                        {file.type === 'mesh' ? <Box className="w-4 h-4" /> :
+                                            file.type === 'texture' ? <FileImage className="w-4 h-4" /> :
+                                                file.type === 'plugin' ? <FileCode className="w-4 h-4" /> :
+                                                    <File className="w-4 h-4" />}
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className={`px-4 py-2 rounded-lg font-bold text-sm border ${selectedFile.status === 'clean' ? 'bg-emerald-900/20 text-emerald-400 border-emerald-500/30' :
-                                            selectedFile.status === 'error' ? 'bg-red-900/20 text-red-400 border-red-500/30' :
-                                                selectedFile.status === 'warning' ? 'bg-yellow-900/20 text-yellow-400 border-yellow-500/30' :
-                                                    'bg-slate-800 text-slate-400 border-slate-700'
-                                            }`}>
-                                            STATUS: {selectedFile.status.toUpperCase()}
-                                        </div>
-                                        {/* Open-in-Tool buttons — only show when path is accessible */}
-                                        {selectedFile.type === 'plugin' && (
-                                            <button
-                                                onClick={() => launchToolWithFile('xeditPath', selectedFile.path, 'xEdit')}
-                                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 rounded text-xs font-bold transition-colors"
-                                                title="Open this ESP/ESM in xEdit (FO4Edit) to inspect and fix issues"
-                                            >
-                                                <Wrench className="w-3.5 h-3.5" /> Open in xEdit
-                                            </button>
-                                        )}
-                                        {selectedFile.type === 'plugin' && (
-                                            <button
-                                                onClick={() => launchToolWithFile('creationKitPath', selectedFile.path, 'Creation Kit')}
-                                                className="flex items-center gap-1.5 px-3 py-2 bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 border border-blue-500/30 rounded text-xs font-bold transition-colors"
-                                                title="Open this plugin in the Creation Kit"
-                                            >
-                                                <FileCode className="w-3.5 h-3.5" /> Open in CK
-                                            </button>
-                                        )}
-                                        {selectedFile.type === 'mesh' && (
-                                            <button
-                                                onClick={() => launchToolWithFile('nifSkopePath', selectedFile.path, 'NifSkope')}
-                                                className="flex items-center gap-1.5 px-3 py-2 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-500/30 rounded text-xs font-bold transition-colors"
-                                                title="Open this NIF mesh in NifSkope"
-                                            >
-                                                <Box className="w-3.5 h-3.5" /> Open in NifSkope
-                                            </button>
-                                        )}
-                                        {selectedFile.type === 'mesh' && (
-                                            <button
-                                                onClick={() => launchToolWithFile('blenderPath', selectedFile.path, 'Blender')}
-                                                className="flex items-center gap-1.5 px-3 py-2 bg-orange-900/30 hover:bg-orange-900/50 text-orange-300 border border-orange-500/30 rounded text-xs font-bold transition-colors"
-                                                title="Open this NIF in Blender (requires PyNifly addon)"
-                                            >
-                                                <Box className="w-3.5 h-3.5" /> Open in Blender
-                                            </button>
-                                        )}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-bold text-slate-200 truncate">{file.name}</div>
+                                        <div className="text-[10px] text-slate-500 truncate">{file.size}</div>
                                     </div>
-                                </div>
-                            </div>
-
-                            {/* Issues List */}
-                            <div ref={issuesScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
-                                {/* Hidden test elements for E2E testing */}
-                                <div className="hidden">
-                                    <div data-testid="esp-header-validation">ESP Header Validation</div>
-                                    <div data-testid="esp-record-counting">ESP Record Counting</div>
-                                    <div data-testid="esp-file-size-limits">ESP File Size Limits</div>
-                                    <div data-testid="nif-vertex-count">NIF Vertex Count</div>
-                                    <div data-testid="nif-triangle-count">NIF Triangle Count</div>
-                                    <div data-testid="nif-texture-validation">NIF Texture Validation</div>
-                                    <div data-testid="nif-performance-warnings">NIF Performance Warnings</div>
-                                    <div data-testid="dds-format-detection">DDS Format Detection</div>
-                                    <div data-testid="dds-resolution-validation">DDS Resolution Validation</div>
-                                    <div data-testid="dds-power-of-two-check">DDS Power of Two Check</div>
-                                    <div data-testid="dds-compression-analysis">DDS Compression Analysis</div>
-                                    <div data-testid="absolute-path-detection">Absolute Path Detection</div>
-                                </div>
-
-                                {selectedFile.issues.length === 0 && selectedFile.status === 'clean' && (
-                                    <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                        <CheckCircle2 className="w-24 h-24 mb-4 text-emerald-500 opacity-40" />
-                                        <p className="text-lg font-bold text-emerald-400/80">Analysis Complete: Clean</p>
-                                        <p className="text-sm opacity-60">No anomalies detected.</p>
-
-                                        {selectedFile.type === 'texture' && selectedFile.dimensions && (
-                                            <div className="mt-8 p-4 bg-slate-900 border border-slate-800 rounded-xl w-64 animate-slide-up">
-                                                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Visual Diagnostics</h4>
-                                                <div className="aspect-square bg-slate-800 rounded-lg flex items-center justify-center border border-slate-700 overflow-hidden relative group shadow-inner">
-                                                    {texturePreview ? (
-                                                        <img src={texturePreview} alt="Preview" className="w-full h-full object-contain" />
-                                                    ) : (
-                                                        <div className="text-center group-hover:scale-110 transition-transform duration-500">
-                                                            <FileImage className="w-12 h-12 text-slate-700 mx-auto mb-2" />
-                                                            <span className="text-[10px] font-mono text-slate-600 uppercase tracking-tighter">{selectedFile.dimensions.format}</span>
-                                                        </div>
-                                                    )}
-                                                    <div className="absolute inset-x-0 bottom-0 bg-slate-900/90 backdrop-blur-sm p-3 border-t border-slate-800">
-                                                        <div className="flex justify-between items-center">
-                                                            <span className="text-[10px] font-mono text-emerald-400 font-bold">{selectedFile.dimensions.width} <span className="text-slate-600">x</span> {selectedFile.dimensions.height}</span>
-                                                            <span className="px-2 py-0.5 bg-emerald-950/30 text-emerald-400 border border-emerald-500/20 rounded text-[9px] font-black">{selectedFile.dimensions.format}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                                {selectedFile.issues.length === 0 && (selectedFile.status === 'error' || selectedFile.status === 'warning') && (
-                                    <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-60">
-                                        <AlertTriangle className="w-24 h-24 mb-4 text-yellow-500" />
-                                        <p className="text-lg">Analysis detected issues but details are unavailable.</p>
-                                        <p className="text-sm mt-2">This file may have been flagged due to file type or size.</p>
-                                    </div>
-                                )}
-                                {selectedFile.status === 'pending' && (
-                                    <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-60">
-                                        <Search className="w-24 h-24 mb-4" />
-                                        <p>Run audit to scan this file.</p>
-                                    </div>
-                                )}
-                                {selectedFile.issues.map(issue => (
-                                    <div
-                                        key={issue.id}
-                                        onClick={() => getMossyAdvice(issue)}
-                                        className={`group p-4 rounded-xl border transition-all cursor-pointer ${issue.severity === 'error' ? 'bg-red-950/10 border-red-500/30 hover:bg-red-900/20' :
-                                            'bg-yellow-950/10 border-yellow-500/30 hover:bg-yellow-900/20'
-                                            }`}
+                                    {file.status === 'error' && <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                                    {file.status === 'warning' && <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0" />}
+                                    {file.status === 'clean' && <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); removeFile(file.id); }}
+                                        className="ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-900/40 hover:text-red-400 text-slate-500 transition-all flex-shrink-0"
+                                        title="Remove from manifest"
+                                        aria-label={`Remove ${file.name} from manifest`}
                                     >
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className="flex items-center gap-2">
-                                                {issue.severity === 'error' ? <XCircle className="w-5 h-5 text-red-500" /> : <AlertTriangle className="w-5 h-5 text-yellow-500" />}
-                                                <h3 className={`font-bold ${issue.severity === 'error' ? 'text-red-200' : 'text-yellow-200'}`}>
-                                                    {issue.message}
-                                                </h3>
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Center: Inspector */}
+                    <div className="flex-1 min-h-0 bg-[#0a0d14] flex flex-col overflow-hidden">
+                        {selectedFile ? (
+                            <div className="flex flex-col h-full">
+                                {/* File Info Header */}
+                                <div className="p-6 border-b border-slate-800 bg-slate-900/30">
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <h2 className="text-2xl font-bold text-white">{selectedFile.name}</h2>
+                                                <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 border border-slate-700 text-slate-400 font-mono uppercase">
+                                                    {selectedFile.type}
+                                                </span>
                                             </div>
-                                            {issue.fixAvailable && (
+                                            <div className="text-sm text-slate-500 font-mono flex gap-4">
+                                                <span>Path: {selectedFile.path}</span>
+                                                <span>Size: {selectedFile.size}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`px-4 py-2 rounded-lg font-bold text-sm border ${selectedFile.status === 'clean' ? 'bg-emerald-900/20 text-emerald-400 border-emerald-500/30' :
+                                                selectedFile.status === 'error' ? 'bg-red-900/20 text-red-400 border-red-500/30' :
+                                                    selectedFile.status === 'warning' ? 'bg-yellow-900/20 text-yellow-400 border-yellow-500/30' :
+                                                        'bg-slate-800 text-slate-400 border-slate-700'
+                                                }`}>
+                                                STATUS: {selectedFile.status.toUpperCase()}
+                                            </div>
+                                            {/* Open-in-Tool buttons — only show when path is accessible */}
+                                            {selectedFile.type === 'plugin' && (
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); handleAutoFix(selectedFile.id, issue.id); }}
-                                                    disabled={isFixing}
-                                                    className="px-3 py-1 bg-slate-800 hover:bg-emerald-600 text-white rounded text-xs font-bold transition-colors flex items-center gap-1 disabled:opacity-50"
+                                                    onClick={() => launchToolWithFile('xeditPath', selectedFile.path, 'xEdit')}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 rounded text-xs font-bold transition-colors"
+                                                    title="Open this ESP/ESM in xEdit (FO4Edit) to inspect and fix issues"
                                                 >
-                                                    <Wrench className="w-3 h-3" /> {isFixing ? 'Fixing...' : 'Fix-It'}
+                                                    <Wrench className="w-3.5 h-3.5" /> Open in xEdit
+                                                </button>
+                                            )}
+                                            {selectedFile.type === 'plugin' && (
+                                                <button
+                                                    onClick={() => launchToolWithFile('creationKitPath', selectedFile.path, 'Creation Kit')}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 border border-blue-500/30 rounded text-xs font-bold transition-colors"
+                                                    title="Open this plugin in the Creation Kit"
+                                                >
+                                                    <FileCode className="w-3.5 h-3.5" /> Open in CK
+                                                </button>
+                                            )}
+                                            {selectedFile.type === 'mesh' && (
+                                                <button
+                                                    onClick={() => launchToolWithFile('nifSkopePath', selectedFile.path, 'NifSkope')}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-500/30 rounded text-xs font-bold transition-colors"
+                                                    title="Open this NIF mesh in NifSkope"
+                                                >
+                                                    <Box className="w-3.5 h-3.5" /> Open in NifSkope
+                                                </button>
+                                            )}
+                                            {selectedFile.type === 'mesh' && (
+                                                <button
+                                                    onClick={() => launchToolWithFile('blenderPath', selectedFile.path, 'Blender')}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-orange-900/30 hover:bg-orange-900/50 text-orange-300 border border-orange-500/30 rounded text-xs font-bold transition-colors"
+                                                    title="Open this NIF in Blender (requires PyNifly addon)"
+                                                >
+                                                    <Box className="w-3.5 h-3.5" /> Open in Blender
                                                 </button>
                                             )}
                                         </div>
-                                        <p className="text-sm text-slate-400 font-mono ml-7">
-                                            {issue.technicalDetails}
-                                        </p>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-600">
-                            <ShieldCheck className="w-24 h-24 mb-6 opacity-10" />
-                            <p className="text-lg">Select a file to inspect.</p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Right: Mossy's Desk (Contextual Help) */}
-                <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col p-6 shadow-2xl relative overflow-hidden">
-                    <div className="absolute bottom-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl translate-y-1/3 translate-x-1/3 pointer-events-none"></div>
-
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10">
-                        <Scan className="w-4 h-4 text-emerald-400" /> Analysis Log
-                    </h3>
-
-                    <div ref={adviceScrollRef} className="flex-1 overflow-y-auto relative z-10">
-                        {mossyAdvice ? (
-                            <div className="animate-slide-in-right">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                    <span className="text-emerald-400 font-bold text-sm">Mossy Suggests:</span>
                                 </div>
-                                <div className="bg-slate-800/50 rounded-xl p-4 border border-emerald-500/20 text-sm text-slate-300 leading-relaxed shadow-lg">
-                                    {mossyAdvice}
+
+                                {/* Issues List */}
+                                <div ref={issuesScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+                                    {/* Hidden test elements for E2E testing */}
+                                    <div className="hidden">
+                                        <div data-testid="esp-header-validation">ESP Header Validation</div>
+                                        <div data-testid="esp-record-counting">ESP Record Counting</div>
+                                        <div data-testid="esp-file-size-limits">ESP File Size Limits</div>
+                                        <div data-testid="nif-vertex-count">NIF Vertex Count</div>
+                                        <div data-testid="nif-triangle-count">NIF Triangle Count</div>
+                                        <div data-testid="nif-texture-validation">NIF Texture Validation</div>
+                                        <div data-testid="nif-performance-warnings">NIF Performance Warnings</div>
+                                        <div data-testid="dds-format-detection">DDS Format Detection</div>
+                                        <div data-testid="dds-resolution-validation">DDS Resolution Validation</div>
+                                        <div data-testid="dds-power-of-two-check">DDS Power of Two Check</div>
+                                        <div data-testid="dds-compression-analysis">DDS Compression Analysis</div>
+                                        <div data-testid="absolute-path-detection">Absolute Path Detection</div>
+                                    </div>
+
+                                    {selectedFile.issues.length === 0 && selectedFile.status === 'clean' && (
+                                        <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                            <CheckCircle2 className="w-24 h-24 mb-4 text-emerald-500 opacity-40" />
+                                            <p className="text-lg font-bold text-emerald-400/80">Analysis Complete: Clean</p>
+                                            <p className="text-sm opacity-60">No anomalies detected.</p>
+
+                                            {selectedFile.type === 'texture' && selectedFile.dimensions && (
+                                                <div className="mt-8 p-4 bg-slate-900 border border-slate-800 rounded-xl w-64 animate-slide-up">
+                                                    <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Visual Diagnostics</h4>
+                                                    <div className="aspect-square bg-slate-800 rounded-lg flex items-center justify-center border border-slate-700 overflow-hidden relative group shadow-inner">
+                                                        {texturePreview ? (
+                                                            <img src={texturePreview} alt="Preview" className="w-full h-full object-contain" />
+                                                        ) : (
+                                                            <div className="text-center group-hover:scale-110 transition-transform duration-500">
+                                                                <FileImage className="w-12 h-12 text-slate-700 mx-auto mb-2" />
+                                                                <span className="text-[10px] font-mono text-slate-600 uppercase tracking-tighter">{selectedFile.dimensions.format}</span>
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute inset-x-0 bottom-0 bg-slate-900/90 backdrop-blur-sm p-3 border-t border-slate-800">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-[10px] font-mono text-emerald-400 font-bold">{selectedFile.dimensions.width} <span className="text-slate-600">x</span> {selectedFile.dimensions.height}</span>
+                                                                <span className="px-2 py-0.5 bg-emerald-950/30 text-emerald-400 border border-emerald-500/20 rounded text-[9px] font-black">{selectedFile.dimensions.format}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    {selectedFile.issues.length === 0 && (selectedFile.status === 'error' || selectedFile.status === 'warning') && (
+                                        <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-60">
+                                            <AlertTriangle className="w-24 h-24 mb-4 text-yellow-500" />
+                                            <p className="text-lg">Analysis detected issues but details are unavailable.</p>
+                                            <p className="text-sm mt-2">This file may have been flagged due to file type or size.</p>
+                                        </div>
+                                    )}
+                                    {selectedFile.status === 'pending' && (
+                                        <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-60">
+                                            <Search className="w-24 h-24 mb-4" />
+                                            <p>Run audit to scan this file.</p>
+                                        </div>
+                                    )}
+                                    {selectedFile.issues.map(issue => (
+                                        <div
+                                            key={issue.id}
+                                            onClick={() => getMossyAdvice(issue)}
+                                            className={`group p-4 rounded-xl border transition-all cursor-pointer ${issue.severity === 'error' ? 'bg-red-950/10 border-red-500/30 hover:bg-red-900/20' :
+                                                'bg-yellow-950/10 border-yellow-500/30 hover:bg-yellow-900/20'
+                                                }`}
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    {issue.severity === 'error' ? <XCircle className="w-5 h-5 text-red-500" /> : <AlertTriangle className="w-5 h-5 text-yellow-500" />}
+                                                    <h3 className={`font-bold ${issue.severity === 'error' ? 'text-red-200' : 'text-yellow-200'}`}>
+                                                        {issue.message}
+                                                    </h3>
+                                                </div>
+                                                {issue.fixAvailable && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleAutoFix(selectedFile.id, issue.id); }}
+                                                        disabled={isFixing}
+                                                        className="px-3 py-1 bg-slate-800 hover:bg-emerald-600 text-white rounded text-xs font-bold transition-colors flex items-center gap-1 disabled:opacity-50"
+                                                    >
+                                                        <Wrench className="w-3 h-3" /> {isFixing ? 'Fixing...' : 'Fix-It'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <p className="text-sm text-slate-400 font-mono ml-7">
+                                                {issue.technicalDetails}
+                                            </p>
+                                        </div>
+                                    ))}
                                 </div>
-                                <div className="mt-4 flex gap-2">
-                                    <button className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-400 transition-colors">
-                                        Ignore Rule
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (selectedFileId && selectedIssueId) {
-                                                handleAutoFix(selectedFileId, selectedIssueId);
-                                            }
-                                        }}
-                                        disabled={isFixing || !selectedIssueId}
-                                        className="flex-1 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 disabled:opacity-50 text-emerald-400 border border-emerald-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        <Wrench className="w-3 h-3" /> {isFixing ? 'Fixing...' : 'Fix-It'} <ArrowRight className="w-3 h-3" />
-                                    </button>
-                                </div>
-                                <button
-                                    onClick={() => navigate('/chat', { state: { prefill: `I just ran an audit on my mod files. Here is the analysis result:\n\n${mossyAdvice}\n\nCan you help me understand and fix these issues?` } })}
-                                    className="mt-3 w-full py-2 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
-                                    title="Open full chat with this audit result as context"
-                                >
-                                    Ask Mossy about this
-                                </button>
                             </div>
                         ) : (
-                            <div className="text-slate-500 text-sm italic">
-                                &quot;Click on an issue in the inspector to get a detailed breakdown and fix strategy.&quot;
+                            <div className="flex flex-col items-center justify-center h-full text-slate-600">
+                                <ShieldCheck className="w-24 h-24 mb-6 opacity-10" />
+                                <p className="text-lg">Select a file to inspect.</p>
                             </div>
                         )}
                     </div>
 
-                    <div className="mt-auto pt-6 border-t border-slate-800 relative z-10">
-                        <div className="text-[10px] text-slate-500 font-mono flex justify-between">
-                            <span>SCAN ENGINE: v2.4</span>
-                            <span className="text-emerald-500">READY</span>
+                    {/* Right: Mossy's Desk (Contextual Help) */}
+                    <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col p-6 shadow-2xl relative overflow-hidden">
+                        <div className="absolute bottom-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl translate-y-1/3 translate-x-1/3 pointer-events-none"></div>
+
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10">
+                            <Scan className="w-4 h-4 text-emerald-400" /> Analysis Log
+                        </h3>
+
+                        <div ref={adviceScrollRef} className="flex-1 overflow-y-auto relative z-10">
+                            {mossyAdvice ? (
+                                <div className="animate-slide-in-right">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                        <span className="text-emerald-400 font-bold text-sm">Mossy Suggests:</span>
+                                    </div>
+                                    <div className="bg-slate-800/50 rounded-xl p-4 border border-emerald-500/20 text-sm text-slate-300 leading-relaxed shadow-lg">
+                                        {mossyAdvice}
+                                    </div>
+                                    <div className="mt-4 flex gap-2">
+                                        <button className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-400 transition-colors">
+                                            Ignore Rule
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (selectedFileId && selectedIssueId) {
+                                                    handleAutoFix(selectedFileId, selectedIssueId);
+                                                }
+                                            }}
+                                            disabled={isFixing || !selectedIssueId}
+                                            className="flex-1 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 disabled:opacity-50 text-emerald-400 border border-emerald-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            <Wrench className="w-3 h-3" /> {isFixing ? 'Fixing...' : 'Fix-It'} <ArrowRight className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                    <button
+                                        onClick={() => navigate('/chat', { state: { prefill: `I just ran an audit on my mod files. Here is the analysis result:\n\n${mossyAdvice}\n\nCan you help me understand and fix these issues?` } })}
+                                        className="mt-3 w-full py-2 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
+                                        title="Open full chat with this audit result as context"
+                                    >
+                                        Ask Mossy about this
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="text-slate-500 text-sm italic">
+                                    &quot;Click on an issue in the inspector to get a detailed breakdown and fix strategy.&quot;
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-auto pt-6 border-t border-slate-800 relative z-10">
+                            <div className="text-[10px] text-slate-500 font-mono flex justify-between">
+                                <span>SCAN ENGINE: v2.4</span>
+                                <span className="text-emerald-500">READY</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
             )}
 
             {activeTab === 'debug' && (
-            <div className="flex-1 min-h-0 overflow-hidden">
-                <GameLogMonitor />
-            </div>
+                <div className="flex-1 min-h-0 overflow-hidden">
+                    <GameLogMonitor />
+                </div>
             )}
         </div>
     );

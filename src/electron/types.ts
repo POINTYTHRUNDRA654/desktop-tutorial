@@ -206,6 +206,15 @@ export const IPC_CHANNELS = {
   PICK_DIRECTORY: 'pick-directory',
   SAVE_FILE: 'save-file',
 
+  // Creation Kit Link - path pickers
+  CK_PICK_CREATIONKIT_EXE: 'ck-pick-creationkit-exe',
+  CK_PICK_FALLOUT4_FOLDER: 'ck-pick-fallout4-folder',
+  CK_PICK_PAPYRUS_COMPILER: 'ck-pick-papyrus-compiler',
+  CK_PICK_PAPYRUS_FLAGS: 'ck-pick-papyrus-flags',
+  CK_PICK_IMPORT_PATHS: 'ck-pick-import-paths',
+  CK_PICK_SOURCE_FOLDER: 'ck-pick-source-folder',
+  CK_PICK_OUTPUT_FOLDER: 'ck-pick-output-folder',
+
   // Local ML (offline semantic search)
   ML_INDEX_BUILD: 'ml-index-build',
   ML_INDEX_QUERY: 'ml-index-query',
@@ -489,6 +498,15 @@ export interface ElectronAPI {
   // Generic file helpers
   pickJsonFile: () => Promise<string>;
   pickDirectory: (title?: string) => Promise<string>;
+
+  // Creation Kit Link - path pickers
+  pickCreationKitExe: () => Promise<string>;
+  pickFallout4Folder: () => Promise<string>;
+  pickPapyrusCompiler: () => Promise<string>;
+  pickPapyrusFlags: () => Promise<string>;
+  pickImportPaths: () => Promise<string>;
+  pickSourceFolder: () => Promise<string>;
+  pickOutputFolder: () => Promise<string>;
   saveFile: (content: string, filename: string) => Promise<string>;
 
   // Local ML (offline semantic search)
