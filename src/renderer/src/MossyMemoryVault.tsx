@@ -61,7 +61,11 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
     const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
 
     useEffect(() => {
-        const loadVault = async () => {
+        const initVault = async () => {
+            // 1. Load vault from localStorage, or restore from durable file backup if empty
+            //    (covers reinstalls, localStorage clears, and first launches).
+            // 2. After the vault is populated, run bundled knowledge import so it never
+            //    races against the restore path and accidentally overwrites user items.
             const stored = localStorage.getItem('mossy_knowledge_vault');
             if (stored) {
                 const parsed = JSON.parse(stored) as MemoryItem[];
@@ -94,14 +98,14 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                     setMemories(normalized);
                 }
             }
-        };
-        loadVault().catch(console.error);
 
-        // Auto-import bundled knowledge — runs on every mount but skips packs
-        // already imported at the same version, so new packs added in app
-        // updates are imported automatically without duplicating existing ones.
-        importBundledKnowledge().catch(console.error);
-        
+            // 2. AFTER vault is loaded, run bundled knowledge import so it reads
+            //    the correct localStorage state (including any just-restored data)
+            //    and does not accidentally overwrite restored items.
+            await importBundledKnowledge().catch(console.error);
+        };
+        initVault().catch(console.error);
+
         // Check for new community knowledge
         checkGitHubForNewKnowledge().catch(console.error);
     }, []);
