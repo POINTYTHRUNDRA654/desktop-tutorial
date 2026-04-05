@@ -19,6 +19,7 @@ import { buildSemanticIndex, getSemanticIndexStatus, querySemanticIndex } from '
 import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
 import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
 import { autoUpdaterService } from './autoUpdater';
+import { detectAndHandleVersionUpdate, markFreshInstallProcessed, wasFreshInstallProcessed } from './dataMigration';
 import fs from 'fs';
 import { spawn, exec } from 'child_process';
 import { BridgeServer } from './BridgeServer';
@@ -4718,6 +4719,171 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // --- Creation Kit Link: path pickers ---
+  registerHandler(IPC_CHANNELS.CK_PICK_CREATIONKIT_EXE, async () => {
+    try {
+      const win = BrowserWindow.getFocusedWindow() || mainWindow;
+      const result = win
+        ? await dialog.showOpenDialog(win, {
+          title: 'Select CreationKit.exe',
+          properties: ['openFile'],
+          filters: [
+            { name: 'Executables', extensions: ['exe'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        })
+        : await dialog.showOpenDialog({
+          title: 'Select CreationKit.exe',
+          properties: ['openFile'],
+          filters: [
+            { name: 'Executables', extensions: ['exe'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        });
+      if (result.canceled || !result.filePaths?.length) return '';
+      return result.filePaths[0];
+    } catch (err: any) {
+      console.error('[CK_PICK_CREATIONKIT_EXE] Error:', err);
+      return '';
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.CK_PICK_FALLOUT4_FOLDER, async () => {
+    try {
+      const win = BrowserWindow.getFocusedWindow() || mainWindow;
+      const result = win
+        ? await dialog.showOpenDialog(win, {
+          title: 'Select Fallout 4 Root Folder',
+          properties: ['openDirectory'],
+        })
+        : await dialog.showOpenDialog({
+          title: 'Select Fallout 4 Root Folder',
+          properties: ['openDirectory'],
+        });
+      if (result.canceled || !result.filePaths?.length) return '';
+      return result.filePaths[0];
+    } catch (err: any) {
+      console.error('[CK_PICK_FALLOUT4_FOLDER] Error:', err);
+      return '';
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.CK_PICK_PAPYRUS_COMPILER, async () => {
+    try {
+      const win = BrowserWindow.getFocusedWindow() || mainWindow;
+      const result = win
+        ? await dialog.showOpenDialog(win, {
+          title: 'Select PapyrusCompiler.exe',
+          properties: ['openFile'],
+          filters: [
+            { name: 'Executables', extensions: ['exe'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        })
+        : await dialog.showOpenDialog({
+          title: 'Select PapyrusCompiler.exe',
+          properties: ['openFile'],
+          filters: [
+            { name: 'Executables', extensions: ['exe'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        });
+      if (result.canceled || !result.filePaths?.length) return '';
+      return result.filePaths[0];
+    } catch (err: any) {
+      console.error('[CK_PICK_PAPYRUS_COMPILER] Error:', err);
+      return '';
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.CK_PICK_PAPYRUS_FLAGS, async () => {
+    try {
+      const win = BrowserWindow.getFocusedWindow() || mainWindow;
+      const result = win
+        ? await dialog.showOpenDialog(win, {
+          title: 'Select TESV_Papyrus_Flags.flg',
+          properties: ['openFile'],
+          filters: [
+            { name: 'Flags Files', extensions: ['flg'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        })
+        : await dialog.showOpenDialog({
+          title: 'Select TESV_Papyrus_Flags.flg',
+          properties: ['openFile'],
+          filters: [
+            { name: 'Flags Files', extensions: ['flg'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        });
+      if (result.canceled || !result.filePaths?.length) return '';
+      return result.filePaths[0];
+    } catch (err: any) {
+      console.error('[CK_PICK_PAPYRUS_FLAGS] Error:', err);
+      return '';
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.CK_PICK_IMPORT_PATHS, async () => {
+    try {
+      const win = BrowserWindow.getFocusedWindow() || mainWindow;
+      const result = win
+        ? await dialog.showOpenDialog(win, {
+          title: 'Select Import Path Folder',
+          properties: ['openDirectory'],
+        })
+        : await dialog.showOpenDialog({
+          title: 'Select Import Path Folder',
+          properties: ['openDirectory'],
+        });
+      if (result.canceled || !result.filePaths?.length) return '';
+      return result.filePaths[0];
+    } catch (err: any) {
+      console.error('[CK_PICK_IMPORT_PATHS] Error:', err);
+      return '';
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.CK_PICK_SOURCE_FOLDER, async () => {
+    try {
+      const win = BrowserWindow.getFocusedWindow() || mainWindow;
+      const result = win
+        ? await dialog.showOpenDialog(win, {
+          title: 'Select Papyrus Source Folder (where .psc live)',
+          properties: ['openDirectory'],
+        })
+        : await dialog.showOpenDialog({
+          title: 'Select Papyrus Source Folder (where .psc live)',
+          properties: ['openDirectory'],
+        });
+      if (result.canceled || !result.filePaths?.length) return '';
+      return result.filePaths[0];
+    } catch (err: any) {
+      console.error('[CK_PICK_SOURCE_FOLDER] Error:', err);
+      return '';
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.CK_PICK_OUTPUT_FOLDER, async () => {
+    try {
+      const win = BrowserWindow.getFocusedWindow() || mainWindow;
+      const result = win
+        ? await dialog.showOpenDialog(win, {
+          title: 'Select Papyrus Output Folder (where .pex go)',
+          properties: ['openDirectory'],
+        })
+        : await dialog.showOpenDialog({
+          title: 'Select Papyrus Output Folder (where .pex go)',
+          properties: ['openDirectory'],
+        });
+      if (result.canceled || !result.filePaths?.length) return '';
+      return result.filePaths[0];
+    } catch (err: any) {
+      console.error('[CK_PICK_OUTPUT_FOLDER] Error:', err);
+      return '';
+    }
+  });
+
   // Local ML: Semantic index status/build/query
   registerHandler(IPC_CHANNELS.ML_INDEX_STATUS, async () => {
     return getSemanticIndexStatus();
@@ -8267,6 +8433,13 @@ app.whenReady().then(() => {
     });
   }
 
+  // ── Version Migration & Data Preservation ──────────────────────────────────
+  // Check if app version has changed; if so, preserve user data (scan results,
+  // projects, settings, etc.) across the update. Only onboarding flags are cleared
+  // on fresh install, not user data.
+  const userDataPath = app.getPath('userData');
+  const versionUpdateDetected = detectAndHandleVersionUpdate(userDataPath);
+
   // ── Fresh-install detection (BEFORE createWindow) ────────────────────────
   // Two complementary signals trigger the first-run wizard:
   //
@@ -8284,19 +8457,32 @@ app.whenReady().then(() => {
   // synchronously clear stale onboarding flags – avoiding the race condition
   // of the earlier TRIGGER_FRESH_INSTALL IPC approach.  The IPC is kept as a
   // belt-and-suspenders backup.
+  //
+  // NOTE: If this is a version update (not a fresh install), we still trigger
+  // onboarding reset for UI consistency, but user data is preserved. If this
+  // is a true fresh install, scan data won't exist anyway.
   if (app.isPackaged) {
     const markerPath = path.join(path.dirname(process.execPath), 'fresh-install.marker');
     const isFreshMarker = fs.existsSync(markerPath);
     const isTrueFirstRun = !fs.existsSync(settingsPath);
+    const alreadyProcessed = wasFreshInstallProcessed(userDataPath);
 
     if (isFreshMarker || isTrueFirstRun) {
-      if (isFreshMarker) {
+      if (isFreshMarker && !alreadyProcessed) {
         try { fs.unlinkSync(markerPath); } catch { /* ignore */ }
         console.log('[Main] Fresh-install marker found – will trigger onboarding reset.');
-      } else {
+        markFreshInstallProcessed(userDataPath);
+        pendingFreshInstall = true;
+      } else if (!isFreshMarker && isTrueFirstRun) {
         console.log('[Main] No settings.json found – first-ever launch, triggering onboarding.');
+        markFreshInstallProcessed(userDataPath);
+        pendingFreshInstall = true;
+      } else if (versionUpdateDetected && isTrueFirstRun) {
+        // Version update on truly fresh install (no prior settings)
+        console.log('[Main] Version update on fresh install – preserving any existing data.');
+        markFreshInstallProcessed(userDataPath);
+        pendingFreshInstall = true;
       }
-      pendingFreshInstall = true;
     }
   }
 

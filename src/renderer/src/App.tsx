@@ -152,7 +152,7 @@ const NeuralController: React.FC = () => {
   useEffect(() => {
     const handleControl = (e: CustomEvent<{ action: string; payload: any }>) => {
       const { action, payload } = e.detail;
-      
+
       console.log(`[Neural Control] Executing: ${action}`, payload);
 
       if (action === 'navigate') {
@@ -160,7 +160,7 @@ const NeuralController: React.FC = () => {
           navigate(payload.path);
         }
       }
-      
+
       // Future expansion: 'toggle_sidebar', 'open_modal', etc.
       if (action === 'open_palette') {
         // Trigger command palette keyboard shortcut logic if needed
@@ -273,9 +273,9 @@ const App: React.FC = () => {
     // Skip boot sequence in test mode - check multiple sources
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('test') ||
-        window.location.search.includes('test') ||
-        window.localStorage.getItem('mossy_test_mode') === 'true' ||
-        window.localStorage.getItem('mossy_has_booted') === 'true') {
+      window.location.search.includes('test') ||
+      window.localStorage.getItem('mossy_test_mode') === 'true' ||
+      window.localStorage.getItem('mossy_has_booted') === 'true') {
       return true;
     }
     // Persist boot so we don't show the startup sequence every launch.
@@ -301,10 +301,10 @@ const App: React.FC = () => {
 
     const unsubscribe = api.onFreshInstall(() => {
       // A fresh-install.marker was found by the main process, meaning the user
-      // just installed (or reinstalled) via the Inno Setup installer.  Clear all
-      // onboarding flags so the first-run wizard runs from scratch even if
-      // stale localStorage data was left behind from a previous installation.
-      const keysToReset = [
+      // just installed (or reinstalled) via the Inno Setup installer.  Clear
+      // ONLY onboarding flags so the first-run wizard runs from scratch, but
+      // PRESERVE all user data including scan results, projects, chat history, etc.
+      const onboardingKeysToReset = [
         'mossy_has_booted',
         'mossy_onboarding_complete',
         'mossy_onboarding_completed',
@@ -312,7 +312,9 @@ const App: React.FC = () => {
         'mossy_tutorial_autostart',
         'mossy_voice_setup_complete',
       ];
-      keysToReset.forEach(k => localStorage.removeItem(k));
+      onboardingKeysToReset.forEach(k => localStorage.removeItem(k));
+
+      console.log('[App] Fresh install detected. Cleared onboarding flags only. User data preserved.');
       setShowFirstRun(true);
       setShowOnboarding(true);
       setShowVoiceSetup(false);
@@ -371,7 +373,7 @@ const App: React.FC = () => {
     const hasCompletedVoiceSetup = localStorage.getItem('mossy_voice_setup_complete') === 'true';
     return hasCompletedFirstRun && !hasCompletedVoiceSetup;
   });
-  
+
   // Tutorial state
   const [showTutorialLaunch, setShowTutorialLaunch] = useState(false);
   const [showInteractiveTutorialOverlay, setShowInteractiveTutorialOverlay] = useState(false);
@@ -387,7 +389,7 @@ const App: React.FC = () => {
       setShowInteractiveTutorialOverlay(true);
       return;
     }
-    
+
     // Otherwise navigate to tutorial route
     const currentHash = window.location.hash || '#/';
     const returnHash = currentHash.startsWith('#/tutorial') ? '#/' : currentHash;
@@ -405,7 +407,7 @@ const App: React.FC = () => {
       setShowInteractiveTutorialOverlay(false);
       return;
     }
-    
+
     // Otherwise navigate back
     const returnHash = getTutorialReturnHash();
     try {
@@ -426,7 +428,7 @@ const App: React.FC = () => {
       startInteractiveTutorial();
     }
   }, []);
-  
+
   const [debugHash, setDebugHash] = useState(() => window.location.hash || '');
   const [showDevHud, setShowDevHud] = useState(() => {
     if (!import.meta.env.DEV) return false;
@@ -461,7 +463,7 @@ const App: React.FC = () => {
   }));
   const [pipToggledAt, setPipToggledAt] = useState(() => '');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+
   // Project management state
   const [currentProject, setCurrentProject] = useState<ModProject | null>(null);
 
@@ -875,9 +877,9 @@ const App: React.FC = () => {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         if (!hasKey) {
           try {
-             await window.aistudio.openSelectKey();
+            await window.aistudio.openSelectKey();
           } catch (e) {
-             console.log("User dismissed key selection");
+            console.log("User dismissed key selection");
           }
         }
       }
@@ -943,17 +945,17 @@ const App: React.FC = () => {
     if (showFirstRun) {
       return (
         <div className="relative h-full w-full min-h-0">
-          <FirstRunOnboarding 
+          <FirstRunOnboarding
             onComplete={() => {
               setShowFirstRun(false);
               // Show tutorial launch prompt after onboarding
               setTimeout(() => {
                 setShowTutorialLaunch(true);
               }, 500);
-            }} 
+            }}
           />
           {showInteractiveTutorialOverlay && (
-            <div 
+            <div
               className="absolute inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm overflow-hidden"
               role="dialog"
               aria-modal="true"
@@ -990,7 +992,7 @@ const App: React.FC = () => {
 
     if (showOnboarding) {
       return (
-        <MossyOnboarding 
+        <MossyOnboarding
           onComplete={() => {
             setShowOnboarding(false);
             localStorage.setItem('mossy_onboarding_completed', 'true');
@@ -1070,11 +1072,10 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsPipBoy((prev) => !prev)}
-                className={`p-2 rounded-lg border text-xs transition-colors ${
-                  isPipBoy
+                className={`p-2 rounded-lg border text-xs transition-colors ${isPipBoy
                     ? 'bg-amber-900/20 text-amber-300 border-amber-500/40'
                     : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
-                }`}
+                  }`}
                 title="Toggle Pip-Boy Theme"
               >
                 <Radio className="w-3.5 h-3.5" />
@@ -1114,11 +1115,11 @@ const App: React.FC = () => {
             aria-label="Main content"
           >
             {!isTutorialRoute && !guidedTour.isOpen && (
-              <div 
-                className="mossy-face-prop" 
+              <div
+                className="mossy-face-prop"
                 aria-hidden="true"
-                style={{ 
-                  display: (guidedTour.isOpen || isTutorialRoute) ? 'none' : undefined 
+                style={{
+                  display: (guidedTour.isOpen || isTutorialRoute) ? 'none' : undefined
                 }}
               >
                 <AvatarCore className="w-44 h-44" showRings={false} />
@@ -1128,240 +1129,240 @@ const App: React.FC = () => {
               <MossyObserver />
               <Suspense fallback={<ModuleLoader />}>
                 <Routes>
-                {/* Core Application Routes */}
-                <Route path="/" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route
-                  path="/tutorial"
-                  element={
-                    <InteractiveTutorial
-                      onComplete={exitInteractiveTutorial}
-                      onSkip={exitInteractiveTutorial}
-                    />
-                  }
-                />
-                <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
-                <Route path="/ai-assistant" element={<ErrorBoundary><AIAssistant /></ErrorBoundary>} />
-                <Route path="/ai-mod-assistant" element={<ErrorBoundary><AIModAssistant /></ErrorBoundary>} />
-                <Route path="/cloud-sync" element={<ErrorBoundary><CloudSync /></ErrorBoundary>} />
-                <Route path="/first-success" element={<ErrorBoundary><FirstSuccessWizard /></ErrorBoundary>} />
-                <Route path="/roadmap" element={<ErrorBoundary><RoadmapPanel /></ErrorBoundary>} />
-                <Route path="/whats-new" element={<ErrorBoundary><WhatsNewPage onDismiss={dismissWhatsNew} /></ErrorBoundary>} />
-                <Route path="/live" element={<ErrorBoundary><VoiceChat /></ErrorBoundary>} />
+                  {/* Core Application Routes */}
+                  <Route path="/" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                  <Route
+                    path="/tutorial"
+                    element={
+                      <InteractiveTutorial
+                        onComplete={exitInteractiveTutorial}
+                        onSkip={exitInteractiveTutorial}
+                      />
+                    }
+                  />
+                  <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
+                  <Route path="/ai-assistant" element={<ErrorBoundary><AIAssistant /></ErrorBoundary>} />
+                  <Route path="/ai-mod-assistant" element={<ErrorBoundary><AIModAssistant /></ErrorBoundary>} />
+                  <Route path="/cloud-sync" element={<ErrorBoundary><CloudSync /></ErrorBoundary>} />
+                  <Route path="/first-success" element={<ErrorBoundary><FirstSuccessWizard /></ErrorBoundary>} />
+                  <Route path="/roadmap" element={<ErrorBoundary><RoadmapPanel /></ErrorBoundary>} />
+                  <Route path="/whats-new" element={<ErrorBoundary><WhatsNewPage onDismiss={dismissWhatsNew} /></ErrorBoundary>} />
+                  <Route path="/live" element={<ErrorBoundary><VoiceChat /></ErrorBoundary>} />
 
-                {/* Core Tools */}
-                <Route path="/tools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
-                <Route path="/tools/auditor" element={<TheAuditor />} />
-                <Route path="/tools/ini-config" element={<ErrorBoundary><IniConfigManager /></ErrorBoundary>} />
-                <Route path="/tools/asset-deduplicator" element={<ErrorBoundary><AssetDeduplicator /></ErrorBoundary>} />
-                {/* Legacy routes redirect to new unified deduplicator */}
-                <Route path="/tools/asset-scanner" element={<Navigate to="/tools/asset-deduplicator" replace />} />
-                <Route path="/tools/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
-                <Route path="/tools/log-monitor" element={<ErrorBoundary><GameLogMonitor /></ErrorBoundary>} />
-                <Route path="/tools/xedit" element={<ErrorBoundary><XEditTools /></ErrorBoundary>} />
-                {/* Legacy xEdit routes redirect to unified tool */}
-                <Route path="/tools/xedit-executor" element={<Navigate to="/tools/xedit" replace />} />
-                <Route path="/tools/xedit-extension" element={<Navigate to="/tools/xedit" replace />} />
-                <Route path="/tools/ck-extension" element={<ErrorBoundary><CKExtension /></ErrorBoundary>} />
-                <Route path="/tools/project-templates" element={<ErrorBoundary><ProjectTemplates /></ErrorBoundary>} />
-                {/* Mod packaging tools redirected to PackagingHub */}
-                <Route path="/tools/conflict-visualizer" element={<Navigate to="/packaging-release?section=conflicts" replace />} />
-                <Route path="/tools/mod-comparison" element={<Navigate to="/packaging-release?section=comparison" replace />} />
-                <Route path="/tools/formid-remapper" element={<ErrorBoundary><FormIdRemapper /></ErrorBoundary>} />
-                <Route path="/tools/precombine-generator" element={<ErrorBoundary><PrecombineGenerator /></ErrorBoundary>} />
-                <Route path="/tools/voice-commands" element={<ErrorBoundary><VoiceCommands /></ErrorBoundary>} />
-                <Route path="/tools/automation" element={<ErrorBoundary><AutomationManager /></ErrorBoundary>} />
-                <Route path="/tools/ck-crash-prevention" element={<ErrorBoundary><CKCrashPrevention /></ErrorBoundary>} />
-                {/* Redirect CK Safety to CK Crash Prevention - they serve the same purpose */}
-                <Route path="/tools/ck-safety" element={<Navigate to="/tools/ck-crash-prevention" replace />} />
-                <Route path="/tools/security" element={<ErrorBoundary><SecurityValidator /></ErrorBoundary>} />
-                <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
-                <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
-                <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
-                <Route path="/tools/blueprint" element={<TheBlueprint />} />
-                <Route path="/tools/scribe" element={<TheScribe />} />
-                <Route path="/tools/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
-                <Route path="/tools/ba2-manager" element={<ErrorBoundary><BA2Manager /></ErrorBoundary>} />
-                <Route path="/tools/cosmos" element={<ErrorBoundary><CosmosWorkflow /></ErrorBoundary>} />
+                  {/* Core Tools */}
+                  <Route path="/tools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                  <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
+                  <Route path="/tools/auditor" element={<TheAuditor />} />
+                  <Route path="/tools/ini-config" element={<ErrorBoundary><IniConfigManager /></ErrorBoundary>} />
+                  <Route path="/tools/asset-deduplicator" element={<ErrorBoundary><AssetDeduplicator /></ErrorBoundary>} />
+                  {/* Legacy routes redirect to new unified deduplicator */}
+                  <Route path="/tools/asset-scanner" element={<Navigate to="/tools/asset-deduplicator" replace />} />
+                  <Route path="/tools/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
+                  <Route path="/tools/log-monitor" element={<ErrorBoundary><GameLogMonitor /></ErrorBoundary>} />
+                  <Route path="/tools/xedit" element={<ErrorBoundary><XEditTools /></ErrorBoundary>} />
+                  {/* Legacy xEdit routes redirect to unified tool */}
+                  <Route path="/tools/xedit-executor" element={<Navigate to="/tools/xedit" replace />} />
+                  <Route path="/tools/xedit-extension" element={<Navigate to="/tools/xedit" replace />} />
+                  <Route path="/tools/ck-extension" element={<ErrorBoundary><CKExtension /></ErrorBoundary>} />
+                  <Route path="/tools/project-templates" element={<ErrorBoundary><ProjectTemplates /></ErrorBoundary>} />
+                  {/* Mod packaging tools redirected to PackagingHub */}
+                  <Route path="/tools/conflict-visualizer" element={<Navigate to="/packaging-release?section=conflicts" replace />} />
+                  <Route path="/tools/mod-comparison" element={<Navigate to="/packaging-release?section=comparison" replace />} />
+                  <Route path="/tools/formid-remapper" element={<ErrorBoundary><FormIdRemapper /></ErrorBoundary>} />
+                  <Route path="/tools/precombine-generator" element={<ErrorBoundary><PrecombineGenerator /></ErrorBoundary>} />
+                  <Route path="/tools/voice-commands" element={<ErrorBoundary><VoiceCommands /></ErrorBoundary>} />
+                  <Route path="/tools/automation" element={<ErrorBoundary><AutomationManager /></ErrorBoundary>} />
+                  <Route path="/tools/ck-crash-prevention" element={<ErrorBoundary><CKCrashPrevention /></ErrorBoundary>} />
+                  {/* Redirect CK Safety to CK Crash Prevention - they serve the same purpose */}
+                  <Route path="/tools/ck-safety" element={<Navigate to="/tools/ck-crash-prevention" replace />} />
+                  <Route path="/tools/security" element={<ErrorBoundary><SecurityValidator /></ErrorBoundary>} />
+                  <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
+                  <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
+                  <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
+                  <Route path="/tools/blueprint" element={<TheBlueprint />} />
+                  <Route path="/tools/scribe" element={<TheScribe />} />
+                  <Route path="/tools/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
+                  <Route path="/tools/ba2-manager" element={<ErrorBoundary><BA2Manager /></ErrorBoundary>} />
+                  <Route path="/tools/cosmos" element={<ErrorBoundary><CosmosWorkflow /></ErrorBoundary>} />
 
-                {/* Development & Workflow */}
-                <Route path="/dev" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/dev/workshop" element={<Workshop />} />
-                <Route path="/mods" element={<ModBrowser />} />
-                <Route path="/dev/orchestrator" element={<WorkflowOrchestrator />} />
-                <Route path="/dev/workflow-runner" element={<ErrorBoundary><WorkflowRunner /></ErrorBoundary>} />
-                <Route path="/dev/neural-link" element={<Navigate to="/live" replace />} />
-                <Route path="/dev/workflow-recorder" element={<ErrorBoundary><WorkflowRecorder /></ErrorBoundary>} />
-                <Route path="/dev/plugin-manager" element={<ErrorBoundary><PluginManager /></ErrorBoundary>} />
-                {/* Redirect mining dashboard to unified hub */}
-                <Route path="/dev/mining-dashboard" element={<Navigate to="/tools/mining-hub?tab=dashboard" replace />} />
-                <Route path="/dev/load-order" element={<LoadOrderHub />} />
+                  {/* Development & Workflow */}
+                  <Route path="/dev" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                  <Route path="/dev/workshop" element={<Workshop />} />
+                  <Route path="/mods" element={<ModBrowser />} />
+                  <Route path="/dev/orchestrator" element={<WorkflowOrchestrator />} />
+                  <Route path="/dev/workflow-runner" element={<ErrorBoundary><WorkflowRunner /></ErrorBoundary>} />
+                  <Route path="/dev/neural-link" element={<Navigate to="/live" replace />} />
+                  <Route path="/dev/workflow-recorder" element={<ErrorBoundary><WorkflowRecorder /></ErrorBoundary>} />
+                  <Route path="/dev/plugin-manager" element={<ErrorBoundary><PluginManager /></ErrorBoundary>} />
+                  {/* Redirect mining dashboard to unified hub */}
+                  <Route path="/dev/mining-dashboard" element={<Navigate to="/tools/mining-hub?tab=dashboard" replace />} />
+                  <Route path="/dev/load-order" element={<LoadOrderHub />} />
 
-                {/* Media & Assets */}
-                <Route path="/media" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/media/images" element={<ImageSuite />} />
-                <Route path="/media/tts" element={<Navigate to="/live" replace />} />
-                <Route path="/media/memory-vault" element={<Navigate to="/live" replace />} />
+                  {/* Media & Assets */}
+                  <Route path="/media" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                  <Route path="/media/images" element={<ImageSuite />} />
+                  <Route path="/media/tts" element={<Navigate to="/live" replace />} />
+                  <Route path="/media/memory-vault" element={<Navigate to="/live" replace />} />
 
-                {/* Testing & Deployment */}
-                <Route path="/test" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/test/holo" element={<Holodeck />} />
-                <Route path="/test/notification-test" element={<NotificationTest />} />
-                <Route path="/test/bridge" element={<ErrorBoundary><DesktopBridge /></ErrorBoundary>} />
+                  {/* Testing & Deployment */}
+                  <Route path="/test" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                  <Route path="/test/holo" element={<Holodeck />} />
+                  <Route path="/test/notification-test" element={<NotificationTest />} />
+                  <Route path="/test/bridge" element={<ErrorBoundary><DesktopBridge /></ErrorBoundary>} />
 
-                {/* Knowledge & Learning */}
-                <Route path="/learn" element={<LearningHub />} />
-                <Route path="/learn/lore" element={<Navigate to="/learn" replace />} />
-                <Route path="/learn/knowledge" element={<Navigate to="/learn" replace />} />
-                <Route path="/learn/reference" element={<Navigate to="/learn" replace />} />
-                <Route path="/learn/community" element={<Navigate to="/learn" replace />} />
-                <Route path="/learn/capabilities" element={<Navigate to="/learn" replace />} />
-                
-                {/* Memory Vault */}
-                <Route path="/memory-vault" element={<ErrorBoundary><MossyMemoryVault /></ErrorBoundary>} />
-                
-                {/* CK Crash Prevention */}
-                <Route path="/ck-crash-prevention" element={<ErrorBoundary><CKCrashPrevention /></ErrorBoundary>} />
-                
-                {/* DDS Texture Converter */}
-                <Route path="/dds-converter" element={<ErrorBoundary><DDSConverter /></ErrorBoundary>} />
-                
-                {/* Texture Generator */}
-                <Route path="/texture-generator" element={<ErrorBoundary><TextureGenerator /></ErrorBoundary>} />
+                  {/* Knowledge & Learning */}
+                  <Route path="/learn" element={<LearningHub />} />
+                  <Route path="/learn/lore" element={<Navigate to="/learn" replace />} />
+                  <Route path="/learn/knowledge" element={<Navigate to="/learn" replace />} />
+                  <Route path="/learn/reference" element={<Navigate to="/learn" replace />} />
+                  <Route path="/learn/community" element={<Navigate to="/learn" replace />} />
+                  <Route path="/learn/capabilities" element={<Navigate to="/learn" replace />} />
 
-                {/* Guides - Organized by Category */}
-                <Route path="/guides" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/guides/blender" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/guides/blender/animation" element={<BlenderAnimationGuide />} />
-                <Route path="/guides/blender/skeleton" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/guides/blender/animation-validator" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/guides/blender/rigging-checklist" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/guides/blender/export-settings" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/guides/blender/rigging-mistakes" element={<Navigate to="/guides/blender/animation" replace />} />
+                  {/* Memory Vault */}
+                  <Route path="/memory-vault" element={<ErrorBoundary><MossyMemoryVault /></ErrorBoundary>} />
 
-                <Route path="/guides/creation-kit" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/guides/creation-kit/precombine-prp" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/guides/creation-kit/precombine-checker" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/guides/creation-kit/leveled-list-injection" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/guides/creation-kit/quest-authoring" element={<QuestModAuthoringGuide />} />
-                <Route path="/guides/creation-kit/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                  {/* CK Crash Prevention */}
+                  <Route path="/ck-crash-prevention" element={<ErrorBoundary><CKCrashPrevention /></ErrorBoundary>} />
 
-                <Route path="/guides/papyrus" element={<Navigate to="/guides/papyrus/guide" replace />} />
-                <Route path="/guides/papyrus/guide" element={<PaperScriptGuide />} />
-                <Route path="/guides/papyrus/quick-start" element={<Navigate to="/guides/papyrus/guide" replace />} />
-                <Route path="/guides/papyrus/fallout4" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                  {/* DDS Texture Converter */}
+                  <Route path="/dds-converter" element={<ErrorBoundary><DDSConverter /></ErrorBoundary>} />
 
-                <Route path="/guides/physics" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/guides/physics/havok" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/guides/physics/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/guides/physics/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
+                  {/* Texture Generator */}
+                  <Route path="/texture-generator" element={<ErrorBoundary><TextureGenerator /></ErrorBoundary>} />
 
-                <Route path="/guides/mods" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/guides/mods/bodyslide" element={<BodyslideGuide />} />
-                <Route path="/guides/mods/sim-settlements" element={<SimSettlementsGuide />} />
-                <Route path="/guides/mods/sim-settlements-addon" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
-                <Route path="/guides/mods/sim-settlements-units-loadouts" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
-                <Route path="/guides/mods/sim-settlements-addon-toolkits" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
+                  {/* Guides - Organized by Category */}
+                  <Route path="/guides" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                  <Route path="/guides/blender" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                  <Route path="/guides/blender/animation" element={<BlenderAnimationGuide />} />
+                  <Route path="/guides/blender/skeleton" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/guides/blender/animation-validator" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/guides/blender/rigging-checklist" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/guides/blender/export-settings" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/guides/blender/rigging-mistakes" element={<Navigate to="/guides/blender/animation" replace />} />
 
-                {/* Wizards & Advanced Tools */}
-                <Route path="/wizards" element={<WizardsHub />} />
-                <Route path="/wizards/install" element={<Navigate to="/wizards" replace />} />
-                <Route path="/wizards/platforms" element={<Navigate to="/wizards" replace />} />
-                <Route path="/wizards/crash-triage" element={<Navigate to="/diagnostics" replace />} />
-                <Route path="/wizards/packaging-release" element={<Navigate to="/packaging-release" replace />} />
-                <Route path="/wizards/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
+                  <Route path="/guides/creation-kit" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                  <Route path="/guides/creation-kit/precombine-prp" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                  <Route path="/guides/creation-kit/precombine-checker" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                  <Route path="/guides/creation-kit/leveled-list-injection" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                  <Route path="/guides/creation-kit/quest-authoring" element={<QuestModAuthoringGuide />} />
+                  <Route path="/guides/creation-kit/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
 
-                {/* Development Tools */}
-                <Route path="/devtools" element={<DevtoolsHub />} />
-                <Route path="/devtools/script-analyzer" element={<Navigate to="/devtools" replace />} />
-                <Route path="/devtools/template-generator" element={<Navigate to="/devtools" replace />} />
-                <Route path="/devtools/tool-verify" element={<Navigate to="/diagnostics" replace />} />
-                <Route path="/devtools/diagnostics" element={<Navigate to="/diagnostics" replace />} />
+                  <Route path="/guides/papyrus" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                  <Route path="/guides/papyrus/guide" element={<PaperScriptGuide />} />
+                  <Route path="/guides/papyrus/quick-start" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                  <Route path="/guides/papyrus/fallout4" element={<Navigate to="/guides/papyrus/guide" replace />} />
 
-                {/* Settings */}
-                <Route path="/settings" element={<SettingsHub />} />
-                <Route path="/settings/privacy" element={<Navigate to="/settings" replace />} />
-                <Route path="/settings/voice" element={<Navigate to="/live" replace />} />
-                <Route path="/settings/language" element={<Navigate to="/settings" replace />} />
-                <Route path="/settings/tools" element={<Navigate to="/settings" replace />} />
-                <Route path="/settings/import-export" element={<Navigate to="/settings" replace />} />
+                  <Route path="/guides/physics" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                  <Route path="/guides/physics/havok" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/guides/physics/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/guides/physics/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
 
-                {/* Project Management */}
-                <Route path="/project" element={<ProjectHub />} />
-                <Route path="/project/journey" element={<Navigate to="/project" replace />} />
-                <Route path="/project/achievements" element={<Navigate to="/project" replace />} />
-                <Route path="/project/manager" element={<Navigate to="/project" replace />} />
-                <Route path="/project/create" element={<Navigate to="/project" replace />} />
-                <Route path="/project/collaboration" element={<Navigate to="/project" replace />} />
-                <Route path="/project/analytics" element={<Navigate to="/project" replace />} />
-                <Route path="/project/analytics-dashboard" element={<Navigate to="/project" replace />} />
+                  <Route path="/guides/mods" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                  <Route path="/guides/mods/bodyslide" element={<BodyslideGuide />} />
+                  <Route path="/guides/mods/sim-settlements" element={<SimSettlementsGuide />} />
+                  <Route path="/guides/mods/sim-settlements-addon" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
+                  <Route path="/guides/mods/sim-settlements-units-loadouts" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
+                  <Route path="/guides/mods/sim-settlements-addon-toolkits" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
 
-                {/* Support */}
-                <Route path="/support" element={<DonationSupport />} />
+                  {/* Wizards & Advanced Tools */}
+                  <Route path="/wizards" element={<WizardsHub />} />
+                  <Route path="/wizards/install" element={<Navigate to="/wizards" replace />} />
+                  <Route path="/wizards/platforms" element={<Navigate to="/wizards" replace />} />
+                  <Route path="/wizards/crash-triage" element={<Navigate to="/diagnostics" replace />} />
+                  <Route path="/wizards/packaging-release" element={<Navigate to="/packaging-release" replace />} />
+                  <Route path="/wizards/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
 
-                {/* Legacy Routes - Redirect to new structure */}
-                <Route path="/monitor" element={<Navigate to="/diagnostics" replace />} />
-                <Route path="/load-order" element={<Navigate to="/dev/load-order" replace />} />
-                <Route path="/assembler" element={<Navigate to="/packaging-release" replace />} />
-                <Route path="/auditor" element={<Navigate to="/tools/auditor" replace />} />
-                <Route path="/blueprint" element={<Navigate to="/tools/blueprint" replace />} />
-                <Route path="/scribe" element={<Navigate to="/tools/scribe" replace />} />
-                <Route path="/orchestrator" element={<Navigate to="/dev/orchestrator" replace />} />
-                <Route path="/workflow-runner" element={<Navigate to="/dev/workflow-runner" replace />} />
-                <Route path="/lore" element={<Navigate to="/learn" replace />} />
-                <Route path="/holo" element={<Navigate to="/test/holo" replace />} />
-                <Route path="/vault" element={<Navigate to="/tools/vault" replace />} />
-                <Route path="/neural-link" element={<Navigate to="/live" replace />} />
-                <Route path="/workshop" element={<Navigate to="/dev/workshop" replace />} />
-                <Route path="/images" element={<Navigate to="/media/images" replace />} />
-                <Route path="/tts" element={<Navigate to="/live" replace />} />
-                <Route path="/bridge" element={<Navigate to="/test/bridge" replace />} />
-                <Route path="/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
-                <Route path="/cosmos" element={<Navigate to="/tools/cosmos" replace />} />
-                <Route path="/diagnostics" element={<DiagnosticsHub />} />
-                <Route path="/tool-verify" element={<Navigate to="/diagnostics" replace />} />
-                <Route path="/community" element={<Navigate to="/learn" replace />} />
-                <Route path="/reference" element={<Navigate to="/learn" replace />} />
-                <Route path="/capabilities" element={<Navigate to="/learn" replace />} />
-                <Route path="/knowledge" element={<Navigate to="/learn" replace />} />
-                <Route path="/script-analyzer" element={<Navigate to="/devtools" replace />} />
-                <Route path="/template-generator" element={<Navigate to="/devtools" replace />} />
-                <Route path="/install-wizard" element={<Navigate to="/wizards" replace />} />
-                <Route path="/platforms" element={<Navigate to="/wizards" replace />} />
-                <Route path="/crash-triage" element={<Navigate to="/diagnostics" replace />} />
-                <Route path="/packaging-release" element={<PackagingHub />} />
-                <Route path="/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
-                <Route path="/animation-guide" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/skeleton-reference" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/animation-validator" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/rigging-checklist" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/export-settings" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/rigging-mistakes" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/precombine-prp" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/precombine-checker" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/leveled-list-injection" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/quest-mod-authoring-guide" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/quest-authoring" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/journey" element={<Navigate to="/project" replace />} />
-                <Route path="/bodyslide" element={<Navigate to="/guides/mods/bodyslide" replace />} />
-                <Route path="/sim-settlements" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
-                <Route path="/sim-settlements-addon" element={<Navigate to="/guides/mods/sim-settlements-addon" replace />} />
-                <Route path="/sim-settlements-units-loadouts" element={<Navigate to="/guides/mods/sim-settlements-units-loadouts" replace />} />
-                <Route path="/sim-settlements-addon-toolkits" element={<Navigate to="/guides/mods/sim-settlements-addon-toolkits" replace />} />
-                <Route path="/paperscript" element={<Navigate to="/guides/papyrus/guide" replace />} />
-                <Route path="/paperscript-quick-start" element={<Navigate to="/guides/papyrus/guide" replace />} />
-                <Route path="/paperscript-fo4" element={<Navigate to="/guides/papyrus/guide" replace />} />
-                <Route path="/havok" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
-                
-                {/* Extension shortcuts */}
-                <Route path="/extensions/mo2" element={<ErrorBoundary><MO2Extension /></ErrorBoundary>} />
-                <Route path="/extensions/comfyui" element={<ErrorBoundary><ComfyUIExtension /></ErrorBoundary>} />
-                <Route path="/extensions/upscayl" element={<ErrorBoundary><UpscaylExtension /></ErrorBoundary>} />
-                <Route path="/extensions/xedit" element={<Navigate to="/tools/xedit" replace />} />
-                <Route path="/extensions/ck" element={<Navigate to="/tools/ck-extension" replace />} />
+                  {/* Development Tools */}
+                  <Route path="/devtools" element={<DevtoolsHub />} />
+                  <Route path="/devtools/script-analyzer" element={<Navigate to="/devtools" replace />} />
+                  <Route path="/devtools/template-generator" element={<Navigate to="/devtools" replace />} />
+                  <Route path="/devtools/tool-verify" element={<Navigate to="/diagnostics" replace />} />
+                  <Route path="/devtools/diagnostics" element={<Navigate to="/diagnostics" replace />} />
+
+                  {/* Settings */}
+                  <Route path="/settings" element={<SettingsHub />} />
+                  <Route path="/settings/privacy" element={<Navigate to="/settings" replace />} />
+                  <Route path="/settings/voice" element={<Navigate to="/live" replace />} />
+                  <Route path="/settings/language" element={<Navigate to="/settings" replace />} />
+                  <Route path="/settings/tools" element={<Navigate to="/settings" replace />} />
+                  <Route path="/settings/import-export" element={<Navigate to="/settings" replace />} />
+
+                  {/* Project Management */}
+                  <Route path="/project" element={<ProjectHub />} />
+                  <Route path="/project/journey" element={<Navigate to="/project" replace />} />
+                  <Route path="/project/achievements" element={<Navigate to="/project" replace />} />
+                  <Route path="/project/manager" element={<Navigate to="/project" replace />} />
+                  <Route path="/project/create" element={<Navigate to="/project" replace />} />
+                  <Route path="/project/collaboration" element={<Navigate to="/project" replace />} />
+                  <Route path="/project/analytics" element={<Navigate to="/project" replace />} />
+                  <Route path="/project/analytics-dashboard" element={<Navigate to="/project" replace />} />
+
+                  {/* Support */}
+                  <Route path="/support" element={<DonationSupport />} />
+
+                  {/* Legacy Routes - Redirect to new structure */}
+                  <Route path="/monitor" element={<Navigate to="/diagnostics" replace />} />
+                  <Route path="/load-order" element={<Navigate to="/dev/load-order" replace />} />
+                  <Route path="/assembler" element={<Navigate to="/packaging-release" replace />} />
+                  <Route path="/auditor" element={<Navigate to="/tools/auditor" replace />} />
+                  <Route path="/blueprint" element={<Navigate to="/tools/blueprint" replace />} />
+                  <Route path="/scribe" element={<Navigate to="/tools/scribe" replace />} />
+                  <Route path="/orchestrator" element={<Navigate to="/dev/orchestrator" replace />} />
+                  <Route path="/workflow-runner" element={<Navigate to="/dev/workflow-runner" replace />} />
+                  <Route path="/lore" element={<Navigate to="/learn" replace />} />
+                  <Route path="/holo" element={<Navigate to="/test/holo" replace />} />
+                  <Route path="/vault" element={<Navigate to="/tools/vault" replace />} />
+                  <Route path="/neural-link" element={<Navigate to="/live" replace />} />
+                  <Route path="/workshop" element={<Navigate to="/dev/workshop" replace />} />
+                  <Route path="/images" element={<Navigate to="/media/images" replace />} />
+                  <Route path="/tts" element={<Navigate to="/live" replace />} />
+                  <Route path="/bridge" element={<Navigate to="/test/bridge" replace />} />
+                  <Route path="/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
+                  <Route path="/cosmos" element={<Navigate to="/tools/cosmos" replace />} />
+                  <Route path="/diagnostics" element={<DiagnosticsHub />} />
+                  <Route path="/tool-verify" element={<Navigate to="/diagnostics" replace />} />
+                  <Route path="/community" element={<Navigate to="/learn" replace />} />
+                  <Route path="/reference" element={<Navigate to="/learn" replace />} />
+                  <Route path="/capabilities" element={<Navigate to="/learn" replace />} />
+                  <Route path="/knowledge" element={<Navigate to="/learn" replace />} />
+                  <Route path="/script-analyzer" element={<Navigate to="/devtools" replace />} />
+                  <Route path="/template-generator" element={<Navigate to="/devtools" replace />} />
+                  <Route path="/install-wizard" element={<Navigate to="/wizards" replace />} />
+                  <Route path="/platforms" element={<Navigate to="/wizards" replace />} />
+                  <Route path="/crash-triage" element={<Navigate to="/diagnostics" replace />} />
+                  <Route path="/packaging-release" element={<PackagingHub />} />
+                  <Route path="/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                  <Route path="/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
+                  <Route path="/animation-guide" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/skeleton-reference" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/animation-validator" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/rigging-checklist" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/export-settings" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/rigging-mistakes" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/precombine-prp" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                  <Route path="/precombine-checker" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                  <Route path="/leveled-list-injection" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                  <Route path="/quest-mod-authoring-guide" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                  <Route path="/quest-authoring" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                  <Route path="/journey" element={<Navigate to="/project" replace />} />
+                  <Route path="/bodyslide" element={<Navigate to="/guides/mods/bodyslide" replace />} />
+                  <Route path="/sim-settlements" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
+                  <Route path="/sim-settlements-addon" element={<Navigate to="/guides/mods/sim-settlements-addon" replace />} />
+                  <Route path="/sim-settlements-units-loadouts" element={<Navigate to="/guides/mods/sim-settlements-units-loadouts" replace />} />
+                  <Route path="/sim-settlements-addon-toolkits" element={<Navigate to="/guides/mods/sim-settlements-addon-toolkits" replace />} />
+                  <Route path="/paperscript" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                  <Route path="/paperscript-quick-start" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                  <Route path="/paperscript-fo4" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                  <Route path="/havok" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
+                  <Route path="/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
+
+                  {/* Extension shortcuts */}
+                  <Route path="/extensions/mo2" element={<ErrorBoundary><MO2Extension /></ErrorBoundary>} />
+                  <Route path="/extensions/comfyui" element={<ErrorBoundary><ComfyUIExtension /></ErrorBoundary>} />
+                  <Route path="/extensions/upscayl" element={<ErrorBoundary><UpscaylExtension /></ErrorBoundary>} />
+                  <Route path="/extensions/xedit" element={<Navigate to="/tools/xedit" replace />} />
+                  <Route path="/extensions/ck" element={<Navigate to="/tools/ck-extension" replace />} />
                 </Routes>
               </Suspense>
             </div>
@@ -1372,7 +1373,7 @@ const App: React.FC = () => {
             tourType={guidedTour.type}
             targetModule={guidedTour.targetModule}
           />
-          
+
           {/* Tutorial Launch Prompt */}
           {showTutorialLaunch && (
             <TutorialLaunch
@@ -1525,7 +1526,7 @@ const App: React.FC = () => {
             </button>
             <NotificationProvider>
               {renderAppContent()}
-              
+
               {/* Auto-Update Notification */}
               <AutoUpdateNotifier />
             </NotificationProvider>

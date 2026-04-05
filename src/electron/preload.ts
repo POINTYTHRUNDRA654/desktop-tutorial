@@ -246,6 +246,15 @@ const IPC_CHANNELS = {
 
   // Fresh-install detection
   TRIGGER_FRESH_INSTALL: 'trigger-fresh-install',
+
+  // Creation Kit Link - path pickers
+  CK_PICK_CREATIONKIT_EXE: 'ck-pick-creationkit-exe',
+  CK_PICK_FALLOUT4_FOLDER: 'ck-pick-fallout4-folder',
+  CK_PICK_PAPYRUS_COMPILER: 'ck-pick-papyrus-compiler',
+  CK_PICK_PAPYRUS_FLAGS: 'ck-pick-papyrus-flags',
+  CK_PICK_IMPORT_PATHS: 'ck-pick-import-paths',
+  CK_PICK_SOURCE_FOLDER: 'ck-pick-source-folder',
+  CK_PICK_OUTPUT_FOLDER: 'ck-pick-output-folder',
 } as const;
 
 /**
@@ -1596,6 +1605,55 @@ const electronAPI = {
    */
   pickDirectory: (title?: string): Promise<string> => {
     return ipcRenderer.invoke(IPC_CHANNELS.PICK_DIRECTORY, title);
+  },
+
+  /**
+   * Creation Kit Link - Pick CreationKit.exe file
+   */
+  pickCreationKitExe: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_CREATIONKIT_EXE);
+  },
+
+  /**
+   * Creation Kit Link - Pick Fallout 4 Root Folder
+   */
+  pickFallout4Folder: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_FALLOUT4_FOLDER);
+  },
+
+  /**
+   * Creation Kit Link - Pick PapyrusCompiler.exe file
+   */
+  pickPapyrusCompiler: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_PAPYRUS_COMPILER);
+  },
+
+  /**
+   * Creation Kit Link - Pick TESV_Papyrus_Flags.flg file
+   */
+  pickPapyrusFlags: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_PAPYRUS_FLAGS);
+  },
+
+  /**
+   * Creation Kit Link - Pick Import Paths folder
+   */
+  pickImportPaths: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_IMPORT_PATHS);
+  },
+
+  /**
+   * Creation Kit Link - Pick Papyrus Source Folder
+   */
+  pickSourceFolder: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_SOURCE_FOLDER);
+  },
+
+  /**
+   * Creation Kit Link - Pick Papyrus Output Folder
+   */
+  pickOutputFolder: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_OUTPUT_FOLDER);
   },
 
   /**

@@ -1894,72 +1894,184 @@ pause
                                         <div className="space-y-3">
                                             <div>
                                                 <div className="text-[10px] text-slate-400 mb-1">CreationKit.exe</div>
-                                                <input
-                                                    value={ckSettings.creationKitPath}
-                                                    onChange={(e) => setCkSettings((s) => ({ ...s, creationKitPath: e.target.value }))}
-                                                    placeholder="C:\\...\\CreationKit.exe"
-                                                    className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
-                                                />
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        value={ckSettings.creationKitPath}
+                                                        onChange={(e) => setCkSettings((s) => ({ ...s, creationKitPath: e.target.value }))}
+                                                        placeholder="C:\\...\\CreationKit.exe"
+                                                        className="flex-1 rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const path = await (window as any).electronAPI?.pickCreationKitExe?.();
+                                                                if (path) setCkSettings((s) => ({ ...s, creationKitPath: path }));
+                                                            } catch (e) {
+                                                                console.error('Error picking CK exe:', e);
+                                                            }
+                                                        }}
+                                                        className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white whitespace-nowrap"
+                                                    >
+                                                        Browse
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div>
                                                 <div className="text-[10px] text-slate-400 mb-1">Fallout 4 Root Folder (optional)</div>
-                                                <input
-                                                    value={ckSettings.fallout4Path}
-                                                    onChange={(e) => setCkSettings((s) => ({ ...s, fallout4Path: e.target.value }))}
-                                                    placeholder="C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4"
-                                                    className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
-                                                />
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        value={ckSettings.fallout4Path}
+                                                        onChange={(e) => setCkSettings((s) => ({ ...s, fallout4Path: e.target.value }))}
+                                                        placeholder="C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4"
+                                                        className="flex-1 rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const path = await (window as any).electronAPI?.pickFallout4Folder?.();
+                                                                if (path) setCkSettings((s) => ({ ...s, fallout4Path: path }));
+                                                            } catch (e) {
+                                                                console.error('Error picking FO4 folder:', e);
+                                                            }
+                                                        }}
+                                                        className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white whitespace-nowrap"
+                                                    >
+                                                        Browse
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div>
                                                 <div className="text-[10px] text-slate-400 mb-1">PapyrusCompiler.exe</div>
-                                                <input
-                                                    value={ckSettings.papyrusCompilerPath}
-                                                    onChange={(e) => setCkSettings((s) => ({ ...s, papyrusCompilerPath: e.target.value }))}
-                                                    placeholder="C:\\...\\Papyrus Compiler\\PapyrusCompiler.exe"
-                                                    className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
-                                                />
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        value={ckSettings.papyrusCompilerPath}
+                                                        onChange={(e) => setCkSettings((s) => ({ ...s, papyrusCompilerPath: e.target.value }))}
+                                                        placeholder="C:\\...\\Papyrus Compiler\\PapyrusCompiler.exe"
+                                                        className="flex-1 rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const path = await (window as any).electronAPI?.pickPapyrusCompiler?.();
+                                                                if (path) setCkSettings((s) => ({ ...s, papyrusCompilerPath: path }));
+                                                            } catch (e) {
+                                                                console.error('Error picking Papyrus compiler:', e);
+                                                            }
+                                                        }}
+                                                        className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white whitespace-nowrap"
+                                                    >
+                                                        Browse
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div>
                                                 <div className="text-[10px] text-slate-400 mb-1">TESV_Papyrus_Flags.flg (optional)</div>
-                                                <input
-                                                    value={ckSettings.papyrusFlagsPath}
-                                                    onChange={(e) => setCkSettings((s) => ({ ...s, papyrusFlagsPath: e.target.value }))}
-                                                    placeholder="C:\\...\\Papyrus Compiler\\TESV_Papyrus_Flags.flg"
-                                                    className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
-                                                />
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        value={ckSettings.papyrusFlagsPath}
+                                                        onChange={(e) => setCkSettings((s) => ({ ...s, papyrusFlagsPath: e.target.value }))}
+                                                        placeholder="C:\\...\\Papyrus Compiler\\TESV_Papyrus_Flags.flg"
+                                                        className="flex-1 rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const path = await (window as any).electronAPI?.pickPapyrusFlags?.();
+                                                                if (path) setCkSettings((s) => ({ ...s, papyrusFlagsPath: path }));
+                                                            } catch (e) {
+                                                                console.error('Error picking Papyrus flags:', e);
+                                                            }
+                                                        }}
+                                                        className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white whitespace-nowrap"
+                                                    >
+                                                        Browse
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div>
                                                 <div className="text-[10px] text-slate-400 mb-1">Import Paths (-i) (semicolon-separated)</div>
-                                                <input
-                                                    value={ckSettings.papyrusImportPaths}
-                                                    onChange={(e) => setCkSettings((s) => ({ ...s, papyrusImportPaths: e.target.value }))}
-                                                    placeholder="C:\\Fallout4\\Data\\Scripts\\Source;C:\\Fallout4\\Data\\Scripts\\Source\\User"
-                                                    className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
-                                                />
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        value={ckSettings.papyrusImportPaths}
+                                                        onChange={(e) => setCkSettings((s) => ({ ...s, papyrusImportPaths: e.target.value }))}
+                                                        placeholder="C:\\Fallout4\\Data\\Scripts\\Source;C:\\Fallout4\\Data\\Scripts\\Source\\User"
+                                                        className="flex-1 rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const path = await (window as any).electronAPI?.pickImportPaths?.();
+                                                                if (path) setCkSettings((s) => ({ ...s, papyrusImportPaths: path }));
+                                                            } catch (e) {
+                                                                console.error('Error picking import paths:', e);
+                                                            }
+                                                        }}
+                                                        className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white whitespace-nowrap"
+                                                    >
+                                                        Browse
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div>
                                                 <div className="text-[10px] text-slate-400 mb-1">Papyrus Source Folder (where .psc live)</div>
-                                                <input
-                                                    value={ckSettings.papyrusSourcePath}
-                                                    onChange={(e) => setCkSettings((s) => ({ ...s, papyrusSourcePath: e.target.value }))}
-                                                    placeholder="C:\\Fallout4\\Data\\Scripts\\Source\\User"
-                                                    className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
-                                                />
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        value={ckSettings.papyrusSourcePath}
+                                                        onChange={(e) => setCkSettings((s) => ({ ...s, papyrusSourcePath: e.target.value }))}
+                                                        placeholder="C:\\Fallout4\\Data\\Scripts\\Source\\User"
+                                                        className="flex-1 rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const path = await (window as any).electronAPI?.pickSourceFolder?.();
+                                                                if (path) setCkSettings((s) => ({ ...s, papyrusSourcePath: path }));
+                                                            } catch (e) {
+                                                                console.error('Error picking source folder:', e);
+                                                            }
+                                                        }}
+                                                        className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white whitespace-nowrap"
+                                                    >
+                                                        Browse
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div>
                                                 <div className="text-[10px] text-slate-400 mb-1">Papyrus Output Folder (-o) (where .pex go)</div>
-                                                <input
-                                                    value={ckSettings.papyrusOutputPath}
-                                                    onChange={(e) => setCkSettings((s) => ({ ...s, papyrusOutputPath: e.target.value }))}
-                                                    placeholder="C:\\Fallout4\\Data\\Scripts"
-                                                    className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
-                                                />
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        value={ckSettings.papyrusOutputPath}
+                                                        onChange={(e) => setCkSettings((s) => ({ ...s, papyrusOutputPath: e.target.value }))}
+                                                        placeholder="C:\\Fallout4\\Data\\Scripts"
+                                                        className="flex-1 rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const path = await (window as any).electronAPI?.pickOutputFolder?.();
+                                                                if (path) setCkSettings((s) => ({ ...s, papyrusOutputPath: path }));
+                                                            } catch (e) {
+                                                                console.error('Error picking output folder:', e);
+                                                            }
+                                                        }}
+                                                        className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white whitespace-nowrap"
+                                                    >
+                                                        Browse
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
 
