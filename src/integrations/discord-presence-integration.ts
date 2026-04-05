@@ -16,6 +16,7 @@
  */
 
 import type { IntegrationConfig } from './README';
+import { getCurrentVersion } from '../electron/dataMigration';
 
 // This would normally import from discord-rpc
 // For now, showing the interface
@@ -92,7 +93,7 @@ export class DiscordPresence {
       state: this.getStateText(activity),
       startTimestamp: this.startTime,
       largeImageKey: 'mossy-logo',
-      largeImageText: 'Mossy v5.4.24',
+      largeImageText: `Mossy v${getCurrentVersion()}`,
       smallImageKey: this.getSmallIcon(activity),
       smallImageText: this.getActivityName(activity),
       instance: false,

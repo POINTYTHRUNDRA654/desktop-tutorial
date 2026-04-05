@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map } from 'lucide-react';
 import { useI18n, resolveUiLanguage } from './i18n';
+import packageJson from '../../../package.json';
 import TutorialVideoPanel from './components/TutorialVideoPanel';
 import { speakMossy } from './mossyTts';
 import { getBrowserTtsVoices, loadBrowserTtsSettings, saveBrowserTtsSettings, pickBrowserTtsVoice } from './browserTts';
@@ -51,6 +52,19 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         // Check if this is truly first run
         const hasOnboarded = localStorage.getItem('mossy_onboarding_complete');
         if (hasOnboarded) {
+            onComplete();
+            return;
+        }
+
+        // If prior scan data already exists (e.g. after an app update that cleared
+        // only the onboarding flag), skip the re-scan entirely and complete onboarding
+        // silently. The user's tools, preferences, and vault data remain untouched.
+        // The "What's New" page handles communicating update changes.
+        const hasScanData =
+            !!localStorage.getItem('mossy_scan_summary') &&
+            !!localStorage.getItem('mossy_all_detected_apps');
+        if (hasScanData) {
+            localStorage.setItem('mossy_onboarding_complete', 'true');
             onComplete();
         }
     }, []);
@@ -371,12 +385,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 {step === 'welcome' && (
                     <div className="text-center animate-fade-in">
                         <Sparkles className="w-20 h-20 mx-auto mb-6 text-amber-400" />
-                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy v5.4.24</h1>
+                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy v{packageJson.version}</h1>
                         <p className="text-xl text-slate-300 mb-8">
                             Your AI-powered Fallout 4 modding assistant with next-gen voice conversation
                         </p>
                         <p className="text-slate-400 mb-6">
-                            <strong className="text-emerald-400">✨ New in v5.4.24:</strong> Pick your UI language on first launch (or later in Settings), plus a smoother Install Wizard experience.
+                            <strong className="text-emerald-400">✨ New in v{packageJson.version}:</strong> Pick your UI language on first launch (or later in Settings), plus a smoother Install Wizard experience.
                         </p>
                         <p className="text-slate-400 mb-8">
                             Let me scan your system to discover tools I can integrate with.
