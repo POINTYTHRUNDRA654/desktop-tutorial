@@ -49,17 +49,17 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     };
 
     useEffect(() => {
-        // Check if this is truly first run
+        // If onboarding was already completed, skip straight through.
         const hasOnboarded = localStorage.getItem('mossy_onboarding_complete');
         if (hasOnboarded) {
             onComplete();
             return;
         }
 
-        // If prior scan data already exists (e.g. after an app update that cleared
-        // only the onboarding flag), skip the re-scan entirely and complete onboarding
-        // silently. The user's tools, preferences, and vault data remain untouched.
-        // The "What's New" page handles communicating update changes.
+        // If the onboarding flag was cleared by an app update (fresh-install marker)
+        // but prior scan data still exists, skip the re-scan entirely and complete
+        // onboarding silently. User data is preserved; only the "What's New" page
+        // communicates what changed in the new release.
         const hasScanData =
             !!localStorage.getItem('mossy_scan_summary') &&
             !!localStorage.getItem('mossy_all_detected_apps');

@@ -16,7 +16,8 @@
  */
 
 import type { IntegrationConfig } from './README';
-import { getCurrentVersion } from '../electron/dataMigration';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const appVersion: string = require('../../package.json').version;
 
 // This would normally import from discord-rpc
 // For now, showing the interface
@@ -93,7 +94,7 @@ export class DiscordPresence {
       state: this.getStateText(activity),
       startTimestamp: this.startTime,
       largeImageKey: 'mossy-logo',
-      largeImageText: `Mossy v${getCurrentVersion()}`,
+      largeImageText: `Mossy v${appVersion}`,
       smallImageKey: this.getSmallIcon(activity),
       smallImageText: this.getActivityName(activity),
       instance: false,

@@ -118,6 +118,12 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose 
   );
 };
 
+// Sentinel value used when migrating from the old boolean-flag dismissal system.
+// Any stored version that matches this value is treated as "dismissed before version
+// tracking existed" — the dialog will re-appear since we can't know which exact
+// version they dismissed.
+const LEGACY_DISMISSED_VERSION = '__legacy__';
+
 // Hook to manage "What's New" dialog state
 export const useWhatsNew = () => {
   const [showWhatsNew, setShowWhatsNew] = useState(false);
@@ -132,7 +138,7 @@ export const useWhatsNew = () => {
         const v = localStorage.getItem('mossy_whats_new_dismissed_version');
         if (v) return v;
         // Migrate old boolean key: treat as dismissed for any version before current
-        if (localStorage.getItem('mossy_whats_new_dismissed') === 'true') return '__legacy__';
+        if (localStorage.getItem('mossy_whats_new_dismissed') === 'true') return LEGACY_DISMISSED_VERSION;
         return null;
       } catch { return null; }
     })();
