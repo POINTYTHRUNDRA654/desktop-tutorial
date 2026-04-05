@@ -4532,9 +4532,20 @@ class FO4_OT_PrepareThirdPartyMesh(Operator):
 
         # ── Step 1: Apply transforms ─────────────────────────────────────────
         if self.apply_transforms:
+            # Ensure object is selected and active in OBJECT mode so the
+            # transform_apply poll() passes (it fails if mode is wrong or the
+            # object is not the active selection).
+            prev_mode = obj.mode
+            if prev_mode != 'OBJECT':
+                bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
             bpy.ops.object.transform_apply(
                 location=False, rotation=True, scale=True
             )
+            if prev_mode != 'OBJECT':
+                bpy.ops.object.mode_set(mode=prev_mode)
             steps.append("✓ Transforms applied")
 
         mesh = obj.data
