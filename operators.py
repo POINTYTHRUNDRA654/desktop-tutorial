@@ -4518,6 +4518,15 @@ class FO4_OT_PrepareThirdPartyMesh(Operator):
         ),
         default=False,
     )
+    fix_non_manifold: BoolProperty(
+        name="Auto-Fix Non-Manifold Edges",
+        description=(
+            "Attempt to automatically repair non-manifold edges by merging nearby "
+            "vertices and filling open holes. Any edges that cannot be fixed "
+            "automatically will be reported so you can resolve them manually"
+        ),
+        default=True,
+    )
 
     def execute(self, context):
         obj = context.active_object
@@ -4617,18 +4626,76 @@ class FO4_OT_PrepareThirdPartyMesh(Operator):
             else:
                 steps.append("✓ Materials present (skipped)")
 
-        # ── Step 6: Mesh optimisation & validation ───────────────────────────
+        # ── Step 6: Mesh optimisation ────────────────────────────────────────
         ok, msg = mesh_helpers.MeshHelpers.optimize_mesh(obj)
         if ok:
             steps.append(f"✓ Mesh optimised: {msg}")
         else:
             warnings.append(f"⚠ Optimise warning: {msg}")
 
+        # ── Step 7: Auto-fix non-manifold edges ──────────────────────────────
+        # non-manifold = edges shared by ≠2 faces (holes, open shells, T-junctions).
+        # We attempt a fill-holes + merge-by-distance pass and report the result.
+        _nm_fix_attempted = False
+        if self.fix_non_manifold:
+            bm_pre = _bmesh.new()
+            bm_pre.from_mesh(obj.data)
+            bm_pre.edges.ensure_lookup_table()
+            pre_nm = sum(1 for e in bm_pre.edges if not e.is_manifold)
+            bm_pre.free()
+            if pre_nm > 0:
+                _nm_fix_attempted = True
+                prev_mode = obj.mode
+                if prev_mode != 'OBJECT':
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                context.view_layer.objects.active = obj
+                bpy.ops.object.mode_set(mode='EDIT')
+                # Merge near vertices first (catches duplicate-vert open edges)
+                bpy.ops.mesh.select_all(action='SELECT')
+                try:
+                    bpy.ops.mesh.merge_by_distance(threshold=0.0001)
+                except AttributeError:
+                    bpy.ops.mesh.remove_doubles(threshold=0.0001)
+                # Fill remaining holes
+                bpy.ops.mesh.select_all(action='DESELECT')
+                bpy.ops.mesh.select_non_manifold()
+                bpy.ops.mesh.fill_holes(sides=4)
+                bpy.ops.object.mode_set(mode='OBJECT')
+
+                bm_post = _bmesh.new()
+                bm_post.from_mesh(obj.data)
+                bm_post.edges.ensure_lookup_table()
+                post_nm = sum(1 for e in bm_post.edges if not e.is_manifold)
+                bm_post.free()
+
+                fixed = pre_nm - post_nm
+                if post_nm == 0:
+                    steps.append(f"✓ Auto-fixed all {fixed} non-manifold edge(s)")
+                else:
+                    if fixed > 0:
+                        steps.append(f"✓ Auto-fixed {fixed} of {pre_nm} non-manifold edge(s)")
+                    warnings.append(
+                        f"⚠ {post_nm} non-manifold edge(s) could not be fixed automatically "
+                        f"(complex topology). To fix manually: "
+                        f"enter Edit Mode → select non-manifold edges with "
+                        f"Alt+Ctrl+Shift+M → use Mesh > Clean Up > Fill Holes to close "
+                        f"open holes, or Merge by Distance to weld nearby vertices. "
+                        f"T-junctions (edges shared by 3+ faces) must be manually "
+                        f"split or dissolved"
+                    )
+
+        # ── Step 8: Validate ─────────────────────────────────────────────────
         ok, issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
         if ok:
             steps.append("✓ Mesh validated for FO4 export")
         else:
             for issue in issues:
+                # Suppress the non-manifold hint when we already tried to fix
+                # it above (the fix step already reported the outcome).
+                if _nm_fix_attempted and "non-manifold" in issue:
+                    continue
                 warnings.append(f"⚠ {issue}")
 
         # ── Report ───────────────────────────────────────────────────────────
@@ -4657,6 +4724,7 @@ class FO4_OT_PrepareThirdPartyMesh(Operator):
         col.prop(self, "remove_vertex_colors")
         col.prop(self, "setup_material")
         col.prop(self, "clear_custom_normals")
+        col.prop(self, "fix_non_manifold")
         layout.separator()
         layout.label(text="After this, use 'Convert to Fallout 4' for final prep.", icon='INFO')
 

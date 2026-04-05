@@ -4388,6 +4388,97 @@ class TestBA2Extraction(unittest.TestCase):
         )
 
 
+class TestPrepareThirdPartyMeshNonManifoldFix(unittest.TestCase):
+    """Structural checks for the non-manifold auto-fix added to FO4_OT_PrepareThirdPartyMesh."""
+
+    def _src(self):
+        return _read("operators.py")
+
+    def test_fix_non_manifold_property_exists(self):
+        """FO4_OT_PrepareThirdPartyMesh must declare fix_non_manifold BoolProperty."""
+        src = self._src()
+        self.assertIn(
+            "fix_non_manifold",
+            src,
+            "FO4_OT_PrepareThirdPartyMesh must have a fix_non_manifold BoolProperty.",
+        )
+
+    def test_fix_non_manifold_default_true(self):
+        """fix_non_manifold must default to True so the fix runs automatically."""
+        src = self._src()
+        # The property declaration block must include default=True near fix_non_manifold
+        idx = src.find("fix_non_manifold")
+        self.assertGreater(idx, 0)
+        # Search in the next 500 chars for the default
+        snippet = src[idx: idx + 500]
+        self.assertIn(
+            "default=True",
+            snippet,
+            "fix_non_manifold BoolProperty must have default=True.",
+        )
+
+    def test_fill_holes_called_in_execute(self):
+        """execute() must call fill_holes to repair open-boundary non-manifold edges."""
+        src = self._src()
+        self.assertIn(
+            "fill_holes",
+            src,
+            "FO4_OT_PrepareThirdPartyMesh.execute() must call bpy.ops.mesh.fill_holes.",
+        )
+
+    def test_select_non_manifold_called_in_execute(self):
+        """execute() must select non-manifold geometry before attempting the fill."""
+        src = self._src()
+        self.assertIn(
+            "select_non_manifold",
+            src,
+            "FO4_OT_PrepareThirdPartyMesh.execute() must call "
+            "bpy.ops.mesh.select_non_manifold() to target only problem edges.",
+        )
+
+    def test_merge_by_distance_called_in_execute(self):
+        """execute() must call merge_by_distance to catch duplicate-vert open edges."""
+        src = self._src()
+        self.assertIn(
+            "merge_by_distance",
+            src,
+            "FO4_OT_PrepareThirdPartyMesh.execute() must call merge_by_distance "
+            "as part of non-manifold repair.",
+        )
+
+    def test_remaining_nm_warning_is_actionable(self):
+        """The warning for unfixable non-manifold edges must guide the user."""
+        src = self._src()
+        self.assertIn(
+            "Alt+Ctrl+Shift+M",
+            src,
+            "The non-manifold warning must include the keyboard shortcut "
+            "Alt+Ctrl+Shift+M so users can immediately select the problem edges.",
+        )
+
+    def test_fix_non_manifold_checkbox_in_draw(self):
+        """draw() must expose fix_non_manifold so users can disable auto-repair."""
+        src = self._src()
+        # find the draw() method of PrepareThirdPartyMesh and check it contains the prop
+        draw_idx = src.find('col.prop(self, "fix_non_manifold")')
+        self.assertGreater(
+            draw_idx,
+            0,
+            'FO4_OT_PrepareThirdPartyMesh.draw() must include '
+            'col.prop(self, "fix_non_manifold") so the option is visible in the dialog.',
+        )
+
+    def test_nm_fix_suppresses_duplicate_validate_warning(self):
+        """validate_mesh non-manifold warning must be suppressed when fix already ran."""
+        src = self._src()
+        self.assertIn(
+            "_nm_fix_attempted",
+            src,
+            "execute() must track _nm_fix_attempted and skip the duplicate "
+            "validate_mesh non-manifold warning when the fix step already reported it.",
+        )
+
+
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(sys.modules[__name__])
