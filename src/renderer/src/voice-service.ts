@@ -924,7 +924,6 @@ export class VoiceService {
       utterance.rate = browserSettings.rate;
       utterance.pitch = browserSettings.pitch;
       utterance.volume = browserSettings.volume;
-      utterance.lang = ttsBcp47;
       console.log('[VoiceService] Created SpeechSynthesisUtterance, lang:', ttsBcp47);
 
       // Set voice — voices are now guaranteed to be loaded (or we timed out and will use default).
@@ -935,9 +934,14 @@ export class VoiceService {
       const selectedVoice = pickBrowserTtsVoice(voices, preferredVoice || undefined, ttsLangBase || undefined);
       if (selectedVoice) {
         utterance.voice = selectedVoice;
-        console.log('[VoiceService] Selected voice:', selectedVoice.name, selectedVoice.lang);
+        // Match the language to the actual selected voice's language, not the requested language
+        const voiceLang = selectedVoice.lang || ttsBcp47;
+        utterance.lang = voiceLang;
+        console.log('[VoiceService] Selected voice:', selectedVoice.name, selectedVoice.lang, '-> setting utterance.lang to:', voiceLang);
       } else {
         console.warn('[VoiceService] No matching voice found, using browser default');
+        // If no voice found, set language to requested language
+        utterance.lang = ttsBcp47;
       }
 
       utterance.onstart = () => {

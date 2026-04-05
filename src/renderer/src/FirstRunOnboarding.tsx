@@ -3,7 +3,7 @@ import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map } from 'lucide-react';
 import { useI18n, resolveUiLanguage } from './i18n';
 import TutorialVideoPanel from './components/TutorialVideoPanel';
 import { speakMossy } from './mossyTts';
-import { getBrowserTtsVoices, loadBrowserTtsSettings, saveBrowserTtsSettings } from './browserTts';
+import { getBrowserTtsVoices, loadBrowserTtsSettings, saveBrowserTtsSettings, pickBrowserTtsVoice } from './browserTts';
 
 interface OnboardingProps {
     onComplete: () => void;
@@ -117,11 +117,19 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
         if (value !== 'auto') {
             const voices = getBrowserTtsVoices();
-            const match = voices.find(v => v.lang?.toLowerCase().startsWith(value.toLowerCase()));
+            // Use pickBrowserTtsVoice to intelligently select a female voice for the language
+            const langBase = value.split('-')[0].toLowerCase();
+            const match = pickBrowserTtsVoice(voices, undefined, langBase);
             if (match) {
-                const settings = loadBrowserTtsSettings();
-                saveBrowserTtsSettings({ ...settings, preferredVoiceName: match.name, enabled: true });
-                localStorage.setItem('mossy_voice_enabled', 'true');
+                // Only auto-select the voice if it's actually for the requested language
+                // Otherwise, keep the current voice (likely English Zira)
+                if (match.lang && match.lang.toLowerCase().startsWith(langBase)) {
+                    const settings = loadBrowserTtsSettings();
+                    saveBrowserTtsSettings({ ...settings, preferredVoiceName: match.name, enabled: true });
+                    localStorage.setItem('mossy_voice_enabled', 'true');
+                } else {
+                    console.log(`[FirstRunOnboarding] No ${value} voice available (found ${match.lang} instead), keeping current voice`);
+                }
             }
         }
 
@@ -185,19 +193,19 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setScanProgress(70);
 
             // Analyze and categorize
-            const nvidia = allDetectedApps.filter((a: any) => 
+            const nvidia = allDetectedApps.filter((a: any) =>
                 (a.displayName || a.name || '').toLowerCase().match(/nvidia|geforce|cuda|rtx|canvas|nsight|omniverse/)
             );
 
-            const ai = allDetectedApps.filter((a: any) => 
+            const ai = allDetectedApps.filter((a: any) =>
                 (a.displayName || a.name || '').toLowerCase().match(/ollama|luma|comfy|stable|gpt|kobold|automatic1111/)
             );
 
-            const creative = allDetectedApps.filter((a: any) => 
+            const creative = allDetectedApps.filter((a: any) =>
                 (a.displayName || a.name || '').toLowerCase().match(/gimp|photoshop|blender|substance|marmoset/)
             );
 
-            const modding = allDetectedApps.filter((a: any) => 
+            const modding = allDetectedApps.filter((a: any) =>
                 (a.displayName || a.name || '').toLowerCase().match(/xedit|fo4edit|creation kit|nifskope|outfit studio|bodyslide|wrye bash|loot|vortex|mod organizer/)
             );
 
@@ -334,25 +342,25 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         // Save user preferences
         localStorage.setItem('mossy_tool_preferences', JSON.stringify(userChoices));
         localStorage.setItem('mossy_onboarding_complete', 'true');
-        
+
         // Build integrated tools list for Mossy
         const integratedTools = recommendations
             .filter(r => userChoices[r.name] === true)
             .map(r => ({ name: r.name, path: r.path, category: r.category }));
-        
+
         localStorage.setItem('mossy_integrated_tools', JSON.stringify(integratedTools));
 
-                // Promote to the unified scan/permissions store used across the app.
-                // These are the tools the user explicitly approved for Mossy to know about and interact with.
-                const promotedApps = integratedTools.map((t, idx) => ({
-                    id: `onboard-${idx}-${Math.random().toString(36).slice(2, 7)}`,
-                    name: t.name,
-                    category: t.category,
-                    checked: true,
-                    path: t.path
-                }));
-                localStorage.setItem('mossy_apps', JSON.stringify(promotedApps));
-        
+        // Promote to the unified scan/permissions store used across the app.
+        // These are the tools the user explicitly approved for Mossy to know about and interact with.
+        const promotedApps = integratedTools.map((t, idx) => ({
+            id: `onboard-${idx}-${Math.random().toString(36).slice(2, 7)}`,
+            name: t.name,
+            category: t.category,
+            checked: true,
+            path: t.path
+        }));
+        localStorage.setItem('mossy_apps', JSON.stringify(promotedApps));
+
         setStep('complete');
         setTimeout(onComplete, 2000);
     };
@@ -398,15 +406,20 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         type="button"
                                         aria-pressed={uiLanguage === value}
                                         onClick={() => void applyLanguage(value)}
-                                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors text-left ${
-                                            uiLanguage === value
-                                                ? 'bg-emerald-600 border-emerald-500 text-white'
-                                                : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700 hover:border-slate-500'
-                                        }`}
+                                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors text-left ${uiLanguage === value
+                                            ? 'bg-emerald-600 border-emerald-500 text-white'
+                                            : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700 hover:border-slate-500'
+                                            }`}
                                     >
                                         {label}
                                     </button>
                                 ))}
+                            </div>
+                            <div className="mt-3 pt-3 border-t border-slate-700 text-[10px] text-amber-300">
+                                ⚠️ <strong>Multi-language in development.</strong> UI language will change, but voice support requires installing Windows voices.
+                            </div>
+                            <div className="mt-3 pt-3 border-t border-slate-700 text-[10px] text-amber-300">
+                                ⚠️ <strong>Multi-language in development.</strong> UI language will change, but voice support requires installing Windows voices.
                             </div>
                         </div>
 
@@ -510,7 +523,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     if (search.length > 0) {
                                         // Filter recommendations by search term
                                         setFilteredRecommendations(
-                                            recommendations.filter(r => 
+                                            recommendations.filter(r =>
                                                 r.name.toLowerCase().includes(search) ||
                                                 r.benefit.toLowerCase().includes(search)
                                             )
@@ -526,13 +539,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {filteredRecommendations.map((rec, i) => (
                                 <div
                                     key={i}
-                                    className={`p-3 rounded-lg border-2 transition-all cursor-pointer ${
-                                        userChoices[rec.name] === true
-                                            ? 'bg-emerald-900/20 border-emerald-500'
-                                            : userChoices[rec.name] === false
+                                    className={`p-3 rounded-lg border-2 transition-all cursor-pointer ${userChoices[rec.name] === true
+                                        ? 'bg-emerald-900/20 border-emerald-500'
+                                        : userChoices[rec.name] === false
                                             ? 'bg-slate-900/50 border-slate-700 opacity-50'
                                             : 'bg-slate-800 border-slate-700 hover:border-amber-500'
-                                    }`}
+                                        }`}
                                     onClick={() => {
                                         const current = userChoices[rec.name];
                                         handleChoice(rec.name, current !== true);
