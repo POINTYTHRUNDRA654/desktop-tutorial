@@ -72,10 +72,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     // === FOUNDATION: HOME & PROJECTS ===
     { to: '/', icon: LayoutDashboard, label: t('nav.home', 'Mossy.Space') },
     { to: '/chat', icon: MessageSquare, label: t('nav.chat', 'AI Chat') },
-    { to: '/ai-mod-assistant', icon: Code, label: 'AI Mod Assistant' },
+    { to: '/ai-mod-assistant', icon: Code, label: t('nav.aiModAssistant', 'AI Mod Assistant') },
     { to: '/first-success', icon: CheckCircle2, label: t('nav.firstSuccess', 'First Success') },
     { to: '/roadmap', icon: Target, label: t('nav.roadmap', 'Modding Roadmaps') },
-    { to: '/whats-new', icon: Star, label: "What's New" },
+    { to: '/whats-new', icon: Star, label: t('nav.whatsNew', "What's New") },
     { to: '/project', icon: Sparkles, label: t('nav.modProjects', 'Mod Projects') },
     { to: '/mods', icon: Download, label: t('nav.modBrowser', 'Mod Browser') },
 
@@ -105,7 +105,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
 
     // === QUALITY ASSURANCE: VALIDATE & VERIFY ===
     { to: '/auditor', icon: ShieldCheck, label: t('nav.auditor', 'The Auditor') },
-    { to: '/tools/security', icon: ShieldCheck, label: 'Security Scanner' },
+    { to: '/tools/security', icon: ShieldCheck, label: t('nav.securityScanner', 'Security Scanner') },
     { to: '/tools/mining', icon: Binary, label: t('nav.miningDashboard', 'Mining Dashboard') },
     { to: '/tools/advanced-analysis', icon: Brain, label: t('nav.advancedAnalysis', 'Advanced Analysis') },
     { to: '/scribe', icon: Feather, label: t('nav.scribe', 'The Scribe') },
@@ -127,12 +127,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/bridge', icon: Monitor, label: t('nav.desktopBridge', 'Desktop Bridge') },
 
     // === TOOL EXTENSIONS ===
-    { to: '/extensions/mo2', icon: Package, label: 'MO2 Extension' },
-    { to: '/tools/xedit', icon: Database, label: 'xEdit Tools' },
-    { to: '/tools/ck-extension', icon: Wrench, label: 'CK Extension' },
+    { to: '/extensions/mo2', icon: Package, label: t('nav.mo2Extension', 'MO2 Extension') },
+    { to: '/tools/xedit', icon: Database, label: t('nav.xeditTools', 'xEdit Tools') },
+    { to: '/tools/ck-extension', icon: Wrench, label: t('nav.ckExtension', 'CK Extension') },
     { to: '/tools/precombine-generator', icon: Zap, label: t('nav.prpPatchTools', 'PRP Patch Tools') },
-    { to: '/extensions/comfyui', icon: Network, label: 'ComfyUI Extension' },
-    { to: '/extensions/upscayl', icon: Aperture, label: 'Upscayl Extension' },
+    { to: '/extensions/comfyui', icon: Network, label: t('nav.comfyuiExtension', 'ComfyUI Extension') },
+    { to: '/extensions/upscayl', icon: Aperture, label: t('nav.upscaylExtension', 'Upscayl Extension') },
 
     { to: '/tools/asset-deduplicator', icon: Copy, label: t('nav.duplicateFinder', 'Asset Deduplicator') },
     { to: '/community', icon: Github, label: t('nav.communityLearning', 'Community Learning') },
