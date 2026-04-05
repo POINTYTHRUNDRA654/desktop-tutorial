@@ -29,6 +29,7 @@ const VoiceChat: React.FC = () => {
     mode: 'disconnected',
     connect: async () => { },
     transcription: '',
+    lastResponse: '',
     micLevel: 0,
     audioInputs: [],
     selectedInputId: '',
@@ -37,7 +38,7 @@ const VoiceChat: React.FC = () => {
   };
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const liveContext = useLive() || fallbackLive;
-  const { isActive, isMuted, toggleMute, disconnect, stopSpeaking, mode, connect, transcription, micLevel, audioInputs, selectedInputId, setSelectedInputId, sendTextMessage } = liveContext;
+  const { isActive, isMuted, toggleMute, disconnect, stopSpeaking, mode, connect, transcription, lastResponse, micLevel, audioInputs, selectedInputId, setSelectedInputId, sendTextMessage } = liveContext;
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedStep, setExpandedStep] = useState<string>('live-session');
@@ -118,7 +119,15 @@ const VoiceChat: React.FC = () => {
 
         {transcription && (
           <div className="bg-black/60 backdrop-blur-md border border-blue-500/20 px-6 py-3 rounded-2xl max-w-md shadow-2xl animate-in fade-in slide-in-from-bottom-4">
+            <p className="text-[9px] font-mono uppercase tracking-widest text-blue-400/50 mb-1">You said</p>
             <p className="text-sm text-blue-100 italic leading-relaxed font-serif">&quot;{transcription}&quot;</p>
+          </div>
+        )}
+
+        {lastResponse && (
+          <div className="bg-black/60 backdrop-blur-md border border-emerald-500/20 px-6 py-3 rounded-2xl max-w-md shadow-2xl animate-in fade-in slide-in-from-bottom-4 mt-2">
+            <p className="text-[9px] font-mono uppercase tracking-widest text-emerald-400/50 mb-1">Mossy replied</p>
+            <p className="text-sm text-emerald-100 leading-relaxed">{lastResponse}</p>
           </div>
         )}
 

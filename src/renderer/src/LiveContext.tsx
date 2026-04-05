@@ -43,6 +43,8 @@ export interface LiveContextType {
   disconnectLive: (manual?: boolean) => void;
   /** Send text input to Mossy (alternative to voice) */
   sendTextMessage: (text: string) => Promise<void>;
+  /** Last response spoken by Mossy — shown as text for users without speakers */
+  lastResponse: string;
   // test-only helper
   __test_handleTranscription?: (text: string, sessionId?: number) => Promise<void>;
   __test_setLastSpeakEnd?: (ts: number) => void;
@@ -63,6 +65,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [volume, setVolume] = useState(1);
   const [mode, setMode] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [transcription, setTranscription] = useState('');
+  const [lastResponse, setLastResponse] = useState('');
   const [micLevel, setMicLevel] = useState(0);
   const isFreshlyConnectedRef = useRef(false);
   const currentSessionRef = useRef(0);
@@ -449,6 +452,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       updateVoiceWorkingMemory();
       console.log('[LiveContext] AI response received, about to speak:', response.substring(0, 100) + (response.length > 100 ? '...' : ''));
 
+      // Store the response text so the UI can display it for users without speakers
+      setLastResponse(response);
+
       // Speak the response
       if (voiceServiceRef.current) {
         const speakStartTime = Date.now();
@@ -824,6 +830,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         toggleLiveMute: toggleMute,
         disconnectLive: disconnect,
         sendTextMessage,
+        lastResponse,
         ...(process.env.NODE_ENV === 'test' ? { __test_handleTranscription: handleTranscription, __test_setLastSpeakEnd: (ts: number) => { lastSpeakEndRef.current = ts; } } : {}),
       }}
     >

@@ -225,9 +225,20 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
     }
   };
 
-  const handleDeleteAllData = () => {
-    if (confirm('Are you absolutely sure? This will delete all local data and cannot be undone.')) {
-      if (confirm('This is your final warning. All your project data will be lost.')) {
+  const handleDeleteAllData = async () => {
+    if (confirm('Are you absolutely sure? This will delete all local data including your Knowledge Vault, mod projects, and chat history. This cannot be undone.')) {
+      if (confirm('Final warning: This will permanently erase your knowledge vault, mod projects, chat history, and all settings. Continue?')) {
+        // Wipe durable file backups so they do not restore on next launch.
+        const api = (window as any).electron?.api || (window as any).electronAPI;
+        try {
+          await Promise.allSettled([
+            api?.saveKnowledgeVault?.([]),
+            api?.saveModProjects?.([]),
+            api?.saveChatHistory?.([]),
+          ]);
+        } catch {
+          // Ignore — we still clear localStorage below
+        }
         localStorage.clear();
         location.reload();
       }
