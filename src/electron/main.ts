@@ -5090,13 +5090,15 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
    */
   registerHandler('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{ role: string; content: string }> }) => {
     try {
-      // Cap system prompt to ~3,000 tokens to keep the total request well within
-      // llama-3.3-70b-versatile's 128,000-token context window.
-      // The full MossyBrain system prompt can exceed 90,000 tokens; once conversation
-      // history and injected context are added this causes a "Request too large" error
-      // even for short messages like "hello".
-      // Assumes ~4 characters per token: 12,000 chars ≈ 3,000 tokens.
-      const MAX_SYSTEM_PROMPT_CHARS = 12000;
+      // Allow up to ~12,500 tokens for the system prompt so the full MossyBrain
+      // identity, FORBIDDEN STATEMENTS block, tool-capability descriptions, and
+      // injected hardware/software context are never truncated.
+      // The full prompt (system instruction + injected context) is ~43,000–50,000 chars
+      // (~10,750–12,500 tokens).  Combined with 20-message history (~2,000 tokens) and
+      // a response budget (~1,000 tokens), the total stays well under the model's
+      // 128,000-token context window.
+      // Assumes ~4 characters per token: 50,000 chars ≈ 12,500 tokens.
+      const MAX_SYSTEM_PROMPT_CHARS = 50000;
       const rawSystemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
       const systemPrompt = rawSystemPrompt.length > MAX_SYSTEM_PROMPT_CHARS
         ? rawSystemPrompt.slice(0, MAX_SYSTEM_PROMPT_CHARS)
