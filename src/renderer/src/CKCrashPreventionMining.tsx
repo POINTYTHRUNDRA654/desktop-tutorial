@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Shield, AlertTriangle, CheckCircle, Activity,
   Zap, Clock, TrendingUp, AlertCircle, Play, Square,
@@ -100,7 +100,11 @@ interface ModFile {
 }
 
 export const CKCrashPrevention: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('preflight');
+  const [searchParams] = useSearchParams();
+  const initialTab = (['preflight', 'monitoring', 'postcrash', 'audit'] as Tab[]).includes(searchParams.get('tab') as Tab)
+    ? (searchParams.get('tab') as Tab)
+    : 'preflight';
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   
   // Pre-flight state
   const [espPath, setEspPath] = useState<string>('');
