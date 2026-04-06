@@ -4,19 +4,21 @@
  * Provides direct access to Nexus Mods from within Mossy
  * Features: Browse mods, search, download, check updates
  * 
- * Installation:
- * npm install axios
+ * Requires a personal Nexus Mods API key (free):
+ * nexusmods.com/users/myaccount?tab=api
  * 
  * Usage:
  * import { NexusModsClient } from './nexus-mods-integration';
  * 
  * const nexus = new NexusModsClient(apiKey);
  * const mods = await nexus.searchMods('fallout4', 'weapons');
- * await nexus.downloadMod(12345, 67890);
  */
 
+import React from 'react';
 import type { IntegrationConfig } from './README';
 
+/** Application version sent in Nexus Mods API headers (keep in sync with package.json). */
+const APP_VERSION = '5.4.27';
 interface NexusMod {
   mod_id: number;
   name: string;
@@ -66,31 +68,52 @@ export class NexusModsClient {
   private baseUrl = 'https://api.nexusmods.com/v1';
   private gameDomain = 'fallout4';
 
+  // Rate-limit: Nexus Mods API allows 1 request/second for personal keys.
+  // We queue requests and ensure at least 1 000 ms between them.
+  private lastRequestAt = 0;
+  private static readonly MIN_REQUEST_INTERVAL_MS = 1000;
+
   constructor(apiKey: string) {
     this.apiKey = apiKey;
   }
 
   /**
-   * Make authenticated request to Nexus Mods API
+   * Make authenticated request to Nexus Mods API.
+   * Includes all headers required by the Nexus Mods AUP:
+   *   apikey            – personal API key supplied by the user
+   *   Application-Name  – registered application name (required)
+   *   Application-Version – semver of the calling application (required)
+   *   User-Agent        – polite identification string
    */
   private async request<T>(endpoint: string): Promise<T> {
-    try {
-      // Would use axios or fetch here
-      // const response = await axios.get(`${this.baseUrl}${endpoint}`, {
-      //   headers: {
-      //     'apikey': this.apiKey,
-      //     'Application-Name': 'Mossy',
-      //     'Application-Version': '5.4.24'
-      //   }
-      // });
-      // return response.data;
-      
-      console.log(`[Nexus] Request: ${endpoint}`);
-      return {} as T;
-    } catch (error) {
-      console.error('[Nexus] API error:', error);
-      throw error;
+    // Enforce 1 req/s rate limit
+    const now = Date.now();
+    const elapsed = now - this.lastRequestAt;
+    if (elapsed < NexusModsClient.MIN_REQUEST_INTERVAL_MS) {
+      await new Promise<void>(resolve =>
+        setTimeout(resolve, NexusModsClient.MIN_REQUEST_INTERVAL_MS - elapsed)
+      );
     }
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      headers: {
+        'apikey': this.apiKey,
+        'Application-Name': 'Mossy',
+        'Application-Version': APP_VERSION,
+        'User-Agent': `Mossy/${APP_VERSION} (Fallout 4 Modding Assistant)`,
+        'Accept': 'application/json',
+      },
+    });
+
+    // Update timestamp after response so the next request waits a full second
+    // from when this one completed, rather than from when it was dispatched.
+    this.lastRequestAt = Date.now();
+
+    if (!response.ok) {
+      throw new Error(`[Nexus] HTTP ${response.status} for ${endpoint}`);
+    }
+
+    return response.json() as Promise<T>;
   }
 
   /**
