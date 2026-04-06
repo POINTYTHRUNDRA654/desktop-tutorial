@@ -6,10 +6,13 @@ import type { ModListing, ModDetails, SearchFilters, Review, Collection } from '
 // prefer preload API when available, otherwise fall back to in-memory engine for dev
 let bridge: any = (window as any).electron?.api || (window as any).electronAPI;
 try {
-  if (!bridge || !bridge.modBrowser) {
+  if (!bridge?.modBrowser) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const local = require('../../mining/modBrowser');
-    bridge = bridge || { modBrowser: local.modBrowser || local.default };
+    // Spread the existing bridge so preload methods (detectPrograms, openExternal, etc.) are
+    // preserved. Previously `bridge || { modBrowser: local }` would silently discard all preload
+    // methods when bridge was truthy but lacked modBrowser, causing TypeErrors in mod search.
+    bridge = { ...(bridge || {}), modBrowser: local.modBrowser || local.default };
   }
 } catch (err) {
   // ignore; UI will still render but actions will fail gracefully

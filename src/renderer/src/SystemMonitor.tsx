@@ -196,8 +196,8 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
             setData(prev => {
                 const newData = [...prev, {
                     name: new Date().toLocaleTimeString(),
-                    cpu: perf.cpu || Math.floor(Math.random() * 20) + 10,
-                    neural: perf.mem || Math.floor(Math.random() * 10) + 5
+                    cpu: perf.cpu ?? Math.floor(Math.random() * 20) + 10,
+                    neural: perf.mem ?? Math.floor(Math.random() * 10) + 5
                 }].slice(-20);
                 return newData;
             });
@@ -239,7 +239,7 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
             addLog("[STEP 1/3] Scanning system hardware...", 'info');
             setScanProgress(10);
             console.log('[SystemMonitor] Calling getSystemInfo...');
-            sysInfo = await window.electronAPI.getSystemInfo();
+            sysInfo = await window.electron.api.getSystemInfo();
             
             console.log('[SystemMonitor] Received system info from Electron:', sysInfo);
             
