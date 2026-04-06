@@ -313,6 +313,7 @@ export const ChatInterface: React.FC = () => {
     const location = useLocation();
 
     const appliedPrefillRef = useRef(false);
+    const voiceStateBeforeLiveRef = useRef<boolean | null>(null);
     const CHAT_PREFILL_KEY = 'mossy_chat_prefill_v1';
     const CHAT_NOTES_SNAPSHOT = 12;
     const CHAT_NOTES_MAX_CHARS = 8000;
@@ -903,8 +904,19 @@ export const ChatInterface: React.FC = () => {
     // Conflict Resolution for Audio
     useEffect(() => {
         if (isLiveActive) {
+            // Save current voice state before Live forces it off, so we can restore it later.
+            // Guard: only save if not already saved (prevents overwrite on re-entry).
+            if (voiceStateBeforeLiveRef.current === null) {
+                voiceStateBeforeLiveRef.current = isVoiceEnabled;
+            }
             if (isVoiceEnabled) setIsVoiceEnabled(false);
             if (isPlayingAudio) stopAudio();
+        } else if (voiceStateBeforeLiveRef.current !== null) {
+            // Live session ended — restore the voice state that was active before it started.
+            // Note: the voice toggle is disabled while Live is active, so the saved state
+            // always reflects the user's last explicit preference.
+            setIsVoiceEnabled(voiceStateBeforeLiveRef.current);
+            voiceStateBeforeLiveRef.current = null;
         }
     }, [isLiveActive]);
 
