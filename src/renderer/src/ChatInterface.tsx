@@ -1889,6 +1889,11 @@ export const ChatInterface: React.FC = () => {
                 tags: ['ai_chat', 'response'],
             });
 
+            // Notify user when a longer task finishes so they don't have to ask
+            if (duration > 2500) {
+                toast.success('✓ Mossy is done', { duration: 2500, id: 'mossy-task-done' });
+            }
+
         } catch (error) {
             console.error(error);
             const errText = error instanceof Error ? error.message : 'Unknown error';
