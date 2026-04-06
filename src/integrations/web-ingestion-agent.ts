@@ -13,13 +13,14 @@ export interface TutorialSource {
     content: string;
 }
 
+// NOTE: nexusmods.com and forums.nexusmods.com URLs are intentionally excluded.
+// Scraping Nexus Mods HTML violates their Terms of Service (no text/data mining or
+// web scraping). Use the official Nexus Mods API (nexus-mods-integration.ts) instead.
 const SOURCES = [
-    'https://www.nexusmods.com/fallout4/mods/',
     'https://www.creationkit.com/fallout4/index.php',
     'https://www.reddit.com/r/FalloutMods/',
     'https://www.youtube.com/results?search_query=fallout+4+modding+tutorial',
     'https://www.darkfox127.co.uk/',
-    'https://forums.nexusmods.com/index.php?/forum/430-fallout-4-mod-talk/',
     // Add more as needed
 ];
 
