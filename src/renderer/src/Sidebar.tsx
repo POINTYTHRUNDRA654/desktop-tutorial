@@ -61,7 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
       setMoodColor('text-purple-400');
     } else if (path.includes('splicer') || path.includes('blueprint')) {
       setMoodColor('text-blue-400');
-    } else if (path.includes('workshop') || path.includes('assembler') || path.includes('auditor') || path.includes('scribe')) {
+    } else if (path.includes('workshop') || path.includes('assembler') || path.includes('scribe')) {
       setMoodColor('text-amber-400');
     } else {
       setMoodColor('text-emerald-400');
@@ -104,7 +104,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     // === ENHANCEMENT: ADVANCED SPECIALIZATION ===
 
     // === QUALITY ASSURANCE: VALIDATE & VERIFY ===
-    { to: '/auditor', icon: ShieldCheck, label: t('nav.auditor', 'The Auditor') },
     { to: '/tools/security', icon: ShieldCheck, label: t('nav.securityScanner', 'Security Scanner') },
     { to: '/tools/mining', icon: Binary, label: t('nav.miningDashboard', 'Mining Dashboard') },
     { to: '/tools/advanced-analysis', icon: Brain, label: t('nav.advancedAnalysis', 'Advanced Analysis') },
