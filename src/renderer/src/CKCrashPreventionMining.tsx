@@ -706,7 +706,7 @@ export const CKCrashPrevention: React.FC = () => {
             {/* Left: File Manifest */}
             <div className="w-80 bg-slate-900/50 border-r border-slate-800 flex flex-col min-h-0">
               <div className="p-3 border-b border-slate-800 text-xs font-bold text-slate-500 uppercase tracking-widest bg-slate-900">Mod Manifest</div>
-              <div ref={fileListScrollRef} className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
+              <div ref={fileListScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-2 space-y-1">
                 {auditFiles.map(file => (
                   <div key={file.id} onClick={() => { setSelectedFileId(file.id); setAuditAdvice(null); }} className={`group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${selectedFileId === file.id ? 'bg-slate-800 border-slate-600' : 'bg-transparent border-transparent hover:bg-slate-800/50'}`}>
                     <div className={`p-2 rounded-lg ${file.status === 'clean' ? 'bg-emerald-900/20 text-emerald-500' : file.status === 'warning' ? 'bg-yellow-900/20 text-yellow-500' : file.status === 'error' ? 'bg-red-900/20 text-red-500' : 'bg-slate-800 text-slate-500'}`}>
@@ -755,7 +755,7 @@ export const CKCrashPrevention: React.FC = () => {
                     </div>
                   </div>
 
-                  <div ref={issuesScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+                  <div ref={issuesScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-6 space-y-4">
                     {/* Hidden test elements for E2E testing */}
                     <div className="hidden">
                       <div data-testid="esp-header-validation">ESP Header Validation</div>
@@ -836,7 +836,7 @@ export const CKCrashPrevention: React.FC = () => {
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10">
                 <Scan className="w-4 h-4 text-emerald-400" /> Analysis Log
               </h3>
-              <div ref={adviceScrollRef} className="flex-1 overflow-y-auto relative z-10">
+              <div ref={adviceScrollRef} className="flex-1 overflow-y-auto overflow-x-auto relative z-10">
                 {auditAdvice ? (
                   <div className="animate-slide-in-right">
                     <div className="flex items-center gap-2 mb-3">
