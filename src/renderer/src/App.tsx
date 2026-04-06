@@ -219,7 +219,7 @@ const AskMossyButton: React.FC = () => {
       style={{
         position: 'fixed',
         bottom: 60, // above the Pip-Boy toggle button (bottom: 16 + ~40px height)
-        right: 16,
+        left: 8,
         zIndex: 9990,
       }}
       className="flex items-center gap-2 px-4 py-2 bg-green-700/90 hover:bg-green-600 text-white text-sm font-bold rounded-full shadow-lg border border-green-500/50 transition-all focus-visible"
