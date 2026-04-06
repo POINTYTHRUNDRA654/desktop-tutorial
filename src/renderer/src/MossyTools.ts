@@ -331,9 +331,10 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 'spin3d': 'Spin3D'
             };
             
-            const toolId = String(args?.toolId || '').toLowerCase();
-            const targetSettingKey = settingsKeyMapping[toolId] || `${String(args?.toolId || '')}Path`;
-            const toolDisplayName = toolNameMapping[toolId] || String(args?.toolId || toolId);
+            const rawToolId = String(args?.toolId || '');
+            const toolId = rawToolId.toLowerCase();
+            const targetSettingKey = settingsKeyMapping[toolId] || `${rawToolId}Path`;
+            const toolDisplayName = toolNameMapping[toolId] || rawToolId || toolId;
             
             // ALIASES FOR BETTER MATCHING
             const toolAliases: Record<string, string[]> = {
