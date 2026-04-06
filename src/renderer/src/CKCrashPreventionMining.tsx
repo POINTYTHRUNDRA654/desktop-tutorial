@@ -86,7 +86,6 @@ interface AuditIssue {
   severity: 'error' | 'warning' | 'info';
   message: string;
   technicalDetails: string;
-  fixAvailable: boolean;
 }
 
 interface ModFile {
@@ -125,11 +124,9 @@ export const CKCrashPrevention: React.FC = () => {
   const navigate = useNavigate();
   const [auditFiles, setAuditFiles] = useState<ModFile[]>([]);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
-  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [auditAdvice, setAuditAdvice] = useState<string | null>(null);
-  const [isFixing, setIsFixing] = useState(false);
   const [texturePreview, setTexturePreview] = useState<string | null>(null);
   const [activeAuditSubTab, setActiveAuditSubTab] = useState<'audit' | 'debug'>('audit');
   const [userInputText, setUserInputText] = useState<string>('');
@@ -411,7 +408,6 @@ export const CKCrashPrevention: React.FC = () => {
         severity: (issue.severity === 'error' ? 'error' : issue.severity === 'warning' ? 'warning' : 'info') as 'error' | 'warning' | 'info',
         message: `[${issue.category}] ${issue.message}`,
         technicalDetails: `${issue.details}\n\n💡 HOW TO FIX:\n${issue.fix}`,
-        fixAvailable: issue.severity === 'error' || issue.severity === 'warning',
       }));
 
     const statusFromIssues = (issueList: any[]): 'clean' | 'warning' | 'error' =>
@@ -435,7 +431,7 @@ export const CKCrashPrevention: React.FC = () => {
               newIssues.push(...mapESPIssues(cached.issues, 'esp-cached'));
               status = statusFromIssues(cached.issues);
             } else if (cached.warnings && cached.warnings.length > 0) {
-              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `esp-cached-${i}`, severity: 'warning' as const, message: 'Plugin Warning', technicalDetails: w, fixAvailable: false })));
+              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `esp-cached-${i}`, severity: 'warning' as const, message: 'Plugin Warning', technicalDetails: w})));
               status = 'warning';
             } else {
               status = 'clean';
@@ -454,7 +450,7 @@ export const CKCrashPrevention: React.FC = () => {
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : 'Unknown error';
           const isReadError = errMsg.toLowerCase().includes('could not read') || errMsg.toLowerCase().includes('file');
-          newIssues.push({ id: 'esp-error', severity: 'error', message: isReadError ? '[File] Could Not Read Plugin File' : '[File] Plugin Analysis Failed', technicalDetails: isReadError ? `The file could not be loaded for analysis. Close xEdit/CK/MO2 and retry. Raw error: ${errMsg}` : `The analysis engine encountered an error while parsing this plugin. Try re-uploading. Raw error: ${errMsg}`, fixAvailable: false });
+          newIssues.push({ id: 'esp-error', severity: 'error', message: isReadError ? '[File] Could Not Read Plugin File' : '[File] Plugin Analysis Failed', technicalDetails: isReadError ? `The file could not be loaded for analysis. Close xEdit/CK/MO2 and retry. Raw error: ${errMsg}` : `The analysis engine encountered an error while parsing this plugin. Try re-uploading. Raw error: ${errMsg}`});
           status = 'error';
         }
       } else if (f.name.endsWith('.nif')) {
@@ -463,7 +459,7 @@ export const CKCrashPrevention: React.FC = () => {
           if (cached) {
             fileSize = `${(cached.fileSize / 1024).toFixed(2)} KB`;
             if (cached.warnings && cached.warnings.length > 0) {
-              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `nif-warning-${i}`, severity: (w.includes('absolute path') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('High') ? 'Performance Issue' : w.includes('absolute') ? 'Path Issue' : 'Warning', technicalDetails: w, fixAvailable: true })));
+              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `nif-warning-${i}`, severity: (w.includes('absolute path') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('High') ? 'Performance Issue' : w.includes('absolute') ? 'Path Issue' : 'Warning', technicalDetails: w})));
               status = cached.warnings.some((w: string) => w.includes('absolute path')) ? 'error' : 'warning';
             } else { status = 'clean'; }
           } else {
@@ -471,12 +467,12 @@ export const CKCrashPrevention: React.FC = () => {
             const analysis = await workerManager.analyzeAsset('nif', fileBuffer, f.name);
             fileSize = `${(analysis.fileSize / 1024).toFixed(2)} KB`;
             if (analysis.warnings && analysis.warnings.length > 0) {
-              newIssues.push(...analysis.warnings.map((w: string, i: number) => ({ id: `nif-warning-${i}`, severity: (w.includes('absolute path') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('High') ? 'Performance Issue' : w.includes('absolute') ? 'Path Issue' : 'Warning', technicalDetails: w, fixAvailable: true })));
+              newIssues.push(...analysis.warnings.map((w: string, i: number) => ({ id: `nif-warning-${i}`, severity: (w.includes('absolute path') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('High') ? 'Performance Issue' : w.includes('absolute') ? 'Path Issue' : 'Warning', technicalDetails: w})));
               status = analysis.warnings.some((w: string) => w.includes('absolute path')) ? 'error' : 'warning';
             } else { status = 'clean'; }
           }
         } catch (error) {
-          newIssues.push({ id: 'nif-error', severity: 'warning', message: 'NIF analysis unavailable', technicalDetails: `Could not read NIF file: ${error instanceof Error ? error.message : 'Unknown error'}`, fixAvailable: false });
+          newIssues.push({ id: 'nif-error', severity: 'warning', message: 'NIF analysis unavailable', technicalDetails: `Could not read NIF file: ${error instanceof Error ? error.message : 'Unknown error'}`});
           status = 'warning';
         }
       } else if (f.name.endsWith('.dds')) {
@@ -485,7 +481,7 @@ export const CKCrashPrevention: React.FC = () => {
           if (cached) {
             fileSize = `${(cached.fileSize / 1024).toFixed(2)} KB`;
             if (cached.warnings && cached.warnings.length > 0) {
-              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `dds-warning-${i}`, severity: (w.includes('Uncompressed') || w.includes('Non-Power-of-Two') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('Uncompressed') ? 'Compression Issue' : w.includes('4K') ? 'Resolution Issue' : w.includes('Non-Power-of-Two') ? 'Dimension Issue' : 'Warning', technicalDetails: w, fixAvailable: true })));
+              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `dds-warning-${i}`, severity: (w.includes('Uncompressed') || w.includes('Non-Power-of-Two') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('Uncompressed') ? 'Compression Issue' : w.includes('4K') ? 'Resolution Issue' : w.includes('Non-Power-of-Two') ? 'Dimension Issue' : 'Warning', technicalDetails: w})));
               status = cached.warnings.some((w: string) => w.includes('Uncompressed') || w.includes('Non-Power-of-Two')) ? 'error' : 'warning';
             } else { status = 'clean'; }
           } else {
@@ -493,12 +489,12 @@ export const CKCrashPrevention: React.FC = () => {
             const analysis = await workerManager.analyzeAsset('dds', fileBuffer, f.name);
             fileSize = `${(analysis.fileSize / 1024).toFixed(2)} KB`;
             if (analysis.warnings && analysis.warnings.length > 0) {
-              newIssues.push(...analysis.warnings.map((w: string, i: number) => ({ id: `dds-warning-${i}`, severity: (w.includes('Uncompressed') || w.includes('Non-Power-of-Two') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('Uncompressed') ? 'Compression Issue' : w.includes('4K') ? 'Resolution Issue' : w.includes('Non-Power-of-Two') ? 'Dimension Issue' : 'Warning', technicalDetails: w, fixAvailable: true })));
+              newIssues.push(...analysis.warnings.map((w: string, i: number) => ({ id: `dds-warning-${i}`, severity: (w.includes('Uncompressed') || w.includes('Non-Power-of-Two') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('Uncompressed') ? 'Compression Issue' : w.includes('4K') ? 'Resolution Issue' : w.includes('Non-Power-of-Two') ? 'Dimension Issue' : 'Warning', technicalDetails: w})));
               status = analysis.warnings.some((w: string) => w.includes('Uncompressed') || w.includes('Non-Power-of-Two')) ? 'error' : 'warning';
             } else { status = 'clean'; }
           }
         } catch (error) {
-          newIssues.push({ id: 'dds-error', severity: 'warning', message: 'DDS analysis unavailable', technicalDetails: `Could not read DDS file: ${error instanceof Error ? error.message : 'Unknown error'}`, fixAvailable: false });
+          newIssues.push({ id: 'dds-error', severity: 'warning', message: 'DDS analysis unavailable', technicalDetails: `Could not read DDS file: ${error instanceof Error ? error.message : 'Unknown error'}`});
           status = 'warning';
         }
       } else if (f.name.endsWith('.bgsm') || f.name.endsWith('.bgem')) {
@@ -509,14 +505,14 @@ export const CKCrashPrevention: React.FC = () => {
           const signature = String.fromCharCode(...view);
           if (signature === 'BGSM' || signature === 'BGEM') {
             status = 'clean';
-            newIssues.push({ id: 'bgsm-info', severity: 'info', message: 'Material file format valid', technicalDetails: `${signature} material file loaded successfully`, fixAvailable: false });
+            newIssues.push({ id: 'bgsm-info', severity: 'info', message: 'Material file format valid', technicalDetails: `${signature} material file loaded successfully`});
           } else {
             status = 'error';
-            newIssues.push({ id: 'bgsm-error', severity: 'error', message: 'Invalid material file signature', technicalDetails: `Expected BGSM/BGEM, got: ${signature}`, fixAvailable: false });
+            newIssues.push({ id: 'bgsm-error', severity: 'error', message: 'Invalid material file signature', technicalDetails: `Expected BGSM/BGEM, got: ${signature}`});
           }
         } catch (error) {
           status = 'warning';
-          newIssues.push({ id: 'bgsm-read-error', severity: 'warning', message: 'Could not read material file', technicalDetails: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`, fixAvailable: false });
+          newIssues.push({ id: 'bgsm-read-error', severity: 'warning', message: 'Could not read material file', technicalDetails: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`});
         }
       }
 
@@ -558,14 +554,13 @@ export const CKCrashPrevention: React.FC = () => {
   };
 
   const getAuditAdvice = async (issue: AuditIssue) => {
-    setSelectedIssueId(issue.id);
     setAuditAdvice('Analyzing issue...');
     try {
       const isNavmeshIssue = issue.message.includes('Navmesh') || issue.technicalDetails?.includes('navmesh') || issue.technicalDetails?.includes('NAVM');
       const navmeshContext = isNavmeshIssue
         ? '\nThis is a NAVMESH issue. Explain the xEdit "Change FormID" fix: load plugin in xEdit 4.0.3+, find [D] NAVM records, copy the deleted FormID, find the replacement NAVM the mod added, right-click → Change FormID → paste the copied FormID → accept "Update all references", then remove the original deleted record.'
         : '';
-      const prompt = `Act as an expert Fallout 4 Modder AI assistant named Mossy.\nThe user has a file with the following error:\nError: ${issue.message}\nDetails: ${issue.technicalDetails}\n${navmeshContext}\nProvide a concise, friendly explanation of why this is bad for Fallout 4 stability, and how to fix it manually if the auto-fix fails.\nKeep it under 3 sentences.`;
+      const prompt = `Act as an expert Fallout 4 Modder AI assistant named Mossy.\nThe user has a file with the following error:\nError: ${issue.message}\nDetails: ${issue.technicalDetails}\n${navmeshContext}\nExplain clearly why this is a problem for Fallout 4 stability and give the user exact manual steps to fix it. Be concise and friendly.`;
       const api = (window as any).electronAPI ?? (window as any).electron?.api;
       if (!api?.aiChatGroq && !api?.aiChatOpenAI) { setAuditAdvice('⚠️ AI advice is unavailable in this build.'); return; }
       const res = api.aiChatGroq
@@ -577,31 +572,6 @@ export const CKCrashPrevention: React.FC = () => {
       console.error('Audit advice error:', e);
       setAuditAdvice("I cannot reach my knowledge base right now, but this usually requires cleaning the plugin in xEdit.\n\nDon't have xEdit? Download FO4Edit from Nexus Mods:\nhttps://www.nexusmods.com/fallout4/mods/2737");
     }
-  };
-
-  const handleAuditAutoFix = (fileId: string, issueId: string) => {
-    setIsFixing(true);
-    const file = auditFiles.find(f => f.id === fileId);
-    const issue = file?.issues.find(i => i.id === issueId);
-    let successMessage = "Fixed! I've updated the file header.";
-    if (issue?.message === 'Path Issue' || issue?.technicalDetails.toLowerCase().includes('absolute path')) {
-      successMessage = "Absolute path detected and converted to relative format (e.g., 'textures\\...'). Visual parity maintained.";
-    }
-    setTimeout(() => {
-      const updatedFiles = auditFiles.map(f => {
-        if (f.id === fileId) {
-          const remainingIssues = f.issues.filter(i => i.id !== issueId);
-          const newStatus: 'clean' | 'warning' | 'error' | 'pending' = remainingIssues.length === 0 ? 'clean' : remainingIssues.some(i => i.severity === 'error') ? 'error' : 'warning';
-          return { ...f, issues: remainingIssues, status: newStatus };
-        }
-        return f;
-      });
-      setAuditFiles(updatedFiles);
-      localStorage.setItem('mossy_scan_auditor', JSON.stringify(updatedFiles));
-      window.dispatchEvent(new Event('mossy-memory-update'));
-      setIsFixing(false);
-      setAuditAdvice(successMessage);
-    }, 1200);
   };
 
   /**
@@ -847,16 +817,9 @@ export const CKCrashPrevention: React.FC = () => {
                     )}
                     {selectedFile.issues.map(issue => (
                       <div key={issue.id} onClick={() => getAuditAdvice(issue)} className={`group p-4 rounded-xl border transition-all cursor-pointer ${issue.severity === 'error' ? 'bg-red-950/10 border-red-500/30 hover:bg-red-900/20' : 'bg-yellow-950/10 border-yellow-500/30 hover:bg-yellow-900/20'}`}>
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex items-center gap-2">
-                            {issue.severity === 'error' ? <XCircle className="w-5 h-5 text-red-500" /> : <AlertTriangle className="w-5 h-5 text-yellow-500" />}
-                            <h3 className={`font-bold ${issue.severity === 'error' ? 'text-red-200' : 'text-yellow-200'}`}>{issue.message}</h3>
-                          </div>
-                          {issue.fixAvailable && (
-                            <button onClick={(e) => { e.stopPropagation(); handleAuditAutoFix(selectedFile.id, issue.id); }} disabled={isFixing} className="px-3 py-1 bg-slate-800 hover:bg-emerald-600 text-white rounded text-xs font-bold transition-colors flex items-center gap-1 disabled:opacity-50">
-                              <Wrench className="w-3 h-3" /> {isFixing ? 'Fixing...' : 'Fix-It'}
-                            </button>
-                          )}
+                        <div className="flex items-center gap-2 mb-2">
+                          {issue.severity === 'error' ? <XCircle className="w-5 h-5 text-red-500" /> : <AlertTriangle className="w-5 h-5 text-yellow-500" />}
+                          <h3 className={`font-bold ${issue.severity === 'error' ? 'text-red-200' : 'text-yellow-200'}`}>{issue.message}</h3>
                         </div>
                         <p className="text-sm text-slate-400 font-mono ml-7">{issue.technicalDetails}</p>
                       </div>
@@ -885,13 +848,7 @@ export const CKCrashPrevention: React.FC = () => {
                       <span className="text-emerald-400 font-bold text-sm">Mossy Suggests:</span>
                     </div>
                     <div className="bg-slate-800/50 rounded-xl p-4 border border-emerald-500/20 text-sm text-slate-300 leading-relaxed shadow-lg">{auditAdvice}</div>
-                    <div className="mt-4 flex gap-2">
-                      <button className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-400 transition-colors">Ignore Rule</button>
-                      <button onClick={() => { if (selectedFileId && selectedIssueId) handleAuditAutoFix(selectedFileId, selectedIssueId); }} disabled={isFixing || !selectedIssueId} className="flex-1 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 disabled:opacity-50 text-emerald-400 border border-emerald-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2">
-                        <Wrench className="w-3 h-3" /> {isFixing ? 'Fixing...' : 'Fix-It'} <ArrowRight className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <button onClick={() => navigate('/chat', { state: { prefill: `I just ran an audit on my mod files. Here is the analysis result:\n\n${auditAdvice}\n\nCan you help me understand and fix these issues?` } })} className="mt-3 w-full py-2 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2" title="Open full chat with this audit result as context">
+                    <button onClick={() => navigate('/chat', { state: { prefill: `I just ran an audit on my mod files. Here is the analysis result:\n\n${auditAdvice}\n\nCan you help me understand and fix these issues?` } })} className="mt-4 w-full py-2 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2" title="Open full chat with this audit result as context">
                       Ask Mossy about this
                     </button>
                   </div>
@@ -1123,6 +1080,17 @@ export const CKCrashPrevention: React.FC = () => {
       >
         <FileText className="w-5 h-5" />
         Post-Crash Analysis
+      </button>
+      <button
+        className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
+          activeTab === 'audit'
+            ? 'text-cyan-400 border-b-2 border-cyan-400'
+            : 'text-gray-400 hover:text-gray-200'
+        }`}
+        onClick={() => setActiveTab('audit')}
+      >
+        <ShieldCheck className="w-5 h-5" />
+        Asset Audit
       </button>
     </div>
   );
@@ -1489,6 +1457,7 @@ export const CKCrashPrevention: React.FC = () => {
         {activeTab === 'preflight' && renderPreFlightTab()}
         {activeTab === 'monitoring' && renderMonitoringTab()}
         {activeTab === 'postcrash' && renderPostCrashTab()}
+        {activeTab === 'audit' && renderAuditTab()}
       </div>
     </div>
   );
