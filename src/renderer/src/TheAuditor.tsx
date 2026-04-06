@@ -156,9 +156,9 @@ const TheAuditor: React.FC = () => {
                 // If it's a standard image format we can actually show
                 const ext = path.split('.').pop()?.toLowerCase();
                 if (ext === 'png' || ext === 'jpg' || ext === 'jpeg') {
-                    const result = await bridge.readFile(path);
-                    if (result.success) {
-                        setTexturePreview(`data:image/${ext};base64,${result.data}`);
+                    const rawContent = await bridge.readFile(path);
+                    if (rawContent && typeof rawContent === 'string') {
+                        setTexturePreview(`data:image/${ext};base64,${rawContent}`);
                     }
                 }
             }
