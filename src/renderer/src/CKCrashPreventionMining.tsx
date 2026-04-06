@@ -145,14 +145,6 @@ export const CKCrashPrevention: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (monitorIntervalRef.current) {
-        clearInterval(monitorIntervalRef.current);
-      }
-    };
-  }, []);
-
   // ── Asset Audit effects & helpers (merged from TheAuditor) ───────────────
 
   // Auto-start audit when pendingAutoScan is set (triggered after quick-scan folder)
@@ -369,7 +361,7 @@ export const CKCrashPrevention: React.FC = () => {
       const rawScanResult = await bridge.scanModDirectoryPath?.(folderPath);
       if (!rawScanResult) { toast.error('Scan failed: the scanModDirectoryPath API is unavailable. Please restart the app.'); return; }
       const modFiles: Array<{ path: string; type: string }> = rawScanResult;
-      if (modFiles.length === 0) { toast.error(`No recognised mod files (ESP, NIF, DDS, BGSM/BGEM) were found in: ${folderPath}.`); return; }
+      if (modFiles.length === 0) { toast.error(`No recognized mod files (ESP, NIF, DDS, BGSM/BGEM) were found in: ${folderPath}.`); return; }
       const newFiles: ModFile[] = modFiles.map((file) => {
         const fileName = file.path.split(/[\\\/]/).pop() || 'Unknown';
         let fileType: ModFile['type'] = 'script';
