@@ -1928,8 +1928,8 @@ export const ChatInterface: React.FC = () => {
     return (
         <div data-testid="chat-container" className="flex flex-col h-full bg-forge-dark text-slate-200">
             {/* Header */}
-            <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-forge-panel">
-                <div className="flex items-center gap-3">
+            <div className="p-4 border-b border-slate-700 flex flex-wrap justify-between items-center bg-forge-panel gap-y-2">
+                <div className="flex items-center gap-3 min-w-0 flex-shrink overflow-hidden">
                     <h2 className="text-lg font-bold flex items-center gap-2 text-white">
                         <Leaf className="text-emerald-400" />
                         Mossy <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-emerald-400 border border-emerald-900">FO4 EDITION</span>
@@ -1974,7 +1974,7 @@ export const ChatInterface: React.FC = () => {
                         </div>
                     )}
                 </div>
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-center flex-shrink-0 flex-wrap">
                     <button
                         type="button"
                         onClick={() => navigate('/reference')}
