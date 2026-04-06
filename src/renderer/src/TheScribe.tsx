@@ -192,7 +192,7 @@ const TheScribe: React.FC = () => {
 
                 {/* Right: Editor */}
                 <div className="flex-1 bg-[#121212] relative flex flex-col">
-                    <div ref={editorScrollRef} className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+                    <div ref={editorScrollRef} className="flex-1 p-8 overflow-y-auto overflow-x-auto custom-scrollbar">
                         {generatedContent ? (
                             <div className="max-w-3xl mx-auto bg-stone-900/50 border border-stone-800 rounded-sm p-8 shadow-2xl relative">
                                 <button 

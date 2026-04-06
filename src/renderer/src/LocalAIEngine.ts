@@ -703,7 +703,16 @@ ANSWER THE USER NOW:`;
               } else {
                 // No prior web search result — fetch now.
                 console.log('[LocalAIEngine] Fetching web results for retry...');
-                const guardSearch = await guardWebApi.webSearch(query);
+                let guardSearch: any = null;
+                try {
+                  const guardSearchPromise = guardWebApi.webSearch(query);
+                  const guardTimeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Guard web search timeout (5s)')), 5000)
+                  );
+                  guardSearch = await Promise.race([guardSearchPromise, guardTimeoutPromise]);
+                } catch (guardTimeoutErr) {
+                  console.warn('[LocalAIEngine] Guard web search timed out or failed:', guardTimeoutErr);
+                }
 
                 if (guardSearch?.success && guardSearch?.text) {
                   console.log('[LocalAIEngine] ✅ Web search successful, retrying with injected results');

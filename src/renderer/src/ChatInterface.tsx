@@ -1258,7 +1258,15 @@ export const ChatInterface: React.FC = () => {
         setIsPlayingAudio(true);
 
         try {
-            await speakMossy(textToSpeak, { cancelExisting: true });
+            // Race TTS against a generous safety timeout so that a hung browser
+            // speech-synthesis promise can never block the next user message
+            // from being sent (isLoading / isStreaming would stay true forever).
+            const ttsTimeoutMs = Math.max(30000, textToSpeak.length * 100); // ~100ms/char, min 30s
+            const ttsTimeout = new Promise<void>(resolve => setTimeout(() => {
+                console.warn('[ChatInterface] speakText safety timeout reached — releasing send lock');
+                resolve();
+            }, ttsTimeoutMs));
+            await Promise.race([speakMossy(textToSpeak, { cancelExisting: true }), ttsTimeout]);
             console.log('[ChatInterface] speakText completed successfully');
         } catch (err) {
             console.error('[ChatInterface] speakText failed:', err);

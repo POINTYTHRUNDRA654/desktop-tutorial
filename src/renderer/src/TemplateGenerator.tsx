@@ -327,7 +327,7 @@ EndFunction`;
       {/* Content */}
       <div className={bodyPaddingClassName}>
         {/* Left: Examples */}
-        <div ref={examplesRef} className="w-80 flex flex-col gap-4 min-h-0 overflow-y-auto pr-2">
+        <div ref={examplesRef} className="w-80 flex flex-col gap-4 min-h-0 overflow-y-auto overflow-x-auto pr-2">
           <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
             <h3 className="font-bold text-white mb-3 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-emerald-400" />
@@ -400,7 +400,7 @@ EndFunction`;
               </div>
 
               {/* Code */}
-              <div ref={outputScrollRef} className="flex-1 min-h-0 overflow-y-auto">
+              <div ref={outputScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
                 <pre className="p-4 text-sm font-mono text-slate-200 whitespace-pre-wrap">
                   {generated.code}
                 </pre>

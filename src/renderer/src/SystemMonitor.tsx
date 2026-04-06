@@ -722,7 +722,7 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
 
       </div>
 
-            <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 pb-24 bg-slate-900/50">
+            <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-6 pb-24 bg-slate-900/50">
       
       {/* TELEMETRY TAB */}
       {activeTab === 'telemetry' && (
