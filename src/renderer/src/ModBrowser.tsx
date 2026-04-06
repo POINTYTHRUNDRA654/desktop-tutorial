@@ -9,8 +9,9 @@ try {
   if (!bridge?.modBrowser) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const local = require('../../mining/modBrowser');
-    // Merge modBrowser into the existing bridge object rather than replacing it,
-    // so preload methods remain accessible alongside the local fallback.
+    // Spread the existing bridge so preload methods (detectPrograms, openExternal, etc.) are
+    // preserved. Previously `bridge || { modBrowser: local }` would silently discard all preload
+    // methods when bridge was truthy but lacked modBrowser, causing TypeErrors in mod search.
     bridge = { ...(bridge || {}), modBrowser: local.modBrowser || local.default };
   }
 } catch (err) {
