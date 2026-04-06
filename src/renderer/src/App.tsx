@@ -1152,7 +1152,7 @@ const App: React.FC = () => {
                   {/* Core Tools */}
                   <Route path="/tools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                   <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
-                  <Route path="/tools/auditor" element={<TheAuditor />} />
+                  <Route path="/tools/auditor" element={<ErrorBoundary><TheAuditor /></ErrorBoundary>} />
                   <Route path="/tools/ini-config" element={<ErrorBoundary><IniConfigManager /></ErrorBoundary>} />
                   <Route path="/tools/asset-deduplicator" element={<ErrorBoundary><AssetDeduplicator /></ErrorBoundary>} />
                   {/* Legacy routes redirect to new unified deduplicator */}
@@ -1179,39 +1179,39 @@ const App: React.FC = () => {
                   <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
                   <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
                   <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
-                  <Route path="/tools/blueprint" element={<TheBlueprint />} />
-                  <Route path="/tools/scribe" element={<TheScribe />} />
+                  <Route path="/tools/blueprint" element={<ErrorBoundary><TheBlueprint /></ErrorBoundary>} />
+                  <Route path="/tools/scribe" element={<ErrorBoundary><TheScribe /></ErrorBoundary>} />
                   <Route path="/tools/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
                   <Route path="/tools/ba2-manager" element={<ErrorBoundary><BA2Manager /></ErrorBoundary>} />
                   <Route path="/tools/cosmos" element={<ErrorBoundary><CosmosWorkflow /></ErrorBoundary>} />
 
                   {/* Development & Workflow */}
                   <Route path="/dev" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                  <Route path="/dev/workshop" element={<Workshop />} />
-                  <Route path="/mods" element={<ModBrowser />} />
-                  <Route path="/dev/orchestrator" element={<WorkflowOrchestrator />} />
+                  <Route path="/dev/workshop" element={<ErrorBoundary><Workshop /></ErrorBoundary>} />
+                  <Route path="/mods" element={<ErrorBoundary><ModBrowser /></ErrorBoundary>} />
+                  <Route path="/dev/orchestrator" element={<ErrorBoundary><WorkflowOrchestrator /></ErrorBoundary>} />
                   <Route path="/dev/workflow-runner" element={<ErrorBoundary><WorkflowRunner /></ErrorBoundary>} />
                   <Route path="/dev/neural-link" element={<Navigate to="/live" replace />} />
                   <Route path="/dev/workflow-recorder" element={<ErrorBoundary><WorkflowRecorder /></ErrorBoundary>} />
                   <Route path="/dev/plugin-manager" element={<ErrorBoundary><PluginManager /></ErrorBoundary>} />
                   {/* Redirect mining dashboard to unified hub */}
                   <Route path="/dev/mining-dashboard" element={<Navigate to="/tools/mining-hub?tab=dashboard" replace />} />
-                  <Route path="/dev/load-order" element={<LoadOrderHub />} />
+                  <Route path="/dev/load-order" element={<ErrorBoundary><LoadOrderHub /></ErrorBoundary>} />
 
                   {/* Media & Assets */}
                   <Route path="/media" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                  <Route path="/media/images" element={<ImageSuite />} />
+                  <Route path="/media/images" element={<ErrorBoundary><ImageSuite /></ErrorBoundary>} />
                   <Route path="/media/tts" element={<Navigate to="/live" replace />} />
                   <Route path="/media/memory-vault" element={<Navigate to="/live" replace />} />
 
                   {/* Testing & Deployment */}
                   <Route path="/test" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                  <Route path="/test/holo" element={<Holodeck />} />
-                  <Route path="/test/notification-test" element={<NotificationTest />} />
+                  <Route path="/test/holo" element={<ErrorBoundary><Holodeck /></ErrorBoundary>} />
+                  <Route path="/test/notification-test" element={<ErrorBoundary><NotificationTest /></ErrorBoundary>} />
                   <Route path="/test/bridge" element={<ErrorBoundary><DesktopBridge /></ErrorBoundary>} />
 
                   {/* Knowledge & Learning */}
-                  <Route path="/learn" element={<LearningHub />} />
+                  <Route path="/learn" element={<ErrorBoundary><LearningHub /></ErrorBoundary>} />
                   <Route path="/learn/lore" element={<Navigate to="/learn" replace />} />
                   <Route path="/learn/knowledge" element={<Navigate to="/learn" replace />} />
                   <Route path="/learn/reference" element={<Navigate to="/learn" replace />} />
@@ -1233,7 +1233,7 @@ const App: React.FC = () => {
                   {/* Guides - Organized by Category */}
                   <Route path="/guides" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                   <Route path="/guides/blender" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                  <Route path="/guides/blender/animation" element={<BlenderAnimationGuide />} />
+                  <Route path="/guides/blender/animation" element={<ErrorBoundary><BlenderAnimationGuide /></ErrorBoundary>} />
                   <Route path="/guides/blender/skeleton" element={<Navigate to="/guides/blender/animation" replace />} />
                   <Route path="/guides/blender/animation-validator" element={<Navigate to="/guides/blender/animation" replace />} />
                   <Route path="/guides/blender/rigging-checklist" element={<Navigate to="/guides/blender/animation" replace />} />
@@ -1244,11 +1244,11 @@ const App: React.FC = () => {
                   <Route path="/guides/creation-kit/precombine-prp" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
                   <Route path="/guides/creation-kit/precombine-checker" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
                   <Route path="/guides/creation-kit/leveled-list-injection" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                  <Route path="/guides/creation-kit/quest-authoring" element={<QuestModAuthoringGuide />} />
+                  <Route path="/guides/creation-kit/quest-authoring" element={<ErrorBoundary><QuestModAuthoringGuide /></ErrorBoundary>} />
                   <Route path="/guides/creation-kit/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
 
                   <Route path="/guides/papyrus" element={<Navigate to="/guides/papyrus/guide" replace />} />
-                  <Route path="/guides/papyrus/guide" element={<PaperScriptGuide />} />
+                  <Route path="/guides/papyrus/guide" element={<ErrorBoundary><PaperScriptGuide /></ErrorBoundary>} />
                   <Route path="/guides/papyrus/quick-start" element={<Navigate to="/guides/papyrus/guide" replace />} />
                   <Route path="/guides/papyrus/fallout4" element={<Navigate to="/guides/papyrus/guide" replace />} />
 
@@ -1258,14 +1258,14 @@ const App: React.FC = () => {
                   <Route path="/guides/physics/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
 
                   <Route path="/guides/mods" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                  <Route path="/guides/mods/bodyslide" element={<BodyslideGuide />} />
-                  <Route path="/guides/mods/sim-settlements" element={<SimSettlementsGuide />} />
+                  <Route path="/guides/mods/bodyslide" element={<ErrorBoundary><BodyslideGuide /></ErrorBoundary>} />
+                  <Route path="/guides/mods/sim-settlements" element={<ErrorBoundary><SimSettlementsGuide /></ErrorBoundary>} />
                   <Route path="/guides/mods/sim-settlements-addon" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
                   <Route path="/guides/mods/sim-settlements-units-loadouts" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
                   <Route path="/guides/mods/sim-settlements-addon-toolkits" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
 
                   {/* Wizards & Advanced Tools */}
-                  <Route path="/wizards" element={<WizardsHub />} />
+                  <Route path="/wizards" element={<ErrorBoundary><WizardsHub /></ErrorBoundary>} />
                   <Route path="/wizards/install" element={<Navigate to="/wizards" replace />} />
                   <Route path="/wizards/platforms" element={<Navigate to="/wizards" replace />} />
                   <Route path="/wizards/crash-triage" element={<Navigate to="/diagnostics" replace />} />
@@ -1273,14 +1273,14 @@ const App: React.FC = () => {
                   <Route path="/wizards/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
 
                   {/* Development Tools */}
-                  <Route path="/devtools" element={<DevtoolsHub />} />
+                  <Route path="/devtools" element={<ErrorBoundary><DevtoolsHub /></ErrorBoundary>} />
                   <Route path="/devtools/script-analyzer" element={<Navigate to="/devtools" replace />} />
                   <Route path="/devtools/template-generator" element={<Navigate to="/devtools" replace />} />
                   <Route path="/devtools/tool-verify" element={<Navigate to="/diagnostics" replace />} />
                   <Route path="/devtools/diagnostics" element={<Navigate to="/diagnostics" replace />} />
 
                   {/* Settings */}
-                  <Route path="/settings" element={<SettingsHub />} />
+                  <Route path="/settings" element={<ErrorBoundary><SettingsHub /></ErrorBoundary>} />
                   <Route path="/settings/privacy" element={<Navigate to="/settings" replace />} />
                   <Route path="/settings/voice" element={<Navigate to="/live" replace />} />
                   <Route path="/settings/language" element={<Navigate to="/settings" replace />} />
@@ -1288,7 +1288,7 @@ const App: React.FC = () => {
                   <Route path="/settings/import-export" element={<Navigate to="/settings" replace />} />
 
                   {/* Project Management */}
-                  <Route path="/project" element={<ProjectHub />} />
+                  <Route path="/project" element={<ErrorBoundary><ProjectHub /></ErrorBoundary>} />
                   <Route path="/project/journey" element={<Navigate to="/project" replace />} />
                   <Route path="/project/achievements" element={<Navigate to="/project" replace />} />
                   <Route path="/project/manager" element={<Navigate to="/project" replace />} />
@@ -1298,7 +1298,7 @@ const App: React.FC = () => {
                   <Route path="/project/analytics-dashboard" element={<Navigate to="/project" replace />} />
 
                   {/* Support */}
-                  <Route path="/support" element={<DonationSupport />} />
+                  <Route path="/support" element={<ErrorBoundary><DonationSupport /></ErrorBoundary>} />
 
                   {/* Legacy Routes - Redirect to new structure */}
                   <Route path="/monitor" element={<Navigate to="/diagnostics" replace />} />
@@ -1319,7 +1319,7 @@ const App: React.FC = () => {
                   <Route path="/bridge" element={<Navigate to="/test/bridge" replace />} />
                   <Route path="/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
                   <Route path="/cosmos" element={<Navigate to="/tools/cosmos" replace />} />
-                  <Route path="/diagnostics" element={<DiagnosticsHub />} />
+                  <Route path="/diagnostics" element={<ErrorBoundary><DiagnosticsHub /></ErrorBoundary>} />
                   <Route path="/tool-verify" element={<Navigate to="/diagnostics" replace />} />
                   <Route path="/community" element={<Navigate to="/learn" replace />} />
                   <Route path="/reference" element={<Navigate to="/learn" replace />} />
@@ -1330,7 +1330,7 @@ const App: React.FC = () => {
                   <Route path="/install-wizard" element={<Navigate to="/wizards" replace />} />
                   <Route path="/platforms" element={<Navigate to="/wizards" replace />} />
                   <Route path="/crash-triage" element={<Navigate to="/diagnostics" replace />} />
-                  <Route path="/packaging-release" element={<PackagingHub />} />
+                  <Route path="/packaging-release" element={<ErrorBoundary><PackagingHub /></ErrorBoundary>} />
                   <Route path="/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
                   <Route path="/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
                   <Route path="/animation-guide" element={<Navigate to="/guides/blender/animation" replace />} />
