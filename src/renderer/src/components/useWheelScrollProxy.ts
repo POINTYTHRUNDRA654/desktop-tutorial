@@ -85,8 +85,9 @@ export function useWheelScrollProxyFrom(getScrollTarget: () => HTMLElement | nul
         scrollTarget.scrollBy({ left: e.deltaX, behavior: 'auto' });
       }
 
-      // Note: preventDefault() removed as wheel events are passive by default in modern browsers
-      // The scroll behavior is handled by scrollBy() above
+      // Note: preventDefault() removed as wheel events are passive by default in modern browsers.
+      // Each axis is proxied independently — vertical only when no scrollable ancestor handles
+      // deltaY, and horizontal only when no scrollable ancestor handles deltaX.
     },
     [getScrollTarget]
   );
