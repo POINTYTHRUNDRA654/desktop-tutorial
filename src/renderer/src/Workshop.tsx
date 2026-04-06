@@ -279,7 +279,7 @@ const Workshop: React.FC = () => {
           <div className="p-3 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-700/50">
             File Browser
           </div>
-          <div ref={fileListScrollRef} className="flex-1 overflow-y-auto p-2 space-y-0.5">
+          <div ref={fileListScrollRef} className="flex-1 overflow-y-auto overflow-x-auto p-2 space-y-0.5">
             {fileTree.length === 0 ? (
               <div className="text-xs text-slate-500 p-2">No files loaded. Browse a directory above.</div>
             ) : (

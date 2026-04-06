@@ -1633,7 +1633,7 @@ pause
             )}
 
             {/* Scrollable content (everything below header) */}
-            <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto pb-32">
+            <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto pb-32">
                 <div className="px-6 pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <ToolsInstallVerifyPanel
                         accentClassName="text-emerald-300"

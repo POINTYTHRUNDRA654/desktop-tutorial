@@ -398,7 +398,7 @@ const Holodeck = () => {
                     <div className="sticky top-0 p-4 border-b border-slate-800 bg-[#2d2d2d]">
                         <h3 className="text-xs font-bold text-white uppercase tracking-wide">Test Scenarios</h3>
                     </div>
-                    <div ref={scenariosScrollRef} className="flex-1 min-h-0 space-y-2 p-3 overflow-y-auto">
+                    <div ref={scenariosScrollRef} className="flex-1 min-h-0 space-y-2 p-3 overflow-y-auto overflow-x-auto">
                         {TEST_SCENARIOS.map((scenario) => (
                             <button
                                 key={scenario.id}
@@ -429,7 +429,7 @@ const Holodeck = () => {
                     {activeScenario ? (
                         <>
                             {/* Scenario Details */}
-                            <div ref={detailsScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
+                            <div ref={detailsScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-6 space-y-6">
                                 {/* Header */}
                                 <div>
                                     <div className="flex items-center justify-between mb-4">
