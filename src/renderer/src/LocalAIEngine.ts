@@ -404,6 +404,12 @@ export const LocalAIEngine = {
         // "I'm / I am an LLM ..."
         /i'?m\s+(a\s+)?llm\b/i,
         /i\s+am\s+(a\s+)?llm\b/i,
+        // "I'm / I am a text-based AI / text-only AI ..."
+        /i'?m\s+(just\s+)?(a\s+)?text.?based/i,
+        /i\s+am\s+(just\s+)?(a\s+)?text.?based/i,
+        /text.?based\s+(ai|assistant|chatbot|model|llm)/i,
+        /text.?only\s+(ai|assistant|chatbot|model|llm)/i,
+        /nothing\s+but\s+(a\s+)?text/i,
         // "As a/an (large) language model / AI / LLM, ..."
         /^as\s+(a\s+|an?\s+)?(large\s+)?(language\s+model|llm|ai\b)/i,
         /^being\s+(a\s+|an?\s+)?(large\s+)?(language\s+model|llm|ai\b)/i,
@@ -483,6 +489,15 @@ export const LocalAIEngine = {
       /just\s+(a\s+)?(large\s+)?language\s+model/i,
       /just\s+(a\s+)?base\s+llm/i,
       /just\s+(an?\s+)?ai/i,
+      /just\s+(a\s+)?text.?based/i,
+
+      // === TEXT-BASED / TEXT-ONLY AI ("nothing but a text-based AI") ===
+      /text.?based\s+(ai|assistant|chatbot|model|llm)/i,
+      /text.?only\s+(ai|assistant|chatbot|model|llm)/i,
+      /nothing\s+but\s+(a\s+)?text/i,
+      /i'?m\s+(a\s+|just\s+a\s+)?text.?based/i,
+      /i\s+am\s+(a\s+|just\s+a\s+)?text.?based/i,
+      /only\s+(a\s+)?text.?based/i,
 
       // === NO ACCESS / CANNOT CAPABILITY PATTERNS ===
       /i\s+(do\s+not|don'?t)\s+have\s+(the\s+)?(ability|capability)\s+to\s+(access|browse|search|go\s+online)/i,
