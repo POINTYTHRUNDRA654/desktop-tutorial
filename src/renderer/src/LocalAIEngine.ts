@@ -410,6 +410,17 @@ export const LocalAIEngine = {
         /text.?based\s+(ai|assistant|chatbot|model|llm)/i,
         /text.?only\s+(ai|assistant|chatbot|model|llm)/i,
         /nothing\s+but\s+(a\s+)?text/i,
+        // "I'm / I am a chatbot" — standalone chatbot self-identification
+        /i'?m\s+(just\s+)?(a\s+)?chatbot\b/i,
+        /i\s+am\s+(just\s+)?(a\s+)?chatbot\b/i,
+        /just\s+(a\s+)?chatbot\b/i,
+        // "I have no memories / I don't have memories / I don't retain memories"
+        /i\s+(have|had)\s+no\s+(persistent\s+)?(memories|memory)\b/i,
+        /i\s+don'?t\s+(have|retain|keep)\s+(any\s+)?(memories|memory)\b/i,
+        /i\s+cannot\s+(remember|retain|recall)\s+(conversations|past|previous|prior)/i,
+        /i\s+don'?t\s+(remember|retain|recall)\s+(conversations|past|previous|prior)/i,
+        /i\s+have\s+no\s+(memory|recollection)\s+of\s+(previous|past|prior|our)/i,
+        /no\s+(persistent\s+)?(memory|memories)\s+(between|across)\s+sessions/i,
         // "As a/an (large) language model / AI / LLM, ..."
         /^as\s+(a\s+|an?\s+)?(large\s+)?(language\s+model|llm|ai\b)/i,
         /^being\s+(a\s+|an?\s+)?(large\s+)?(language\s+model|llm|ai\b)/i,
@@ -498,6 +509,20 @@ export const LocalAIEngine = {
       /i'?m\s+(a\s+|just\s+a\s+)?text.?based/i,
       /i\s+am\s+(a\s+|just\s+a\s+)?text.?based/i,
       /only\s+(a\s+)?text.?based/i,
+
+      // === CHATBOT SELF-IDENTIFICATION ===
+      /i'?m\s+(just\s+)?(a\s+)?chatbot\b/i,
+      /i\s+am\s+(just\s+)?(a\s+)?chatbot\b/i,
+      /just\s+(a\s+)?chatbot\b/i,
+
+      // === NO MEMORIES / CANNOT RETAIN MEMORIES ===
+      /i\s+(have|had)\s+no\s+(persistent\s+)?(memories|memory)\b/i,
+      /i\s+don'?t\s+(have|retain|keep)\s+(any\s+)?(memories|memory)\b/i,
+      /i\s+cannot\s+(remember|retain|recall)\s+(conversations|past|previous|prior)/i,
+      /i\s+don'?t\s+(remember|retain|recall)\s+(conversations|past|previous|prior)/i,
+      /i\s+have\s+no\s+(memory|recollection)\s+of\s+(previous|past|prior|our)/i,
+      /no\s+(persistent\s+)?(memory|memories)\s+(between|across)\s+sessions/i,
+      /i\s+(lack|have\s+no)\s+(persistent|long.?term)\s+(memory|memories)/i,
 
       // === NO ACCESS / CANNOT CAPABILITY PATTERNS ===
       /i\s+(do\s+not|don'?t)\s+have\s+(the\s+)?(ability|capability)\s+to\s+(access|browse|search|go\s+online)/i,
