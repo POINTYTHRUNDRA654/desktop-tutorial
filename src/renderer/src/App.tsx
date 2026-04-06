@@ -1151,7 +1151,7 @@ const App: React.FC = () => {
                   {/* Core Tools */}
                   <Route path="/tools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
                   <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
-                  <Route path="/tools/auditor" element={<Navigate to="/tools/ck-crash-prevention" replace />} />
+                  <Route path="/tools/auditor" element={<Navigate to="/ck-crash-prevention?tab=audit" replace />} />
                   <Route path="/tools/ini-config" element={<ErrorBoundary><IniConfigManager /></ErrorBoundary>} />
                   <Route path="/tools/asset-deduplicator" element={<ErrorBoundary><AssetDeduplicator /></ErrorBoundary>} />
                   {/* Legacy routes redirect to new unified deduplicator */}
@@ -1303,7 +1303,7 @@ const App: React.FC = () => {
                   <Route path="/monitor" element={<Navigate to="/diagnostics" replace />} />
                   <Route path="/load-order" element={<Navigate to="/dev/load-order" replace />} />
                   <Route path="/assembler" element={<Navigate to="/packaging-release" replace />} />
-                  <Route path="/auditor" element={<Navigate to="/tools/ck-crash-prevention" replace />} />
+                  <Route path="/auditor" element={<Navigate to="/ck-crash-prevention?tab=audit" replace />} />
                   <Route path="/blueprint" element={<Navigate to="/tools/blueprint" replace />} />
                   <Route path="/scribe" element={<Navigate to="/tools/scribe" replace />} />
                   <Route path="/orchestrator" element={<Navigate to="/dev/orchestrator" replace />} />
