@@ -479,16 +479,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const msg = error instanceof Error ? error.message : 'Unknown error';
       setStatus(`Error: ${msg}`);
       setMode('idle');
-      // notify user more visibly
-      try {
-        const api = (window as any).electron?.api || (window as any).electronAPI;
-        if (api?.showNotification) {
-          api.showNotification(`Voice session error: ${msg}`);
-        }
-      } catch (e) {
-        // best effort notification; ignore if it fails
-        console.warn('[LiveContext] notification attempt failed', e);
-      }
+      // notify user more visibly via console; showNotification is not available in preload
+      console.warn('[LiveContext] Voice session error:', msg);
       // if the backend appears hung, restart the voice link
       // Only restart if it's a TIMEOUT error, not general AI errors
       if (/timeout/i.test(msg)) {
@@ -506,6 +498,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // count consecutive backend failures so we can fall back automatically
   const [sttErrors, setSttErrors] = useState(0);
+  const sttErrorsRef = useRef(0);
 
   const handleVoiceError = (error: string) => {
     setStatus(`Voice Error: ${error}`);
@@ -513,11 +506,12 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // detect backend/transcription related errors
     if (/backend|Deepgram|transcribe|network/i.test(error)) {
-      setSttErrors((e) => e + 1);
+      sttErrorsRef.current += 1;
+      setSttErrors(sttErrorsRef.current);
     }
 
     // if we've seen two failures in a row, switch to browser STT for stability
-    if (sttErrors >= 1) {
+    if (sttErrorsRef.current >= 1) {
       console.warn('[LiveContext] falling back to browser STT due to repeated errors');
       if (voiceServiceRef.current) {
         // stop current listening session and restart with new provider
@@ -530,16 +524,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           handleModeChange
         );
       }
+      sttErrorsRef.current = 0;
       setSttErrors(0);
-      try {
-        const api = (window as any).electron?.api || (window as any).electronAPI;
-        if (api?.showNotification) {
-          api.showNotification('Mossy switched to browser STT due to backend issues');
-        }
-      } catch (e) {
-        // best-effort notification; ignore any failure
-        console.warn('[LiveContext] showNotification failed', e);
-      }
     }
   };
 
@@ -570,15 +556,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       timer = setTimeout(() => {
         if (Date.now() - processingStartRef.current > 25000) {
           setStatus('Processing taking too long, restarting link...');
-          try {
-            const api = (window as any).electron?.api || (window as any).electronAPI;
-            if (api?.showNotification) {
-              api.showNotification('Voice AI seemed stuck; reconnecting');
-            }
-          } catch (e) {
-            // ignore notification failure
-            console.warn('[LiveContext] showNotification failed during switch', e);
-          }
+          console.warn('[LiveContext] Voice AI stuck; reconnecting');
           disconnect();
           setTimeout(() => connect().catch(() => { }), 1000);
         }

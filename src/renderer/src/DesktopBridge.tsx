@@ -182,13 +182,8 @@ const DesktopBridge: React.FC = () => {
             const parsed = raw ? JSON.parse(raw) : null;
             if (parsed && Array.isArray(parsed)) return parsed;
 
-            // Development defaults: for your personal workspace
-            const devDefaults: LinkedDirectory[] = [
-                { name: 'AI-Helper', path: 'D:\\Mossy\\AI-Helper' },
-                { name: 'Mossy-Desktop-AI', path: 'D:\\Mossy\\Mossy-Desktop-AI' },
-            ];
-            localStorage.setItem('mossy_linked_directories', JSON.stringify(devDefaults));
-            return devDefaults;
+            // No saved directories yet — start with an empty list
+            return [];
         } catch {
             return [];
         }

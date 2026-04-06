@@ -154,6 +154,9 @@ export const executeMossyTool = async (name: string, args: any, context: {
             const sceneInfo = await sendToBlenderAddon('get_scene_info');
             if (sceneInfo?.success) {
                 const info = sceneInfo.scene_info;
+                if (!info) {
+                    return { success: false, result: 'Blender responded but returned no scene data. Make sure a scene is open.' };
+                }
                 const result = `**Blender Scene Information:**
 
 **Scene:** ${info.scene_name}
@@ -328,9 +331,10 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 'spin3d': 'Spin3D'
             };
             
-            const toolId = args.toolId.toLowerCase();
-            const targetSettingKey = settingsKeyMapping[toolId] || `${args.toolId}Path`;
-            const toolDisplayName = toolNameMapping[toolId] || args.toolId;
+            const rawToolId = String(args?.toolId || '');
+            const toolId = rawToolId.toLowerCase();
+            const targetSettingKey = settingsKeyMapping[toolId] || `${rawToolId}Path`;
+            const toolDisplayName = toolNameMapping[toolId] || rawToolId || toolId;
             
             // ALIASES FOR BETTER MATCHING
             const toolAliases: Record<string, string[]> = {
