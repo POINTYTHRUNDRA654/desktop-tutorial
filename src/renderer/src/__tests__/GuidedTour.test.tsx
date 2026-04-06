@@ -9,6 +9,20 @@ vi.mock('../mossyTts', () => ({
   speakMossy: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock react-joyride to avoid Popper.js referencing `window` inside a
+// setTimeout that fires after jsdom teardown, causing an unhandled error.
+// The mock renders the first step's content when `run` is true so that
+// assertions on step text still work.
+vi.mock('react-joyride', () => ({
+  __esModule: true,
+  default: ({ steps, run }: { steps: Array<{ content: React.ReactNode }>; run: boolean }) => {
+    if (!run || !steps?.length) return null;
+    return <>{steps[0].content}</>;
+  },
+  STATUS: { FINISHED: 'finished', SKIPPED: 'skipped' },
+  EVENTS: { STEP_BEFORE: 'step:before', STEP_AFTER: 'step:after', TARGET_NOT_FOUND: 'target:notFound' },
+}));
+
 import GuidedTour from '../GuidedTour';
 import TourLauncher from '../TourLauncher';
 
