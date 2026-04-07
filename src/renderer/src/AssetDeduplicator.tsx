@@ -429,10 +429,7 @@ export const AssetDeduplicator: React.FC = () => {
         <ToolsInstallVerifyPanel
           accentClassName="text-green-300"
           description="Scan your mod folders to find duplicate textures, meshes, and other assets"
-          tools={[
-            { label: 'File system access', href: '#', kind: 'official' },
-            { label: 'Electron IPC', href: '#', kind: 'official' },
-          ]}
+          tools={[]}
           verify={[
             'Select one or more folders to scan',
             'Click Start Scan to analyze for duplicates',
