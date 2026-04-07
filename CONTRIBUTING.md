@@ -99,6 +99,49 @@ For **security vulnerabilities**, see [SECURITY.md](SECURITY.md) — please do n
 
 ---
 
+## Contributing Knowledge Base Content
+
+The `resources/public/knowledge/` folder contains 300+ `.md` reference files bundled into the app and used by Mossy's AI to answer modding questions.
+
+### Adding a knowledge file
+
+1. Create `resources/public/knowledge/YOUR_TOPIC_GUIDE.md` using clear headings, code blocks, and tables
+2. Add it to the index in `resources/public/knowledge/README.md`
+3. Optionally add a bullet-point summary to the relevant section in `src/renderer/src/MossyBrain.ts` → `getFullSystemInstruction()` if it covers a topic Mossy answers frequently
+
+### Expanding MossyBrain AI knowledge
+
+`MossyBrain.ts` contains the system prompt that shapes Mossy's answers. To add knowledge:
+
+1. Find the relevant `- **TOPIC:**` section in `getFullSystemInstruction()`, or add a new one before the `MASTER_TECHNICAL_GUIDE` injection
+2. Keep entries concise — the system prompt is token-limited (~128K context)
+3. Prefer specific technical facts (exact record types, file paths, flags, error messages) over prose
+
+---
+
+## Contributing Training Data
+
+Mossy has a built-in fine-tuning pipeline. Every chat response now has 👍/👎 rating buttons. Ratings are saved to `userData/training-dataset.jsonl` in Unsloth-compatible ShareGPT format.
+
+### How to contribute
+
+1. Use Mossy for real FO4 modding questions
+2. Rate responses — 👍 for correct answers, 👎 to flag bad ones (optionally edit the correct answer)
+3. Export your curated pairs: open Mossy chat and say *"export my training data"* or use Settings → Local Capabilities → Export JSONL
+4. Share the `.jsonl` file with the maintainer or open a PR adding it to a `training-data/` folder
+
+### Format
+
+Each line is a valid JSON object (ShareGPT format, directly compatible with Unsloth):
+
+```json
+{"conversations": [{"from": "human", "value": "How do I fix a broken precombine in xEdit?"}, {"from": "gpt", "value": "Open the cell record in xEdit..."}]}
+```
+
+High-value topics: xEdit records, Papyrus scripting, CK workflows, NIF structure, FOMOD XML, load order, BA2 packaging, HKX animation.
+
+---
+
 ## License
 
 By contributing you agree that your changes will be licensed under the project's [MIT License](LICENSE).

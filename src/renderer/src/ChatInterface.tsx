@@ -180,9 +180,12 @@ const ProjectWizard: React.FC<{ onSubmit: (data: any) => void, onCancel: () => v
 type ChatMessage = Message & { citations?: KnowledgeCitation[] };
 
 // Memoized Message Item to prevent re-rendering list on typing
-const MessageItem = React.memo(({ msg }: { msg: ChatMessage }) => {
+const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (msgId: string, rating: 'good' | 'bad') => void }) => {
     MessageItem.displayName = 'MessageItem';
     const [showCitations, setShowCitations] = useState(false);
+    const [rating, setRating] = useState<'good' | 'bad' | null>(null);
+    const [showEditBox, setShowEditBox] = useState(false);
+    const [editedAnswer, setEditedAnswer] = useState('');
     const roleLabel = msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Mossy' : msg.role;
 
     const savedPath = useMemo(() => {
@@ -290,6 +293,59 @@ const MessageItem = React.memo(({ msg }: { msg: ChatMessage }) => {
                         )}
                     </div>
                 )}
+                {/* ── Training feedback row (assistant messages only) ── */}
+                {msg.role === 'assistant' && msg.content && !msg.content.startsWith('**[') && (
+                    <div className="pt-1 flex items-center gap-1 flex-wrap">
+                        <button
+                            type="button"
+                            title="Good answer — save to training dataset"
+                            aria-label="Rate response good"
+                            onClick={() => {
+                                if (rating === 'good') return;
+                                setRating('good');
+                                onRate?.(msg.id, 'good');
+                            }}
+                            className={`px-2 py-0.5 rounded text-xs transition-colors ${rating === 'good' ? 'bg-emerald-700/60 text-emerald-200 border border-emerald-600' : 'bg-slate-800/60 text-slate-400 hover:text-emerald-300 border border-slate-700'}`}
+                        >
+                            👍
+                        </button>
+                        <button
+                            type="button"
+                            title="Bad answer — save to training dataset to improve"
+                            aria-label="Rate response bad"
+                            onClick={() => {
+                                setRating('bad');
+                                setShowEditBox(true);
+                                onRate?.(msg.id, 'bad');
+                            }}
+                            className={`px-2 py-0.5 rounded text-xs transition-colors ${rating === 'bad' ? 'bg-red-800/60 text-red-200 border border-red-700' : 'bg-slate-800/60 text-slate-400 hover:text-red-300 border border-slate-700'}`}
+                        >
+                            👎
+                        </button>
+                        {rating && <span className="text-[10px] text-slate-500">{rating === 'good' ? 'Saved to training data ✓' : 'Saved — edit to improve:'}</span>}
+                        {showEditBox && (
+                            <div className="w-full mt-1 space-y-1">
+                                <textarea
+                                    value={editedAnswer || msg.content}
+                                    onChange={e => setEditedAnswer(e.target.value)}
+                                    rows={3}
+                                    className="w-full bg-slate-950/70 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 resize-y outline-none"
+                                    placeholder="Edit this response to the correct answer…"
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => { onRate?.(msg.id, 'bad'); setShowEditBox(false); }}
+                                        className="text-xs px-2 py-1 rounded bg-emerald-800 hover:bg-emerald-700 text-white"
+                                    >
+                                        Save correction
+                                    </button>
+                                    <button type="button" onClick={() => setShowEditBox(false)} className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">Cancel</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -297,7 +353,7 @@ const MessageItem = React.memo(({ msg }: { msg: ChatMessage }) => {
 MessageItem.displayName = 'MessageItem';
 
 // Memoized List Container
-const MessageList = React.memo(({ messages, ...props }: any) => {
+const MessageList = React.memo(({ messages, onRate, ...props }: any) => {
     const messageListRef = useRef<HTMLDivElement>(null);
     const wheelHandler = useHorizontalScroll(messageListRef);
 
@@ -308,7 +364,7 @@ const MessageList = React.memo(({ messages, ...props }: any) => {
             className="flex-1 overflow-y-auto overflow-x-auto p-4 space-y-6 scroll-smooth"
         >
             {messages.map((msg: ChatMessage) => (
-                <MessageItem key={msg.id} msg={msg} {...props} />
+                <MessageItem key={msg.id} msg={msg} onRate={onRate} {...props} />
             ))}
             {props.children}
         </div>
@@ -1688,6 +1744,37 @@ export const ChatInterface: React.FC = () => {
         }]);
     };
 
+    // ── Training data: rate a message 👍/👎 ──────────────────────────────────
+    const handleRateMessage = React.useCallback(async (msgId: string, rating: 'good' | 'bad') => {
+        const api = (window as any).electron?.api;
+        if (!api?.trainingDataAddPair) return;
+        // Find the Q&A pair: the user message just before this assistant message
+        const idx = messages.findIndex(m => m.id === msgId);
+        if (idx < 0) return;
+        const assistantMsg = messages[idx];
+        const userMsg = messages.slice(0, idx).reverse().find(m => m.role === 'user');
+        if (!assistantMsg || !userMsg) return;
+        // Auto-detect topic from content
+        const content = (assistantMsg.content || '').toLowerCase();
+        const topic =
+            content.includes('papyrus') || content.includes('.psc') ? 'papyrus' :
+            content.includes('nif') || content.includes('mesh') ? 'nif' :
+            content.includes('xedit') || content.includes('record') || content.includes('formid') ? 'xedit' :
+            content.includes('creation kit') || content.includes('ck ') ? 'ck' :
+            content.includes('texture') || content.includes('dds') ? 'textures' :
+            content.includes('fomod') ? 'fomod' :
+            content.includes('load order') || content.includes('loot') ? 'load-order' :
+            'general';
+        try {
+            await api.trainingDataAddPair({
+                question: userMsg.content,
+                answer: assistantMsg.content,
+                rating,
+                topic,
+            });
+        } catch { /* non-critical */ }
+    }, [messages]);
+
     const handleStartProject = () => {
         setOnboardingState('project_setup');
         setMessages(prev => [...prev, { id: 'proj-start', role: 'assistant', content: "Initializing new Workspace configuration protocol...", timestamp: Date.now() }]);
@@ -2141,6 +2228,7 @@ export const ChatInterface: React.FC = () => {
 
                     <MessageList
                         messages={messages}
+                        onRate={handleRateMessage}
                         onboardingState={onboardingState}
                         scanProgress={scanProgress}
                         detectedApps={detectedApps}
