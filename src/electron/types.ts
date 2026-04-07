@@ -230,6 +230,10 @@ export const IPC_CHANNELS = {
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
 
+  // GGUF / Unsloth model import
+  GGUF_PICK_FILE: 'gguf-pick-file',
+  GGUF_IMPORT_TO_OLLAMA: 'gguf-import-to-ollama',
+
   // Secrets presence-only status
   SECRET_STATUS: 'secret-status',
 
@@ -296,6 +300,16 @@ export type MlLlmGenerateRequest = {
 
 export type MlLlmGenerateResponse =
   | { ok: true; text: string }
+  | { ok: false; error: string };
+
+export type GgufImportRequest = {
+  ggufPath: string;
+  modelName: string;
+  systemPrompt?: string;
+};
+
+export type GgufImportResponse =
+  | { ok: true; modelName: string }
   | { ok: false; error: string };
 
 export type DedupeProgressStage = 'collect' | 'stat' | 'hash' | 'group' | 'done' | 'canceled' | 'error';
@@ -528,6 +542,10 @@ export interface ElectronAPI {
   // Local LLM (optional)
   mlLlmStatus: () => Promise<MlLlmStatusResponse>;
   mlLlmGenerate: (req: MlLlmGenerateRequest) => Promise<MlLlmGenerateResponse>;
+
+  // GGUF / Unsloth model import
+  ggufPickFile: () => Promise<string>;
+  ggufImportToOllama: (req: GgufImportRequest) => Promise<GgufImportResponse>;
 
   // Duplicate Finder
   pickDedupeFolders: () => Promise<string[]>;

@@ -129,6 +129,10 @@ const IPC_CHANNELS = {
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
 
+  // GGUF / Unsloth model import
+  GGUF_PICK_FILE: 'gguf-pick-file',
+  GGUF_IMPORT_TO_OLLAMA: 'gguf-import-to-ollama',
+
   // Secrets presence-only status
   SECRET_STATUS: 'secret-status',
 
@@ -1701,6 +1705,20 @@ const electronAPI = {
    */
   mlLlmGenerate: (req: { provider: 'ollama' | 'openai_compat' | 'cosmos'; model: string; prompt: string; baseUrl?: string }): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.ML_LLM_GENERATE, req);
+  },
+
+  /**
+   * GGUF / Unsloth: Open file picker for .gguf model files
+   */
+  ggufPickFile: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GGUF_PICK_FILE);
+  },
+
+  /**
+   * GGUF / Unsloth: Import a GGUF model into Ollama
+   */
+  ggufImportToOllama: (req: { ggufPath: string; modelName: string; systemPrompt?: string }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GGUF_IMPORT_TO_OLLAMA, req);
   },
 
   /**

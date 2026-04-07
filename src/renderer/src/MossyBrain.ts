@@ -851,6 +851,8 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n| UModel / UEViewer | Gildor.org | https://www.gildor.org/en/projects/umodel |' +
       '\n| Wabbajack | Official | https://www.wabbajack.org |' +
       '\n| Spriggit (Plugin Serializer) | GitHub | https://github.com/Noggog/Spriggit |' +
+      '\n| Unsloth (LLM Fine-Tuning) | GitHub | https://github.com/unslothai/unsloth |' +
+      '\n| Ollama (Local LLM Runtime) | Official | https://ollama.com |' +
       '\n**Rule**: If a tool is on Nexus, link to Nexus — not GitHub or any other mirror — unless the Nexus page explicitly directs to GitHub for the latest release (e.g. CKPE). The author earns Nexus endorsements and download credit, which matters for the modding community.' +
       '\n\n- **SPRIGGIT: PLUGIN VERSIONING WITH GIT — COLLABORATIVE MODDING FOR TEAMS:**' +
       '\n  Spriggit serializes Bethesda plugin files (.esp/.esm/.esl) into human-readable YAML or JSON format that GIT can track, diff, and merge. This transforms mod development into a collaborative, version-controlled workflow where multiple modders can work on the same mod, pull on branches, submit pull requests, and merge changes just like programmers do with code.' +
@@ -1094,6 +1096,51 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n- If the user says they cannot hear you, suggest: 1) Check the "Voice: ON/OFF" toggle in the chat toolbar is ON. 2) Go to Settings → Voice Settings and verify "Enabled" is checked. 3) Click "Test" in Voice Settings to verify TTS is working. 4) Check system volume and browser/app audio permissions.' +
       '\n- There is a "Mossy: ON / Mossy: OFF" toggle in the chat toolbar that controls whether Mossy responds at all. When set to OFF, Mossy will not respond to new messages or speak. Toggle it back ON to resume the conversation.' +
       '\n- To stop Mossy from speaking mid-response: (1) click the red "Stop Speaking" button in the toolbar (appears while Mossy is speaking), (2) click the small red stop icon next to the "Speaking..." indicator below the chat input, or (3) click "Pause Mossy" in the toolbar to stop both speaking and future responses.' +
+
+      '\n\n- **UNSLOTH: FINE-TUNING YOUR OWN MOSSY MODEL WITH GEMMA 4 (8 GB VRAM):**' +
+      '\n  Unsloth is an open-source fine-tuning library that makes training large language models 4× faster and uses ~80% less VRAM than standard HuggingFace methods. It supports Gemma 4, Llama 3, Qwen 2.5, and other modern architectures. A modder with an NVIDIA GPU (8 GB VRAM) can fine-tune Gemma 4 locally on a custom Fallout 4 modding dataset and export it as a GGUF file that Ollama can serve.' +
+
+      '\n\n  **Why Fine-Tune for FO4 Modding?**' +
+      '\n  A general LLM answers FO4 modding questions with generic knowledge injected via system prompts. A fine-tuned model has the modding knowledge baked directly into its weights — it understands xEdit record types, Papyrus syntax, NIF structure, FormID semantics, and Creation Kit workflows at a deep level. Answers are faster, more accurate, and use far less context window space.' +
+
+      '\n\n  **Unsloth Requirements:**' +
+      '\n  • NVIDIA GPU with ≥8 GB VRAM (RTX 3070 / 4060 or better recommended)' +
+      '\n  • Python 3.10+ with CUDA 12.1 environment (conda or venv)' +
+      '\n  • pip install unsloth (and torch, transformers, datasets, trl)' +
+      '\n  • Alternatively: free Google Colab T4 notebook from https://github.com/unslothai/unsloth' +
+
+      '\n\n  **Training Data Format (JSONL / ShareGPT):**' +
+      '\n  Create a JSONL dataset of FO4 modding Q&A pairs. Each line is a JSON object:' +
+      '\n  {"conversations": [{"from": "human", "value": "How do I create a leveled list in xEdit?"}, {"from": "gpt", "value": "In xEdit, right-click the plugin → Add → Leveled Item (LVLI). Set the Chance None field, then add entries in the Leveled List Entries subrecord..."}]}' +
+      '\n  Good training topics: xEdit record editing, Papyrus scripting patterns, Creation Kit workflows, NIF mesh structure, BA2 packing, conflict resolution, load order rules, FOMOD scripting, common error messages and fixes.' +
+
+      '\n\n  **Quick Fine-Tune Workflow:**' +
+      '\n  1. Install Unsloth: pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git" (Colab) or pip install unsloth (local CUDA)' +
+      '\n  2. Load Gemma 4: from unsloth import FastLanguageModel; model, tokenizer = FastLanguageModel.from_pretrained("unsloth/gemma-4-it-unsloth-bnb-4bit", max_seq_length=4096, load_in_4bit=True)' +
+      '\n  3. Apply LoRA adapters: model = FastLanguageModel.get_peft_model(model, r=16, target_modules=["q_proj","k_proj","v_proj","o_proj","gate_proj","up_proj","down_proj"])' +
+      '\n  4. Load dataset: from datasets import load_dataset; dataset = load_dataset("json", data_files="fo4_training.jsonl", split="train")' +
+      '\n  5. Train: trainer = SFTTrainer(model, dataset=dataset, max_seq_length=4096, ...); trainer.train()' +
+      '\n  6. Export to GGUF: model.save_pretrained_gguf("mossy-fo4", tokenizer, quantization_method="q4_k_m")' +
+      '\n  7. Import into Mossy: Settings → Local Capabilities → GGUF / Unsloth Import → Browse for mossy-fo4.gguf → Import to Ollama' +
+      '\n  8. Set Ollama model to "mossy-fo4" and Save' +
+
+      '\n\n  **GGUF Quantization Options (export tradeoffs):**' +
+      '\n  • q4_k_m — Best balance for 8 GB VRAM; ~4 GB file; recommended for most users' +
+      '\n  • q5_k_m — Better quality, ~5 GB file; needs 10 GB+ VRAM for inference' +
+      '\n  • q8_0   — Near-lossless; ~8 GB file; needs 12 GB+ VRAM' +
+      '\n  • f16    — Full precision; large file; only for high-end cards (24 GB+)' +
+
+      '\n\n  **Mossy Integration Workflow:**' +
+      '\n  Once imported, Mossy registers the model in Ollama with a Fallout 4 modding system prompt baked into the Modelfile. The model appears in the Ollama model list in Local Capabilities. Set it as the preferred provider and all future chat sessions will route through your fine-tuned model instead of Groq/cloud APIs.' +
+
+      '\n\n  **Where to Get Training Data:**' +
+      '\n  • Export your own Mossy chat logs as Q&A pairs (use the knowledge vault export)' +
+      '\n  • Fallout 4 wiki pages (wiki.fallout4.com) scraped and reformatted' +
+      '\n  • xEdit docs and the Creation Kit wiki (ck.uesp.net)' +
+      '\n  • Nexus mod descriptions and changelogs for common patterns' +
+      '\n  • Your own modding notes and scripting examples' +
+      '\n  Aim for 500–5000 high-quality Q&A pairs to see meaningful improvement.' +
+
       // Include only the first ~3,000 chars (~750 tokens at ~4 chars/token) of the guide.
       // The full MASTER_TECHNICAL_GUIDE is ~368,000 chars (~92,000 tokens) which, combined
       // with conversation history and injected context, can exceed the model's 128K context window.
