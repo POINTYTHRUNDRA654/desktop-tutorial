@@ -5383,9 +5383,11 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           'load order, mod conflicts, and all aspects of Fallout 4 modding. Be precise and helpful.';
         const systemLine = systemPrompt || defaultSystem;
 
+        // Escape backslashes first, then double-quotes, so the Modelfile string is safe
+        const escapedSystemLine = systemLine.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         const modelfileContent = [
           `FROM "${normalizedPath}"`,
-          `SYSTEM "${systemLine.replace(/"/g, '\\"')}"`,
+          `SYSTEM "${escapedSystemLine}"`,
           'PARAMETER temperature 0.7',
           'PARAMETER num_ctx 4096',
           'PARAMETER repeat_penalty 1.1',
