@@ -9,6 +9,21 @@
  */
 
 // ============================================================================
+// IN DEVELOPMENT PLUGINS/EXTENSIONS
+// ============================================================================
+
+export const IN_DEVELOPMENT_PLUGINS = [
+    {
+        name: 'Mod Organizer 2 (MO2) Extension',
+        status: 'IN DEVELOPMENT',
+        description: 'Separate plugin for MO2 integration with Mossy. Allows direct interaction with MO2 profiles, mod lists, and orchestration from Mossy.',
+        handlers: [],
+        timeline: 'TBD - Separate plugin repository',
+        notes: 'Being developed as a standalone plugin to avoid coupling MO2-specific logic with core Mossy codebase',
+    },
+];
+
+// ============================================================================
 // CRITICAL MISSING HANDLERS (prevent panels from working)
 // ============================================================================
 
@@ -309,6 +324,7 @@ export const IMPLEMENTATION_TODO = `
 `;
 
 export default {
+    IN_DEVELOPMENT_PLUGINS,
     CRITICAL_MISSING_HANDLERS,
     MODERATELY_IMPLEMENTED_HANDLERS,
     WELL_IMPLEMENTED_HANDLERS,
