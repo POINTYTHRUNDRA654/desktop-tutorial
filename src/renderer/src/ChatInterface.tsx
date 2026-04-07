@@ -17,6 +17,7 @@ import { useActivityMonitor } from './hooks/useActivityMonitor';
 import { SuggestionPanel } from './components/SuggestionPanel';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { SelfImprovementPanel } from './components/SelfImprovementPanel';
+import { useHorizontalScroll } from './components/useHorizontalScroll';
 import { buildKnowledgeManifestForModel, buildRelevantKnowledgeVaultContext, buildBlenderAddonContext, KnowledgeCitation } from './knowledgeRetrieval';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { autoSaveManager } from './AutoSaveManager';
@@ -297,8 +298,15 @@ MessageItem.displayName = 'MessageItem';
 
 // Memoized List Container
 const MessageList = React.memo(({ messages, ...props }: any) => {
+    const messageListRef = useRef<HTMLDivElement>(null);
+    const wheelHandler = useHorizontalScroll(messageListRef);
+
     return (
-        <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
+        <div
+            ref={messageListRef}
+            onWheel={wheelHandler}
+            className="flex-1 overflow-y-auto overflow-x-auto p-4 space-y-6 scroll-smooth"
+        >
             {messages.map((msg: ChatMessage) => (
                 <MessageItem key={msg.id} msg={msg} {...props} />
             ))}

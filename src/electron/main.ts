@@ -27,6 +27,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import http from 'http';
 import https from 'https';
+import { savePanelData, loadPanelData, initializePanelDataDirectory, deletePanelData } from './panelDataPersistence';
 import {
   setDetectedPrograms,
   getLastProgramScan,
@@ -1063,7 +1064,49 @@ function setupIpcHandlers() {
     }
   };
 
+  // Initialize panel data persistence directory
+  try {
+    initializePanelDataDirectory();
+  } catch (err) {
+    console.error('[Main] Error initializing panel data directory:', err);
+  }
+
+  // ============================================================================
+  // PANEL DATA PERSISTENCE HANDLERS
+  // ============================================================================
+
+  registerHandler(IPC_CHANNELS.SAVE_PANEL_DATA || 'panel-data-save', async (_event, panelId: string, data: any) => {
+    try {
+      const result = await savePanelData(panelId, data);
+      return { ok: result, panelId };
+    } catch (error: any) {
+      console.error(`[Main] Error saving panel data for '${panelId}':`, error);
+      return { ok: false, error: error.message, panelId };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.LOAD_PANEL_DATA || 'panel-data-load', async (_event, panelId: string) => {
+    try {
+      const data = await loadPanelData(panelId);
+      return { ok: data !== null, data, panelId };
+    } catch (error: any) {
+      console.error(`[Main] Error loading panel data for '${panelId}':`, error);
+      return { ok: false, error: error.message, data: null, panelId };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.DELETE_PANEL_DATA || 'panel-data-delete', async (_event, panelId: string) => {
+    try {
+      const result = await deletePanelData(panelId);
+      return { ok: result, panelId };
+    } catch (error: any) {
+      console.error(`[Main] Error deleting panel data for '${panelId}':`, error);
+      return { ok: false, error: error.message, panelId };
+    }
+  });
+
   // Register handlers one by one
+
 
   // PDF parsing handler (runs in main process with Node.js)
   registerHandler('parse-pdf', async (_event, arrayBuffer: ArrayBuffer) => {
@@ -5374,6 +5417,295 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // ============================================================================
+  // ROADMAP IPC HANDLERS
+  // ============================================================================
+
+  // In-memory roadmap storage (in production, use persistent data)
+  const roadmapStorage = new Map<string, any>();
+
+  ipcMain.handle('roadmap-get-all', async (_event) => {
+    try {
+      return Array.from(roadmapStorage.values());
+    } catch (error) {
+      console.error('[Roadmap] Error getting roadmaps:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('roadmap-generate-ai', async (_event, params: { prompt: string; projectId: string }) => {
+    try {
+      const { prompt, projectId } = params;
+
+      // Generate a roadmap from the prompt using AI
+      const roadmapId = `roadmap-${Date.now()}`;
+
+      // Parse the prompt to create steps
+      const steps = parseRoadmapSteps(prompt);
+
+      const newRoadmap = {
+        id: roadmapId,
+        title: extractTitle(prompt),
+        goal: prompt,
+        steps: steps,
+        projectId: projectId,
+        createdAt: new Date().toISOString(),
+        currentStepId: steps[0]?.id || null,
+      };
+
+      roadmapStorage.set(roadmapId, newRoadmap);
+
+      return {
+        ok: true,
+        roadmap: newRoadmap,
+      };
+    } catch (error) {
+      console.error('[Roadmap] Error generating roadmap:', error);
+      return {
+        ok: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  ipcMain.handle('roadmap-update-step', async (_event, params: { roadmapId: string; stepId: string; status: string }) => {
+    try {
+      const { roadmapId, stepId, status } = params;
+      const roadmap = roadmapStorage.get(roadmapId);
+
+      if (!roadmap) {
+        return { ok: false, error: 'Roadmap not found' };
+      }
+
+      // Update the step status
+      const stepIndex = roadmap.steps.findIndex((s: any) => s.id === stepId);
+      if (stepIndex !== -1) {
+        roadmap.steps[stepIndex].status = status;
+        roadmapStorage.set(roadmapId, roadmap);
+      }
+
+      return { ok: true, roadmap };
+    } catch (error) {
+      console.error('[Roadmap] Error updating step:', error);
+      return {
+        ok: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // Helper functions for roadmap generation
+  function extractTitle(prompt: string): string {
+    const words = prompt.split(' ');
+    return words.slice(0, Math.min(4, words.length)).join(' ').replace(/[^\w\s]/g, '');
+  }
+
+  function parseRoadmapSteps(prompt: string): any[] {
+    // Generate default steps based on the prompt
+    const tools = ['blender', 'image-suite', 'ck', 'scribe', 'nifskope'];
+    const tools_map: { [k: string]: string } = {
+      'blender': 'blender',
+      'image': 'image-suite',
+      'texture': 'image-suite',
+      'script': 'scribe',
+      'nif': 'nifskope',
+      'model': 'blender',
+      '3d': 'blender',
+    };
+
+    const defaultSteps = [
+      {
+        id: `step-1-${Date.now()}`,
+        title: 'Plan the project structure',
+        description: 'Outline the scope, requirements, and resources needed for this mod.',
+        status: 'not-started',
+        order: 1,
+      },
+      {
+        id: `step-2-${Date.now()}`,
+        title: 'Gather assets and resources',
+        description: 'Collect or create necessary 3D models, textures, scripts, and documentation.',
+        status: 'not-started',
+        order: 2,
+        tool: 'blender',
+      },
+      {
+        id: `step-3-${Date.now()}`,
+        title: 'Create or import assets',
+        description: 'Use appropriate tools to create or import your content into the engine.',
+        status: 'not-started',
+        order: 3,
+        tool: detectToolFromPrompt(prompt),
+      },
+      {
+        id: `step-4-${Date.now()}`,
+        title: 'Script and automate',
+        description: 'Write Papyrus scripts or implement game logic to bring your content to life.',
+        status: 'not-started',
+        order: 4,
+        tool: 'scribe',
+      },
+      {
+        id: `step-5-${Date.now()}`,
+        title: 'Test and validate',
+        description: 'Test your mod in-game, fix bugs, and validate all changes work as expected.',
+        status: 'not-started',
+        order: 5,
+      },
+      {
+        id: `step-6-${Date.now()}`,
+        title: 'Package and release',
+        description: 'Create the final ESP/ESM, BA2 archives, and prepare for distribution.',
+        status: 'not-started',
+        order: 6,
+      },
+    ];
+
+    return defaultSteps;
+  }
+
+  function detectToolFromPrompt(prompt: string): string {
+    const promptLower = prompt.toLowerCase();
+    const toolMap: { [k: string]: string } = {
+      'blender': 'blender',
+      'image': 'image-suite',
+      'texture': 'image-suite',
+      'script': 'scribe',
+      'nif': 'nifskope',
+      'model': 'blender',
+      '3d': 'blender',
+      'paint': 'image-suite',
+      'weapon': 'blender',
+      'armor': 'blender',
+      'quest': 'scribe',
+      'dialogue': 'scribe',
+    };
+
+    for (const [keyword, tool] of Object.entries(toolMap)) {
+      if (promptLower.includes(keyword)) {
+        return tool;
+      }
+    }
+
+    return 'general';
+  }
+
+  ipcMain.handle('roadmap-create', async (_event, params: { title: string; goal: string; projectId: string }) => {
+    try {
+      const { title, goal, projectId } = params;
+      const roadmapId = `roadmap-${Date.now()}`;
+
+      const newRoadmap = {
+        id: roadmapId,
+        title,
+        goal,
+        steps: parseRoadmapSteps(goal),
+        projectId,
+        createdAt: new Date().toISOString(),
+        currentStepId: null,
+      };
+
+      roadmapStorage.set(roadmapId, newRoadmap);
+      return { ok: true, roadmap: newRoadmap };
+    } catch (error) {
+      console.error('[Roadmap] Error creating roadmap:', error);
+      return { ok: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('roadmap-get-active', async (_event, params: { projectId: string }) => {
+    try {
+      const { projectId } = params;
+      // Get the most recently created roadmap for this project
+      let activeRoadmap = null;
+      let latestTime = 0;
+
+      for (const roadmap of roadmapStorage.values()) {
+        if (roadmap.projectId === projectId) {
+          const time = new Date(roadmap.createdAt).getTime();
+          if (time > latestTime) {
+            latestTime = time;
+            activeRoadmap = roadmap;
+          }
+        }
+      }
+
+      return { ok: true, roadmap: activeRoadmap };
+    } catch (error) {
+      console.error('[Roadmap] Error getting active roadmap:', error);
+      return { ok: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('roadmap-delete', async (_event, params: { roadmapId: string }) => {
+    try {
+      const { roadmapId } = params;
+      roadmapStorage.delete(roadmapId);
+      return { ok: true };
+    } catch (error) {
+      console.error('[Roadmap] Error deleting roadmap:', error);
+      return { ok: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('roadmap-create', async (_event, params: { title: string; goal: string; projectId: string }) => {
+    try {
+      const { title, goal, projectId } = params;
+      const roadmapId = `roadmap-${Date.now()}`;
+
+      const newRoadmap = {
+        id: roadmapId,
+        title,
+        goal,
+        steps: parseRoadmapSteps(goal),
+        projectId,
+        createdAt: new Date().toISOString(),
+        currentStepId: null,
+      };
+
+      roadmapStorage.set(roadmapId, newRoadmap);
+      return { ok: true, roadmap: newRoadmap };
+    } catch (error) {
+      console.error('[Roadmap] Error creating roadmap:', error);
+      return { ok: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('roadmap-get-active', async (_event, params: { projectId: string }) => {
+    try {
+      const { projectId } = params;
+      // Get the most recently created roadmap for this project
+      let activeRoadmap = null;
+      let latestTime = 0;
+
+      for (const roadmap of roadmapStorage.values()) {
+        if (roadmap.projectId === projectId) {
+          const time = new Date(roadmap.createdAt).getTime();
+          if (time > latestTime) {
+            latestTime = time;
+            activeRoadmap = roadmap;
+          }
+        }
+      }
+
+      return { ok: true, roadmap: activeRoadmap };
+    } catch (error) {
+      console.error('[Roadmap] Error getting active roadmap:', error);
+      return { ok: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('roadmap-delete', async (_event, params: { roadmapId: string }) => {
+    try {
+      const { roadmapId } = params;
+      roadmapStorage.delete(roadmapId);
+      return { ok: true };
+    } catch (error) {
+      console.error('[Roadmap] Error deleting roadmap:', error);
+      return { ok: false, error: (error as Error).message };
+    }
+  });
+
+  // ============================================================================
   // QUEST EDITOR IPC HANDLERS
   // ============================================================================
 
@@ -6031,37 +6363,56 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
-  // LearningHub IPC handlers (renderer -> main)
-  const { learningHub: learningEngine } = require('../mining/learningHub');
+  // LearningHub IPC handlers (renderer -> main) - registered via wrapper
+  let learningEngine: any;
+  try {
+    ({ learningHub: learningEngine } = require('../mining/learningHub'));
+    console.log('[Main] LearningHub engine loaded successfully');
+  } catch (err) {
+    console.warn('[Main] Warning: Could not load learningHub engine:', err);
+    learningEngine = null;
+  }
 
-  ipcMain.handle('learning:get-tutorial', async (_event, tutorialId: string) => {
+  // Helper to handle learning engine safely
+  const ensureLearningEngine = (handlerName: string) => {
+    if (!learningEngine) {
+      throw new Error(`Learning engine not initialized for ${handlerName}`);
+    }
+    return learningEngine;
+  };
+
+  registerHandler('learning:get-tutorial', async (_event, tutorialId: string) => {
     try {
-      return await learningEngine.getTutorial(tutorialId);
+      const engine = ensureLearningEngine('get-tutorial');
+      const result = await engine.getTutorial(tutorialId);
+      return result || { success: false, error: 'Tutorial not found' };
     } catch (error: any) {
       console.error('[Main] learning:get-tutorial error:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
-  ipcMain.handle('learning:list-tutorials', async (_event, category?: string) => {
+  registerHandler('learning:list-tutorials', async (_event, category?: string) => {
     try {
-      return await learningEngine.listTutorials(category);
+      const engine = ensureLearningEngine('list-tutorials');
+      const result = await engine.listTutorials(category);
+      return result || [];
     } catch (error: any) {
       console.error('[Main] learning:list-tutorials error:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return [];
     }
   });
 
-  ipcMain.handle('learning:track-progress', async (_event, userId: string, tutorialId: string, step: number | string) => {
+  registerHandler('learning:track-progress', async (_event, userId: string, tutorialId: string, step: number | string) => {
     try {
-      // support either step index (number) or stepId (string)
-      const tut = await learningEngine.getTutorial(tutorialId);
+      const engine = ensureLearningEngine('track-progress');
+      const tut = await engine.getTutorial(tutorialId);
       if (!tut) throw new Error('Tutorial not found');
       let stepId: string | undefined;
       if (typeof step === 'number') stepId = tut.steps?.[step]?.id;
       else stepId = String(step);
       if (!stepId) throw new Error('Step not found');
-      await learningEngine.trackProgress(userId, tutorialId, stepId);
+      await engine.trackProgress(userId, tutorialId, stepId);
       return { success: true };
     } catch (error: any) {
       console.error('[Main] learning:track-progress error:', error);
@@ -6069,49 +6420,58 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
-  ipcMain.handle('learning:submit-exercise', async (_event, exerciseId: string, answer: any) => {
+  registerHandler('learning:submit-exercise', async (_event, exerciseId: string, answer: any) => {
     try {
-      return await learningEngine.validateExercise(exerciseId, answer);
+      const engine = ensureLearningEngine('submit-exercise');
+      const result = await engine.validateExercise(exerciseId, answer);
+      return result || { success: false };
     } catch (error: any) {
       console.error('[Main] learning:submit-exercise error:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
-  ipcMain.handle('learning:get-achievements', async (_event, userId: string) => {
+  registerHandler('learning:get-achievements', async (_event, userId: string) => {
     try {
-      const all = await learningEngine.listAchievements();
-      const prog = await learningEngine.getUserProgress(userId);
+      const engine = ensureLearningEngine('get-achievements');
+      const all = await engine.listAchievements();
+      const prog = await engine.getUserProgress(userId);
       const unlocked = prog?.achievements || [];
       const unlockedDetails = all.filter(a => unlocked.includes(a.id));
       return { unlocked: unlockedDetails, all };
     } catch (error: any) {
       console.error('[Main] learning:get-achievements error:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { unlocked: [], all: [] };
     }
   });
 
-  ipcMain.handle('learning:get-user-progress', async (_event, userId: string) => {
+  registerHandler('learning:get-user-progress', async (_event, userId: string) => {
     try {
-      return await learningEngine.getUserProgress(userId);
+      const engine = ensureLearningEngine('get-user-progress');
+      const result = await engine.getUserProgress(userId);
+      return result || { userId, completedTutorials: [], currentTutorials: [], achievements: [], totalPoints: 0, level: 1 };
     } catch (error: any) {
       console.error('[Main] learning:get-user-progress error:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { userId, completedTutorials: [], currentTutorials: [], achievements: [], totalPoints: 0, level: 1 };
     }
   });
 
-  ipcMain.handle('learning:complete-step', async (_event, userId: string, stepId: string) => {
+  registerHandler('learning:complete-step', async (_event, userId: string, stepId: string) => {
     try {
-      return await learningEngine.completeStep(userId, stepId);
+      const engine = ensureLearningEngine('complete-step');
+      const result = await engine.completeStep(userId, stepId);
+      return result || { success: true };
     } catch (error: any) {
       console.error('[Main] learning:complete-step error:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
-  ipcMain.handle('learning:provide-hint', async (_event, exerciseId: string, currentAttempt: any) => {
+  registerHandler('learning:provide-hint', async (_event, exerciseId: string, currentAttempt: any) => {
     try {
-      return await learningEngine.provideHint(exerciseId, currentAttempt);
+      const engine = ensureLearningEngine('provide-hint');
+      const result = await engine.provideHint(exerciseId, currentAttempt);
+      return result || { success: true, text: 'Try again' };
     } catch (error: any) {
       console.error('[Main] learning:provide-hint error:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };

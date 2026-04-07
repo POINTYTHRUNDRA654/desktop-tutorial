@@ -76,6 +76,10 @@ const BodyslideGuide = React.lazy(() => import('./BodyslideGuide'));
 const SimSettlementsGuide = React.lazy(() => import('./SimSettlementsGuide'));
 const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
 
+// Knowledge & Learning Components
+const QuickReference = React.lazy(() => import('./QuickReference').then(module => ({ default: module.QuickReference })));
+const KnowledgeSearch = React.lazy(() => import('./KnowledgeSearch'));
+
 // Tool extensions (lazy-loaded named exports mapped to default for React.lazy)
 const MO2Extension = React.lazy(() => import('./MO2Extension').then(module => ({ default: module.MO2Extension })));
 const ComfyUIExtension = React.lazy(() => import('./ComfyUIExtension').then(module => ({ default: module.ComfyUIExtension })));
@@ -1072,8 +1076,8 @@ const App: React.FC = () => {
                 type="button"
                 onClick={() => setIsPipBoy((prev) => !prev)}
                 className={`p-2 rounded-lg border text-xs transition-colors ${isPipBoy
-                    ? 'bg-amber-900/20 text-amber-300 border-amber-500/40'
-                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                  ? 'bg-amber-900/20 text-amber-300 border-amber-500/40'
+                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
                   }`}
                 title="Toggle Pip-Boy Theme"
               >
@@ -1212,8 +1216,10 @@ const App: React.FC = () => {
                   {/* Knowledge & Learning */}
                   <Route path="/learn" element={<ErrorBoundary><LearningHub /></ErrorBoundary>} />
                   <Route path="/learn/lore" element={<Navigate to="/learn" replace />} />
-                  <Route path="/learn/knowledge" element={<Navigate to="/learn" replace />} />
-                  <Route path="/learn/reference" element={<Navigate to="/learn" replace />} />
+                  <Route path="/reference" element={<ErrorBoundary><QuickReference /></ErrorBoundary>} />
+                  <Route path="/knowledge" element={<ErrorBoundary><KnowledgeSearch /></ErrorBoundary>} />
+                  <Route path="/learn/reference" element={<Navigate to="/reference" replace />} />
+                  <Route path="/learn/knowledge" element={<Navigate to="/knowledge" replace />} />
                   <Route path="/learn/community" element={<Navigate to="/learn" replace />} />
                   <Route path="/learn/capabilities" element={<Navigate to="/learn" replace />} />
 
@@ -1321,9 +1327,7 @@ const App: React.FC = () => {
                   <Route path="/diagnostics" element={<ErrorBoundary><DiagnosticsHub /></ErrorBoundary>} />
                   <Route path="/tool-verify" element={<Navigate to="/diagnostics" replace />} />
                   <Route path="/community" element={<Navigate to="/learn" replace />} />
-                  <Route path="/reference" element={<Navigate to="/learn" replace />} />
                   <Route path="/capabilities" element={<Navigate to="/learn" replace />} />
-                  <Route path="/knowledge" element={<Navigate to="/learn" replace />} />
                   <Route path="/script-analyzer" element={<Navigate to="/devtools" replace />} />
                   <Route path="/template-generator" element={<Navigate to="/devtools" replace />} />
                   <Route path="/install-wizard" element={<Navigate to="/wizards" replace />} />

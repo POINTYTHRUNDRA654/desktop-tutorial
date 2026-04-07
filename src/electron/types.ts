@@ -238,6 +238,11 @@ export const IPC_CHANNELS = {
 
   // Fresh-install detection: sent to renderer when a fresh-install.marker is found
   TRIGGER_FRESH_INSTALL: 'trigger-fresh-install',
+
+  // Panel data persistence
+  SAVE_PANEL_DATA: 'panel-data-save',
+  LOAD_PANEL_DATA: 'panel-data-load',
+  DELETE_PANEL_DATA: 'panel-data-delete',
 } as const;
 
 export type MlIndexBuildRequest = {
