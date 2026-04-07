@@ -66,6 +66,7 @@ const DonationSupport = React.lazy(() => import('./DonationSupport').then(module
 const DevtoolsHub = React.lazy(() => import('./DevtoolsHub'));
 const CosmosWorkflow = React.lazy(() => import('./CosmosWorkflow'));
 const LearningHub = React.lazy(() => import('./LearningHub'));
+const CommunityLearning = React.lazy(() => import('./CommunityLearning'));
 const SettingsHub = React.lazy(() => import('./SettingsHub'));
 // Mod browser UI
 const ModBrowser = React.lazy(() => import('./ModBrowser'));
@@ -1223,7 +1224,7 @@ const App: React.FC = () => {
                   <Route path="/lore" element={<ErrorBoundary><Lorekeeper /></ErrorBoundary>} />
                   <Route path="/learn/reference" element={<Navigate to="/reference" replace />} />
                   <Route path="/learn/knowledge" element={<Navigate to="/knowledge" replace />} />
-                  <Route path="/learn/community" element={<Navigate to="/learn" replace />} />
+                  <Route path="/learn/community" element={<Navigate to="/community" replace />} />
                   <Route path="/learn/capabilities" element={<Navigate to="/learn" replace />} />
 
                   {/* Memory Vault */}
@@ -1328,7 +1329,7 @@ const App: React.FC = () => {
                   <Route path="/cosmos" element={<Navigate to="/tools/cosmos" replace />} />
                   <Route path="/diagnostics" element={<ErrorBoundary><DiagnosticsHub /></ErrorBoundary>} />
                   <Route path="/tool-verify" element={<Navigate to="/diagnostics" replace />} />
-                  <Route path="/community" element={<Navigate to="/learn" replace />} />
+                  <Route path="/community" element={<ErrorBoundary><CommunityLearning /></ErrorBoundary>} />
                   <Route path="/capabilities" element={<ErrorBoundary><LocalCapabilities /></ErrorBoundary>} />
                   <Route path="/script-analyzer" element={<Navigate to="/devtools" replace />} />
                   <Route path="/template-generator" element={<Navigate to="/devtools" replace />} />

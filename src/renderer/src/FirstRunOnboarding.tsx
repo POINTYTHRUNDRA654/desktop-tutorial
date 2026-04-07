@@ -1,14 +1,114 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map } from 'lucide-react';
+import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map, Download, ExternalLink } from 'lucide-react';
 import { useI18n, resolveUiLanguage } from './i18n';
 import packageJson from '../../../package.json';
 import TutorialVideoPanel from './components/TutorialVideoPanel';
 import { speakMossy } from './mossyTts';
 import { getBrowserTtsVoices, loadBrowserTtsSettings, saveBrowserTtsSettings, pickBrowserTtsVoice } from './browserTts';
+import { openExternal } from './utils/openExternal';
 
 interface OnboardingProps {
     onComplete: () => void;
 }
+
+// ─── Curated downloads shown after the scan ────────────────────────────────
+// Each entry links to the official Nexus or GitHub page — never bundled.
+// detectKeywords: match against detected app display names (case-insensitive).
+interface RecommendedDownload {
+    name: string;
+    description: string;
+    /** Words to match against detected app names to mark as already installed. */
+    detectKeywords: string[];
+    url: string;
+    urlLabel: string;
+    category: 'modding' | 'version-control' | 'creative';
+    required: boolean;
+}
+
+const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
+    {
+        name: 'Spriggit',
+        description: 'Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Works with GitHub out of the box.',
+        detectKeywords: ['spriggit'],
+        url: 'https://github.com/Mutagen-Modding/Spriggit/releases',
+        urlLabel: 'GitHub Releases',
+        category: 'version-control',
+        required: false,
+    },
+    {
+        name: 'xEdit / FO4Edit',
+        description: 'The essential plugin editor for Fallout 4. Used to resolve conflicts, clean masters, run scripts, and inspect every record in your load order.',
+        detectKeywords: ['xedit', 'fo4edit', 'tes5edit'],
+        url: 'https://www.nexusmods.com/fallout4/mods/2737',
+        urlLabel: 'Nexus Mods',
+        category: 'modding',
+        required: true,
+    },
+    {
+        name: 'Mod Organizer 2',
+        description: 'The recommended mod manager for Fallout 4. Keeps your game folder clean with a virtual file system and supports profiles.',
+        detectKeywords: ['mod organizer', 'modorganizer'],
+        url: 'https://github.com/ModOrganizer2/modorganizer/releases',
+        urlLabel: 'GitHub Releases',
+        category: 'modding',
+        required: false,
+    },
+    {
+        name: 'LOOT',
+        description: 'Automatically sorts your load order to reduce conflicts and provides warnings about problematic mods.',
+        detectKeywords: ['loot'],
+        url: 'https://github.com/loot/loot/releases',
+        urlLabel: 'GitHub Releases',
+        category: 'modding',
+        required: false,
+    },
+    {
+        name: 'NifSkope',
+        description: 'View and edit NIF mesh and texture files — essential for working with Fallout 4 3D assets.',
+        detectKeywords: ['nifskope'],
+        url: 'https://github.com/hexabits/nifskope/releases',
+        urlLabel: 'GitHub Releases',
+        category: 'modding',
+        required: false,
+    },
+    {
+        name: 'BodySlide & Outfit Studio',
+        description: 'Create and convert armour and clothing meshes to fit different body shapes. Required for most outfit mods.',
+        detectKeywords: ['bodyslide', 'outfit studio'],
+        url: 'https://www.nexusmods.com/fallout4/mods/25',
+        urlLabel: 'Nexus Mods',
+        category: 'modding',
+        required: false,
+    },
+    {
+        name: 'F4SE (Fallout 4 Script Extender)',
+        description: 'Extends the scripting capabilities of Fallout 4. Required by many mods and by Mossy\'s deeper game integrations.',
+        detectKeywords: ['f4se', 'script extender'],
+        url: 'https://f4se.silverlock.org/',
+        urlLabel: 'Official Site',
+        category: 'modding',
+        required: true,
+    },
+    {
+        name: 'B.A.E. (Bethesda Archive Extractor)',
+        description: 'Extracts the contents of Bethesda .ba2 archive files so you can inspect and modify base-game assets.',
+        detectKeywords: ['bae', 'bethesda archive extractor', 'b.a.e'],
+        url: 'https://www.nexusmods.com/fallout4/mods/78',
+        urlLabel: 'Nexus Mods',
+        category: 'modding',
+        required: false,
+    },
+    {
+        name: 'Upscayl',
+        description: 'AI-powered image upscaler (2×, 3×, 4×) for texture and asset enhancement. Required by Mossy\'s Upscayl Extension. Supports PNG, JPG, and WebP with multiple AI model options and batch processing.',
+        detectKeywords: ['upscayl'],
+        url: 'https://github.com/upscayl/upscayl/releases',
+        urlLabel: 'GitHub Releases',
+        category: 'creative',
+        required: false,
+    },
+];
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface ToolRecommendation {
     name: string;
@@ -20,7 +120,7 @@ interface ToolRecommendation {
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
-    const [step, setStep] = useState<'welcome' | 'scanning' | 'recommendations' | 'complete'>('welcome');
+    const [step, setStep] = useState<'welcome' | 'scanning' | 'recommendations' | 'downloads' | 'complete'>('welcome');
     const [scanProgress, setScanProgress] = useState(0);
     const [recommendations, setRecommendations] = useState<ToolRecommendation[]>([]);
     const [filteredRecommendations, setFilteredRecommendations] = useState<ToolRecommendation[]>([]);
@@ -630,10 +730,109 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         )}
 
                         <button
-                            onClick={finishOnboarding}
-                            className="w-full px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-colors"
+                            onClick={() => setStep('downloads')}
+                            className="w-full px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
                         >
-                            Complete Setup
+                            Next: Download Recommended Tools <ArrowRight className="w-5 h-5" />
+                        </button>
+                    </div>
+                )}
+
+                {step === 'downloads' && (
+                    <div className="animate-fade-in">
+                        <div className="text-center mb-6">
+                            <Download className="w-16 h-16 mx-auto mb-4 text-amber-400" />
+                            <h2 className="text-2xl font-bold text-white mb-2">Recommended Downloads</h2>
+                            <p className="text-slate-400 text-sm max-w-lg mx-auto">
+                                These tools work with Mossy. Download anything you don't already have — each
+                                button opens the official page in your browser. You can skip any of these and
+                                grab them later.
+                            </p>
+                        </div>
+
+                        <div className="space-y-3 mb-6 max-h-[52vh] overflow-y-auto pr-1">
+                            {RECOMMENDED_DOWNLOADS.map((dl) => {
+                                const alreadyInstalled = allApps.some((app: { displayName?: string; name?: string }) => {
+                                    const n = (app.displayName || app.name || '').toLowerCase();
+                                    return dl.detectKeywords.some((kw) => n.includes(kw));
+                                });
+
+                                const categoryColor: Record<RecommendedDownload['category'], string> = {
+                                    'modding': 'text-emerald-400',
+                                    'version-control': 'text-blue-400',
+                                    'creative': 'text-purple-400',
+                                };
+
+                                const categoryLabel: Record<RecommendedDownload['category'], string> = {
+                                    'modding': 'Modding Tool',
+                                    'version-control': 'Version Control',
+                                    'creative': 'Creative',
+                                };
+
+                                return (
+                                    <div
+                                        key={dl.name}
+                                        className={`p-4 rounded-lg border transition-all ${alreadyInstalled
+                                            ? 'border-emerald-700/50 bg-emerald-900/10'
+                                            : dl.required
+                                                ? 'border-amber-600/60 bg-amber-900/10'
+                                                : 'border-slate-700 bg-slate-800/40'
+                                            }`}
+                                    >
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                    <span className="text-white font-bold text-sm">{dl.name}</span>
+                                                    {alreadyInstalled && (
+                                                        <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full border border-emerald-500/40">
+                                                            <Check className="w-3 h-3" /> Installed
+                                                        </span>
+                                                    )}
+                                                    {dl.required && !alreadyInstalled && (
+                                                        <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full border border-amber-500/40">
+                                                            Recommended
+                                                        </span>
+                                                    )}
+                                                    <span className={`text-xs font-medium ${categoryColor[dl.category]}`}>
+                                                        {categoryLabel[dl.category]}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-slate-400 leading-relaxed">{dl.description}</p>
+                                            </div>
+                                            <div className="flex-shrink-0">
+                                                {alreadyInstalled ? (
+                                                    <div className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-emerald-900/30 border border-emerald-700/40 text-emerald-400 text-xs font-semibold">
+                                                        <Check className="w-3.5 h-3.5" /> Done
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void openExternal(dl.url)}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-colors"
+                                                        title={`Open ${dl.urlLabel}`}
+                                                    >
+                                                        <ExternalLink className="w-3.5 h-3.5" />
+                                                        {dl.urlLabel}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="rounded-md border border-blue-700/30 bg-blue-900/10 p-3 text-xs text-blue-200 mb-5">
+                            <strong>Note:</strong> Mossy never auto-downloads or bundles third-party tools.
+                            Each button opens the official download page in your browser so you are always in control.
+                            All tools listed here are free and open source (or freeware).
+                        </div>
+
+                        <button
+                            onClick={finishOnboarding}
+                            className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Check className="w-5 h-5" /> Finish Setup
                         </button>
                     </div>
                 )}
