@@ -448,7 +448,7 @@ export default function GameLogMonitor() {
     const api = (window as any).electron?.api ?? (window as any).electronAPI;
     api?.gameLogMonitor?.getLastLogPath?.()
       .then((p: string | null) => { if (p) setLogPath(p); })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Auto-scroll log stream
@@ -502,7 +502,7 @@ export default function GameLogMonitor() {
     const result = await api?.gameLogMonitor?.browseLogFile?.().catch(() => null);
     if (result) {
       setLogPath(result);
-      await api?.gameLogMonitor?.saveLastLogPath?.(result).catch(() => {});
+      await api?.gameLogMonitor?.saveLastLogPath?.(result).catch(() => { });
     }
   }, []);
 
@@ -532,7 +532,7 @@ export default function GameLogMonitor() {
     const api = (window as any).electron?.api ?? (window as any).electronAPI;
     cleanupListenerRef.current?.();
     cleanupListenerRef.current = null;
-    await api?.gameLogMonitor?.stopMonitoring?.().catch(() => {});
+    await api?.gameLogMonitor?.stopMonitoring?.().catch(() => { });
     setIsMonitoring(false);
     setMessage('Monitoring stopped');
   }, []);
@@ -550,7 +550,7 @@ export default function GameLogMonitor() {
   // Export logs
   const exportLogs = useCallback(async () => {
     const api = (window as any).electron?.api ?? (window as any).electronAPI;
-    await api?.gameLogMonitor?.exportLogs?.(logEntries).catch(() => {});
+    await api?.gameLogMonitor?.exportLogs?.(logEntries).catch(() => { });
     setMessage('Logs exported');
   }, [logEntries]);
 
@@ -665,11 +665,10 @@ export default function GameLogMonitor() {
               key={s}
               onClick={() => setSkillLevel(s)}
               aria-label={`Set skill level to ${s}`}
-              className={`px-2 py-1 text-xs capitalize ${
-                skillLevel === s
+              className={`px-2 py-1 text-xs capitalize ${skillLevel === s
                   ? 'bg-slate-600 text-white'
                   : 'text-slate-400 hover:bg-slate-700'
-              }`}
+                }`}
             >
               {s === 'beginner' ? '🟢' : s === 'intermediate' ? '🟡' : '🔴'}{' '}
               {s.slice(0, 3)}
@@ -693,11 +692,10 @@ export default function GameLogMonitor() {
               setActiveTab(tab.id);
               setMessage('');
             }}
-            className={`px-4 py-2 flex flex-col items-start transition-colors ${
-              activeTab === tab.id
+            className={`px-4 py-2 flex flex-col items-start transition-colors ${activeTab === tab.id
                 ? 'bg-slate-700 text-white border-b-2 border-green-500'
                 : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-            }`}
+              }`}
           >
             <span className="text-xs font-medium">{tab.label}</span>
             <span className="text-[10px] text-slate-500">{tab.desc}</span>
@@ -718,18 +716,16 @@ export default function GameLogMonitor() {
       {/* Crash prediction banner */}
       {crashPrediction && activeTab !== 'buffout' && (
         <div
-          className={`px-4 py-2 border-b flex items-start gap-3 flex-shrink-0 ${
-            crashRiskBg[crashPrediction.risk]
-          }`}
+          className={`px-4 py-2 border-b flex items-start gap-3 flex-shrink-0 ${crashRiskBg[crashPrediction.risk]
+            }`}
         >
           <AlertTriangle
-            className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
-              crashPrediction.risk === 'critical'
+            className={`w-4 h-4 flex-shrink-0 mt-0.5 ${crashPrediction.risk === 'critical'
                 ? 'text-red-400'
                 : crashPrediction.risk === 'high'
-                ? 'text-orange-400'
-                : 'text-yellow-400'
-            }`}
+                  ? 'text-orange-400'
+                  : 'text-yellow-400'
+              }`}
           />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -865,11 +861,10 @@ export default function GameLogMonitor() {
                     <button
                       key={mod}
                       onClick={() => setFilterMod(filterMod === mod ? '' : mod)}
-                      className={`w-full text-left text-[10px] px-1.5 py-0.5 rounded truncate ${
-                        filterMod === mod
+                      className={`w-full text-left text-[10px] px-1.5 py-0.5 rounded truncate ${filterMod === mod
                           ? 'bg-green-800/50 text-green-300'
                           : 'text-slate-300 hover:bg-slate-700'
-                      }`}
+                        }`}
                       title={mod}
                     >
                       {mod}
@@ -934,18 +929,16 @@ export default function GameLogMonitor() {
                         setSelectedEntry(selectedEntry?.id === entry.id ? null : entry);
                         setEntryAdvice('');
                       }}
-                      className={`w-full text-left px-3 py-1.5 border-b border-slate-800/50 hover:bg-slate-800/50 transition-colors ${
-                        selectedEntry?.id === entry.id ? 'bg-slate-800' : ''
-                      }`}
+                      className={`w-full text-left px-3 py-1.5 border-b border-slate-800/50 hover:bg-slate-800/50 transition-colors ${selectedEntry?.id === entry.id ? 'bg-slate-800' : ''
+                        }`}
                     >
                       <div className="flex items-start gap-2 min-w-0">
                         <span className="text-slate-600 flex-shrink-0 w-14 text-[10px]">
                           [{entry.timestamp}]
                         </span>
                         <span
-                          className={`flex-shrink-0 w-11 text-center font-bold uppercase text-[10px] ${
-                            LEVEL_COLORS[entry.level]
-                          }`}
+                          className={`flex-shrink-0 w-11 text-center font-bold uppercase text-[10px] ${LEVEL_COLORS[entry.level]
+                            }`}
                         >
                           {entry.level}
                         </span>
@@ -998,10 +991,10 @@ export default function GameLogMonitor() {
                           selectedEntry.level === 'crash'
                             ? 'critical'
                             : selectedEntry.level === 'error'
-                            ? 'high'
-                            : selectedEntry.level === 'warning'
-                            ? 'medium'
-                            : 'low'
+                              ? 'high'
+                              : selectedEntry.level === 'warning'
+                                ? 'medium'
+                                : 'low'
                         }
                       />
                       <CategoryBadge category={selectedEntry.category} />
@@ -1226,7 +1219,7 @@ export default function GameLogMonitor() {
                 <Bug className="w-10 h-10 mb-3 opacity-30" />
                 <p className="text-sm">Select a crash log and click Analyze</p>
                 <p className="text-xs mt-1 text-slate-600">
-                  Requires Buffout 4 NG (Nexus #64880)
+                  Requires Addictol (Nexus #84214) or Buffout 4 NG (legacy, #64880)
                 </p>
               </div>
             )}

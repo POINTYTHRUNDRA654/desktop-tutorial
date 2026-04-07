@@ -387,7 +387,7 @@ const electronAPI = {
    * @param path - Path to file or URL
    * @returns Promise resolving when opened
    */
-  openExternal: (path: string): Promise<void> => {
+  openExternal: (path: string): Promise<{ success: boolean; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL, path);
   },
 

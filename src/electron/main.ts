@@ -1747,7 +1747,7 @@ function setupIpcHandlers() {
     try {
       // Validate input
       if (!filePath || typeof filePath !== 'string') {
-        throw new Error('Invalid file path');
+        return { success: false, error: 'Invalid file path' };
       }
 
       const { shell } = await import('electron');
@@ -1775,7 +1775,7 @@ function setupIpcHandlers() {
 
       // Check if file exists
       if (!fs.existsSync(resolvedPath)) {
-        throw new Error(`File not found: ${resolvedPath}`);
+        return { success: false, error: `File not found: ${resolvedPath}` };
       }
 
       // Open the file with the default application or launch executable
@@ -1783,13 +1783,14 @@ function setupIpcHandlers() {
 
       // If result is not empty, it means there was an error
       if (result) {
-        throw new Error(result);
+        return { success: false, error: result };
       }
 
       console.log('Successfully opened external file:', resolvedPath);
-    } catch (error) {
+      return { success: true };
+    } catch (error: any) {
       console.error('Error opening external file:', error);
-      throw error;
+      return { success: false, error: error?.message || String(error) };
     }
   });
 
@@ -3235,6 +3236,22 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     });
     if (result.canceled || !result.filePaths?.length) return [];
     return result.filePaths;
+  });
+
+  // --- DDS Converter: Pick texture file(s) via native dialog ---
+  registerHandler(IPC_CHANNELS.DDS_CONVERTER_PICK_FILES, async (_event) => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select Texture File(s)',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'Texture Files', extensions: ['dds', 'png', 'tga', 'bmp', 'jpg', 'jpeg'] },
+        { name: 'DDS Files', extensions: ['dds'] },
+        { name: 'PNG Files', extensions: ['png'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths?.length) return { success: false };
+    return { success: true, paths: result.filePaths };
   });
 
   // --- Auditor: Shared helper — scan a directory and collect mod files ---

@@ -78,6 +78,9 @@ export const IPC_CHANNELS = {
   AUDITOR_SCAN_MOD_DIRECTORY: 'auditor-scan-mod-directory',
   AUDITOR_SCAN_MOD_DIRECTORY_PATH: 'auditor-scan-mod-directory-path',
 
+  // DDS Converter & Texture Generator
+  DDS_CONVERTER_PICK_FILES: 'dds-converter:pick-files',
+
   // Knowledge Vault file persistence (backup/restore to userData/knowledge-vault.json)
   SAVE_KNOWLEDGE_VAULT: 'save-knowledge-vault',
   LOAD_KNOWLEDGE_VAULT: 'load-knowledge-vault',
