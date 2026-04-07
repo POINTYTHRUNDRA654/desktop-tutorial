@@ -3989,6 +3989,29 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // --- FS: Pick directory (native dialog) ---
+  registerHandler('pick-directory', async (_event, title?: string) => {
+    try {
+      if (!mainWindow) {
+        return '';
+      }
+
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: title || 'Select a folder',
+        properties: ['openDirectory', 'createDirectory']
+      });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return '';
+      }
+
+      return result.filePaths[0];
+    } catch (e: any) {
+      console.error('[pick-directory] Dialog error:', e);
+      return '';
+    }
+  });
+
   // --- Workshop: Run Papyrus compiler ---
   registerHandler(IPC_CHANNELS.WORKSHOP_RUN_PAPYRUS_COMPILER, async (_event, scriptPath: string, compilerPathOrOptions: any) => {
     return new Promise((resolve) => {
