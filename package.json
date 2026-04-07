@@ -2,10 +2,18 @@
   "name": "mossy-desktop",
   "private": true,
   "version": "5.4.27",
-  "description": "Mossy v5.4.26 - Professional Fallout 4 modding assistant with AI, full OG/NG/AE/Creations Menu version awareness, and professional asset optimization",
+  "description": "Mossy v5.4.27 - Professional Fallout 4 modding assistant with AI, full OG/NG/AE/Creations Menu version awareness, and professional asset optimization",
   "main": "dist-electron/electron/main.js",
   "author": "POINTYTHRUNDRA654",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git"
+  },
+  "homepage": "https://github.com/POINTYTHRUNDRA654/desktop-tutorial#readme",
+  "bugs": {
+    "url": "https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues"
+  },
   "overrides": {
     "tar": "^7.5.10",
     "basic-ftp": "^5.2.0",
