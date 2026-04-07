@@ -48,8 +48,8 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         name: 'Mod Organizer 2',
         description: 'The recommended mod manager for Fallout 4. Keeps your game folder clean with a virtual file system and supports profiles.',
         detectKeywords: ['mod organizer', 'modorganizer'],
-        url: 'https://www.nexusmods.com/skyrimspecialedition/mods/6194',
-        urlLabel: 'Nexus Mods',
+        url: 'https://github.com/ModOrganizer2/modorganizer/releases',
+        urlLabel: 'GitHub Releases',
         category: 'modding',
         required: false,
     },
@@ -743,7 +743,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                         <div className="space-y-3 mb-6 max-h-[52vh] overflow-y-auto pr-1">
                             {RECOMMENDED_DOWNLOADS.map((dl) => {
-                                const alreadyInstalled = allApps.some((app: any) => {
+                                const alreadyInstalled = allApps.some((app: { displayName?: string; name?: string }) => {
                                     const n = (app.displayName || app.name || '').toLowerCase();
                                     return dl.detectKeywords.some((kw) => n.includes(kw));
                                 });
@@ -752,6 +752,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     'modding': 'text-emerald-400',
                                     'version-control': 'text-blue-400',
                                     'creative': 'text-purple-400',
+                                };
+
+                                const categoryLabel: Record<RecommendedDownload['category'], string> = {
+                                    'modding': 'Modding Tool',
+                                    'version-control': 'Version Control',
+                                    'creative': 'Creative',
                                 };
 
                                 return (
@@ -779,7 +785,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         </span>
                                                     )}
                                                     <span className={`text-xs font-medium ${categoryColor[dl.category]}`}>
-                                                        {dl.category === 'version-control' ? 'Version Control' : dl.category === 'creative' ? 'Creative' : 'Modding Tool'}
+                                                        {categoryLabel[dl.category]}
                                                     </span>
                                                 </div>
                                                 <p className="text-xs text-slate-400 leading-relaxed">{dl.description}</p>
