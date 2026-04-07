@@ -150,9 +150,11 @@ export const TextureGenerator: React.FC = () => {
     try {
       const input = {
         name: `material_${Date.now()}`,
+        sourceImage: sourceImage,
         basePath: sourceImage,
         outputDir: sourceImage.substring(0, sourceImage.lastIndexOf('\\')),
         resolution: 1024,
+        style: materialStyle,
         generateMaps: selectedMaps,
         seamless: false,
         upscale: undefined
@@ -366,8 +368,8 @@ export const TextureGenerator: React.FC = () => {
         <button
           onClick={() => setActiveTab('material')}
           className={`py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'material'
-              ? 'bg-indigo-600 text-white'
-              : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
+            ? 'bg-indigo-600 text-white'
+            : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
             }`}
         >
           <Layers size={18} />
@@ -376,8 +378,8 @@ export const TextureGenerator: React.FC = () => {
         <button
           onClick={() => setActiveTab('procedural')}
           className={`py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'procedural'
-              ? 'bg-indigo-600 text-white'
-              : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
+            ? 'bg-indigo-600 text-white'
+            : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
             }`}
         >
           <Grid3x3 size={18} />
@@ -386,8 +388,8 @@ export const TextureGenerator: React.FC = () => {
         <button
           onClick={() => setActiveTab('tools')}
           className={`py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'tools'
-              ? 'bg-indigo-600 text-white'
-              : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
+            ? 'bg-indigo-600 text-white'
+            : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
             }`}
         >
           <Sparkles size={18} />
@@ -396,8 +398,8 @@ export const TextureGenerator: React.FC = () => {
         <button
           onClick={() => setActiveTab('gallery')}
           className={`py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'gallery'
-              ? 'bg-indigo-600 text-white'
-              : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
+            ? 'bg-indigo-600 text-white'
+            : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
             }`}
         >
           <FolderOpen size={18} />
@@ -473,8 +475,8 @@ export const TextureGenerator: React.FC = () => {
                       key={style}
                       onClick={() => setMaterialStyle(style)}
                       className={`py-2 px-4 rounded capitalize ${materialStyle === style
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
                         }`}
                     >
                       {style.replace('-', ' ')}
@@ -498,8 +500,8 @@ export const TextureGenerator: React.FC = () => {
                         }
                       }}
                       className={`py-2 px-3 rounded text-sm capitalize flex items-center justify-center gap-2 ${selectedMaps.includes(mapType)
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
                         }`}
                     >
                       {selectedMaps.includes(mapType) && <Check size={14} />}
@@ -689,8 +691,8 @@ export const TextureGenerator: React.FC = () => {
                 key={type}
                 onClick={() => setProceduralType(type)}
                 className={`py-4 px-4 rounded-lg capitalize font-medium transition-all ${proceduralType === type
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
                   }`}
               >
                 {type}
@@ -950,8 +952,8 @@ export const TextureGenerator: React.FC = () => {
                 <button
                   onClick={() => setUpscaleFactor(2)}
                   className={`py-2 px-4 rounded ${upscaleFactor === 2
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
                     }`}
                 >
                   2x Upscale
@@ -959,8 +961,8 @@ export const TextureGenerator: React.FC = () => {
                 <button
                   onClick={() => setUpscaleFactor(4)}
                   className={`py-2 px-4 rounded ${upscaleFactor === 4
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
                     }`}
                 >
                   4x Upscale

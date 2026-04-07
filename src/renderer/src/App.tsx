@@ -79,6 +79,7 @@ const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
 // Knowledge & Learning Components
 const QuickReference = React.lazy(() => import('./QuickReference').then(module => ({ default: module.QuickReference })));
 const KnowledgeSearch = React.lazy(() => import('./KnowledgeSearch'));
+const Lorekeeper = React.lazy(() => import('./Lorekeeper'));
 
 // Tool extensions (lazy-loaded named exports mapped to default for React.lazy)
 const MO2Extension = React.lazy(() => import('./MO2Extension').then(module => ({ default: module.MO2Extension })));
@@ -1215,9 +1216,10 @@ const App: React.FC = () => {
 
                   {/* Knowledge & Learning */}
                   <Route path="/learn" element={<ErrorBoundary><LearningHub /></ErrorBoundary>} />
-                  <Route path="/learn/lore" element={<Navigate to="/learn" replace />} />
+                  <Route path="/learn/lore" element={<Navigate to="/lore" replace />} />
                   <Route path="/reference" element={<ErrorBoundary><QuickReference /></ErrorBoundary>} />
                   <Route path="/knowledge" element={<ErrorBoundary><KnowledgeSearch /></ErrorBoundary>} />
+                  <Route path="/lore" element={<ErrorBoundary><Lorekeeper /></ErrorBoundary>} />
                   <Route path="/learn/reference" element={<Navigate to="/reference" replace />} />
                   <Route path="/learn/knowledge" element={<Navigate to="/knowledge" replace />} />
                   <Route path="/learn/community" element={<Navigate to="/learn" replace />} />
@@ -1314,7 +1316,6 @@ const App: React.FC = () => {
                   <Route path="/scribe" element={<Navigate to="/tools/scribe" replace />} />
                   <Route path="/orchestrator" element={<Navigate to="/dev/orchestrator" replace />} />
                   <Route path="/workflow-runner" element={<Navigate to="/dev/workflow-runner" replace />} />
-                  <Route path="/lore" element={<Navigate to="/learn" replace />} />
                   <Route path="/holo" element={<Navigate to="/test/holo" replace />} />
                   <Route path="/vault" element={<Navigate to="/tools/vault" replace />} />
                   <Route path="/neural-link" element={<Navigate to="/live" replace />} />
