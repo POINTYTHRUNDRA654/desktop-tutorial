@@ -5328,6 +5328,100 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   );
 
+  // ── GGUF / Unsloth model import ────────────────────────────────────────────
+
+  /**
+   * Handler: gguf-pick-file
+   * Opens a native file-picker dialog restricted to .gguf model files.
+   * Returns the selected path as a string, or '' if cancelled.
+   */
+  registerHandler(IPC_CHANNELS.GGUF_PICK_FILE, async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select GGUF Model File',
+      properties: ['openFile'],
+      filters: [
+        { name: 'GGUF Models', extensions: ['gguf'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths?.length) return '';
+    return result.filePaths[0];
+  });
+
+  /**
+   * Handler: gguf-import-to-ollama
+   * Creates an Ollama Modelfile from the supplied GGUF path and runs
+   * `ollama create <modelName> -f <Modelfile>` to register the model.
+   *
+   * Params:
+   *   ggufPath    – Absolute path to the .gguf file
+   *   modelName   – Name to register in Ollama (e.g. "mossy-fo4")
+   *   systemPrompt – Optional system prompt baked into the Modelfile
+   *
+   * Returns: { ok: true, modelName } | { ok: false, error }
+   */
+  registerHandler(
+    IPC_CHANNELS.GGUF_IMPORT_TO_OLLAMA,
+    async (_event, req: { ggufPath: string; modelName: string; systemPrompt?: string }) => {
+      try {
+        const ggufPath = String(req?.ggufPath || '').trim();
+        const rawName = String(req?.modelName || '').trim();
+        const systemPrompt = String(req?.systemPrompt || '').trim();
+
+        if (!ggufPath) return { ok: false, error: 'No GGUF file path provided.' };
+        if (!rawName) return { ok: false, error: 'No model name provided.' };
+        if (!fs.existsSync(ggufPath)) return { ok: false, error: `File not found: ${ggufPath}` };
+
+        // Sanitize model name: lowercase, alphanumeric + hyphens only
+        const modelName = rawName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+
+        // Build Modelfile content
+        const normalizedPath = ggufPath.replace(/\\/g, '/');
+        const defaultSystem =
+          'You are Mossy, a knowledgeable Fallout 4 modding assistant. ' +
+          'You help with xEdit, the Creation Kit, Papyrus scripting, NIF meshes, DDS textures, ' +
+          'load order, mod conflicts, and all aspects of Fallout 4 modding. Be precise and helpful.';
+        const systemLine = systemPrompt || defaultSystem;
+
+        const modelfileContent = [
+          `FROM "${normalizedPath}"`,
+          `SYSTEM "${systemLine.replace(/"/g, '\\"')}"`,
+          'PARAMETER temperature 0.7',
+          'PARAMETER num_ctx 4096',
+          'PARAMETER repeat_penalty 1.1',
+        ].join('\n') + '\n';
+
+        // Write Modelfile to a temp directory
+        const tmpDir = path.join(app.getPath('temp'), 'mossy-gguf-import');
+        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+        const modelfilePath = path.join(tmpDir, `Modelfile-${modelName}`);
+        fs.writeFileSync(modelfilePath, modelfileContent, 'utf-8');
+
+        // Run: ollama create <modelName> -f <Modelfile>
+        const { exec: execCb } = require('child_process');
+        const util = require('util');
+        const execAsync = util.promisify(execCb);
+
+        console.log(`[GGUF Import] Running: ollama create ${modelName} -f ${modelfilePath}`);
+        const { stdout, stderr } = await execAsync(
+          `ollama create "${modelName}" -f "${modelfilePath}"`,
+          { timeout: 120_000 }
+        );
+
+        console.log('[GGUF Import] stdout:', stdout);
+        if (stderr) console.warn('[GGUF Import] stderr:', stderr);
+
+        return { ok: true, modelName };
+      } catch (err: any) {
+        const msg = String(err?.stderr || err?.message || err);
+        console.error('[GGUF Import] Error:', msg);
+        return { ok: false, error: msg };
+      }
+    }
+  );
+
+  // ── End GGUF / Unsloth model import ──────────────────────────────────────
+
   /**
    * AI Chat Handler - OpenAI
    * Renderer calls this with a prompt; main process handles API key
