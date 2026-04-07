@@ -484,7 +484,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             const importedPacks: Record<string, string> = JSON.parse(localStorage.getItem('mossy_imported_pack_ids') || '{}');
             let newCount = 0;
             for (const pack of manifest.packs ?? []) {
-                if (importedPacks[pack.id] !== (pack.version ?? '1.0.0')) {
+                if (!(pack.id in importedPacks)) {
                     newCount++;
                 }
             }
@@ -511,7 +511,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                     const packRes = await fetch(`/bundled-knowledge/${entry.file}`);
                     if (!packRes.ok) continue;
                     const packData = await packRes.json();
-                    const isImported = importedPacks[entry.id] === (entry.version ?? '1.0.0');
+                    const isImported = entry.id in importedPacks;
                     packs.push({ ...packData, isImported });
                 } catch (e) {
                     console.error(`Failed to load pack ${entry.file}:`, e);
