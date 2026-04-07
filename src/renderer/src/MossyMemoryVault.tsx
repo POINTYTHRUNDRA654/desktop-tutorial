@@ -106,8 +106,8 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         };
         initVault().catch(console.error);
 
-        // Check for new community knowledge
-        checkGitHubForNewKnowledge().catch(console.error);
+        // Count unimported local knowledge packs for the badge
+        checkLocalKnowledgePacks().catch(console.error);
     }, []);
 
     useEffect(() => {
@@ -475,77 +475,51 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         }
     };
 
-    // Check GitHub for new community knowledge
-    const checkGitHubForNewKnowledge = async () => {
+    // Count unimported packs from the local bundled manifest (no internet needed)
+    const checkLocalKnowledgePacks = async () => {
         try {
-            const lastCheck = localStorage.getItem('mossy_last_github_check');
-            const sixHours = 6 * 60 * 60 * 1000;
-            
-            if (lastCheck && Date.now() - parseInt(lastCheck) < sixHours) {
-                return; // Don't check yet
-            }
-            
-            const repoUrl = 'https://api.github.com/repos/POINTYTHRUNDRA654/mossy-knowledge/contents/community-knowledge';
-            const response = await fetch(repoUrl);
-            
-            if (!response.ok) return;
-            
-            const files = await response.json();
-            const importedVersions = JSON.parse(localStorage.getItem('mossy_imported_knowledge_versions') || '{}');
-            
+            const manifestRes = await fetch('/bundled-knowledge/manifest.json');
+            if (!manifestRes.ok) return;
+            const manifest = await manifestRes.json();
+            const importedPacks: Record<string, string> = JSON.parse(localStorage.getItem('mossy_imported_pack_ids') || '{}');
             let newCount = 0;
-            for (const file of files) {
-                if (file.name.endsWith('.json')) {
-                    const packId = file.name.replace('.json', '');
-                    if (!importedVersions[packId]) {
-                        newCount++;
-                    }
+            for (const pack of manifest.packs ?? []) {
+                if (importedPacks[pack.id] !== (pack.version ?? '1.0.0')) {
+                    newCount++;
                 }
             }
-            
             setNewKnowledgeCount(newCount);
-            localStorage.setItem('mossy_last_github_check', Date.now().toString());
         } catch (error) {
-            console.error('Failed to check GitHub for new knowledge:', error);
+            console.error('Failed to check local knowledge packs:', error);
         }
     };
 
-    // Fetch community knowledge from GitHub
+    // Load community knowledge packs from local bundled files (no internet needed)
     const fetchCommunityKnowledge = async () => {
         setIsLoadingLibrary(true);
         try {
-            const repoUrl = 'https://api.github.com/repos/POINTYTHRUNDRA654/mossy-knowledge/contents/community-knowledge';
-            const response = await fetch(repoUrl);
-            
-            if (!response.ok) {
-                throw new Error('Failed to fetch community knowledge');
+            const manifestRes = await fetch('/bundled-knowledge/manifest.json');
+            if (!manifestRes.ok) {
+                setCommunityPacks([]);
+                return;
             }
-            
-            const files = await response.json();
+            const manifest = await manifestRes.json();
+            const importedPacks: Record<string, string> = JSON.parse(localStorage.getItem('mossy_imported_pack_ids') || '{}');
             const packs = [];
-            const importedVersions = JSON.parse(localStorage.getItem('mossy_imported_knowledge_versions') || '{}');
-            
-            for (const file of files) {
-                if (file.name.endsWith('.json')) {
-                    try {
-                        const packRes = await fetch(file.download_url);
-                        const packData = await packRes.json();
-                        const isImported = !!importedVersions[packData.packId];
-                        packs.push({
-                            ...packData,
-                            downloadUrl: file.download_url,
-                            isImported
-                        });
-                    } catch (e) {
-                        console.error(`Failed to load pack ${file.name}:`, e);
-                    }
+            for (const entry of manifest.packs ?? []) {
+                try {
+                    const packRes = await fetch(`/bundled-knowledge/${entry.file}`);
+                    if (!packRes.ok) continue;
+                    const packData = await packRes.json();
+                    const isImported = importedPacks[entry.id] === (entry.version ?? '1.0.0');
+                    packs.push({ ...packData, isImported });
+                } catch (e) {
+                    console.error(`Failed to load pack ${entry.file}:`, e);
                 }
             }
-            
             setCommunityPacks(packs);
         } catch (error) {
-            console.error('Failed to fetch community knowledge:', error);
-            toast.error('Failed to load community knowledge. Please check your internet connection.');
+            console.error('Failed to load local knowledge packs:', error);
         } finally {
             setIsLoadingLibrary(false);
         }
@@ -564,10 +538,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             setMemories(combinedMemories);
             localStorage.setItem('mossy_knowledge_vault', JSON.stringify(combinedMemories));
             
-            // Mark as imported
-            const importedVersions = JSON.parse(localStorage.getItem('mossy_imported_knowledge_versions') || '{}');
-            importedVersions[pack.packId] = true;
-            localStorage.setItem('mossy_imported_knowledge_versions', JSON.stringify(importedVersions));
+            // Mark as imported using the same key as the bundled import system
+            const importedPacks: Record<string, string> = JSON.parse(localStorage.getItem('mossy_imported_pack_ids') || '{}');
+            importedPacks[pack.packId] = pack.packVersion ?? '1.0.0';
+            localStorage.setItem('mossy_imported_pack_ids', JSON.stringify(importedPacks));
             
             // Update pack list
             const updatedPacks = communityPacks.map(p => 
@@ -1699,11 +1673,8 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
 
                         <div className="p-6 bg-[#1a1f1a] border-t border-blue-900/30">
                             <div className="text-xs text-slate-400 space-y-1">
-                                <p>💡 <strong>Tip:</strong> Knowledge packs are checked every 6 hours for updates</p>
-                                <p>📤 <strong>Share your knowledge:</strong> Export knowledge with "Export Shared" and contribute to the community!</p>
-                                <p className="text-slate-500 text-[10px] mt-2">
-                                    Last checked: {new Date(parseInt(localStorage.getItem('mossy_last_github_check') || Date.now().toString())).toLocaleString()}
-                                </p>
+                                <p>💡 <strong>Tip:</strong> Knowledge packs are bundled with the app and available offline</p>
+                                <p>📤 <strong>Share your knowledge:</strong> Export knowledge with "Export Shared" to contribute to the community!</p>
                             </div>
                         </div>
                     </div>
