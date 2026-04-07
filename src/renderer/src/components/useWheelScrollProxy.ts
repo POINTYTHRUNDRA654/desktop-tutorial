@@ -55,6 +55,11 @@ function hasHorizontalScrollableAncestor(target: HTMLElement, root: HTMLElement,
  * non-scrollable UI (headers/toolbars), by proxying wheel deltas
  * to a chosen scroll container.  Supports both vertical (deltaY)
  * and horizontal (deltaX) scrolling.
+ * 
+ * Enhanced support:
+ * - Vertical scrolling: Normal mouse wheel or Shift+Wheel
+ * - Horizontal scrolling: Shift+Wheel or natural deltaX
+ * - Left-to-right scroll wheel: Shift+Wheel scrolls horizontally
  */
 export function useWheelScrollProxy<T extends HTMLElement>(scrollTargetRef: React.RefObject<T | null>) {
   return useWheelScrollProxyFrom(() => scrollTargetRef.current);
@@ -74,6 +79,15 @@ export function useWheelScrollProxyFrom(getScrollTarget: () => HTMLElement | nul
       const hasHorizontal = Number.isFinite(e.deltaX) && Math.abs(e.deltaX) >= 0.5;
 
       if (!hasVertical && !hasHorizontal) return;
+
+      // Shift+Wheel: Force horizontal scroll (convert deltaY to deltaX)
+      if (e.shiftKey && hasVertical) {
+        const horizontalDelta = e.deltaY;
+        if (!hasHorizontalScrollableAncestor(target, root, horizontalDelta)) {
+          scrollTarget.scrollBy({ left: horizontalDelta, behavior: 'auto' });
+        }
+        return;
+      }
 
       // Vertical scroll proxy
       if (hasVertical && !hasScrollableAncestor(target, root, e.deltaY)) {
