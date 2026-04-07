@@ -36,7 +36,9 @@ import {
   saveRoadmap,
   deleteRoadmap,
   getProjects,
-  saveProject
+  saveProject,
+  deleteProject,
+  saveToFile
 } from '../main/store';
 import FormData from 'form-data';
 import OpenAI from 'openai';
@@ -5328,6 +5330,102 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   );
 
+  // ── GGUF / Unsloth model import ────────────────────────────────────────────
+
+  /**
+   * Handler: gguf-pick-file
+   * Opens a native file-picker dialog restricted to .gguf model files.
+   * Returns the selected path as a string, or '' if cancelled.
+   */
+  registerHandler(IPC_CHANNELS.GGUF_PICK_FILE, async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select GGUF Model File',
+      properties: ['openFile'],
+      filters: [
+        { name: 'GGUF Models', extensions: ['gguf'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths?.length) return '';
+    return result.filePaths[0];
+  });
+
+  /**
+   * Handler: gguf-import-to-ollama
+   * Creates an Ollama Modelfile from the supplied GGUF path and runs
+   * `ollama create <modelName> -f <Modelfile>` to register the model.
+   *
+   * Params:
+   *   ggufPath    – Absolute path to the .gguf file
+   *   modelName   – Name to register in Ollama (e.g. "mossy-fo4")
+   *   systemPrompt – Optional system prompt baked into the Modelfile
+   *
+   * Returns: { ok: true, modelName } | { ok: false, error }
+   */
+  registerHandler(
+    IPC_CHANNELS.GGUF_IMPORT_TO_OLLAMA,
+    async (_event, req: { ggufPath: string; modelName: string; systemPrompt?: string }) => {
+      try {
+        const ggufPath = String(req?.ggufPath || '').trim();
+        const rawName = String(req?.modelName || '').trim();
+        const systemPrompt = String(req?.systemPrompt || '').trim();
+
+        if (!ggufPath) return { ok: false, error: 'No GGUF file path provided.' };
+        if (!rawName) return { ok: false, error: 'No model name provided.' };
+        if (!fs.existsSync(ggufPath)) return { ok: false, error: `File not found: ${ggufPath}` };
+
+        // Sanitize model name: lowercase, alphanumeric + hyphens only
+        const modelName = rawName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+
+        // Build Modelfile content
+        const normalizedPath = ggufPath.replace(/\\/g, '/');
+        const defaultSystem =
+          'You are Mossy, a knowledgeable Fallout 4 modding assistant. ' +
+          'You help with xEdit, the Creation Kit, Papyrus scripting, NIF meshes, DDS textures, ' +
+          'load order, mod conflicts, and all aspects of Fallout 4 modding. Be precise and helpful.';
+        const systemLine = systemPrompt || defaultSystem;
+
+        // Escape backslashes first, then double-quotes, so the Modelfile string is safe
+        const escapedSystemLine = systemLine.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const modelfileContent = [
+          `FROM "${normalizedPath}"`,
+          `SYSTEM "${escapedSystemLine}"`,
+          'PARAMETER temperature 0.7',
+          'PARAMETER num_ctx 4096',
+          'PARAMETER repeat_penalty 1.1',
+        ].join('\n') + '\n';
+
+        // Write Modelfile to a temp directory
+        const tmpDir = path.join(app.getPath('temp'), 'mossy-gguf-import');
+        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+        const modelfilePath = path.join(tmpDir, `Modelfile-${modelName}`);
+        fs.writeFileSync(modelfilePath, modelfileContent, 'utf-8');
+
+        // Run: ollama create <modelName> -f <Modelfile>
+        const { exec: execCb } = require('child_process');
+        const util = require('util');
+        const execAsync = util.promisify(execCb);
+
+        console.log(`[GGUF Import] Running: ollama create ${modelName} -f ${modelfilePath}`);
+        const { stdout, stderr } = await execAsync(
+          `ollama create "${modelName}" -f "${modelfilePath}"`,
+          { timeout: 120_000 }
+        );
+
+        console.log('[GGUF Import] stdout:', stdout);
+        if (stderr) console.warn('[GGUF Import] stderr:', stderr);
+
+        return { ok: true, modelName };
+      } catch (err: any) {
+        const msg = String(err?.stderr || err?.message || err);
+        console.error('[GGUF Import] Error:', msg);
+        return { ok: false, error: msg };
+      }
+    }
+  );
+
+  // ── End GGUF / Unsloth model import ──────────────────────────────────────
+
   /**
    * AI Chat Handler - OpenAI
    * Renderer calls this with a prompt; main process handles API key
@@ -9060,6 +9158,538 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       }
     } catch (error: any) {
       return { success: false, error: `Reinstall failed: ${error?.message || String(error)}` };
+    }
+  });
+
+  // ── FOMOD Builder handlers ────────────────────────────────────────────────
+  // Pure XML/file operations — no external tools required.
+
+  registerHandler('fomod:create', async (_event, modPath: string, modInfo?: any) => {
+    try {
+      const safeModPath = String(modPath || '');
+      if (!safeModPath || !fs.existsSync(safeModPath)) {
+        return { id: `fomod-${Date.now()}`, name: modInfo?.name || 'New FOMOD Mod', author: modInfo?.author || '', version: modInfo?.version || '1.0', website: '', description: '', steps: [], requiredFiles: [], metadata: {} };
+      }
+      const modName = path.basename(safeModPath);
+      const project = {
+        id: `fomod-${Date.now()}`,
+        name: modInfo?.name || modName,
+        author: modInfo?.author || '',
+        version: modInfo?.version || '1.0',
+        website: modInfo?.website || '',
+        description: modInfo?.description || '',
+        steps: [
+          {
+            id: `step-${Date.now()}`,
+            name: 'Step 1',
+            description: 'Configure installation options',
+            groups: [
+              {
+                id: `group-${Date.now()}`,
+                name: 'Options',
+                type: 'SelectExactlyOne',
+                options: [
+                  {
+                    id: `opt-${Date.now()}`,
+                    name: 'Default',
+                    description: 'Install the default configuration',
+                    type: 'Recommended',
+                    files: [],
+                  },
+                ],
+              },
+            ],
+            conditions: [],
+          },
+        ],
+        requiredFiles: [],
+        metadata: { modPath: safeModPath },
+      };
+      return project;
+    } catch (err: any) {
+      return { error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler('fomod:generate-module-config', async (_event, fomod: any) => {
+    try {
+      const steps = (fomod?.steps || []).map((step: any) => {
+        const groups = (step?.groups || []).map((group: any) => {
+          const plugins = (group?.options || []).map((opt: any) => {
+            const files = (opt?.files || []).map((f: any) =>
+              `        <file source="${String(f.source || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" destination="${String(f.destination || f.source || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />`
+            ).join('\n');
+            return `      <plugin name="${String(opt.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">
+        <description>${String(opt.description || '').replace(/&/g,'&amp;')}</description>
+        <typeDescriptor><type name="${String(opt.type || 'Optional')}" /></typeDescriptor>
+        <files>${files ? '\n' + files + '\n      ' : ''}</files>
+      </plugin>`;
+          }).join('\n');
+          return `    <group name="${String(group.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" type="${String(group.type || 'SelectAny')}">
+      <plugins order="Explicit">
+${plugins}
+      </plugins>
+    </group>`;
+        }).join('\n');
+        return `  <installStep name="${String(step.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">
+    <optionalFileGroups order="Explicit">
+${groups}
+    </optionalFileGroups>
+  </installStep>`;
+      }).join('\n');
+
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+  <moduleName>${String(fomod?.name || 'Mod').replace(/&/g,'&amp;')}</moduleName>
+  <installSteps order="Explicit">
+${steps}
+  </installSteps>
+</config>`;
+      return xml;
+    } catch (err: any) {
+      return { error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler('fomod:generate-info-xml', async (_event, modInfo: any) => {
+    try {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<fomod>
+  <Name>${String(modInfo?.name || '').replace(/&/g,'&amp;')}</Name>
+  <Author>${String(modInfo?.author || '').replace(/&/g,'&amp;')}</Author>
+  <Version>${String(modInfo?.version || '1.0').replace(/&/g,'&amp;')}</Version>
+  <Description>${String(modInfo?.description || '').replace(/&/g,'&amp;')}</Description>
+  <Website>${String(modInfo?.website || '').replace(/&/g,'&amp;')}</Website>
+</fomod>`;
+      return xml;
+    } catch (err: any) {
+      return { error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler('fomod:validate', async (_event, fomodPath: string) => {
+    try {
+      const safePath = String(fomodPath || '');
+      const errors: string[] = [];
+      if (!safePath || !fs.existsSync(safePath)) {
+        return { valid: false, errors: [`Path not found: ${safePath}`] };
+      }
+      const fomodDir = path.join(safePath, 'fomod');
+      if (!fs.existsSync(fomodDir)) errors.push('Missing fomod/ directory');
+      const moduleConfig = path.join(fomodDir, 'ModuleConfig.xml');
+      if (!fs.existsSync(moduleConfig)) errors.push('Missing fomod/ModuleConfig.xml');
+      const infoXml = path.join(fomodDir, 'info.xml');
+      if (!fs.existsSync(infoXml)) errors.push('Missing fomod/info.xml (recommended)');
+      if (errors.filter(e => !e.includes('recommended')).length === 0 && fs.existsSync(moduleConfig)) {
+        const xml = fs.readFileSync(moduleConfig, 'utf-8');
+        if (!xml.includes('<config')) errors.push('ModuleConfig.xml does not contain a <config> root element');
+        if (!xml.includes('<moduleName>')) errors.push('ModuleConfig.xml missing <moduleName>');
+      }
+      return { valid: errors.length === 0, errors };
+    } catch (err: any) {
+      return { valid: false, errors: [String(err?.message || err)] };
+    }
+  });
+
+  registerHandler('fomod:preview', async (_event, fomod: any, _selections?: any) => {
+    try {
+      const fileList: string[] = [];
+      for (const step of fomod?.steps || []) {
+        for (const group of step?.groups || []) {
+          for (const opt of group?.options || []) {
+            for (const f of opt?.files || []) {
+              if (f?.source) fileList.push(String(f.source));
+            }
+          }
+        }
+      }
+      const estimatedSize = fileList.length * 512 * 1024; // rough 512KB avg
+      return { steps: fomod?.steps || [], estimatedSize, fileList };
+    } catch (err: any) {
+      return { error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler('fomod:export', async (_event, fomod: any, outputPath: string, sourceModPath?: string) => {
+    try {
+      const safeOut = String(outputPath || '');
+      if (!safeOut) return { success: false, error: 'No output path specified' };
+      const fomodDir = path.join(safeOut, 'fomod');
+      if (!fs.existsSync(fomodDir)) fs.mkdirSync(fomodDir, { recursive: true });
+
+      // Generate and write ModuleConfig.xml
+      const steps = (fomod?.steps || []).map((step: any) => {
+        const groups = (step?.groups || []).map((group: any) => {
+          const plugins = (group?.options || []).map((opt: any) => {
+            const files = (opt?.files || []).map((f: any) =>
+              `          <file source="${String(f.source || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" destination="${String(f.destination || f.source || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />`
+            ).join('\n');
+            return `        <plugin name="${String(opt.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">
+          <description>${String(opt.description || '').replace(/&/g,'&amp;')}</description>
+          <typeDescriptor><type name="${String(opt.type || 'Optional')}" /></typeDescriptor>
+          <files>${files ? '\n' + files + '\n        ' : ''}</files>
+        </plugin>`;
+          }).join('\n');
+          return `      <group name="${String(group.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" type="${String(group.type || 'SelectAny')}">
+        <plugins order="Explicit">
+${plugins}
+        </plugins>
+      </group>`;
+        }).join('\n');
+        return `    <installStep name="${String(step.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">
+      <optionalFileGroups order="Explicit">
+${groups}
+      </optionalFileGroups>
+    </installStep>`;
+      }).join('\n');
+
+      const moduleConfigXml = `<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+  <moduleName>${String(fomod?.name || 'Mod').replace(/&/g,'&amp;')}</moduleName>
+  <installSteps order="Explicit">
+${steps}
+  </installSteps>
+</config>`;
+      fs.writeFileSync(path.join(fomodDir, 'ModuleConfig.xml'), moduleConfigXml, 'utf-8');
+
+      const infoXml = `<?xml version="1.0" encoding="UTF-8"?>
+<fomod>
+  <Name>${String(fomod?.name || '').replace(/&/g,'&amp;')}</Name>
+  <Author>${String(fomod?.author || '').replace(/&/g,'&amp;')}</Author>
+  <Version>${String(fomod?.version || '1.0').replace(/&/g,'&amp;')}</Version>
+  <Description>${String(fomod?.description || '').replace(/&/g,'&amp;')}</Description>
+  <Website>${String(fomod?.website || '').replace(/&/g,'&amp;')}</Website>
+</fomod>`;
+      fs.writeFileSync(path.join(fomodDir, 'info.xml'), infoXml, 'utf-8');
+
+      let filesIncluded = 2; // ModuleConfig.xml + info.xml
+
+      // Copy source files if a source mod path was provided
+      if (sourceModPath && fs.existsSync(String(sourceModPath))) {
+        const allFiles: string[] = [];
+        const collect = (dir: string) => {
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) collect(full);
+            else allFiles.push(full);
+          }
+        };
+        collect(String(sourceModPath));
+        for (const src of allFiles) {
+          const rel = path.relative(String(sourceModPath), src);
+          const dest = path.join(safeOut, rel);
+          fs.mkdirSync(path.dirname(dest), { recursive: true });
+          fs.copyFileSync(src, dest);
+          filesIncluded++;
+        }
+      }
+
+      return { success: true, outputPath: safeOut, filesIncluded };
+    } catch (err: any) {
+      return { success: false, error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler('fomod:load', async (_event, fomodPath: string) => {
+    try {
+      const safePath = String(fomodPath || '');
+      const moduleConfigPath = path.join(safePath, 'fomod', 'ModuleConfig.xml');
+      if (!fs.existsSync(moduleConfigPath)) return { error: 'ModuleConfig.xml not found' };
+      const xml = fs.readFileSync(moduleConfigPath, 'utf-8');
+      // Return raw XML — caller can parse it
+      return { xml, path: moduleConfigPath };
+    } catch (err: any) {
+      return { error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler('fomod:save-project', async (_event, fomod: any, projectPath: string) => {
+    try {
+      const safePath = String(projectPath || '');
+      if (!safePath) return { success: false, error: 'No project path specified' };
+      const dir = path.dirname(safePath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(safePath, JSON.stringify(fomod, null, 2), 'utf-8');
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: String(err?.message || err) };
+    }
+  });
+
+  // FOMOD Assembler (separate IPC_CHANNELS-based API)
+  registerHandler(IPC_CHANNELS.FOMOD_SCAN_MOD_FOLDER, async (_event, folderPath: string) => {
+    try {
+      const safePath = String(folderPath || '');
+      if (!safePath || !fs.existsSync(safePath)) return [];
+      const results: { path: string; name: string; size: number; isDir: boolean }[] = [];
+      const scan = (dir: string) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          const stat = fs.statSync(full);
+          results.push({ path: full, name: entry.name, size: stat.size, isDir: entry.isDirectory() });
+          if (entry.isDirectory()) scan(full);
+        }
+      };
+      scan(safePath);
+      return results;
+    } catch (err: any) {
+      return [];
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.FOMOD_ANALYZE_STRUCTURE, async (_event, files: string[]) => {
+    try {
+      const categories: Record<string, string[]> = {
+        meshes: [], textures: [], sounds: [], scripts: [], interface: [], misc: [],
+      };
+      for (const f of (files || [])) {
+        const lower = String(f).toLowerCase();
+        if (lower.includes('/meshes/') || lower.endsWith('.nif') || lower.endsWith('.bgsm')) categories.meshes.push(f);
+        else if (lower.includes('/textures/') || lower.endsWith('.dds') || lower.endsWith('.png')) categories.textures.push(f);
+        else if (lower.includes('/sound/') || lower.endsWith('.wav') || lower.endsWith('.xwm') || lower.endsWith('.fuz')) categories.sounds.push(f);
+        else if (lower.endsWith('.psc') || lower.endsWith('.pex') || lower.includes('/scripts/')) categories.scripts.push(f);
+        else if (lower.includes('/interface/') || lower.endsWith('.swf') || lower.endsWith('.gfx')) categories.interface.push(f);
+        else categories.misc.push(f);
+      }
+      const suggestions = Object.entries(categories)
+        .filter(([, v]) => v.length > 0)
+        .map(([cat, v]) => ({ category: cat, count: v.length, suggestion: `Create a step for ${cat} (${v.length} files)` }));
+      return { categories, suggestions, totalFiles: files?.length || 0 };
+    } catch (err: any) {
+      return { error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.FOMOD_VALIDATE_XML, async (_event, xml: string) => {
+    try {
+      const errors: string[] = [];
+      const safeXml = String(xml || '');
+      if (!safeXml.includes('<?xml')) errors.push('Missing XML declaration');
+      if (!safeXml.includes('<config')) errors.push('Missing <config> root element');
+      if (!safeXml.includes('<moduleName>')) errors.push('Missing <moduleName>');
+      if (!safeXml.includes('<installSteps>')) errors.push('Missing <installSteps>');
+      // Count open vs close tags for basic balance check
+      const opens = (safeXml.match(/<[^\/!?][^>]*>/g) || []).length;
+      const closes = (safeXml.match(/<\/[^>]+>/g) || []).length;
+      if (Math.abs(opens - closes) > 5) errors.push(`Unbalanced XML tags (${opens} open, ${closes} close)`);
+      return { valid: errors.length === 0, errors };
+    } catch (err: any) {
+      return { valid: false, errors: [String(err?.message || err)] };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.FOMOD_EXPORT_PACKAGE, async (_event, outputPath: string, structure: any, files: any[]) => {
+    try {
+      const safeOut = String(outputPath || '');
+      if (!safeOut) return { success: false, error: 'No output path specified' };
+      if (!fs.existsSync(safeOut)) fs.mkdirSync(safeOut, { recursive: true });
+      const fomodDir = path.join(safeOut, 'fomod');
+      if (!fs.existsSync(fomodDir)) fs.mkdirSync(fomodDir, { recursive: true });
+      if (structure?.moduleConfigXml) {
+        fs.writeFileSync(path.join(fomodDir, 'ModuleConfig.xml'), structure.moduleConfigXml, 'utf-8');
+      }
+      if (structure?.infoXml) {
+        fs.writeFileSync(path.join(fomodDir, 'info.xml'), structure.infoXml, 'utf-8');
+      }
+      let copied = 0;
+      for (const f of (files || [])) {
+        if (f?.sourcePath && f?.destPath && fs.existsSync(String(f.sourcePath))) {
+          const dest = path.join(safeOut, String(f.destPath));
+          fs.mkdirSync(path.dirname(dest), { recursive: true });
+          fs.copyFileSync(String(f.sourcePath), dest);
+          copied++;
+        }
+      }
+      return { success: true, path: safeOut, filesWritten: copied + (structure ? 2 : 0) };
+    } catch (err: any) {
+      return { success: false, error: String(err?.message || err) };
+    }
+  });
+
+  // ── Project management: delete and update ────────────────────────────────
+
+  registerHandler(IPC_CHANNELS.PROJECT_DELETE, async (_event, projectId: string) => {
+    try {
+      const deleted = deleteProject(String(projectId || ''));
+      if (!deleted) return { ok: false, error: 'Project not found' };
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.PROJECT_UPDATE, async (_event, project: any) => {
+    try {
+      saveProject({ ...project, updatedAt: Date.now() });
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.PROJECT_SWITCH, async (_event, projectId: string) => {
+    try {
+      const s = loadSettings();
+      s.currentProjectId = String(projectId || '');
+      saveSettings(s);
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  // ── Onboarding Wizard state handlers ─────────────────────────────────────
+  // Persists first-run wizard step so users can close and resume.
+
+  const WIZARD_STATE_FILE = path.join(app.getPath('userData'), 'wizard-state.json');
+
+  registerHandler(IPC_CHANNELS.WIZARD_GET_STATE, async () => {
+    try {
+      if (!fs.existsSync(WIZARD_STATE_FILE)) return { step: 0, completed: false };
+      return JSON.parse(fs.readFileSync(WIZARD_STATE_FILE, 'utf-8'));
+    } catch {
+      return { step: 0, completed: false };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.WIZARD_UPDATE_STEP, async (_event, step: number) => {
+    try {
+      const current = fs.existsSync(WIZARD_STATE_FILE)
+        ? JSON.parse(fs.readFileSync(WIZARD_STATE_FILE, 'utf-8'))
+        : { step: 0, completed: false };
+      const next = { ...current, step: Number(step), updatedAt: Date.now() };
+      fs.writeFileSync(WIZARD_STATE_FILE, JSON.stringify(next, null, 2), 'utf-8');
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.WIZARD_SUBMIT_ACTION, async (_event, action: any) => {
+    try {
+      const current = fs.existsSync(WIZARD_STATE_FILE)
+        ? JSON.parse(fs.readFileSync(WIZARD_STATE_FILE, 'utf-8'))
+        : { step: 0, completed: false };
+      const next = {
+        ...current,
+        completed: action?.complete === true,
+        lastAction: action,
+        updatedAt: Date.now(),
+      };
+      fs.writeFileSync(WIZARD_STATE_FILE, JSON.stringify(next, null, 2), 'utf-8');
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  // ── Observer status ───────────────────────────────────────────────────────
+
+  registerHandler(IPC_CHANNELS.OBSERVER_GET_STATUS, async () => {
+    return { active: !!(global as any).__observerActiveFolder, folder: (global as any).__observerActiveFolder || null };
+  });
+
+  // ── Fresh-install trigger ─────────────────────────────────────────────────
+
+  registerHandler(IPC_CHANNELS.TRIGGER_FRESH_INSTALL, async () => {
+    if (mainWindow) mainWindow.webContents.send(IPC_CHANNELS.TRIGGER_FRESH_INSTALL);
+    return { ok: true };
+  });
+
+  // ── CK path pickers (missing one) ────────────────────────────────────────
+
+  registerHandler('ck-pick-fallout4-folder', async () => {
+    const result = await dialog.showOpenDialog({ title: 'Select Fallout 4 Folder', properties: ['openDirectory'] });
+    if (result.canceled || !result.filePaths?.length) return '';
+    return result.filePaths[0];
+  });
+
+  // ── Load Order vortex profile dir ─────────────────────────────────────────
+
+  registerHandler(IPC_CHANNELS.LOAD_ORDER_PICK_VORTEX_PROFILE_DIR, async () => {
+    const result = await dialog.showOpenDialog({ title: 'Select Vortex Profile Directory', properties: ['openDirectory'] });
+    if (result.canceled || !result.filePaths?.length) return '';
+    return result.filePaths[0];
+  });
+
+  // ── Training dataset persistence ──────────────────────────────────────────
+  // Stores per-message feedback ratings and curated Q&A pairs for fine-tuning.
+
+  const TRAINING_DATA_FILE = path.join(app.getPath('userData'), 'training-dataset.jsonl');
+  const TRAINING_META_FILE = path.join(app.getPath('userData'), 'training-meta.json');
+
+  registerHandler('training-data-add-pair', async (_event, pair: { question: string; answer: string; rating: 'good' | 'bad'; topic?: string; editedAnswer?: string }) => {
+    try {
+      const entry = {
+        conversations: [
+          { from: 'human', value: String(pair.question || '') },
+          { from: 'gpt', value: String(pair.editedAnswer || pair.answer || '') },
+        ],
+        rating: pair.rating,
+        topic: pair.topic || 'general',
+        timestamp: Date.now(),
+      };
+      fs.appendFileSync(TRAINING_DATA_FILE, JSON.stringify(entry) + '\n', 'utf-8');
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler('training-data-get-stats', async () => {
+    try {
+      if (!fs.existsSync(TRAINING_DATA_FILE)) return { total: 0, good: 0, bad: 0, topics: {} };
+      const lines = fs.readFileSync(TRAINING_DATA_FILE, 'utf-8').split('\n').filter(Boolean);
+      const stats: { total: number; good: number; bad: number; topics: Record<string, number> } = { total: 0, good: 0, bad: 0, topics: {} };
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line);
+          stats.total++;
+          if (entry.rating === 'good') stats.good++; else stats.bad++;
+          const topic = String(entry.topic || 'general');
+          stats.topics[topic] = (stats.topics[topic] || 0) + 1;
+        } catch { /* skip malformed */ }
+      }
+      return stats;
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler('training-data-export-jsonl', async (_event, opts?: { goodOnly?: boolean; outputPath?: string }) => {
+    try {
+      if (!fs.existsSync(TRAINING_DATA_FILE)) return { ok: false, error: 'No training data yet. Rate some responses first.' };
+      const lines = fs.readFileSync(TRAINING_DATA_FILE, 'utf-8').split('\n').filter(Boolean);
+      const filtered = lines.filter(line => {
+        try {
+          const e = JSON.parse(line);
+          return opts?.goodOnly ? e.rating === 'good' : true;
+        } catch { return false; }
+      });
+      if (!filtered.length) return { ok: false, error: 'No matching training pairs found.' };
+
+      // Produce clean JSONL (conversations only, no metadata)
+      const cleanLines = filtered.map(line => {
+        const e = JSON.parse(line);
+        return JSON.stringify({ conversations: e.conversations });
+      });
+
+      const outPath = String(opts?.outputPath || TRAINING_DATA_FILE.replace('.jsonl', '-export.jsonl'));
+      fs.writeFileSync(outPath, cleanLines.join('\n') + '\n', 'utf-8');
+      return { ok: true, path: outPath, count: cleanLines.length };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler('training-data-clear', async () => {
+    try {
+      if (fs.existsSync(TRAINING_DATA_FILE)) {
+        fs.renameSync(TRAINING_DATA_FILE, TRAINING_DATA_FILE + `.backup-${Date.now()}`);
+      }
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
     }
   });
 

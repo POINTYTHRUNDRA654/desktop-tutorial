@@ -26,9 +26,21 @@ type LocalAiSettings = {
   cosmosModel?: string;
 };
 
+type GgufImportState = {
+  ggufPath: string;
+  modelName: string;
+  systemPrompt: string;
+  busy: boolean;
+  result: string;
+  error: string;
+};
+
 type LocalCapabilitiesProps = {
   embedded?: boolean;
 };
+
+const DEFAULT_MOSSY_SYSTEM =
+  'You are Mossy, a knowledgeable Fallout 4 modding assistant. You help with xEdit, the Creation Kit, Papyrus scripting, NIF meshes, DDS textures, load order, mod conflicts, and all aspects of Fallout 4 modding. Be precise and helpful.';
 
 export default function LocalCapabilities({ embedded = false }: LocalCapabilitiesProps): JSX.Element {
   const api = (window as any).electron?.api || (window as any).electronAPI;
@@ -38,6 +50,14 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [gguf, setGguf] = useState<GgufImportState>({
+    ggufPath: '',
+    modelName: 'mossy-fo4',
+    systemPrompt: DEFAULT_MOSSY_SYSTEM,
+    busy: false,
+    result: '',
+    error: '',
+  });
 
   const preferred: LocalAiPreferred = (settings.localAiPreferredProvider || 'auto') as LocalAiPreferred;
 
@@ -145,6 +165,52 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
       setError(String(e?.message || e));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const pickGgufFile = async () => {
+    if (!api?.ggufPickFile) return;
+    const filePath = await api.ggufPickFile();
+    if (filePath) {
+      setGguf((g) => ({ ...g, ggufPath: filePath, result: '', error: '' }));
+    }
+  };
+
+  const importGguf = async () => {
+    if (!api?.ggufImportToOllama) {
+      setGguf((g) => ({ ...g, error: 'ggufImportToOllama API not available. Is Electron running?' }));
+      return;
+    }
+    if (!gguf.ggufPath.trim()) {
+      setGguf((g) => ({ ...g, error: 'Select a .gguf file first.' }));
+      return;
+    }
+    if (!gguf.modelName.trim()) {
+      setGguf((g) => ({ ...g, error: 'Enter a model name.' }));
+      return;
+    }
+    setGguf((g) => ({ ...g, busy: true, result: '', error: '' }));
+    try {
+      const resp = await api.ggufImportToOllama({
+        ggufPath: gguf.ggufPath,
+        modelName: gguf.modelName,
+        systemPrompt: gguf.systemPrompt,
+      });
+      if (resp?.ok) {
+        setGguf((g) => ({
+          ...g,
+          busy: false,
+          result: `✅ Model "${resp.modelName}" imported! Set Ollama model to "${resp.modelName}" above and refresh.`,
+        }));
+        // Auto-set the Ollama model and refresh caps
+        setSettings((s) => ({ ...s, ollamaModel: resp.modelName }));
+        toast.success(`Model "${resp.modelName}" ready in Ollama!`);
+        await refresh();
+      } else {
+        setGguf((g) => ({ ...g, busy: false, error: String(resp?.error || 'Import failed.') }));
+      }
+    } catch (e: any) {
+      setGguf((g) => ({ ...g, busy: false, error: String(e?.message || e) }));
     }
   };
 
@@ -288,6 +354,90 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
         <div className="text-xs text-slate-400">
           Tip: For Cosmos/LM Studio, start the local server and enable the OpenAI-compatible API.
         </div>
+      </div>
+
+      {/* GGUF / Unsloth Import */}
+      <div className="bg-slate-900/60 border border-amber-800/50 rounded-lg p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-amber-300">🧪 GGUF / Unsloth Import</span>
+          <span className="text-xs text-slate-400">— Load a fine-tuned .gguf model into Ollama</span>
+        </div>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Fine-tune Gemma 4 with <strong className="text-slate-300">Unsloth</strong> (8 GB VRAM), export to GGUF,
+          then import it here. The model is registered in your local Ollama and becomes available above as an Ollama model.
+          Requires Ollama to be installed and running.
+        </p>
+
+        {/* File picker */}
+        <div className="flex gap-2 items-center">
+          <input
+            value={gguf.ggufPath}
+            readOnly
+            placeholder="No .gguf file selected…"
+            className="flex-1 bg-slate-950/60 border border-slate-700 rounded px-3 py-2 text-xs text-slate-300 outline-none truncate"
+          />
+          <button
+            onClick={pickGgufFile}
+            disabled={gguf.busy}
+            className="text-xs px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-60 text-slate-200 whitespace-nowrap"
+          >
+            Browse…
+          </button>
+        </div>
+
+        {/* Model name */}
+        <div className="space-y-1">
+          <label className="text-xs text-slate-400">Ollama model name (lowercase, hyphens OK)</label>
+          <input
+            value={gguf.modelName}
+            onChange={(e) => setGguf((g) => ({ ...g, modelName: e.target.value }))}
+            placeholder="mossy-fo4"
+            className="w-full bg-slate-950/60 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 outline-none"
+          />
+        </div>
+
+        {/* System prompt */}
+        <div className="space-y-1">
+          <label className="text-xs text-slate-400">System prompt (baked into Modelfile)</label>
+          <textarea
+            value={gguf.systemPrompt}
+            onChange={(e) => setGguf((g) => ({ ...g, systemPrompt: e.target.value }))}
+            rows={3}
+            className="w-full bg-slate-950/60 border border-slate-700 rounded px-3 py-2 text-xs text-slate-200 outline-none resize-y"
+          />
+        </div>
+
+        {/* Import button */}
+        <button
+          onClick={importGguf}
+          disabled={gguf.busy || !gguf.ggufPath}
+          className="text-xs px-4 py-2 rounded bg-amber-700 hover:bg-amber-600 disabled:opacity-60 text-white font-semibold"
+        >
+          {gguf.busy ? 'Importing…' : 'Import to Ollama'}
+        </button>
+
+        {gguf.result && (
+          <div className="text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded px-3 py-2">
+            {gguf.result}
+          </div>
+        )}
+        {gguf.error && (
+          <div className="text-xs text-red-300 bg-red-950/40 border border-red-800/40 rounded px-3 py-2">
+            {gguf.error}
+          </div>
+        )}
+
+        <details className="text-xs text-slate-500 cursor-pointer">
+          <summary className="hover:text-slate-400">How to fine-tune with Unsloth →</summary>
+          <div className="mt-2 space-y-1 text-slate-400 leading-relaxed">
+            <p>1. Install Unsloth: <code className="text-amber-300">pip install unsloth</code> (requires CUDA 8 GB+ VRAM)</p>
+            <p>2. Fine-tune Gemma 4 on your FO4 Q&amp;A dataset using Unsloth's notebook.</p>
+            <p>3. Export: <code className="text-amber-300">model.save_pretrained_gguf("mossy-fo4", tokenizer, quantization_method="q4_k_m")</code></p>
+            <p>4. Use the Browse button above to select the exported <code className="text-amber-300">.gguf</code> file.</p>
+            <p>5. Click <strong>Import to Ollama</strong> — Mossy creates a Modelfile and runs <code className="text-amber-300">ollama create</code>.</p>
+            <p>6. Set the Ollama model above to your imported name and <strong>Save</strong>.</p>
+          </div>
+        </details>
       </div>
     </div>
   );

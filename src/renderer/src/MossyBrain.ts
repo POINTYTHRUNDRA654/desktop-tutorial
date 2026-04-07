@@ -851,6 +851,8 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n| UModel / UEViewer | Gildor.org | https://www.gildor.org/en/projects/umodel |' +
       '\n| Wabbajack | Official | https://www.wabbajack.org |' +
       '\n| Spriggit (Plugin Serializer) | GitHub | https://github.com/Noggog/Spriggit |' +
+      '\n| Unsloth (LLM Fine-Tuning) | GitHub | https://github.com/unslothai/unsloth |' +
+      '\n| Ollama (Local LLM Runtime) | Official | https://ollama.com |' +
       '\n**Rule**: If a tool is on Nexus, link to Nexus — not GitHub or any other mirror — unless the Nexus page explicitly directs to GitHub for the latest release (e.g. CKPE). The author earns Nexus endorsements and download credit, which matters for the modding community.' +
       '\n\n- **SPRIGGIT: PLUGIN VERSIONING WITH GIT — COLLABORATIVE MODDING FOR TEAMS:**' +
       '\n  Spriggit serializes Bethesda plugin files (.esp/.esm/.esl) into human-readable YAML or JSON format that GIT can track, diff, and merge. This transforms mod development into a collaborative, version-controlled workflow where multiple modders can work on the same mod, pull on branches, submit pull requests, and merge changes just like programmers do with code.' +
@@ -1094,6 +1096,142 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n- If the user says they cannot hear you, suggest: 1) Check the "Voice: ON/OFF" toggle in the chat toolbar is ON. 2) Go to Settings → Voice Settings and verify "Enabled" is checked. 3) Click "Test" in Voice Settings to verify TTS is working. 4) Check system volume and browser/app audio permissions.' +
       '\n- There is a "Mossy: ON / Mossy: OFF" toggle in the chat toolbar that controls whether Mossy responds at all. When set to OFF, Mossy will not respond to new messages or speak. Toggle it back ON to resume the conversation.' +
       '\n- To stop Mossy from speaking mid-response: (1) click the red "Stop Speaking" button in the toolbar (appears while Mossy is speaking), (2) click the small red stop icon next to the "Speaking..." indicator below the chat input, or (3) click "Pause Mossy" in the toolbar to stop both speaking and future responses.' +
+
+      '\n\n- **UNSLOTH: FINE-TUNING YOUR OWN MOSSY MODEL WITH GEMMA 4 (8 GB VRAM):**' +
+      '\n  Unsloth is an open-source fine-tuning library that makes training large language models 4× faster and uses ~80% less VRAM than standard HuggingFace methods. It supports Gemma 4, Llama 3, Qwen 2.5, and other modern architectures. A modder with an NVIDIA GPU (8 GB VRAM) can fine-tune Gemma 4 locally on a custom Fallout 4 modding dataset and export it as a GGUF file that Ollama can serve.' +
+
+      '\n\n  **Why Fine-Tune for FO4 Modding?**' +
+      '\n  A general LLM answers FO4 modding questions with generic knowledge injected via system prompts. A fine-tuned model has the modding knowledge baked directly into its weights — it understands xEdit record types, Papyrus syntax, NIF structure, FormID semantics, and Creation Kit workflows at a deep level. Answers are faster, more accurate, and use far less context window space.' +
+
+      '\n\n  **Unsloth Requirements:**' +
+      '\n  • NVIDIA GPU with ≥8 GB VRAM (RTX 3070 / 4060 or better recommended)' +
+      '\n  • Python 3.10+ with CUDA 12.1 environment (conda or venv)' +
+      '\n  • pip install unsloth (and torch, transformers, datasets, trl)' +
+      '\n  • Alternatively: free Google Colab T4 notebook from https://github.com/unslothai/unsloth' +
+
+      '\n\n  **Training Data Format (JSONL / ShareGPT):**' +
+      '\n  Create a JSONL dataset of FO4 modding Q&A pairs. Each line is a JSON object:' +
+      '\n  {"conversations": [{"from": "human", "value": "How do I create a leveled list in xEdit?"}, {"from": "gpt", "value": "In xEdit, right-click the plugin → Add → Leveled Item (LVLI). Set the Chance None field, then add entries in the Leveled List Entries subrecord..."}]}' +
+      '\n  Good training topics: xEdit record editing, Papyrus scripting patterns, Creation Kit workflows, NIF mesh structure, BA2 packing, conflict resolution, load order rules, FOMOD scripting, common error messages and fixes.' +
+
+      '\n\n  **Quick Fine-Tune Workflow:**' +
+      '\n  1. Install Unsloth: pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git" (Colab) or pip install unsloth (local CUDA)' +
+      '\n  2. Load Gemma 4: from unsloth import FastLanguageModel; model, tokenizer = FastLanguageModel.from_pretrained("unsloth/gemma-4-it-unsloth-bnb-4bit", max_seq_length=4096, load_in_4bit=True)' +
+      '\n  3. Apply LoRA adapters: model = FastLanguageModel.get_peft_model(model, r=16, target_modules=["q_proj","k_proj","v_proj","o_proj","gate_proj","up_proj","down_proj"])' +
+      '\n  4. Load dataset: from datasets import load_dataset; dataset = load_dataset("json", data_files="fo4_training.jsonl", split="train")' +
+      '\n  5. Train: trainer = SFTTrainer(model, dataset=dataset, max_seq_length=4096, ...); trainer.train()' +
+      '\n  6. Export to GGUF: model.save_pretrained_gguf("mossy-fo4", tokenizer, quantization_method="q4_k_m")' +
+      '\n  7. Import into Mossy: Settings → Local Capabilities → GGUF / Unsloth Import → Browse for mossy-fo4.gguf → Import to Ollama' +
+      '\n  8. Set Ollama model to "mossy-fo4" and Save' +
+
+      '\n\n  **GGUF Quantization Options (export tradeoffs):**' +
+      '\n  • q4_k_m — Best balance for 8 GB VRAM; ~4 GB file; recommended for most users' +
+      '\n  • q5_k_m — Better quality, ~5 GB file; needs 10 GB+ VRAM for inference' +
+      '\n  • q8_0   — Near-lossless; ~8 GB file; needs 12 GB+ VRAM' +
+      '\n  • f16    — Full precision; large file; only for high-end cards (24 GB+)' +
+
+      '\n\n  **Mossy Integration Workflow:**' +
+      '\n  Once imported, Mossy registers the model in Ollama with a Fallout 4 modding system prompt baked into the Modelfile. The model appears in the Ollama model list in Local Capabilities. Set it as the preferred provider and all future chat sessions will route through your fine-tuned model instead of Groq/cloud APIs.' +
+
+      '\n\n  **Where to Get Training Data:**' +
+      '\n  • Export your own Mossy chat logs as Q&A pairs (use the knowledge vault export)' +
+      '\n  • Fallout 4 wiki pages (wiki.fallout4.com) scraped and reformatted' +
+      '\n  • xEdit docs and the Creation Kit wiki (ck.uesp.net)' +
+      '\n  • Nexus mod descriptions and changelogs for common patterns' +
+      '\n  • Your own modding notes and scripting examples' +
+      '\n  Aim for 500–5000 high-quality Q&A pairs to see meaningful improvement.' +
+
+      // ── Knowledge gap fills ────────────────────────────────────────────────
+
+      '\n\n- **NIFSKOPE: NIF MESH INSPECTION & EDITING:**' +
+      '\n  NifSkope is the primary tool for viewing and editing Fallout 4 NIF mesh files. Key concepts:' +
+      '\n  • NIF structure: root NiNode → child BSFadeNode → NiTriShapes (geometry) → BSLightingShaderProperty (material)' +
+      '\n  • Material paths: textures are set in the BSShaderTextureSet on the BSLightingShaderProperty. Slot 1 = diffuse, Slot 2 = normal, Slot 3 = glow/emissive, Slot 7 = specular.' +
+      '\n  • BSX Flags: binary flags on BSXFlags node. Bit 1 = animated, Bit 2 = havok, Bit 4 = ragdoll, Bit 8 = complex, Bit 16 = addon/attach, Bit 32 = editor marker. Correct flags required for in-game behavior.' +
+      '\n  • Collision shapes: bhkRigidBody with bhkConvexVerticesShape (convex) or bhkNiTriStripsShape (detailed). Remove MOPP in FO4 — use bhkCompressedMeshShapeData instead. Havok layer 1 = static, layer 8 = debris.' +
+      '\n  • Shader flags: SLSF1/SLSF2 control lighting effects. Common: SLSF1_Skinned for body parts, SLSF2_Double_Sided for foliage, SLSF1_Decal for overlays.' +
+      '\n  • Common issues: missing texture paths (blank mesh in game), wrong shader type (BSEffectShaderProperty vs BSLightingShaderProperty), normals inverted (inside-out faces), partition count exceeds 260 (CTD), missing root collision.' +
+      '\n  • BSGeometry vs NiTriShape: FO4 uses BSTriShape (BSGeometry). Old Skyrim NiTriShape must be converted. NifSkope can do basic conversion but Outfit Studio/BodySlide handles body-fitted meshes.' +
+      '\n  • LOD meshes: suffix _lod_0/_lod_1/_lod_2/_lod_3. Generated by xLODGen or CK LOD tools. Must match base mesh material paths.' +
+
+      '\n\n- **MCM (MOD CONFIGURATION MENU): FULL REFERENCE:**' +
+      '\n  MCM in Fallout 4 uses the F4SE MCM Framework (Neanka/shadowslasher410/PierreDespereaux). Not a Creation Kit feature — requires F4SE.' +
+      '\n  • JSON config file: Data/MCM/Config/YourMod/config.json — defines pages, settings, and their types.' +
+      '\n  • Setting types: toggle (bool), slider (float/int range), stepper (discrete values), keymap (key binding), text (display), colorpicker (RGB int).' +
+      '\n  • Config.json structure: {"modName": "...", "displayName": "...", "minMCMVersion": 1, "content": [{"text": "Page Name", "type": "page", "content": [...settings...]}]}' +
+      '\n  • Each setting has: id (unique key), text (label), help (tooltip), type (see above), valueOptions (for stepper), min/max/step (for slider).' +
+      '\n  • Reading values in Papyrus: Use MCM:MCMScript (SKSE-like) or use GetModSettingBool/Int/Float/String from MCM.esp as master.' +
+      '\n  • Events: MCM registers SendModEvent("MCMSettingChange|YourMod", settingId, value). Listen with RegisterForModEvent("MCMSettingChange|YourMod", "OnMCMSettingChange").' +
+      '\n  • Localization: Data/MCM/Config/YourMod/settings_en.txt — key=value pairs matching setting text strings.' +
+      '\n  • Common errors: JSON syntax error = MCM silently fails to load; wrong modName = settings not saved; missing MCM master in load order = all MCM mods break.' +
+
+      '\n\n- **F4SE PLUGIN DEVELOPMENT (.DLL PLUGINS):**' +
+      '\n  F4SE plugins extend Fallout 4 with C++ code, adding new Papyrus functions, events, and engine hooks.' +
+      '\n  • Language: C++17/20, compiled as DLL targeting the game EXE ABI.' +
+      '\n  • Address Library: xSE PluginAPI Address Library for F4SE (https://www.nexusmods.com/fallout4/mods/47327). Provides offset-independent function addresses. Use IDDatabase::get().GetOffsetById(id) to resolve addresses without hardcoding.' +
+      '\n  • CommonLibF4: Community header library (https://github.com/Ryan-rsm-McKenzie/CommonLibF4). Provides wrapped RE:: namespace for game classes (Actor, TESForm, etc.). Replaces raw RTTI casting.' +
+      '\n  • Plugin entry: F4SEPlugin_Load(const F4SE::LoadInterface* a_f4se) — register for messages, get interfaces (Papyrus, Trampoline, etc.).' +
+      '\n  • Papyrus binding: GetPapyrusInterface()->Register(BindPapyrusFunctions) — add new native functions to Papyrus.' +
+      '\n  • Hooks: use REL::Relocation<std::uintptr_t> + detour via Trampoline::AllocateFromBranch for function hooks.' +
+      '\n  • Build system: CMake + vcpkg. Target: Windows x64, Release only (F4SE debug builds crash). Use MT runtime to avoid VCRUNTIME dependency issues.' +
+      '\n  • Versioning: F4SE::PluginVersionData with CompatibleVersions[] list. Must match actual game EXE versions or plugin won\'t load.' +
+      '\n  • Common errors: Wrong calling convention (use __cdecl), mismatched Address Library IDs after game update, missing F4SE prefix in plugin name, vtable offset wrong after patch.' +
+
+      '\n\n- **FOMOD XML AUTHORING: FULL SCHEMA REFERENCE:**' +
+      '\n  FOMOD uses two XML files: fomod/info.xml (metadata) and fomod/ModuleConfig.xml (installer logic).' +
+      '\n  • ModuleConfig.xml root: <config xmlns:xsi="..." xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">' +
+      '\n  • Key elements: <moduleName>, <moduleImage path="...">, <requiredInstallFiles>, <installSteps order="Explicit|Ascending|Descending">, <conditionalFileInstalls>' +
+      '\n  • installStep: name attribute, optional <visible> condition, <optionalFileGroups order="Explicit">' +
+      '\n  • group: name, type=(SelectAny|SelectAll|SelectExactlyOne|SelectAtMostOne|SelectAtLeastOne)' +
+      '\n  • plugin: name, <description>, <image path="...">, <conditionFlags>, <files>, <typeDescriptor>' +
+      '\n  • typeDescriptor types: Required, Optional, Recommended, CouldBeUseable, NotUseable' +
+      '\n  • Conditions: <dependencies operator="And|Or"> with <fileDependency file="..." state="Active|Inactive|Missing"/>, <flagDependency flag="..." value="..."/>, <gameDependency version="..."/>' +
+      '\n  • Flag system: plugins set flags (<setFlag name="..." value="..."/>) and conditionalFileInstalls check them — enables dynamic dependency trees.' +
+      '\n  • conditionalFileInstalls: <patterns><pattern><condition><dependencies>...</dependencies></condition><files>...</files></pattern></patterns>' +
+      '\n  • Common mistakes: self-closing <files/> instead of <files></files>, wrong xmlns attribute, spaces in file paths (use forward slashes), missing closing tags (XML parsers are strict).' +
+
+      '\n\n- **BA2 ARCHIVES & TEXTURE PIPELINE:**' +
+      '\n  BA2 (Bethesda Archive 2) replaces BSA from Skyrim. Two types: GNRL (general files) and DX10 (textures).' +
+      '\n  • Create: Archive2.exe (part of CK tools) or BAE (Bethesda Archive Extractor) or BSArch.exe.' +
+      '\n  • Texture formats: DDS only. FO4 uses DirectX 11 formats.' +
+      '\n  • DDS format guide: BC1/DXT1 (diffuse, no alpha, 8:1 compression), BC3/DXT5 (diffuse with alpha), BC5/ATI2 (normal maps — DirectX convention, R=X, G=Y), BC7 (high quality, supports alpha, 8:1), A8R8G8B8 (uncompressed — avoid for release).' +
+      '\n  • Normal map convention: FO4 uses DirectX-style normals (R=X+, G=Y-, B=Z+). If normals look inverted, flip the green channel in Photoshop/GIMP/xnConvert.' +
+      '\n  • Specular maps: stored in _s.dds. Alpha channel = glossiness/smoothness. R/G/B = metallic tint. BC3 recommended.' +
+      '\n  • Glow maps: stored in _g.dds or used in emissive slot. BC3/BC1 depending on alpha need.' +
+      '\n  • Mipmaps: ALWAYS generate mipmaps for game textures. Missing mipmaps = pop-in and VRAM waste. Use texconv or GIMP DDS plugin with Generate Mipmaps option.' +
+      '\n  • TextureSet (TXST) record: links all texture slots to a NIF. Created in xEdit or CK. Paths must match BA2 internal paths exactly (case-insensitive on Windows but case-sensitive on Linux/Mac).' +
+      '\n  • Tools: xnConvert (batch), GIMP + DDS plugin, Photoshop with NVIDIA/Intel DDS plugin, texconv (command-line), Compressonator (quality BC7).' +
+
+      '\n\n- **HKX / ANIMATION PIPELINE:**' +
+      '\n  FO4 animations use Havok HKX binary format. The pipeline: Blender → FBX → Havok Content Tools (HCT) → HKX, or direct export via hkxcmd/Outfit Studio.' +
+      '\n  • AnimData: Data/Meshes/Actors/Character/AnimationFileData/. Links animation events and clips to the actor skeleton.' +
+      '\n  • AnimTextData: human-readable version of AnimData used by modders, processed by the CK.' +
+      '\n  • Behavior files (.hkx in CharacterAssets/): Behavior graph that drives state machines. Edited with Behavior Editor or hkxPoser. Critical: do not break existing behavior connections.' +
+      '\n  • Skeleton: skeleton.hkx and skeleton_female.hkx. Bone count limit: 80 bones for FO4 animations. Root bone must be named "ROOT" (all caps).' +
+      '\n  • FK vs IK: Full body FK animations baked in Blender. IK rigs (knees, elbows) handled by Havok in-engine — do NOT export IK constraints, export only FK baked keyframes.' +
+      '\n  • FPS: HKX animations must be exported at exactly 30 FPS for FO4 gameplay animations. Cutscene/power armor animations can use different rates. Blender: set FPS to 30 before export.' +
+      '\n  • Scale: Blender units must be 1.0 = 1 Havok unit = 1 game unit. Apply all transforms (Ctrl+A → All Transforms) before export.' +
+      '\n  • Tools: hkxcmd (open source HKX converter), Outfit Studio (first-person + body animations), Behavior Editor (behavior graph editing), Blender + FO4 Animation Kit addon.' +
+      '\n  • Common errors: animation plays at wrong speed (FPS mismatch), T-pose in game (skeleton bone name mismatch), animation loops with pop (missing loop annotation event), IK feet clipping floor (don\'t export IK).' +
+
+      '\n\n- **PRECOMBINE GENERATION: FULL CUSTOM PIPELINE:**' +
+      '\n  Precombines (combined geometry) and previs (pre-computed visibility) are Bethesda\'s optimization system for exterior cells. The full pipeline for custom precombines:' +
+      '\n  Step 1 — xEdit: Open plugin, check all placed static refs in target cells. Remove the "Precombined Reference" flag from any refs you moved/added. Save plugin.' +
+      '\n  Step 2 — CK Generate Precombined Geometry: File → Generate Precombined Geometry → Select worldspace → Select cells → Generate. This creates Data/Meshes/Terrain/[worldspace]/Combined/ .NIF files and updates plugin with Precombine references.' +
+      '\n  Step 3 — CK Generate Previs Data: File → Generate Precombined Visibility → same worldspace/cells. Creates Data/Vis/ .uvd files.' +
+      '\n  Step 4 — xEdit: Open plugin again. Verify new CELL records have Previs Data flags. Compact FormIDs if needed for ESL flagging.' +
+      '\n  Step 5 — Package: Include Data/Meshes/Terrain/[worldspace]/ and Data/Vis/ in your BA2 archive.' +
+      '\n  • PRP (Previs Repair Pack) alternative: If you don\'t generate custom precombines, use PRP patch which fixes vanilla precombines broken by other mods. See PRP_COMPREHENSIVE_GUIDE.md.' +
+      '\n  • Common errors: Black/missing terrain patches (previs not generated), CTD when entering cell (previs data corrupt or missing Combined meshes), floating objects (static refs moved after precombines).' +
+      '\n  • Cell size: each cell = 1 game unit² at 4096-unit grid. Only exterior cells in worldspaces use precombines. Interior cells and custom worldspaces need their own precombine passes.' +
+
+      '\n\n- **TRAINING DATA COLLECTION (NEW FEATURE):**' +
+      '\n  Every chat response now has 👍/👎 rating buttons. Ratings are saved to userData/training-dataset.jsonl in Unsloth-compatible ShareGPT format.' +
+      '\n  • Rate any response with 👍 (good answer) or 👎 (bad — optionally edit the correct answer).' +
+      '\n  • Export: Settings → Local Capabilities → GGUF / Unsloth Import → or ask Mossy "export my training data".' +
+      '\n  • The exported .jsonl file is ready to use directly as the training dataset in the Unsloth fine-tuning workflow.' +
+      '\n  • Topics are auto-tagged (papyrus, nif, xedit, ck, textures, fomod, load-order, general) for balanced training.' +
+
       // Include only the first ~3,000 chars (~750 tokens at ~4 chars/token) of the guide.
       // The full MASTER_TECHNICAL_GUIDE is ~368,000 chars (~92,000 tokens) which, combined
       // with conversation history and injected context, can exceed the model's 128K context window.

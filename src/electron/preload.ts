@@ -129,6 +129,16 @@ const IPC_CHANNELS = {
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
 
+  // GGUF / Unsloth model import
+  GGUF_PICK_FILE: 'gguf-pick-file',
+  GGUF_IMPORT_TO_OLLAMA: 'gguf-import-to-ollama',
+
+  // Training dataset
+  TRAINING_DATA_ADD_PAIR: 'training-data-add-pair',
+  TRAINING_DATA_GET_STATS: 'training-data-get-stats',
+  TRAINING_DATA_EXPORT_JSONL: 'training-data-export-jsonl',
+  TRAINING_DATA_CLEAR: 'training-data-clear',
+
   // Secrets presence-only status
   SECRET_STATUS: 'secret-status',
 
@@ -1701,6 +1711,48 @@ const electronAPI = {
    */
   mlLlmGenerate: (req: { provider: 'ollama' | 'openai_compat' | 'cosmos'; model: string; prompt: string; baseUrl?: string }): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.ML_LLM_GENERATE, req);
+  },
+
+  /**
+   * GGUF / Unsloth: Open file picker for .gguf model files
+   */
+  ggufPickFile: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GGUF_PICK_FILE);
+  },
+
+  /**
+   * GGUF / Unsloth: Import a GGUF model into Ollama
+   */
+  ggufImportToOllama: (req: { ggufPath: string; modelName: string; systemPrompt?: string }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GGUF_IMPORT_TO_OLLAMA, req);
+  },
+
+  /**
+   * Training Dataset: Add a rated Q&A pair for fine-tuning
+   */
+  trainingDataAddPair: (pair: { question: string; answer: string; rating: 'good' | 'bad'; topic?: string; editedAnswer?: string }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TRAINING_DATA_ADD_PAIR, pair);
+  },
+
+  /**
+   * Training Dataset: Get statistics (total, good/bad counts, topic breakdown)
+   */
+  trainingDataGetStats: (): Promise<{ total: number; good: number; bad: number; topics: Record<string, number> }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TRAINING_DATA_GET_STATS);
+  },
+
+  /**
+   * Training Dataset: Export curated pairs as Unsloth-compatible JSONL file
+   */
+  trainingDataExportJsonl: (opts?: { goodOnly?: boolean; outputPath?: string }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TRAINING_DATA_EXPORT_JSONL, opts);
+  },
+
+  /**
+   * Training Dataset: Clear all pairs (backs up first)
+   */
+  trainingDataClear: (): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TRAINING_DATA_CLEAR);
   },
 
   /**

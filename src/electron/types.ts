@@ -230,6 +230,16 @@ export const IPC_CHANNELS = {
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
 
+  // GGUF / Unsloth model import
+  GGUF_PICK_FILE: 'gguf-pick-file',
+  GGUF_IMPORT_TO_OLLAMA: 'gguf-import-to-ollama',
+
+  // Training dataset (fine-tuning pipeline)
+  TRAINING_DATA_ADD_PAIR: 'training-data-add-pair',
+  TRAINING_DATA_GET_STATS: 'training-data-get-stats',
+  TRAINING_DATA_EXPORT_JSONL: 'training-data-export-jsonl',
+  TRAINING_DATA_CLEAR: 'training-data-clear',
+
   // Secrets presence-only status
   SECRET_STATUS: 'secret-status',
 
@@ -296,6 +306,16 @@ export type MlLlmGenerateRequest = {
 
 export type MlLlmGenerateResponse =
   | { ok: true; text: string }
+  | { ok: false; error: string };
+
+export type GgufImportRequest = {
+  ggufPath: string;
+  modelName: string;
+  systemPrompt?: string;
+};
+
+export type GgufImportResponse =
+  | { ok: true; modelName: string }
   | { ok: false; error: string };
 
 export type DedupeProgressStage = 'collect' | 'stat' | 'hash' | 'group' | 'done' | 'canceled' | 'error';
@@ -528,6 +548,16 @@ export interface ElectronAPI {
   // Local LLM (optional)
   mlLlmStatus: () => Promise<MlLlmStatusResponse>;
   mlLlmGenerate: (req: MlLlmGenerateRequest) => Promise<MlLlmGenerateResponse>;
+
+  // GGUF / Unsloth model import
+  ggufPickFile: () => Promise<string>;
+  ggufImportToOllama: (req: GgufImportRequest) => Promise<GgufImportResponse>;
+
+  // Training dataset (fine-tuning pipeline)
+  trainingDataAddPair: (pair: { question: string; answer: string; rating: 'good' | 'bad'; topic?: string; editedAnswer?: string }) => Promise<{ ok: boolean; error?: string }>;
+  trainingDataGetStats: () => Promise<{ total: number; good: number; bad: number; topics: Record<string, number> }>;
+  trainingDataExportJsonl: (opts?: { goodOnly?: boolean; outputPath?: string }) => Promise<{ ok: boolean; path?: string; count?: number; error?: string }>;
+  trainingDataClear: () => Promise<{ ok: boolean; error?: string }>;
 
   // Duplicate Finder
   pickDedupeFolders: () => Promise<string[]>;
