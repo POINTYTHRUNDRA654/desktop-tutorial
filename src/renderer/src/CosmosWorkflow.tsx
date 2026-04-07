@@ -115,7 +115,7 @@ const CosmosWorkflow: React.FC = () => {
 
   useEffect(() => {
     refreshRoots();
-    refreshRootStatus().catch(() => {});
+    refreshRootStatus().catch(() => { });
   }, []);
 
   const addKnowledgeRoot = async (repo: typeof COSMOS_REPOS[number]) => {
@@ -158,7 +158,25 @@ const CosmosWorkflow: React.FC = () => {
   };
 
   const openIntegrationDoc = async (docPath: string) => {
-    await openExternal(docPath);
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    try {
+      // For local files, use revealInFolder to show the file in explorer
+      // or try to open with the default application
+      if (api?.openExternal) {
+        // Try to open as a file path
+        const result = await api.openExternal(docPath);
+        if (result?.success) {
+          toast.success('Opening integration documentation...');
+          return;
+        }
+      }
+
+      // Fallback: show error
+      toast.error(`Could not open integration doc: ${docPath}`);
+    } catch (e) {
+      console.warn('[CosmosWorkflow] Failed to open doc', e);
+      toast.error('Failed to open integration documentation.');
+    }
   };
 
   return (
