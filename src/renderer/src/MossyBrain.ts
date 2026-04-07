@@ -1174,8 +1174,8 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  • Papyrus binding: GetPapyrusInterface()->Register(BindPapyrusFunctions) — add new native functions to Papyrus.' +
       '\n  • Hooks: use REL::Relocation<std::uintptr_t> + detour via Trampoline::AllocateFromBranch for function hooks.' +
       '\n  • Build system: CMake + vcpkg. Target: Windows x64, Release only (F4SE debug builds crash). Use MT runtime to avoid VCRUNTIME dependency issues.' +
-      '\n  • Versioning: SFSE::PluginVersionData with CompatibleVersions[] list. Must match actual game EXE versions or plugin won\'t load.' +
-      '\n  • Common errors: Wrong calling convention (use __cdecl), mismatched Address Library IDs after game update, missing SFSE prefix in plugin name, vtable offset wrong after patch.' +
+      '\n  • Versioning: F4SE::PluginVersionData with CompatibleVersions[] list. Must match actual game EXE versions or plugin won\'t load.' +
+      '\n  • Common errors: Wrong calling convention (use __cdecl), mismatched Address Library IDs after game update, missing F4SE prefix in plugin name, vtable offset wrong after patch.' +
 
       '\n\n- **FOMOD XML AUTHORING: FULL SCHEMA REFERENCE:**' +
       '\n  FOMOD uses two XML files: fomod/info.xml (metadata) and fomod/ModuleConfig.xml (installer logic).' +
