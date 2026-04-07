@@ -1754,6 +1754,12 @@ function setupIpcHandlers() {
       const fs = await import('fs');
       const pathMod = await import('path');
 
+      // For URLs, use shell.openExternal to open in the default browser
+      if (filePath.startsWith('http://') || filePath.startsWith('https://') || filePath.startsWith('mailto:')) {
+        await shell.openExternal(filePath);
+        return { success: true };
+      }
+
       let resolvedPath = filePath;
       if (!pathMod.isAbsolute(filePath)) {
         const resolvedFromCwd = pathMod.resolve(filePath);
