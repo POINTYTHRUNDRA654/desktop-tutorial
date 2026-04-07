@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v5.4.26** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v5.4.27** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 > 🔄 **For Contributors:** If you have this repository cloned and want to update your local copy with recent bug fixes, see [GIT_UPDATE_GUIDE.md](GIT_UPDATE_GUIDE.md)
 > 
@@ -8,9 +8,9 @@
 
 ---
 
-## 🚀 Onboarding & Installer Notes (v5.4.26)
+## 🚀 Onboarding & Installer Notes (v5.4.27)
 
-**New in v5.4.26 (Latest):**
+**New in v5.4.27 (Latest):**
 - ✅ **Anniversary Edition Awareness** - Mossy now understands all four FO4 version states: OG, NG, AE, and Creations Menu
 - ✅ **AE Knowledge** - AE = same NG executable (1.10.984) + 76 bundled free CC items; mods often need AE patches; PRP 81+ required for AE cells
 - ✅ **Improved Version Guidance** - AI correctly identifies your runtime and gives version-accurate advice
@@ -52,7 +52,7 @@
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 5.4.26)
+- Version is auto-set from `package.json` (currently 5.4.27)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 - Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
@@ -71,7 +71,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
-![Version](https://img.shields.io/badge/version-5.4.26-blue.svg)
+![Version](https://img.shields.io/badge/version-5.4.27-blue.svg)
 
 ---
 
@@ -81,7 +81,7 @@
 
 **Ready to use Mossy?** Download the latest installer:
 
-👉 **[Download Mossy v5.4.26 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**
+👉 **[Download Mossy v5.4.27 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**
 
 ### System Requirements
 
@@ -499,7 +499,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 5.4.26.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 5.4.27.exe`).
 
 ---
 

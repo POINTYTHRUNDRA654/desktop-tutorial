@@ -98,7 +98,7 @@ export function getStore(): Database {
 /**
  * Save database to file
  */
-function saveToFile(): void {
+export function saveToFile(): void {
   if (db && dbPath) {
     try {
       fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
@@ -249,6 +249,16 @@ export function saveProject(project: ModProject): void {
   }
   store.metadata.updatedAt = Date.now();
   saveToFile();
+}
+
+export function deleteProject(projectId: string): boolean {
+  const store = getStore();
+  const before = store.projects.length;
+  store.projects = store.projects.filter(p => p.id !== projectId);
+  if (store.projects.length === before) return false;
+  store.metadata.updatedAt = Date.now();
+  saveToFile();
+  return true;
 }
 
 /**
