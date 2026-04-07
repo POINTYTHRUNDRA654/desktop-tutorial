@@ -98,6 +98,15 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         category: 'modding',
         required: false,
     },
+    {
+        name: 'Upscayl',
+        description: 'AI-powered image upscaler (2×, 3×, 4×) for texture and asset enhancement. Required by Mossy\'s Upscayl Extension. Supports PNG, JPG, and WebP with multiple AI model options and batch processing.',
+        detectKeywords: ['upscayl'],
+        url: 'https://github.com/upscayl/upscayl/releases',
+        urlLabel: 'GitHub Releases',
+        category: 'creative',
+        required: false,
+    },
 ];
 // ─────────────────────────────────────────────────────────────────────────────
 
