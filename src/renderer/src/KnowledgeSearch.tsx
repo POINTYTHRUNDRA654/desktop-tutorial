@@ -141,13 +141,35 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
   };
 
   const onOpenResult = async (filePath: string) => {
-    if (!api?.openExternal) return;
-    await api.openExternal(filePath);
+    try {
+      if (!api?.openExternal) {
+        setError('Desktop API not available');
+        return;
+      }
+      const result = await api.openExternal(filePath);
+      if (!result?.success) {
+        setError(result?.error || 'Failed to open file');
+        return;
+      }
+    } catch (e: any) {
+      setError(`Failed to open file: ${e?.message || 'Unknown error'}`);
+    }
   };
 
   const onRevealResult = async (filePath: string) => {
-    if (!api?.revealInFolder) return;
-    await api.revealInFolder(filePath);
+    try {
+      if (!api?.revealInFolder) {
+        setError('Desktop API not available');
+        return;
+      }
+      const result = await api.revealInFolder(filePath);
+      if (!result?.success) {
+        setError(result?.error || 'Failed to reveal file');
+        return;
+      }
+    } catch (e: any) {
+      setError(`Failed to reveal file: ${e?.message || 'Unknown error'}`);
+    }
   };
 
   const onDraftAnswer = async () => {

@@ -25,8 +25,8 @@ import { openExternal } from './utils/openExternal';
 
 // Types from mining engine
 interface ValidationIssue {
-  type: 'file_not_found' | 'file_too_large' | 'memory_risk' | 'master_missing' | 
-        'precombine' | 'previs' | 'navmesh' | 'problematic_mod' | 'script_error';
+  type: 'file_not_found' | 'file_too_large' | 'memory_risk' | 'master_missing' |
+  'precombine' | 'previs' | 'navmesh' | 'problematic_mod' | 'script_error';
   severity: 'low' | 'medium' | 'high' | 'critical';
   message: string;
   solution: string;
@@ -43,8 +43,8 @@ interface ESPValidationResult {
 }
 
 interface CrashDiagnosis {
-  crashType: 'memory_overflow' | 'access_violation' | 'stack_overflow' | 
-             'navmesh_conflict' | 'precombine_mismatch' | 'unknown';
+  crashType: 'memory_overflow' | 'access_violation' | 'stack_overflow' |
+  'navmesh_conflict' | 'precombine_mismatch' | 'unknown';
   severity: 'low' | 'medium' | 'high' | 'critical';
   rootCause: string;
   likelyPlugin: string;
@@ -105,20 +105,20 @@ export const CKCrashPrevention: React.FC = () => {
     ? (searchParams.get('tab') as Tab)
     : 'preflight';
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
-  
+
   // Pre-flight state
   const [espPath, setEspPath] = useState<string>('');
   const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle');
   const [validationResult, setValidationResult] = useState<ESPValidationResult | null>(null);
   const [preventionPlan, setPreventionPlan] = useState<PreventionPlan | null>(null);
-  
+
   // Monitoring state
   const [monitoringStatus, setMonitoringStatus] = useState<MonitoringStatus>('idle');
   const [ckPid, setCkPid] = useState<number | null>(null);
   const [metrics, setMetrics] = useState<ProcessMetrics | null>(null);
   const [metricsHistory, setMetricsHistory] = useState<ProcessMetrics[]>([]);
   const monitorIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   // Post-crash state
   const [crashLogPath, setCrashLogPath] = useState<string>('');
   const [crashDiagnosis, setCrashDiagnosis] = useState<CrashDiagnosis | null>(null);
@@ -137,8 +137,10 @@ export const CKCrashPrevention: React.FC = () => {
   const fileListScrollRef = useRef<HTMLDivElement | null>(null);
   const issuesScrollRef = useRef<HTMLDivElement | null>(null);
   const adviceScrollRef = useRef<HTMLDivElement | null>(null);
+  const auditButtonsRef = useRef<HTMLDivElement | null>(null);
   const pendingAutoScan = useRef(false);
   const wheelProxy = useWheelScrollProxyFrom(() => issuesScrollRef.current ?? fileListScrollRef.current ?? adviceScrollRef.current);
+  const auditButtonsWheelProxy = useWheelScrollProxyFrom(() => auditButtonsRef.current);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -427,7 +429,7 @@ export const CKCrashPrevention: React.FC = () => {
               newIssues.push(...mapESPIssues(cached.issues, 'esp-cached'));
               status = statusFromIssues(cached.issues);
             } else if (cached.warnings && cached.warnings.length > 0) {
-              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `esp-cached-${i}`, severity: 'warning' as const, message: 'Plugin Warning', technicalDetails: w})));
+              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `esp-cached-${i}`, severity: 'warning' as const, message: 'Plugin Warning', technicalDetails: w })));
               status = 'warning';
             } else {
               status = 'clean';
@@ -446,7 +448,7 @@ export const CKCrashPrevention: React.FC = () => {
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : 'Unknown error';
           const isReadError = errMsg.toLowerCase().includes('could not read') || errMsg.toLowerCase().includes('file');
-          newIssues.push({ id: 'esp-error', severity: 'error', message: isReadError ? '[File] Could Not Read Plugin File' : '[File] Plugin Analysis Failed', technicalDetails: isReadError ? `The file could not be loaded for analysis. Close xEdit/CK/MO2 and retry. Raw error: ${errMsg}` : `The analysis engine encountered an error while parsing this plugin. Try re-uploading. Raw error: ${errMsg}`});
+          newIssues.push({ id: 'esp-error', severity: 'error', message: isReadError ? '[File] Could Not Read Plugin File' : '[File] Plugin Analysis Failed', technicalDetails: isReadError ? `The file could not be loaded for analysis. Close xEdit/CK/MO2 and retry. Raw error: ${errMsg}` : `The analysis engine encountered an error while parsing this plugin. Try re-uploading. Raw error: ${errMsg}` });
           status = 'error';
         }
       } else if (f.name.endsWith('.nif')) {
@@ -455,7 +457,7 @@ export const CKCrashPrevention: React.FC = () => {
           if (cached) {
             fileSize = `${(cached.fileSize / 1024).toFixed(2)} KB`;
             if (cached.warnings && cached.warnings.length > 0) {
-              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `nif-warning-${i}`, severity: (w.includes('absolute path') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('High') ? 'Performance Issue' : w.includes('absolute') ? 'Path Issue' : 'Warning', technicalDetails: w})));
+              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `nif-warning-${i}`, severity: (w.includes('absolute path') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('High') ? 'Performance Issue' : w.includes('absolute') ? 'Path Issue' : 'Warning', technicalDetails: w })));
               status = cached.warnings.some((w: string) => w.includes('absolute path')) ? 'error' : 'warning';
             } else { status = 'clean'; }
           } else {
@@ -463,12 +465,12 @@ export const CKCrashPrevention: React.FC = () => {
             const analysis = await workerManager.analyzeAsset('nif', fileBuffer, f.name);
             fileSize = `${(analysis.fileSize / 1024).toFixed(2)} KB`;
             if (analysis.warnings && analysis.warnings.length > 0) {
-              newIssues.push(...analysis.warnings.map((w: string, i: number) => ({ id: `nif-warning-${i}`, severity: (w.includes('absolute path') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('High') ? 'Performance Issue' : w.includes('absolute') ? 'Path Issue' : 'Warning', technicalDetails: w})));
+              newIssues.push(...analysis.warnings.map((w: string, i: number) => ({ id: `nif-warning-${i}`, severity: (w.includes('absolute path') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('High') ? 'Performance Issue' : w.includes('absolute') ? 'Path Issue' : 'Warning', technicalDetails: w })));
               status = analysis.warnings.some((w: string) => w.includes('absolute path')) ? 'error' : 'warning';
             } else { status = 'clean'; }
           }
         } catch (error) {
-          newIssues.push({ id: 'nif-error', severity: 'warning', message: 'NIF analysis unavailable', technicalDetails: `Could not read NIF file: ${error instanceof Error ? error.message : 'Unknown error'}`});
+          newIssues.push({ id: 'nif-error', severity: 'warning', message: 'NIF analysis unavailable', technicalDetails: `Could not read NIF file: ${error instanceof Error ? error.message : 'Unknown error'}` });
           status = 'warning';
         }
       } else if (f.name.endsWith('.dds')) {
@@ -477,7 +479,7 @@ export const CKCrashPrevention: React.FC = () => {
           if (cached) {
             fileSize = `${(cached.fileSize / 1024).toFixed(2)} KB`;
             if (cached.warnings && cached.warnings.length > 0) {
-              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `dds-warning-${i}`, severity: (w.includes('Uncompressed') || w.includes('Non-Power-of-Two') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('Uncompressed') ? 'Compression Issue' : w.includes('4K') ? 'Resolution Issue' : w.includes('Non-Power-of-Two') ? 'Dimension Issue' : 'Warning', technicalDetails: w})));
+              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `dds-warning-${i}`, severity: (w.includes('Uncompressed') || w.includes('Non-Power-of-Two') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('Uncompressed') ? 'Compression Issue' : w.includes('4K') ? 'Resolution Issue' : w.includes('Non-Power-of-Two') ? 'Dimension Issue' : 'Warning', technicalDetails: w })));
               status = cached.warnings.some((w: string) => w.includes('Uncompressed') || w.includes('Non-Power-of-Two')) ? 'error' : 'warning';
             } else { status = 'clean'; }
           } else {
@@ -485,12 +487,12 @@ export const CKCrashPrevention: React.FC = () => {
             const analysis = await workerManager.analyzeAsset('dds', fileBuffer, f.name);
             fileSize = `${(analysis.fileSize / 1024).toFixed(2)} KB`;
             if (analysis.warnings && analysis.warnings.length > 0) {
-              newIssues.push(...analysis.warnings.map((w: string, i: number) => ({ id: `dds-warning-${i}`, severity: (w.includes('Uncompressed') || w.includes('Non-Power-of-Two') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('Uncompressed') ? 'Compression Issue' : w.includes('4K') ? 'Resolution Issue' : w.includes('Non-Power-of-Two') ? 'Dimension Issue' : 'Warning', technicalDetails: w})));
+              newIssues.push(...analysis.warnings.map((w: string, i: number) => ({ id: `dds-warning-${i}`, severity: (w.includes('Uncompressed') || w.includes('Non-Power-of-Two') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('Uncompressed') ? 'Compression Issue' : w.includes('4K') ? 'Resolution Issue' : w.includes('Non-Power-of-Two') ? 'Dimension Issue' : 'Warning', technicalDetails: w })));
               status = analysis.warnings.some((w: string) => w.includes('Uncompressed') || w.includes('Non-Power-of-Two')) ? 'error' : 'warning';
             } else { status = 'clean'; }
           }
         } catch (error) {
-          newIssues.push({ id: 'dds-error', severity: 'warning', message: 'DDS analysis unavailable', technicalDetails: `Could not read DDS file: ${error instanceof Error ? error.message : 'Unknown error'}`});
+          newIssues.push({ id: 'dds-error', severity: 'warning', message: 'DDS analysis unavailable', technicalDetails: `Could not read DDS file: ${error instanceof Error ? error.message : 'Unknown error'}` });
           status = 'warning';
         }
       } else if (f.name.endsWith('.bgsm') || f.name.endsWith('.bgem')) {
@@ -501,14 +503,14 @@ export const CKCrashPrevention: React.FC = () => {
           const signature = String.fromCharCode(...view);
           if (signature === 'BGSM' || signature === 'BGEM') {
             status = 'clean';
-            newIssues.push({ id: 'bgsm-info', severity: 'info', message: 'Material file format valid', technicalDetails: `${signature} material file loaded successfully`});
+            newIssues.push({ id: 'bgsm-info', severity: 'info', message: 'Material file format valid', technicalDetails: `${signature} material file loaded successfully` });
           } else {
             status = 'error';
-            newIssues.push({ id: 'bgsm-error', severity: 'error', message: 'Invalid material file signature', technicalDetails: `Expected BGSM/BGEM, got: ${signature}`});
+            newIssues.push({ id: 'bgsm-error', severity: 'error', message: 'Invalid material file signature', technicalDetails: `Expected BGSM/BGEM, got: ${signature}` });
           }
         } catch (error) {
           status = 'warning';
-          newIssues.push({ id: 'bgsm-read-error', severity: 'warning', message: 'Could not read material file', technicalDetails: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`});
+          newIssues.push({ id: 'bgsm-read-error', severity: 'warning', message: 'Could not read material file', technicalDetails: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` });
         }
       }
 
@@ -646,7 +648,7 @@ export const CKCrashPrevention: React.FC = () => {
                   </div>
                 </div>
               )}
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-nowrap gap-2 overflow-x-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent" ref={auditButtonsRef} onWheel={auditButtonsWheelProxy}>
                 <button data-testid="quick-scan-folder" onClick={handleQuickScanFolder} disabled={isScanning} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-all shadow-[0_0_18px_rgba(5,150,105,0.4)]" title="Pick a mod folder — scans ALL files (ESP, NIF, DDS, BGSM) and starts the audit automatically" aria-label="Quick Scan Folder">
                   <Scan className="w-4 h-4" /> Quick Scan Folder
                 </button>
@@ -889,7 +891,8 @@ export const CKCrashPrevention: React.FC = () => {
       }
     } catch (error) {
       console.error('File picker error:', error);
-      toast.error('Failed to open file picker');    }
+      toast.error('Failed to open file picker');
+    }
   };
 
   const handleValidate = async () => {
@@ -923,9 +926,9 @@ export const CKCrashPrevention: React.FC = () => {
    */
   const handleStartMonitoring = async () => {
     // Check if CK is running
-    const processes = window.electron.api.listProcesses ? 
+    const processes = window.electron.api.listProcesses ?
       await window.electron.api.listProcesses('CreationKit') : [];
-    
+
     if (processes.length === 0) {
       toast.error('Creation Kit is not running. Please launch CK first.');
       return;
@@ -973,11 +976,11 @@ export const CKCrashPrevention: React.FC = () => {
   const handlePickCrashLog = async () => {
     try {
       const result = await (window.electron.api as any).ckPickLogFile();
-      
+
       if (result.success && result.path) {
         setCrashLogPath(result.path);
         setCrashDiagnosis(null);
-        
+
         // Auto-analyze
         await handleAnalyzeCrash(result.path);
       }
@@ -989,7 +992,7 @@ export const CKCrashPrevention: React.FC = () => {
 
   const handleAnalyzeCrash = async (logPath?: string) => {
     const pathToAnalyze = logPath || crashLogPath;
-    
+
     if (!pathToAnalyze) {
       toast.error('Please select a crash log file first');
       return;
@@ -1045,44 +1048,40 @@ export const CKCrashPrevention: React.FC = () => {
   const renderTabs = () => (
     <div className="flex border-b border-gray-700 mb-6">
       <button
-        className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
-          activeTab === 'preflight'
-            ? 'text-cyan-400 border-b-2 border-cyan-400'
-            : 'text-gray-400 hover:text-gray-200'
-        }`}
+        className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${activeTab === 'preflight'
+          ? 'text-cyan-400 border-b-2 border-cyan-400'
+          : 'text-gray-400 hover:text-gray-200'
+          }`}
         onClick={() => setActiveTab('preflight')}
       >
         <ShieldCheck className="w-5 h-5" />
         Pre-Flight Checks
       </button>
       <button
-        className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
-          activeTab === 'monitoring'
-            ? 'text-cyan-400 border-b-2 border-cyan-400'
-            : 'text-gray-400 hover:text-gray-200'
-        }`}
+        className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${activeTab === 'monitoring'
+          ? 'text-cyan-400 border-b-2 border-cyan-400'
+          : 'text-gray-400 hover:text-gray-200'
+          }`}
         onClick={() => setActiveTab('monitoring')}
       >
         <Activity className="w-5 h-5" />
         Live Monitoring
       </button>
       <button
-        className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
-          activeTab === 'postcrash'
-            ? 'text-cyan-400 border-b-2 border-cyan-400'
-            : 'text-gray-400 hover:text-gray-200'
-        }`}
+        className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${activeTab === 'postcrash'
+          ? 'text-cyan-400 border-b-2 border-cyan-400'
+          : 'text-gray-400 hover:text-gray-200'
+          }`}
         onClick={() => setActiveTab('postcrash')}
       >
         <FileText className="w-5 h-5" />
         Post-Crash Analysis
       </button>
       <button
-        className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
-          activeTab === 'audit'
-            ? 'text-cyan-400 border-b-2 border-cyan-400'
-            : 'text-gray-400 hover:text-gray-200'
-        }`}
+        className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${activeTab === 'audit'
+          ? 'text-cyan-400 border-b-2 border-cyan-400'
+          : 'text-gray-400 hover:text-gray-200'
+          }`}
         onClick={() => setActiveTab('audit')}
       >
         <ShieldCheck className="w-5 h-5" />
@@ -1208,7 +1207,7 @@ export const CKCrashPrevention: React.FC = () => {
                 <Brain className="w-5 h-5 text-purple-400" />
                 Prevention Plan
               </h3>
-              
+
               <div className="mb-4 flex gap-4 text-sm">
                 <div>
                   <span className="text-gray-400">Risk Reduction: </span>

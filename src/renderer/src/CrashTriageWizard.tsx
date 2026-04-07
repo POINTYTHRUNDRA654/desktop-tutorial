@@ -101,7 +101,7 @@ export const CrashTriageWizard: React.FC<CrashTriageWizardProps> = ({ embedded =
   const links = useMemo(() => {
     // Use searches instead of brittle direct URLs.
     return uniq([
-      'https://www.nexusmods.com/fallout4/search/?gsearch=Buffout%204&gsearchtype=mods',
+      'https://www.nexusmods.com/fallout4/mods/84214',
       'https://www.nexusmods.com/fallout4/search/?gsearch=FO4Edit&gsearchtype=mods',
       'https://www.nexusmods.com/fallout4/search/?gsearch=F4SE&gsearchtype=mods',
       'https://www.nexusmods.com/fallout4/search/?gsearch=Address%20Library&gsearchtype=mods',
@@ -122,30 +122,30 @@ export const CrashTriageWizard: React.FC<CrashTriageWizardProps> = ({ embedded =
               <>
                 Include: what you clicked, what you expected, what happened instead. Note whether it happens in a new game or only a specific save.
 
-            <ToolsInstallVerifyPanel
-              accentClassName="text-emerald-300"
-              description="This wizard focuses on reproducibility and isolation. External tools are optional but often required for actionable crash data (Buffout/F4SE/FO4Edit)."
-              tools={[
-                { label: 'Nexus search: Buffout 4', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=Buffout%204&gsearchtype=mods', kind: 'search' },
-                { label: 'Nexus search: F4SE', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=F4SE&gsearchtype=mods', kind: 'search' },
-                { label: 'Nexus search: Address Library', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=Address%20Library&gsearchtype=mods', kind: 'search' },
-                { label: 'Nexus search: FO4Edit', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=FO4Edit&gsearchtype=mods', kind: 'search' },
-              ]}
-              verify={[
-                'Pick a scenario (CTD / infinite load / broken save) and confirm steps update appropriately.',
-                'Check off 2–3 steps and refresh; confirm progress persists.',
-                'Copy your checklist summary and confirm it matches your current selections.'
-              ]}
-              firstTestLoop={[
-                'Reproduce the failure once (same save, same location, same action).',
-                'Collect logs, then disable half your mods to bisect and re-test.',
-                'When you have a minimal repro, write it down as a short checklist.'
-              ]}
-              troubleshooting={[
-                'If you cannot reproduce the issue consistently, stop changing multiple variables at once.',
-                'If you are missing logs/tools, install only what you need before continuing.'
-              ]}
-            />
+                <ToolsInstallVerifyPanel
+                  accentClassName="text-emerald-300"
+                  description="This wizard focuses on reproducibility and isolation. External tools are optional but often required for actionable crash data (Addictol/F4SE/FO4Edit)."
+                  tools={[
+                    { label: 'Nexus: Addictol #84214', href: 'https://www.nexusmods.com/fallout4/mods/84214', kind: 'search' },
+                    { label: 'Nexus search: F4SE', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=F4SE&gsearchtype=mods', kind: 'search' },
+                    { label: 'Nexus search: Address Library', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=Address%20Library&gsearchtype=mods', kind: 'search' },
+                    { label: 'Nexus search: FO4Edit', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=FO4Edit&gsearchtype=mods', kind: 'search' },
+                  ]}
+                  verify={[
+                    'Pick a scenario (CTD / infinite load / broken save) and confirm steps update appropriately.',
+                    'Check off 2–3 steps and refresh; confirm progress persists.',
+                    'Copy your checklist summary and confirm it matches your current selections.'
+                  ]}
+                  firstTestLoop={[
+                    'Reproduce the failure once (same save, same location, same action).',
+                    'Collect logs, then disable half your mods to bisect and re-test.',
+                    'When you have a minimal repro, write it down as a short checklist.'
+                  ]}
+                  troubleshooting={[
+                    'If you cannot reproduce the issue consistently, stop changing multiple variables at once.',
+                    'If you are missing logs/tools, install only what you need before continuing.'
+                  ]}
+                />
               </>
             ),
           },
@@ -344,11 +344,10 @@ export const CrashTriageWizard: React.FC<CrashTriageWizardProps> = ({ embedded =
                   key={s.id}
                   type="button"
                   onClick={() => setState((p) => ({ ...p, scenario: s.id }))}
-                  className={`px-3 py-2 rounded-lg border text-[11px] font-black transition-colors ${
-                    state.scenario === s.id
+                  className={`px-3 py-2 rounded-lg border text-[11px] font-black transition-colors ${state.scenario === s.id
                       ? 'bg-blue-900/30 border-blue-500/40 text-blue-200'
                       : 'bg-slate-900/40 border-slate-800 text-slate-300 hover:border-slate-600'
-                  }`}
+                    }`}
                 >
                   {s.label}
                 </button>
