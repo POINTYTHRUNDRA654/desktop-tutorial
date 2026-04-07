@@ -80,6 +80,7 @@ const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
 const QuickReference = React.lazy(() => import('./QuickReference').then(module => ({ default: module.QuickReference })));
 const KnowledgeSearch = React.lazy(() => import('./KnowledgeSearch'));
 const Lorekeeper = React.lazy(() => import('./Lorekeeper'));
+const LocalCapabilities = React.lazy(() => import('./LocalCapabilities'));
 
 // Tool extensions (lazy-loaded named exports mapped to default for React.lazy)
 const MO2Extension = React.lazy(() => import('./MO2Extension').then(module => ({ default: module.MO2Extension })));
@@ -1328,7 +1329,7 @@ const App: React.FC = () => {
                   <Route path="/diagnostics" element={<ErrorBoundary><DiagnosticsHub /></ErrorBoundary>} />
                   <Route path="/tool-verify" element={<Navigate to="/diagnostics" replace />} />
                   <Route path="/community" element={<Navigate to="/learn" replace />} />
-                  <Route path="/capabilities" element={<Navigate to="/learn" replace />} />
+                  <Route path="/capabilities" element={<ErrorBoundary><LocalCapabilities /></ErrorBoundary>} />
                   <Route path="/script-analyzer" element={<Navigate to="/devtools" replace />} />
                   <Route path="/template-generator" element={<Navigate to="/devtools" replace />} />
                   <Route path="/install-wizard" element={<Navigate to="/wizards" replace />} />
