@@ -43,6 +43,8 @@
     "prepackage": "npm run validate-version && node scripts/verify-build.mjs && node scripts/package-blender-addons.mjs && node scripts/fetch-python-embedded.mjs",
     "package": "npm run build && electron-builder",
     "package:win": "npm run build && electron-builder --win",
+    "package:win:universal": "npm run build && electron-builder --win",
+    "package:win:nvidia": "npm run build && electron-builder --win --config.productName=\"Mossy NVIDIA\" --config.appId=\"com.volttech.desktop-nvidia\" --config.nsis.shortcutName=\"Mossy NVIDIA\" --config.nsis.include=\"build/installer-include-nvidia.nsh\" --config.win.artifactName=\"Mossy NVIDIA ${version}.${ext}\"",
     "setup-keys": "node scripts/setup-keys.mjs",
     "check-comms": "node scripts/check-comms.mjs",
     "test-web-search": "node scripts/test-web-search.mjs",

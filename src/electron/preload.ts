@@ -129,9 +129,16 @@ const IPC_CHANNELS = {
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
 
+  // Edition detection
+  GET_MOSSY_EDITION: 'get-mossy-edition',
+
   // GGUF / Unsloth model import
   GGUF_PICK_FILE: 'gguf-pick-file',
   GGUF_IMPORT_TO_OLLAMA: 'gguf-import-to-ollama',
+
+  // NVIDIA fine-tuning (Unsloth)
+  FINE_TUNE_PICK_DATASET: 'fine-tune-pick-dataset',
+  FINE_TUNE_START: 'fine-tune-start',
 
   // Training dataset
   TRAINING_DATA_ADD_PAIR: 'training-data-add-pair',
@@ -1753,6 +1760,34 @@ const electronAPI = {
    */
   trainingDataClear: (): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.TRAINING_DATA_CLEAR);
+  },
+
+  /**
+   * Edition: Returns 'nvidia' or 'universal' depending on which build is running.
+   */
+  getMossyEdition: (): Promise<'nvidia' | 'universal'> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GET_MOSSY_EDITION);
+  },
+
+  /**
+   * Fine-Tune: Open a file picker for the training dataset (.jsonl)
+   */
+  fineTunePickDataset: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FINE_TUNE_PICK_DATASET);
+  },
+
+  /**
+   * Fine-Tune: Start an Unsloth fine-tuning run (NVIDIA edition only).
+   * Streams progress via 'fine-tune-progress' IPC events.
+   */
+  fineTuneStart: (opts: {
+    datasetPath: string;
+    modelId: string;
+    loraRank: number;
+    maxSteps: number;
+    outputName: string;
+  }): Promise<{ ok: boolean; outputPath?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FINE_TUNE_START, opts);
   },
 
   /**
