@@ -35,6 +35,30 @@ type GgufImportState = {
   error: string;
 };
 
+type FineTuneState = {
+  datasetPath: string;
+  modelId: string;
+  loraRank: number;
+  maxSteps: number;
+  outputName: string;
+  busy: boolean;
+  log: string[];
+  result: string;
+  error: string;
+};
+
+const FINE_TUNE_MODELS = [
+  { id: 'unsloth/gemma-4-it-unsloth-bnb-4bit', label: 'Gemma 4 4-bit (recommended, 8 GB VRAM)' },
+  { id: 'unsloth/llama-3-8b-Instruct-bnb-4bit', label: 'Llama 3 8B 4-bit (8 GB VRAM)' },
+  { id: 'unsloth/Qwen2.5-7B-Instruct-bnb-4bit', label: 'Qwen 2.5 7B 4-bit (8 GB VRAM)' },
+];
+
+const VRAM_ESTIMATES: Record<string, string> = {
+  'unsloth/gemma-4-it-unsloth-bnb-4bit': '~6–8 GB',
+  'unsloth/llama-3-8b-Instruct-bnb-4bit': '~6–8 GB',
+  'unsloth/Qwen2.5-7B-Instruct-bnb-4bit': '~6–8 GB',
+};
+
 type LocalCapabilitiesProps = {
   embedded?: boolean;
 };
@@ -50,11 +74,23 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [edition, setEdition] = useState<'universal' | 'nvidia'>('universal');
   const [gguf, setGguf] = useState<GgufImportState>({
     ggufPath: '',
     modelName: 'mossy-fo4',
     systemPrompt: DEFAULT_MOSSY_SYSTEM,
     busy: false,
+    result: '',
+    error: '',
+  });
+  const [fineTune, setFineTune] = useState<FineTuneState>({
+    datasetPath: '',
+    modelId: FINE_TUNE_MODELS[0].id,
+    loraRank: 16,
+    maxSteps: 60,
+    outputName: 'mossy-fo4-ft',
+    busy: false,
+    log: [],
     result: '',
     error: '',
   });
@@ -92,6 +128,18 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
 
   useEffect(() => {
     refresh();
+    if (api?.getMossyEdition) {
+      api.getMossyEdition().then((ed: 'nvidia' | 'universal') => setEdition(ed)).catch(() => {});
+    }
+    // Listen for fine-tune progress events
+    const onProgress = (_event: any, data: { message: string }) => {
+      setFineTune((ft) => ({ ...ft, log: [...ft.log.slice(-199), data.message] }));
+    };
+    const electron = (window as any).electron;
+    if (electron?.ipcRenderer) {
+      electron.ipcRenderer.on('fine-tune-progress', onProgress);
+      return () => { electron.ipcRenderer.removeListener('fine-tune-progress', onProgress); };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -165,6 +213,51 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
       setError(String(e?.message || e));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const pickDatasetFile = async () => {
+    if (!api?.fineTunePickDataset) return;
+    const filePath = await api.fineTunePickDataset();
+    if (filePath) {
+      setFineTune((ft) => ({ ...ft, datasetPath: filePath, result: '', error: '' }));
+    }
+  };
+
+  const startFineTune = async () => {
+    if (!api?.fineTuneStart) {
+      setFineTune((ft) => ({ ...ft, error: 'fineTuneStart API not available. Is Electron running?' }));
+      return;
+    }
+    if (!fineTune.datasetPath.trim()) {
+      setFineTune((ft) => ({ ...ft, error: 'Select a training dataset (.jsonl) first.' }));
+      return;
+    }
+    setFineTune((ft) => ({ ...ft, busy: true, log: [], result: '', error: '' }));
+    try {
+      const resp = await api.fineTuneStart({
+        datasetPath: fineTune.datasetPath,
+        modelId: fineTune.modelId,
+        loraRank: fineTune.loraRank,
+        maxSteps: fineTune.maxSteps,
+        outputName: fineTune.outputName,
+      });
+      if (resp?.ok) {
+        setFineTune((ft) => ({
+          ...ft,
+          busy: false,
+          result: `✅ Training complete! GGUF saved to: ${resp.outputPath}`,
+        }));
+        // Pre-fill the GGUF import path for one-click import
+        if (resp.outputPath) {
+          setGguf((g) => ({ ...g, ggufPath: resp.outputPath, result: '', error: '' }));
+        }
+        toast.success('Fine-tuning complete! GGUF ready to import.');
+      } else {
+        setFineTune((ft) => ({ ...ft, busy: false, error: String(resp?.error || 'Training failed.') }));
+      }
+    } catch (e: any) {
+      setFineTune((ft) => ({ ...ft, busy: false, error: String(e?.message || e) }));
     }
   };
 
@@ -439,6 +532,151 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
           </div>
         </details>
       </div>
+
+      {/* ── Fine-Tune (NVIDIA edition) ───────────────────────────────────── */}
+      {edition === 'universal' ? (
+        <div className="bg-slate-900/60 border border-slate-700/50 rounded-lg p-4 space-y-2 opacity-60">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-slate-400">🔒 Local Fine-Tuning</span>
+            <span className="text-xs text-slate-500">— requires Mossy NVIDIA Edition</span>
+          </div>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Train Gemma 4, Llama 3, or Qwen 2.5 on your own Fallout 4 Q&A dataset using Unsloth (8 GB VRAM).
+            Download <strong className="text-slate-400">Mossy NVIDIA Edition</strong> to unlock this feature.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-slate-900/60 border border-green-800/50 rounded-lg p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-green-300">⚡ Local Fine-Tuning</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-green-900/60 text-green-400 font-semibold text-xs">NVIDIA</span>
+            <span className="text-xs text-slate-400">— Train Gemma 4 / Llama 3 / Qwen 2.5 with Unsloth</span>
+          </div>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Fine-tune a local model on your Fallout 4 modding Q&A dataset (exported from the Training Data panel)
+            and export it as a GGUF file that Ollama can serve. Requires an NVIDIA GPU with 8 GB+ VRAM.
+          </p>
+
+          {/* Dataset picker */}
+          <div className="space-y-1">
+            <label className="text-xs text-slate-400">Training dataset (.jsonl)</label>
+            <div className="flex gap-2 items-center">
+              <input
+                value={fineTune.datasetPath}
+                readOnly
+                placeholder="No dataset selected…"
+                className="flex-1 bg-slate-950/60 border border-slate-700 rounded px-3 py-2 text-xs text-slate-300 outline-none truncate"
+              />
+              <button
+                onClick={pickDatasetFile}
+                disabled={fineTune.busy}
+                className="text-xs px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-60 text-slate-200 whitespace-nowrap"
+              >
+                Browse…
+              </button>
+            </div>
+          </div>
+
+          {/* Model picker */}
+          <div className="space-y-1">
+            <label className="text-xs text-slate-400">
+              Base model
+              {fineTune.modelId && (
+                <span className="ml-2 text-slate-500">
+                  VRAM: {VRAM_ESTIMATES[fineTune.modelId] ?? '~8 GB'}
+                </span>
+              )}
+            </label>
+            <select
+              value={fineTune.modelId}
+              onChange={(e) => setFineTune((ft) => ({ ...ft, modelId: e.target.value }))}
+              disabled={fineTune.busy}
+              className="w-full bg-slate-950/60 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 outline-none"
+            >
+              {FINE_TUNE_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* LoRA rank */}
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400">LoRA rank (higher = more capacity)</label>
+              <input
+                type="number"
+                min={4}
+                max={128}
+                step={4}
+                value={fineTune.loraRank}
+                onChange={(e) => setFineTune((ft) => ({ ...ft, loraRank: Number(e.target.value) }))}
+                disabled={fineTune.busy}
+                className="w-full bg-slate-950/60 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 outline-none"
+              />
+            </div>
+
+            {/* Max steps */}
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400">Max steps (60–200 recommended)</label>
+              <input
+                type="number"
+                min={10}
+                max={2000}
+                step={10}
+                value={fineTune.maxSteps}
+                onChange={(e) => setFineTune((ft) => ({ ...ft, maxSteps: Number(e.target.value) }))}
+                disabled={fineTune.busy}
+                className="w-full bg-slate-950/60 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Output name */}
+          <div className="space-y-1">
+            <label className="text-xs text-slate-400">Output model name (used for GGUF filename)</label>
+            <input
+              value={fineTune.outputName}
+              onChange={(e) => setFineTune((ft) => ({ ...ft, outputName: e.target.value }))}
+              placeholder="mossy-fo4-ft"
+              disabled={fineTune.busy}
+              className="w-full bg-slate-950/60 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 outline-none"
+            />
+          </div>
+
+          {/* Start button */}
+          <button
+            onClick={startFineTune}
+            disabled={fineTune.busy || !fineTune.datasetPath}
+            className="text-xs px-4 py-2 rounded bg-green-700 hover:bg-green-600 disabled:opacity-60 text-white font-semibold"
+          >
+            {fineTune.busy ? '⏳ Training…' : '🚀 Start Training'}
+          </button>
+
+          {/* Live log */}
+          {(fineTune.busy || fineTune.log.length > 0) && (
+            <div className="bg-slate-950/70 border border-slate-800 rounded p-2 max-h-40 overflow-y-auto font-mono text-xs text-slate-300 space-y-0.5">
+              {fineTune.log.map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
+              {fineTune.busy && (
+                <div className="text-green-400 animate-pulse">▌</div>
+              )}
+            </div>
+          )}
+
+          {fineTune.result && (
+            <div className="text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded px-3 py-2">
+              {fineTune.result}
+              <span className="text-slate-400 ml-2">— GGUF path pre-filled in the Import section above.</span>
+            </div>
+          )}
+          {fineTune.error && (
+            <div className="text-xs text-red-300 bg-red-950/40 border border-red-800/40 rounded px-3 py-2">
+              {fineTune.error}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
