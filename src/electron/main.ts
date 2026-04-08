@@ -274,6 +274,10 @@ const dedupeAllowedPathsByScan = new Map<string, Set<string>>();
 // Development mode flag - only check for dev when not packaged
 const isDev = !app.isPackaged && (process.env.NODE_ENV === 'development' || process.env.ELECTRON_IS_TEST === 'true');
 
+// Edition: 'nvidia' when the productName contains "NVIDIA", otherwise 'universal'.
+// Determined at runtime so both editions can share 100% of the source.
+const MOSSY_EDITION: 'nvidia' | 'universal' = app.getName().toLowerCase().includes('nvidia') ? 'nvidia' : 'universal';
+
 // Allow override of start URL for development
 const ELECTRON_START_URL = process.env.ELECTRON_START_URL;
 
@@ -387,15 +391,26 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
       }
     }
 
-    // ── 3. Install torch (CPU) with --target ──────────────────────────────────
-    sendProgress('📦 Setting up PyTorch AI features… (downloading ~200 MB, please wait)');
+    // ── 3. Install torch with --target ───────────────────────────────────────
+    // NVIDIA edition: install CUDA 12.4 build of PyTorch + Unsloth for local fine-tuning.
+    // Universal edition: install CPU-only build (works on all hardware).
+    const isNvidiaEdition = MOSSY_EDITION === 'nvidia';
+    const torchIndexUrl = isNvidiaEdition
+      ? 'https://download.pytorch.org/whl/cu124'
+      : 'https://download.pytorch.org/whl/cpu';
+
+    if (isNvidiaEdition) {
+      sendProgress('📦 Setting up PyTorch (CUDA 12.4) + Unsloth AI features… (downloading ~3 GB, please wait)');
+    } else {
+      sendProgress('📦 Setting up PyTorch AI features… (downloading ~200 MB, please wait)');
+    }
     fs.mkdirSync(torchPackagesDir, { recursive: true });
 
     // pythonExe is always a Python interpreter; invoke pip as a module.
     const pipBaseArgs = ['-m', 'pip', 'install', 'torch', 'torchvision',
       '--target', torchPackagesDir,
-      '--index-url', 'https://download.pytorch.org/whl/cpu',
-      '--timeout', '300', '--no-cache-dir'];
+      '--index-url', torchIndexUrl,
+      '--timeout', '600', '--no-cache-dir'];
 
     const pipResult = await runCmd(pythonExe, pipBaseArgs);
 
@@ -404,8 +419,8 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
       sendProgress('Retrying without torchvision…');
       const retry = await runCmd(pythonExe, ['-m', 'pip', 'install', 'torch',
         '--target', torchPackagesDir,
-        '--index-url', 'https://download.pytorch.org/whl/cpu',
-        '--timeout', '300', '--no-cache-dir']);
+        '--index-url', torchIndexUrl,
+        '--timeout', '600', '--no-cache-dir']);
       if (retry.code !== 0) {
         sendProgress(`❌ PyTorch installation failed. Open Settings → External Tools to try manually.\n${pipResult.stderr || pipResult.stdout}`);
         return;
@@ -426,7 +441,35 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
     const torchVersion = verifyResult.stdout.trim();
     const s = loadSettings();
     saveSettings({ ...s, pytorchPath: torchPackagesDir });
-    sendProgress(`✅ PyTorch ${torchVersion} set up automatically. AI features are ready!`);
+
+    // ── 5. NVIDIA edition: install Unsloth for local fine-tuning ─────────────
+    if (isNvidiaEdition) {
+      sendProgress('📦 Installing Unsloth fine-tuning library… (this may take a few minutes)');
+      const unslothResult = await runCmd(pythonExe, [
+        '-m', 'pip', 'install', 'unsloth[cu124-torch260]',
+        '--target', torchPackagesDir,
+        '--timeout', '600', '--no-cache-dir',
+      ]);
+
+      if (unslothResult.code !== 0) {
+        // Fall back to the base unsloth package (without pre-built CUDA extras)
+        sendProgress('Retrying with base unsloth package…');
+        const unslothRetry = await runCmd(pythonExe, [
+          '-m', 'pip', 'install', 'unsloth',
+          '--target', torchPackagesDir,
+          '--timeout', '600', '--no-cache-dir',
+        ]);
+        if (unslothRetry.code !== 0) {
+          sendProgress(`⚠️ Unsloth install failed. Fine-tuning won't be available until you run: pip install unsloth\n${unslothResult.stderr || unslothResult.stdout}`);
+          sendProgress(`✅ PyTorch ${torchVersion} set up automatically. AI features are ready (no fine-tuning).`);
+          return;
+        }
+      }
+
+      sendProgress(`✅ PyTorch ${torchVersion} + Unsloth set up automatically. Fine-tuning and AI features are ready!`);
+    } else {
+      sendProgress(`✅ PyTorch ${torchVersion} set up automatically. AI features are ready!`);
+    }
 
   } catch (err: any) {
     sendProgress(`❌ Auto-setup error: ${err?.message || String(err)}`);
@@ -5425,6 +5468,239 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   );
 
   // ── End GGUF / Unsloth model import ──────────────────────────────────────
+
+  // ── Edition + Fine-Tuning (NVIDIA edition) ────────────────────────────────
+
+  /**
+   * Handler: get-mossy-edition
+   * Returns 'nvidia' or 'universal' so the renderer can gate fine-tune UI.
+   */
+  registerHandler(IPC_CHANNELS.GET_MOSSY_EDITION, async () => MOSSY_EDITION);
+
+  /**
+   * Handler: fine-tune-pick-dataset
+   * Opens a file-picker restricted to .jsonl training dataset files.
+   * Returns the selected path, or '' if cancelled.
+   */
+  registerHandler(IPC_CHANNELS.FINE_TUNE_PICK_DATASET, async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select Training Dataset (.jsonl)',
+      properties: ['openFile'],
+      filters: [
+        { name: 'JSONL Dataset', extensions: ['jsonl'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths?.length) return '';
+    return result.filePaths[0];
+  });
+
+  /**
+   * Handler: fine-tune-start
+   * NVIDIA edition only. Generates a Python Unsloth training script and runs it.
+   * Streams progress via 'fine-tune-progress' IPC events on mainWindow.
+   *
+   * Params:
+   *   datasetPath  – Path to a .jsonl file (ShareGPT/Unsloth format)
+   *   modelId      – HuggingFace model id (e.g. "unsloth/gemma-4-it-unsloth-bnb-4bit")
+   *   loraRank     – LoRA rank (e.g. 16)
+   *   maxSteps     – Max training steps (e.g. 60)
+   *   outputName   – Output directory name under userData/fine-tuned-models/
+   *
+   * Returns: { ok: true, outputPath } | { ok: false, error }
+   */
+  registerHandler(
+    IPC_CHANNELS.FINE_TUNE_START,
+    async (
+      _event,
+      req: { datasetPath: string; modelId: string; loraRank: number; maxSteps: number; outputName: string },
+    ) => {
+      if (MOSSY_EDITION !== 'nvidia') {
+        return { ok: false, error: 'Fine-tuning requires the Mossy NVIDIA edition.' };
+      }
+
+      try {
+        const datasetPath = String(req?.datasetPath || '').trim();
+        const modelId = String(req?.modelId || 'unsloth/gemma-4-it-unsloth-bnb-4bit').trim();
+        const loraRank = Math.max(1, Math.min(128, Number(req?.loraRank) || 16));
+        const maxSteps = Math.max(1, Math.min(2000, Number(req?.maxSteps) || 60));
+        const outputName = String(req?.outputName || 'mossy-fo4-ft').trim()
+          .toLowerCase().replace(/[^a-z0-9-_]/g, '-');
+
+        if (!datasetPath) return { ok: false, error: 'No dataset path provided.' };
+        if (!fs.existsSync(datasetPath)) return { ok: false, error: `Dataset not found: ${datasetPath}` };
+
+        const userData = app.getPath('userData');
+        const modelsDir = path.join(userData, 'fine-tuned-models');
+        fs.mkdirSync(modelsDir, { recursive: true });
+
+        const outputDir = path.join(modelsDir, outputName);
+        const ggufOutputPath = `${outputDir}.gguf`;
+        const scriptPath = path.join(app.getPath('temp'), `mossy-finetune-${Date.now()}.py`);
+
+        const sendFtProgress = (msg: string) => {
+          console.log('[Fine-Tune]', msg);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('fine-tune-progress', { message: msg });
+          }
+        };
+
+        // Build the Python training script using Unsloth
+        const pytorchPath = (loadSettings()?.pytorchPath as string) || '';
+        const sysPathInject = pytorchPath
+          ? `import sys\nsys.path.insert(0, ${JSON.stringify(pytorchPath)})\n`
+          : '';
+
+        const trainingScript = [
+          '#!/usr/bin/env python3',
+          '# Auto-generated Unsloth fine-tuning script — do not edit manually.',
+          sysPathInject,
+          'import os, json',
+          'from unsloth import FastLanguageModel',
+          'from datasets import Dataset',
+          'from trl import SFTTrainer',
+          'from transformers import TrainingArguments',
+          '',
+          `MODEL_ID = ${JSON.stringify(modelId)}`,
+          `DATASET_PATH = ${JSON.stringify(datasetPath)}`,
+          `OUTPUT_DIR = ${JSON.stringify(outputDir)}`,
+          `GGUF_PATH = ${JSON.stringify(ggufOutputPath)}`,
+          `LORA_RANK = ${loraRank}`,
+          `MAX_STEPS = ${maxSteps}`,
+          `MAX_SEQ_LENGTH = 4096`,
+          '',
+          '# ── Load model ───────────────────────────────────────────────────────────',
+          'print("[Mossy] Loading model...")',
+          'model, tokenizer = FastLanguageModel.from_pretrained(',
+          '    model_name=MODEL_ID,',
+          '    max_seq_length=MAX_SEQ_LENGTH,',
+          '    load_in_4bit=True,',
+          ')',
+          '',
+          '# ── Apply LoRA adapters ───────────────────────────────────────────────────',
+          'model = FastLanguageModel.get_peft_model(',
+          '    model,',
+          '    r=LORA_RANK,',
+          '    target_modules=["q_proj","k_proj","v_proj","o_proj","gate_proj","up_proj","down_proj"],',
+          '    lora_alpha=LORA_RANK,',
+          '    lora_dropout=0,',
+          '    bias="none",',
+          '    use_gradient_checkpointing="unsloth",',
+          ')',
+          '',
+          '# ── Load dataset ─────────────────────────────────────────────────────────',
+          'print("[Mossy] Loading dataset...")',
+          'raw_data = []',
+          'with open(DATASET_PATH, "r", encoding="utf-8") as f:',
+          '    for line in f:',
+          '        line = line.strip()',
+          '        if line:',
+          '            raw_data.append(json.loads(line))',
+          '',
+          '# Convert ShareGPT format to text using chat template',
+          'def format_row(row):',
+          '    convs = row.get("conversations", [])',
+          '    text = tokenizer.apply_chat_template(convs, tokenize=False, add_generation_prompt=False)',
+          '    return {"text": text}',
+          '',
+          'dataset = Dataset.from_list(raw_data).map(format_row)',
+          '',
+          '# ── Train ────────────────────────────────────────────────────────────────',
+          'print(f"[Mossy] Starting training for {MAX_STEPS} steps...")',
+          'trainer = SFTTrainer(',
+          '    model=model,',
+          '    tokenizer=tokenizer,',
+          '    train_dataset=dataset,',
+          '    dataset_text_field="text",',
+          '    max_seq_length=MAX_SEQ_LENGTH,',
+          '    args=TrainingArguments(',
+          '        per_device_train_batch_size=2,',
+          '        gradient_accumulation_steps=4,',
+          '        warmup_steps=5,',
+          '        max_steps=MAX_STEPS,',
+          '        learning_rate=2e-4,',
+          '        fp16=not __import__("torch").cuda.is_bf16_supported(),',
+          '        bf16=__import__("torch").cuda.is_bf16_supported(),',
+          '        logging_steps=1,',
+          '        optim="adamw_8bit",',
+          '        weight_decay=0.01,',
+          '        lr_scheduler_type="linear",',
+          '        seed=3407,',
+          '        output_dir=OUTPUT_DIR,',
+          '        report_to="none",',
+          '    ),',
+          ')',
+          'trainer.train()',
+          '',
+          '# ── Export GGUF ──────────────────────────────────────────────────────────',
+          'print(f"[Mossy] Exporting GGUF to {GGUF_PATH} ...")',
+          'model.save_pretrained_gguf(GGUF_PATH, tokenizer, quantization_method="q4_k_m")',
+          'print(f"[Mossy] Done! GGUF saved to {GGUF_PATH}")',
+        ].join('\n');
+
+        fs.writeFileSync(scriptPath, trainingScript, 'utf-8');
+
+        // Find Python executable
+        const systemCandidates = process.platform === 'win32'
+          ? ['python', 'python3', 'py']
+          : ['python3', 'python'];
+        let pythonExe = '';
+        for (const candidate of systemCandidates) {
+          const result = await new Promise<{ code: number }>((resolve) => {
+            const child = spawn(candidate, ['--version'], { stdio: 'ignore', windowsHide: true });
+            child.on('close', (code) => resolve({ code: code ?? -1 }));
+            child.on('error', () => resolve({ code: -1 }));
+          });
+          if (result.code === 0) { pythonExe = candidate; break; }
+        }
+
+        if (!pythonExe) {
+          return { ok: false, error: 'Python not found. Install Python 3.10+ and restart Mossy.' };
+        }
+
+        sendFtProgress('🚀 Starting Unsloth fine-tuning run…');
+
+        const trainEnv: NodeJS.ProcessEnv = pytorchPath
+          ? { ...process.env, PYTHONPATH: pytorchPath }
+          : { ...process.env };
+
+        await new Promise<void>((resolve, reject) => {
+          const child = spawn(pythonExe, [scriptPath], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: trainEnv,
+            windowsHide: true,
+          });
+          child.stdout?.on('data', (d: Buffer) => {
+            const lines = d.toString().split('\n').filter((l) => l.trim());
+            lines.forEach((line) => sendFtProgress(line));
+          });
+          child.stderr?.on('data', (d: Buffer) => {
+            const lines = d.toString().split('\n').filter((l) => l.trim());
+            lines.forEach((line) => sendFtProgress(line));
+          });
+          child.on('close', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`Training process exited with code ${code}`));
+          });
+          child.on('error', reject);
+        });
+
+        sendFtProgress(`✅ Training complete! GGUF saved to ${ggufOutputPath}`);
+
+        // Attempt to clean up temp script
+        try { fs.unlinkSync(scriptPath); } catch { /* ignore */ }
+
+        return { ok: true, outputPath: ggufOutputPath };
+
+      } catch (err: any) {
+        const msg = String(err?.message || err);
+        console.error('[Fine-Tune] Error:', msg);
+        return { ok: false, error: msg };
+      }
+    },
+  );
+
+  // ── End Edition + Fine-Tuning ─────────────────────────────────────────────
 
   /**
    * AI Chat Handler - OpenAI

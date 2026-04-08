@@ -230,9 +230,16 @@ export const IPC_CHANNELS = {
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
 
+  // Edition detection
+  GET_MOSSY_EDITION: 'get-mossy-edition',
+
   // GGUF / Unsloth model import
   GGUF_PICK_FILE: 'gguf-pick-file',
   GGUF_IMPORT_TO_OLLAMA: 'gguf-import-to-ollama',
+
+  // NVIDIA fine-tuning (Unsloth)
+  FINE_TUNE_PICK_DATASET: 'fine-tune-pick-dataset',
+  FINE_TUNE_START: 'fine-tune-start',
 
   // Training dataset (fine-tuning pipeline)
   TRAINING_DATA_ADD_PAIR: 'training-data-add-pair',
