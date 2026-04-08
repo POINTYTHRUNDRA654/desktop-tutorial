@@ -85,6 +85,10 @@ export const IPC_CHANNELS = {
   SAVE_KNOWLEDGE_VAULT: 'save-knowledge-vault',
   LOAD_KNOWLEDGE_VAULT: 'load-knowledge-vault',
 
+  // Spriggit integration — run Spriggit.CLI.exe serialize and read results
+  SPRIGGIT_PICK_CLI: 'spriggit-pick-cli',
+  SPRIGGIT_SERIALIZE: 'spriggit-serialize',
+
   // Mod Projects file persistence (backup/restore to userData/mod-projects.json)
   SAVE_MOD_PROJECTS: 'save-mod-projects',
   LOAD_MOD_PROJECTS: 'load-mod-projects',
@@ -519,6 +523,20 @@ export interface ElectronAPI {
   saveKnowledgeVault: (items: unknown[]) => Promise<{ ok: boolean; error?: string }>;
   /** Load the Knowledge Vault from userData/knowledge-vault.json (returns [] if not found) */
   loadKnowledgeVaultFromFile: () => Promise<unknown[]>;
+
+  // Spriggit integration
+  /** Open a file picker to select Spriggit.CLI.exe — returns selected path or '' */
+  spriggitPickCli: () => Promise<string>;
+  /**
+   * Run Spriggit.CLI.exe serialize on a Fallout 4 Data folder.
+   * Returns the list of YAML files produced and their truncated text content,
+   * or an error string on failure.
+   */
+  spriggitSerialize: (params: {
+    cliPath: string;
+    dataPath: string;
+    outputPath: string;
+  }) => Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string }>;
 
   /** Persist all mod projects to userData/mod-projects.json so work survives reinstalls */
   saveModProjects: (projects: unknown[]) => Promise<{ ok: boolean; error?: string }>;
