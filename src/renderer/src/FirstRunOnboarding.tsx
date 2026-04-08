@@ -1354,6 +1354,24 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             }`}>
                                 {spriggitStatus === 'running' && <Loader className="w-4 h-4 inline-block animate-spin mr-2" />}
                                 {spriggitMessage}
+                                {spriggitStatus === 'error' && spriggitMessage.includes('0xFFFFFFFF') && (
+                                    <div className="mt-3">
+                                        <button
+                                            type="button"
+                                            className="underline text-red-300 hover:text-red-100 transition-colors"
+                                            onClick={() => {
+                                                const api = getElectronApi();
+                                                if (api?.openExternal) {
+                                                    void api.openExternal('https://dotnet.microsoft.com/download/dotnet/6.0');
+                                                } else {
+                                                    window.open('https://dotnet.microsoft.com/download/dotnet/6.0', '_blank');
+                                                }
+                                            }}
+                                        >
+                                            Download .NET Desktop Runtime 6.0 →
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -1361,7 +1379,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {spriggitStatus !== 'done' && (
                                 <button
                                     type="button"
-                                    disabled={spriggitStatus === 'running' || !spriggitCliPath || !spriggitDataPath}
+                                    disabled={spriggitStatus === 'running' || !spriggitCliPath || !spriggitDataPath || dotnetOk === false}
                                     onClick={() => void runSpriggitDigest()}
                                     className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
                                 >
