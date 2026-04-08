@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw, Settings as SettingsIcon, Wifi, Wrench } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw, Settings as SettingsIcon, Wifi, Wrench, Check } from 'lucide-react';
 import type { ElectronAPI } from '../../electron/types';
 import PrivacySettings from './PrivacySettings';
 import LanguageSettings from './LanguageSettings';
@@ -129,7 +129,87 @@ type HubSection = {
   content: React.ReactNode;
 };
 
-// ─── Internet Access Test panel ───────────────────────────────────────────────
+// ─── Utility Hook for Tracking Activated Settings Buttons ───────────────────
+
+export const useSettingsActivation = () => {
+  const markActivated = (buttonId: string) => {
+    const activated = new Set(
+      (localStorage.getItem('mossy_settings_activated_buttons') !== null
+        ? JSON.parse(localStorage.getItem('mossy_settings_activated_buttons')!)
+        : []
+      )
+    );
+    activated.add(buttonId);
+    localStorage.setItem('mossy_settings_activated_buttons', JSON.stringify(Array.from(activated)));
+    // Dispatch custom event to notify UI updates
+    window.dispatchEvent(new CustomEvent('settings-button-activated', { detail: { buttonId } }));
+  };
+
+  const isActivated = (buttonId: string) => {
+    const activated = new Set(
+      (localStorage.getItem('mossy_settings_activated_buttons') !== null
+        ? JSON.parse(localStorage.getItem('mossy_settings_activated_buttons')!)
+        : []
+      )
+    );
+    return activated.has(buttonId);
+  };
+
+  return { markActivated, isActivated };
+};
+
+// ─── Custom Button Wrapper for Settings ───────────────────────────────────────
+/**
+ * Uses this wrapper in child settings components like:
+ * &lt;SettingsButton id="test-internet-access" onClick={() => { runTest(); }}&gt;
+ *   Test Internet
+ * &lt;/SettingsButton&gt;
+ */
+export const SettingsButton: React.FC<{
+  id: string;
+  children: React.ReactNode;
+  onClick: () => void | Promise<void>;
+  className?: string;
+  disabled?: boolean;
+  variant?: 'primary' | 'secondary';
+}> = ({ id, children, onClick, className = '', disabled, variant = 'primary' }) => {
+  const [isActivated, setIsActivated] = useState(false);
+  const { markActivated, isActivated: checkActivated } = useSettingsActivation();
+
+  useEffect(() => {
+    setIsActivated(checkActivated(id));
+    const handleActivated = (e: CustomEvent) => {
+      if (e.detail.buttonId === id) setIsActivated(true);
+    };
+    window.addEventListener('settings-button-activated', handleActivated as EventListener);
+    return () => window.removeEventListener('settings-button-activated', handleActivated as EventListener);
+  }, [id, checkActivated]);
+
+  const handleClick = async () => {
+    await onClick();
+    markActivated(id);
+    setIsActivated(true);
+  };
+
+  const baseClass = variant === 'primary'
+    ? 'bg-emerald-700 hover:bg-emerald-600 text-white'
+    : 'bg-slate-700 hover:bg-slate-600 text-white';
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={disabled}
+      className={`flex items-center gap-2 px-4 py-2 rounded-md ${baseClass} font-semibold text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${className} ${isActivated ? 'ring-2 ring-emerald-400 ring-offset-1 ring-offset-slate-900' : ''
+        }`}
+    >
+      {children}
+      {isActivated && <Check className="w-4 h-4 ml-auto" />}
+    </button>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 type ProviderResult = {
   name: string;
   url: string;
@@ -182,15 +262,15 @@ const InternetTestPanel: React.FC = () => {
         before asking Mossy to go online.
       </p>
 
-      <button
-        type="button"
+      <SettingsButton
+        id="test-internet-access"
         onClick={runTest}
         disabled={running}
-        className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs transition-colors"
+        variant="primary"
       >
         <Wifi className={`w-4 h-4 ${running ? 'animate-pulse' : ''}`} />
         {running ? 'Testing…' : 'Test Internet Access Now'}
-      </button>
+      </SettingsButton>
 
       {error && (
         <div className="rounded-md border border-red-700/50 bg-red-900/20 p-3 text-xs text-red-300 font-mono">
@@ -272,6 +352,23 @@ const InternetTestPanel: React.FC = () => {
 
 const SettingsHub: React.FC = () => {
   const [expandedSection, setExpandedSection] = useState<string>('privacy');
+  const [activatedButtons, setActivatedButtons] = useState<Set<string>>(() => {
+    // Load previously activated buttons from localStorage
+    const saved = localStorage.getItem('mossy_settings_activated_buttons');
+    return new Set(saved ? JSON.parse(saved) : []);
+  });
+
+  // Save activated buttons to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('mossy_settings_activated_buttons', JSON.stringify(Array.from(activatedButtons)));
+  }, [activatedButtons]);
+
+  // Callback to mark a button as activated when clicked
+  const markButtonActivated = (buttonId: string) => {
+    setActivatedButtons(prev => new Set(prev).add(buttonId));
+  };
+
+  const isButtonActivated = (buttonId: string) => activatedButtons.has(buttonId);
 
   const toggleSection = (id: string) => {
     setExpandedSection((current) => (current === id ? '' : id));
