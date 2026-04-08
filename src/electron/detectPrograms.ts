@@ -216,6 +216,15 @@ async function queryRegistryKey(keyPath: string): Promise<InstalledProgram | nul
   }
 }
 
+/** Timeout for the wmic drive-listing command (ms). Fast CLI tool; 6 s is generous. */
+const WMIC_TIMEOUT_MS = 6000;
+/** Timeout for the PowerShell drive-listing fallback (ms). PS startup adds overhead. */
+const POWERSHELL_TIMEOUT_MS = 8000;
+/** Matches a bare Windows drive letter returned by `wmic logicaldisk get name` (e.g. "C:"). */
+const WMIC_DRIVE_RE = /^[A-Za-z]:$/;
+/** Matches a Windows drive root with trailing backslash (e.g. "C:\"). */
+const DRIVE_ROOT_RE = /^[A-Za-z]:\\$/;
+
 /**
  * Enumerate all currently-mounted Windows drive roots (e.g. ['C:\\', 'D:\\', 'E:\\']).
  *
@@ -227,11 +236,11 @@ async function queryRegistryKey(keyPath: string): Promise<InstalledProgram | nul
 async function getWindowsDriveRoots(): Promise<string[]> {
   // Strategy 1: wmic
   try {
-    const { stdout } = await execAsync('wmic logicaldisk get name', { timeout: 6000 });
+    const { stdout } = await execAsync('wmic logicaldisk get name', { timeout: WMIC_TIMEOUT_MS });
     const letters = stdout
       .split(/\r?\n/)
       .map(l => l.trim())
-      .filter(l => /^[A-Za-z]:$/.test(l))
+      .filter(l => WMIC_DRIVE_RE.test(l))
       .map(l => `${l.toUpperCase()}\\`);
     if (letters.length > 0) return letters;
   } catch { /* fall through */ }
@@ -240,12 +249,12 @@ async function getWindowsDriveRoots(): Promise<string[]> {
   try {
     const { stdout } = await execAsync(
       'powershell -NoProfile -Command "(Get-PSDrive -PSProvider FileSystem).Root"',
-      { timeout: 8000 }
+      { timeout: POWERSHELL_TIMEOUT_MS }
     );
     const roots = stdout
       .split(/\r?\n/)
       .map(l => l.trim())
-      .filter(l => /^[A-Za-z]:\\$/.test(l))
+      .filter(l => DRIVE_ROOT_RE.test(l))
       .map(l => l.toUpperCase());
     if (roots.length > 0) return roots;
   } catch { /* fall through */ }
