@@ -965,6 +965,7 @@ const loadSettings = (): any => {
     autodeskFbxPath: '',
     nifUtilsSuitePath: '',
     pytorchPath: '',
+    spriggitPath: '',
 
     // Papyrus
     papyrusCompilerPath: '',
@@ -3058,6 +3059,135 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     } catch (e: any) {
       console.error('[Main] load-knowledge-vault error:', e);
       return [];
+    }
+  });
+
+  // ── Spriggit integration ──────────────────────────────────────────────────
+  // spriggit-pick-cli: Open a file picker for the user to locate Spriggit.CLI.exe
+  registerHandler(IPC_CHANNELS.SPRIGGIT_PICK_CLI, async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: 'Select Spriggit.CLI.exe',
+        properties: ['openFile'],
+        filters: [
+          { name: 'Spriggit CLI', extensions: ['exe'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      });
+      if (result.canceled || !result.filePaths?.length) return '';
+      return result.filePaths[0];
+    } catch (e: any) {
+      console.error('[Main] spriggit-pick-cli error:', e);
+      return '';
+    }
+  });
+
+  // spriggit-serialize: Run Spriggit.CLI.exe serialize on the user's Fallout 4
+  // Data folder, then read the resulting YAML/JSON files into memory so the
+  // caller can digest them into the Knowledge Vault.
+  // The output directory is created inside userData/spriggit-output/ to avoid
+  // writing into the user's game folder.
+  registerHandler(IPC_CHANNELS.SPRIGGIT_SERIALIZE, async (_event, params: {
+    cliPath: string;
+    dataPath: string;
+    outputPath: string;
+  }) => {
+    try {
+      const { cliPath, dataPath, outputPath } = params || {};
+      if (!cliPath || typeof cliPath !== 'string') return { ok: false, files: [], error: 'No Spriggit CLI path provided.' };
+      if (!dataPath || typeof dataPath !== 'string') return { ok: false, files: [], error: 'No Data folder path provided.' };
+      if (!fs.existsSync(cliPath)) return { ok: false, files: [], error: `Spriggit.CLI.exe not found at: ${cliPath}` };
+      if (!fs.existsSync(dataPath)) return { ok: false, files: [], error: `Fallout 4 Data folder not found at: ${dataPath}` };
+
+      // Use a safe output directory under userData if none provided
+      const safeOutput = outputPath && typeof outputPath === 'string'
+        ? outputPath
+        : path.join(app.getPath('userData'), 'spriggit-output');
+      fs.mkdirSync(safeOutput, { recursive: true });
+
+      // Find all .esp/.esm/.esl files in the Data folder (top-level only)
+      const pluginFiles = fs.readdirSync(dataPath).filter(f =>
+        /\.(esp|esm|esl)$/i.test(f)
+      );
+      if (pluginFiles.length === 0) {
+        return { ok: false, files: [], error: 'No plugin files (.esp/.esm/.esl) found in the Data folder.' };
+      }
+
+      /**
+       * Maximum characters to keep per YAML file before truncating.
+       * Chosen to keep each Knowledge Vault entry well under typical LLM context-window
+       * limits (~4096 tokens ≈ ~16 000 chars) while still fitting multiple files in a
+       * single system prompt. Spriggit YAML for a typical record is 200–2000 chars, so
+       * 8000 allows ~4–40 records per file entry depending on complexity.
+       */
+      const SPRIGGIT_MAX_CONTENT_CHARS = 8000;
+      /** Maximum directory depth when walking Spriggit output trees. */
+      const SPRIGGIT_MAX_YAML_DEPTH = 6;
+
+      const resultFiles: Array<{ name: string; content: string }> = [];
+      const errors: string[] = [];
+
+      for (const plugin of pluginFiles) {
+        const inputPath = path.join(dataPath, plugin);
+        const pluginOutputDir = path.join(safeOutput, plugin.replace(/\.(esp|esm|esl)$/i, ''));
+        fs.mkdirSync(pluginOutputDir, { recursive: true });
+
+        await new Promise<void>((resolve) => {
+          const child = spawn(cliPath, [
+            'serialize',
+            '--InputPath', inputPath,
+            '--OutputPath', pluginOutputDir,
+            '--GameRelease', 'Fallout4',
+            '--PackageName', 'Spriggit.Yaml.Fallout4',
+          ], { shell: false, windowsHide: true });
+
+          let stderr = '';
+          if (child.stderr) child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
+
+          child.on('error', (err) => {
+            errors.push(`${plugin}: ${err.message}`);
+            resolve();
+          });
+          child.on('close', (code) => {
+            if (code !== 0) {
+              errors.push(`${plugin}: exit code ${code} — ${stderr.slice(0, 200)}`);
+            }
+            resolve();
+          });
+        });
+
+        // Collect the YAML files produced for this plugin
+        const collectYaml = (dir: string, depth = 0): void => {
+          if (depth > SPRIGGIT_MAX_YAML_DEPTH || !fs.existsSync(dir)) return;
+          for (const entry of fs.readdirSync(dir)) {
+            const full = path.join(dir, entry);
+            const stat = fs.statSync(full);
+            if (stat.isDirectory()) {
+              collectYaml(full, depth + 1);
+            } else if (/\.(yaml|yml)$/i.test(entry)) {
+              try {
+                let content = fs.readFileSync(full, 'utf-8');
+                if (content.length > SPRIGGIT_MAX_CONTENT_CHARS) {
+                  content = content.slice(0, SPRIGGIT_MAX_CONTENT_CHARS) + '\n… (truncated)';
+                }
+                resultFiles.push({ name: path.relative(safeOutput, full), content });
+              } catch { /* skip unreadable files */ }
+            }
+          }
+        };
+        collectYaml(pluginOutputDir);
+      }
+
+      // ok = true when at least one file was produced successfully (partial success counts).
+      // error is populated for any plugins that failed even if others succeeded.
+      return {
+        ok: resultFiles.length > 0,
+        files: resultFiles,
+        error: errors.length > 0 ? errors.join('\n') : undefined,
+      };
+    } catch (e: any) {
+      console.error('[Main] spriggit-serialize error:', e);
+      return { ok: false, files: [], error: String(e?.message || e) };
     }
   });
 
@@ -10097,7 +10227,7 @@ app.whenReady().then(() => {
     'baePath', 'gimpPath', 'archive2Path', 'pjmScriptPath', 'f4sePath',
     'upscaylPath', 'nvidiaTextureToolsPath', 'autodeskFbxPath',
     'nifUtilsSuitePath', 'papyrusCompilerPath', 'papyrusFlagsPath',
-    'papyrusSourcePath', 'papyrusOutputPath', 'pytorchPath',
+    'papyrusSourcePath', 'papyrusOutputPath', 'pytorchPath', 'spriggitPath',
   ] as const;
 
   const _startBlenderBridgeServer = async () => {
