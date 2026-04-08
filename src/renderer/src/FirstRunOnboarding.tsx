@@ -886,6 +886,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     onClick={() => {
                                         setFo4Version(value);
                                         try { localStorage.setItem('mossy_fo4_version', value); } catch { /* ignore */ }
+                                        // Auto-advance after a brief pause so the user sees the selection highlighted
+                                        window.setTimeout(() => startScan(), 500);
                                     }}
                                     className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-colors ${
                                         fo4Version === value
