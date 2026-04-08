@@ -883,7 +883,7 @@ export class VoiceService {
             finish();
           });
         } catch (e) { console.warn('[VoiceService] Could not add voiceschanged listener:', e); }
-        setTimeout(finish, 250);
+        setTimeout(finish, 1500);
       });
     }
 
