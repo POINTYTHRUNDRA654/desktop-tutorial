@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map, Download, ExternalLink, Brain, FolderOpen } from 'lucide-react';
+import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map, Download, ExternalLink, Brain, FolderOpen, Zap } from 'lucide-react';
 import { useI18n, resolveUiLanguage } from './i18n';
 import packageJson from '../../../package.json';
 import TutorialVideoPanel from './components/TutorialVideoPanel';
@@ -129,6 +129,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [fo4Version, setFo4Version] = useState<string>(() => {
         try { return localStorage.getItem('mossy_fo4_version') || ''; } catch { return ''; }
     });
+    const [mossyEdition, setMossyEdition] = useState<'nvidia' | 'universal' | null>(null);
     const [scanProgress, setScanProgress] = useState(0);
     const [recommendations, setRecommendations] = useState<ToolRecommendation[]>([]);
     const [filteredRecommendations, setFilteredRecommendations] = useState<ToolRecommendation[]>([]);
@@ -137,6 +138,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [showAllPrograms, setShowAllPrograms] = useState(false);
     const [showTutorialVideo, setShowTutorialVideo] = useState(false);
     const hasSpokenIntro = useRef(false);
+    const hasSpokenVersion = useRef(false);
     const scanTutorialStartedRef = useRef(false);
     const [languageReady, setLanguageReady] = useState(false);
     const [scanTutorialRequested, setScanTutorialRequested] = useState(false);
@@ -191,14 +193,39 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         if (!shouldSpeak()) return;
         hasSpokenIntro.current = true;
 
+        // Delay first TTS to let Electron/Chromium finish loading speech synthesis voices.
         const speakSequence = async () => {
+            await new Promise(resolve => setTimeout(resolve, 800));
             await speakMossy("Hello, I'm Mossy.");
             await speakMossy('Pick your language to begin.');
-            await speakMossy('When you are ready, start the scan.');
+            await speakMossy('When you are ready, press Next.');
         };
 
         void speakSequence();
     }, [step]);
+
+    // Speak a brief intro when arriving at the game-version picker.
+    useEffect(() => {
+        if (step !== 'version') return;
+        if (hasSpokenVersion.current) return;
+        if (!shouldSpeak()) return;
+        hasSpokenVersion.current = true;
+
+        const speakSequence = async () => {
+            await speakMossy('Which Fallout 4 version do you have? Pick the one that matches your install, then press Start System Scan.');
+        };
+
+        void speakSequence();
+    }, [step]);
+
+    // Fetch the Mossy edition (Universal or Nvidia) once on mount.
+    useEffect(() => {
+        const api = getElectronApi();
+        if (!api?.getMossyEdition) return;
+        api.getMossyEdition()
+            .then((ed: 'nvidia' | 'universal') => setMossyEdition(ed))
+            .catch(() => { /* ignore — not critical */ });
+    }, []);
 
     // Load persisted UI language (if available) so the first screen reflects it.
     useEffect(() => {
@@ -649,9 +676,26 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     <div className="text-center animate-fade-in">
                         <Download className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
                         <h2 className="text-3xl font-bold text-white mb-3">Which Fallout 4 version do you have?</h2>
-                        <p className="text-slate-400 mb-8 max-w-xl mx-auto">
+                        <p className="text-slate-400 mb-6 max-w-xl mx-auto">
                             Mossy tailors its advice based on your game version — mod compatibility, F4SE version, and stability tools all depend on this. You can change it later in Settings.
                         </p>
+
+                        {/* Mossy Edition badge — clarifies Universal vs Nvidia up front */}
+                        {mossyEdition && (
+                            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-6 ${
+                                mossyEdition === 'nvidia'
+                                    ? 'bg-green-900/70 border border-green-500 text-green-300'
+                                    : 'bg-blue-900/70 border border-blue-500 text-blue-300'
+                            }`}>
+                                {mossyEdition === 'nvidia' ? <Zap className="w-4 h-4" /> : <Cpu className="w-4 h-4" />}
+                                You have <strong className="ml-1">Mossy {mossyEdition === 'nvidia' ? 'NVIDIA Edition' : 'Universal Edition'}</strong>
+                                <span className="ml-1 font-normal opacity-80">
+                                    {mossyEdition === 'nvidia'
+                                        ? '— CUDA 12.4 · local AI fine-tuning enabled'
+                                        : '— CPU PyTorch · works on all hardware'}
+                                </span>
+                            </div>
+                        )}
 
                         <div className="max-w-lg mx-auto space-y-3 mb-8 text-left">
                             {[
@@ -659,25 +703,25 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     value: 'og',
                                     label: 'OG — Original Game (1.10.163)',
                                     detail: 'The classic pre-update version. F4SE 0.6.23. Best mod compatibility.',
-                                    selectedClass: 'bg-emerald-900/40 border-emerald-500 text-white',
+                                    selectedClass: 'bg-emerald-800 border-emerald-400 text-white',
                                 },
                                 {
                                     value: 'ng',
                                     label: 'NG — Next-Gen Update (1.10.984)',
                                     detail: 'April 2024 update. F4SE 0.7.x. Requires NG patches for many mods.',
-                                    selectedClass: 'bg-blue-900/40 border-blue-500 text-white',
+                                    selectedClass: 'bg-blue-800 border-blue-400 text-white',
                                 },
                                 {
                                     value: 'ae',
                                     label: 'AE / Creations Menu (1.11.x)',
                                     detail: 'November 2025 Bethesda "Anniversary Edition" update. F4SE 0.7.7.',
-                                    selectedClass: 'bg-purple-900/40 border-purple-500 text-white',
+                                    selectedClass: 'bg-purple-800 border-purple-400 text-white',
                                 },
                                 {
                                     value: 'unknown',
                                     label: "Not sure — I'll set this later",
                                     detail: 'You can check your game version in Steam or in the Fallout 4 launcher.',
-                                    selectedClass: 'bg-slate-700/60 border-slate-400 text-white',
+                                    selectedClass: 'bg-slate-600 border-slate-400 text-white',
                                 },
                             ].map(({ value, label, detail, selectedClass }) => (
                                 <button
@@ -694,7 +738,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-slate-400'
                                     }`}
                                 >
-                                    <div className="font-semibold text-sm">{label}</div>
+                                    <div className="flex items-center justify-between">
+                                        <div className="font-semibold text-sm">{label}</div>
+                                        {fo4Version === value && (
+                                            <span className="flex items-center gap-1 text-xs font-bold text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded-full border border-emerald-500">
+                                                <Check className="w-3 h-3" /> Selected
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="text-xs text-slate-400 mt-0.5">{detail}</div>
                                 </button>
                             ))}
