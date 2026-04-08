@@ -122,6 +122,8 @@ interface ToolRecommendation {
 const COMPLETE_TRANSITION_DELAY_MS = 2000;
 /** Shorter delay when Spriggit digest already ran — the user just clicked Continue. */
 const SPRIGGIT_DONE_TRANSITION_DELAY_MS = 500;
+/** Maximum characters of error text shown in the Spriggit status message box. */
+const MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH = 600;
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
@@ -154,6 +156,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [spriggitStatus, setSpriggitStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
     const [spriggitMessage, setSpriggitMessage] = useState('');
     const [spriggitFileCount, setSpriggitFileCount] = useState(0);
+
+    // .NET Desktop Runtime availability (detected during the startup scan)
+    const [dotnetOk, setDotnetOk] = useState<boolean | null>(() => {
+        try {
+            const v = localStorage.getItem('mossy_dotnet_ok');
+            return v === null ? null : v === 'true';
+        } catch { return null; }
+    });
 
     const getElectronApi = () => {
         return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
@@ -382,6 +392,24 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setAllApps(allDetectedApps);
             setScanProgress(70);
 
+            // Check .NET Desktop Runtime — required by Spriggit and other .NET tools.
+            // Do this during the scan so the Spriggit step can warn upfront.
+            let dotnetAvailable = false;
+            let dotnetVersion: string | null = null;
+            try {
+                if (api.checkDotnet) {
+                    const dotnetResult = await api.checkDotnet();
+                    dotnetAvailable = !!dotnetResult?.ok;
+                    dotnetVersion = dotnetResult?.version ?? null;
+                }
+            } catch { /* non-fatal */ }
+            setDotnetOk(dotnetAvailable);
+            try {
+                localStorage.setItem('mossy_dotnet_ok', String(dotnetAvailable));
+                if (dotnetVersion) localStorage.setItem('mossy_dotnet_version', dotnetVersion);
+            } catch { /* ignore */ }
+            setScanProgress(80);
+
             // Analyze and categorize
             const nvidia = allDetectedApps.filter((a: any) =>
                 (a.displayName || a.name || '').toLowerCase().match(/nvidia|geforce|cuda|rtx|canvas|nsight|omniverse/)
@@ -488,6 +516,17 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 });
             });
 
+            // .NET Desktop Runtime — inject a warning card if missing
+            if (!dotnetAvailable) {
+                recs.unshift({
+                    name: '.NET Desktop Runtime (missing)',
+                    path: 'https://dotnet.microsoft.com/download/dotnet/6.0',
+                    category: 'modding',
+                    benefit: '⚠️ Required by Spriggit and other .NET tools. Install .NET Desktop Runtime 6.0+ before using the Spriggit digest step.',
+                    boostsMossy: true,
+                });
+            }
+
             // Save scan results
             localStorage.setItem('mossy_all_detected_apps', JSON.stringify(allDetectedApps));
             // Use a numeric timestamp so all modules can compare it safely
@@ -583,9 +622,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 setSpriggitStatus('error');
                 const errText = result.error || 'No YAML files were produced.';
                 // Cap display length to avoid rendering a massive wall of text.
-                const MAX_ERROR_DISPLAY_LENGTH = 600;
-                const displayErr = errText.length > MAX_ERROR_DISPLAY_LENGTH
-                    ? errText.slice(0, MAX_ERROR_DISPLAY_LENGTH) + '\n…(truncated)'
+                const displayErr = errText.length > MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH
+                    ? errText.slice(0, MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH) + '\n…(truncated)'
                     : errText;
                 setSpriggitMessage(`Spriggit failed:\n${displayErr}`);
                 return;
@@ -1214,9 +1252,35 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         <p className="text-slate-400 mb-2 max-w-xl mx-auto">
                             I can use <strong className="text-emerald-300">Spriggit</strong> to convert your Fallout 4 plugins (.esp/.esm/.esl) into readable YAML files and then digest all that information directly into my brain, so I know your exact mod load order, records, and data from the start.
                         </p>
-                        <p className="text-slate-500 text-sm mb-8 max-w-xl mx-auto">
+                        <p className="text-slate-500 text-sm mb-6 max-w-xl mx-auto">
                             This is optional — you can skip it now and do it later from the Memory Vault panel.
                         </p>
+
+                        {/* .NET Runtime warning — shown when the scan detected it was missing */}
+                        {dotnetOk === false && (
+                            <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 text-sm text-left bg-amber-900/30 border border-amber-600/50 text-amber-200">
+                                <strong>⚠️ .NET Desktop Runtime not detected.</strong>
+                                <br />
+                                Spriggit.CLI.exe requires the <strong>.NET Desktop Runtime 6.0 or later</strong> to run.
+                                Without it every plugin will fail immediately with exit code 4294967295.
+                                <br />
+                                <button
+                                    type="button"
+                                    className="mt-2 underline text-amber-300 hover:text-amber-100 transition-colors"
+                                    onClick={() => {
+                                        const api = getElectronApi();
+                                        if (api?.openExternal) {
+                                            void api.openExternal('https://dotnet.microsoft.com/download/dotnet/6.0');
+                                        } else {
+                                            window.open('https://dotnet.microsoft.com/download/dotnet/6.0', '_blank');
+                                        }
+                                    }}
+                                >
+                                    Download .NET Desktop Runtime 6.0 →
+                                </button>
+                                <span className="ml-2 text-amber-400 text-xs">(you can still continue after installing)</span>
+                            </div>
+                        )}
 
                         <div className="max-w-lg mx-auto space-y-4 mb-6 text-left">
                             {/* Spriggit CLI path */}

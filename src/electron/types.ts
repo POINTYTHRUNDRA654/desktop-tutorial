@@ -85,6 +85,9 @@ export const IPC_CHANNELS = {
   SAVE_KNOWLEDGE_VAULT: 'save-knowledge-vault',
   LOAD_KNOWLEDGE_VAULT: 'load-knowledge-vault',
 
+  // .NET Desktop Runtime detection (needed by Spriggit and other .NET tools)
+  CHECK_DOTNET: 'check-dotnet',
+
   // Spriggit integration — run Spriggit.CLI.exe serialize and read results
   SPRIGGIT_PICK_CLI: 'spriggit-pick-cli',
   SPRIGGIT_SERIALIZE: 'spriggit-serialize',
