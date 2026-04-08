@@ -544,7 +544,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
             <span className="text-xs text-slate-500">— requires Mossy NVIDIA Edition</span>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Train Gemma 4, Llama 3, or Qwen 2.5 on your own Fallout 4 Q&amp;A dataset using Unsloth (8 GB+ VRAM).
+            Train Gemma 4, Llama 3, or Qwen 2.5 on your own Fallout 4 Q&A dataset using Unsloth (8 GB+ VRAM).
             You are currently on the <strong className="text-slate-300">Universal Edition</strong>.
             Download the NVIDIA Edition to unlock this feature — your settings and knowledge vault carry over automatically.
           </p>

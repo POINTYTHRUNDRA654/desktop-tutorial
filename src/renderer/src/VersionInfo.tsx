@@ -155,8 +155,9 @@ const VersionInfo: React.FC<VersionInfoProps> = ({ embedded = false }) => {
                     ⚡ Upgrade to Mossy NVIDIA Edition
                   </p>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    You have an NVIDIA GPU — download the NVIDIA Edition to unlock local AI fine-tuning
-                    with Unsloth (CUDA 12.4). Your settings and knowledge vault carry over automatically.
+                    Want local AI fine-tuning with Unsloth (CUDA 12.4)? Download the NVIDIA Edition —
+                    it requires an NVIDIA GPU with 8 GB+ VRAM. Your settings and knowledge vault
+                    carry over automatically.
                   </p>
                   <button
                     type="button"
