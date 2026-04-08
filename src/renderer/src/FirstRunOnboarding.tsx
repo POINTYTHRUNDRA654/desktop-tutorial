@@ -581,7 +581,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             });
             if (!result.ok || !result.files?.length) {
                 setSpriggitStatus('error');
-                setSpriggitMessage(`Spriggit failed: ${result.error || 'No YAML files were produced.'}`);
+                const errText = result.error || 'No YAML files were produced.';
+                // Cap display length to avoid rendering a massive wall of text.
+                const MAX_ERR_DISPLAY = 600;
+                const displayErr = errText.length > MAX_ERR_DISPLAY
+                    ? errText.slice(0, MAX_ERR_DISPLAY) + '\n…(truncated)'
+                    : errText;
+                setSpriggitMessage(`Spriggit failed:\n${displayErr}`);
                 return;
             }
             // Build Knowledge Vault entries from the YAML files
@@ -1275,7 +1281,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                         {/* Status message */}
                         {spriggitMessage && (
-                            <div className={`max-w-lg mx-auto mb-5 rounded-lg px-4 py-3 text-sm text-left ${
+                            <div className={`max-w-lg mx-auto mb-5 rounded-lg px-4 py-3 text-sm text-left whitespace-pre-line break-words ${
                                 spriggitStatus === 'error'
                                     ? 'bg-red-900/30 border border-red-700/50 text-red-200'
                                     : spriggitStatus === 'done'
