@@ -164,6 +164,24 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             return v === null ? null : v === 'true';
         } catch { return null; }
     });
+    const [dotnetRecheckInProgress, setDotnetRecheckInProgress] = useState(false);
+
+    const recheckDotnet = async () => {
+        const api = getElectronApi();
+        if (!api?.checkDotnet) return;
+        setDotnetRecheckInProgress(true);
+        try {
+            const result = await api.checkDotnet();
+            const ok = !!result?.ok;
+            setDotnetOk(ok);
+            try {
+                localStorage.setItem('mossy_dotnet_ok', String(ok));
+                if (result?.version) localStorage.setItem('mossy_dotnet_version', result.version);
+            } catch { /* ignore */ }
+        } catch { /* non-fatal */ } finally {
+            setDotnetRecheckInProgress(false);
+        }
+    };
 
     const getElectronApi = () => {
         return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
@@ -1264,21 +1282,31 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 Spriggit.CLI.exe requires the <strong>.NET Desktop Runtime 6.0 or later</strong> to run.
                                 Without it every plugin will fail immediately with exit code 4294967295.
                                 <br />
-                                <button
-                                    type="button"
-                                    className="mt-2 underline text-amber-300 hover:text-amber-100 transition-colors"
-                                    onClick={() => {
-                                        const api = getElectronApi();
-                                        if (api?.openExternal) {
-                                            void api.openExternal('https://dotnet.microsoft.com/download/dotnet/6.0');
-                                        } else {
-                                            window.open('https://dotnet.microsoft.com/download/dotnet/6.0', '_blank');
-                                        }
-                                    }}
-                                >
-                                    Download .NET Desktop Runtime 6.0 →
-                                </button>
-                                <span className="ml-2 text-amber-400 text-xs">(you can still continue after installing)</span>
+                                <div className="mt-2 flex flex-wrap items-center gap-3">
+                                    <button
+                                        type="button"
+                                        className="underline text-amber-300 hover:text-amber-100 transition-colors"
+                                        onClick={() => {
+                                            const api = getElectronApi();
+                                            if (api?.openExternal) {
+                                                void api.openExternal('https://dotnet.microsoft.com/download/dotnet/6.0');
+                                            } else {
+                                                window.open('https://dotnet.microsoft.com/download/dotnet/6.0', '_blank');
+                                            }
+                                        }}
+                                    >
+                                        Download .NET Desktop Runtime 6.0 →
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={dotnetRecheckInProgress}
+                                        className="px-3 py-1 rounded bg-amber-700/60 hover:bg-amber-600/60 disabled:opacity-50 text-amber-100 text-xs font-semibold transition-colors"
+                                        onClick={() => void recheckDotnet()}
+                                    >
+                                        {dotnetRecheckInProgress ? '🔄 Checking…' : '🔄 Re-check .NET'}
+                                    </button>
+                                </div>
+                                <p className="mt-1 text-amber-400 text-xs">Already installed? Click <em>Re-check .NET</em> to scan again and unlock the button above.</p>
                             </div>
                         )}
 
@@ -1355,7 +1383,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 {spriggitStatus === 'running' && <Loader className="w-4 h-4 inline-block animate-spin mr-2" />}
                                 {spriggitMessage}
                                 {spriggitStatus === 'error' && spriggitMessage.includes('0xFFFFFFFF') && (
-                                    <div className="mt-3">
+                                    <div className="mt-3 flex flex-wrap items-center gap-3">
                                         <button
                                             type="button"
                                             className="underline text-red-300 hover:text-red-100 transition-colors"
@@ -1369,6 +1397,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             }}
                                         >
                                             Download .NET Desktop Runtime 6.0 →
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={dotnetRecheckInProgress}
+                                            className="px-3 py-1 rounded bg-red-800/60 hover:bg-red-700/60 disabled:opacity-50 text-red-100 text-xs font-semibold transition-colors"
+                                            onClick={() => void recheckDotnet()}
+                                        >
+                                            {dotnetRecheckInProgress ? '🔄 Checking…' : '🔄 Re-check .NET'}
                                         </button>
                                     </div>
                                 )}
