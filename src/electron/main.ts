@@ -3150,7 +3150,10 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           });
           child.on('close', (code) => {
             if (code !== 0) {
-              errors.push(`${plugin}: exit code ${code} — ${stderr.slice(0, 200)}`);
+              const stderrSnippet = stderr.trim().slice(0, 200);
+              errors.push(stderrSnippet
+                ? `${plugin}: exit code ${code} — ${stderrSnippet}`
+                : `${plugin}: exit code ${code}`);
             }
             resolve();
           });
@@ -3180,10 +3183,34 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
       // ok = true when at least one file was produced successfully (partial success counts).
       // error is populated for any plugins that failed even if others succeeded.
+      let errorSummary: string | undefined;
+      if (errors.length > 0) {
+        // Show first 3 individual failures; collapse the rest into a count.
+        const MAX_SHOWN = 3;
+        const shown = errors.slice(0, MAX_SHOWN).join('\n');
+        const remaining = errors.length - MAX_SHOWN;
+        const tail = remaining > 0 ? `\n…and ${remaining} more plugin(s) failed.` : '';
+
+        // Detect when every plugin failed (no output at all) and hint at likely causes.
+        let hint = '';
+        if (resultFiles.length === 0) {
+          // Exit code 0xFFFFFFFF (-1 / 4294967295) means the process crashed immediately —
+          // most commonly because the required .NET Desktop Runtime (6.0+) is not installed.
+          const allSameCode = errors.every(e => e.includes('exit code 4294967295'));
+          if (allSameCode) {
+            hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 0xFFFFFFFF).\n' +
+              'Likely cause: .NET Desktop Runtime 6.0 or later is not installed.\n' +
+              'Download it from: https://dotnet.microsoft.com/download/dotnet/6.0';
+          } else {
+            hint = '\n\nSpriggit produced no output. Make sure Spriggit.CLI.exe is the correct executable and that your Data folder path is right.';
+          }
+        }
+        errorSummary = shown + tail + hint;
+      }
       return {
         ok: resultFiles.length > 0,
         files: resultFiles,
-        error: errors.length > 0 ? errors.join('\n') : undefined,
+        error: errorSummary,
       };
     } catch (e: any) {
       console.error('[Main] spriggit-serialize error:', e);
