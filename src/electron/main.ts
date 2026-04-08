@@ -19,7 +19,7 @@ import { buildSemanticIndex, getSemanticIndexStatus, querySemanticIndex } from '
 import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
 import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
 import { autoUpdaterService } from './autoUpdater';
-import { detectAndHandleVersionUpdate, markFreshInstallProcessed, wasFreshInstallProcessed } from './dataMigration';
+import { detectAndHandleVersionUpdate, markFreshInstallProcessed } from './dataMigration';
 import fs from 'fs';
 import { spawn, exec } from 'child_process';
 import { BridgeServer } from './BridgeServer';
@@ -9758,10 +9758,13 @@ app.whenReady().then(() => {
     const markerPath = path.join(path.dirname(process.execPath), 'fresh-install.marker');
     const isFreshMarker = fs.existsSync(markerPath);
     const isTrueFirstRun = !fs.existsSync(settingsPath);
-    const alreadyProcessed = wasFreshInstallProcessed(userDataPath);
 
     if (isFreshMarker || isTrueFirstRun) {
-      if (isFreshMarker && !alreadyProcessed) {
+      if (isFreshMarker) {
+        // Always respect the installer-written marker, even on reinstalls where
+        // alreadyProcessed is true from a previous install.  The marker is the
+        // authoritative "fresh install" signal from the NSIS/Inno Setup hook and
+        // is consumed (deleted) here so it cannot fire again on the next launch.
         try { fs.unlinkSync(markerPath); } catch { /* ignore */ }
         console.log('[Main] Fresh-install marker found – will trigger onboarding reset.');
         markFreshInstallProcessed(userDataPath);
