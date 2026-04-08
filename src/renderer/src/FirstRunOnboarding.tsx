@@ -120,7 +120,10 @@ interface ToolRecommendation {
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
-    const [step, setStep] = useState<'welcome' | 'scanning' | 'recommendations' | 'downloads' | 'complete'>('welcome');
+    const [step, setStep] = useState<'welcome' | 'version' | 'scanning' | 'recommendations' | 'downloads' | 'complete'>('welcome');
+    const [fo4Version, setFo4Version] = useState<string>(() => {
+        try { return localStorage.getItem('mossy_fo4_version') || ''; } catch { return ''; }
+    });
     const [scanProgress, setScanProgress] = useState(0);
     const [recommendations, setRecommendations] = useState<ToolRecommendation[]>([]);
     const [filteredRecommendations, setFilteredRecommendations] = useState<ToolRecommendation[]>([]);
@@ -533,16 +536,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             <div className="mt-3 pt-3 border-t border-slate-700 text-[10px] text-amber-300">
                                 ⚠️ <strong>Multi-language in development.</strong> UI language will change, but voice support requires installing Windows voices.
                             </div>
-                            <div className="mt-3 pt-3 border-t border-slate-700 text-[10px] text-amber-300">
-                                ⚠️ <strong>Multi-language in development.</strong> UI language will change, but voice support requires installing Windows voices.
-                            </div>
                         </div>
 
                         <button
-                            onClick={startScan}
+                            onClick={() => setStep('version')}
                             className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 mx-auto transition-colors"
                         >
-                            Start System Scan <ArrowRight className="w-5 h-5" />
+                            Next <ArrowRight className="w-5 h-5" />
                         </button>
 
                         <div className="mt-6">
@@ -563,6 +563,83 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 />
                             </div>
                         )}
+                    </div>
+                )}
+
+                {step === 'version' && (
+                    <div className="text-center animate-fade-in">
+                        <Download className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
+                        <h2 className="text-3xl font-bold text-white mb-3">Which Fallout 4 version do you have?</h2>
+                        <p className="text-slate-400 mb-8 max-w-xl mx-auto">
+                            Mossy tailors its advice based on your game version — mod compatibility, F4SE version, and stability tools all depend on this. You can change it later in Settings.
+                        </p>
+
+                        <div className="max-w-lg mx-auto space-y-3 mb-8 text-left">
+                            {[
+                                {
+                                    value: 'og',
+                                    label: 'OG — Original Game (1.10.163)',
+                                    detail: 'The classic pre-update version. F4SE 0.6.23. Best mod compatibility.',
+                                    color: 'emerald',
+                                },
+                                {
+                                    value: 'ng',
+                                    label: 'NG — Next-Gen Update (1.10.984)',
+                                    detail: 'April 2024 update. F4SE 0.7.x. Requires NG patches for many mods.',
+                                    color: 'blue',
+                                },
+                                {
+                                    value: 'ae',
+                                    label: 'AE / Creations Menu (1.11.x)',
+                                    detail: 'November 2025 Bethesda "Anniversary Edition" update. F4SE 0.7.7.',
+                                    color: 'purple',
+                                },
+                                {
+                                    value: 'unknown',
+                                    label: "Not sure — I'll set this later",
+                                    detail: 'You can check your game version in Steam or in the Fallout 4 launcher.',
+                                    color: 'slate',
+                                },
+                            ].map(({ value, label, detail, color }) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    aria-pressed={fo4Version === value}
+                                    onClick={() => {
+                                        setFo4Version(value);
+                                        try { localStorage.setItem('mossy_fo4_version', value); } catch { /* ignore */ }
+                                    }}
+                                    className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-colors ${
+                                        fo4Version === value
+                                            ? `bg-${color}-900/40 border-${color}-500 text-white`
+                                            : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-slate-400'
+                                    }`}
+                                >
+                                    <div className="font-semibold text-sm">{label}</div>
+                                    <div className="text-xs text-slate-400 mt-0.5">{detail}</div>
+                                </button>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={() => {
+                                if (!fo4Version) {
+                                    try { localStorage.setItem('mossy_fo4_version', 'unknown'); } catch { /* ignore */ }
+                                    setFo4Version('unknown');
+                                }
+                                startScan();
+                            }}
+                            className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 mx-auto transition-colors"
+                        >
+                            Start System Scan <ArrowRight className="w-5 h-5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStep('welcome')}
+                            className="mt-4 text-sm text-slate-400 hover:text-slate-200 underline block mx-auto"
+                        >
+                            ← Back
+                        </button>
                     </div>
                 )}
 

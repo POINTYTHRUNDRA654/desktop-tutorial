@@ -232,6 +232,8 @@
       "artifactName": "${productName} ${version}.${ext}"
     },
     "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": "always",
       "shortcutName": "Mossy",
       "include": "build/installer-include.nsh"
