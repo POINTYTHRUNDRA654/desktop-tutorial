@@ -525,8 +525,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 return;
             }
             // Build Knowledge Vault entries from the YAML files
-            const existingRaw = (() => { try { return JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]'); } catch { return []; } })();
-            const existing: any[] = Array.isArray(existingRaw) ? existingRaw : [];
+            const getExistingVault = (): any[] => {
+                try { return JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]') as any[]; } catch { return []; }
+            };
+            const existing: any[] = Array.isArray(getExistingVault()) ? getExistingVault() : [];
             const now = new Date().toISOString();
             const newEntries = (result.files as Array<{ name: string; content: string }>).map((f) => ({
                 id: `spriggit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -552,6 +554,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setSpriggitStatus('error');
             setSpriggitMessage(`Error: ${String(err?.message || err)}`);
         }
+    };
+
+    /** Advance from the spriggit-digest step to complete, using a shorter delay if the digest ran. */
+    const handleSpriggitContinue = () => {
+        setStep('complete');
+        setTimeout(onComplete, spriggitFileCount > 0 ? SPRIGGIT_DONE_TRANSITION_DELAY_MS : COMPLETE_TRANSITION_DELAY_MS);
     };
 
     return (
@@ -1088,7 +1096,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                             <button
                                 type="button"
-                                onClick={() => { setStep('complete'); setTimeout(onComplete, spriggitFileCount > 0 ? SPRIGGIT_DONE_TRANSITION_DELAY_MS : COMPLETE_TRANSITION_DELAY_MS); }}
+                                onClick={handleSpriggitContinue}
                                 className="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-semibold transition-colors"
                             >
                                 {spriggitStatus === 'done' ? <><Check className="w-5 h-5 inline-block mr-1" /> Continue</> : 'Skip for now'}
