@@ -3113,7 +3113,10 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         return { ok: false, files: [], error: 'No plugin files (.esp/.esm/.esl) found in the Data folder.' };
       }
 
-      const MAX_CONTENT_CHARS = 8000; // per file: keep digest concise
+      /** Maximum characters to keep per YAML file — keeps digest concise. */
+      const SPRIGGIT_MAX_CONTENT_CHARS = 8000;
+      /** Maximum directory depth when walking Spriggit output trees. */
+      const SPRIGGIT_MAX_YAML_DEPTH = 6;
 
       const resultFiles: Array<{ name: string; content: string }> = [];
       const errors: string[] = [];
@@ -3149,7 +3152,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
         // Collect the YAML files produced for this plugin
         const collectYaml = (dir: string, depth = 0): void => {
-          if (depth > 6 || !fs.existsSync(dir)) return;
+          if (depth > SPRIGGIT_MAX_YAML_DEPTH || !fs.existsSync(dir)) return;
           for (const entry of fs.readdirSync(dir)) {
             const full = path.join(dir, entry);
             const stat = fs.statSync(full);
@@ -3158,8 +3161,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             } else if (/\.(yaml|yml)$/i.test(entry)) {
               try {
                 let content = fs.readFileSync(full, 'utf-8');
-                if (content.length > MAX_CONTENT_CHARS) {
-                  content = content.slice(0, MAX_CONTENT_CHARS) + '\n… (truncated)';
+                if (content.length > SPRIGGIT_MAX_CONTENT_CHARS) {
+                  content = content.slice(0, SPRIGGIT_MAX_CONTENT_CHARS) + '\n… (truncated)';
                 }
                 resultFiles.push({ name: path.relative(safeOutput, full), content });
               } catch { /* skip unreadable files */ }
@@ -3169,8 +3172,10 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         collectYaml(pluginOutputDir);
       }
 
+      // ok = true when at least one file was produced successfully (partial success counts).
+      // error is populated for any plugins that failed even if others succeeded.
       return {
-        ok: resultFiles.length > 0 || errors.length === 0,
+        ok: resultFiles.length > 0,
         files: resultFiles,
         error: errors.length > 0 ? errors.join('\n') : undefined,
       };

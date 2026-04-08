@@ -118,6 +118,11 @@ interface ToolRecommendation {
     boostsMossy: boolean;
 }
 
+/** Delay (ms) before calling onComplete after the "complete" screen appears. */
+const COMPLETE_TRANSITION_DELAY_MS = 2000;
+/** Shorter delay when Spriggit digest already ran — the user just clicked Continue. */
+const SPRIGGIT_DONE_TRANSITION_DELAY_MS = 500;
+
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
     const [step, setStep] = useState<'welcome' | 'version' | 'scanning' | 'recommendations' | 'downloads' | 'spriggit-digest' | 'complete'>('welcome');
@@ -514,9 +519,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 dataPath: spriggitDataPath,
                 outputPath: '',
             });
-            if (!result.ok && (!result.files || result.files.length === 0)) {
+            if (!result.ok || !result.files?.length) {
                 setSpriggitStatus('error');
-                setSpriggitMessage(`Spriggit failed: ${result.error || 'Unknown error'}`);
+                setSpriggitMessage(`Spriggit failed: ${result.error || 'No YAML files were produced.'}`);
                 return;
             }
             // Build Knowledge Vault entries from the YAML files
@@ -1083,7 +1088,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                             <button
                                 type="button"
-                                onClick={() => { setStep('complete'); setTimeout(onComplete, spriggitFileCount > 0 ? 500 : 2000); }}
+                                onClick={() => { setStep('complete'); setTimeout(onComplete, spriggitFileCount > 0 ? SPRIGGIT_DONE_TRANSITION_DELAY_MS : COMPLETE_TRANSITION_DELAY_MS); }}
                                 className="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-semibold transition-colors"
                             >
                                 {spriggitStatus === 'done' ? <><Check className="w-5 h-5 inline-block mr-1" /> Continue</> : 'Skip for now'}
