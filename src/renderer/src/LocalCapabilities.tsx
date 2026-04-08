@@ -132,7 +132,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
       api.getMossyEdition().then((ed: 'nvidia' | 'universal') => setEdition(ed)).catch(() => {});
     }
     // Listen for fine-tune progress events
-    const onProgress = (_: any, data: { message: string }) => {
+    const onProgress = (_event: any, data: { message: string }) => {
       setFineTune((ft) => ({ ...ft, log: [...ft.log.slice(-199), data.message] }));
     };
     const electron = (window as any).electron;
@@ -541,7 +541,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
             <span className="text-xs text-slate-500">— requires Mossy NVIDIA Edition</span>
           </div>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Train Gemma 4, Llama 3, or Qwen 2.5 on your own Fallout 4 Q&amp;A dataset using Unsloth (8 GB VRAM).
+            Train Gemma 4, Llama 3, or Qwen 2.5 on your own Fallout 4 Q&A dataset using Unsloth (8 GB VRAM).
             Download <strong className="text-slate-400">Mossy NVIDIA Edition</strong> to unlock this feature.
           </p>
         </div>
@@ -553,7 +553,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
             <span className="text-xs text-slate-400">— Train Gemma 4 / Llama 3 / Qwen 2.5 with Unsloth</span>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Fine-tune a local model on your Fallout 4 modding Q&amp;A dataset (exported from the Training Data panel)
+            Fine-tune a local model on your Fallout 4 modding Q&A dataset (exported from the Training Data panel)
             and export it as a GGUF file that Ollama can serve. Requires an NVIDIA GPU with 8 GB+ VRAM.
           </p>
 
