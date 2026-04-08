@@ -99,6 +99,9 @@ const IPC_CHANNELS = {
   SAVE_KNOWLEDGE_VAULT: 'save-knowledge-vault',
   LOAD_KNOWLEDGE_VAULT: 'load-knowledge-vault',
 
+  // .NET Desktop Runtime detection
+  CHECK_DOTNET: 'check-dotnet',
+
   // Spriggit integration
   SPRIGGIT_PICK_CLI: 'spriggit-pick-cli',
   SPRIGGIT_SERIALIZE: 'spriggit-serialize',
@@ -602,6 +605,15 @@ const electronAPI = {
    */
   loadKnowledgeVaultFromFile: (): Promise<unknown[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.LOAD_KNOWLEDGE_VAULT);
+  },
+
+  /**
+   * Check whether the .NET Desktop Runtime 6.0 or later is installed on this machine.
+   * This is required by Spriggit.CLI.exe and similar .NET tools.
+   * Returns { ok, version, runtimes } — ok=true means a compatible runtime was found.
+   */
+  checkDotnet: (): Promise<{ ok: boolean; version: string | null; runtimes: string[] }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CHECK_DOTNET);
   },
 
   /**
