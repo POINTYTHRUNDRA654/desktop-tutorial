@@ -165,19 +165,31 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         } catch { return null; }
     });
     const [dotnetRecheckInProgress, setDotnetRecheckInProgress] = useState(false);
+    // 'found' | 'not-found' | null — shown briefly after a manual recheck
+    const [dotnetRecheckResult, setDotnetRecheckResult] = useState<'found' | 'not-found' | null>(null);
 
     const recheckDotnet = async () => {
         const api = getElectronApi();
         if (!api?.checkDotnet) return;
         setDotnetRecheckInProgress(true);
+        setDotnetRecheckResult(null);
         try {
             const result = await api.checkDotnet();
             const ok = !!result?.ok;
             setDotnetOk(ok);
+            setDotnetRecheckResult(ok ? 'found' : 'not-found');
+            // Auto-clear the inline result badge after 6 s
+            window.setTimeout(() => setDotnetRecheckResult(null), 6000);
             try {
                 localStorage.setItem('mossy_dotnet_ok', String(ok));
                 if (result?.version) localStorage.setItem('mossy_dotnet_version', result.version);
             } catch { /* ignore */ }
+            // If .NET was just found, clear any previous Spriggit 0xFFFFFFFF error
+            // so the user gets a clean slate and can retry the digest immediately.
+            if (ok && spriggitStatus === 'error' && spriggitMessage.includes('0xFFFFFFFF')) {
+                setSpriggitStatus('idle');
+                setSpriggitMessage('');
+            }
         } catch { /* non-fatal */ } finally {
             setDotnetRecheckInProgress(false);
         }
@@ -1305,6 +1317,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     >
                                         {dotnetRecheckInProgress ? '🔄 Checking…' : '🔄 Re-check .NET'}
                                     </button>
+                                    {dotnetRecheckResult === 'not-found' && (
+                                        <span className="text-xs text-amber-300 font-semibold">⚠️ Still not detected — make sure you installed the <em>Desktop Runtime</em>, then re-check.</span>
+                                    )}
                                 </div>
                                 <p className="mt-1 text-amber-400 text-xs">Already installed? Click <em>Re-check .NET</em> to scan again and unlock the button above.</p>
                             </div>
@@ -1406,6 +1421,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         >
                                             {dotnetRecheckInProgress ? '🔄 Checking…' : '🔄 Re-check .NET'}
                                         </button>
+                                        {dotnetRecheckResult === 'not-found' && (
+                                            <span className="text-xs text-red-300 font-semibold">⚠️ Still not detected — make sure you installed the <em>Desktop Runtime</em>, then re-check.</span>
+                                        )}
+                                        {dotnetRecheckResult === 'found' && (
+                                            <span className="text-xs text-emerald-300 font-semibold">✅ .NET detected! This error is cleared — click <em>Convert &amp; Digest</em> to try again.</span>
+                                        )}
                                     </div>
                                 )}
                             </div>
