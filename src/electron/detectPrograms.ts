@@ -216,6 +216,62 @@ async function queryRegistryKey(keyPath: string): Promise<InstalledProgram | nul
   }
 }
 
+/** Timeout for the wmic drive-listing command (ms). Fast CLI tool; 6 s is generous. */
+const WMIC_TIMEOUT_MS = 6000;
+/** Timeout for the PowerShell drive-listing fallback (ms). PS startup adds overhead. */
+const POWERSHELL_TIMEOUT_MS = 8000;
+/** Matches a bare Windows drive letter returned by `wmic logicaldisk get name` (e.g. "C:"). */
+const WMIC_DRIVE_RE = /^[A-Za-z]:$/;
+/** Matches a Windows drive root with trailing backslash (e.g. "C:\"). */
+const DRIVE_ROOT_RE = /^[A-Za-z]:\\$/;
+
+/**
+ * Enumerate all currently-mounted Windows drive roots (e.g. ['C:\\', 'D:\\', 'E:\\']).
+ *
+ * Strategy (most reliable → least):
+ *  1. `wmic logicaldisk get name` — fast, authoritative
+ *  2. PowerShell `(Get-PSDrive -PSProvider FileSystem).Root` — fallback
+ *  3. Blind A-Z probe via fs.stat — last resort
+ */
+async function getWindowsDriveRoots(): Promise<string[]> {
+  // Strategy 1: wmic
+  try {
+    const { stdout } = await execAsync('wmic logicaldisk get name', { timeout: WMIC_TIMEOUT_MS });
+    const letters = stdout
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(l => WMIC_DRIVE_RE.test(l))
+      .map(l => `${l.toUpperCase()}\\`);
+    if (letters.length > 0) return letters;
+  } catch { /* fall through */ }
+
+  // Strategy 2: PowerShell
+  try {
+    const { stdout } = await execAsync(
+      'powershell -NoProfile -Command "(Get-PSDrive -PSProvider FileSystem).Root"',
+      { timeout: POWERSHELL_TIMEOUT_MS }
+    );
+    const roots = stdout
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(l => DRIVE_ROOT_RE.test(l))
+      .map(l => l.toUpperCase());
+    if (roots.length > 0) return roots;
+  } catch { /* fall through */ }
+
+  // Strategy 3: blind A-Z probe
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const found: string[] = [];
+  await Promise.all(
+    letters.map(async (l) => {
+      const root = `${l}:\\`;
+      const exists = await fs.stat(root).then(() => true).catch(() => false);
+      if (exists) found.push(root);
+    })
+  );
+  return found.sort();
+}
+
 /**
  * Scan Program Files directories for executables
  * This is the fallback method if registry scanning fails
@@ -241,9 +297,9 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
     'C:\\ML',
   ];
 
-  // Search other common drives for program folders
-  // ULTRA COMPREHENSIVE SCAN - First impression matters!
-  const potentialDrives = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+  // Enumerate actual mounted drives rather than probing all 26 letters blindly
+  const driveRoots = await getWindowsDriveRoots();
+
   const commonFolders = [
     // Standard Windows
     'Program Files', 'Program Files (x86)', 'Programs', 'Apps', 'Software', 'Applications',
@@ -268,20 +324,11 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
     'Chocolatey', 'scoop', 'winget'
   ];
   
-  // Add root of drives and then the folders
-  for (const drive of potentialDrives) {
-    const driveRoot = `${drive}:\\`;
-    // Skip drives that don't exist to save time
-    try {
-      const driveStats = await fs.stat(driveRoot).catch(() => null);
-      if (!driveStats) continue;
-      
-      programFilesPaths.push(driveRoot); 
-      for (const folder of commonFolders) {
-         programFilesPaths.push(path.join(driveRoot, folder));
-      }
-    } catch {
-      continue;
+  // Expand each detected drive root with common folder candidates
+  for (const driveRoot of driveRoots) {
+    programFilesPaths.push(driveRoot);
+    for (const folder of commonFolders) {
+      programFilesPaths.push(path.join(driveRoot, folder));
     }
   }
 
