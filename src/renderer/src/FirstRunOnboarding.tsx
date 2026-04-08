@@ -580,27 +580,27 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     value: 'og',
                                     label: 'OG — Original Game (1.10.163)',
                                     detail: 'The classic pre-update version. F4SE 0.6.23. Best mod compatibility.',
-                                    color: 'emerald',
+                                    selectedClass: 'bg-emerald-900/40 border-emerald-500 text-white',
                                 },
                                 {
                                     value: 'ng',
                                     label: 'NG — Next-Gen Update (1.10.984)',
                                     detail: 'April 2024 update. F4SE 0.7.x. Requires NG patches for many mods.',
-                                    color: 'blue',
+                                    selectedClass: 'bg-blue-900/40 border-blue-500 text-white',
                                 },
                                 {
                                     value: 'ae',
                                     label: 'AE / Creations Menu (1.11.x)',
                                     detail: 'November 2025 Bethesda "Anniversary Edition" update. F4SE 0.7.7.',
-                                    color: 'purple',
+                                    selectedClass: 'bg-purple-900/40 border-purple-500 text-white',
                                 },
                                 {
                                     value: 'unknown',
                                     label: "Not sure — I'll set this later",
                                     detail: 'You can check your game version in Steam or in the Fallout 4 launcher.',
-                                    color: 'slate',
+                                    selectedClass: 'bg-slate-700/60 border-slate-400 text-white',
                                 },
-                            ].map(({ value, label, detail, color }) => (
+                            ].map(({ value, label, detail, selectedClass }) => (
                                 <button
                                     key={value}
                                     type="button"
@@ -611,7 +611,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     }}
                                     className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-colors ${
                                         fo4Version === value
-                                            ? `bg-${color}-900/40 border-${color}-500 text-white`
+                                            ? selectedClass
                                             : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-slate-400'
                                     }`}
                                 >
