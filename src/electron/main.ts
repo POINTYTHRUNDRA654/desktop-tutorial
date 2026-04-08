@@ -3198,7 +3198,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           // most commonly because the required .NET Desktop Runtime (6.0+) is not installed.
           const allSameCode = errors.every(e => e.includes('exit code 4294967295'));
           if (allSameCode) {
-            hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 0xFFFFFFFF).\n' +
+            hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
               'Likely cause: .NET Desktop Runtime 6.0 or later is not installed.\n' +
               'Download it from: https://dotnet.microsoft.com/download/dotnet/6.0';
           } else {

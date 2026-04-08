@@ -583,9 +583,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 setSpriggitStatus('error');
                 const errText = result.error || 'No YAML files were produced.';
                 // Cap display length to avoid rendering a massive wall of text.
-                const MAX_ERR_DISPLAY = 600;
-                const displayErr = errText.length > MAX_ERR_DISPLAY
-                    ? errText.slice(0, MAX_ERR_DISPLAY) + '\n…(truncated)'
+                const MAX_ERROR_DISPLAY_LENGTH = 600;
+                const displayErr = errText.length > MAX_ERROR_DISPLAY_LENGTH
+                    ? errText.slice(0, MAX_ERROR_DISPLAY_LENGTH) + '\n…(truncated)'
                     : errText;
                 setSpriggitMessage(`Spriggit failed:\n${displayErr}`);
                 return;
