@@ -267,6 +267,10 @@ const App: React.FC = () => {
         'mossy_tutorial_completed',
         'mossy_tutorial_autostart',
         'mossy_voice_setup_complete',
+        // Clear scan data so the full first-run wizard runs from scratch,
+        // not the silent early-exit path in FirstRunOnboarding.
+        'mossy_scan_summary',
+        'mossy_all_detected_apps',
       ];
       staleKeys.forEach(k => localStorage.removeItem(k));
       return true;
@@ -307,9 +311,10 @@ const App: React.FC = () => {
 
     const unsubscribe = api.onFreshInstall(() => {
       // A fresh-install.marker was found by the main process, meaning the user
-      // just installed (or reinstalled) via the Inno Setup installer.  Clear
-      // ONLY onboarding flags so the first-run wizard runs from scratch, but
-      // PRESERVE all user data including scan results, projects, chat history, etc.
+      // just installed (or reinstalled) via the NSIS installer.  Clear
+      // onboarding flags AND stale scan data so the full first-run wizard runs
+      // from scratch (instead of silently skipping due to old scan results).
+      // Chat history, projects, and other user data are preserved.
       const onboardingKeysToReset = [
         'mossy_has_booted',
         'mossy_onboarding_complete',
@@ -317,10 +322,12 @@ const App: React.FC = () => {
         'mossy_tutorial_completed',
         'mossy_tutorial_autostart',
         'mossy_voice_setup_complete',
+        'mossy_scan_summary',
+        'mossy_all_detected_apps',
       ];
       onboardingKeysToReset.forEach(k => localStorage.removeItem(k));
 
-      console.log('[App] Fresh install detected. Cleared onboarding flags only. User data preserved.');
+      console.log('[App] Fresh install detected. Cleared onboarding flags and stale scan data. User data preserved.');
       setShowFirstRun(true);
       setShowOnboarding(true);
       setShowVoiceSetup(false);
