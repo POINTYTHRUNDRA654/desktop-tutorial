@@ -173,6 +173,22 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [dotnetRecheckInProgress, setDotnetRecheckInProgress] = useState(false);
     // 'found' | 'not-found' | null — shown briefly after a manual recheck
     const [dotnetRecheckResult, setDotnetRecheckResult] = useState<'found' | 'not-found' | null>(null);
+    /** True while the automatic .NET check runs on entering the spriggit-digest step. */
+    const [dotnetCheckingOnEntry, setDotnetCheckingOnEntry] = useState(false);
+
+    /**
+     * Shared helper — persist the result of any checkDotnet() call to state and
+     * localStorage.  Returns the ok boolean so callers can branch on it.
+     */
+    const applyDotnetResult = (result: { ok: boolean; version?: string | null } | null) => {
+        const ok = !!result?.ok;
+        setDotnetOk(ok);
+        try {
+            localStorage.setItem('mossy_dotnet_ok', String(ok));
+            if (result?.version) localStorage.setItem('mossy_dotnet_version', result.version);
+        } catch { /* ignore */ }
+        return ok;
+    };
 
     const recheckDotnet = async () => {
         const api = getElectronApi();
@@ -185,18 +201,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         }
         try {
             const result = await api.checkDotnet();
-            const ok = !!result?.ok;
-            setDotnetOk(ok);
+            const ok = applyDotnetResult(result);
             setDotnetRecheckResult(ok ? 'found' : 'not-found');
             // Auto-clear the inline result badge after the configured duration
             dotnetRecheckTimerRef.current = window.setTimeout(() => {
                 dotnetRecheckTimerRef.current = null;
                 setDotnetRecheckResult(null);
             }, DOTNET_RECHECK_BADGE_DURATION_MS);
-            try {
-                localStorage.setItem('mossy_dotnet_ok', String(ok));
-                if (result?.version) localStorage.setItem('mossy_dotnet_version', result.version);
-            } catch { /* ignore */ }
             // If .NET was just found, clear any previous Spriggit 0xFFFFFFFF error
             // so the user gets a clean slate and can retry the digest immediately.
             if (ok && spriggitStatus === 'error' && spriggitMessage.includes('0xFFFFFFFF')) {
@@ -241,6 +252,25 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             }
         };
     }, []);
+
+    // Whenever the user reaches the spriggit-digest step, run a fresh .NET check.
+    // This ensures dotnetOk is accurate even if the scan step was skipped or
+    // if the cached localStorage value is stale.
+    useEffect(() => {
+        if (step !== 'spriggit-digest') return;
+        const api = getElectronApi();
+        if (!api?.checkDotnet) return;
+        setDotnetCheckingOnEntry(true);
+        void (async () => {
+            try {
+                const result = await api.checkDotnet();
+                applyDotnetResult(result);
+            } catch { /* non-fatal */ } finally {
+                setDotnetCheckingOnEntry(false);
+            }
+        })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [step]);
 
     useEffect(() => {
         // If onboarding was already completed, skip straight through.
@@ -447,19 +477,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             // Check .NET Desktop Runtime — required by Spriggit and other .NET tools.
             // Do this during the scan so the Spriggit step can warn upfront.
             let dotnetAvailable = false;
-            let dotnetVersion: string | null = null;
             try {
                 if (api.checkDotnet) {
                     const dotnetResult = await api.checkDotnet();
-                    dotnetAvailable = !!dotnetResult?.ok;
-                    dotnetVersion = dotnetResult?.version ?? null;
+                    dotnetAvailable = applyDotnetResult(dotnetResult);
                 }
             } catch { /* non-fatal */ }
-            setDotnetOk(dotnetAvailable);
-            try {
-                localStorage.setItem('mossy_dotnet_ok', String(dotnetAvailable));
-                if (dotnetVersion) localStorage.setItem('mossy_dotnet_version', dotnetVersion);
-            } catch { /* ignore */ }
+            if (!api.checkDotnet) setDotnetOk(false);
             setScanProgress(80);
 
             // Analyze and categorize
@@ -572,9 +596,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             if (!dotnetAvailable) {
                 recs.unshift({
                     name: '.NET Desktop Runtime (missing)',
-                    path: 'https://dotnet.microsoft.com/download/dotnet/6.0',
+                    path: 'https://dotnet.microsoft.com/download/dotnet/8.0',
                     category: 'modding',
-                    benefit: '⚠️ Required by Spriggit and other .NET tools. Install .NET Desktop Runtime 6.0+ before using the Spriggit digest step.',
+                    benefit: '⚠️ Required by Spriggit and other .NET tools. Install .NET Desktop Runtime 8.0+ before using the Spriggit digest step.',
                     boostsMossy: true,
                 });
             }
@@ -661,6 +685,21 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         if (!spriggitCliPath || !spriggitDataPath) {
             setSpriggitMessage('Please select both Spriggit.CLI.exe and your Fallout 4 Data folder.');
             return;
+        }
+        // Pre-flight: verify .NET 8.0+ is present before spawning Spriggit for every plugin.
+        // This avoids spawning dozens of instantly-crashing processes when .NET is missing.
+        if (api.checkDotnet) {
+            const dotnetResult = await api.checkDotnet();
+            const ok = applyDotnetResult(dotnetResult);
+            if (!ok) {
+                setSpriggitStatus('error');
+                setSpriggitMessage(
+                    'Spriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
+                    'Likely cause: .NET Desktop Runtime 8.0 or later is not installed.\n' +
+                    'Download it from: https://dotnet.microsoft.com/download/dotnet/8.0'
+                );
+                return;
+            }
         }
         setSpriggitStatus('running');
         setSpriggitMessage('Running Spriggit — converting your plugins to YAML. This may take a few minutes…');
@@ -1313,7 +1352,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 text-sm text-left bg-amber-900/30 border border-amber-600/50 text-amber-200">
                                 <strong>⚠️ .NET Desktop Runtime not detected.</strong>
                                 <br />
-                                Spriggit.CLI.exe requires the <strong>.NET Desktop Runtime 6.0 or later</strong> to run.
+                                Spriggit.CLI.exe requires the <strong>.NET Desktop Runtime 8.0 or later</strong> to run.
                                 Without it every plugin will fail immediately with exit code 4294967295.
                                 <br />
                                 <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -1323,13 +1362,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         onClick={() => {
                                             const api = getElectronApi();
                                             if (api?.openExternal) {
-                                                void api.openExternal('https://dotnet.microsoft.com/download/dotnet/6.0');
+                                                void api.openExternal('https://dotnet.microsoft.com/download/dotnet/8.0');
                                             } else {
-                                                window.open('https://dotnet.microsoft.com/download/dotnet/6.0', '_blank');
+                                                window.open('https://dotnet.microsoft.com/download/dotnet/8.0', '_blank');
                                             }
                                         }}
                                     >
-                                        Download .NET Desktop Runtime 6.0 →
+                                        Download .NET Desktop Runtime 8.0 →
                                     </button>
                                     <button
                                         type="button"
@@ -1344,6 +1383,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     )}
                                 </div>
                                 <p className="mt-1 text-amber-400 text-xs">Already installed? Click <em>Re-check .NET</em> to scan again and unlock the button above.</p>
+                            </div>
+                        )}
+                        {dotnetCheckingOnEntry && (
+                            <div className="max-w-lg mx-auto mb-4 text-xs text-slate-400 flex items-center gap-2">
+                                <span className="animate-spin inline-block">🔄</span> Checking for .NET Desktop Runtime…
                             </div>
                         )}
 
@@ -1427,13 +1471,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             onClick={() => {
                                                 const api = getElectronApi();
                                                 if (api?.openExternal) {
-                                                    void api.openExternal('https://dotnet.microsoft.com/download/dotnet/6.0');
+                                                    void api.openExternal('https://dotnet.microsoft.com/download/dotnet/8.0');
                                                 } else {
-                                                    window.open('https://dotnet.microsoft.com/download/dotnet/6.0', '_blank');
+                                                    window.open('https://dotnet.microsoft.com/download/dotnet/8.0', '_blank');
                                                 }
                                             }}
                                         >
-                                            Download .NET Desktop Runtime 6.0 →
+                                            Download .NET Desktop Runtime 8.0 →
                                         </button>
                                         <button
                                             type="button"
@@ -1458,7 +1502,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {spriggitStatus !== 'done' && (
                                 <button
                                     type="button"
-                                    disabled={spriggitStatus === 'running' || !spriggitCliPath || !spriggitDataPath || dotnetOk === false}
+                                    disabled={spriggitStatus === 'running' || !spriggitCliPath || !spriggitDataPath || dotnetOk !== true || dotnetCheckingOnEntry}
                                     onClick={() => void runSpriggitDigest()}
                                     className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
                                 >
