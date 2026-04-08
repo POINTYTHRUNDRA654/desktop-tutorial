@@ -3063,18 +3063,18 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // ── .NET Desktop Runtime detection ───────────────────────────────────────
-  // check-dotnet: Probe whether the .NET Desktop Runtime 6.0+ is installed.
+  // check-dotnet: Probe whether the .NET Desktop Runtime 8.0+ is installed.
   // Spriggit.CLI.exe (and similar .NET tools) require it; without it every
   // spawn attempt returns exit code 4294967295 (process immediately crashes).
   //
   // Detection strategy:
   //  1. Run `dotnet --list-runtimes` — works whenever the dotnet SDK/runtime CLI
-  //     is on PATH.  Parse for "Microsoft.WindowsDesktop.App 6." / 7. / 8.
+  //     is on PATH.  Parse for "Microsoft.WindowsDesktop.App 8." (or higher).
   //  2. File-system fallback: check the standard install location
   //     C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\ for any
-  //     sub-directory whose name starts with 6. / 7. / 8.
+  //     sub-directory whose name starts with 8. (or higher).
   registerHandler(IPC_CHANNELS.CHECK_DOTNET, async () => {
-    const MIN_MAJOR = 6;
+    const MIN_MAJOR = 8;
 
     /** Parse `dotnet --list-runtimes` output for WindowsDesktop runtimes. */
     const parseRuntimes = (stdout: string): string[] =>
@@ -3279,8 +3279,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           const allSameCode = errors.every(e => e.includes('exit code 4294967295'));
           if (allSameCode) {
             hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
-              'Likely cause: .NET Desktop Runtime 6.0 or later is not installed.\n' +
-              'Download it from: https://dotnet.microsoft.com/download/dotnet/6.0';
+              'Likely cause: .NET Desktop Runtime 8.0 or later is not installed.\n' +
+              'Download it from: https://dotnet.microsoft.com/download/dotnet/8.0';
           } else {
             hint = '\n\nSpriggit produced no output. Make sure Spriggit.CLI.exe is the correct executable and that your Data folder path is right.';
           }
