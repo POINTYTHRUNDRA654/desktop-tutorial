@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map, Download, ExternalLink } from 'lucide-react';
+import { Cpu, Sparkles, Check, X, ArrowRight, Loader, Map, Download, ExternalLink, Brain, FolderOpen } from 'lucide-react';
 import { useI18n, resolveUiLanguage } from './i18n';
 import packageJson from '../../../package.json';
 import TutorialVideoPanel from './components/TutorialVideoPanel';
@@ -118,9 +118,17 @@ interface ToolRecommendation {
     boostsMossy: boolean;
 }
 
+/** Delay (ms) before calling onComplete after the "complete" screen appears. */
+const COMPLETE_TRANSITION_DELAY_MS = 2000;
+/** Shorter delay when Spriggit digest already ran — the user just clicked Continue. */
+const SPRIGGIT_DONE_TRANSITION_DELAY_MS = 500;
+
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
-    const [step, setStep] = useState<'welcome' | 'scanning' | 'recommendations' | 'downloads' | 'complete'>('welcome');
+    const [step, setStep] = useState<'welcome' | 'version' | 'scanning' | 'recommendations' | 'downloads' | 'spriggit-digest' | 'complete'>('welcome');
+    const [fo4Version, setFo4Version] = useState<string>(() => {
+        try { return localStorage.getItem('mossy_fo4_version') || ''; } catch { return ''; }
+    });
     const [scanProgress, setScanProgress] = useState(0);
     const [recommendations, setRecommendations] = useState<ToolRecommendation[]>([]);
     const [filteredRecommendations, setFilteredRecommendations] = useState<ToolRecommendation[]>([]);
@@ -135,6 +143,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [scanTutorialOpenedAt, setScanTutorialOpenedAt] = useState<string | null>(null);
 
     const [uiLanguage, setUiLanguage] = useState<string>('auto');
+
+    // Spriggit digest step state
+    const [spriggitCliPath, setSpriggitCliPath] = useState('');
+    const [spriggitDataPath, setSpriggitDataPath] = useState('');
+    const [spriggitStatus, setSpriggitStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+    const [spriggitMessage, setSpriggitMessage] = useState('');
+    const [spriggitFileCount, setSpriggitFileCount] = useState(0);
 
     const getElectronApi = () => {
         return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
@@ -476,8 +491,75 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         }));
         localStorage.setItem('mossy_apps', JSON.stringify(promotedApps));
 
+        // Offer the Spriggit digest step before showing "complete".
+        setStep('spriggit-digest');
+    };
+
+    /**
+     * Run Spriggit serialize on the user's Fallout 4 Data folder, then
+     * ingest all produced YAML files into the Knowledge Vault so Mossy
+     * can reason over the user's specific plugin data.
+     */
+    const runSpriggitDigest = async () => {
+        const api = getElectronApi();
+        if (!api?.spriggitSerialize || !api?.saveKnowledgeVault) {
+            setSpriggitMessage('Spriggit integration is not available in this build.');
+            setSpriggitStatus('error');
+            return;
+        }
+        if (!spriggitCliPath || !spriggitDataPath) {
+            setSpriggitMessage('Please select both Spriggit.CLI.exe and your Fallout 4 Data folder.');
+            return;
+        }
+        setSpriggitStatus('running');
+        setSpriggitMessage('Running Spriggit — converting your plugins to YAML. This may take a few minutes…');
+        try {
+            const result = await api.spriggitSerialize({
+                cliPath: spriggitCliPath,
+                dataPath: spriggitDataPath,
+                outputPath: '',
+            });
+            if (!result.ok || !result.files?.length) {
+                setSpriggitStatus('error');
+                setSpriggitMessage(`Spriggit failed: ${result.error || 'No YAML files were produced.'}`);
+                return;
+            }
+            // Build Knowledge Vault entries from the YAML files
+            const getExistingVault = (): any[] => {
+                try { return JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]') as any[]; } catch { return []; }
+            };
+            const existing: any[] = Array.isArray(getExistingVault()) ? getExistingVault() : [];
+            const now = new Date().toISOString();
+            const newEntries = (result.files as Array<{ name: string; content: string }>).map((f) => ({
+                id: `spriggit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                title: `Spriggit: ${f.name}`,
+                content: f.content,
+                source: 'Spriggit serialize (onboarding)',
+                trustLevel: 'personal',
+                date: now,
+                tags: ['spriggit', 'fallout4', 'plugin-data'],
+                status: 'learned',
+            }));
+            const merged = [...existing, ...newEntries];
+            localStorage.setItem('mossy_knowledge_vault', JSON.stringify(merged));
+            try { await api.saveKnowledgeVault(merged); } catch { /* fire-and-forget */ }
+            setSpriggitFileCount(newEntries.length);
+            setSpriggitStatus('done');
+            const warnMsg = result.error ? ` (some errors: ${result.error.slice(0, 120)})` : '';
+            setSpriggitMessage(`✅ Digested ${newEntries.length} YAML files into my Knowledge Vault.${warnMsg}`);
+            if (shouldSpeak()) {
+                void speakMossy(`I've finished converting your plugins with Spriggit and digested ${newEntries.length} files into my knowledge.`);
+            }
+        } catch (err: any) {
+            setSpriggitStatus('error');
+            setSpriggitMessage(`Error: ${String(err?.message || err)}`);
+        }
+    };
+
+    /** Advance from the spriggit-digest step to complete, using a shorter delay if the digest ran. */
+    const handleSpriggitContinue = () => {
         setStep('complete');
-        setTimeout(onComplete, 2000);
+        setTimeout(onComplete, spriggitFileCount > 0 ? SPRIGGIT_DONE_TRANSITION_DELAY_MS : COMPLETE_TRANSITION_DELAY_MS);
     };
 
     return (
@@ -533,16 +615,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             <div className="mt-3 pt-3 border-t border-slate-700 text-[10px] text-amber-300">
                                 ⚠️ <strong>Multi-language in development.</strong> UI language will change, but voice support requires installing Windows voices.
                             </div>
-                            <div className="mt-3 pt-3 border-t border-slate-700 text-[10px] text-amber-300">
-                                ⚠️ <strong>Multi-language in development.</strong> UI language will change, but voice support requires installing Windows voices.
-                            </div>
                         </div>
 
                         <button
-                            onClick={startScan}
+                            onClick={() => setStep('version')}
                             className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 mx-auto transition-colors"
                         >
-                            Start System Scan <ArrowRight className="w-5 h-5" />
+                            Next <ArrowRight className="w-5 h-5" />
                         </button>
 
                         <div className="mt-6">
@@ -563,6 +642,83 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 />
                             </div>
                         )}
+                    </div>
+                )}
+
+                {step === 'version' && (
+                    <div className="text-center animate-fade-in">
+                        <Download className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
+                        <h2 className="text-3xl font-bold text-white mb-3">Which Fallout 4 version do you have?</h2>
+                        <p className="text-slate-400 mb-8 max-w-xl mx-auto">
+                            Mossy tailors its advice based on your game version — mod compatibility, F4SE version, and stability tools all depend on this. You can change it later in Settings.
+                        </p>
+
+                        <div className="max-w-lg mx-auto space-y-3 mb-8 text-left">
+                            {[
+                                {
+                                    value: 'og',
+                                    label: 'OG — Original Game (1.10.163)',
+                                    detail: 'The classic pre-update version. F4SE 0.6.23. Best mod compatibility.',
+                                    selectedClass: 'bg-emerald-900/40 border-emerald-500 text-white',
+                                },
+                                {
+                                    value: 'ng',
+                                    label: 'NG — Next-Gen Update (1.10.984)',
+                                    detail: 'April 2024 update. F4SE 0.7.x. Requires NG patches for many mods.',
+                                    selectedClass: 'bg-blue-900/40 border-blue-500 text-white',
+                                },
+                                {
+                                    value: 'ae',
+                                    label: 'AE / Creations Menu (1.11.x)',
+                                    detail: 'November 2025 Bethesda "Anniversary Edition" update. F4SE 0.7.7.',
+                                    selectedClass: 'bg-purple-900/40 border-purple-500 text-white',
+                                },
+                                {
+                                    value: 'unknown',
+                                    label: "Not sure — I'll set this later",
+                                    detail: 'You can check your game version in Steam or in the Fallout 4 launcher.',
+                                    selectedClass: 'bg-slate-700/60 border-slate-400 text-white',
+                                },
+                            ].map(({ value, label, detail, selectedClass }) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    aria-pressed={fo4Version === value}
+                                    onClick={() => {
+                                        setFo4Version(value);
+                                        try { localStorage.setItem('mossy_fo4_version', value); } catch { /* ignore */ }
+                                    }}
+                                    className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-colors ${
+                                        fo4Version === value
+                                            ? selectedClass
+                                            : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-slate-400'
+                                    }`}
+                                >
+                                    <div className="font-semibold text-sm">{label}</div>
+                                    <div className="text-xs text-slate-400 mt-0.5">{detail}</div>
+                                </button>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={() => {
+                                if (!fo4Version) {
+                                    try { localStorage.setItem('mossy_fo4_version', 'unknown'); } catch { /* ignore */ }
+                                    setFo4Version('unknown');
+                                }
+                                startScan();
+                            }}
+                            className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 mx-auto transition-colors"
+                        >
+                            Start System Scan <ArrowRight className="w-5 h-5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStep('welcome')}
+                            className="mt-4 text-sm text-slate-400 hover:text-slate-200 underline block mx-auto"
+                        >
+                            ← Back
+                        </button>
                     </div>
                 )}
 
@@ -834,6 +990,118 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         >
                             <Check className="w-5 h-5" /> Finish Setup
                         </button>
+                    </div>
+                )}
+
+                {step === 'spriggit-digest' && (
+                    <div className="text-center animate-fade-in">
+                        <Brain className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
+                        <h2 className="text-3xl font-bold text-white mb-3">Feed Me Your Plugins</h2>
+                        <p className="text-slate-400 mb-2 max-w-xl mx-auto">
+                            I can use <strong className="text-emerald-300">Spriggit</strong> to convert your Fallout 4 plugins (.esp/.esm/.esl) into readable YAML files and then digest all that information directly into my brain, so I know your exact mod load order, records, and data from the start.
+                        </p>
+                        <p className="text-slate-500 text-sm mb-8 max-w-xl mx-auto">
+                            This is optional — you can skip it now and do it later from the Memory Vault panel.
+                        </p>
+
+                        <div className="max-w-lg mx-auto space-y-4 mb-6 text-left">
+                            {/* Spriggit CLI path */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">
+                                    Spriggit.CLI.exe
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        readOnly
+                                        value={spriggitCliPath}
+                                        placeholder="Not selected"
+                                        className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            const api = getElectronApi();
+                                            if (!api?.spriggitPickCli) return;
+                                            const p = await api.spriggitPickCli();
+                                            if (p) setSpriggitCliPath(p);
+                                        }}
+                                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-lg text-sm text-slate-200 flex items-center gap-1.5 transition-colors"
+                                    >
+                                        <FolderOpen className="w-4 h-4" /> Browse
+                                    </button>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Download from <button type="button" onClick={() => void openExternal('https://github.com/Mutagen-Modding/Spriggit/releases')} className="text-emerald-400 hover:underline">github.com/Mutagen-Modding/Spriggit</button>
+                                </p>
+                            </div>
+
+                            {/* Fallout 4 Data folder */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">
+                                    Fallout 4 Data Folder
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        readOnly
+                                        value={spriggitDataPath}
+                                        placeholder="Not selected (e.g. C:\Steam\steamapps\common\Fallout 4\Data)"
+                                        className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            const api = getElectronApi();
+                                            if (!api?.pickDirectory) return;
+                                            const p = await api.pickDirectory('Select Fallout 4 Data Folder');
+                                            if (p) setSpriggitDataPath(p);
+                                        }}
+                                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-lg text-sm text-slate-200 flex items-center gap-1.5 transition-colors"
+                                    >
+                                        <FolderOpen className="w-4 h-4" /> Browse
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Status message */}
+                        {spriggitMessage && (
+                            <div className={`max-w-lg mx-auto mb-5 rounded-lg px-4 py-3 text-sm text-left ${
+                                spriggitStatus === 'error'
+                                    ? 'bg-red-900/30 border border-red-700/50 text-red-200'
+                                    : spriggitStatus === 'done'
+                                        ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
+                                        : 'bg-slate-800/60 border border-slate-600 text-slate-300'
+                            }`}>
+                                {spriggitStatus === 'running' && <Loader className="w-4 h-4 inline-block animate-spin mr-2" />}
+                                {spriggitMessage}
+                            </div>
+                        )}
+
+                        <div className="flex flex-col gap-3 max-w-lg mx-auto">
+                            {spriggitStatus !== 'done' && (
+                                <button
+                                    type="button"
+                                    disabled={spriggitStatus === 'running' || !spriggitCliPath || !spriggitDataPath}
+                                    onClick={() => void runSpriggitDigest()}
+                                    className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                                >
+                                    {spriggitStatus === 'running'
+                                        ? <><Loader className="w-5 h-5 animate-spin" /> Converting &amp; digesting…</>
+                                        : <><Brain className="w-5 h-5" /> Convert &amp; Digest into My Brain</>
+                                    }
+                                </button>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={handleSpriggitContinue}
+                                className="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-semibold transition-colors"
+                            >
+                                {spriggitStatus === 'done' ? <><Check className="w-5 h-5 inline-block mr-1" /> Continue</> : 'Skip for now'}
+                            </button>
+                        </div>
                     </div>
                 )}
 

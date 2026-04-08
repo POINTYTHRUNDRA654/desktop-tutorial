@@ -99,6 +99,10 @@ const IPC_CHANNELS = {
   SAVE_KNOWLEDGE_VAULT: 'save-knowledge-vault',
   LOAD_KNOWLEDGE_VAULT: 'load-knowledge-vault',
 
+  // Spriggit integration
+  SPRIGGIT_PICK_CLI: 'spriggit-pick-cli',
+  SPRIGGIT_SERIALIZE: 'spriggit-serialize',
+
   // Duplicate Finder
   DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',
   DEDUPE_SCAN: 'dedupe-scan',
@@ -598,6 +602,27 @@ const electronAPI = {
    */
   loadKnowledgeVaultFromFile: (): Promise<unknown[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.LOAD_KNOWLEDGE_VAULT);
+  },
+
+  /**
+   * Spriggit: open a native file picker to select Spriggit.CLI.exe.
+   * Returns the selected path or '' if cancelled.
+   */
+  spriggitPickCli: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_PICK_CLI);
+  },
+
+  /**
+   * Spriggit: run Spriggit.CLI.exe serialize on the user's Fallout 4 Data folder.
+   * Returns the list of YAML files produced and their content (truncated to 8 KB each),
+   * or an error string on failure.
+   */
+  spriggitSerialize: (params: {
+    cliPath: string;
+    dataPath: string;
+    outputPath: string;
+  }): Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_SERIALIZE, params);
   },
 
   /**
