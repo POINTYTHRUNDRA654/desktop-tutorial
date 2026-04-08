@@ -3062,6 +3062,86 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // ── .NET Desktop Runtime detection ───────────────────────────────────────
+  // check-dotnet: Probe whether the .NET Desktop Runtime 6.0+ is installed.
+  // Spriggit.CLI.exe (and similar .NET tools) require it; without it every
+  // spawn attempt returns exit code 4294967295 (process immediately crashes).
+  //
+  // Detection strategy:
+  //  1. Run `dotnet --list-runtimes` — works whenever the dotnet SDK/runtime CLI
+  //     is on PATH.  Parse for "Microsoft.WindowsDesktop.App 6." / 7. / 8.
+  //  2. File-system fallback: check the standard install location
+  //     C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\ for any
+  //     sub-directory whose name starts with 6. / 7. / 8.
+  registerHandler(IPC_CHANNELS.CHECK_DOTNET, async () => {
+    const MIN_MAJOR = 6;
+
+    /** Parse `dotnet --list-runtimes` output for WindowsDesktop runtimes. */
+    const parseRuntimes = (stdout: string): string[] =>
+      stdout.split('\n')
+        .map(l => l.trim())
+        .filter(l => l.startsWith('Microsoft.WindowsDesktop.App'));
+
+    /** Return the highest major version from a list of runtime lines. */
+    const bestVersion = (lines: string[]): string | null => {
+      // Each line looks like: Microsoft.WindowsDesktop.App 8.0.1 [/path]
+      const versions = lines
+        .map(l => l.split(' ')[1] ?? '')
+        .filter(Boolean)
+        .sort()
+        .reverse();
+      return versions[0] ?? null;
+    };
+
+    // --- Strategy 1: dotnet CLI ------------------------------------------
+    try {
+      const DOTNET_TIMEOUT_MS = 5000;
+      const { stdout } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+        const child = spawn('dotnet', ['--list-runtimes'], { shell: false, windowsHide: true });
+        let out = '', err = '';
+        if (child.stdout) child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
+        if (child.stderr) child.stderr.on('data', (d: Buffer) => { err += d.toString(); });
+        child.on('error', reject);
+        child.on('close', () => resolve({ stdout: out, stderr: err }));
+        const timer = setTimeout(() => {
+          try { child.kill(); } catch { /* ignore */ }
+          reject(new Error('dotnet --list-runtimes timed out'));
+        }, DOTNET_TIMEOUT_MS);
+        child.on('close', () => clearTimeout(timer));
+      });
+
+      const lines = parseRuntimes(stdout);
+      const compatible = lines.filter(l => {
+        const maj = parseInt(l.split(' ')[1] ?? '0', 10);
+        return maj >= MIN_MAJOR;
+      });
+      if (compatible.length > 0) {
+        return { ok: true, version: bestVersion(compatible), runtimes: lines };
+      }
+      // dotnet is present but no compatible WindowsDesktop runtime
+      return { ok: false, version: null, runtimes: lines };
+    } catch { /* dotnet not on PATH — fall through */ }
+
+    // --- Strategy 2: file-system probe -----------------------------------
+    try {
+      // Use the ProgramFiles env var to handle non-English Windows installations
+      const programFiles = process.env.ProgramFiles || process.env['ProgramFiles(x86)'] || 'C:\\Program Files';
+      const baseDir = path.join(programFiles, 'dotnet', 'shared', 'Microsoft.WindowsDesktop.App');
+      if (fs.existsSync(baseDir)) {
+        const entries = fs.readdirSync(baseDir).filter(e => {
+          const maj = parseInt(e.split('.')[0] ?? '0', 10);
+          return maj >= MIN_MAJOR;
+        }).sort().reverse();
+        if (entries.length > 0) {
+          return { ok: true, version: entries[0], runtimes: entries.map(e => `Microsoft.WindowsDesktop.App ${e}`) };
+        }
+        return { ok: false, version: null, runtimes: [] };
+      }
+    } catch { /* ignore */ }
+
+    return { ok: false, version: null, runtimes: [] };
+  });
+
   // ── Spriggit integration ──────────────────────────────────────────────────
   // spriggit-pick-cli: Open a file picker for the user to locate Spriggit.CLI.exe
   registerHandler(IPC_CHANNELS.SPRIGGIT_PICK_CLI, async () => {
