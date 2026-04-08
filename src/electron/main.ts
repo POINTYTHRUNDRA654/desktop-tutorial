@@ -3113,7 +3113,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         return { ok: false, files: [], error: 'No plugin files (.esp/.esm/.esl) found in the Data folder.' };
       }
 
-      /** Maximum characters to keep per YAML file — keeps digest concise. */
+      /**
+       * Maximum characters to keep per YAML file before truncating.
+       * Chosen to keep each Knowledge Vault entry well under typical LLM context-window
+       * limits (~4096 tokens ≈ ~16 000 chars) while still fitting multiple files in a
+       * single system prompt. Spriggit YAML for a typical record is 200–2000 chars, so
+       * 8000 allows ~4–40 records per file entry depending on complexity.
+       */
       const SPRIGGIT_MAX_CONTENT_CHARS = 8000;
       /** Maximum directory depth when walking Spriggit output trees. */
       const SPRIGGIT_MAX_YAML_DEPTH = 6;
