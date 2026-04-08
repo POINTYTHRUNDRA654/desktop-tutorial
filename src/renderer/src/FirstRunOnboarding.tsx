@@ -124,6 +124,10 @@ const COMPLETE_TRANSITION_DELAY_MS = 2000;
 const SPRIGGIT_DONE_TRANSITION_DELAY_MS = 500;
 /** Maximum characters of error text shown in the Spriggit status message box. */
 const MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH = 600;
+/** How long (ms) the .NET recheck result badge stays visible before auto-dismissing. */
+const DOTNET_RECHECK_BADGE_DURATION_MS = 6000;
+/** Message shown when a manual .NET recheck still cannot find the runtime. */
+const DOTNET_STILL_NOT_DETECTED_MSG = '⚠️ Still not detected — make sure you installed the Desktop Runtime, then re-check.';
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
@@ -147,6 +151,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [languageReady, setLanguageReady] = useState(false);
     const [scanTutorialRequested, setScanTutorialRequested] = useState(false);
     const [scanTutorialOpenedAt, setScanTutorialOpenedAt] = useState<string | null>(null);
+    /** Timer used to auto-dismiss the .NET recheck result badge. */
+    const dotnetRecheckTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
 
     const [uiLanguage, setUiLanguage] = useState<string>('auto');
 
@@ -173,13 +179,20 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         if (!api?.checkDotnet) return;
         setDotnetRecheckInProgress(true);
         setDotnetRecheckResult(null);
+        if (dotnetRecheckTimerRef.current !== null) {
+            window.clearTimeout(dotnetRecheckTimerRef.current);
+            dotnetRecheckTimerRef.current = null;
+        }
         try {
             const result = await api.checkDotnet();
             const ok = !!result?.ok;
             setDotnetOk(ok);
             setDotnetRecheckResult(ok ? 'found' : 'not-found');
-            // Auto-clear the inline result badge after 6 s
-            window.setTimeout(() => setDotnetRecheckResult(null), 6000);
+            // Auto-clear the inline result badge after the configured duration
+            dotnetRecheckTimerRef.current = window.setTimeout(() => {
+                dotnetRecheckTimerRef.current = null;
+                setDotnetRecheckResult(null);
+            }, DOTNET_RECHECK_BADGE_DURATION_MS);
             try {
                 localStorage.setItem('mossy_dotnet_ok', String(ok));
                 if (result?.version) localStorage.setItem('mossy_dotnet_version', result.version);
@@ -219,6 +232,15 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         }
         ensureBrowserTtsSettingsStored();
     };
+
+    // Clean up the .NET recheck auto-dismiss timer when the component unmounts.
+    useEffect(() => {
+        return () => {
+            if (dotnetRecheckTimerRef.current !== null) {
+                window.clearTimeout(dotnetRecheckTimerRef.current);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         // If onboarding was already completed, skip straight through.
@@ -1318,7 +1340,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         {dotnetRecheckInProgress ? '🔄 Checking…' : '🔄 Re-check .NET'}
                                     </button>
                                     {dotnetRecheckResult === 'not-found' && (
-                                        <span className="text-xs text-amber-300 font-semibold">⚠️ Still not detected — make sure you installed the <em>Desktop Runtime</em>, then re-check.</span>
+                                        <span className="text-xs text-amber-300 font-semibold">{DOTNET_STILL_NOT_DETECTED_MSG}</span>
                                     )}
                                 </div>
                                 <p className="mt-1 text-amber-400 text-xs">Already installed? Click <em>Re-check .NET</em> to scan again and unlock the button above.</p>
@@ -1422,7 +1444,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             {dotnetRecheckInProgress ? '🔄 Checking…' : '🔄 Re-check .NET'}
                                         </button>
                                         {dotnetRecheckResult === 'not-found' && (
-                                            <span className="text-xs text-red-300 font-semibold">⚠️ Still not detected — make sure you installed the <em>Desktop Runtime</em>, then re-check.</span>
+                                            <span className="text-xs text-red-300 font-semibold">{DOTNET_STILL_NOT_DETECTED_MSG}</span>
                                         )}
                                         {dotnetRecheckResult === 'found' && (
                                             <span className="text-xs text-emerald-300 font-semibold">✅ .NET detected! This error is cleared — click <em>Convert &amp; Digest</em> to try again.</span>
