@@ -3285,15 +3285,17 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         };
         collectYaml(pluginOutputDir);
 
-        // Short-circuit: if the first DOTNET_CRASH_THRESHOLD plugins all crashed with
+        // Short-circuit: if the last DOTNET_CRASH_THRESHOLD plugins all crashed with
         // exit code 4294967295 (0xFFFFFFFF) and nothing was produced, every remaining
         // plugin will fail the same way (likely .NET Desktop Runtime is missing).
+        // Checking only the most-recent slice (not errors.every) means an unrelated
+        // early failure won't prevent detection of subsequent consecutive .NET crashes.
         // Fill the remaining slots synthetically so the error summary stays accurate,
         // then stop spawning.
         if (
           resultFiles.length === 0 &&
           errors.length >= DOTNET_CRASH_THRESHOLD &&
-          errors.every(e => e.includes('exit code 4294967295'))
+          errors.slice(-DOTNET_CRASH_THRESHOLD).every(e => e.includes('exit code 4294967295'))
         ) {
           for (let ri = pluginIdx + 1; ri < pluginFiles.length; ri++) {
             errors.push(`${pluginFiles[ri]}: exit code 4294967295`);
