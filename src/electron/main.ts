@@ -3143,6 +3143,87 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // ── Spriggit integration ──────────────────────────────────────────────────
+
+  /**
+   * Check if .NET Desktop Runtime 8.0 or later is installed and available.
+   * Tries common installation paths in order: PATH, Windows Program Files, etc.
+   * Returns { installed: boolean, version: string | null, reason?: string }
+   */
+  const checkDotNetRuntime = async (): Promise<{
+    installed: boolean;
+    version: string | null;
+    reason?: string;
+  }> => {
+    const candidates = [
+      'dotnet', // Try PATH first
+    ];
+
+    // On Windows, also try common installation directories
+    if (process.platform === 'win32') {
+      candidates.push(
+        'C:\\Program Files\\dotnet\\dotnet.exe',
+        'C:\\Program Files (x86)\\dotnet\\dotnet.exe',
+      );
+    }
+
+    // Try each candidate in order
+    for (const dotnetPath of candidates) {
+      const result = await new Promise<{
+        installed: boolean;
+        version: string | null;
+        reason?: string;
+      }>((resolve) => {
+        const child = spawn(dotnetPath, ['--version'], { shell: false, stdio: 'pipe' });
+        let stdout = '';
+
+        if (child.stdout) child.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
+
+        const timeout = setTimeout(() => {
+          try { child.kill(); } catch { /* ignore */ }
+          resolve({ installed: false, version: null, reason: undefined });
+        }, 5000);
+
+        child.on('error', (_err) => {
+          clearTimeout(timeout);
+          resolve({ installed: false, version: null, reason: undefined });
+        });
+
+        child.on('close', (code) => {
+          clearTimeout(timeout);
+          if (code === 0) {
+            const version = stdout.trim();
+            // Parse version number (e.g., "8.0.1" or "9.0.0")
+            const match = version.match(/^(\d+)\./);
+            const majorVersion = match ? parseInt(match[1], 10) : 0;
+            if (majorVersion >= 8) {
+              resolve({ installed: true, version });
+            } else {
+              resolve({
+                installed: false,
+                version,
+                reason: `.NET ${version} detected, but 8.0+ is required`,
+              });
+            }
+          } else {
+            resolve({ installed: false, version: null, reason: undefined });
+          }
+        });
+      });
+
+      // If we found a working dotnet, return immediately
+      if (result.installed) {
+        return result;
+      }
+    }
+
+    // All candidates failed
+    return {
+      installed: false,
+      version: null,
+      reason: '.NET Desktop Runtime 8.0+ not found. Tried PATH and common Windows directories.',
+    };
+  };
+
   // spriggit-pick-cli: Open a file picker for the user to locate Spriggit.CLI.exe
   registerHandler(IPC_CHANNELS.SPRIGGIT_PICK_CLI, async () => {
     try {
@@ -3178,6 +3259,22 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       if (!dataPath || typeof dataPath !== 'string') return { ok: false, files: [], error: 'No Data folder path provided.' };
       if (!fs.existsSync(cliPath)) return { ok: false, files: [], error: `Spriggit.CLI.exe not found at: ${cliPath}` };
       if (!fs.existsSync(dataPath)) return { ok: false, files: [], error: `Fallout 4 Data folder not found at: ${dataPath}` };
+
+      // Pre-check: Verify .NET Desktop Runtime 8.0+ is installed before spawning Spriggit processes.
+      // This avoids wasting time on consecutive timeouts/crashes if .NET is missing.
+      const dotnetCheck = await checkDotNetRuntime();
+      if (!dotnetCheck.installed) {
+        const reason = dotnetCheck.reason || 'Unknown reason';
+        return {
+          ok: false,
+          files: [],
+          error: `Cannot run Spriggit: .NET Desktop Runtime 8.0+ is required.\n` +
+            `${reason}\n\n` +
+            `Download .NET Desktop Runtime 8.0 from:\n` +
+            `https://dotnet.microsoft.com/download/dotnet/8.0\n\n` +
+            `After installation, restart Mossy and try again.`,
+        };
+      }
 
       // Use a safe output directory under userData if none provided
       const safeOutput = outputPath && typeof outputPath === 'string'
@@ -9774,21 +9871,21 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         const groups = (step?.groups || []).map((group: any) => {
           const plugins = (group?.options || []).map((opt: any) => {
             const files = (opt?.files || []).map((f: any) =>
-              `        <file source="${String(f.source || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" destination="${String(f.destination || f.source || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />`
+              `        <file source="${String(f.source || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" destination="${String(f.destination || f.source || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" />`
             ).join('\n');
-            return `      <plugin name="${String(opt.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">
-        <description>${String(opt.description || '').replace(/&/g,'&amp;')}</description>
+            return `      <plugin name="${String(opt.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">
+        <description>${String(opt.description || '').replace(/&/g, '&amp;')}</description>
         <typeDescriptor><type name="${String(opt.type || 'Optional')}" /></typeDescriptor>
         <files>${files ? '\n' + files + '\n      ' : ''}</files>
       </plugin>`;
           }).join('\n');
-          return `    <group name="${String(group.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" type="${String(group.type || 'SelectAny')}">
+          return `    <group name="${String(group.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" type="${String(group.type || 'SelectAny')}">
       <plugins order="Explicit">
 ${plugins}
       </plugins>
     </group>`;
         }).join('\n');
-        return `  <installStep name="${String(step.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">
+        return `  <installStep name="${String(step.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">
     <optionalFileGroups order="Explicit">
 ${groups}
     </optionalFileGroups>
@@ -9797,7 +9894,7 @@ ${groups}
 
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
-  <moduleName>${String(fomod?.name || 'Mod').replace(/&/g,'&amp;')}</moduleName>
+  <moduleName>${String(fomod?.name || 'Mod').replace(/&/g, '&amp;')}</moduleName>
   <installSteps order="Explicit">
 ${steps}
   </installSteps>
@@ -9812,11 +9909,11 @@ ${steps}
     try {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <fomod>
-  <Name>${String(modInfo?.name || '').replace(/&/g,'&amp;')}</Name>
-  <Author>${String(modInfo?.author || '').replace(/&/g,'&amp;')}</Author>
-  <Version>${String(modInfo?.version || '1.0').replace(/&/g,'&amp;')}</Version>
-  <Description>${String(modInfo?.description || '').replace(/&/g,'&amp;')}</Description>
-  <Website>${String(modInfo?.website || '').replace(/&/g,'&amp;')}</Website>
+  <Name>${String(modInfo?.name || '').replace(/&/g, '&amp;')}</Name>
+  <Author>${String(modInfo?.author || '').replace(/&/g, '&amp;')}</Author>
+  <Version>${String(modInfo?.version || '1.0').replace(/&/g, '&amp;')}</Version>
+  <Description>${String(modInfo?.description || '').replace(/&/g, '&amp;')}</Description>
+  <Website>${String(modInfo?.website || '').replace(/&/g, '&amp;')}</Website>
 </fomod>`;
       return xml;
     } catch (err: any) {
@@ -9879,21 +9976,21 @@ ${steps}
         const groups = (step?.groups || []).map((group: any) => {
           const plugins = (group?.options || []).map((opt: any) => {
             const files = (opt?.files || []).map((f: any) =>
-              `          <file source="${String(f.source || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" destination="${String(f.destination || f.source || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />`
+              `          <file source="${String(f.source || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" destination="${String(f.destination || f.source || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" />`
             ).join('\n');
-            return `        <plugin name="${String(opt.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">
-          <description>${String(opt.description || '').replace(/&/g,'&amp;')}</description>
+            return `        <plugin name="${String(opt.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">
+          <description>${String(opt.description || '').replace(/&/g, '&amp;')}</description>
           <typeDescriptor><type name="${String(opt.type || 'Optional')}" /></typeDescriptor>
           <files>${files ? '\n' + files + '\n        ' : ''}</files>
         </plugin>`;
           }).join('\n');
-          return `      <group name="${String(group.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" type="${String(group.type || 'SelectAny')}">
+          return `      <group name="${String(group.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" type="${String(group.type || 'SelectAny')}">
         <plugins order="Explicit">
 ${plugins}
         </plugins>
       </group>`;
         }).join('\n');
-        return `    <installStep name="${String(step.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">
+        return `    <installStep name="${String(step.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">
       <optionalFileGroups order="Explicit">
 ${groups}
       </optionalFileGroups>
@@ -9902,7 +9999,7 @@ ${groups}
 
       const moduleConfigXml = `<?xml version="1.0" encoding="UTF-8"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
-  <moduleName>${String(fomod?.name || 'Mod').replace(/&/g,'&amp;')}</moduleName>
+  <moduleName>${String(fomod?.name || 'Mod').replace(/&/g, '&amp;')}</moduleName>
   <installSteps order="Explicit">
 ${steps}
   </installSteps>
@@ -9911,11 +10008,11 @@ ${steps}
 
       const infoXml = `<?xml version="1.0" encoding="UTF-8"?>
 <fomod>
-  <Name>${String(fomod?.name || '').replace(/&/g,'&amp;')}</Name>
-  <Author>${String(fomod?.author || '').replace(/&/g,'&amp;')}</Author>
-  <Version>${String(fomod?.version || '1.0').replace(/&/g,'&amp;')}</Version>
-  <Description>${String(fomod?.description || '').replace(/&/g,'&amp;')}</Description>
-  <Website>${String(fomod?.website || '').replace(/&/g,'&amp;')}</Website>
+  <Name>${String(fomod?.name || '').replace(/&/g, '&amp;')}</Name>
+  <Author>${String(fomod?.author || '').replace(/&/g, '&amp;')}</Author>
+  <Version>${String(fomod?.version || '1.0').replace(/&/g, '&amp;')}</Version>
+  <Description>${String(fomod?.description || '').replace(/&/g, '&amp;')}</Description>
+  <Website>${String(fomod?.website || '').replace(/&/g, '&amp;')}</Website>
 </fomod>`;
       fs.writeFileSync(path.join(fomodDir, 'info.xml'), infoXml, 'utf-8');
 
