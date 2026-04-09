@@ -3203,6 +3203,12 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const SPRIGGIT_MAX_CONTENT_CHARS = 8000;
       /** Maximum directory depth when walking Spriggit output trees. */
       const SPRIGGIT_MAX_YAML_DEPTH = 6;
+      /**
+       * Per-plugin timeout (ms). Large DLC plugins like NukaWorld can take 2–3 minutes;
+       * 5 minutes is generous enough to handle any legitimate plugin while preventing an
+       * infinite hang when the process gets stuck (e.g. OS runtime-missing dialog).
+       */
+      const SPRIGGIT_PLUGIN_TIMEOUT_MS = 5 * 60 * 1000;
 
       const resultFiles: Array<{ name: string; content: string }> = [];
       const errors: string[] = [];
@@ -3224,11 +3230,21 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           let stderr = '';
           if (child.stderr) child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
 
+          // Safety timeout — kills the child and records a timeout error so the loop
+          // continues rather than hanging indefinitely (e.g. when an OS dialog blocks).
+          const timeoutHandle = setTimeout(() => {
+            try { child.kill(); } catch { /* ignore */ }
+            errors.push(`${plugin}: timed out after ${SPRIGGIT_PLUGIN_TIMEOUT_MS / 1000}s`);
+            resolve();
+          }, SPRIGGIT_PLUGIN_TIMEOUT_MS);
+
           child.on('error', (err) => {
+            clearTimeout(timeoutHandle);
             errors.push(`${plugin}: ${err.message}`);
             resolve();
           });
           child.on('close', (code) => {
+            clearTimeout(timeoutHandle);
             if (code !== 0) {
               const stderrSnippet = stderr.trim().slice(0, 200);
               errors.push(stderrSnippet
@@ -3275,7 +3291,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         let hint = '';
         if (resultFiles.length === 0) {
           // Exit code 0xFFFFFFFF (-1 / 4294967295) means the process crashed immediately —
-          // most commonly because the required .NET Desktop Runtime (6.0+) is not installed.
+          // most commonly because the required .NET Desktop Runtime (8.0+) is not installed.
           const allSameCode = errors.every(e => e.includes('exit code 4294967295'));
           if (allSameCode) {
             hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
