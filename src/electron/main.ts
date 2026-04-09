@@ -3145,8 +3145,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // ── Spriggit integration ──────────────────────────────────────────────────
 
   /**
-   * Check if .NET Desktop Runtime 8.0 or later is installed and available.
-   * Tries common installation paths in order: PATH, Windows Program Files, etc.
+   * Check if .NET Desktop Runtime 8.0 or later is installed.
+   * This is DIFFERENT from the .NET SDK — Spriggit needs the Desktop Runtime specifically.
+   * Checks both: (1) registry for installed runtimes, (2) Program Files directory structure.
    * Returns { installed: boolean, version: string | null, reason?: string }
    */
   const checkDotNetRuntime = async (): Promise<{
@@ -3154,73 +3155,41 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     version: string | null;
     reason?: string;
   }> => {
-    const candidates = [
-      'dotnet', // Try PATH first
-    ];
-
-    // On Windows, also try common installation directories
+    // On Windows, check the shared runtime folder structure: C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\X.Y.Z\
     if (process.platform === 'win32') {
-      candidates.push(
-        'C:\\Program Files\\dotnet\\dotnet.exe',
-        'C:\\Program Files (x86)\\dotnet\\dotnet.exe',
-      );
-    }
+      const programFiles = 'C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App';
+      if (fs.existsSync(programFiles)) {
+        try {
+          const versions = fs.readdirSync(programFiles);
+          // Sort versions in descending order and find the latest 8.0+
+          const validVersions = versions
+            .filter(v => /^\d+\.\d+\.\d+$/.test(v)) // Only valid version dirs
+            .sort()
+            .reverse();
 
-    // Try each candidate in order
-    for (const dotnetPath of candidates) {
-      const result = await new Promise<{
-        installed: boolean;
-        version: string | null;
-        reason?: string;
-      }>((resolve) => {
-        const child = spawn(dotnetPath, ['--version'], { shell: false, stdio: 'pipe' });
-        let stdout = '';
-
-        if (child.stdout) child.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-
-        const timeout = setTimeout(() => {
-          try { child.kill(); } catch { /* ignore */ }
-          resolve({ installed: false, version: null, reason: undefined });
-        }, 5000);
-
-        child.on('error', (_err) => {
-          clearTimeout(timeout);
-          resolve({ installed: false, version: null, reason: undefined });
-        });
-
-        child.on('close', (code) => {
-          clearTimeout(timeout);
-          if (code === 0) {
-            const version = stdout.trim();
-            // Parse version number (e.g., "8.0.1" or "9.0.0")
+          for (const version of validVersions) {
             const match = version.match(/^(\d+)\./);
             const majorVersion = match ? parseInt(match[1], 10) : 0;
             if (majorVersion >= 8) {
-              resolve({ installed: true, version });
-            } else {
-              resolve({
-                installed: false,
-                version,
-                reason: `.NET ${version} detected, but 8.0+ is required`,
-              });
+              return { installed: true, version, reason: undefined };
             }
-          } else {
-            resolve({ installed: false, version: null, reason: undefined });
           }
-        });
-      });
-
-      // If we found a working dotnet, return immediately
-      if (result.installed) {
-        return result;
+          // Found WindowsDesktop.App folder but no 8.0+ versions
+          return {
+            installed: false,
+            version: validVersions[0] || null,
+            reason: `Found .NET Desktop Runtime ${validVersions[0] || '?'}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
+          };
+        } catch (e) {
+          console.error('[Main] Error reading .NET Desktop Runtime folder:', e);
+        }
       }
     }
 
-    // All candidates failed
     return {
       installed: false,
       version: null,
-      reason: '.NET Desktop Runtime 8.0+ not found. Tried PATH and common Windows directories.',
+      reason: '.NET Desktop Runtime 8.0+ not found. Download it from: https://dotnet.microsoft.com/download/dotnet/8.0\n\n(Note: The .NET SDK and .NET Desktop Runtime are separate downloads. Make sure you have the Desktop Runtime installed, not just the SDK.)',
     };
   };
 
