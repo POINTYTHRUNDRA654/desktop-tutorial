@@ -3389,6 +3389,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           error:
             'Spriggit.CLI.exe crashed immediately (exit code 0xFFFFFFFF).\n' +
             'Common causes:\n' +
+            '  0. EASIEST FIX — Download the self-contained Spriggit build (bundles .NET, no separate install needed):\n' +
+            '     https://github.com/Mutagen-Modding/Spriggit/releases\n' +
+            '     Look for the "-win-x64" asset (e.g. SpriggitCLI-win-x64.zip) and use that exe instead.\n' +
             '  1. .NET Runtime 8.0+ is not installed — download from: https://dotnet.microsoft.com/download/dotnet/8.0\n' +
             '  2. Antivirus blocked Spriggit.CLI.exe — add an exception or try disabling AV temporarily.\n' +
             '  3. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.\n' +
@@ -3541,6 +3544,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           if (allSameCode) {
             hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
               'Common causes:\n' +
+              '  0. EASIEST FIX — Download the self-contained Spriggit build (bundles .NET, no separate install needed):\n' +
+              '     https://github.com/Mutagen-Modding/Spriggit/releases\n' +
+              '     Look for the "-win-x64" asset (e.g. SpriggitCLI-win-x64.zip) and use that exe instead.\n' +
               '  1. .NET Runtime 8.0+ is not installed — download from: https://dotnet.microsoft.com/download/dotnet/8.0\n' +
               '  2. Antivirus blocked Spriggit.CLI.exe — add an exception or try disabling AV temporarily.\n' +
               '  3. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.\n' +

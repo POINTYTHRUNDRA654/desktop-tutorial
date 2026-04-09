@@ -1374,10 +1374,28 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 Spriggit.CLI.exe requires <strong>.NET Runtime 8.0 or later</strong> to run.
                                 Without it every plugin will fail immediately with exit code 4294967295.
                                 <br />
+                                <div className="mt-2 p-2 rounded bg-amber-800/30 border border-amber-500/40 text-amber-100 text-xs">
+                                    <strong>✨ Easiest fix:</strong> Download the <strong>self-contained Spriggit build</strong> — it bundles .NET and requires no separate installation.
+                                    On the releases page, look for the <code className="bg-amber-900/50 px-1 rounded">-win-x64</code> asset (e.g. <code className="bg-amber-900/50 px-1 rounded">SpriggitCLI-win-x64.zip</code>).
+                                </div>
                                 <div className="mt-2 flex flex-wrap items-center gap-3">
                                     <button
                                         type="button"
-                                        className="underline text-amber-300 hover:text-amber-100 transition-colors"
+                                        className="underline text-amber-300 hover:text-amber-100 transition-colors font-semibold"
+                                        onClick={() => {
+                                            const api = getElectronApi();
+                                            if (api?.openExternal) {
+                                                void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
+                                            } else {
+                                                window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
+                                            }
+                                        }}
+                                    >
+                                        Download self-contained Spriggit →
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="underline text-amber-400 hover:text-amber-200 transition-colors text-xs"
                                         onClick={() => {
                                             const api = getElectronApi();
                                             if (api?.openExternal) {
@@ -1387,7 +1405,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             }
                                         }}
                                     >
-                                        Download .NET Runtime 8.0 →
+                                        Or install .NET Runtime 8.0 →
                                     </button>
                                     <button
                                         type="button"
@@ -1401,7 +1419,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         <span className="text-xs text-amber-300 font-semibold">{DOTNET_STILL_NOT_DETECTED_MSG}</span>
                                     )}
                                 </div>
-                                <p className="mt-1 text-amber-400 text-xs">Already installed? Click <em>Re-check .NET</em> to scan again and unlock the button above.</p>
+                                <p className="mt-1 text-amber-400 text-xs">Already installed .NET? Click <em>Re-check .NET</em> to scan again and unlock the button above.</p>
                             </div>
                         )}
                         {dotnetCheckingOnEntry && (
