@@ -3092,19 +3092,30 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   const getDotnetSharedSearchDirs = (): string[] => {
     const dirs: string[] = [];
     // Env-var overrides take highest priority (set by the installer or user)
-    if (process.env.DOTNET_ROOT)     dirs.push(path.join(process.env.DOTNET_ROOT, 'shared'));
+    if (process.env.DOTNET_ROOT) dirs.push(path.join(process.env.DOTNET_ROOT, 'shared'));
     if (process.env.DOTNET_ROOT_X64) dirs.push(path.join(process.env.DOTNET_ROOT_X64, 'shared'));
     if (process.env.DOTNET_ROOT_X86) dirs.push(path.join(process.env.DOTNET_ROOT_X86, 'shared'));
     // System-wide install locations
-    if (process.env.ProgramFiles)             dirs.push(path.join(process.env.ProgramFiles, 'dotnet', 'shared'));
-    if (process.env['ProgramFiles(x86)'])     dirs.push(path.join(process.env['ProgramFiles(x86)']!, 'dotnet', 'shared'));
-    if (process.env.ProgramW6432)             dirs.push(path.join(process.env.ProgramW6432, 'dotnet', 'shared'));
+    if (process.env.ProgramFiles) dirs.push(path.join(process.env.ProgramFiles, 'dotnet', 'shared'));
+    if (process.env['ProgramFiles(x86)']) dirs.push(path.join(process.env['ProgramFiles(x86)']!, 'dotnet', 'shared'));
+    if (process.env.ProgramW6432) dirs.push(path.join(process.env.ProgramW6432, 'dotnet', 'shared'));
     // User-level install (dotnet-install.ps1 default location)
     if (process.env.LOCALAPPDATA) dirs.push(path.join(process.env.LOCALAPPDATA, 'Microsoft', 'dotnet', 'shared'));
     // Hard-coded fallback in case env vars are stripped
     dirs.push('C:\\Program Files\\dotnet\\shared');
     // De-duplicate while preserving priority order
     return [...new Set(dirs)];
+  };
+
+  /**
+   * Returns the list of dotnet executable candidates to try for `--list-runtimes`.
+   * Tries the PATH version first, then the executable from DOTNET_ROOT (covers
+   * runtime-only installs that don't register dotnet on PATH).
+   */
+  const getDotnetCliCandidates = (): string[] => {
+    const candidates: string[] = ['dotnet'];
+    if (process.env.DOTNET_ROOT) candidates.push(path.join(process.env.DOTNET_ROOT, 'dotnet.exe'));
+    return [...new Set(candidates)];
   };
   registerHandler(IPC_CHANNELS.CHECK_DOTNET, async () => {
     const MIN_MAJOR = 8;
@@ -3146,7 +3157,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         child.on('close', () => { clearTimeout(timer); resolve(out); });
       });
 
-    for (const dotnetCmd of ['dotnet', process.env.DOTNET_ROOT ? path.join(process.env.DOTNET_ROOT, 'dotnet.exe') : null].filter(Boolean) as string[]) {
+    for (const dotnetCmd of getDotnetCliCandidates()) {
       try {
         const stdout = await runDotnetListRuntimes(dotnetCmd);
         const lines = parseRuntimes(stdout);
@@ -3215,8 +3226,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       });
 
     // --- Strategy 1 + 1b: CLI candidates (PATH, then DOTNET_ROOT) ---------
-    const cliCandidates = ['dotnet', process.env.DOTNET_ROOT ? path.join(process.env.DOTNET_ROOT, 'dotnet.exe') : null].filter(Boolean) as string[];
-    for (const cmd of cliCandidates) {
+    for (const cmd of getDotnetCliCandidates()) {
       try {
         const stdout = await runListRuntimes(cmd);
         const lines = parseLines(stdout);
