@@ -3349,11 +3349,15 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // A null result (timeout) is treated as "inconclusive — proceed".
       const SPRIGGIT_CRASH_EXIT_CODE = 0xFFFFFFFF; // 4294967295 — process crashed before CLR loaded
       const SPRIGGIT_SELFTEST_TIMEOUT_MS = 15_000;
+      // Shared wording for the incomplete-extraction root cause, used both in the
+      // pre-flight check error and in the SPRIGGIT_CRASH_CAUSES hint list.
+      const SPRIGGIT_INCOMPLETE_EXTRACT_HINT =
+        'Incomplete extraction — SpriggitCLI.zip must be fully extracted; the folder needs\n' +
+        '     Spriggit.Yaml.Fallout4.dll and ~50+ other files, not just Spriggit.CLI.exe.\n' +
+        '     Re-extract the full zip into a clean folder and try again.';
       // Common cause list shared by the self-test crash error and the all-fail summary hint.
       const SPRIGGIT_CRASH_CAUSES =
-        '  0. Incomplete extraction — SpriggitCLI.zip must be fully extracted; the folder needs\n' +
-        '     Spriggit.Yaml.Fallout4.dll and ~50+ other files, not just Spriggit.CLI.exe.\n' +
-        '     Re-extract the full zip into a clean folder and try again.\n' +
+        `  0. ${SPRIGGIT_INCOMPLETE_EXTRACT_HINT}\n` +
         '  1. EASIEST FIX if you lack .NET — Download the self-contained Spriggit build\n' +
         '     (bundles .NET, no separate install needed):\n' +
         '     https://github.com/Mutagen-Modding/Spriggit/releases\n' +
@@ -3424,10 +3428,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           error:
             'Incomplete Spriggit installation detected.\n' +
             `Spriggit.Yaml.Fallout4.dll was not found in:\n  ${spriggitDir}\n\n` +
-            'SpriggitCLI.zip must be fully extracted — the folder needs\n' +
-            'Spriggit.Yaml.Fallout4.dll and ~50+ other files, not just Spriggit.CLI.exe.\n\n' +
-            'Fix: re-extract the complete SpriggitCLI.zip into a clean folder and point\n' +
-            'Mossy at the new Spriggit.CLI.exe.\n' +
+            SPRIGGIT_INCOMPLETE_EXTRACT_HINT.replace(/^ {5}/gm, '') + '\n\n' +
             'Download from: https://github.com/Mutagen-Modding/Spriggit/releases',
         };
       }
@@ -3486,7 +3487,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           let stderr = '';
           let stdout = '';
           if (child.stderr) child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-          if (child.stdout) child.stdout.on('data', (d: Buffer) => { stdout += d.toString(); })
+          if (child.stdout) child.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
 
           // Safety timeout — kills the child and records a timeout error so the loop
           // continues rather than hanging indefinitely (e.g. when an OS dialog blocks).
