@@ -123,7 +123,7 @@ const COMPLETE_TRANSITION_DELAY_MS = 2000;
 /** Shorter delay when Spriggit digest already ran — the user just clicked Continue. */
 const SPRIGGIT_DONE_TRANSITION_DELAY_MS = 500;
 /** Maximum characters of error text shown in the Spriggit status message box. */
-const MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH = 600;
+const MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH = 1500;
 /** How long (ms) the .NET recheck result badge stays visible before auto-dismissing. */
 const DOTNET_RECHECK_BADGE_DURATION_MS = 6000;
 /** Message shown when a manual .NET recheck still cannot find the runtime. */
@@ -723,12 +723,18 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     ? errText.slice(0, MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH) + '\n…(truncated)'
                     : errText;
                 setSpriggitMessage(`Spriggit failed:\n${displayErr}`);
-                // If every plugin crashed with the .NET-missing signature, the pre-flight
-                // check gave a false positive. Mark .NET as not found so the warning banner
-                // reappears, the "Convert & Digest" button is disabled, and the user is
-                // guided to install .NET before trying again.
+                // If every plugin crashed with the .NET-missing signature, run a fresh
+                // checkDotnet() to confirm whether .NET is genuinely absent.  An AV block or
+                // x86/x64 architecture mismatch produces the same exit code even when .NET IS
+                // installed — in that case we must not disable the button so the user can retry
+                // after fixing AV / downloading the correct Spriggit build.
                 if (errText.includes('0xFFFFFFFF')) {
-                    applyDotnetResult({ ok: false });
+                    try {
+                        const freshCheck = await api.checkDotnet!();
+                        applyDotnetResult(freshCheck);
+                    } catch {
+                        // Re-check threw (IPC unavailable) — leave dotnet status unchanged.
+                    }
                 }
                 return;
             }
