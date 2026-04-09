@@ -127,7 +127,7 @@ const MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH = 600;
 /** How long (ms) the .NET recheck result badge stays visible before auto-dismissing. */
 const DOTNET_RECHECK_BADGE_DURATION_MS = 6000;
 /** Message shown when a manual .NET recheck still cannot find the runtime. */
-const DOTNET_STILL_NOT_DETECTED_MSG = '⚠️ Still not detected — make sure you installed the Desktop Runtime, then re-check.';
+const DOTNET_STILL_NOT_DETECTED_MSG = '⚠️ Still not detected — try restarting Mossy after install. To confirm .NET is present, open a Command Prompt and run: Spriggit.CLI.exe --version';
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
@@ -163,7 +163,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [spriggitMessage, setSpriggitMessage] = useState('');
     const [spriggitFileCount, setSpriggitFileCount] = useState(0);
 
-    // .NET Desktop Runtime availability (detected during the startup scan)
+    // .NET Runtime availability (detected during the startup scan)
     const [dotnetOk, setDotnetOk] = useState<boolean | null>(() => {
         try {
             const v = localStorage.getItem('mossy_dotnet_ok');
@@ -474,7 +474,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setAllApps(allDetectedApps);
             setScanProgress(70);
 
-            // Check .NET Desktop Runtime — required by Spriggit and other .NET tools.
+            // Check .NET Runtime — required by Spriggit and other .NET tools.
             // Do this during the scan so the Spriggit step can warn upfront.
             let dotnetAvailable = false;
             try {
@@ -592,13 +592,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 });
             });
 
-            // .NET Desktop Runtime — inject a warning card if missing
+            // .NET Runtime — inject a warning card if missing
             if (!dotnetAvailable) {
                 recs.unshift({
-                    name: '.NET Desktop Runtime (missing)',
+                    name: '.NET Runtime (missing)',
                     path: 'https://dotnet.microsoft.com/download/dotnet/8.0',
                     category: 'modding',
-                    benefit: '⚠️ Required by Spriggit and other .NET tools. Install .NET Desktop Runtime 8.0+ before using the Spriggit digest step.',
+                    benefit: '⚠️ Required by Spriggit and other .NET tools. Install .NET Runtime 8.0+ before using the Spriggit digest step.',
                     boostsMossy: true,
                 });
             }
@@ -700,7 +700,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     if (!ok) {
                         setSpriggitStatus('error');
                         setSpriggitMessage(
-                            '.NET Desktop Runtime 8.0 or later is required to run Spriggit (exit code 4294967295 / 0xFFFFFFFF).\n' +
+                            '.NET Runtime 8.0 or later is required to run Spriggit (exit code 4294967295 / 0xFFFFFFFF).\n' +
                             'Please install it and click Re-check .NET, then try again.\n' +
                             'Download it from: https://dotnet.microsoft.com/download/dotnet/8.0'
                         );
@@ -1363,9 +1363,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         {/* .NET Runtime warning — shown when the scan detected it was missing */}
                         {dotnetOk === false && (
                             <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 text-sm text-left bg-amber-900/30 border border-amber-600/50 text-amber-200">
-                                <strong>⚠️ .NET Desktop Runtime not detected.</strong>
+                                <strong>⚠️ .NET Runtime not detected.</strong>
                                 <br />
-                                Spriggit.CLI.exe requires the <strong>.NET Desktop Runtime 8.0 or later</strong> to run.
+                                Spriggit.CLI.exe requires <strong>.NET Runtime 8.0 or later</strong> to run.
                                 Without it every plugin will fail immediately with exit code 4294967295.
                                 <br />
                                 <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -1381,7 +1381,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             }
                                         }}
                                     >
-                                        Download .NET Desktop Runtime 8.0 →
+                                        Download .NET Runtime 8.0 →
                                     </button>
                                     <button
                                         type="button"
@@ -1400,7 +1400,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         )}
                         {dotnetCheckingOnEntry && (
                             <div className="max-w-lg mx-auto mb-4 text-xs text-slate-400 flex items-center gap-2">
-                                <span className="animate-spin inline-block">🔄</span> Checking for .NET Desktop Runtime…
+                                <span className="animate-spin inline-block">🔄</span> Checking for .NET Runtime…
                             </div>
                         )}
 
@@ -1490,7 +1490,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 }
                                             }}
                                         >
-                                            Download .NET Desktop Runtime 8.0 →
+                                            Download .NET Runtime 8.0 →
                                         </button>
                                         <button
                                             type="button"
