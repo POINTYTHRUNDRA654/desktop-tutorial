@@ -3204,10 +3204,10 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     } catch { /* dotnet not on PATH or timed out — fall through */ }
 
     // --- Strategy 2: file-system probe -----------------------------------
-    // Use ProgramFiles env var so non-English Windows and custom install paths
-    // are handled correctly (avoids hardcoding "C:\Program Files").
+    // Use the 64-bit ProgramFiles env var — the .NET Desktop Runtime installs
+    // under %ProgramFiles% (not %ProgramFiles(x86)%), so avoid the x86 fallback.
     try {
-      const programFiles = process.env.ProgramFiles || process.env['ProgramFiles(x86)'] || 'C:\\Program Files';
+      const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
       const baseDir = path.join(programFiles, 'dotnet', 'shared', 'Microsoft.WindowsDesktop.App');
       if (fs.existsSync(baseDir)) {
         const entries = fs.readdirSync(baseDir)
