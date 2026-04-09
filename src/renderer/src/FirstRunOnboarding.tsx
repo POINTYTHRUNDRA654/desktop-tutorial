@@ -1441,7 +1441,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             className="px-3 py-1 rounded bg-amber-600/70 hover:bg-amber-500/70 text-white text-xs font-semibold transition-colors"
                                             onClick={() => {
                                                 setDotnetOverride(true);
-                                                try { localStorage.setItem('mossy_dotnet_override', 'true'); } catch { /* ignore */ }
+                                                try { localStorage.setItem('mossy_dotnet_override', 'true'); } catch (e) { console.warn('[Spriggit] Could not persist dotnetOverride to localStorage:', e); }
                                             }}
                                         >
                                             I have .NET installed — proceed anyway
