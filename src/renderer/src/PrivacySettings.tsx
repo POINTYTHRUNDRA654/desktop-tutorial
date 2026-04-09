@@ -832,7 +832,7 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
                 type="text"
                 value={blacklistInput}
                 onChange={(e) => setBlacklistInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleAddToBlacklist(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && blacklistInput.trim()) handleAddToBlacklist(); }}
                 placeholder="Mod name or keyword (e.g. My Awesome Mod)"
                 className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
               />

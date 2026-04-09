@@ -1495,8 +1495,8 @@ export const ChatInterface: React.FC = () => {
                 const blacklist: string[] = s?.privacySettings?.modContentBlacklist ?? [];
                 if (blacklist.length > 0) {
                     settingsCtx += `\n**MOD CONTENT BLACKLIST (STRICT — DO NOT REFERENCE THESE MODS):**\n` +
-                        blacklist.map((m: string) => `- ${m}`).join('\n') +
-                        `\n(The user has opted these mods out of AI discussion. Never mention, recommend, discuss, or use them as examples in any response.)`;
+                        blacklist.map((m: string) => `- ${m}`).join('\n') + '\n' +
+                        `(The user has opted these mods out of AI discussion. Never mention, recommend, discuss, or use them as examples in any response.)`;
                 }
             }
 
