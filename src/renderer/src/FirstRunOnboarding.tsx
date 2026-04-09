@@ -1376,10 +1376,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             This is optional — you can skip it now and do it later from the Memory Vault panel.
                         </p>
 
-                        {/* .NET Runtime warning — shown when the scan detected it was missing */}
-                        {dotnetOk === false && (
+                        {/* .NET Runtime warning — shown when .NET is confirmed missing or status is unknown.
+                            Kept visible for dotnetOk === null so new users always see the install button
+                            even before the auto-check finishes or when it is inconclusive. */}
+                        {dotnetOk !== true && !dotnetCheckingOnEntry && (
                             <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 text-sm text-left bg-amber-900/30 border border-amber-600/50 text-amber-200">
-                                <strong>⚠️ .NET Runtime not detected.</strong>
+                                <strong>{dotnetOk === false ? '⚠️ .NET Runtime not detected.' : '⚠️ .NET Runtime status unknown.'}</strong>
                                 <br />
                                 Spriggit.CLI.exe requires <strong>.NET Runtime 8.0 or later</strong> to run.
                                 Without it every plugin will fail immediately with exit code 4294967295.

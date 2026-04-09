@@ -3351,15 +3351,19 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const SPRIGGIT_SELFTEST_TIMEOUT_MS = 15_000;
       // Common cause list shared by the self-test crash error and the all-fail summary hint.
       const SPRIGGIT_CRASH_CAUSES =
-        '  0. EASIEST FIX — Download the self-contained Spriggit build (bundles .NET, no separate install needed):\n' +
+        '  0. Incomplete extraction — SpriggitCLI.zip must be fully extracted; the folder needs\n' +
+        '     Spriggit.Yaml.Fallout4.dll and ~50+ other files, not just Spriggit.CLI.exe.\n' +
+        '     Re-extract the full zip into a clean folder and try again.\n' +
+        '  1. EASIEST FIX if you lack .NET — Download the self-contained Spriggit build\n' +
+        '     (bundles .NET, no separate install needed):\n' +
         '     https://github.com/Mutagen-Modding/Spriggit/releases\n' +
         '     Download SpriggitCLI.zip and use that Spriggit.CLI.exe instead.\n' +
-        '  1. .NET Runtime 8.0+ is not installed — download from: https://dotnet.microsoft.com/download/dotnet/8.0\n' +
-        '  2. Antivirus blocked Spriggit.CLI.exe — add an exception or try disabling AV temporarily.\n' +
-        '  3. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.';
+        '  2. .NET Runtime 8.0+ is not installed — download from: https://dotnet.microsoft.com/download/dotnet/8.0\n' +
+        '  3. Antivirus blocked Spriggit.CLI.exe — add an exception or try disabling AV temporarily.\n' +
+        '  4. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.';
       // Shown at the end of both self-test error messages so the user can reproduce manually.
       const SPRIGGIT_MANUAL_RUN_HINT =
-        '  4. To confirm the real error, open a Command Prompt and run Spriggit manually:\n' +
+        '  5. To confirm the real error, open a Command Prompt and run Spriggit manually:\n' +
         '     Spriggit.CLI.exe serialize --InputPath "path\\to\\plugin.esp" --OutputPath "C:\\Temp\\out" --GameRelease Fallout4 --PackageName Spriggit.Yaml.Fallout4';
 
       const selfTestCode = await new Promise<number | null>((resolve) => {
@@ -3407,6 +3411,26 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         ? outputPath
         : path.join(app.getPath('userData'), 'spriggit-output');
       fs.mkdirSync(safeOutput, { recursive: true });
+
+      // Pre-flight: check that Spriggit.Yaml.Fallout4.dll is present alongside the CLI.
+      // A SpriggitCLI.zip extraction that only partially unpacked will be missing this DLL
+      // and every serialize call will crash with exit code 0xFFFFFFFF before any work is done.
+      const spriggitDir = path.dirname(cliPath);
+      const yamlDll = path.join(spriggitDir, 'Spriggit.Yaml.Fallout4.dll');
+      if (!fs.existsSync(yamlDll)) {
+        return {
+          ok: false,
+          files: [],
+          error:
+            'Incomplete Spriggit installation detected.\n' +
+            `Spriggit.Yaml.Fallout4.dll was not found in:\n  ${spriggitDir}\n\n` +
+            'SpriggitCLI.zip must be fully extracted — the folder needs\n' +
+            'Spriggit.Yaml.Fallout4.dll and ~50+ other files, not just Spriggit.CLI.exe.\n\n' +
+            'Fix: re-extract the complete SpriggitCLI.zip into a clean folder and point\n' +
+            'Mossy at the new Spriggit.CLI.exe.\n' +
+            'Download from: https://github.com/Mutagen-Modding/Spriggit/releases',
+        };
+      }
 
       // Find all .esp/.esm/.esl files in the Data folder (top-level only)
       const pluginFiles = fs.readdirSync(dataPath).filter(f =>
@@ -3460,7 +3484,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           ], { shell: false, windowsHide: true, cwd: path.dirname(cliPath) });
 
           let stderr = '';
+          let stdout = '';
           if (child.stderr) child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
+          if (child.stdout) child.stdout.on('data', (d: Buffer) => { stdout += d.toString(); })
 
           // Safety timeout — kills the child and records a timeout error so the loop
           // continues rather than hanging indefinitely (e.g. when an OS dialog blocks).
@@ -3478,9 +3504,11 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           child.on('close', (code) => {
             clearTimeout(timeoutHandle);
             if (code !== 0) {
-              const stderrSnippet = stderr.trim().slice(0, 200);
-              errors.push(stderrSnippet
-                ? `${plugin}: exit code ${code} — ${stderrSnippet}`
+              // Prefer stderr; fall back to stdout — Spriggit's .NET host sometimes
+              // writes crash diagnostics to stdout rather than stderr.
+              const output = (stderr.trim() || stdout.trim()).slice(0, 300);
+              errors.push(output
+                ? `${plugin}: exit code ${code} — ${output}`
                 : `${plugin}: exit code ${code}`);
             }
             resolve();
@@ -3548,7 +3576,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
               'Common causes:\n' +
               SPRIGGIT_CRASH_CAUSES + '\n' +
-              SPRIGGIT_MANUAL_RUN_HINT.replace('  4. To confirm', '  4. To see');
+              SPRIGGIT_MANUAL_RUN_HINT.replace('  5. To confirm', '  5. To see');
           } else {
             hint = '\n\nSpriggit produced no output. Make sure Spriggit.CLI.exe is the correct executable and that your Data folder path is right.';
           }
