@@ -1484,20 +1484,24 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 {spriggitMessage}
                                 {spriggitStatus === 'error' && spriggitMessage.includes('0xFFFFFFFF') && (
                                     <div className="mt-3 flex flex-wrap items-center gap-3">
-                                        <button
-                                            type="button"
-                                            className="underline text-red-300 hover:text-red-100 transition-colors"
-                                            onClick={() => {
-                                                const api = getElectronApi();
-                                                if (api?.openExternal) {
-                                                    void api.openExternal('https://dotnet.microsoft.com/download/dotnet/8.0');
-                                                } else {
-                                                    window.open('https://dotnet.microsoft.com/download/dotnet/8.0', '_blank');
-                                                }
-                                            }}
-                                        >
-                                            Download .NET Runtime 8.0 →
-                                        </button>
+                                        {/* Only offer the .NET download when .NET is confirmed absent.
+                                            When dotnetOk is true the crash is more likely AV or arch mismatch. */}
+                                        {dotnetOk !== true && (
+                                            <button
+                                                type="button"
+                                                className="underline text-red-300 hover:text-red-100 transition-colors"
+                                                onClick={() => {
+                                                    const api = getElectronApi();
+                                                    if (api?.openExternal) {
+                                                        void api.openExternal('https://dotnet.microsoft.com/download/dotnet/8.0');
+                                                    } else {
+                                                        window.open('https://dotnet.microsoft.com/download/dotnet/8.0', '_blank');
+                                                    }
+                                                }}
+                                            >
+                                                Download .NET Runtime 8.0 →
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
                                             disabled={dotnetRecheckInProgress}
