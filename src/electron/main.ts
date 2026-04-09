@@ -3347,18 +3347,26 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // wrong architecture.  Any other exit code (including non-zero from old builds
       // that don't support --version) means the process did start, so we proceed.
       // A null result (timeout) is treated as "inconclusive — proceed".
+      const SPRIGGIT_CRASH_EXIT_CODE = 0xFFFFFFFF; // 4294967295 — process crashed before CLR loaded
       const SPRIGGIT_SELFTEST_TIMEOUT_MS = 15_000;
+      // Shown at the end of both self-test error messages so the user can reproduce manually.
+      const SPRIGGIT_MANUAL_RUN_HINT =
+        '  4. To confirm the real error, open a Command Prompt and run Spriggit manually:\n' +
+        '     Spriggit.CLI.exe serialize --InputPath "path\\to\\plugin.esp" --OutputPath "C:\\Temp\\out" --GameRelease Fallout4 --PackageName Spriggit.Yaml.Fallout4';
+
       const selfTestCode = await new Promise<number | null>((resolve) => {
+        let settled = false;
+        const settle = (v: number | null) => { if (!settled) { settled = true; resolve(v); } };
         const testChild = spawn(cliPath, ['--version'], { shell: false, windowsHide: true });
         const timer = setTimeout(() => {
           try { testChild.kill(); } catch { /* ignore */ }
-          resolve(null); // timed out → inconclusive, proceed with full serialize
+          settle(null); // timed out → inconclusive, proceed with full serialize
         }, SPRIGGIT_SELFTEST_TIMEOUT_MS);
-        testChild.on('error', () => { clearTimeout(timer); resolve(-1); });
-        testChild.on('close', (code) => { clearTimeout(timer); resolve(code); });
+        testChild.on('error', () => { clearTimeout(timer); settle(-1); });
+        testChild.on('close', (code) => { clearTimeout(timer); settle(code); });
       });
 
-      if (selfTestCode === 4294967295) {
+      if (selfTestCode === SPRIGGIT_CRASH_EXIT_CODE) {
         // Re-check .NET to produce a more targeted error message.
         const dotnetRecheck = await checkDotNetRuntime();
         if (dotnetRecheck.installed) {
@@ -3372,8 +3380,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               '  2. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.\n' +
               '  3. The Spriggit download may be corrupted — re-download from:\n' +
               '     https://github.com/Mutagen-Modding/Spriggit/releases\n' +
-              '  4. To confirm the real error, open a Command Prompt and run Spriggit manually:\n' +
-              '     Spriggit.CLI.exe serialize --InputPath "path\\to\\plugin.esp" --OutputPath "C:\\Temp\\out" --GameRelease Fallout4 --PackageName Spriggit.Yaml.Fallout4',
+              SPRIGGIT_MANUAL_RUN_HINT,
           };
         }
         return {
@@ -3385,8 +3392,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             '  1. .NET Runtime 8.0+ is not installed — download from: https://dotnet.microsoft.com/download/dotnet/8.0\n' +
             '  2. Antivirus blocked Spriggit.CLI.exe — add an exception or try disabling AV temporarily.\n' +
             '  3. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.\n' +
-            '  4. To confirm the real error, open a Command Prompt and run Spriggit manually:\n' +
-            '     Spriggit.CLI.exe serialize --InputPath "path\\to\\plugin.esp" --OutputPath "C:\\Temp\\out" --GameRelease Fallout4 --PackageName Spriggit.Yaml.Fallout4',
+            SPRIGGIT_MANUAL_RUN_HINT,
         };
       }
 
