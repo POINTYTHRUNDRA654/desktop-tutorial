@@ -608,7 +608,7 @@ const electronAPI = {
   },
 
   /**
-   * Check whether the .NET Desktop Runtime 6.0 or later is installed on this machine.
+   * Check whether the .NET Desktop Runtime 8.0 or later is installed on this machine.
    * This is required by Spriggit.CLI.exe and similar .NET tools.
    * Returns { ok, version, runtimes } — ok=true means a compatible runtime was found.
    */
