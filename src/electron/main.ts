@@ -3069,13 +3069,43 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // code 4294967295 (process immediately crashes).
   //
   // Detection strategy:
-  //  1. Run `dotnet --list-runtimes` — works whenever the dotnet SDK/runtime CLI
-  //     is on PATH.  Parse for "Microsoft.NETCore.App 8." (or higher).
-  //     Also accepts "Microsoft.WindowsDesktop.App 8." (superset of NETCore.App).
-  //  2. File-system fallback: check the standard install locations under
-  //     C:\Program Files\dotnet\shared\ for Microsoft.NETCore.App or
-  //     Microsoft.WindowsDesktop.App with a version 8.x or higher.
+  //  1.  Run `dotnet --list-runtimes` via PATH — works when the SDK or a
+  //      PATH-aware runtime is installed.  Parse for NETCore.App/WindowsDesktop 8+.
+  //  1b. Run `dotnet.exe --list-runtimes` from DOTNET_ROOT — covers runtime-only
+  //      installs that don't add dotnet to PATH.
+  //  2.  File-system fallback: scan every known install location on this machine.
+  //      Because every user's system layout is different, we check all of:
+  //       • DOTNET_ROOT, DOTNET_ROOT_X64, DOTNET_ROOT_X86 (env-var overrides)
+  //       • %ProgramFiles%\dotnet\shared\          (64-bit system-wide install)
+  //       • %ProgramFiles(x86)%\dotnet\shared\     (32-bit / Arm64 machines)
+  //       • %ProgramW6432%\dotnet\shared\          (native PF from WOW64 context)
+  //       • %LOCALAPPDATA%\Microsoft\dotnet\shared\ (user-level install via ps1/sh)
   const DOTNET_RUNTIME_DIRS = ['Microsoft.NETCore.App', 'Microsoft.WindowsDesktop.App'] as const;
+
+  /**
+   * Returns every candidate "shared" directory that may contain .NET runtimes
+   * on the current machine, in priority order, de-duplicated.
+   * This is the authoritative list used by both the IPC handler and the
+   * internal checkDotNetRuntime() helper so that a rescan truly covers the
+   * whole system regardless of where the user installed .NET.
+   */
+  const getDotnetSharedSearchDirs = (): string[] => {
+    const dirs: string[] = [];
+    // Env-var overrides take highest priority (set by the installer or user)
+    if (process.env.DOTNET_ROOT)     dirs.push(path.join(process.env.DOTNET_ROOT, 'shared'));
+    if (process.env.DOTNET_ROOT_X64) dirs.push(path.join(process.env.DOTNET_ROOT_X64, 'shared'));
+    if (process.env.DOTNET_ROOT_X86) dirs.push(path.join(process.env.DOTNET_ROOT_X86, 'shared'));
+    // System-wide install locations
+    if (process.env.ProgramFiles)             dirs.push(path.join(process.env.ProgramFiles, 'dotnet', 'shared'));
+    if (process.env['ProgramFiles(x86)'])     dirs.push(path.join(process.env['ProgramFiles(x86)']!, 'dotnet', 'shared'));
+    if (process.env.ProgramW6432)             dirs.push(path.join(process.env.ProgramW6432, 'dotnet', 'shared'));
+    // User-level install (dotnet-install.ps1 default location)
+    if (process.env.LOCALAPPDATA) dirs.push(path.join(process.env.LOCALAPPDATA, 'Microsoft', 'dotnet', 'shared'));
+    // Hard-coded fallback in case env vars are stripped
+    dirs.push('C:\\Program Files\\dotnet\\shared');
+    // De-duplicate while preserving priority order
+    return [...new Set(dirs)];
+  };
   registerHandler(IPC_CHANNELS.CHECK_DOTNET, async () => {
     const MIN_MAJOR = 8;
 
@@ -3102,52 +3132,47 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       return versions[0] ?? null;
     };
 
-    // --- Strategy 1: dotnet CLI ------------------------------------------
-    try {
-      const DOTNET_TIMEOUT_MS = 5000;
-      const { stdout } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-        const child = spawn('dotnet', ['--list-runtimes'], { shell: false, windowsHide: true });
-        let out = '', err = '';
+    // --- Strategy 1: dotnet on PATH (`dotnet --list-runtimes`) --------------
+    const runDotnetListRuntimes = (dotnetCmd: string) =>
+      new Promise<string>((resolve, reject) => {
+        const child = spawn(dotnetCmd, ['--list-runtimes'], { shell: false, windowsHide: true });
+        let out = '';
         if (child.stdout) child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
-        if (child.stderr) child.stderr.on('data', (d: Buffer) => { err += d.toString(); });
         child.on('error', reject);
-        child.on('close', () => resolve({ stdout: out, stderr: err }));
         const timer = setTimeout(() => {
           try { child.kill(); } catch { /* ignore */ }
           reject(new Error('dotnet --list-runtimes timed out'));
-        }, DOTNET_TIMEOUT_MS);
-        child.on('close', () => clearTimeout(timer));
+        }, 5000);
+        child.on('close', () => { clearTimeout(timer); resolve(out); });
       });
 
-      const lines = parseRuntimes(stdout);
-      const compatible = lines.filter(l => {
-        const maj = parseInt(l.split(' ')[1] ?? '0', 10);
-        return maj >= MIN_MAJOR;
-      });
-      if (compatible.length > 0) {
-        return { ok: true, version: bestVersion(compatible), runtimes: lines };
-      }
-      // dotnet is present but no compatible runtime
-      return { ok: false, version: null, runtimes: lines };
-    } catch { /* dotnet not on PATH — fall through */ }
+    for (const dotnetCmd of ['dotnet', process.env.DOTNET_ROOT ? path.join(process.env.DOTNET_ROOT, 'dotnet.exe') : null].filter(Boolean) as string[]) {
+      try {
+        const stdout = await runDotnetListRuntimes(dotnetCmd);
+        const lines = parseRuntimes(stdout);
+        const compatible = lines.filter(l => parseInt(l.split(' ')[1] ?? '0', 10) >= MIN_MAJOR);
+        if (compatible.length > 0) return { ok: true, version: bestVersion(compatible), runtimes: lines };
+        if (lines.length > 0) return { ok: false, version: null, runtimes: lines };
+        // dotnet ran but listed no runtimes — continue to next candidate
+      } catch { /* not found or timed out — try next */ }
+    }
 
-    // --- Strategy 2: file-system probe -----------------------------------
-    // Check Microsoft.NETCore.App first (the base runtime Spriggit actually needs),
-    // then fall back to Microsoft.WindowsDesktop.App (superset that includes NETCore.App).
-    // Note: the plain .NET Runtime installer does NOT add `dotnet` to PATH, so this
-    // fallback is the primary detection path for runtime-only installations.
+    // --- Strategy 2: file-system scan of all known install locations ------
+    // Plain runtime installers do NOT add `dotnet` to PATH; user installs may
+    // be in per-user directories.  We scan every candidate directory so that
+    // the rescan button finds .NET regardless of where the user installed it.
     try {
-      const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
-      const dotnetShared = path.join(programFiles, 'dotnet', 'shared');
-      for (const runtimeDir of DOTNET_RUNTIME_DIRS) {
-        const baseDir = path.join(dotnetShared, runtimeDir);
-        if (!fs.existsSync(baseDir)) continue;
-        const entries = fs.readdirSync(baseDir).filter(e => {
-          const maj = parseInt(e.split('.')[0] ?? '0', 10);
-          return maj >= MIN_MAJOR;
-        }).sort().reverse();
-        if (entries.length > 0) {
-          return { ok: true, version: entries[0], runtimes: entries.map(e => `${runtimeDir} ${e}`) };
+      for (const dotnetShared of getDotnetSharedSearchDirs()) {
+        for (const runtimeDir of DOTNET_RUNTIME_DIRS) {
+          const baseDir = path.join(dotnetShared, runtimeDir);
+          if (!fs.existsSync(baseDir)) continue;
+          const entries = fs.readdirSync(baseDir).filter(e => {
+            const maj = parseInt(e.split('.')[0] ?? '0', 10);
+            return maj >= MIN_MAJOR;
+          }).sort().reverse();
+          if (entries.length > 0) {
+            return { ok: true, version: entries[0], runtimes: entries.map(e => `${runtimeDir} ${e}`) };
+          }
         }
       }
     } catch { /* ignore */ }
@@ -3158,12 +3183,12 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // ── Spriggit integration ──────────────────────────────────────────────────
 
   /**
-   * Check if .NET Runtime 8.0 or later is installed.
-   * Spriggit.CLI.exe targets net8.0 (a pure CLI app) and only requires
-   * Microsoft.NETCore.App — NOT Microsoft.WindowsDesktop.App.
-   * Strategy 1: run `dotnet --list-runtimes` and look for Microsoft.NETCore.App 8+
-   *             (also accepts Microsoft.WindowsDesktop.App which is a superset).
-   * Strategy 2 (fallback): inspect the standard Windows install directories.
+   * Check if .NET Runtime 8.0 or later is installed on this machine.
+   * Spriggit.CLI.exe targets net8.0 and only requires Microsoft.NETCore.App.
+   * Strategy 1:  run `dotnet --list-runtimes` (PATH) and look for 8.0+.
+   * Strategy 1b: run `$DOTNET_ROOT\dotnet.exe --list-runtimes` for runtime-only
+   *              installs that don't add dotnet to PATH.
+   * Strategy 2:  scan every known install directory across the system.
    * Returns { installed: boolean, version: string | null, reason?: string }
    */
   const checkDotNetRuntime = async (): Promise<{
@@ -3173,81 +3198,70 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   }> => {
     const MIN_MAJOR = 8;
 
-    // --- Strategy 1: dotnet CLI (`dotnet --list-runtimes`) ---------------
-    // Most reliable: works even if the runtime directory is in a non-standard
-    // location, and correctly returns only runtimes that are fully functional.
-    // Note: `dotnet` is only on PATH when the SDK is installed; plain runtime
-    // installs do not add the CLI to PATH, so Strategy 2 is the common path.
-    try {
-      const DOTNET_TIMEOUT_MS = 5000;
-      const stdout = await new Promise<string>((resolve, reject) => {
-        const child = spawn('dotnet', ['--list-runtimes'], { shell: false, windowsHide: true });
+    const parseLines = (stdout: string) =>
+      stdout.split('\n').map(l => l.trim()).filter(l => DOTNET_RUNTIME_DIRS.some(d => l.startsWith(d)));
+
+    const runListRuntimes = (dotnetCmd: string) =>
+      new Promise<string>((resolve, reject) => {
+        const child = spawn(dotnetCmd, ['--list-runtimes'], { shell: false, windowsHide: true });
         let out = '';
         if (child.stdout) child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
         child.on('error', reject);
         const timer = setTimeout(() => {
           try { child.kill(); } catch { /* ignore */ }
-          reject(new Error('dotnet --list-runtimes timed out'));
-        }, DOTNET_TIMEOUT_MS);
+          reject(new Error('timed out'));
+        }, 5000);
         child.on('close', () => { clearTimeout(timer); resolve(out); });
       });
 
-      // Accept either the base NETCore.App runtime (what Spriggit actually needs)
-      // or the Desktop Runtime superset (which includes NETCore.App).
-      const lines = stdout.split('\n')
-        .map(l => l.trim())
-        .filter(l => DOTNET_RUNTIME_DIRS.some(d => l.startsWith(d)));
+    // --- Strategy 1 + 1b: CLI candidates (PATH, then DOTNET_ROOT) ---------
+    const cliCandidates = ['dotnet', process.env.DOTNET_ROOT ? path.join(process.env.DOTNET_ROOT, 'dotnet.exe') : null].filter(Boolean) as string[];
+    for (const cmd of cliCandidates) {
+      try {
+        const stdout = await runListRuntimes(cmd);
+        const lines = parseLines(stdout);
+        const compatible = lines.filter(l => parseInt(l.split(' ')[1] ?? '0', 10) >= MIN_MAJOR);
+        if (compatible.length > 0) {
+          const versions = compatible.map(l => l.split(' ')[1] ?? '').filter(Boolean).sort().reverse();
+          return { installed: true, version: versions[0] ?? null };
+        }
+        if (lines.length > 0) {
+          const versions = lines.map(l => l.split(' ')[1] ?? '').filter(Boolean).sort().reverse();
+          return {
+            installed: false,
+            version: versions[0] ?? null,
+            reason: `Found .NET Runtime ${versions[0] ?? '?'}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
+          };
+        }
+        // dotnet ran but listed no matching runtimes — try next candidate
+      } catch { /* not on PATH or timed out — try next */ }
+    }
 
-      const compatible = lines.filter(l => {
-        const maj = parseInt(l.split(' ')[1] ?? '0', 10);
-        return maj >= MIN_MAJOR;
-      });
-
-      if (compatible.length > 0) {
-        const versions = compatible.map(l => l.split(' ')[1] ?? '').filter(Boolean).sort().reverse();
-        return { installed: true, version: versions[0] ?? null };
-      }
-
-      if (lines.length > 0) {
-        // Runtime found but below minimum version
-        const versions = lines.map(l => l.split(' ')[1] ?? '').filter(Boolean).sort().reverse();
-        return {
-          installed: false,
-          version: versions[0] ?? null,
-          reason: `Found .NET Runtime ${versions[0] ?? '?'}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
-        };
-      }
-      // dotnet is on PATH but no compatible runtime found — fall through to fs check
-    } catch { /* dotnet not on PATH or timed out — fall through */ }
-
-    // --- Strategy 2: file-system probe -----------------------------------
-    // Plain runtime installers do not add `dotnet` to PATH, so this is often
-    // the only detection path. Check NETCore.App first (minimum required by
-    // Spriggit), then WindowsDesktop.App as an alternative match.
-    // Track any found-but-incompatible version to provide a useful reason message.
+    // --- Strategy 2: file-system scan of all known install locations ------
+    // Plain runtime installers do not add `dotnet` to PATH, and user installs
+    // may live in per-user directories.  We scan every candidate location so
+    // that the rescan button finds .NET regardless of where the user installed it.
     let oldVersionFound: string | null = null;
     try {
-      const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
-      const dotnetShared = path.join(programFiles, 'dotnet', 'shared');
-      for (const runtimeDir of DOTNET_RUNTIME_DIRS) {
-        const baseDir = path.join(dotnetShared, runtimeDir);
-        if (!fs.existsSync(baseDir)) continue;
-        const entries = fs.readdirSync(baseDir)
-          .filter(e => /^\d+\.\d+\.\d+$/.test(e))
-          .sort()
-          .reverse();
-        const compatible = entries.filter(e => parseInt(e.split('.')[0] ?? '0', 10) >= MIN_MAJOR);
-        if (compatible.length > 0) {
-          return { installed: true, version: compatible[0] };
-        }
-        // Directory exists but only has older versions — keep going in case
-        // a later dir has a compatible version, but remember this for the reason.
-        if (entries.length > 0 && oldVersionFound === null) {
-          oldVersionFound = entries[0];
+      for (const dotnetShared of getDotnetSharedSearchDirs()) {
+        for (const runtimeDir of DOTNET_RUNTIME_DIRS) {
+          const baseDir = path.join(dotnetShared, runtimeDir);
+          if (!fs.existsSync(baseDir)) continue;
+          const entries = fs.readdirSync(baseDir)
+            .filter(e => /^\d+\.\d+\.\d+$/.test(e))
+            .sort()
+            .reverse();
+          const compatible = entries.filter(e => parseInt(e.split('.')[0] ?? '0', 10) >= MIN_MAJOR);
+          if (compatible.length > 0) {
+            return { installed: true, version: compatible[0] };
+          }
+          if (entries.length > 0 && oldVersionFound === null) {
+            oldVersionFound = entries[0];
+          }
         }
       }
     } catch (e) {
-      console.error('[Main] Error reading .NET Runtime folder:', e);
+      console.error('[Main] Error scanning .NET Runtime directories:', e);
     }
 
     if (oldVersionFound !== null) {
