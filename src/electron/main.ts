@@ -3075,6 +3075,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   //  2. File-system fallback: check the standard install locations under
   //     C:\Program Files\dotnet\shared\ for Microsoft.NETCore.App or
   //     Microsoft.WindowsDesktop.App with a version 8.x or higher.
+  const DOTNET_RUNTIME_DIRS = ['Microsoft.NETCore.App', 'Microsoft.WindowsDesktop.App'] as const;
   registerHandler(IPC_CHANNELS.CHECK_DOTNET, async () => {
     const MIN_MAJOR = 8;
 
@@ -3088,7 +3089,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     const parseRuntimes = (stdout: string): string[] =>
       stdout.split('\n')
         .map(l => l.trim())
-        .filter(l => l.startsWith('Microsoft.NETCore.App') || l.startsWith('Microsoft.WindowsDesktop.App'));
+        .filter(l => DOTNET_RUNTIME_DIRS.some(d => l.startsWith(d)));
 
     /** Return the highest major version from a list of runtime lines. */
     const bestVersion = (lines: string[]): string | null => {
@@ -3138,7 +3139,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     try {
       const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
       const dotnetShared = path.join(programFiles, 'dotnet', 'shared');
-      for (const runtimeDir of ['Microsoft.NETCore.App', 'Microsoft.WindowsDesktop.App']) {
+      for (const runtimeDir of DOTNET_RUNTIME_DIRS) {
         const baseDir = path.join(dotnetShared, runtimeDir);
         if (!fs.existsSync(baseDir)) continue;
         const entries = fs.readdirSync(baseDir).filter(e => {
@@ -3195,7 +3196,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // or the Desktop Runtime superset (which includes NETCore.App).
       const lines = stdout.split('\n')
         .map(l => l.trim())
-        .filter(l => l.startsWith('Microsoft.NETCore.App') || l.startsWith('Microsoft.WindowsDesktop.App'));
+        .filter(l => DOTNET_RUNTIME_DIRS.some(d => l.startsWith(d)));
 
       const compatible = lines.filter(l => {
         const maj = parseInt(l.split(' ')[1] ?? '0', 10);
@@ -3223,10 +3224,12 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     // Plain runtime installers do not add `dotnet` to PATH, so this is often
     // the only detection path. Check NETCore.App first (minimum required by
     // Spriggit), then WindowsDesktop.App as an alternative match.
+    // Track any found-but-incompatible version to provide a useful reason message.
+    let oldVersionFound: string | null = null;
     try {
       const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
       const dotnetShared = path.join(programFiles, 'dotnet', 'shared');
-      for (const runtimeDir of ['Microsoft.NETCore.App', 'Microsoft.WindowsDesktop.App']) {
+      for (const runtimeDir of DOTNET_RUNTIME_DIRS) {
         const baseDir = path.join(dotnetShared, runtimeDir);
         if (!fs.existsSync(baseDir)) continue;
         const entries = fs.readdirSync(baseDir)
@@ -3237,16 +3240,22 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         if (compatible.length > 0) {
           return { installed: true, version: compatible[0] };
         }
-        if (entries.length > 0) {
-          return {
-            installed: false,
-            version: entries[0],
-            reason: `Found .NET Runtime ${entries[0]}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
-          };
+        // Directory exists but only has older versions — keep going in case
+        // a later dir has a compatible version, but remember this for the reason.
+        if (entries.length > 0 && oldVersionFound === null) {
+          oldVersionFound = entries[0];
         }
       }
     } catch (e) {
       console.error('[Main] Error reading .NET Runtime folder:', e);
+    }
+
+    if (oldVersionFound !== null) {
+      return {
+        installed: false,
+        version: oldVersionFound,
+        reason: `Found .NET Runtime ${oldVersionFound}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
+      };
     }
 
     return {
