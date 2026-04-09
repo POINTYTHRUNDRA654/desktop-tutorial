@@ -723,6 +723,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     ? errText.slice(0, MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH) + '\n…(truncated)'
                     : errText;
                 setSpriggitMessage(`Spriggit failed:\n${displayErr}`);
+                // If every plugin crashed with the .NET-missing signature, the pre-flight
+                // check gave a false positive. Mark .NET as not found so the warning banner
+                // reappears, the "Convert & Digest" button is disabled, and the user is
+                // guided to install .NET before trying again.
+                if (errText.includes('0xFFFFFFFF')) {
+                    applyDotnetResult({ ok: false });
+                }
                 return;
             }
             // Build Knowledge Vault entries from the YAML files

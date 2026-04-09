@@ -3213,7 +3213,16 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const resultFiles: Array<{ name: string; content: string }> = [];
       const errors: string[] = [];
 
-      for (const plugin of pluginFiles) {
+      /**
+       * How many consecutive 0xFFFFFFFF crashes (with no output at all) trigger an
+       * early exit.  When .NET is missing every plugin crashes instantly, so there is
+       * no point spawning the rest — we fill the remaining slots synthetically so the
+       * error summary is still accurate.
+       */
+      const DOTNET_CRASH_THRESHOLD = 3;
+
+      for (let pluginIdx = 0; pluginIdx < pluginFiles.length; pluginIdx++) {
+        const plugin = pluginFiles[pluginIdx];
         const inputPath = path.join(dataPath, plugin);
         const pluginOutputDir = path.join(safeOutput, plugin.replace(/\.(esp|esm|esl)$/i, ''));
         fs.mkdirSync(pluginOutputDir, { recursive: true });
@@ -3275,6 +3284,24 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           }
         };
         collectYaml(pluginOutputDir);
+
+        // Short-circuit: if the last DOTNET_CRASH_THRESHOLD plugins all crashed with
+        // exit code 4294967295 (0xFFFFFFFF) and nothing was produced, every remaining
+        // plugin will fail the same way (likely .NET Desktop Runtime is missing).
+        // Checking only the most-recent slice (not errors.every) means an unrelated
+        // early failure won't prevent detection of subsequent consecutive .NET crashes.
+        // Fill the remaining slots synthetically so the error summary stays accurate,
+        // then stop spawning.
+        if (
+          resultFiles.length === 0 &&
+          errors.length >= DOTNET_CRASH_THRESHOLD &&
+          errors.slice(-DOTNET_CRASH_THRESHOLD).every(e => e.includes('exit code 4294967295'))
+        ) {
+          for (let ri = pluginIdx + 1; ri < pluginFiles.length; ri++) {
+            errors.push(`${pluginFiles[ri]}: exit code 4294967295`);
+          }
+          break;
+        }
       }
 
       // ok = true when at least one file was produced successfully (partial success counts).
