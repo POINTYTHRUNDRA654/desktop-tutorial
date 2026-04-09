@@ -1386,7 +1386,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 <br />
                                 <div className="mt-2 p-2 rounded bg-amber-800/30 border border-amber-500/40 text-amber-100 text-xs">
                                     <strong>✨ Easiest fix:</strong> Download the <strong>self-contained Spriggit build</strong> — it bundles .NET and requires no separate installation.
-                                    On the releases page, look for the <code className="bg-amber-900/50 px-1 rounded">-win-x64</code> asset (e.g. <code className="bg-amber-900/50 px-1 rounded">SpriggitCLI-win-x64.zip</code>).
+                                    On the releases page, download <code className="bg-amber-900/50 px-1 rounded">SpriggitCLI.zip</code> and use the <code className="bg-amber-900/50 px-1 rounded">Spriggit.CLI.exe</code> inside it.
                                 </div>
                                 <div className="mt-2 flex flex-wrap items-center gap-3">
                                     <button
