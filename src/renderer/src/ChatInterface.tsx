@@ -1491,6 +1491,13 @@ export const ChatInterface: React.FC = () => {
                     (s.creationKitPath ? `- Creation Kit: ${s.creationKitPath}\n` : "") +
                     (s.nifSkopePath ? `- NifSkope: ${s.nifSkopePath}\n` : "") +
                     (s.blenderPath ? `- Blender: ${s.blenderPath}\n` : "");
+
+                const blacklist: string[] = s?.privacySettings?.modContentBlacklist ?? [];
+                if (blacklist.length > 0) {
+                    settingsCtx += `\n**MOD CONTENT BLACKLIST (STRICT — DO NOT REFERENCE THESE MODS):**\n` +
+                        blacklist.map((m: string) => `- ${m}`).join('\n') +
+                        `\n(The user has opted these mods out of AI discussion. Never mention, recommend, discuss, or use them as examples in any response.)`;
+                }
             }
 
             // Extract ALL Fallout 4 game paths from detected apps (user may have multiple installations)
