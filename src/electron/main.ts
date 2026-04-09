@@ -3062,29 +3062,38 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
-  // ── .NET Desktop Runtime detection ───────────────────────────────────────
-  // check-dotnet: Probe whether the .NET Desktop Runtime 8.0+ is installed.
-  // Spriggit.CLI.exe (and similar .NET tools) require it; without it every
-  // spawn attempt returns exit code 4294967295 (process immediately crashes).
+  // ── .NET Runtime detection ───────────────────────────────────────────────
+  // check-dotnet: Probe whether .NET Runtime 8.0+ is installed.
+  // Spriggit.CLI.exe targets net8.0 (a pure CLI app) and requires
+  // Microsoft.NETCore.App 8.0+; without it every spawn attempt returns exit
+  // code 4294967295 (process immediately crashes).
   //
   // Detection strategy:
   //  1. Run `dotnet --list-runtimes` — works whenever the dotnet SDK/runtime CLI
-  //     is on PATH.  Parse for "Microsoft.WindowsDesktop.App 8." (or higher).
-  //  2. File-system fallback: check the standard install location
-  //     C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\ for any
-  //     sub-directory whose name starts with 8. (or higher).
+  //     is on PATH.  Parse for "Microsoft.NETCore.App 8." (or higher).
+  //     Also accepts "Microsoft.WindowsDesktop.App 8." (superset of NETCore.App).
+  //  2. File-system fallback: check the standard install locations under
+  //     C:\Program Files\dotnet\shared\ for Microsoft.NETCore.App or
+  //     Microsoft.WindowsDesktop.App with a version 8.x or higher.
+  const DOTNET_RUNTIME_DIRS = ['Microsoft.NETCore.App', 'Microsoft.WindowsDesktop.App'] as const;
   registerHandler(IPC_CHANNELS.CHECK_DOTNET, async () => {
     const MIN_MAJOR = 8;
 
-    /** Parse `dotnet --list-runtimes` output for WindowsDesktop runtimes. */
+    /**
+     * Parse `dotnet --list-runtimes` output.
+     * Spriggit.CLI.exe targets net8.0 (a pure CLI app) which only requires
+     * Microsoft.NETCore.App — NOT Microsoft.WindowsDesktop.App.
+     * The Desktop Runtime is a superset that includes NETCore.App, so both
+     * are accepted here.
+     */
     const parseRuntimes = (stdout: string): string[] =>
       stdout.split('\n')
         .map(l => l.trim())
-        .filter(l => l.startsWith('Microsoft.WindowsDesktop.App'));
+        .filter(l => DOTNET_RUNTIME_DIRS.some(d => l.startsWith(d)));
 
     /** Return the highest major version from a list of runtime lines. */
     const bestVersion = (lines: string[]): string | null => {
-      // Each line looks like: Microsoft.WindowsDesktop.App 8.0.1 [/path]
+      // Each line looks like: Microsoft.NETCore.App 8.0.1 [/path]
       const versions = lines
         .map(l => l.split(' ')[1] ?? '')
         .filter(Boolean)
@@ -3118,24 +3127,28 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       if (compatible.length > 0) {
         return { ok: true, version: bestVersion(compatible), runtimes: lines };
       }
-      // dotnet is present but no compatible WindowsDesktop runtime
+      // dotnet is present but no compatible runtime
       return { ok: false, version: null, runtimes: lines };
     } catch { /* dotnet not on PATH — fall through */ }
 
     // --- Strategy 2: file-system probe -----------------------------------
+    // Check Microsoft.NETCore.App first (the base runtime Spriggit actually needs),
+    // then fall back to Microsoft.WindowsDesktop.App (superset that includes NETCore.App).
+    // Note: the plain .NET Runtime installer does NOT add `dotnet` to PATH, so this
+    // fallback is the primary detection path for runtime-only installations.
     try {
-      // Use the ProgramFiles env var to handle non-English Windows installations
-      const programFiles = process.env.ProgramFiles || process.env['ProgramFiles(x86)'] || 'C:\\Program Files';
-      const baseDir = path.join(programFiles, 'dotnet', 'shared', 'Microsoft.WindowsDesktop.App');
-      if (fs.existsSync(baseDir)) {
+      const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+      const dotnetShared = path.join(programFiles, 'dotnet', 'shared');
+      for (const runtimeDir of DOTNET_RUNTIME_DIRS) {
+        const baseDir = path.join(dotnetShared, runtimeDir);
+        if (!fs.existsSync(baseDir)) continue;
         const entries = fs.readdirSync(baseDir).filter(e => {
           const maj = parseInt(e.split('.')[0] ?? '0', 10);
           return maj >= MIN_MAJOR;
         }).sort().reverse();
         if (entries.length > 0) {
-          return { ok: true, version: entries[0], runtimes: entries.map(e => `Microsoft.WindowsDesktop.App ${e}`) };
+          return { ok: true, version: entries[0], runtimes: entries.map(e => `${runtimeDir} ${e}`) };
         }
-        return { ok: false, version: null, runtimes: [] };
       }
     } catch { /* ignore */ }
 
@@ -3145,10 +3158,12 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // ── Spriggit integration ──────────────────────────────────────────────────
 
   /**
-   * Check if .NET Desktop Runtime 8.0 or later is installed.
-   * This is DIFFERENT from the .NET SDK — Spriggit needs the Desktop Runtime specifically.
-   * Strategy 1: run `dotnet --list-runtimes` and look for Microsoft.WindowsDesktop.App 8+.
-   * Strategy 2 (fallback): inspect the standard Windows install directory.
+   * Check if .NET Runtime 8.0 or later is installed.
+   * Spriggit.CLI.exe targets net8.0 (a pure CLI app) and only requires
+   * Microsoft.NETCore.App — NOT Microsoft.WindowsDesktop.App.
+   * Strategy 1: run `dotnet --list-runtimes` and look for Microsoft.NETCore.App 8+
+   *             (also accepts Microsoft.WindowsDesktop.App which is a superset).
+   * Strategy 2 (fallback): inspect the standard Windows install directories.
    * Returns { installed: boolean, version: string | null, reason?: string }
    */
   const checkDotNetRuntime = async (): Promise<{
@@ -3160,8 +3175,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
     // --- Strategy 1: dotnet CLI (`dotnet --list-runtimes`) ---------------
     // Most reliable: works even if the runtime directory is in a non-standard
-    // location, and correctly returns only runtimes that are fully functional
-    // (an empty/corrupt directory would not appear in this output).
+    // location, and correctly returns only runtimes that are fully functional.
+    // Note: `dotnet` is only on PATH when the SDK is installed; plain runtime
+    // installs do not add the CLI to PATH, so Strategy 2 is the common path.
     try {
       const DOTNET_TIMEOUT_MS = 5000;
       const stdout = await new Promise<string>((resolve, reject) => {
@@ -3176,9 +3192,11 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         child.on('close', () => { clearTimeout(timer); resolve(out); });
       });
 
+      // Accept either the base NETCore.App runtime (what Spriggit actually needs)
+      // or the Desktop Runtime superset (which includes NETCore.App).
       const lines = stdout.split('\n')
         .map(l => l.trim())
-        .filter(l => l.startsWith('Microsoft.WindowsDesktop.App'));
+        .filter(l => DOTNET_RUNTIME_DIRS.some(d => l.startsWith(d)));
 
       const compatible = lines.filter(l => {
         const maj = parseInt(l.split(' ')[1] ?? '0', 10);
@@ -3186,30 +3204,34 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       });
 
       if (compatible.length > 0) {
-        // Pick highest version for the reason message
         const versions = compatible.map(l => l.split(' ')[1] ?? '').filter(Boolean).sort().reverse();
         return { installed: true, version: versions[0] ?? null };
       }
 
       if (lines.length > 0) {
-        // WindowsDesktop.App found but below minimum version
+        // Runtime found but below minimum version
         const versions = lines.map(l => l.split(' ')[1] ?? '').filter(Boolean).sort().reverse();
         return {
           installed: false,
           version: versions[0] ?? null,
-          reason: `Found .NET Desktop Runtime ${versions[0] ?? '?'}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
+          reason: `Found .NET Runtime ${versions[0] ?? '?'}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
         };
       }
-      // dotnet is on PATH but no WindowsDesktop.App runtime found at all — fall through to fs check
+      // dotnet is on PATH but no compatible runtime found — fall through to fs check
     } catch { /* dotnet not on PATH or timed out — fall through */ }
 
     // --- Strategy 2: file-system probe -----------------------------------
-    // Use the 64-bit ProgramFiles env var — the .NET Desktop Runtime installs
-    // under %ProgramFiles% (not %ProgramFiles(x86)%), so avoid the x86 fallback.
+    // Plain runtime installers do not add `dotnet` to PATH, so this is often
+    // the only detection path. Check NETCore.App first (minimum required by
+    // Spriggit), then WindowsDesktop.App as an alternative match.
+    // Track any found-but-incompatible version to provide a useful reason message.
+    let oldVersionFound: string | null = null;
     try {
       const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
-      const baseDir = path.join(programFiles, 'dotnet', 'shared', 'Microsoft.WindowsDesktop.App');
-      if (fs.existsSync(baseDir)) {
+      const dotnetShared = path.join(programFiles, 'dotnet', 'shared');
+      for (const runtimeDir of DOTNET_RUNTIME_DIRS) {
+        const baseDir = path.join(dotnetShared, runtimeDir);
+        if (!fs.existsSync(baseDir)) continue;
         const entries = fs.readdirSync(baseDir)
           .filter(e => /^\d+\.\d+\.\d+$/.test(e))
           .sort()
@@ -3218,22 +3240,28 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         if (compatible.length > 0) {
           return { installed: true, version: compatible[0] };
         }
-        if (entries.length > 0) {
-          return {
-            installed: false,
-            version: entries[0],
-            reason: `Found .NET Desktop Runtime ${entries[0]}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
-          };
+        // Directory exists but only has older versions — keep going in case
+        // a later dir has a compatible version, but remember this for the reason.
+        if (entries.length > 0 && oldVersionFound === null) {
+          oldVersionFound = entries[0];
         }
       }
     } catch (e) {
-      console.error('[Main] Error reading .NET Desktop Runtime folder:', e);
+      console.error('[Main] Error reading .NET Runtime folder:', e);
+    }
+
+    if (oldVersionFound !== null) {
+      return {
+        installed: false,
+        version: oldVersionFound,
+        reason: `Found .NET Runtime ${oldVersionFound}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
+      };
     }
 
     return {
       installed: false,
       version: null,
-      reason: '.NET Desktop Runtime 8.0+ not found. Download it from: https://dotnet.microsoft.com/download/dotnet/8.0\n\n(Note: The .NET SDK and .NET Desktop Runtime are separate downloads. Make sure you have the Desktop Runtime installed, not just the SDK.)',
+      reason: '.NET Runtime 8.0+ not found. Download it from: https://dotnet.microsoft.com/download/dotnet/8.0\n\n(Note: Install the ".NET Runtime" or ".NET Desktop Runtime" package — both include the base runtime Spriggit needs.)',
     };
   };
 
@@ -3273,7 +3301,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       if (!fs.existsSync(cliPath)) return { ok: false, files: [], error: `Spriggit.CLI.exe not found at: ${cliPath}` };
       if (!fs.existsSync(dataPath)) return { ok: false, files: [], error: `Fallout 4 Data folder not found at: ${dataPath}` };
 
-      // Pre-check: Verify .NET Desktop Runtime 8.0+ is installed before spawning Spriggit processes.
+      // Pre-check: Verify .NET Runtime 8.0+ is installed before spawning Spriggit processes.
       // This avoids wasting time on consecutive timeouts/crashes if .NET is missing.
       const dotnetCheck = await checkDotNetRuntime();
       if (!dotnetCheck.installed) {
@@ -3281,9 +3309,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         return {
           ok: false,
           files: [],
-          error: `Cannot run Spriggit: .NET Desktop Runtime 8.0+ is required.\n` +
+          error: `Cannot run Spriggit: .NET Runtime 8.0+ is required.\n` +
             `${reason}\n\n` +
-            `Download .NET Desktop Runtime 8.0 from:\n` +
+            `Download .NET Runtime 8.0 from:\n` +
             `https://dotnet.microsoft.com/download/dotnet/8.0\n\n` +
             `After installation, restart Mossy and try again.`,
         };
@@ -3397,7 +3425,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
         // Short-circuit: if the last DOTNET_CRASH_THRESHOLD plugins all crashed with
         // exit code 4294967295 (0xFFFFFFFF) and nothing was produced, every remaining
-        // plugin will fail the same way (likely .NET Desktop Runtime is missing).
+        // plugin will fail the same way (likely .NET Runtime is missing or AV is blocking).
         // Checking only the most-recent slice (not errors.every) means an unrelated
         // early failure won't prevent detection of subsequent consecutive .NET crashes.
         // Fill the remaining slots synthetically so the error summary stays accurate,
@@ -3428,12 +3456,17 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         let hint = '';
         if (resultFiles.length === 0) {
           // Exit code 0xFFFFFFFF (-1 / 4294967295) means the process crashed immediately —
-          // most commonly because the required .NET Desktop Runtime (8.0+) is not installed.
+          // possible causes: .NET Runtime 8.0+ not installed, antivirus blocking, or
+          // architecture mismatch (x86 vs x64).
           const allSameCode = errors.every(e => e.includes('exit code 4294967295'));
           if (allSameCode) {
             hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
-              'Likely cause: .NET Desktop Runtime 8.0 or later is not installed.\n' +
-              'Download it from: https://dotnet.microsoft.com/download/dotnet/8.0';
+              'Common causes:\n' +
+              '  1. .NET Runtime 8.0+ is not installed — download from: https://dotnet.microsoft.com/download/dotnet/8.0\n' +
+              '  2. Antivirus blocked Spriggit.CLI.exe — add an exception or try disabling AV temporarily.\n' +
+              '  3. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.\n' +
+              '  4. To see the real error, open a Command Prompt and run Spriggit manually:\n' +
+              '     Spriggit.CLI.exe serialize --InputPath "path\\to\\plugin.esp" --OutputPath "C:\\Temp\\out" --GameRelease Fallout4 --PackageName Spriggit.Yaml.Fallout4';
           } else {
             hint = '\n\nSpriggit produced no output. Make sure Spriggit.CLI.exe is the correct executable and that your Data folder path is right.';
           }
