@@ -686,24 +686,30 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setSpriggitMessage('Please select both Spriggit.CLI.exe and your Fallout 4 Data folder.');
             return;
         }
-        // Pre-flight: verify .NET 8.0+ is present before spawning Spriggit for every plugin.
-        // This avoids spawning dozens of instantly-crashing processes when .NET is missing.
-        if (api.checkDotnet) {
-            const dotnetResult = await api.checkDotnet();
-            const ok = applyDotnetResult(dotnetResult);
-            if (!ok) {
-                setSpriggitStatus('error');
-                setSpriggitMessage(
-                    'Spriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
-                    'Likely cause: .NET Desktop Runtime 8.0 or later is not installed.\n' +
-                    'Download it from: https://dotnet.microsoft.com/download/dotnet/8.0'
-                );
-                return;
-            }
-        }
         setSpriggitStatus('running');
         setSpriggitMessage('Running Spriggit — converting your plugins to YAML. This may take a few minutes…');
         try {
+            // Pre-flight: verify .NET 8.0+ is present before spawning Spriggit for every plugin.
+            // This avoids spawning dozens of instantly-crashing processes when .NET is missing.
+            // Wrapped in try/catch: if checkDotnet rejects (e.g. IPC handler not registered), we
+            // log the warning and proceed — Spriggit may still work if .NET is already installed.
+            if (api.checkDotnet) {
+                try {
+                    const dotnetResult = await api.checkDotnet();
+                    const ok = applyDotnetResult(dotnetResult);
+                    if (!ok) {
+                        setSpriggitStatus('error');
+                        setSpriggitMessage(
+                            '.NET Desktop Runtime 8.0 or later is required to run Spriggit (exit code 4294967295 / 0xFFFFFFFF).\n' +
+                            'Please install it and click Re-check .NET, then try again.\n' +
+                            'Download it from: https://dotnet.microsoft.com/download/dotnet/8.0'
+                        );
+                        return;
+                    }
+                } catch (dotnetErr) {
+                    console.warn('[Spriggit] checkDotnet pre-flight threw — proceeding anyway:', dotnetErr);
+                }
+            }
             const result = await api.spriggitSerialize({
                 cliPath: spriggitCliPath,
                 dataPath: spriggitDataPath,
