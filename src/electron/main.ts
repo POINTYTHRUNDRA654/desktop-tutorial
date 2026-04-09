@@ -3147,7 +3147,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   /**
    * Check if .NET Desktop Runtime 8.0 or later is installed.
    * This is DIFFERENT from the .NET SDK — Spriggit needs the Desktop Runtime specifically.
-   * Checks both: (1) registry for installed runtimes, (2) Program Files directory structure.
+   * Strategy 1: run `dotnet --list-runtimes` and look for Microsoft.WindowsDesktop.App 8+.
+   * Strategy 2 (fallback): inspect the standard Windows install directory.
    * Returns { installed: boolean, version: string | null, reason?: string }
    */
   const checkDotNetRuntime = async (): Promise<{
@@ -3155,35 +3156,78 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     version: string | null;
     reason?: string;
   }> => {
-    // On Windows, check the shared runtime folder structure: C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\X.Y.Z\
-    if (process.platform === 'win32') {
-      const programFiles = 'C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App';
-      if (fs.existsSync(programFiles)) {
-        try {
-          const versions = fs.readdirSync(programFiles);
-          // Sort versions in descending order and find the latest 8.0+
-          const validVersions = versions
-            .filter(v => /^\d+\.\d+\.\d+$/.test(v)) // Only valid version dirs
-            .sort()
-            .reverse();
+    const MIN_MAJOR = 8;
 
-          for (const version of validVersions) {
-            const match = version.match(/^(\d+)\./);
-            const majorVersion = match ? parseInt(match[1], 10) : 0;
-            if (majorVersion >= 8) {
-              return { installed: true, version, reason: undefined };
-            }
-          }
-          // Found WindowsDesktop.App folder but no 8.0+ versions
+    // --- Strategy 1: dotnet CLI (`dotnet --list-runtimes`) ---------------
+    // Most reliable: works even if the runtime directory is in a non-standard
+    // location, and correctly returns only runtimes that are fully functional
+    // (an empty/corrupt directory would not appear in this output).
+    try {
+      const DOTNET_TIMEOUT_MS = 5000;
+      const stdout = await new Promise<string>((resolve, reject) => {
+        const child = spawn('dotnet', ['--list-runtimes'], { shell: false, windowsHide: true });
+        let out = '';
+        if (child.stdout) child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
+        child.on('error', reject);
+        const timer = setTimeout(() => {
+          try { child.kill(); } catch { /* ignore */ }
+          reject(new Error('dotnet --list-runtimes timed out'));
+        }, DOTNET_TIMEOUT_MS);
+        child.on('close', () => { clearTimeout(timer); resolve(out); });
+      });
+
+      const lines = stdout.split('\n')
+        .map(l => l.trim())
+        .filter(l => l.startsWith('Microsoft.WindowsDesktop.App'));
+
+      const compatible = lines.filter(l => {
+        const maj = parseInt(l.split(' ')[1] ?? '0', 10);
+        return maj >= MIN_MAJOR;
+      });
+
+      if (compatible.length > 0) {
+        // Pick highest version for the reason message
+        const versions = compatible.map(l => l.split(' ')[1] ?? '').filter(Boolean).sort().reverse();
+        return { installed: true, version: versions[0] ?? null };
+      }
+
+      if (lines.length > 0) {
+        // WindowsDesktop.App found but below minimum version
+        const versions = lines.map(l => l.split(' ')[1] ?? '').filter(Boolean).sort().reverse();
+        return {
+          installed: false,
+          version: versions[0] ?? null,
+          reason: `Found .NET Desktop Runtime ${versions[0] ?? '?'}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
+        };
+      }
+      // dotnet is on PATH but no WindowsDesktop.App runtime found at all — fall through to fs check
+    } catch { /* dotnet not on PATH or timed out — fall through */ }
+
+    // --- Strategy 2: file-system probe -----------------------------------
+    // Use the 64-bit ProgramFiles env var — the .NET Desktop Runtime installs
+    // under %ProgramFiles% (not %ProgramFiles(x86)%), so avoid the x86 fallback.
+    try {
+      const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+      const baseDir = path.join(programFiles, 'dotnet', 'shared', 'Microsoft.WindowsDesktop.App');
+      if (fs.existsSync(baseDir)) {
+        const entries = fs.readdirSync(baseDir)
+          .filter(e => /^\d+\.\d+\.\d+$/.test(e))
+          .sort()
+          .reverse();
+        const compatible = entries.filter(e => parseInt(e.split('.')[0] ?? '0', 10) >= MIN_MAJOR);
+        if (compatible.length > 0) {
+          return { installed: true, version: compatible[0] };
+        }
+        if (entries.length > 0) {
           return {
             installed: false,
-            version: validVersions[0] || null,
-            reason: `Found .NET Desktop Runtime ${validVersions[0] || '?'}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
+            version: entries[0],
+            reason: `Found .NET Desktop Runtime ${entries[0]}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
           };
-        } catch (e) {
-          console.error('[Main] Error reading .NET Desktop Runtime folder:', e);
         }
       }
+    } catch (e) {
+      console.error('[Main] Error reading .NET Desktop Runtime folder:', e);
     }
 
     return {
