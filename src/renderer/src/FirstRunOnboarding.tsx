@@ -127,7 +127,7 @@ const MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH = 600;
 /** How long (ms) the .NET recheck result badge stays visible before auto-dismissing. */
 const DOTNET_RECHECK_BADGE_DURATION_MS = 6000;
 /** Message shown when a manual .NET recheck still cannot find the runtime. */
-const DOTNET_STILL_NOT_DETECTED_MSG = '⚠️ Still not detected — try restarting Mossy after install, or run Spriggit from a Command Prompt to see the actual error.';
+const DOTNET_STILL_NOT_DETECTED_MSG = '⚠️ Still not detected — try restarting Mossy after install. To confirm .NET is present, open a Command Prompt and run: Spriggit.CLI.exe --version';
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
