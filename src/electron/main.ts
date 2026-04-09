@@ -3353,7 +3353,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const SPRIGGIT_CRASH_CAUSES =
         '  0. EASIEST FIX — Download the self-contained Spriggit build (bundles .NET, no separate install needed):\n' +
         '     https://github.com/Mutagen-Modding/Spriggit/releases\n' +
-        '     Look for the "-win-x64" asset (e.g. SpriggitCLI-win-x64.zip) and use that exe instead.\n' +
+        '     Download SpriggitCLI.zip and use that Spriggit.CLI.exe instead.\n' +
         '  1. .NET Runtime 8.0+ is not installed — download from: https://dotnet.microsoft.com/download/dotnet/8.0\n' +
         '  2. Antivirus blocked Spriggit.CLI.exe — add an exception or try disabling AV temporarily.\n' +
         '  3. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.';
@@ -3365,7 +3365,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const selfTestCode = await new Promise<number | null>((resolve) => {
         let settled = false;
         const settle = (v: number | null) => { if (!settled) { settled = true; resolve(v); } };
-        const testChild = spawn(cliPath, ['--version'], { shell: false, windowsHide: true });
+        const testChild = spawn(cliPath, ['--version'], { shell: false, windowsHide: true, cwd: path.dirname(cliPath) });
         const timer = setTimeout(() => {
           try { testChild.kill(); } catch { /* ignore */ }
           settle(null); // timed out → inconclusive, proceed with full serialize
@@ -3457,7 +3457,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             '--OutputPath', pluginOutputDir,
             '--GameRelease', 'Fallout4',
             '--PackageName', 'Spriggit.Yaml.Fallout4',
-          ], { shell: false, windowsHide: true });
+          ], { shell: false, windowsHide: true, cwd: path.dirname(cliPath) });
 
           let stderr = '';
           if (child.stderr) child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
