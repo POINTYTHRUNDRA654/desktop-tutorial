@@ -170,6 +170,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             return v === null ? null : v === 'true';
         } catch { return null; }
     });
+    /** True when the user manually asserts .NET is installed (overrides failed auto-detection). */
+    const [dotnetOverride, setDotnetOverride] = useState<boolean>(() => {
+        try { return localStorage.getItem('mossy_dotnet_override') === 'true'; } catch { return false; }
+    });
     const [dotnetRecheckInProgress, setDotnetRecheckInProgress] = useState(false);
     // 'found' | 'not-found' | null — shown briefly after a manual recheck
     const [dotnetRecheckResult, setDotnetRecheckResult] = useState<'found' | 'not-found' | null>(null);
@@ -213,6 +217,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             if (ok && spriggitStatus === 'error' && spriggitMessage.includes('0xFFFFFFFF')) {
                 setSpriggitStatus('idle');
                 setSpriggitMessage('');
+            }
+            // If .NET is now properly detected, clear the manual override so we
+            // don't leave a stale flag in localStorage.
+            if (ok && dotnetOverride) {
+                setDotnetOverride(false);
+                try { localStorage.removeItem('mossy_dotnet_override'); } catch { /* ignore */ }
             }
         } catch { /* non-fatal */ } finally {
             setDotnetRecheckInProgress(false);
@@ -1419,7 +1429,26 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         <span className="text-xs text-amber-300 font-semibold">{DOTNET_STILL_NOT_DETECTED_MSG}</span>
                                     )}
                                 </div>
-                                <p className="mt-1 text-amber-400 text-xs">Already installed .NET? Click <em>Re-check .NET</em> to scan again and unlock the button above.</p>
+                                <div className="mt-3 pt-2 border-t border-amber-700/40 flex flex-wrap items-center gap-3">
+                                    <span className="text-xs text-amber-400">Already have .NET installed but detection is wrong?</span>
+                                    {dotnetOverride ? (
+                                        <span className="px-3 py-1 rounded bg-emerald-800/60 border border-emerald-600/50 text-emerald-200 text-xs font-semibold">
+                                            ✅ Override active — button unlocked
+                                        </span>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            className="px-3 py-1 rounded bg-amber-600/70 hover:bg-amber-500/70 text-white text-xs font-semibold transition-colors"
+                                            onClick={() => {
+                                                setDotnetOverride(true);
+                                                try { localStorage.setItem('mossy_dotnet_override', 'true'); } catch { /* ignore */ }
+                                            }}
+                                        >
+                                            I have .NET installed — proceed anyway
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="mt-1 text-amber-400 text-xs">Installed .NET after opening this page? Click <em>Re-check .NET</em> to scan again and unlock the button automatically.</p>
                             </div>
                         )}
                         {dotnetCheckingOnEntry && (
@@ -1543,7 +1572,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {spriggitStatus !== 'done' && (
                                 <button
                                     type="button"
-                                    disabled={spriggitStatus === 'running' || !spriggitCliPath || !spriggitDataPath || dotnetOk !== true || dotnetCheckingOnEntry}
+                                    disabled={spriggitStatus === 'running' || !spriggitCliPath || !spriggitDataPath || (dotnetOk !== true && !dotnetOverride) || dotnetCheckingOnEntry}
                                     onClick={() => void runSpriggitDigest()}
                                     className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
                                 >
