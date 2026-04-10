@@ -272,6 +272,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [spriggitFileCount, setSpriggitFileCount] = useState(0);
     const [cacheClearInProgress, setCacheClearInProgress] = useState(false);
     const [cacheClearResult, setCacheClearResult] = useState<'ok' | 'error' | null>(null);
+    const [unblockInProgress, setUnblockInProgress] = useState(false);
+    const [unblockResult, setUnblockResult] = useState<{ ok: boolean; unblocked?: number; folderPath?: string; error?: string } | null>(null);
     /** FO4 version detected from Fallout4.exe, e.g. "1.11.191.0". Empty if not detected. */
     const [detectedFo4Version, setDetectedFo4Version] = useState('');
     /** Human-readable FO4 version label, e.g. "Fallout 4 v1.11.191 — 1.11.x (Creations Menu…)". */
@@ -1915,6 +1917,42 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             When version is current (spriggitVersionTooOld=false), Smart
                                             App Control is the #1 suspect — re-download is still offered
                                             as a fallback but uses the standard styling. */}
+                                        {/* "Unblock Files" — shown when version is current (SAC is suspect).
+                                            If SAC is locked/greyed-out (common on Win 11 "On"/"Evaluation"),
+                                            Unblock-File removes the Zone.Identifier web-download flag from
+                                            every file in the Spriggit folder, making them appear local so
+                                            SAC no longer blocks them.  Follow up with Clear Cache & Retry. */}
+                                        {spriggitVersionTooOld === false && (
+                                            <button
+                                                type="button"
+                                                disabled={unblockInProgress}
+                                                className="px-3 py-1 rounded bg-violet-800/60 hover:bg-violet-700/60 disabled:opacity-50 text-violet-100 text-xs font-semibold transition-colors"
+                                                onClick={async () => {
+                                                    const api = getElectronApi();
+                                                    if (!api?.spriggitUnblockFiles) return;
+                                                    setUnblockInProgress(true);
+                                                    setUnblockResult(null);
+                                                    try {
+                                                        const res = await api.spriggitUnblockFiles();
+                                                        setUnblockResult(res);
+                                                    } catch {
+                                                        setUnblockResult({ ok: false, error: 'Unblock-File failed unexpectedly.' });
+                                                    } finally {
+                                                        setUnblockInProgress(false);
+                                                    }
+                                                }}
+                                            >
+                                                {unblockInProgress ? '🔄 Unblocking…' : '🔓 Unblock Files'}
+                                            </button>
+                                        )}
+                                        {unblockResult?.ok && (
+                                            <span className="text-xs text-violet-300 font-semibold">
+                                                ✅ Unblocked {unblockResult.unblocked ?? 0} file(s) in {unblockResult.folderPath} — now click <strong>🗑️ Clear Cache &amp; Retry</strong> to finish.
+                                            </span>
+                                        )}
+                                        {unblockResult && !unblockResult.ok && (
+                                            <span className="text-xs text-red-300 font-semibold">⚠️ Unblock-File failed: {unblockResult.error}</span>
+                                        )}
                                         {(() => {
                                             const isMismatch = spriggitVersionTooOld === true;
                                             const redownloadLabel = isMismatch
@@ -1985,8 +2023,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         <span className="text-xs text-amber-300 font-semibold">
                                                             ⚠️ Cache cleared but still failing —{' '}
                                                             {detectedFo4Version.startsWith('1.11.')
-                                                                ? <>Check <strong>Smart App Control</strong> (Windows Security → App &amp; browser control) — this is the most likely cause when the Spriggit version is current.</>
-                                                                : <>most likely fix: check Smart App Control (Windows Security) and free disk space on the drive where Spriggit is installed. Also try Re-downloading Spriggit.</>
+                                                                ? <>Check <strong>Smart App Control</strong> (Windows Security → App &amp; browser control). If SAC is locked/greyed-out, click <strong>🔓 Unblock Files</strong> above to remove the web-download flag from your Spriggit files, then retry.</>
+                                                                : <>most likely fix: check Smart App Control (Windows Security) or click <strong>🔓 Unblock Files</strong> if SAC is locked. Also free disk space on the Spriggit drive and try Re-downloading Spriggit.</>
                                                             }
                                                         </span>
                                                     )}
