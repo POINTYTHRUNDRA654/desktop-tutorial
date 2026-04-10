@@ -21,14 +21,44 @@ interface RecommendedDownload {
     detectKeywords: string[];
     url: string;
     urlLabel: string;
-    category: 'modding' | 'version-control' | 'creative';
+    category: 'modding' | 'version-control' | 'creative' | 'runtime';
     required: boolean;
 }
 
 const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
+    // ── Runtime prerequisites ─────────────────────────────────────────────────
+    // These must be installed first; many Mossy features silently fail without them.
+    {
+        name: '.NET Runtime 8.0+',
+        description: 'Required runtime for Spriggit.CLI.exe and many other .NET-based modding tools. Without it, the vanilla ESM digest step will fail immediately with exit code 0xFFFFFFFF.',
+        detectKeywords: ['microsoft .net', '.net desktop runtime', '.net runtime'],
+        url: 'https://dotnet.microsoft.com/download/dotnet/8.0',
+        urlLabel: 'dotnet.microsoft.com',
+        category: 'runtime',
+        required: true,
+    },
+    {
+        name: 'Git for Windows',
+        description: 'Version control system required for the Spriggit collaborative modding workflow and for pushing serialized plugin YAML to GitHub. Also lets Mossy give git-based advice.',
+        detectKeywords: ['git', 'git bash', 'git for windows'],
+        url: 'https://git-scm.com/download/win',
+        urlLabel: 'git-scm.com',
+        category: 'runtime',
+        required: false,
+    },
+    {
+        name: 'Visual C++ Redistributables',
+        description: 'Microsoft runtime libraries required by xEdit, Buffout 4, F4SE, and most compiled Fallout 4 mods and tools. Install both the x64 and x86 versions.',
+        detectKeywords: ['visual c++', 'microsoft visual c++', 'vcredist'],
+        url: 'https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist',
+        urlLabel: 'microsoft.com',
+        category: 'runtime',
+        required: true,
+    },
+    // ── Modding tools ─────────────────────────────────────────────────────────
     {
         name: 'Spriggit',
-        description: 'Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Works with GitHub out of the box.',
+        description: 'Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Used by Mossy\'s onboarding brain-boost step to ingest the vanilla ESMs.',
         detectKeywords: ['spriggit'],
         url: 'https://github.com/Mutagen-Modding/Spriggit/releases',
         urlLabel: 'GitHub Releases',
@@ -45,11 +75,29 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         required: true,
     },
     {
+        name: 'Fallout 4 Creation Kit',
+        description: 'Bethesda\'s official editor for Fallout 4. Required for CK Crash Prevention monitoring, Papyrus script compilation, worldspace editing, and quest creation. Free on Steam.',
+        detectKeywords: ['creation kit', 'creationkit', 'ck2'],
+        url: 'https://store.steampowered.com/app/1946160/Fallout_4_Creation_Kit/',
+        urlLabel: 'Steam (free)',
+        category: 'modding',
+        required: false,
+    },
+    {
         name: 'Mod Organizer 2',
         description: 'The recommended mod manager for Fallout 4. Keeps your game folder clean with a virtual file system and supports profiles.',
         detectKeywords: ['mod organizer', 'modorganizer'],
         url: 'https://github.com/ModOrganizer2/modorganizer/releases',
         urlLabel: 'GitHub Releases',
+        category: 'modding',
+        required: false,
+    },
+    {
+        name: 'Vortex Mod Manager',
+        description: 'Nexus Mods\' official mod manager. Deploys mods directly to the Data folder and integrates with NexusMods.com for one-click installs.',
+        detectKeywords: ['vortex'],
+        url: 'https://www.nexusmods.com/about/vortex/',
+        urlLabel: 'Nexus Mods',
         category: 'modding',
         required: false,
     },
@@ -90,12 +138,49 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         required: true,
     },
     {
+        name: 'Address Library for F4SE',
+        description: 'Required by virtually every F4SE plugin (Buffout 4, MCM Framework, etc.). Without it most SKSE/F4SE-dependent mods will fail to load. Install the All-in-One version.',
+        detectKeywords: ['address library'],
+        url: 'https://www.nexusmods.com/fallout4/mods/47327',
+        urlLabel: 'Nexus Mods',
+        category: 'modding',
+        required: true,
+    },
+    {
+        name: 'Addictol (Stability Suite)',
+        description: 'All-in-one stability fix for Fallout 4 (OG/NG/AE/1.11.x). Replaces and supersedes Buffout 4, X-Cell, BakaMaxPapyrusOps, Faster Workshop, and more. Do NOT install those separately alongside Addictol.',
+        detectKeywords: ['addictol'],
+        url: 'https://www.nexusmods.com/fallout4/mods/84214',
+        urlLabel: 'Nexus Mods',
+        category: 'modding',
+        required: false,
+    },
+    {
+        name: 'CLASSIC Crash Log Scanner',
+        description: 'Automatically scans Buffout 4 crash logs and produces a human-readable diagnosis. Pair with Addictol for a complete crash-debugging setup.',
+        detectKeywords: ['classic'],
+        url: 'https://www.nexusmods.com/fallout4/mods/56255',
+        urlLabel: 'Nexus Mods',
+        category: 'modding',
+        required: false,
+    },
+    {
         name: 'B.A.E. (Bethesda Archive Extractor)',
         description: 'Extracts the contents of Bethesda .ba2 archive files so you can inspect and modify base-game assets.',
         detectKeywords: ['bae', 'bethesda archive extractor', 'b.a.e'],
         url: 'https://www.nexusmods.com/fallout4/mods/78',
         urlLabel: 'Nexus Mods',
         category: 'modding',
+        required: false,
+    },
+    // ── Creative tools ────────────────────────────────────────────────────────
+    {
+        name: 'Blender',
+        description: 'Free open-source 3D creation suite. Mossy has a direct Neural Link integration (Mossy Link addon) for Blender 4.0+ — enabling live script execution, mesh automation, and FO4 asset export from within Mossy.',
+        detectKeywords: ['blender'],
+        url: 'https://www.blender.org/download/',
+        urlLabel: 'blender.org',
+        category: 'creative',
         required: false,
     },
     {
@@ -697,7 +782,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             return;
         }
         setSpriggitStatus('running');
-        setSpriggitMessage('Running Spriggit — converting your plugins to YAML. This may take a few minutes…');
+        setSpriggitMessage('Running Spriggit — converting vanilla ESMs to YAML. This may take several minutes for large files…');
         try {
             // Pre-flight: verify .NET 8.0+ is present before spawning Spriggit for every plugin.
             // This avoids spawning dozens of instantly-crashing processes when .NET is missing.
@@ -720,10 +805,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     console.warn('[Spriggit] checkDotnet pre-flight threw — proceeding anyway:', dotnetErr);
                 }
             }
+            // vanillaOnly: scan the base-game ESMs (Fallout4.esm + DLCs) so Mossy learns
+            // exact FormIDs, record structures, and script data from the live game files.
             const result = await api.spriggitSerialize({
                 cliPath: spriggitCliPath,
                 dataPath: spriggitDataPath,
                 outputPath: '',
+                vanillaOnly: true,
             });
             if (!result.ok || !result.files?.length) {
                 const errText = result.error || 'No YAML files were produced.';
@@ -731,8 +819,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 const displayErr = errText.length > MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH
                     ? errText.slice(0, MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH) + '\n…(truncated)'
                     : errText;
-                if (result.noCustomMods) {
-                    // Not a real failure — Spriggit never ran. Show a softer informational state.
+                if (result.noVanillaPlugins) {
+                    // Not a real failure — no vanilla ESMs found in the folder.
                     setSpriggitStatus('noMods');
                     setSpriggitMessage(displayErr);
                 } else {
@@ -754,20 +842,20 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 }
                 return;
             }
-            // Build Knowledge Vault entries from the YAML files
+            // Build Knowledge Vault entries from the YAML files, tagged as vanilla base records
             const getExistingVault = (): any[] => {
                 try { return JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]') as any[]; } catch { return []; }
             };
             const existing: any[] = Array.isArray(getExistingVault()) ? getExistingVault() : [];
             const now = new Date().toISOString();
             const newEntries = (result.files as Array<{ name: string; content: string }>).map((f) => ({
-                id: `spriggit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                title: `Spriggit: ${f.name}`,
+                id: `spriggit-vanilla-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                title: `Vanilla ESM: ${f.name}`,
                 content: f.content,
-                source: 'Spriggit serialize (onboarding)',
+                source: 'Spriggit serialize — vanilla ESMs (onboarding)',
                 trustLevel: 'personal',
                 date: now,
-                tags: ['spriggit', 'fallout4', 'plugin-data'],
+                tags: ['spriggit', 'fallout4', 'vanilla-base-records'],
                 status: 'learned',
             }));
             const merged = [...existing, ...newEntries];
@@ -775,13 +863,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             try { await api.saveKnowledgeVault(merged); } catch { /* fire-and-forget */ }
             setSpriggitFileCount(newEntries.length);
             setSpriggitStatus('done');
-            const skipNote = (result.skippedVanillaCount ?? 0) > 0
-                ? ` (${result.skippedVanillaCount} vanilla/DLC ESM${result.skippedVanillaCount === 1 ? '' : 's'} skipped — Mossy already knows those)`
+            const skipNote = (result.skippedCustomCount ?? 0) > 0
+                ? ` (${result.skippedCustomCount} custom mod${result.skippedCustomCount === 1 ? '' : 's'} skipped — use the Auditor to analyse those)`
                 : '';
             const warnMsg = result.error ? ` (some errors: ${result.error.slice(0, 120)})` : '';
-            setSpriggitMessage(`✅ Digested ${newEntries.length} YAML files into my Knowledge Vault.${skipNote}${warnMsg}`);
+            setSpriggitMessage(`✅ Digested ${newEntries.length} vanilla ESM YAML files into my Knowledge Vault.${skipNote}${warnMsg}`);
             if (shouldSpeak()) {
-                void speakMossy(`I've finished converting your plugins with Spriggit and digested ${newEntries.length} files into my knowledge.`);
+                void speakMossy(`I've finished converting the vanilla ESMs with Spriggit and digested ${newEntries.length} files into my knowledge. I now have direct access to the base game records.`);
             }
         } catch (err: any) {
             setSpriggitStatus('error');
@@ -1279,11 +1367,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     <div className="animate-fade-in">
                         <div className="text-center mb-6">
                             <Download className="w-16 h-16 mx-auto mb-4 text-amber-400" />
-                            <h2 className="text-2xl font-bold text-white mb-2">Recommended Downloads</h2>
+                            <h2 className="text-2xl font-bold text-white mb-2">Install Dependencies & Tools</h2>
                             <p className="text-slate-400 text-sm max-w-lg mx-auto">
-                                These tools work with Mossy. Download anything you don't already have — each
-                                button opens the official page in your browser. You can skip any of these and
-                                grab them later.
+                                Everything Mossy depends on is listed here — runtime prerequisites first, then modding tools.
+                                Install anything marked <span className="text-amber-300 font-semibold">Required</span> before proceeding.
+                                Each button opens the official page in your browser.
                             </p>
                         </div>
 
@@ -1298,12 +1386,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     'modding': 'text-emerald-400',
                                     'version-control': 'text-blue-400',
                                     'creative': 'text-purple-400',
+                                    'runtime': 'text-amber-400',
                                 };
 
                                 const categoryLabel: Record<RecommendedDownload['category'], string> = {
                                     'modding': 'Modding Tool',
                                     'version-control': 'Version Control',
                                     'creative': 'Creative',
+                                    'runtime': 'Runtime / Prerequisite',
                                 };
 
                                 return (
@@ -1377,9 +1467,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 {step === 'spriggit-digest' && (
                     <div className="text-center animate-fade-in">
                         <Brain className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
-                        <h2 className="text-3xl font-bold text-white mb-3">Feed Me Your Plugins</h2>
+                        <h2 className="text-3xl font-bold text-white mb-3">Feed Me the Base Game</h2>
                         <p className="text-slate-400 mb-2 max-w-xl mx-auto">
-                            I can use <strong className="text-emerald-300">Spriggit</strong> to convert your Fallout 4 plugins (.esp/.esm/.esl) into readable YAML files and then digest all that information directly into my brain, so I know your exact mod load order, records, and data from the start.
+                            I can use <strong className="text-emerald-300">Spriggit</strong> to convert the <strong className="text-white">vanilla Fallout 4 ESMs</strong> (Fallout4.esm and all DLCs) into YAML and digest them directly into my brain — giving me exact access to the base-game records, FormIDs, and script structures from the start.
+                        </p>
+                        <p className="text-slate-500 text-sm mb-2 max-w-xl mx-auto">
+                            Custom mods can be analysed any time in <strong className="text-slate-300">The Auditor</strong> panel.
                         </p>
                         <p className="text-slate-500 text-sm mb-6 max-w-xl mx-auto">
                             This is optional — you can skip it now and do it later from the Memory Vault panel.
