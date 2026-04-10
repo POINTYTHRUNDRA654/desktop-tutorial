@@ -67,6 +67,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         description: 'Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Used by Mossy\'s onboarding brain-boost step to ingest the vanilla ESMs.',
         detectKeywords: ['spriggit'],
         url: 'https://github.com/Mutagen-Modding/Spriggit/releases',
+        note: '⚠️ For FO4 1.11.x (AE/Creations Menu): scroll past the top "Latest" release and download the PRE-RELEASE (dev) SpriggitCLI.zip.',
         urlLabel: 'GitHub Releases',
         category: 'version-control',
         required: false,
@@ -1681,7 +1682,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 </div>
                                 <div className="mt-2 p-2 rounded bg-amber-800/30 border border-amber-500/40 text-amber-100 text-xs">
                                     <strong>✨ Easiest fix:</strong> Download the <strong>self-contained Spriggit build</strong> — it bundles .NET and requires no separate installation.
-                                    On the releases page, download <code className="bg-amber-900/50 px-1 rounded">SpriggitCLI.zip</code> and use the <code className="bg-amber-900/50 px-1 rounded">Spriggit.CLI.exe</code> inside it.
+                                    On the releases page, look for the entry tagged <strong>Pre-release</strong> (scroll past the top "Latest" stable build) — download its <code className="bg-amber-900/50 px-1 rounded">SpriggitCLI.zip</code> and use the <code className="bg-amber-900/50 px-1 rounded">Spriggit.CLI.exe</code> inside it. ⚠️ The stable "Latest" does <em>not</em> support FO4 1.11.x (AE).
                                 </div>
                                 <div className="mt-2 flex flex-wrap items-center gap-3">
                                     <button
@@ -1910,7 +1911,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         {detectedSpriggitVersion && (
                                             <div>🔧 <strong>Spriggit:</strong> v{detectedSpriggitVersion}
                                                 {spriggitVersionTooOld === true && (
-                                                    <span className="ml-1 text-amber-400 font-bold">⚠️ too old for FO4 1.11.x — re-download required</span>
+                                                    <span className="ml-1 text-amber-400 font-bold">⚠️ too old for FO4 1.11.x — download the PRE-RELEASE (dev) build</span>
                                                 )}
                                                 {spriggitVersionTooOld === false && detectedFo4Version.startsWith('1.11.') && (
                                                     <span className="ml-1 text-emerald-400 font-semibold">✓ version is current</span>
@@ -2036,8 +2037,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         {(() => {
                                             const isMismatch = spriggitVersionTooOld === true;
                                             const redownloadLabel = isMismatch
-                                                ? '⭐ Re-download Spriggit (required) →'
-                                                : '⬇️ Re-download Spriggit →';
+                                                ? '⭐ Re-download Spriggit — PRE-RELEASE (required) →'
+                                                : '⬇️ Re-download Spriggit (pre-release) →';
                                             const baseClasses = 'px-3 py-1 rounded text-xs transition-colors';
                                             const mismatchClasses = 'border-2 border-yellow-400 bg-yellow-700/60 hover:bg-yellow-600/70 text-yellow-100 font-bold';
                                             const normalClasses  = 'bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 font-semibold';
@@ -2137,8 +2138,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     )}
                                                     {cacheClearResult === 'ok' && isMismatch && (
                                                         <span className="text-xs text-yellow-300 font-semibold">
-                                                            🗑️ Cache cleared — but <strong>re-downloading Spriggit is still required</strong> to fix the version mismatch.{' '}
-                                                            Click <strong>{redownloadLabel}</strong> above to get the latest SpriggitCLI.zip.
+                                                            🗑️ Cache cleared — but <strong>downloading the Spriggit PRE-RELEASE (dev) build is still required</strong> to fix the version mismatch.{' '}
+                                                            Click <strong>{redownloadLabel}</strong> above, then look for the entry tagged "Pre-release" on the releases page.
                                                         </span>
                                                     )}
                                                     {cacheClearResult === 'ok' && spriggitStatus === 'error' && !isMismatch && autoUnblockRetryState !== 'unblocking' && autoUnblockRetryState !== 'retrying' && (

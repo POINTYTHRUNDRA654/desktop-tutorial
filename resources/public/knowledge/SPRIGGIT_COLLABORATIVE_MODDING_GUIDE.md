@@ -57,6 +57,12 @@ serialize run. The Runtime alone is not sufficient.
 
 **Step 2 — Download Spriggit**
 
+> ⚠️ **Fallout 4 1.11.x (AE / Creations Menu, November 2025+) users**: You **must** use the
+> **PRE-RELEASE (dev) build**. On the releases page, scroll past the top "Latest" stable entry
+> and look for the one tagged **"Pre-release"**. Download its `SpriggitCLI.zip`.
+> The stable "Latest" build does NOT support AE record types and will crash with exit code
+> 0xFFFFFFFF on every plugin.
+
 Two versions available from the releases page:
 
 1. **Spriggit UI** (Windows only, WPF desktop app)
