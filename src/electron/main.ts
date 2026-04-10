@@ -3329,25 +3329,31 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // spriggit-clear-cache: Delete the .NET single-file publish temp-cache directories
-  // so that Spriggit re-extracts cleanly on the next run.  The cache lives under
-  // %LOCALAPPDATA%\Temp\.net\SpriggitCLI\ (primary) and %TEMP%\.net\SpriggitCLI\
-  // (fallback).  A stale or corrupted cache causes every serialize call to crash with
-  // exit code 4294967295 even when .NET is installed and --version works fine.
+  // so that Spriggit re-extracts cleanly on the next run.  The primary cache is now
+  // the controlled userData/spriggit-dotnet-cache/ directory (set via
+  // DOTNET_BUNDLE_EXTRACT_BASE_DIR).  The legacy %LOCALAPPDATA%\Temp\.net\SpriggitCLI\
+  // and %TEMP%\.net\SpriggitCLI\ paths are also cleared for users who ran an older build.
   registerHandler(IPC_CHANNELS.SPRIGGIT_CLEAR_CACHE, async () => {
     const clearedPaths: string[] = [];
     const errors: string[] = [];
 
-    const candidateDirs: string[] = [];
+    // Primary: our controlled userData cache
+    const userDataCacheDir = path.join(app.getPath('userData'), 'spriggit-dotnet-cache');
+    const candidateDirs: string[] = [userDataCacheDir];
+
+    // Legacy system-temp paths (older Mossy builds / manual runs)
     const localAppData = process.env.LOCALAPPDATA;
     const temp = process.env.TEMP;
     if (localAppData) candidateDirs.push(path.join(localAppData, 'Temp', '.net', 'SpriggitCLI'));
     if (temp) candidateDirs.push(path.join(temp, '.net', 'SpriggitCLI'));
 
     for (const dir of candidateDirs) {
-      // Safety: only delete paths that end with the expected SpriggitCLI cache suffix
-      // to prevent accidental deletion if environment variables are misconfigured.
+      // Safety: only delete paths we know are Spriggit cache locations
       const normalised = dir.replace(/\\/g, '/').toLowerCase();
-      if (!normalised.endsWith('/.net/spriggitcli')) {
+      const isSafe =
+        normalised.endsWith('/spriggit-dotnet-cache') ||
+        normalised.endsWith('/.net/spriggitcli');
+      if (!isSafe) {
         errors.push(`${dir}: unexpected path — skipped for safety`);
         continue;
       }
@@ -3429,6 +3435,23 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         };
       }
 
+      // Redirect the .NET single-file assembly extraction cache to a controlled directory
+      // under userData instead of the default system %TEMP%\.net\SpriggitCLI\ path.
+      // This fixes the most common cause of exit code 0xFFFFFFFF when --version passes
+      // but serialize crashes: Windows Smart App Control silently blocks unsigned binaries
+      // extracted to untrusted temp paths, but trusts files under the app's userData folder.
+      // It also means we can clear the cache ourselves without guessing the system temp path.
+      const spriggitDotnetCacheDir = path.join(app.getPath('userData'), 'spriggit-dotnet-cache');
+      try { fs.mkdirSync(spriggitDotnetCacheDir, { recursive: true }); } catch { /* non-fatal */ }
+      // Env vars passed to every Spriggit spawn:
+      //   DOTNET_BUNDLE_EXTRACT_BASE_DIR — redirects single-file assembly extraction
+      //   DOTNET_CLI_TELEMETRY_OPTOUT    — disables telemetry probes that can stall on startup
+      const spriggitEnv = {
+        ...process.env,
+        DOTNET_BUNDLE_EXTRACT_BASE_DIR: spriggitDotnetCacheDir,
+        DOTNET_CLI_TELEMETRY_OPTOUT: '1',
+      };
+
       // Quick self-test: run Spriggit.CLI.exe --version before processing all plugins.
       // Exit code 0xFFFFFFFF (4294967295) means the process crashed immediately —
       // this happens when .NET is missing, AV kills the process, or the binary is the
@@ -3464,7 +3487,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const selfTestCode = await new Promise<number | null>((resolve) => {
         let settled = false;
         const settle = (v: number | null) => { if (!settled) { settled = true; resolve(v); } };
-        const testChild = spawn(cliPath, ['--version'], { shell: false, windowsHide: true, cwd: path.dirname(cliPath) });
+        const testChild = spawn(cliPath, ['--version'], { shell: false, windowsHide: true, cwd: path.dirname(cliPath), env: spriggitEnv });
         const timer = setTimeout(() => {
           try { testChild.kill(); } catch { /* ignore */ }
           settle(null); // timed out → inconclusive, proceed with full serialize
@@ -3483,13 +3506,11 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             error:
               'Spriggit.CLI.exe crashed immediately (exit code 0xFFFFFFFF).\n' +
               '.NET Runtime 8.0+ was detected, so the most likely causes are:\n' +
-              '  1. Stale temp cache — Spriggit (single-file build) extracts assemblies to a temp\n' +
-              '     folder on first run.  Delete the cache folder and let it re-extract:\n' +
-              '       %LOCALAPPDATA%\\Temp\\.net\\SpriggitCLI\\\n' +
-              '     (If that path does not exist, try: %TEMP%\\.net\\SpriggitCLI\\)\n' +
-              '     Then try again.\n' +
+              '  1. Stale assembly cache — click "Clear Cache & Retry" to wipe it and let\n' +
+              '     Spriggit re-extract cleanly.  Cache location (Mossy-controlled):\n' +
+              `       ${spriggitDotnetCacheDir}\n` +
               '  2. Low disk space — the temp extraction needs several hundred MB free on C:.\n' +
-              '  3. Smart App Control (Windows 11) — can block unsigned temp-extracted binaries.\n' +
+              '  3. Smart App Control (Windows 11) — can block unsigned extracted binaries.\n' +
               '     Check Windows Security → App & browser control → Smart App Control.\n' +
               '  4. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +
               SPRIGGIT_MANUAL_RUN_HINT,
@@ -3556,7 +3577,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             '--OutputPath', pluginOutputDir,
             '--GameRelease', 'Fallout4',
             '--PackageName', 'Spriggit.Yaml.Fallout4',
-          ], { shell: false, windowsHide: true, cwd: path.dirname(cliPath) });
+          ], { shell: false, windowsHide: true, cwd: path.dirname(cliPath), env: spriggitEnv });
 
           let stderr = '';
           let stdout = '';
@@ -3667,15 +3688,14 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               // temp extraction cache from a previous Spriggit version.
               hint = '\n\nSpriggit.CLI.exe starts correctly (--version passed) but crashes during serialize\n' +
                 '(exit code 4294967295 / 0xFFFFFFFF).\n\n' +
-                'Spriggit is a single-file build — it extracts game assemblies to a temp cache on first\n' +
+                'Spriggit is a single-file build — it extracts game assemblies to a cache on first\n' +
                 'run.  If that cache is stale or corrupted (e.g. after upgrading Spriggit), the most\n' +
                 'likely fixes are:\n\n' +
-                '  1. Clear the Spriggit temp cache so it re-extracts cleanly:\n' +
-                '       Delete: %LOCALAPPDATA%\\Temp\\.net\\SpriggitCLI\\\n' +
-                '       (If that path does not exist, try: %TEMP%\\.net\\SpriggitCLI\\)\n' +
-                '       Then click "Convert & Digest" again.\n\n' +
-                '  2. Free up disk space — temp extraction needs several hundred MB free on C:.\n\n' +
-                '  3. Smart App Control (Windows 11) — can silently block unsigned temp-extracted\n' +
+                '  1. Click "Clear Cache & Retry" — this wipes the Spriggit assembly cache at:\n' +
+                `       ${spriggitDotnetCacheDir}\n` +
+                '       Then Spriggit will re-extract cleanly.\n\n' +
+                '  2. Free up disk space — cache extraction needs several hundred MB free on C:.\n\n' +
+                '  3. Smart App Control (Windows 11) — can silently block unsigned extracted\n' +
                 '     binaries even when standard AV shows nothing.\n' +
                 '     Check: Windows Security → App & browser control → Smart App Control.\n\n' +
                 '  ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
@@ -3683,12 +3703,11 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               // Self-test timed out (null) — we cannot confirm the binary works; show the full list.
               hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
                 '.NET Runtime 8.0+ is installed.  Spriggit is a single-file build that extracts game\n' +
-                'assemblies to a temp cache at runtime.  Most likely causes:\n' +
-                '  1. Stale temp cache — delete it so Spriggit can re-extract cleanly:\n' +
-                '       %LOCALAPPDATA%\\Temp\\.net\\SpriggitCLI\\\n' +
-                '     (If that path does not exist, try: %TEMP%\\.net\\SpriggitCLI\\)\n' +
+                'assemblies to a cache at runtime.  Most likely causes:\n' +
+                '  1. Stale cache — click "Clear Cache & Retry" to wipe it so Spriggit can re-extract:\n' +
+                `       ${spriggitDotnetCacheDir}\n` +
                 '     Then try again.\n' +
-                '  2. Low disk space — temp extraction needs several hundred MB free on C:.\n' +
+                '  2. Low disk space — cache extraction needs several hundred MB free on C:.\n' +
                 '  3. Smart App Control (Windows 11) — check Windows Security → App & browser control.\n' +
                 '  4. Wrong zip — make sure you have SpriggitCLI.zip (not the Spriggit.zip GUI app).\n' +
                 '  5. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +
