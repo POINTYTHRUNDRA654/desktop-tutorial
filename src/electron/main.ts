@@ -3399,9 +3399,12 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // PowerShell's Unblock-File cmdlet does exactly that: it removes Zone.Identifier from the
   // target file.  After Unblock-File succeeds, a "Clear Cache & Retry" cleans any previously
   // extracted (still-blocked) cached assemblies, and the next serialize run succeeds.
+  //
+  // Security: the folder path is passed via an environment variable (MOSSY_UNBLOCK_PATH) rather
+  // than embedded in the command string, avoiding any PowerShell injection via special characters.
   registerHandler(IPC_CHANNELS.SPRIGGIT_UNBLOCK_FILES, async () => {
     if (process.platform !== 'win32') {
-      return { ok: true, unblocked: 0, folderPath: '', error: 'Unblock-File is a Windows-only operation.' };
+      return { ok: false, unblocked: 0, folderPath: '', error: 'Unblock-File is a Windows-only operation.' };
     }
     try {
       const s = loadSettings();
@@ -3413,13 +3416,17 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       if (!fs.existsSync(folderPath)) {
         return { ok: false, unblocked: 0, folderPath, error: `Spriggit folder not found: ${folderPath}` };
       }
-      // Use PowerShell to recursively unblock all files in the Spriggit folder.
-      // -ErrorAction SilentlyContinue ensures files that have no Zone.Identifier don't cause failure.
-      const ps = `$files = Get-ChildItem -Path '${folderPath.replace(/'/g, "''")}' -Recurse -File -ErrorAction SilentlyContinue; $files | Unblock-File -ErrorAction SilentlyContinue; Write-Output $files.Count`;
+      // The folder path is passed via the MOSSY_UNBLOCK_PATH environment variable so that
+      // no special characters in the path (backticks, $, quotes, etc.) can alter the command.
+      const ps = '$files = Get-ChildItem -Path $env:MOSSY_UNBLOCK_PATH -Recurse -File -ErrorAction SilentlyContinue; $files | Unblock-File -ErrorAction SilentlyContinue; Write-Output $files.Count';
       const { execSync } = await import('child_process');
       const output = execSync(
-        `powershell -NoProfile -NonInteractive -Command "${ps}"`,
-        { timeout: 30_000, windowsHide: true },
+        'powershell -NoProfile -NonInteractive -Command "' + ps + '"',
+        {
+          timeout: 30_000,
+          windowsHide: true,
+          env: { ...process.env, MOSSY_UNBLOCK_PATH: folderPath },
+        },
       ).toString().trim();
       const unblocked = parseInt(output, 10);
       console.log(`[Main] spriggit-unblock-files: unblocked ${unblocked} file(s) in ${folderPath}`);

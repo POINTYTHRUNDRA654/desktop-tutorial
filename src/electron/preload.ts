@@ -665,7 +665,7 @@ const electronAPI = {
    * files downloaded from the internet carry a Zone 3 tag that SAC blocks, and
    * Unblock-File strips that tag so the binaries appear local to Windows.
    */
-  spriggitUnblockFiles: (): Promise<{ ok: boolean; unblocked: number; folderPath: string; error?: string }> => {
+  spriggitUnblockFiles: (): Promise<{ ok: boolean; unblocked?: number; folderPath?: string; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_UNBLOCK_FILES);
   },
 
