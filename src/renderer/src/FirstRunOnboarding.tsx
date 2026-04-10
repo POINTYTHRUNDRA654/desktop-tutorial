@@ -2230,9 +2230,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                                                     type="button"
                                                                                     className="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-slate-200 text-xs font-semibold transition-colors"
                                                                                     onClick={() => {
-                                                                                        void navigator.clipboard.writeText(
+                                                                                        navigator.clipboard.writeText(
                                                                                             `Add-MpPreference -ExclusionPath "${defenderExclusionPath}"`
-                                                                                        );
+                                                                                        ).catch(() => {
+                                                                                            // Clipboard API may be unavailable in some Electron contexts;
+                                                                                            // the command is selectable in the <code> block as a fallback.
+                                                                                        });
                                                                                     }}
                                                                                 >
                                                                                     📋 Copy

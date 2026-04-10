@@ -3483,6 +3483,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // can show targeted guidance.  The error message varies by Windows locale so we
       // check both the numeric error code and the common English phrase.
       const msg: string = String(e?.message || e);
+      // Detect "Access Denied" (elevation required) using locale-independent signals.
+      // PowerShell exit code 1 = general script failure; exit code 5 = Win32 ERROR_ACCESS_DENIED.
+      // The character class [15] intentionally matches single-digit codes 1 and 5 only.
       const isAccessDenied = msg.includes('Access is denied') || msg.includes('0x80070005') || /exit code [15]\b/.test(msg);
       const s = loadSettings();
       const spriggitPath: string = (s.spriggitPath && typeof s.spriggitPath === 'string') ? s.spriggitPath : '';
