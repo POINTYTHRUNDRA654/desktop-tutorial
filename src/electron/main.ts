@@ -3598,24 +3598,38 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // run — the same behaviour as before this change.
       const spriggitCliDir = path.dirname(cliPath);
       const spriggitDotnetCacheDir = path.join(spriggitCliDir, 'spriggit-dotnet-cache');
-      try { fs.mkdirSync(spriggitDotnetCacheDir, { recursive: true }); } catch { /* non-fatal */ }
+      // Attempt to create the cache directory.  If creation fails (e.g. Spriggit is in a
+      // read-only location such as Program Files, or the drive has no space), we do NOT
+      // set DOTNET_BUNDLE_EXTRACT_BASE_DIR — setting the env var to a non-existent path
+      // causes .NET to crash with 0xFFFFFFFF instead of falling back to its default.
+      let dotnetBundleExtractDir: string | undefined;
+      try {
+        fs.mkdirSync(spriggitDotnetCacheDir, { recursive: true });
+        // mkdirSync only throws when it cannot create the directory; if it returns
+        // without throwing the directory is guaranteed to exist.
+        dotnetBundleExtractDir = spriggitDotnetCacheDir;
+      } catch { /* non-fatal — see comment above */ }
       // Derive the drive letter / root of the cache directory so disk-space hints can
       // reference the actual drive (e.g. "D:") rather than the hardcoded "C:".
       // path.parse().root returns "D:\" on Windows; strip the trailing slash for display.
       const cacheDriveRoot = path.parse(spriggitDotnetCacheDir).root.replace(/[/\\]$/, '') || 'C:';
       // Env vars passed to every Spriggit spawn:
       //   DOTNET_BUNDLE_EXTRACT_BASE_DIR — redirects single-file assembly extraction to the
-      //                                    Spriggit folder so SAC sees them beside a trusted exe
+      //                                    Spriggit folder so SAC sees them beside a trusted exe.
+      //                                    Only set when the directory was successfully created;
+      //                                    an invalid path causes .NET to crash (0xFFFFFFFF).
       //   DOTNET_CLI_TELEMETRY_OPTOUT    — disables telemetry probes that can stall on startup
       //   DOTNET_EnableDiagnostics       — disables the .NET diagnostic infrastructure (EventPipe,
       //                                    profiler sockets, debugger listener).  These hooks can
       //                                    trigger additional SAC/AV scans that cause 0xFFFFFFFF
       //                                    crashes even when the main binary is trusted.
+      //   DOTNET_NOLOGO                  — suppresses the .NET startup banner (minor perf)
       const spriggitEnv = {
         ...process.env,
-        DOTNET_BUNDLE_EXTRACT_BASE_DIR: spriggitDotnetCacheDir,
+        ...(dotnetBundleExtractDir ? { DOTNET_BUNDLE_EXTRACT_BASE_DIR: dotnetBundleExtractDir } : {}),
         DOTNET_CLI_TELEMETRY_OPTOUT: '1',
         DOTNET_EnableDiagnostics: '0',
+        DOTNET_NOLOGO: '1',
       };
 
       // Quick self-test: run Spriggit.CLI.exe --version before processing all plugins.
@@ -3749,10 +3763,15 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const errors: string[] = [];
 
       /**
-       * How many consecutive 0xFFFFFFFF crashes (with no output at all) trigger an
-       * early exit.  When .NET is missing every plugin crashes instantly, so there is
-       * no point spawning the rest — we fill the remaining slots synthetically so the
-       * error summary is still accurate.
+       * How many consecutive failures trigger an early exit.  Two conditions fire
+       * independently:
+       *   1. No YAML produced at all AND the last N entries are any failure (crash or
+       *      silent no-YAML) — covers "nothing works" (.NET missing or full SAC block).
+       *   2. The last N entries are ALL hard 0xFFFFFFFF crashes, even when earlier
+       *      plugins (e.g. Fallout4.esm) already produced files — covers the common
+       *      SAC scenario where the base-game ESM works on first extraction but DLC
+       *      files crash because SAC re-evaluates assemblies loaded for DLC record
+       *      types.  Stops wasting time on remaining DLC files that will all fail.
        */
       const DOTNET_CRASH_THRESHOLD = 3;
 
@@ -3847,20 +3866,29 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           errors.push(`${plugin}: exited with code 0 but produced no YAML output — likely a Spriggit version incompatibility (FO4 1.11.x new record types)`);
         }
 
-        // Short-circuit: if the last DOTNET_CRASH_THRESHOLD plugins all failed with
-        // either a hard crash (exit code 4294967295 / 0xFFFFFFFF) or a silent version-
-        // mismatch (exit 0, no YAML) and nothing was produced, every remaining plugin
-        // will fail the same way.  Checking only the most-recent slice (not errors.every)
-        // means an unrelated early failure won't prevent detection of subsequent
-        // consecutive failures.  Fill the remaining slots synthetically so the error
-        // summary stays accurate, then stop spawning.
+        // Short-circuit: stop spawning remaining plugins when consecutive failures make
+        // it clear every remaining plugin will fail the same way.  Two independent
+        // triggers (both fill remaining slots synthetically so the summary is accurate):
+        //
+        //   Trigger A — nothing produced at all AND last N are any failure type
+        //               (hard crash OR silent no-YAML exit).  Covers .NET missing or a
+        //               complete SAC block where literally nothing works.
+        //
+        //   Trigger B — last N are ALL hard 0xFFFFFFFF crashes, even if earlier plugins
+        //               produced files.  Covers the partial-success SAC scenario where
+        //               Fallout4.esm serialised correctly on the first extraction but DLC
+        //               files then crash because SAC flags additional assemblies loaded
+        //               specifically for DLC record types.  No point waiting through each
+        //               remaining DLC file; they will all fail the same way.
         const isFailureEntry = (e: string) =>
           e.includes('exit code 4294967295') || e.includes('produced no YAML output');
-        if (
-          resultFiles.length === 0 &&
+        const isHardCrashEntry = (e: string) => e.includes('exit code 4294967295');
+        const triggerA = resultFiles.length === 0 &&
           errors.length >= DOTNET_CRASH_THRESHOLD &&
-          errors.slice(-DOTNET_CRASH_THRESHOLD).every(isFailureEntry)
-        ) {
+          errors.slice(-DOTNET_CRASH_THRESHOLD).every(isFailureEntry);
+        const triggerB = errors.length >= DOTNET_CRASH_THRESHOLD &&
+          errors.slice(-DOTNET_CRASH_THRESHOLD).every(isHardCrashEntry);
+        if (triggerA || triggerB) {
           for (let ri = pluginIdx + 1; ri < pluginFiles.length; ri++) {
             errors.push(`${pluginFiles[ri]}: exit code 4294967295`);
           }
@@ -4026,6 +4054,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
       return {
         ok: resultFiles.length > 0,
+        // partialSuccess = true when some plugins succeeded but others failed with hard crashes.
+        // Distinct from ok=false (all failed) and ok=true with no errors (all succeeded).
+        partialSuccess: resultFiles.length > 0 && errors.length > 0,
         files: resultFiles,
         error: errorSummary,
         skippedVanillaCount,
