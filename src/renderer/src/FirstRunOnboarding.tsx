@@ -268,6 +268,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [spriggitStatus, setSpriggitStatus] = useState<'idle' | 'running' | 'done' | 'error' | 'noMods'>('idle');
     const [spriggitMessage, setSpriggitMessage] = useState('');
     const [spriggitFileCount, setSpriggitFileCount] = useState(0);
+    const [cacheClearInProgress, setCacheClearInProgress] = useState(false);
+    const [cacheClearResult, setCacheClearResult] = useState<'ok' | 'error' | null>(null);
 
     // .NET Runtime availability (detected during the startup scan)
     const [dotnetOk, setDotnetOk] = useState<boolean | null>(() => {
@@ -1826,6 +1828,42 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         >
                                             Re-download Spriggit →
                                         </button>
+                                        {/* "Clear Cache & Retry" — the most common fix when --version
+                                            passes but serialize crashes.  The .NET single-file publish
+                                            caches extracted assemblies in a temp folder; a stale or
+                                            corrupted cache (e.g. after upgrading Spriggit) causes this
+                                            exact crash pattern.  This button deletes both candidate
+                                            cache paths and then auto-retries the digest. */}
+                                        <button
+                                            type="button"
+                                            disabled={cacheClearInProgress || spriggitStatus === 'running'}
+                                            className="px-3 py-1 rounded bg-amber-800/60 hover:bg-amber-700/60 disabled:opacity-50 text-amber-100 text-xs font-semibold transition-colors"
+                                            onClick={async () => {
+                                                const api = getElectronApi();
+                                                if (!api?.spriggitClearCache) return;
+                                                setCacheClearInProgress(true);
+                                                setCacheClearResult(null);
+                                                try {
+                                                    const res = await api.spriggitClearCache();
+                                                    setCacheClearResult(res.ok ? 'ok' : 'error');
+                                                } catch {
+                                                    setCacheClearResult('error');
+                                                } finally {
+                                                    setCacheClearInProgress(false);
+                                                    // Auto-retry the digest after clearing the cache;
+                                                    // runSpriggitDigest() manages its own error state.
+                                                    await runSpriggitDigest();
+                                                }
+                                            }}
+                                        >
+                                            {cacheClearInProgress ? '🔄 Clearing…' : '🗑️ Clear Cache & Retry'}
+                                        </button>
+                                        {cacheClearResult === 'ok' && (
+                                            <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
+                                        )}
+                                        {cacheClearResult === 'error' && (
+                                            <span className="text-xs text-amber-300 font-semibold">⚠️ Could not delete cache — try manually: %LOCALAPPDATA%\Temp\.net\SpriggitCLI\ or %TEMP%\.net\SpriggitCLI\</span>
+                                        )}
                                         {dotnetRecheckResult === 'not-found' && (
                                             <span className="text-xs text-red-300 font-semibold">{DOTNET_STILL_NOT_DETECTED_MSG}</span>
                                         )}
