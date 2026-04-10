@@ -108,6 +108,7 @@ const IPC_CHANNELS = {
   SPRIGGIT_OPEN_FOLDER: 'spriggit-open-folder',
   SPRIGGIT_CLEAR_CACHE: 'spriggit-clear-cache',
   SPRIGGIT_UNBLOCK_FILES: 'spriggit-unblock-files',
+  SPRIGGIT_ADD_DEFENDER_EXCLUSION: 'spriggit-add-defender-exclusion',
 
   // Duplicate Finder
   DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',
@@ -671,6 +672,16 @@ const electronAPI = {
    */
   spriggitUnblockFiles: (): Promise<{ ok: boolean; unblocked?: number; folderPath?: string; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_UNBLOCK_FILES);
+  },
+
+  /**
+   * Spriggit: attempt to add the Spriggit folder to Windows Defender exclusions via
+   * PowerShell Add-MpPreference so Smart App Control stops blocking extracted assemblies.
+   * Tries direct execution first (works when Mossy has admin rights); on failure returns
+   * the folder path and the exact command so the user can run it in an elevated shell.
+   */
+  spriggitAddDefenderExclusion: (): Promise<{ ok: boolean; excludedPath?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_ADD_DEFENDER_EXCLUSION);
   },
 
   /**
