@@ -1813,14 +1813,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 📂 Open Spriggit folder
                                             </button>
                                         )}
-                                        {/* "Re-download Spriggit" — shown whenever the 0xFFFFFFFF crash
-                                            occurs, even when .NET IS detected.  AV blocks or an incomplete
-                                            extraction (Spriggit.zip instead of SpriggitCLI.zip) both
-                                            produce this exit code regardless of .NET status, and the
-                                            quickest fix is to grab a fresh SpriggitCLI.zip. */}
+                                        {/* "Re-download Spriggit" — shown whenever a 0xFFFFFFFF crash or
+                                            silent-failure occurs.  For FO4 1.11.x (the current version
+                                            as of November 2025) an outdated Spriggit is the #1 cause.
+                                            Styled as a prominent action button so users see it first. */}
                                         <button
                                             type="button"
-                                            className="underline text-red-300 hover:text-red-100 transition-colors text-xs font-semibold"
+                                            className="px-3 py-1 rounded bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 text-xs font-semibold transition-colors"
                                             onClick={() => {
                                                 const api = getElectronApi();
                                                 if (api?.openExternal) {
@@ -1830,7 +1829,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 }
                                             }}
                                         >
-                                            Re-download Spriggit →
+                                            ⬇️ Re-download Spriggit →
                                         </button>
                                         {/* "Clear Cache & Retry" — the most common fix when --version
                                             passes but serialize crashes.  The .NET single-file publish
@@ -1866,7 +1865,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
                                         )}
                                         {cacheClearResult === 'ok' && spriggitStatus === 'error' && (
-                                            <span className="text-xs text-amber-300 font-semibold">⚠️ Cache cleared but crash persists — try: Smart App Control (Windows Security), re-download the latest Spriggit (version mismatch if on FO4 1.11.x), or free up disk space on C:.</span>
+                                            <span className="text-xs text-amber-300 font-semibold">⚠️ Cache cleared but still failing — most likely fix: <strong>Re-download the latest Spriggit</strong> (version too old for FO4 1.11.x new record types). Also check: Smart App Control (Windows Security) and free disk space on C:.</span>
                                         )}
                                         {cacheClearResult === 'error' && (
                                             <span className="text-xs text-amber-300 font-semibold">⚠️ Could not delete cache — try manually: %LOCALAPPDATA%\Temp\.net\SpriggitCLI\ or %TEMP%\.net\SpriggitCLI\</span>
