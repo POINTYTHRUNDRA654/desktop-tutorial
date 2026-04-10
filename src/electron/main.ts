@@ -3698,6 +3698,10 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                 '  3. Smart App Control (Windows 11) — can silently block unsigned extracted\n' +
                 '     binaries even when standard AV shows nothing.\n' +
                 '     Check: Windows Security → App & browser control → Smart App Control.\n\n' +
+                '  4. Spriggit version too old for your game — if you are on FO4 1.11.x\n' +
+                '     (Creations Menu / November 2025 update), you need a recent Spriggit build\n' +
+                '     that supports the new record types.  Click "Re-download Spriggit →" to get\n' +
+                '     the latest release from GitHub.\n\n' +
                 '  ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
             } else {
               // Self-test timed out (null) — we cannot confirm the binary works; show the full list.
