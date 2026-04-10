@@ -634,7 +634,9 @@ const electronAPI = {
     cliPath: string;
     dataPath: string;
     outputPath: string;
-  }): Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string; skippedVanillaCount?: number }> => {
+    /** When true, serialize only vanilla/DLC ESMs instead of custom mods. */
+    vanillaOnly?: boolean;
+  }): Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string; skippedVanillaCount?: number; skippedCustomCount?: number; noCustomMods?: boolean; noVanillaPlugins?: boolean }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_SERIALIZE, params);
   },
 
