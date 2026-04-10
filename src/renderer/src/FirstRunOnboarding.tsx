@@ -769,8 +769,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             try { await api.saveKnowledgeVault(merged); } catch { /* fire-and-forget */ }
             setSpriggitFileCount(newEntries.length);
             setSpriggitStatus('done');
+            const skipNote = (result.skippedVanillaCount ?? 0) > 0
+                ? ` (${result.skippedVanillaCount} vanilla/DLC ESM${result.skippedVanillaCount === 1 ? '' : 's'} skipped — Mossy already knows those)`
+                : '';
             const warnMsg = result.error ? ` (some errors: ${result.error.slice(0, 120)})` : '';
-            setSpriggitMessage(`✅ Digested ${newEntries.length} YAML files into my Knowledge Vault.${warnMsg}`);
+            setSpriggitMessage(`✅ Digested ${newEntries.length} YAML files into my Knowledge Vault.${skipNote}${warnMsg}`);
             if (shouldSpeak()) {
                 void speakMossy(`I've finished converting your plugins with Spriggit and digested ${newEntries.length} files into my knowledge.`);
             }
@@ -1575,6 +1578,23 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         >
                                             {dotnetRecheckInProgress ? '🔄 Checking…' : '🔄 Re-check .NET'}
                                         </button>
+                                        {/* "Open Spriggit folder" — lets the user verify that all DLLs
+                                            from SpriggitCLI.zip are present beside the exe, which is the
+                                            most common cause of 0xFFFFFFFF when .NET IS installed. */}
+                                        {spriggitCliPath && (
+                                            <button
+                                                type="button"
+                                                className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold transition-colors"
+                                                onClick={async () => {
+                                                    const api = getElectronApi();
+                                                    if (api?.spriggitOpenFolder) {
+                                                        await api.spriggitOpenFolder(spriggitCliPath);
+                                                    }
+                                                }}
+                                            >
+                                                📂 Open Spriggit folder
+                                            </button>
+                                        )}
                                         {dotnetRecheckResult === 'not-found' && (
                                             <span className="text-xs text-red-300 font-semibold">{DOTNET_STILL_NOT_DETECTED_MSG}</span>
                                         )}

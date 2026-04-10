@@ -105,6 +105,7 @@ const IPC_CHANNELS = {
   // Spriggit integration
   SPRIGGIT_PICK_CLI: 'spriggit-pick-cli',
   SPRIGGIT_SERIALIZE: 'spriggit-serialize',
+  SPRIGGIT_OPEN_FOLDER: 'spriggit-open-folder',
 
   // Duplicate Finder
   DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',
@@ -633,8 +634,16 @@ const electronAPI = {
     cliPath: string;
     dataPath: string;
     outputPath: string;
-  }): Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string }> => {
+  }): Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string; skippedVanillaCount?: number }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_SERIALIZE, params);
+  },
+
+  /**
+   * Spriggit: open the folder containing the given file path in the OS file manager.
+   * Used after a 0xFFFFFFFF crash so the user can verify their Spriggit extraction.
+   */
+  spriggitOpenFolder: (filePath: string): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_OPEN_FOLDER, filePath);
   },
 
   /**
