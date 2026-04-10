@@ -3621,7 +3621,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               hint = '\n\nSpriggit.CLI.exe itself starts correctly (--version test passed), but the\n' +
                 'game-specific Fallout4 assemblies crash during serialize (exit code 4294967295 / 0xFFFFFFFF).\n' +
                 'Because .NET is installed and the binary works, the cause is almost always:\n\n' +
-                '  Antivirus blocking a game-specific DLL (e.g. Spriggit.Yaml.Fallout4.dll).\n' +
+                '  Antivirus blocking a Spriggit assembly (Spriggit.Yaml.Fallout4.dll or similar).\n' +
                 '  You must add the ENTIRE Spriggit FOLDER as an exclusion — not just the .exe:\n' +
                 '    Windows Defender: Windows Security → Virus & threat protection → Manage settings\n' +
                 '    → Add or remove exclusions → Add an exclusion → Folder → select the Spriggit folder\n' +
