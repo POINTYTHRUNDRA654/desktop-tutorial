@@ -3344,6 +3344,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     if (temp) candidateDirs.push(path.join(temp, '.net', 'SpriggitCLI'));
 
     for (const dir of candidateDirs) {
+      // Safety: only delete paths that end with the expected SpriggitCLI cache suffix
+      // to prevent accidental deletion if environment variables are misconfigured.
+      const normalised = dir.replace(/\\/g, '/').toLowerCase();
+      if (!normalised.endsWith('/.net/spriggitcli')) {
+        errors.push(`${dir}: unexpected path — skipped for safety`);
+        continue;
+      }
       try {
         if (fs.existsSync(dir)) {
           fs.rmSync(dir, { recursive: true, force: true });
