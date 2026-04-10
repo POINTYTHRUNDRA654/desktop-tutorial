@@ -93,6 +93,7 @@ export const IPC_CHANNELS = {
   SPRIGGIT_SERIALIZE: 'spriggit-serialize',
   SPRIGGIT_OPEN_FOLDER: 'spriggit-open-folder',
   SPRIGGIT_CLEAR_CACHE: 'spriggit-clear-cache',
+  SPRIGGIT_UNBLOCK_FILES: 'spriggit-unblock-files',
 
   // Mod Projects file persistence (backup/restore to userData/mod-projects.json)
   SAVE_MOD_PROJECTS: 'save-mod-projects',
