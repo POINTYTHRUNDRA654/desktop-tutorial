@@ -893,8 +893,11 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n     Restart your PC after installing the SDK.' +
       '\n  2) Download Spriggit from: https://github.com/Mutagen-Modding/Spriggit/releases' +
       '\n     Two options: Spriggit UI (Windows WPF app, easiest) or Spriggit CLI (cross-platform, for scripting).' +
-      '\n     Note: The UI executable can also be used as a CLI.' +
-      '\n  **Self-contained option**: SpriggitCLI.zip is a self-contained build that bundles .NET — no separate SDK install needed for basic runs.' +
+      '\n     ⚠️ FOR FALLOUT 4 1.11.x (AE / Creations Menu, Nov 2025+): you MUST use the PRE-RELEASE (dev) build.' +
+      '\n     On the releases page, scroll past the top "Latest" stable entry and look for the one tagged "Pre-release".' +
+      '\n     Download its SpriggitCLI.zip. The stable "Latest" build does NOT support AE record types and will crash.' +
+      '\n  **Self-contained option**: SpriggitCLI.zip bundles .NET — no separate SDK install needed for basic runs.' +
+      '\n     Pre-release builds are also available as self-contained SpriggitCLI.zip on the same releases page.' +
       '\n\n  **The Workflow: Individual Modder**' +
       '\n  1) Create or clone a Git repository (locally or on GitHub)' +
       '\n  2) Create your mod normally in the Creation Kit or xEdit' +
