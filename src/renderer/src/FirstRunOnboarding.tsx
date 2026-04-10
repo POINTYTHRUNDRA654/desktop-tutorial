@@ -1858,8 +1858,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         >
                                             {cacheClearInProgress ? '🔄 Clearing…' : '🗑️ Clear Cache & Retry'}
                                         </button>
-                                        {cacheClearResult === 'ok' && (
+                                        {cacheClearResult === 'ok' && spriggitStatus !== 'error' && (
                                             <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
+                                        )}
+                                        {cacheClearResult === 'ok' && spriggitStatus === 'error' && (
+                                            <span className="text-xs text-amber-300 font-semibold">⚠️ Cache cleared but crash persists — try: Smart App Control (Windows Security), re-download the latest Spriggit (version mismatch if on FO4 1.11.x), or free up disk space on C:.</span>
                                         )}
                                         {cacheClearResult === 'error' && (
                                             <span className="text-xs text-amber-300 font-semibold">⚠️ Could not delete cache — try manually: %LOCALAPPDATA%\Temp\.net\SpriggitCLI\ or %TEMP%\.net\SpriggitCLI\</span>
