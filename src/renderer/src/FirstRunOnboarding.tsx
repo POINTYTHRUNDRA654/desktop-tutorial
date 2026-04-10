@@ -1850,8 +1850,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     setCacheClearResult('error');
                                                 } finally {
                                                     setCacheClearInProgress(false);
-                                                    // Auto-retry the digest after clearing the cache
-                                                    void runSpriggitDigest();
+                                                    // Auto-retry the digest after clearing the cache;
+                                                    // runSpriggitDigest() manages its own error state.
+                                                    await runSpriggitDigest();
                                                 }
                                             }}
                                         >
@@ -1861,7 +1862,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
                                         )}
                                         {cacheClearResult === 'error' && (
-                                            <span className="text-xs text-amber-300 font-semibold">⚠️ Could not delete cache — try deleting manually: %LOCALAPPDATA%\Temp\.net\SpriggitCLI\</span>
+                                            <span className="text-xs text-amber-300 font-semibold">⚠️ Could not delete cache — try manually: %LOCALAPPDATA%\Temp\.net\SpriggitCLI\ or %TEMP%\.net\SpriggitCLI\</span>
                                         )}
                                         {dotnetRecheckResult === 'not-found' && (
                                             <span className="text-xs text-red-300 font-semibold">{DOTNET_STILL_NOT_DETECTED_MSG}</span>
