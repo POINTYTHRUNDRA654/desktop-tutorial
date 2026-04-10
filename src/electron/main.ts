@@ -3603,6 +3603,11 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         const pluginOutputDir = path.join(safeOutput, plugin.replace(/\.(esp|esm|esl)$/i, ''));
         fs.mkdirSync(pluginOutputDir, { recursive: true });
 
+        // Track the exit code for this plugin's serialize run so we can detect the
+        // "exit 0, no YAML" silent-failure case after collectYaml runs.
+        let pluginExitCode: number | null = null;
+        const fileCountBefore = resultFiles.length;
+
         await new Promise<void>((resolve) => {
           const child = spawn(cliPath, [
             'serialize',
@@ -3632,6 +3637,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           });
           child.on('close', (code) => {
             clearTimeout(timeoutHandle);
+            pluginExitCode = code;
             if (code !== 0) {
               // When the process crashed before CLR loaded (0xFFFFFFFF) the only
               // output Spriggit writes is its version banner — that's not useful
@@ -3674,17 +3680,27 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         };
         collectYaml(pluginOutputDir);
 
-        // Short-circuit: if the last DOTNET_CRASH_THRESHOLD plugins all crashed with
-        // exit code 4294967295 (0xFFFFFFFF) and nothing was produced, every remaining
-        // plugin will fail the same way (likely .NET Runtime is missing or AV is blocking).
-        // Checking only the most-recent slice (not errors.every) means an unrelated
-        // early failure won't prevent detection of subsequent consecutive .NET crashes.
-        // Fill the remaining slots synthetically so the error summary stays accurate,
-        // then stop spawning.
+        // Detect silent failure: Spriggit exited with code 0 but produced no YAML.
+        // This is the fingerprint of an outdated Spriggit build on FO4 1.11.x — the
+        // process runs without crashing but cannot parse the new record types introduced
+        // in the November 2025 Creations Menu update and outputs nothing instead.
+        if (pluginExitCode === 0 && resultFiles.length === fileCountBefore) {
+          errors.push(`${plugin}: exited with code 0 but produced no YAML output — likely a Spriggit version incompatibility (FO4 1.11.x new record types)`);
+        }
+
+        // Short-circuit: if the last DOTNET_CRASH_THRESHOLD plugins all failed with
+        // either a hard crash (exit code 4294967295 / 0xFFFFFFFF) or a silent version-
+        // mismatch (exit 0, no YAML) and nothing was produced, every remaining plugin
+        // will fail the same way.  Checking only the most-recent slice (not errors.every)
+        // means an unrelated early failure won't prevent detection of subsequent
+        // consecutive failures.  Fill the remaining slots synthetically so the error
+        // summary stays accurate, then stop spawning.
+        const isFailureEntry = (e: string) =>
+          e.includes('exit code 4294967295') || e.includes('produced no YAML output');
         if (
           resultFiles.length === 0 &&
           errors.length >= DOTNET_CRASH_THRESHOLD &&
-          errors.slice(-DOTNET_CRASH_THRESHOLD).every(e => e.includes('exit code 4294967295'))
+          errors.slice(-DOTNET_CRASH_THRESHOLD).every(isFailureEntry)
         ) {
           for (let ri = pluginIdx + 1; ri < pluginFiles.length; ri++) {
             errors.push(`${pluginFiles[ri]}: exit code 4294967295`);
@@ -3706,49 +3722,55 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         // Detect when every plugin failed (no output at all) and hint at likely causes.
         let hint = '';
         if (resultFiles.length === 0) {
-          // Exit code 0xFFFFFFFF (-1 / 4294967295) means the process crashed immediately —
-          // possible causes: .NET Runtime 8.0+ not installed, antivirus blocking, or
-          // architecture mismatch (x86 vs x64).
-          const allSameCode = errors.every(e => e.includes('exit code 4294967295'));
-          if (allSameCode) {
+          // "Version-related failure" covers both hard crashes (0xFFFFFFFF) and silent
+          // failures (exit 0, no YAML) — both are symptoms of a Spriggit/FO4 mismatch.
+          const allVersionRelated = errors.every(e =>
+            e.includes('exit code 4294967295') || e.includes('produced no YAML output'),
+          );
+          const hasSilentFailures = errors.some(e => e.includes('produced no YAML output'));
+          if (allVersionRelated) {
             // dotnetCheck.installed is known-true here (we returned early above if it was false).
             if (selfTestCode !== null && selfTestCode !== SPRIGGIT_CRASH_EXIT_CODE) {
               // Self-test (--version) passed: the executable starts and the CLR loads correctly.
               // Spriggit is a single-file .NET publish — all assemblies are embedded in the exe
               // and extracted to a temp cache at runtime.  --version loads a minimal set (works);
-              // serialize loads game-specific assemblies (crashes).  With .NET installed ✓, binary
-              // starts ✓, and AV not the cause, the most likely explanation is a stale or corrupted
-              // temp extraction cache from a previous Spriggit version.
-              hint = '\n\nSpriggit.CLI.exe starts correctly (--version passed) but crashes during serialize\n' +
-                '(exit code 4294967295 / 0xFFFFFFFF).\n\n' +
-                'Spriggit is a single-file build — it extracts game assemblies to a cache on first\n' +
-                'run.  If that cache is stale or corrupted (e.g. after upgrading Spriggit), the most\n' +
-                'likely fixes are:\n\n' +
-                '  1. Click "Clear Cache & Retry" — this wipes the Spriggit assembly cache at:\n' +
+              // serialize may crash (0xFFFFFFFF) or silently produce no output when the installed
+              // Spriggit version cannot parse the record types in the target ESM/DLC.
+              // FO4 1.11.x (Creations Menu, November 2025) introduced new record types; any
+              // Spriggit build older than the corresponding release will fail exactly this way.
+              const serialiseFailDesc = hasSilentFailures
+                ? 'crashes with exit code 4294967295 / 0xFFFFFFFF on DLC files\n' +
+                  'and/or exits cleanly but produces no YAML for base-game ESMs'
+                : 'crashes during serialize\n(exit code 4294967295 / 0xFFFFFFFF)';
+              hint = `\n\nSpriggit.CLI.exe starts correctly (--version passed) but ${serialiseFailDesc}.\n\n` +
+                '  1. ⭐ Spriggit version too old for your game — the most common cause since\n' +
+                '     FO4 1.11.x (Creations Menu / November 2025 update) introduced new record\n' +
+                '     types.  Click "Re-download Spriggit →" to get the latest release from\n' +
+                '     GitHub (github.com/Mutagen-Modding/Spriggit/releases).  Download\n' +
+                '     SpriggitCLI.zip, extract it to a clean folder, then select the new exe.\n\n' +
+                '  2. Click "Clear Cache & Retry" — this wipes the Spriggit assembly cache at:\n' +
                 `       ${spriggitDotnetCacheDir}\n` +
                 '       Then Spriggit will re-extract cleanly.\n\n' +
-                '  2. Free up disk space — cache extraction needs several hundred MB free on C:.\n\n' +
-                '  3. Smart App Control (Windows 11) — can silently block unsigned extracted\n' +
+                '  3. Free up disk space — cache extraction needs several hundred MB free on C:.\n\n' +
+                '  4. Smart App Control (Windows 11) — can silently block unsigned extracted\n' +
                 '     binaries even when standard AV shows nothing.\n' +
                 '     Check: Windows Security → App & browser control → Smart App Control.\n\n' +
-                '  4. Spriggit version too old for your game — if you are on FO4 1.11.x\n' +
-                '     (Creations Menu / November 2025 update), you need a recent Spriggit build\n' +
-                '     that supports the new record types.  Click "Re-download Spriggit →" to get\n' +
-                '     the latest release from GitHub.\n\n' +
                 '  ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
             } else {
               // Self-test timed out (null) — we cannot confirm the binary works; show the full list.
               hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
                 '.NET Runtime 8.0+ is installed.  Spriggit is a single-file build that extracts game\n' +
                 'assemblies to a cache at runtime.  Most likely causes:\n' +
-                '  1. Stale cache — click "Clear Cache & Retry" to wipe it so Spriggit can re-extract:\n' +
+                '  1. ⭐ Spriggit version too old — if on FO4 1.11.x (Creations Menu / Nov 2025),\n' +
+                '     download the latest SpriggitCLI.zip from github.com/Mutagen-Modding/Spriggit/releases.\n' +
+                '  2. Stale cache — click "Clear Cache & Retry" to wipe it so Spriggit can re-extract:\n' +
                 `       ${spriggitDotnetCacheDir}\n` +
                 '     Then try again.\n' +
-                '  2. Low disk space — cache extraction needs several hundred MB free on C:.\n' +
-                '  3. Smart App Control (Windows 11) — check Windows Security → App & browser control.\n' +
-                '  4. Wrong zip — make sure you have SpriggitCLI.zip (not the Spriggit.zip GUI app).\n' +
-                '  5. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +
-                '  6. ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
+                '  3. Low disk space — cache extraction needs several hundred MB free on C:.\n' +
+                '  4. Smart App Control (Windows 11) — check Windows Security → App & browser control.\n' +
+                '  5. Wrong zip — make sure you have SpriggitCLI.zip (not the Spriggit.zip GUI app).\n' +
+                '  6. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +
+                '  7. ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
             }
           } else {
             hint = '\n\nSpriggit produced no output. Make sure Spriggit.CLI.exe is the correct executable and that your Data folder path is right.';
