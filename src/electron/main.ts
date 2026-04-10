@@ -3456,11 +3456,26 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
    * Extract [major, minor, patch] from a raw Spriggit --version string.
    * Handles both bare semver ("0.40.0") and the full-sentence form emitted by
    * recent builds ("Spriggit version 0.40.0+Branch.main.Sha.abc123").
-   * Returns null when no semver pattern is found.
+   *
+   * The regex tries to match a version number that appears after the word "version"
+   * first (most specific), then falls back to matching a semver immediately preceded
+   * by a space or at the start of the string, then finally matches the first semver
+   * anywhere in the string.  This avoids matching unintended number sequences (e.g.
+   * IP addresses or branch SHAs).
+   *
+   * Returns null when no semver pattern can be found.
    */
   const parseSpriggitSemver = (raw: string): [number, number, number] | null => {
-    const m = raw.match(/(\d+)\.(\d+)\.(\d+)/);
-    if (!m) return null;
+    // Priority 1: after the word "version" (e.g. "Spriggit version 0.40.0+...")
+    let m = raw.match(/\bversion\s+(\d+)\.(\d+)\.(\d+)/i);
+    // Priority 2: at the very start of the string (e.g. "0.40.0")
+    if (!m) m = raw.match(/^(\d+)\.(\d+)\.(\d+)/);
+    // Priority 3: first semver preceded by a word boundary (word-boundary anchored)
+    if (!m) m = raw.match(/\b(\d+)\.(\d+)\.(\d+)\b/);
+    if (!m) {
+      console.warn('[Spriggit] Could not parse semver from version string:', JSON.stringify(raw));
+      return null;
+    }
     return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)];
   };
 
@@ -3471,7 +3486,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
    */
   const isSpriggitTooOldFor111x = (raw: string): boolean => {
     const v = parseSpriggitSemver(raw);
-    if (!v) return true;
+    if (!v) return true; // unparseable; warning already logged by parseSpriggitSemver
     const [maj, min, patch] = v;
     const [rMaj, rMin, rPatch] = SPRIGGIT_MIN_VERSION_FOR_FO4_111X;
     if (maj !== rMaj) return maj < rMaj;

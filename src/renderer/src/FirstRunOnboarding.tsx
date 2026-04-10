@@ -1863,73 +1863,84 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             When version is current (spriggitVersionTooOld=false), Smart
                                             App Control is the #1 suspect — re-download is still offered
                                             as a fallback but uses the standard styling. */}
-                                        <button
-                                            type="button"
-                                            className={spriggitVersionTooOld === true
-                                                ? 'px-3 py-1 rounded border-2 border-yellow-400 bg-yellow-700/60 hover:bg-yellow-600/70 text-yellow-100 text-xs font-bold transition-colors'
-                                                : 'px-3 py-1 rounded bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 text-xs font-semibold transition-colors'}
-                                            onClick={() => {
-                                                const api = getElectronApi();
-                                                if (api?.openExternal) {
-                                                    void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
-                                                } else {
-                                                    window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
-                                                }
-                                            }}
-                                        >
-                                            {spriggitVersionTooOld === true ? '⭐ Re-download Spriggit (required) →' : '⬇️ Re-download Spriggit →'}
-                                        </button>
-                                        {/* "Clear Cache & Retry" — useful when --version passes but
-                                            serialize crashes due to a stale .NET assembly cache.
-                                            IMPORTANT: skip auto-retry when a version mismatch is confirmed
-                                            (spriggitVersionTooOld=true) — retrying will fail again, and
-                                            the only real fix is to re-download Spriggit first.
-                                            When version is current, auto-retry after cache clear is
-                                            helpful (SAC fix + cache clear → retry may succeed). */}
-                                        <button
-                                            type="button"
-                                            disabled={cacheClearInProgress || spriggitStatus === 'running'}
-                                            className="px-3 py-1 rounded bg-amber-800/60 hover:bg-amber-700/60 disabled:opacity-50 text-amber-100 text-xs font-semibold transition-colors"
-                                            onClick={async () => {
-                                                const api = getElectronApi();
-                                                if (!api?.spriggitClearCache) return;
-                                                setCacheClearInProgress(true);
-                                                setCacheClearResult(null);
-                                                try {
-                                                    const res = await api.spriggitClearCache();
-                                                    setCacheClearResult(res.ok ? 'ok' : 'error');
-                                                } catch {
-                                                    setCacheClearResult('error');
-                                                } finally {
-                                                    setCacheClearInProgress(false);
-                                                    // Skip the auto-retry when main.ts confirmed a version
-                                                    // mismatch — it will fail for the same reason.
-                                                    if (spriggitVersionTooOld !== true) {
-                                                        await runSpriggitDigest();
-                                                    }
-                                                }
-                                            }}
-                                        >
-                                            {cacheClearInProgress ? '🔄 Clearing…' : '🗑️ Clear Cache & Retry'}
-                                        </button>
-                                        {cacheClearResult === 'ok' && spriggitStatus !== 'error' && spriggitVersionTooOld !== true && (
-                                            <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
-                                        )}
-                                        {cacheClearResult === 'ok' && spriggitVersionTooOld === true && (
-                                            <span className="text-xs text-yellow-300 font-semibold">
-                                                🗑️ Cache cleared — but <strong>re-downloading Spriggit is still required</strong> to fix the version mismatch.{' '}
-                                                Click <strong>⭐ Re-download Spriggit (required) →</strong> above to get the latest SpriggitCLI.zip.
-                                            </span>
-                                        )}
-                                        {cacheClearResult === 'ok' && spriggitStatus === 'error' && spriggitVersionTooOld !== true && (
-                                            <span className="text-xs text-amber-300 font-semibold">
-                                                ⚠️ Cache cleared but still failing —{' '}
-                                                {detectedFo4Version.startsWith('1.11.')
-                                                    ? <>Check <strong>Smart App Control</strong> (Windows Security → App &amp; browser control) — this is the most likely cause when the Spriggit version is current.</>
-                                                    : <>most likely fix: check Smart App Control (Windows Security) and free disk space on C:. Also try Re-downloading Spriggit.</>
-                                                }
-                                            </span>
-                                        )}
+                                        {(() => {
+                                            const isMismatch = spriggitVersionTooOld === true;
+                                            const redownloadLabel = isMismatch
+                                                ? '⭐ Re-download Spriggit (required) →'
+                                                : '⬇️ Re-download Spriggit →';
+                                            const baseClasses = 'px-3 py-1 rounded text-xs transition-colors';
+                                            const mismatchClasses = 'border-2 border-yellow-400 bg-yellow-700/60 hover:bg-yellow-600/70 text-yellow-100 font-bold';
+                                            const normalClasses  = 'bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 font-semibold';
+                                            return (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        className={`${baseClasses} ${isMismatch ? mismatchClasses : normalClasses}`}
+                                                        onClick={() => {
+                                                            const api = getElectronApi();
+                                                            if (api?.openExternal) {
+                                                                void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
+                                                            } else {
+                                                                window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
+                                                            }
+                                                        }}
+                                                    >
+                                                        {redownloadLabel}
+                                                    </button>
+                                                    {/* "Clear Cache & Retry" — useful when --version passes but
+                                                        serialize crashes due to a stale .NET assembly cache.
+                                                        IMPORTANT: skip auto-retry when a version mismatch is
+                                                        confirmed (spriggitVersionTooOld=true) — retrying will
+                                                        fail again; re-downloading Spriggit is the only real fix.
+                                                        When version is current, auto-retry after cache clear is
+                                                        helpful (SAC fix + cache clear → retry may succeed). */}
+                                                    <button
+                                                        type="button"
+                                                        disabled={cacheClearInProgress || spriggitStatus === 'running'}
+                                                        className="px-3 py-1 rounded bg-amber-800/60 hover:bg-amber-700/60 disabled:opacity-50 text-amber-100 text-xs font-semibold transition-colors"
+                                                        onClick={async () => {
+                                                            const api = getElectronApi();
+                                                            if (!api?.spriggitClearCache) return;
+                                                            setCacheClearInProgress(true);
+                                                            setCacheClearResult(null);
+                                                            try {
+                                                                const res = await api.spriggitClearCache();
+                                                                setCacheClearResult(res.ok ? 'ok' : 'error');
+                                                            } catch {
+                                                                setCacheClearResult('error');
+                                                            } finally {
+                                                                setCacheClearInProgress(false);
+                                                                // Skip the auto-retry when main.ts confirmed a
+                                                                // version mismatch — it will fail for the same reason.
+                                                                if (!isMismatch) {
+                                                                    await runSpriggitDigest();
+                                                                }
+                                                            }
+                                                        }}
+                                                    >
+                                                        {cacheClearInProgress ? '🔄 Clearing…' : '🗑️ Clear Cache & Retry'}
+                                                    </button>
+                                                    {cacheClearResult === 'ok' && spriggitStatus !== 'error' && !isMismatch && (
+                                                        <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
+                                                    )}
+                                                    {cacheClearResult === 'ok' && isMismatch && (
+                                                        <span className="text-xs text-yellow-300 font-semibold">
+                                                            🗑️ Cache cleared — but <strong>re-downloading Spriggit is still required</strong> to fix the version mismatch.{' '}
+                                                            Click <strong>{redownloadLabel}</strong> above to get the latest SpriggitCLI.zip.
+                                                        </span>
+                                                    )}
+                                                    {cacheClearResult === 'ok' && spriggitStatus === 'error' && !isMismatch && (
+                                                        <span className="text-xs text-amber-300 font-semibold">
+                                                            ⚠️ Cache cleared but still failing —{' '}
+                                                            {detectedFo4Version.startsWith('1.11.')
+                                                                ? <>Check <strong>Smart App Control</strong> (Windows Security → App &amp; browser control) — this is the most likely cause when the Spriggit version is current.</>
+                                                                : <>most likely fix: check Smart App Control (Windows Security) and free disk space on C:. Also try Re-downloading Spriggit.</>
+                                                            }
+                                                        </span>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                         {cacheClearResult === 'error' && (
                                             <span className="text-xs text-amber-300 font-semibold">⚠️ Could not delete cache — try manually: %LOCALAPPDATA%\Temp\.net\SpriggitCLI\ or %TEMP%\.net\SpriggitCLI\</span>
                                         )}
