@@ -3843,13 +3843,23 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                   '     GitHub (github.com/Mutagen-Modding/Spriggit/releases).  Download\n' +
                   '     SpriggitCLI.zip, extract it to a clean folder, then select the new exe.\n';
 
+              // When it is a confirmed version mismatch, "Clear Cache & Retry" will NOT
+              // fix the problem — the user must re-download Spriggit.  Flag this clearly
+              // so the user clicks "Re-download Spriggit →" rather than the cache button.
+              const cacheHint = fo4Is111x && spriggitDetectedVersion
+                ? '\n  2. "Clear Cache & Retry" alone will NOT fix a version mismatch.\n' +
+                  '     Only re-downloading Spriggit (step 1) solves this.  If you have already\n' +
+                  '     re-downloaded and still see this error, then clearing the cache helps:\n' +
+                  `       ${spriggitDotnetCacheDir}\n`
+                : '\n  2. Click "Clear Cache & Retry" — this wipes the Spriggit assembly cache at:\n' +
+                  `       ${spriggitDotnetCacheDir}\n` +
+                  '       Then Spriggit will re-extract cleanly.\n';
+
               hint = `\n\nSpriggit.CLI.exe starts correctly (--version passed) but ${serializeFailDesc}.\n\n` +
                 (versionBanner ? versionBanner + '\n' : '') +
                 versionHint +
-                '\n  2. Click "Clear Cache & Retry" — this wipes the Spriggit assembly cache at:\n' +
-                `       ${spriggitDotnetCacheDir}\n` +
-                '       Then Spriggit will re-extract cleanly.\n\n' +
-                '  3. Free up disk space — cache extraction needs several hundred MB free on C:.\n\n' +
+                cacheHint +
+                '\n  3. Free up disk space — cache extraction needs several hundred MB free on C:.\n\n' +
                 '  4. Smart App Control (Windows 11) — can silently block unsigned extracted\n' +
                 '     binaries even when standard AV shows nothing.\n' +
                 '     Check: Windows Security → App & browser control → Smart App Control.\n\n' +
