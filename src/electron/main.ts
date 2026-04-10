@@ -3440,6 +3440,56 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     return `Fallout 4 v${v}`;
   };
 
+  // ---------------------------------------------------------------------------
+  // Spriggit version helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Minimum Spriggit version that is known to support Fallout 4 1.11.x
+   * (Creations Menu / Anniversary Edition, released November 2025).
+   * Builds predating this release cannot parse the new record types introduced
+   * by that update and crash with exit code 0xFFFFFFFF during serialize.
+   */
+  const SPRIGGIT_MIN_VERSION_FOR_FO4_111X: [number, number, number] = [0, 34, 0];
+
+  /**
+   * Extract [major, minor, patch] from a raw Spriggit --version string.
+   * Handles both bare semver ("0.40.0") and the full-sentence form emitted by
+   * recent builds ("Spriggit version 0.40.0+Branch.main.Sha.abc123").
+   * Returns null when no semver pattern is found.
+   */
+  const parseSpriggitSemver = (raw: string): [number, number, number] | null => {
+    const m = raw.match(/(\d+)\.(\d+)\.(\d+)/);
+    if (!m) return null;
+    return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)];
+  };
+
+  /**
+   * Returns true when the raw --version string predates the minimum version
+   * required for FO4 1.11.x support.  An unparseable string is treated as
+   * "too old" (conservative — we'd rather over-warn than under-warn).
+   */
+  const isSpriggitTooOldFor111x = (raw: string): boolean => {
+    const v = parseSpriggitSemver(raw);
+    if (!v) return true;
+    const [maj, min, patch] = v;
+    const [rMaj, rMin, rPatch] = SPRIGGIT_MIN_VERSION_FOR_FO4_111X;
+    if (maj !== rMaj) return maj < rMaj;
+    if (min !== rMin) return min < rMin;
+    return patch < rPatch;
+  };
+
+  /**
+   * Extract just the semver string (e.g. "0.40.0" or "0.40.0+Branch.main.Sha.xxx")
+   * from the raw --version output line.  Falls back to the raw string unchanged
+   * so callers always get a displayable value.
+   */
+  const extractSpriggitVersionDisplay = (raw: string): string => {
+    // Match semver optionally followed by a pre-release/build-metadata suffix.
+    const m = raw.match(/(\d+\.\d+\.\d+(?:[+\-][^\s]*)?)/);
+    return m ? m[1] : raw;
+  };
+
   // spriggit-serialize: Run Spriggit.CLI.exe serialize on the user's Fallout 4
   // Data folder, then read the resulting YAML/JSON files into memory so the
   // caller can digest them into the Knowledge Vault.
@@ -3600,10 +3650,18 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const selfTestCode = selfTestResult.code;
       // Trim to the first non-empty line — Spriggit outputs just its version number,
       // but some builds also emit a blank prefix line.  We want "0.25.3" not "\n0.25.3".
+      // Recent Spriggit builds emit "Spriggit version 0.40.0+Branch.main.Sha.xxx" —
+      // spriggitDetectedVersion is the full raw line; spriggitDisplayVersion is the
+      // clean semver extracted from it (used in UI copy and error messages).
       const spriggitDetectedVersion = selfTestResult.version
         .split('\n')
         .map(l => l.trim())
         .find(l => l.length > 0) ?? '';
+      // Human-readable version string for display (e.g. "0.40.0" or "0.40.0+Branch.main.Sha.xxx")
+      const spriggitDisplayVersion = extractSpriggitVersionDisplay(spriggitDetectedVersion);
+      // True only when the version is below the minimum required for FO4 1.11.x support.
+      // Used to avoid a false-positive "VERSION MISMATCH" when the user has a current build.
+      const spriggitVersionTooOld = fo4Is111x && isSpriggitTooOldFor111x(spriggitDetectedVersion);
 
       if (selfTestCode === SPRIGGIT_CRASH_EXIT_CODE) {
         // Re-check .NET to produce a more targeted error message.
@@ -3808,8 +3866,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             // Build a version context banner shown at the top of every hint block so
             // users and support can immediately see what was detected.
             const versionBanner =
-              (fo4Label       ? `  Detected game:    ${fo4Label}\n`               : '') +
-              (spriggitDetectedVersion ? `  Detected Spriggit: v${spriggitDetectedVersion}\n` : '');
+              (fo4Label            ? `  Detected game:    ${fo4Label}\n`               : '') +
+              (spriggitDisplayVersion ? `  Detected Spriggit: v${spriggitDisplayVersion}\n` : '');
 
             // dotnetCheck.installed is known-true here (we returned early above if it was false).
             if (selfTestCode !== null && selfTestCode !== SPRIGGIT_CRASH_EXIT_CODE) {
@@ -3818,35 +3876,54 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               // and extracted to a temp cache at runtime.  --version loads a minimal set (works);
               // serialize may crash (0xFFFFFFFF) or silently produce no output when the installed
               // Spriggit version cannot parse the record types in the target ESM/DLC.
-              // FO4 1.11.x (Creations Menu, November 2025) introduced new record types; any
-              // Spriggit build older than the corresponding release will fail exactly this way.
+              // FO4 1.11.x (Creations Menu, November 2025) introduced new record types; Spriggit
+              // builds older than v0.34.0 cannot handle them and fail exactly this way.
               const serializeFailDesc = hasSilentFailures
                 ? 'crashes with exit code 4294967295 / 0xFFFFFFFF on DLC files\n' +
                   'and/or exits cleanly but produces no YAML for base-game ESMs'
                 : 'crashes during serialize\n(exit code 4294967295 / 0xFFFFFFFF)';
 
-              // Build a tailored first hint line depending on what we detected.
-              const versionHint = fo4Is111x && spriggitDetectedVersion
-                ? `  1. ⭐ VERSION MISMATCH — Spriggit v${spriggitDetectedVersion} is too old for\n` +
+              // Build the #1 hint based on what was detected:
+              //   • spriggitVersionTooOld=true  → genuine version mismatch; re-download is the fix
+              //   • spriggitVersionTooOld=false → version is current; Smart App Control is #1 suspect
+              //   • fo4Is111x but version unknown → conservative: suggest re-download as #1
+              let versionHint: string;
+              if (spriggitVersionTooOld) {
+                versionHint =
+                  `  1. ⭐ VERSION MISMATCH — Spriggit v${spriggitDisplayVersion} is too old for\n` +
                   `     ${fo4Label}.\n` +
                   '     The Creations Menu update (November 2025) added new record types that\n' +
-                  '     require a post-November-2025 build of Spriggit.  Click "Re-download\n' +
-                  '     Spriggit →" → download SpriggitCLI.zip from the releases page →\n' +
-                  '     extract to a clean folder → select the new Spriggit.CLI.exe.\n'
-                : fo4Is111x
-                ? '  1. ⭐ Spriggit version too old — Fallout 4 1.11.x (Creations Menu,\n' +
+                  '     require a post-November-2025 build of Spriggit (v0.34.0 or later).  Click\n' +
+                  '     "Re-download Spriggit →" → download SpriggitCLI.zip from the releases\n' +
+                  '     page → extract to a clean folder → select the new Spriggit.CLI.exe.\n';
+              } else if (fo4Is111x && spriggitDisplayVersion) {
+                // Version is current — most likely cause is Smart App Control or disk space.
+                versionHint =
+                  `  1. ⭐ Smart App Control (Windows 11) — Spriggit v${spriggitDisplayVersion} is\n` +
+                  `     current and supports ${fo4Label}, but Windows Security can silently\n` +
+                  '     block the .NET assemblies that Spriggit extracts at runtime, causing\n' +
+                  '     exactly this crash.  Check: Windows Security → App & browser control\n' +
+                  '     → Smart App Control.  Switching to "Evaluation" mode (or Off) and\n' +
+                  '     retrying usually resolves it immediately.\n';
+              } else if (fo4Is111x) {
+                versionHint =
+                  '  1. ⭐ Spriggit version too old — Fallout 4 1.11.x (Creations Menu,\n' +
                   '     November 2025) introduced new record types.  Click "Re-download\n' +
-                  '     Spriggit →" to get the latest SpriggitCLI.zip from GitHub.\n'
-                : '  1. ⭐ Spriggit version too old for your game — the most common cause\n' +
+                  '     Spriggit →" to get the latest SpriggitCLI.zip from GitHub.\n';
+              } else {
+                versionHint =
+                  '  1. ⭐ Spriggit version too old for your game — the most common cause\n' +
                   '     when FO4 has been updated more recently than your Spriggit build.\n' +
                   '     Click "Re-download Spriggit →" to get the latest release from\n' +
                   '     GitHub (github.com/Mutagen-Modding/Spriggit/releases).  Download\n' +
                   '     SpriggitCLI.zip, extract it to a clean folder, then select the new exe.\n';
+              }
 
               // When it is a confirmed version mismatch, "Clear Cache & Retry" will NOT
-              // fix the problem — the user must re-download Spriggit.  Flag this clearly
-              // so the user clicks "Re-download Spriggit →" rather than the cache button.
-              const cacheHint = fo4Is111x && spriggitDetectedVersion
+              // fix the problem — the user must re-download Spriggit.  When the version
+              // is current (Smart App Control / disk space scenario), cache-clear + retry
+              // is a useful secondary step after the SAC fix.
+              const cacheHint = spriggitVersionTooOld
                 ? '\n  2. "Clear Cache & Retry" alone will NOT fix a version mismatch.\n' +
                   '     Only re-downloading Spriggit (step 1) solves this.  If you have already\n' +
                   '     re-downloaded and still see this error, then clearing the cache helps:\n' +
@@ -3860,9 +3937,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                 versionHint +
                 cacheHint +
                 '\n  3. Free up disk space — cache extraction needs several hundred MB free on C:.\n\n' +
-                '  4. Smart App Control (Windows 11) — can silently block unsigned extracted\n' +
-                '     binaries even when standard AV shows nothing.\n' +
-                '     Check: Windows Security → App & browser control → Smart App Control.\n\n' +
+                (spriggitVersionTooOld
+                  ? '  4. Smart App Control (Windows 11) — can silently block unsigned extracted\n' +
+                    '     binaries even when standard AV shows nothing.\n' +
+                    '     Check: Windows Security → App & browser control → Smart App Control.\n\n'
+                  : '  4. Re-download Spriggit — if SAC and disk space are both fine, try\n' +
+                    '     downloading a fresh SpriggitCLI.zip (github.com/Mutagen-Modding/Spriggit/releases)\n' +
+                    '     and extracting it to a clean folder.\n\n') +
                 '  ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
             } else {
               // Self-test timed out (null) — we cannot confirm the binary works; show the full list.
@@ -3870,10 +3951,14 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                 '.NET Runtime 8.0+ is installed.  Spriggit is a single-file build that extracts game\n' +
                 'assemblies to a cache at runtime.  Most likely causes:\n' +
                 (versionBanner ? versionBanner : '') +
-                (fo4Is111x
+                (spriggitVersionTooOld
                   ? '  1. ⭐ VERSION MISMATCH — Fallout 4 1.11.x (Creations Menu) requires a\n' +
-                    '     post-November 2025 build of Spriggit.  Download the latest SpriggitCLI.zip\n' +
-                    '     from github.com/Mutagen-Modding/Spriggit/releases.\n'
+                    '     post-November 2025 build of Spriggit (v0.34.0+).  Download the latest\n' +
+                    '     SpriggitCLI.zip from github.com/Mutagen-Modding/Spriggit/releases.\n'
+                  : fo4Is111x && spriggitDisplayVersion
+                  ? `  1. ⭐ Smart App Control (Windows 11) — Spriggit v${spriggitDisplayVersion} is\n` +
+                    '     current; SAC is the most likely culprit.  Check Windows Security →\n' +
+                    '     App & browser control → Smart App Control.\n'
                   : '  1. ⭐ Spriggit version too old — if on FO4 1.11.x (Creations Menu / Nov 2025),\n' +
                     '     download the latest SpriggitCLI.zip from github.com/Mutagen-Modding/Spriggit/releases.\n') +
                 '  2. Stale cache — click "Clear Cache & Retry" to wipe it so Spriggit can re-extract:\n' +
@@ -3913,7 +3998,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         skippedCustomCount,
         fo4Version,
         fo4Label,
-        spriggitVersion: spriggitDetectedVersion,
+        spriggitVersion: spriggitDisplayVersion,
+        spriggitVersionTooOld,
       };
     } catch (e: any) {
       console.error('[Main] spriggit-serialize error:', e);

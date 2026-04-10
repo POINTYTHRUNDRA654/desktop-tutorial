@@ -274,8 +274,15 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [detectedFo4Version, setDetectedFo4Version] = useState('');
     /** Human-readable FO4 version label, e.g. "Fallout 4 v1.11.191 — 1.11.x (Creations Menu…)". */
     const [detectedFo4Label, setDetectedFo4Label] = useState('');
-    /** Spriggit version detected from `--version`, e.g. "0.22.0". Empty if not detected. */
+    /** Spriggit version detected from `--version`, e.g. "0.40.0". Empty if not detected. */
     const [detectedSpriggitVersion, setDetectedSpriggitVersion] = useState('');
+    /**
+     * True only when main.ts confirmed the detected Spriggit version is below the
+     * minimum required for FO4 1.11.x support (i.e. a genuine version mismatch).
+     * False when version is current — a different root cause (Smart App Control, disk
+     * space) is responsible.  Null before the first serialize attempt.
+     */
+    const [spriggitVersionTooOld, setSpriggitVersionTooOld] = useState<boolean | null>(null);
 
     // .NET Runtime availability (detected during the startup scan)
     const [dotnetOk, setDotnetOk] = useState<boolean | null>(() => {
@@ -852,6 +859,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             if (result.fo4Version)       setDetectedFo4Version(result.fo4Version as string);
             if (result.fo4Label)         setDetectedFo4Label(result.fo4Label as string);
             if (result.spriggitVersion)  setDetectedSpriggitVersion(result.spriggitVersion as string);
+            // spriggitVersionTooOld is set by main.ts using an actual semver comparison, so use it
+            // directly rather than re-deriving it from the version string in the renderer.
+            if (typeof result.spriggitVersionTooOld === 'boolean') {
+                setSpriggitVersionTooOld(result.spriggitVersionTooOld as boolean);
+            }
             if (!result.ok || !result.files?.length) {
                 const errText = result.error || 'No YAML files were produced.';
                 // Cap display length to avoid rendering a massive wall of text.
@@ -1785,8 +1797,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         )}
                                         {detectedSpriggitVersion && (
                                             <div>🔧 <strong>Spriggit:</strong> v{detectedSpriggitVersion}
-                                                {detectedFo4Version.startsWith('1.11.') && (
-                                                    <span className="ml-1 text-amber-400 font-bold">⚠️ needs post-Nov 2025 build for FO4 1.11.x</span>
+                                                {spriggitVersionTooOld === true && (
+                                                    <span className="ml-1 text-amber-400 font-bold">⚠️ too old for FO4 1.11.x — re-download required</span>
+                                                )}
+                                                {spriggitVersionTooOld === false && detectedFo4Version.startsWith('1.11.') && (
+                                                    <span className="ml-1 text-emerald-400 font-semibold">✓ version is current</span>
                                                 )}
                                             </div>
                                         )}
@@ -1842,39 +1857,35 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             </button>
                                         )}
                                         {/* "Re-download Spriggit" — shown whenever a 0xFFFFFFFF crash or
-                                            silent-failure occurs.  When a version mismatch is confirmed
-                                            (FO4 1.11.x + old Spriggit), this is the ONLY real fix so we
-                                            style it more prominently (yellow border + bold label). */}
-                                        {(() => {
-                                            const isVersionMismatch = detectedFo4Version.startsWith('1.11.') && !!detectedSpriggitVersion;
-                                            return (
-                                                <button
-                                                    type="button"
-                                                    className={isVersionMismatch
-                                                        ? 'px-3 py-1 rounded border-2 border-yellow-400 bg-yellow-700/60 hover:bg-yellow-600/70 text-yellow-100 text-xs font-bold transition-colors'
-                                                        : 'px-3 py-1 rounded bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 text-xs font-semibold transition-colors'}
-                                                    onClick={() => {
-                                                        const api = getElectronApi();
-                                                        if (api?.openExternal) {
-                                                            void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
-                                                        } else {
-                                                            window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
-                                                        }
-                                                    }}
-                                                >
-                                                    {isVersionMismatch ? '⭐ Re-download Spriggit (required) →' : '⬇️ Re-download Spriggit →'}
-                                                </button>
-                                            );
-                                        })()}
-                                        {/* "Clear Cache & Retry" — the most common fix when --version
-                                            passes but serialize crashes.  The .NET single-file publish
-                                            caches extracted assemblies in a temp folder; a stale or
-                                            corrupted cache (e.g. after upgrading Spriggit) causes this
-                                            exact crash pattern.  This button deletes both candidate
-                                            cache paths.
-                                            IMPORTANT: when a version mismatch is confirmed (FO4 1.11.x +
-                                            detected old Spriggit), we skip the auto-retry because we know
-                                            it will fail again — re-downloading is the only real fix. */}
+                                            silent-failure occurs.  When a genuine version mismatch is
+                                            confirmed (spriggitVersionTooOld=true), this is the ONLY real
+                                            fix so we style it prominently (yellow border + bold label).
+                                            When version is current (spriggitVersionTooOld=false), Smart
+                                            App Control is the #1 suspect — re-download is still offered
+                                            as a fallback but uses the standard styling. */}
+                                        <button
+                                            type="button"
+                                            className={spriggitVersionTooOld === true
+                                                ? 'px-3 py-1 rounded border-2 border-yellow-400 bg-yellow-700/60 hover:bg-yellow-600/70 text-yellow-100 text-xs font-bold transition-colors'
+                                                : 'px-3 py-1 rounded bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 text-xs font-semibold transition-colors'}
+                                            onClick={() => {
+                                                const api = getElectronApi();
+                                                if (api?.openExternal) {
+                                                    void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
+                                                } else {
+                                                    window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
+                                                }
+                                            }}
+                                        >
+                                            {spriggitVersionTooOld === true ? '⭐ Re-download Spriggit (required) →' : '⬇️ Re-download Spriggit →'}
+                                        </button>
+                                        {/* "Clear Cache & Retry" — useful when --version passes but
+                                            serialize crashes due to a stale .NET assembly cache.
+                                            IMPORTANT: skip auto-retry when a version mismatch is confirmed
+                                            (spriggitVersionTooOld=true) — retrying will fail again, and
+                                            the only real fix is to re-download Spriggit first.
+                                            When version is current, auto-retry after cache clear is
+                                            helpful (SAC fix + cache clear → retry may succeed). */}
                                         <button
                                             type="button"
                                             disabled={cacheClearInProgress || spriggitStatus === 'running'}
@@ -1882,7 +1893,6 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             onClick={async () => {
                                                 const api = getElectronApi();
                                                 if (!api?.spriggitClearCache) return;
-                                                const isVersionMismatch = detectedFo4Version.startsWith('1.11.') && !!detectedSpriggitVersion;
                                                 setCacheClearInProgress(true);
                                                 setCacheClearResult(null);
                                                 try {
@@ -1892,10 +1902,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     setCacheClearResult('error');
                                                 } finally {
                                                     setCacheClearInProgress(false);
-                                                    // Skip the auto-retry when a version mismatch is confirmed
-                                                    // — retrying will fail for the same reason and confuse the
-                                                    // user.  The correct fix is to re-download Spriggit first.
-                                                    if (!isVersionMismatch) {
+                                                    // Skip the auto-retry when main.ts confirmed a version
+                                                    // mismatch — it will fail for the same reason.
+                                                    if (spriggitVersionTooOld !== true) {
                                                         await runSpriggitDigest();
                                                     }
                                                 }
@@ -1903,21 +1912,21 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         >
                                             {cacheClearInProgress ? '🔄 Clearing…' : '🗑️ Clear Cache & Retry'}
                                         </button>
-                                        {cacheClearResult === 'ok' && spriggitStatus !== 'error' && !detectedFo4Version.startsWith('1.11.') && (
+                                        {cacheClearResult === 'ok' && spriggitStatus !== 'error' && spriggitVersionTooOld !== true && (
                                             <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
                                         )}
-                                        {cacheClearResult === 'ok' && detectedFo4Version.startsWith('1.11.') && !!detectedSpriggitVersion && (
+                                        {cacheClearResult === 'ok' && spriggitVersionTooOld === true && (
                                             <span className="text-xs text-yellow-300 font-semibold">
                                                 🗑️ Cache cleared — but <strong>re-downloading Spriggit is still required</strong> to fix the version mismatch.{' '}
                                                 Click <strong>⭐ Re-download Spriggit (required) →</strong> above to get the latest SpriggitCLI.zip.
                                             </span>
                                         )}
-                                        {cacheClearResult === 'ok' && spriggitStatus === 'error' && !detectedFo4Version.startsWith('1.11.') && (
+                                        {cacheClearResult === 'ok' && spriggitStatus === 'error' && spriggitVersionTooOld !== true && (
                                             <span className="text-xs text-amber-300 font-semibold">
                                                 ⚠️ Cache cleared but still failing —{' '}
                                                 {detectedFo4Version.startsWith('1.11.')
-                                                    ? <>FO4 1.11.x detected — you need a <strong>post-November 2025 Spriggit build</strong>. Click <strong>Re-download Spriggit →</strong>.</>
-                                                    : <>most likely fix: <strong>Re-download the latest Spriggit</strong> (version too old for FO4 1.11.x new record types). Also check: Smart App Control (Windows Security) and free disk space on C:.</>
+                                                    ? <>Check <strong>Smart App Control</strong> (Windows Security → App &amp; browser control) — this is the most likely cause when the Spriggit version is current.</>
+                                                    : <>most likely fix: check Smart App Control (Windows Security) and free disk space on C:. Also try Re-downloading Spriggit.</>
                                                 }
                                             </span>
                                         )}
