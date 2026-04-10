@@ -230,6 +230,8 @@ const COMPLETE_TRANSITION_DELAY_MS = 2000;
 const SPRIGGIT_DONE_TRANSITION_DELAY_MS = 500;
 /** Maximum characters of error text shown in the Spriggit status message box. */
 const MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH = 4000;
+/** Maximum characters of the DLC failure details shown in the partial-success message. */
+const MAX_SPRIGGIT_PARTIAL_ERROR_PREVIEW = 300;
 /** How long (ms) the .NET recheck result badge stays visible before auto-dismissing. */
 const DOTNET_RECHECK_BADGE_DURATION_MS = 6000;
 /** Message shown when a manual .NET recheck still cannot find the runtime. */
@@ -965,8 +967,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     : '';
                 // Cap the error block to avoid a wall of text — DLC crash errors are already
                 // truncated to MAX_SHOWN=3 in main.ts; 300 chars is enough for all of them.
-                const errPreview = result.error!.length > 300
-                    ? result.error!.slice(0, 300) + '\n…(see below for full details)'
+                const errPreview = result.error!.length > MAX_SPRIGGIT_PARTIAL_ERROR_PREVIEW
+                    ? result.error!.slice(0, MAX_SPRIGGIT_PARTIAL_ERROR_PREVIEW) + '\n…(see below for full details)'
                     : result.error!;
                 setSpriggitMessage(
                     `⚠️ Partial success — ${newEntries.length} YAML files digested${skipNote}.\n` +

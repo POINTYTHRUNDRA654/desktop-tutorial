@@ -3605,9 +3605,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       let dotnetBundleExtractDir: string | undefined;
       try {
         fs.mkdirSync(spriggitDotnetCacheDir, { recursive: true });
-        if (fs.existsSync(spriggitDotnetCacheDir)) {
-          dotnetBundleExtractDir = spriggitDotnetCacheDir;
-        }
+        // mkdirSync only throws when it cannot create the directory; if it returns
+        // without throwing the directory is guaranteed to exist.
+        dotnetBundleExtractDir = spriggitDotnetCacheDir;
       } catch { /* non-fatal — see comment above */ }
       // Derive the drive letter / root of the cache directory so disk-space hints can
       // reference the actual drive (e.g. "D:") rather than the hardcoded "C:".
@@ -3880,7 +3880,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         //               files then crash because SAC flags additional assemblies loaded
         //               specifically for DLC record types.  No point waiting through each
         //               remaining DLC file; they will all fail the same way.
-        const isFailureEntry  = (e: string) =>
+        const isFailureEntry = (e: string) =>
           e.includes('exit code 4294967295') || e.includes('produced no YAML output');
         const isHardCrashEntry = (e: string) => e.includes('exit code 4294967295');
         const triggerA = resultFiles.length === 0 &&
