@@ -107,6 +107,7 @@ const IPC_CHANNELS = {
   SPRIGGIT_SERIALIZE: 'spriggit-serialize',
   SPRIGGIT_OPEN_FOLDER: 'spriggit-open-folder',
   SPRIGGIT_CLEAR_CACHE: 'spriggit-clear-cache',
+  SPRIGGIT_UNBLOCK_FILES: 'spriggit-unblock-files',
 
   // Duplicate Finder
   DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',
@@ -655,6 +656,17 @@ const electronAPI = {
    */
   spriggitClearCache: (): Promise<{ ok: boolean; clearedPaths: string[]; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_CLEAR_CACHE);
+  },
+
+  /**
+   * Spriggit: remove the Zone.Identifier (Mark of the Web) from all files in
+   * the Spriggit folder via PowerShell Unblock-File.  This is the recommended
+   * workaround when Windows Smart App Control is locked and cannot be disabled —
+   * files downloaded from the internet carry a Zone 3 tag that SAC blocks, and
+   * Unblock-File strips that tag so the binaries appear local to Windows.
+   */
+  spriggitUnblockFiles: (): Promise<{ ok: boolean; unblocked?: number; folderPath?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_UNBLOCK_FILES);
   },
 
   /**
