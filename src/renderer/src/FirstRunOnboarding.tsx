@@ -32,14 +32,14 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     // ── Runtime prerequisites ─────────────────────────────────────────────────
     // These must be installed first; many Mossy features silently fail without them.
     {
-        name: '.NET Runtime 8.0+',
-        description: 'Required runtime for Spriggit.CLI.exe and many other .NET-based modding tools. Without it, the vanilla ESM digest step will fail immediately with exit code 0xFFFFFFFF.',
-        detectKeywords: ['microsoft .net', '.net desktop runtime', '.net runtime'],
-        url: 'https://dotnet.microsoft.com/download/dotnet/8.0',
+        name: '.NET SDK (latest)',
+        description: 'Required by Spriggit and other .NET-based modding tools. The SDK (not just the Runtime) is needed so Spriggit can download its translation packages via "dotnet tool install" at first serialize run. Restart your PC after installing.',
+        detectKeywords: ['microsoft .net', '.net desktop runtime', '.net runtime', '.net sdk', 'dotnet sdk'],
+        url: 'https://dotnet.microsoft.com/download/dotnet',
         urlLabel: 'dotnet.microsoft.com',
         category: 'runtime',
         required: true,
-        ifMissing: 'Spriggit digest will crash instantly (exit 0xFFFFFFFF). No vanilla ESM brain-boost. Mossy cannot run any .NET-based tools.',
+        ifMissing: 'Spriggit serialize will crash with exit 0xFFFFFFFF. The SDK is required so Spriggit can fetch its Fallout4 translation package on first run. Mossy cannot run any .NET-based tools.',
     },
     {
         name: 'Git for Windows',
