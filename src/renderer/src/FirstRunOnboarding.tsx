@@ -1807,6 +1807,25 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 📂 Open Spriggit folder
                                             </button>
                                         )}
+                                        {/* "Re-download Spriggit" — shown whenever the 0xFFFFFFFF crash
+                                            occurs, even when .NET IS detected.  AV blocks or an incomplete
+                                            extraction (Spriggit.zip instead of SpriggitCLI.zip) both
+                                            produce this exit code regardless of .NET status, and the
+                                            quickest fix is to grab a fresh SpriggitCLI.zip. */}
+                                        <button
+                                            type="button"
+                                            className="underline text-red-300 hover:text-red-100 transition-colors text-xs font-semibold"
+                                            onClick={() => {
+                                                const api = getElectronApi();
+                                                if (api?.openExternal) {
+                                                    void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
+                                                } else {
+                                                    window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
+                                                }
+                                            }}
+                                        >
+                                            Re-download Spriggit →
+                                        </button>
                                         {dotnetRecheckResult === 'not-found' && (
                                             <span className="text-xs text-red-300 font-semibold">{DOTNET_STILL_NOT_DETECTED_MSG}</span>
                                         )}
