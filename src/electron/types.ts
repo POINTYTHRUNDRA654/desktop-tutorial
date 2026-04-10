@@ -91,6 +91,7 @@ export const IPC_CHANNELS = {
   // Spriggit integration — run Spriggit.CLI.exe serialize and read results
   SPRIGGIT_PICK_CLI: 'spriggit-pick-cli',
   SPRIGGIT_SERIALIZE: 'spriggit-serialize',
+  SPRIGGIT_OPEN_FOLDER: 'spriggit-open-folder',
 
   // Mod Projects file persistence (backup/restore to userData/mod-projects.json)
   SAVE_MOD_PROJECTS: 'save-mod-projects',
@@ -531,6 +532,12 @@ export interface ElectronAPI {
   /** Open a file picker to select Spriggit.CLI.exe — returns selected path or '' */
   spriggitPickCli: () => Promise<string>;
   /**
+   * Open the folder containing the given path (e.g. the Spriggit install folder)
+   * in the OS file manager so the user can verify the extraction.
+   * Returns {ok: true} on success or {ok: false, error} on failure.
+   */
+  spriggitOpenFolder: (filePath: string) => Promise<{ ok: boolean; error?: string }>;
+  /**
    * Run Spriggit.CLI.exe serialize on a Fallout 4 Data folder.
    * Returns the list of YAML files produced and their truncated text content,
    * or an error string on failure.
@@ -539,7 +546,7 @@ export interface ElectronAPI {
     cliPath: string;
     dataPath: string;
     outputPath: string;
-  }) => Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string }>;
+  }) => Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string; skippedVanillaCount?: number }>;
 
   /** Persist all mod projects to userData/mod-projects.json so work survives reinstalls */
   saveModProjects: (projects: unknown[]) => Promise<{ ok: boolean; error?: string }>;
