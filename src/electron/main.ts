@@ -3437,6 +3437,68 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // spriggit-add-defender-exclusion: Add the user's Spriggit folder to Windows Defender
+  // exclusions via PowerShell Add-MpPreference so Smart App Control stops blocking the
+  // .NET assemblies that Spriggit extracts at runtime.
+  //
+  // When Mossy is running as administrator (or on systems where the current user has
+  // sufficient rights) the command executes directly and returns {ok:true}.
+  // Otherwise it returns {ok:false, excludedPath, error} with the folder path so the
+  // renderer can show the exact command for the user to run in an elevated shell.
+  //
+  // Security: the folder path is passed via an environment variable (MOSSY_EXCLUSION_PATH)
+  // rather than embedded in the command string, preventing any PowerShell injection via
+  // special characters in the path.
+  registerHandler(IPC_CHANNELS.SPRIGGIT_ADD_DEFENDER_EXCLUSION, async () => {
+    if (process.platform !== 'win32') {
+      return { ok: false, error: 'Defender exclusions are a Windows-only feature.' };
+    }
+    try {
+      const s = loadSettings();
+      const spriggitPath: string = (s.spriggitPath && typeof s.spriggitPath === 'string') ? s.spriggitPath : '';
+      if (!spriggitPath) {
+        return { ok: false, error: 'Spriggit path not set — pick Spriggit.CLI.exe first.' };
+      }
+      const excludedPath = path.dirname(spriggitPath);
+      if (!fs.existsSync(excludedPath)) {
+        return { ok: false, excludedPath, error: `Spriggit folder not found: ${excludedPath}` };
+      }
+      // Attempt Add-MpPreference directly.  This works when Mossy is already running
+      // as administrator, or on machines where the current user has the required rights.
+      // On most consumer machines this will throw with "Access Denied" (error 5), in
+      // which case we return the path so the renderer can show copy/manual guidance.
+      const { execSync } = await import('child_process');
+      execSync(
+        'powershell -NoProfile -NonInteractive -Command "Add-MpPreference -ExclusionPath $env:MOSSY_EXCLUSION_PATH -ErrorAction Stop"',
+        {
+          timeout: 15_000,
+          windowsHide: true,
+          env: { ...process.env, MOSSY_EXCLUSION_PATH: excludedPath },
+        },
+      );
+      console.log(`[Main] spriggit-add-defender-exclusion: added exclusion for ${excludedPath}`);
+      return { ok: true, excludedPath };
+    } catch (e: any) {
+      // Distinguish "needs elevation" (Access is denied) from other errors so the renderer
+      // can show targeted guidance.  The error message varies by Windows locale so we
+      // check both the numeric error code and the common English phrase.
+      const msg: string = String(e?.message || e);
+      const isAccessDenied = msg.includes('Access is denied') || msg.includes('0x80070005') || /exit code [15]\b/.test(msg);
+      const s = loadSettings();
+      const spriggitPath: string = (s.spriggitPath && typeof s.spriggitPath === 'string') ? s.spriggitPath : '';
+      const excludedPath = spriggitPath ? path.dirname(spriggitPath) : undefined;
+      if (isAccessDenied) {
+        return {
+          ok: false,
+          excludedPath,
+          error: 'Administrator rights required. Run the command shown below in an elevated PowerShell window (right-click → "Run as administrator").',
+        };
+      }
+      console.error('[Main] spriggit-add-defender-exclusion error:', e);
+      return { ok: false, excludedPath, error: msg };
+    }
+  });
+
   /**
    * Reads the Fallout4.exe file version from the game installation folder
    * (the parent directory of the user's selected Data folder).

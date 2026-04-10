@@ -94,6 +94,7 @@ export const IPC_CHANNELS = {
   SPRIGGIT_OPEN_FOLDER: 'spriggit-open-folder',
   SPRIGGIT_CLEAR_CACHE: 'spriggit-clear-cache',
   SPRIGGIT_UNBLOCK_FILES: 'spriggit-unblock-files',
+  SPRIGGIT_ADD_DEFENDER_EXCLUSION: 'spriggit-add-defender-exclusion',
 
   // Mod Projects file persistence (backup/restore to userData/mod-projects.json)
   SAVE_MOD_PROJECTS: 'save-mod-projects',
@@ -546,6 +547,14 @@ export interface ElectronAPI {
    * Returns the paths it cleared plus any error string.
    */
   spriggitClearCache: () => Promise<{ ok: boolean; clearedPaths: string[]; error?: string }>;
+  /**
+   * Add the user's Spriggit folder to Windows Defender exclusions so Smart App Control
+   * can no longer block the .NET assemblies Spriggit extracts at runtime.
+   * Tries direct Add-MpPreference first (works when Mossy runs as admin); if that fails,
+   * returns the folder path and command so the user can run it in an elevated shell.
+   * Windows-only; returns ok:false with a message on other platforms.
+   */
+  spriggitAddDefenderExclusion: () => Promise<{ ok: boolean; excludedPath?: string; error?: string }>;
   /**
    * Run Spriggit.CLI.exe serialize on a Fallout 4 Data folder.
    * Returns the list of YAML files produced and their truncated text content,
