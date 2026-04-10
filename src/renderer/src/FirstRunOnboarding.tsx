@@ -267,6 +267,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     // Spriggit digest step state
     const [spriggitCliPath, setSpriggitCliPath] = useState('');
     const [spriggitDataPath, setSpriggitDataPath] = useState('');
+    const [spriggitPackageName, setSpriggitPackageName] = useState('Spriggit.Yaml.Fallout4');
+    const [spriggitNugetSource, setSpriggitNugetSource] = useState('');
     const [spriggitStatus, setSpriggitStatus] = useState<'idle' | 'running' | 'done' | 'partial' | 'error' | 'noMods'>('idle');
     const [spriggitMessage, setSpriggitMessage] = useState('');
     const [spriggitFileCount, setSpriggitFileCount] = useState(0);
@@ -873,6 +875,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 dataPath: spriggitDataPath,
                 outputPath: '',
                 vanillaOnly: true,
+                packageName: spriggitPackageName.trim() || 'Spriggit.Yaml.Fallout4',
+                nugetSource: spriggitNugetSource.trim() || undefined,
             });
             // Persist detected version info so the error UI can display them immediately.
             if (result.fo4Version)       setDetectedFo4Version(result.fo4Version as string);
@@ -1822,6 +1826,65 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         <FolderOpen className="w-4 h-4" /> Browse
                                     </button>
                                 </div>
+                            </div>
+
+                            {/* Package Name */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">
+                                    Package Name <span className="text-slate-500 text-xs font-normal">(--PackageName)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={spriggitPackageName}
+                                    onChange={e => setSpriggitPackageName(e.target.value)}
+                                    placeholder="Spriggit.Yaml.Fallout4"
+                                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                />
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Built-in:{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Yaml.Fallout4</code>
+                                    {' '}or{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Json.Fallout4</code>.
+                                    {' '}Custom packages must be published to NuGet.org first.
+                                </p>
+                            </div>
+
+                            {/* Local NuGet Source */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">
+                                    Local NuGet Source <span className="text-slate-500 text-xs font-normal">(--Source, optional)</span>
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={spriggitNugetSource}
+                                        onChange={e => setSpriggitNugetSource(e.target.value)}
+                                        placeholder='e.g. D:\Tools\Spriggit-dev\Translation Packages'
+                                        className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            const api = getElectronApi();
+                                            if (!api?.pickDirectory) return;
+                                            const p = await api.pickDirectory('Select Local NuGet Source Folder');
+                                            if (p) setSpriggitNugetSource(p);
+                                        }}
+                                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-lg text-sm text-slate-200 flex items-center gap-1.5 transition-colors"
+                                    >
+                                        <FolderOpen className="w-4 h-4" /> Browse
+                                    </button>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Point to the folder containing your local translation packages
+                                    (e.g.{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-slate-400">D:\Tools\Spriggit-dev\Translation Packages</code>
+                                    {' '}holding{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Yaml.Fallout4</code>
+                                    {' '}and{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Json.Fallout4</code>
+                                    ) to skip the nuget.org download entirely.
+                                </p>
                             </div>
                         </div>
 

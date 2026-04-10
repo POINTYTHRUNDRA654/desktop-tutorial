@@ -3565,9 +3565,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     dataPath: string;
     outputPath: string;
     vanillaOnly?: boolean;
+    /** Custom NuGet package name (default: 'Spriggit.Yaml.Fallout4'). */
+    packageName?: string;
+    /** Local NuGet source path — bypasses nuget.org download. */
+    nugetSource?: string;
   }) => {
     try {
-      const { cliPath, dataPath, outputPath, vanillaOnly = false } = params || {};
+      const { cliPath, dataPath, outputPath, vanillaOnly = false, packageName, nugetSource } = params || {};
       if (!cliPath || typeof cliPath !== 'string') return { ok: false, files: [], error: 'No Spriggit CLI path provided.' };
       if (!dataPath || typeof dataPath !== 'string') return { ok: false, files: [], error: 'No Data folder path provided.' };
       if (!fs.existsSync(cliPath)) return { ok: false, files: [], error: `Spriggit.CLI.exe not found at: ${cliPath}` };
@@ -3712,9 +3716,11 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         '  3. Antivirus blocked Spriggit.CLI.exe — add an exception or try disabling AV temporarily.\n' +
         '  4. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.';
       // Shown at the end of both self-test error messages so the user can reproduce manually.
+      const resolvedPackageNameForHint = (packageName && packageName.trim()) ? packageName.trim() : 'Spriggit.Yaml.Fallout4';
+      const nugetSourceHint = (nugetSource && nugetSource.trim()) ? ` --Source "${nugetSource.trim()}"` : '';
       const SPRIGGIT_MANUAL_RUN_HINT =
         '  5. To confirm the real error, open a Command Prompt and run Spriggit manually:\n' +
-        '     Spriggit.CLI.exe serialize --InputPath "path\\to\\plugin.esp" --OutputPath "C:\\Temp\\out" --GameRelease Fallout4 --PackageName Spriggit.Yaml.Fallout4';
+        `     Spriggit.CLI.exe serialize --InputPath "path\\to\\plugin.esp" --OutputPath "C:\\Temp\\out" --GameRelease Fallout4 --PackageName ${resolvedPackageNameForHint}${nugetSourceHint}`;
 
       // Capture both the exit code AND stdout (the version string) from --version.
       // The version string is used in error messages so users see exactly which
@@ -3837,13 +3843,21 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         const fileCountBefore = resultFiles.length;
 
         await new Promise<void>((resolve) => {
-          const child = spawn(cliPath, [
+          // Build the CLI args.  --PackageName defaults to Spriggit.Yaml.Fallout4 unless
+          // the caller specified a custom package (e.g. Spriggit.Json.Fallout4 or a
+          // user-published NuGet package).  --Source (optional) lets Spriggit use a local
+          // directory as a NuGet feed instead of downloading from nuget.org — useful when
+          // the user already has the translation packages cached locally.
+          const resolvedPackageName = (packageName && packageName.trim()) ? packageName.trim() : 'Spriggit.Yaml.Fallout4';
+          const spawnArgs = [
             'serialize',
             '--InputPath', inputPath,
             '--OutputPath', pluginOutputDir,
             '--GameRelease', 'Fallout4',
-            '--PackageName', 'Spriggit.Yaml.Fallout4',
-          ], { shell: false, windowsHide: true, cwd: path.dirname(cliPath), env: spriggitEnv });
+            '--PackageName', resolvedPackageName,
+            ...(nugetSource && nugetSource.trim() ? ['--Source', nugetSource.trim()] : []),
+          ];
+          const child = spawn(cliPath, spawnArgs, { shell: false, windowsHide: true, cwd: path.dirname(cliPath), env: spriggitEnv });
 
           let stderr = '';
           let stdout = '';
