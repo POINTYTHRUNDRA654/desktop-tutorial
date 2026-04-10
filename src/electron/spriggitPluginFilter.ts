@@ -43,17 +43,57 @@ export function filterPluginsForSpriggit(allPluginFiles: string[]): {
 }
 
 /**
+ * Preferred processing order for vanilla ESMs.
+ *
+ * Fallout4.esm is placed first because it contains the entire base-game record
+ * set and is the most valuable file for the knowledge-vault brain boost.
+ * Putting it first ensures it is serialised before the early-exit crash
+ * threshold fires (which would otherwise skip it when DLC files fail first due
+ * to alphabetical ordering — 'D' sorts before 'F').
+ *
+ * DLC files follow in ascending size order so that the smaller Workshop ESMs
+ * complete quickly; if the user's environment is broken and all serialisations
+ * fail, the early-exit fires after the first three consecutive crashes
+ * regardless of order, but at least Fallout4.esm will have been attempted.
+ */
+const VANILLA_PLUGIN_PRIORITY: ReadonlyArray<string> = [
+  'fallout4.esm',
+  'dlcworkshop01.esm',  // Wasteland Workshop  (~  50 MB — smallest DLC)
+  'dlcworkshop02.esm',  // Contraptions Workshop
+  'dlcworkshop03.esm',  // Vault-Tec Workshop
+  'dlcrobot.esm',       // Automatron          (~ 150 MB)
+  'dlccoast.esm',       // Far Harbor          (~ 800 MB)
+  'dlcnukaworld.esm',   // Nuka-World          (~ 900 MB — largest DLC)
+];
+
+/**
  * Given the raw list of plugin filenames found in the Data folder, returns
  * ONLY the vanilla/DLC ESMs together with a count of how many custom plugins
  * were skipped.
  * Used for the vanilla-brain-boost digest path.
+ *
+ * The returned list is sorted so that Fallout4.esm comes first (to give the
+ * most-valuable file the best chance before any early-exit threshold fires)
+ * and DLC files follow in ascending size order.
  */
 export function filterVanillaPluginsOnly(allPluginFiles: string[]): {
   pluginFiles: string[];
   skippedCustomCount: number;
 } {
-  const pluginFiles = allPluginFiles.filter(f => isVanillaPlugin(f));
-  const skippedCustomCount = allPluginFiles.length - pluginFiles.length;
+  const matched = allPluginFiles.filter(f => isVanillaPlugin(f));
+  const skippedCustomCount = allPluginFiles.length - matched.length;
+
+  // Sort by the preferred priority order, falling back to the original
+  // filesystem order for any files not listed in VANILLA_PLUGIN_PRIORITY
+  // (should not happen for a standard install, but safe to handle).
+  const priorityIndex = (name: string): number => {
+    const idx = VANILLA_PLUGIN_PRIORITY.indexOf(name.toLowerCase());
+    return idx === -1 ? VANILLA_PLUGIN_PRIORITY.length : idx;
+  };
+  const pluginFiles = matched.slice().sort(
+    (a, b) => priorityIndex(a) - priorityIndex(b),
+  );
+
   return { pluginFiles, skippedCustomCount };
 }
 
