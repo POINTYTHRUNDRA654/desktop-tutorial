@@ -3489,12 +3489,21 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           child.on('close', (code) => {
             clearTimeout(timeoutHandle);
             if (code !== 0) {
-              // Prefer stderr; fall back to stdout — Spriggit's .NET host sometimes
-              // writes crash diagnostics to stdout rather than stderr.
-              const output = (stderr.trim() || stdout.trim()).slice(0, 300);
-              errors.push(output
-                ? `${plugin}: exit code ${code} — ${output}`
-                : `${plugin}: exit code ${code}`);
+              // When the process crashed before CLR loaded (0xFFFFFFFF) the only
+              // output Spriggit writes is its version banner — that's not useful
+              // diagnostic text and it balloons the error string, pushing the hint
+              // tips (the actionable fixes) past the display-length limit.  Omit the
+              // output for this specific code; the hint block already explains it.
+              if (code === SPRIGGIT_CRASH_EXIT_CODE) {
+                errors.push(`${plugin}: exit code ${code}`);
+              } else {
+                // Prefer stderr; fall back to stdout — Spriggit's .NET host sometimes
+                // writes crash diagnostics to stdout rather than stderr.
+                const output = (stderr.trim() || stdout.trim()).slice(0, 300);
+                errors.push(output
+                  ? `${plugin}: exit code ${code} — ${output}`
+                  : `${plugin}: exit code ${code}`);
+              }
             }
             resolve();
           });
@@ -3558,10 +3567,19 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           // architecture mismatch (x86 vs x64).
           const allSameCode = errors.every(e => e.includes('exit code 4294967295'));
           if (allSameCode) {
+            // dotnetCheck.installed is known-true here (we returned early above if it was false).
+            // The binary starts (prints its version banner) then crashes during serialize, which
+            // means the CLR loaded fine but an assembly required for serialization failed to load
+            // — typical causes: AV quarantined a DLL, or the zip was only partially extracted.
             hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
-              'Common causes:\n' +
-              SPRIGGIT_CRASH_CAUSES + '\n' +
-              SPRIGGIT_MANUAL_RUN_HINT.replace('  5. To confirm', '  5. To see');
+              '.NET Runtime 8.0+ is installed, so the most likely causes are:\n' +
+              '  1. Antivirus quarantined a DLL — add the entire Spriggit folder as an exclusion and try again.\n' +
+              '     Windows Defender: Windows Security → Virus & threat protection → Manage settings\n' +
+              '     → Add or remove exclusions → Add an exclusion → Folder → select the Spriggit folder.\n' +
+              '  2. Incomplete extraction — Spriggit.CLI.exe needs ALL files from SpriggitCLI.zip beside it.\n' +
+              '     Re-extract SpriggitCLI.zip into a clean (empty) folder and point Mossy to the new exe.\n' +
+              '  3. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +
+              '  4. ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
           } else {
             hint = '\n\nSpriggit produced no output. Make sure Spriggit.CLI.exe is the correct executable and that your Data folder path is right.';
           }
