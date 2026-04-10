@@ -1492,11 +1492,11 @@ export const ChatInterface: React.FC = () => {
                     (s.nifSkopePath ? `- NifSkope: ${s.nifSkopePath}\n` : "") +
                     (s.blenderPath ? `- Blender: ${s.blenderPath}\n` : "");
 
-                const blacklist: string[] = s?.privacySettings?.modContentBlacklist ?? [];
-                if (blacklist.length > 0) {
-                    settingsCtx += `\n**MOD CONTENT BLACKLIST (STRICT — DO NOT REFERENCE THESE MODS):**\n` +
-                        blacklist.map((m: string) => `- ${m}`).join('\n') + '\n' +
-                        `(The user has opted these mods out of AI discussion. Never mention, recommend, discuss, or use them as examples in any response.)`;
+                const whitelist: string[] = s?.privacySettings?.modContentWhitelist ?? [];
+                if (whitelist.length > 0) {
+                    settingsCtx += `\n**MOD CONTENT WHITELIST (STRICT — DO NOT TOUCH THESE MODS):**\n` +
+                        whitelist.map((m: string) => `- ${m}`).join('\n') + '\n' +
+                        `(The user has protected these mods. Never mention, recommend, discuss, use them as examples, reference, modify, or interact with them in any way under any circumstances.)`;
                 }
             }
 
