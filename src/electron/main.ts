@@ -3575,6 +3575,14 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   const SPRIGGIT_SOURCE_FLAG_REMOVED: [number, number, number] = [0, 40, 0];
 
   /**
+   * The --PackageName flag was also removed in v0.40.0 when Spriggit was repackaged
+   * as a self-contained dotnet tool with the serialiser package bundled in.  Passing
+   * it to any build >= 0.40.0 triggers unexpected NuGet resolution behaviour and
+   * causes the process to crash with exit code 0xFFFFFFFF (4294967295).
+   */
+  const SPRIGGIT_PACKAGE_NAME_FLAG_REMOVED: [number, number, number] = [0, 40, 0];
+
+  /**
    * Extract [major, minor, patch] from a raw Spriggit --version string.
    * Handles both bare semver ("0.40.0") and the full-sentence form emitted by
    * recent builds ("Spriggit version 0.40.0+Branch.main.Sha.abc123").
@@ -3635,6 +3643,18 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     const v = parseSpriggitSemver(raw);
     if (!v) return false; // unknown → assume >= 0.40.0
     return compareSpriggitVersions(v, SPRIGGIT_SOURCE_FLAG_REMOVED) < 0;
+  };
+
+  /**
+   * Returns true when the detected Spriggit version still accepts the --PackageName
+   * flag (i.e. it predates 0.40.0 where the flag was removed).  An unparseable
+   * version string is treated as "new" (flag NOT supported) — safer default since
+   * almost all users will be on a recent build.
+   */
+  const isSpriggitPackageNameFlagSupported = (raw: string): boolean => {
+    const v = parseSpriggitSemver(raw);
+    if (!v) return false; // unknown → assume >= 0.40.0
+    return compareSpriggitVersions(v, SPRIGGIT_PACKAGE_NAME_FLAG_REMOVED) < 0;
   };
 
   /**
@@ -3817,6 +3837,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const SPRIGGIT_MANUAL_RUN_HINT =
         '  5. To confirm the real error, open a Command Prompt and run Spriggit manually:\n' +
         `     Spriggit.CLI.exe serialize --InputPath "path\\to\\plugin.esp" --OutputPath "C:\\Temp\\out" --GameRelease Fallout4 --PackageName ${resolvedPackageNameForHint}` +
+        '\n     (Note: --PackageName is only valid for Spriggit < v0.40.0 — omit it on newer builds)' +
         (nugetSource && nugetSource.trim() ? '\n     (Note: --Source is only valid for Spriggit < v0.40.0 — omit it on newer builds)' : '');
 
       // Capture both the exit code AND stdout (the version string) from --version.
@@ -3942,16 +3963,20 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         await new Promise<void>((resolve) => {
           // Build the CLI args.  --PackageName defaults to Spriggit.Yaml.Fallout4 unless
           // the caller specified a custom package (e.g. Spriggit.Json.Fallout4 or a
-          // user-published NuGet package).  --Source (optional) lets Spriggit use a local
+          // user-published NuGet package).  --PackageName was removed in v0.40.0 when
+          // Spriggit was repackaged as a self-contained dotnet tool with the serialiser
+          // package bundled in — passing it to v0.40.0+ triggers NuGet resolution and
+          // crashes with 0xFFFFFFFF.  --Source (optional) lets Spriggit use a local
           // directory as a NuGet feed instead of downloading from nuget.org — useful when
-          // the user already has the translation packages cached locally.
+          // the user already has the translation packages cached locally; also removed in
+          // v0.40.0.
           const resolvedPackageName = (packageName && packageName.trim()) ? packageName.trim() : 'Spriggit.Yaml.Fallout4';
           const spawnArgs = [
             'serialize',
             '--InputPath', inputPath,
             '--OutputPath', pluginOutputDir,
             '--GameRelease', 'Fallout4',
-            '--PackageName', resolvedPackageName,
+            ...(isSpriggitPackageNameFlagSupported(spriggitDetectedVersion) ? ['--PackageName', resolvedPackageName] : []),
             ...(nugetSource && nugetSource.trim() && isSpriggitSourceFlagSupported(spriggitDetectedVersion) ? ['--Source', nugetSource.trim()] : []),
           ];
           const child = spawn(cliPath, spawnArgs, { shell: false, windowsHide: true, cwd: path.dirname(cliPath), env: spriggitEnv });
