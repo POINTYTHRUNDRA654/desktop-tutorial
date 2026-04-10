@@ -714,13 +714,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 });
             });
 
-            // .NET Runtime — inject a warning card if missing
+            // .NET SDK — inject a warning card if missing
             if (!dotnetAvailable) {
                 recs.unshift({
-                    name: '.NET Runtime (missing)',
-                    path: 'https://dotnet.microsoft.com/download/dotnet/8.0',
+                    name: '.NET SDK (missing)',
+                    path: 'https://dotnet.microsoft.com/download/dotnet',
                     category: 'modding',
-                    benefit: '⚠️ Required by Spriggit and other .NET tools. Install .NET Runtime 8.0+ before using the Spriggit digest step.',
+                    benefit: '⚠️ Required by Spriggit (SDK, not just Runtime — needed for dotnet tool install of translation packages). Install then restart your PC.',
                     boostsMossy: true,
                 });
             }
@@ -822,9 +822,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     if (!ok) {
                         setSpriggitStatus('error');
                         setSpriggitMessage(
-                            '.NET Runtime 8.0 or later is required to run Spriggit (exit code 4294967295 / 0xFFFFFFFF).\n' +
-                            'Please install it and click Re-check .NET, then try again.\n' +
-                            'Download it from: https://dotnet.microsoft.com/download/dotnet/8.0'
+                            '.NET SDK is required to run Spriggit (exit code 4294967295 / 0xFFFFFFFF).\n' +
+                            'The SDK (not just the Runtime) is needed so Spriggit can download its\n' +
+                            'Fallout4 translation package via "dotnet tool install" on first serialize run.\n' +
+                            'After installing, restart your PC, then try again.\n' +
+                            'Download: https://dotnet.microsoft.com/download/dotnet'
                         );
                         return;
                     }
