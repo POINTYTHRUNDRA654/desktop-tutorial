@@ -92,6 +92,7 @@ export const IPC_CHANNELS = {
   SPRIGGIT_PICK_CLI: 'spriggit-pick-cli',
   SPRIGGIT_SERIALIZE: 'spriggit-serialize',
   SPRIGGIT_OPEN_FOLDER: 'spriggit-open-folder',
+  SPRIGGIT_CLEAR_CACHE: 'spriggit-clear-cache',
 
   // Mod Projects file persistence (backup/restore to userData/mod-projects.json)
   SAVE_MOD_PROJECTS: 'save-mod-projects',
@@ -537,6 +538,13 @@ export interface ElectronAPI {
    * Returns {ok: true} on success or {ok: false, error} on failure.
    */
   spriggitOpenFolder: (filePath: string) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Clear the Spriggit single-file publish temp-cache directories so Spriggit
+   * re-extracts cleanly on the next run.  Attempts both the %LOCALAPPDATA% and
+   * %TEMP% paths that .NET single-file apps use.
+   * Returns the paths it cleared plus any error string.
+   */
+  spriggitClearCache: () => Promise<{ ok: boolean; clearedPaths: string[]; error?: string }>;
   /**
    * Run Spriggit.CLI.exe serialize on a Fallout 4 Data folder.
    * Returns the list of YAML files produced and their truncated text content,

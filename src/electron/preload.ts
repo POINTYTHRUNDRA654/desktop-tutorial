@@ -106,6 +106,7 @@ const IPC_CHANNELS = {
   SPRIGGIT_PICK_CLI: 'spriggit-pick-cli',
   SPRIGGIT_SERIALIZE: 'spriggit-serialize',
   SPRIGGIT_OPEN_FOLDER: 'spriggit-open-folder',
+  SPRIGGIT_CLEAR_CACHE: 'spriggit-clear-cache',
 
   // Duplicate Finder
   DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',
@@ -646,6 +647,14 @@ const electronAPI = {
    */
   spriggitOpenFolder: (filePath: string): Promise<{ ok: boolean; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_OPEN_FOLDER, filePath);
+  },
+
+  /**
+   * Spriggit: clear the .NET single-file publish temp-cache directories so
+   * Spriggit re-extracts cleanly on the next run.
+   */
+  spriggitClearCache: (): Promise<{ ok: boolean; clearedPaths: string[]; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_CLEAR_CACHE);
   },
 
   /**
