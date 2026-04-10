@@ -37,8 +37,8 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   const [secrets, setSecrets] = useState<{ backendToken: boolean } | null>(null);
   const [keySaveStatus, setKeySaveStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
 
-  // Mod Content Blacklist
-  const [blacklistInput, setBlacklistInput] = useState<string>('');
+  // Mod Content Whitelist
+  const [whitelistInput, setWhitelistInput] = useState<string>('');
 
   useEffect(() => {
     console.log('[PrivacySettings] useEffect running');
@@ -248,33 +248,33 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
     }
   };
 
-  const currentBlacklist = (): string[] => {
-    return settings?.privacySettings?.modContentBlacklist ?? [];
+  const currentWhitelist = (): string[] => {
+    return settings?.privacySettings?.modContentWhitelist ?? [];
   };
 
-  const handleAddToBlacklist = () => {
-    const trimmed = blacklistInput.trim();
+  const handleAddToWhitelist = () => {
+    const trimmed = whitelistInput.trim();
     if (!trimmed || !settings) return;
-    const existing = currentBlacklist();
+    const existing = currentWhitelist();
     if (existing.includes(trimmed)) {
-      setBlacklistInput('');
+      setWhitelistInput('');
       return;
     }
     saveSettings({
       privacySettings: {
         ...settings.privacySettings,
-        modContentBlacklist: [...existing, trimmed],
+        modContentWhitelist: [...existing, trimmed],
       },
     });
-    setBlacklistInput('');
+    setWhitelistInput('');
   };
 
-  const handleRemoveFromBlacklist = (entry: string) => {
+  const handleRemoveFromWhitelist = (entry: string) => {
     if (!settings) return;
     saveSettings({
       privacySettings: {
         ...settings.privacySettings,
-        modContentBlacklist: currentBlacklist().filter((e) => e !== entry),
+        modContentWhitelist: currentWhitelist().filter((e) => e !== entry),
       },
     });
   };
@@ -807,22 +807,22 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
           </div>
         </div>
 
-        {/* Mod Content Blacklist */}
+        {/* Mod Content Whitelist */}
         <div className="mt-12">
-          <h2 className="text-2xl font-bold text-slate-100 mb-2">Mod Content Blacklist</h2>
+          <h2 className="text-2xl font-bold text-slate-100 mb-2">Mod Content Whitelist</h2>
           <p className="text-slate-400 text-sm mb-6">
-            If you are a mod author — or a user who does not want Mossy to reference, discuss, or use
-            specific mods as examples — add them here. Mossy will avoid mentioning blacklisted mods
-            in responses, suggestions, and knowledge lookups.
+            If you are a mod author — or a user who wants to protect specific mods from being referenced,
+            discussed, or touched by Mossy in any way — add them here. Mossy will never mention, recommend,
+            use as examples, or interact with whitelisted mods in any response or action.
           </p>
 
           <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50 space-y-4">
             <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-900/20 border border-amber-700/40">
               <Ban className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
               <div className="text-sm text-amber-200">
-                <span className="font-semibold">Opt-out notice:</span> Adding a mod here tells Mossy
-                to stay away from that content entirely. This is entirely local — no data is sent
-                anywhere. The blacklist is stored in your private settings file.
+                <span className="font-semibold">Protected mod notice:</span> Adding a mod here tells Mossy
+                to stay away from that content entirely — she cannot touch it no matter what. This is entirely local — no data is sent
+                anywhere. The whitelist is stored in your private settings file.
               </div>
             </div>
 
@@ -830,16 +830,16 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
             <div className="flex gap-2">
               <input
                 type="text"
-                value={blacklistInput}
-                onChange={(e) => setBlacklistInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && blacklistInput.trim()) handleAddToBlacklist(); }}
+                value={whitelistInput}
+                onChange={(e) => setWhitelistInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && whitelistInput.trim()) handleAddToWhitelist(); }}
                 placeholder="Mod name or keyword (e.g. My Awesome Mod)"
                 className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
               />
               <button
                 type="button"
-                onClick={handleAddToBlacklist}
-                disabled={!blacklistInput.trim()}
+                onClick={handleAddToWhitelist}
+                disabled={!whitelistInput.trim()}
                 className="flex items-center gap-1.5 px-4 py-2 bg-red-700 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold transition-colors"
               >
                 <Plus className="w-4 h-4" />
@@ -847,14 +847,14 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
               </button>
             </div>
 
-            {/* Blacklist entries */}
-            {currentBlacklist().length === 0 ? (
+            {/* Whitelist entries */}
+            {currentWhitelist().length === 0 ? (
               <p className="text-slate-500 text-sm italic">
-                No mods are blacklisted yet. Mossy will treat all mod content equally.
+                No mods are protected yet. Mossy will treat all mod content equally.
               </p>
             ) : (
               <ul className="space-y-2">
-                {currentBlacklist().map((entry) => (
+                {currentWhitelist().map((entry) => (
                   <li
                     key={entry}
                     className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-700/40 rounded-md border border-slate-600/50"
@@ -862,9 +862,9 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
                     <span className="text-slate-200 text-sm font-mono truncate">{entry}</span>
                     <button
                       type="button"
-                      onClick={() => handleRemoveFromBlacklist(entry)}
+                      onClick={() => handleRemoveFromWhitelist(entry)}
                       className="shrink-0 p-1 rounded text-slate-400 hover:text-red-400 hover:bg-red-900/20 transition-colors"
-                      title="Remove from blacklist"
+                      title="Remove from whitelist"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -874,7 +874,7 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
             )}
 
             <p className="text-xs text-slate-500">
-              {currentBlacklist().length} mod{currentBlacklist().length !== 1 ? 's' : ''} blacklisted.
+              {currentWhitelist().length} mod{currentWhitelist().length !== 1 ? 's' : ''} protected.
               Changes take effect on your next message to Mossy.
             </p>
           </div>
