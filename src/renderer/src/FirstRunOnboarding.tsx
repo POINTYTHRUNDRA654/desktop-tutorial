@@ -23,6 +23,9 @@ interface RecommendedDownload {
     urlLabel: string;
     category: 'modding' | 'version-control' | 'creative' | 'runtime';
     required: boolean;
+    /** One-line consequence shown when this tool is NOT installed, so the user
+     *  knows exactly which Mossy features will be broken or unavailable. */
+    ifMissing: string;
 }
 
 const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
@@ -36,6 +39,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'dotnet.microsoft.com',
         category: 'runtime',
         required: true,
+        ifMissing: 'Spriggit digest will crash instantly (exit 0xFFFFFFFF). No vanilla ESM brain-boost. Mossy cannot run any .NET-based tools.',
     },
     {
         name: 'Git for Windows',
@@ -45,6 +49,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'git-scm.com',
         category: 'runtime',
         required: false,
+        ifMissing: 'Spriggit YAML cannot be pushed to GitHub. Mossy cannot give git commit/branch/merge advice or help set up version control for your mods.',
     },
     {
         name: 'Visual C++ Redistributables',
@@ -54,6 +59,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'microsoft.com',
         category: 'runtime',
         required: true,
+        ifMissing: 'xEdit, F4SE, Buffout 4, and most compiled modding tools will refuse to launch or crash on startup.',
     },
     // ── Modding tools ─────────────────────────────────────────────────────────
     {
@@ -64,6 +70,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'GitHub Releases',
         category: 'version-control',
         required: false,
+        ifMissing: 'Mossy cannot digest vanilla ESMs into her Knowledge Vault. The brain-boost onboarding step will be unavailable.',
     },
     {
         name: 'xEdit / FO4Edit',
@@ -73,6 +80,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: true,
+        ifMissing: 'Mossy cannot open plugins in xEdit from the Auditor. Conflict resolution, cleaning masters, and record editing will require manual setup outside Mossy.',
     },
     {
         name: 'Fallout 4 Creation Kit',
@@ -82,6 +90,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Steam (free)',
         category: 'modding',
         required: false,
+        ifMissing: 'CK Crash Prevention live monitoring will be unavailable. Papyrus compilation, navmesh editing, and worldspace tools inside Mossy will not function.',
     },
     {
         name: 'Mod Organizer 2',
@@ -91,6 +100,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'GitHub Releases',
         category: 'modding',
         required: false,
+        ifMissing: 'Mossy cannot detect your MO2 profile or load order. Load Order tools and MO2-specific advice will not be available.',
     },
     {
         name: 'Vortex Mod Manager',
@@ -100,6 +110,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: false,
+        ifMissing: 'Mossy cannot read your Vortex profile or load order. Vortex-specific integration features will be unavailable.',
     },
     {
         name: 'LOOT',
@@ -109,6 +120,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'GitHub Releases',
         category: 'modding',
         required: false,
+        ifMissing: 'Load order sorting assistance will require manual effort. Mossy cannot trigger LOOT runs or interpret its sort results.',
     },
     {
         name: 'NifSkope',
@@ -118,6 +130,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'GitHub Releases',
         category: 'modding',
         required: false,
+        ifMissing: 'Mossy cannot open NIF files in NifSkope from the Auditor. Mesh inspection and BSX flag editing will require manual tool launch.',
     },
     {
         name: 'BodySlide & Outfit Studio',
@@ -127,6 +140,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: false,
+        ifMissing: 'Outfit mesh conversion and body preset building will not be available through Mossy.',
     },
     {
         name: 'F4SE (Fallout 4 Script Extender)',
@@ -136,6 +150,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Official Site',
         category: 'modding',
         required: true,
+        ifMissing: 'MCM Framework, Address Library, Addictol, and most advanced mods will not load. Many Mossy-guided workflows require F4SE to be active.',
     },
     {
         name: 'Address Library for F4SE',
@@ -145,6 +160,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: true,
+        ifMissing: 'Addictol, MCM Framework, and virtually every F4SE plugin will fail to load. This is a hard dependency for the entire F4SE ecosystem.',
     },
     {
         name: 'Addictol (Stability Suite)',
@@ -154,6 +170,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: false,
+        ifMissing: 'Game stability may be reduced. Memory management, stutter fixes, and script heap optimisations will be absent. Crash logs may also be missing.',
     },
     {
         name: 'CLASSIC Crash Log Scanner',
@@ -163,6 +180,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: false,
+        ifMissing: 'Mossy cannot auto-scan crash logs. Post-crash analysis in the CK Crash Prevention panel will require manual log reading.',
     },
     {
         name: 'B.A.E. (Bethesda Archive Extractor)',
@@ -172,6 +190,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: false,
+        ifMissing: 'Vanilla .ba2 archives cannot be inspected or extracted. Asset comparison and base-game texture/mesh work will require an alternative tool.',
     },
     // ── Creative tools ────────────────────────────────────────────────────────
     {
@@ -182,6 +201,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'blender.org',
         category: 'creative',
         required: false,
+        ifMissing: 'Mossy Neural Link (Blender live scripting, mesh automation, FO4 export) will be completely unavailable. 3D asset workflows cannot be run from within Mossy.',
     },
     {
         name: 'Upscayl',
@@ -191,6 +211,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'GitHub Releases',
         category: 'creative',
         required: false,
+        ifMissing: 'Mossy\'s Upscayl Extension will not function. AI texture upscaling (2×/4×) will be unavailable.',
     },
 ];
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1409,8 +1430,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             <h2 className="text-2xl font-bold text-white mb-2">Install Dependencies & Tools</h2>
                             <p className="text-slate-400 text-sm max-w-lg mx-auto">
                                 Everything Mossy depends on is listed here — runtime prerequisites first, then modding tools.
-                                Install anything marked <span className="text-amber-300 font-semibold">Required</span> before proceeding.
-                                Each button opens the official page in your browser.
+                                Items already found on your system show <span className="text-emerald-400 font-semibold">Installed</span>.
+                                Each missing item shows exactly <span className="text-amber-300 font-semibold">what won't work</span> without it.
                             </p>
                         </div>
 
@@ -1441,7 +1462,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         className={`p-4 rounded-lg border transition-all ${alreadyInstalled
                                             ? 'border-emerald-700/50 bg-emerald-900/10'
                                             : dl.required
-                                                ? 'border-amber-600/60 bg-amber-900/10'
+                                                ? 'border-red-600/60 bg-red-900/10'
                                                 : 'border-slate-700 bg-slate-800/40'
                                             }`}
                                     >
@@ -1455,8 +1476,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         </span>
                                                     )}
                                                     {dl.required && !alreadyInstalled && (
-                                                        <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full border border-amber-500/40">
-                                                            Recommended
+                                                        <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full border border-red-500/40 font-semibold">
+                                                            Required
                                                         </span>
                                                     )}
                                                     <span className={`text-xs font-medium ${categoryColor[dl.category]}`}>
@@ -1464,6 +1485,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     </span>
                                                 </div>
                                                 <p className="text-xs text-slate-400 leading-relaxed">{dl.description}</p>
+                                                {!alreadyInstalled && (
+                                                    <p className={`text-xs mt-1.5 leading-snug flex items-start gap-1 ${dl.required ? 'text-red-300' : 'text-amber-400/80'}`}>
+                                                        <span className="flex-shrink-0 mt-0.5">⚠️</span>
+                                                        <span><strong>Without this:</strong> {dl.ifMissing}</span>
+                                                    </p>
+                                                )}
                                             </div>
                                             <div className="flex-shrink-0">
                                                 {alreadyInstalled ? (
@@ -1474,7 +1501,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     <button
                                                         type="button"
                                                         onClick={() => void openExternal(dl.url)}
-                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-colors"
+                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-white text-xs font-semibold transition-colors ${dl.required ? 'bg-red-700 hover:bg-red-600' : 'bg-amber-600 hover:bg-amber-500'}`}
                                                         title={`Open ${dl.urlLabel}`}
                                                     >
                                                         <ExternalLink className="w-3.5 h-3.5" />
