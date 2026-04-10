@@ -3461,18 +3461,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const pluginFiles = allPluginFiles.filter(f => !VANILLA_FO4_PLUGINS.has(f.toLowerCase()));
       const skippedVanillaCount = allPluginFiles.length - pluginFiles.length;
 
-      if (allPluginFiles.length === 0) {
-        return { ok: false, files: [], error: 'No plugin files (.esp/.esm/.esl) found in the Data folder.' };
-      }
       if (pluginFiles.length === 0) {
-        return {
-          ok: false,
-          files: [],
-          error:
-            'Only vanilla/DLC Fallout 4 plugins were found in the Data folder.\n' +
+        const error = allPluginFiles.length === 0
+          ? 'No plugin files (.esp/.esm/.esl) found in the Data folder.'
+          : 'Only vanilla/DLC Fallout 4 plugins were found in the Data folder.\n' +
             'The Spriggit digest is designed to learn your custom mods — Mossy already has built-in knowledge of the base game and official DLC.\n\n' +
-            'To use this feature, make sure your custom .esp/.esm/.esl mod files are present in the Data folder, then try again.',
-        };
+            'To use this feature, make sure your custom .esp/.esm/.esl mod files are present in the Data folder, then try again.';
+        return { ok: false, files: [], error };
       }
 
       /**
