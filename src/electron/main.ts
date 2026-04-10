@@ -3345,6 +3345,18 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       if (!fs.existsSync(cliPath)) return { ok: false, files: [], error: `Spriggit.CLI.exe not found at: ${cliPath}` };
       if (!fs.existsSync(dataPath)) return { ok: false, files: [], error: `Fallout 4 Data folder not found at: ${dataPath}` };
 
+      // Early-exit: scan the Data folder and filter out vanilla/DLC plugins BEFORE doing
+      // any process spawning.  This means users who only have vanilla plugins get an
+      // instant error instead of waiting up to ~20 s for the .NET check + self-test to
+      // time out — which was previously perceived as the app "crashing".
+      const allPluginFiles = fs.readdirSync(dataPath).filter(f =>
+        /\.(esp|esm|esl)$/i.test(f)
+      );
+      const { pluginFiles, skippedVanillaCount } = filterPluginsForSpriggit(allPluginFiles);
+      if (pluginFiles.length === 0) {
+        return { ok: false, files: [], error: buildNoPluginsError(allPluginFiles), skippedVanillaCount };
+      }
+
       // Pre-check: Verify .NET Runtime 8.0+ is installed before spawning Spriggit processes.
       // This avoids wasting time on consecutive timeouts/crashes if .NET is missing.
       const dotnetCheck = await checkDotNetRuntime();
@@ -3437,16 +3449,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         : path.join(app.getPath('userData'), 'spriggit-output');
       fs.mkdirSync(safeOutput, { recursive: true });
 
-      // Vanilla / official-DLC Fallout 4 plugins — skip these during digest so we
-      // only process the user's own mods.  See spriggitPluginFilter.ts for rationale.
-      const allPluginFiles = fs.readdirSync(dataPath).filter(f =>
-        /\.(esp|esm|esl)$/i.test(f)
-      );
-      const { pluginFiles, skippedVanillaCount } = filterPluginsForSpriggit(allPluginFiles);
-
-      if (pluginFiles.length === 0) {
-        return { ok: false, files: [], error: buildNoPluginsError(allPluginFiles) };
-      }
+      // Reuse the plugin list already computed above (before the dotnet check / self-test).
+      // The vanilla-only early-exit guarantees pluginFiles is non-empty by this point.
 
       /**
        * Maximum characters to keep per YAML file before truncating.
