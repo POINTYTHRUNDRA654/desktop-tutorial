@@ -3279,14 +3279,14 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       return {
         installed: false,
         version: oldVersionFound,
-        reason: `Found .NET Runtime ${oldVersionFound}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
+        reason: `Found .NET ${oldVersionFound}, but 8.0+ is required. Download the .NET SDK from: https://dotnet.microsoft.com/download/dotnet`,
       };
     }
 
     return {
       installed: false,
       version: null,
-      reason: '.NET Runtime 8.0+ not found. Download it from: https://dotnet.microsoft.com/download/dotnet/8.0\n\n(Note: Install the ".NET Runtime" or ".NET Desktop Runtime" package — both include the base runtime Spriggit needs.)',
+      reason: '.NET SDK not found. Spriggit requires the SDK (not just the Runtime) to download its translation packages via "dotnet tool install". Download from: https://dotnet.microsoft.com/download/dotnet — then restart your PC.',
     };
   };
 
@@ -3329,17 +3329,29 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // spriggit-clear-cache: Delete the .NET single-file publish temp-cache directories
-  // so that Spriggit re-extracts cleanly on the next run.  The primary cache is now
-  // the controlled userData/spriggit-dotnet-cache/ directory (set via
-  // DOTNET_BUNDLE_EXTRACT_BASE_DIR).  The legacy %LOCALAPPDATA%\Temp\.net\SpriggitCLI\
-  // and %TEMP%\.net\SpriggitCLI\ paths are also cleared for users who ran an older build.
+  // so that Spriggit re-extracts cleanly on the next run.
+  //
+  // Candidates cleared (in order of most-likely to matter):
+  //   1. spriggit-dotnet-cache/ next to the saved Spriggit.CLI.exe  ← primary (current build)
+  //   2. userData/spriggit-dotnet-cache/                             ← legacy (previous builds)
+  //   3. %LOCALAPPDATA%\Temp\.net\SpriggitCLI\                      ← default .NET fallback
+  //   4. %TEMP%\.net\SpriggitCLI\                                    ← default .NET fallback
   registerHandler(IPC_CHANNELS.SPRIGGIT_CLEAR_CACHE, async () => {
     const clearedPaths: string[] = [];
     const errors: string[] = [];
 
-    // Primary: our controlled userData cache
-    const userDataCacheDir = path.join(app.getPath('userData'), 'spriggit-dotnet-cache');
-    const candidateDirs: string[] = [userDataCacheDir];
+    // Primary: cache next to the saved Spriggit.CLI.exe (set via DOTNET_BUNDLE_EXTRACT_BASE_DIR)
+    const candidateDirs: string[] = [];
+    try {
+      const s = loadSettings();
+      if (s.spriggitPath && typeof s.spriggitPath === 'string') {
+        const cliDir = path.dirname(s.spriggitPath);
+        candidateDirs.push(path.join(cliDir, 'spriggit-dotnet-cache'));
+      }
+    } catch { /* settings unavailable — skip */ }
+
+    // Legacy: userData cache (used by Mossy builds prior to this change)
+    candidateDirs.push(path.join(app.getPath('userData'), 'spriggit-dotnet-cache'));
 
     // Legacy system-temp paths (older Mossy builds / manual runs)
     const localAppData = process.env.LOCALAPPDATA;
@@ -3419,29 +3431,48 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         }
       }
 
-      // Pre-check: Verify .NET Runtime 8.0+ is installed before spawning Spriggit processes.
-      // This avoids wasting time on consecutive timeouts/crashes if .NET is missing.
+      // Pre-check: Verify .NET SDK is installed before spawning Spriggit processes.
+      // Spriggit uses "dotnet tool install" to download its translation packages
+      // (e.g. Spriggit.Yaml.Fallout4) on first serialize — this requires the SDK.
       const dotnetCheck = await checkDotNetRuntime();
       if (!dotnetCheck.installed) {
         const reason = dotnetCheck.reason || 'Unknown reason';
         return {
           ok: false,
           files: [],
-          error: `Cannot run Spriggit: .NET Runtime 8.0+ is required.\n` +
+          error: `Cannot run Spriggit: .NET SDK is required.\n` +
             `${reason}\n\n` +
-            `Download .NET Runtime 8.0 from:\n` +
-            `https://dotnet.microsoft.com/download/dotnet/8.0\n\n` +
-            `After installation, restart Mossy and try again.`,
+            `Download the .NET SDK from:\n` +
+            `https://dotnet.microsoft.com/download/dotnet\n\n` +
+            `After installing, restart your PC and try again.`,
         };
       }
 
-      // Redirect the .NET single-file assembly extraction cache to a controlled directory
-      // under userData instead of the default system %TEMP%\.net\SpriggitCLI\ path.
-      // This fixes the most common cause of exit code 0xFFFFFFFF when --version passes
-      // but serialize crashes: Windows Smart App Control silently blocks unsigned binaries
-      // extracted to untrusted temp paths, but trusts files under the app's userData folder.
-      // It also means we can clear the cache ourselves without guessing the system temp path.
-      const spriggitDotnetCacheDir = path.join(app.getPath('userData'), 'spriggit-dotnet-cache');
+      // Persist the Spriggit CLI path to settings so the spriggit-clear-cache
+      // handler (which has no access to the current call's params) can locate the
+      // same cache directory when the user clicks "Clear Cache & Retry".
+      try {
+        const s = loadSettings();
+        if (s.spriggitPath !== cliPath) saveSettings({ ...s, spriggitPath: cliPath });
+      } catch { /* non-fatal — settings save failing should not abort the digest */ }
+
+      // Redirect the .NET single-file assembly extraction cache to a subdirectory
+      // inside the user's Spriggit folder rather than %TEMP% or userData.
+      //
+      // Rationale: Windows Smart App Control (SAC) evaluates file reputation when
+      // unsigned binaries are loaded.  SAC is more likely to trust files that live
+      // in the same directory as an executable the user explicitly placed there
+      // (i.e. the folder where the user extracted SpriggitCLI.zip) than files
+      // written to a system %TEMP% path or an app-managed userData folder.
+      // The userData path was the previous choice but the .NET extraction cache
+      // stored there is still blocked by SAC on many Windows 11 machines.
+      //
+      // Fallback: if the Spriggit directory is not writable (e.g. Program Files),
+      // mkdirSync throws and is silently swallowed; the directory will not exist,
+      // so .NET falls back to its default %TEMP%\.net\SpriggitCLI\ path for this
+      // run — the same behaviour as before this change.
+      const spriggitCliDir = path.dirname(cliPath);
+      const spriggitDotnetCacheDir = path.join(spriggitCliDir, 'spriggit-dotnet-cache');
       try { fs.mkdirSync(spriggitDotnetCacheDir, { recursive: true }); } catch { /* non-fatal */ }
       // Env vars passed to every Spriggit spawn:
       //   DOTNET_BUNDLE_EXTRACT_BASE_DIR — redirects single-file assembly extraction
@@ -3476,7 +3507,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         '     (bundles .NET, no separate install needed):\n' +
         '     https://github.com/Mutagen-Modding/Spriggit/releases\n' +
         '     Download SpriggitCLI.zip and use that Spriggit.CLI.exe instead.\n' +
-        '  2. .NET Runtime 8.0+ is not installed — download from: https://dotnet.microsoft.com/download/dotnet/8.0\n' +
+        '  2. .NET SDK not installed — Spriggit needs the SDK (not just Runtime) to\n' +
+        '     download translation packages via "dotnet tool install".\n' +
+        '     Download: https://dotnet.microsoft.com/download/dotnet  (then restart PC)\n' +
         '  3. Antivirus blocked Spriggit.CLI.exe — add an exception or try disabling AV temporarily.\n' +
         '  4. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.';
       // Shown at the end of both self-test error messages so the user can reproduce manually.
@@ -3505,7 +3538,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             files: [],
             error:
               'Spriggit.CLI.exe crashed immediately (exit code 0xFFFFFFFF).\n' +
-              '.NET Runtime 8.0+ was detected, so the most likely causes are:\n' +
+              '.NET SDK was detected, so the most likely causes are:\n' +
               '  1. Stale assembly cache — click "Clear Cache & Retry" to wipe it and let\n' +
               '     Spriggit re-extract cleanly.  Cache location (Mossy-controlled):\n' +
               `       ${spriggitDotnetCacheDir}\n` +
