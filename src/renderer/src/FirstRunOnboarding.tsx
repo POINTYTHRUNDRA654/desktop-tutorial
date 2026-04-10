@@ -1592,15 +1592,17 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             This is optional — you can skip it now and do it later from the Memory Vault panel.
                         </p>
 
-                        {/* .NET Runtime warning — shown when .NET is confirmed missing or status is unknown.
+                        {/* .NET SDK warning — shown when .NET is confirmed missing or status is unknown.
                             Kept visible for dotnetOk === null so new users always see the install button
                             even before the auto-check finishes or when it is inconclusive. */}
                         {dotnetOk !== true && !dotnetCheckingOnEntry && (
                             <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 text-sm text-left bg-amber-900/30 border border-amber-600/50 text-amber-200">
-                                <strong>{dotnetOk === false ? '⚠️ .NET Runtime not detected.' : '⚠️ .NET Runtime status unknown.'}</strong>
+                                <strong>{dotnetOk === false ? '⚠️ .NET SDK not detected.' : '⚠️ .NET SDK status unknown.'}</strong>
                                 <br />
-                                Spriggit.CLI.exe requires <strong>.NET Runtime 8.0 or later</strong> to run.
-                                Without it every plugin will fail immediately with exit code 4294967295.
+                                Spriggit requires the <strong>.NET SDK</strong> (not just the Runtime) — it uses{' '}
+                                <code className="bg-amber-900/50 px-1 rounded">dotnet tool install</code> to download
+                                its Fallout4 translation package on first serialize run.{' '}
+                                <strong>Restart your PC after installing.</strong>
                                 <br />
                                 <div className="mt-2 p-2 rounded bg-amber-800/30 border border-amber-500/40 text-amber-100 text-xs">
                                     <strong>✨ Easiest fix:</strong> Download the <strong>self-contained Spriggit build</strong> — it bundles .NET and requires no separate installation.
@@ -1627,13 +1629,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         onClick={() => {
                                             const api = getElectronApi();
                                             if (api?.openExternal) {
-                                                void api.openExternal('https://dotnet.microsoft.com/download/dotnet/8.0');
+                                                void api.openExternal('https://dotnet.microsoft.com/download/dotnet');
                                             } else {
-                                                window.open('https://dotnet.microsoft.com/download/dotnet/8.0', '_blank');
+                                                window.open('https://dotnet.microsoft.com/download/dotnet', '_blank');
                                             }
                                         }}
                                     >
-                                        Or install .NET Runtime 8.0 →
+                                        Or install .NET SDK →
                                     </button>
                                     <button
                                         type="button"
@@ -1671,7 +1673,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         )}
                         {dotnetCheckingOnEntry && (
                             <div className="max-w-lg mx-auto mb-4 text-xs text-slate-400 flex items-center gap-2">
-                                <span className="animate-spin inline-block">🔄</span> Checking for .NET Runtime…
+                                <span className="animate-spin inline-block">🔄</span> Checking for .NET SDK…
                             </div>
                         )}
 
@@ -1777,13 +1779,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 onClick={() => {
                                                     const api = getElectronApi();
                                                     if (api?.openExternal) {
-                                                        void api.openExternal('https://dotnet.microsoft.com/download/dotnet/8.0');
+                                                        void api.openExternal('https://dotnet.microsoft.com/download/dotnet');
                                                     } else {
-                                                        window.open('https://dotnet.microsoft.com/download/dotnet/8.0', '_blank');
+                                                        window.open('https://dotnet.microsoft.com/download/dotnet', '_blank');
                                                     }
                                                 }}
                                             >
-                                                Download .NET Runtime 8.0 →
+                                                Download .NET SDK →
                                             </button>
                                         )}
                                         <button
