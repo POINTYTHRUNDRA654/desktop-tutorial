@@ -274,6 +274,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [cacheClearResult, setCacheClearResult] = useState<'ok' | 'error' | null>(null);
     const [unblockInProgress, setUnblockInProgress] = useState(false);
     const [unblockResult, setUnblockResult] = useState<{ ok: boolean; unblocked?: number; folderPath?: string; error?: string } | null>(null);
+    /**
+     * Tracks the automatic "unblock freshly extracted assemblies → retry" step that runs
+     * after a "Clear Cache & Retry" still fails with 0xFFFFFFFF.  Clearing the cache causes
+     * Spriggit to re-extract its .NET assemblies from scratch; those new files are not
+     * covered by any previous Unblock-File run and must be unblocked before SAC will allow
+     * them to load.
+     */
+    const [autoUnblockRetryState, setAutoUnblockRetryState] = useState<'idle' | 'unblocking' | 'retrying' | 'failed'>('idle');
     /** FO4 version detected from Fallout4.exe, e.g. "1.11.191.0". Empty if not detected. */
     const [detectedFo4Version, setDetectedFo4Version] = useState('');
     /** Human-readable FO4 version label, e.g. "Fallout 4 v1.11.191 — 1.11.x (Creations Menu…)". */
@@ -813,17 +821,22 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
      * Run Spriggit serialize on the user's Fallout 4 Data folder, then
      * ingest all produced YAML files into the Knowledge Vault so Mossy
      * can reason over the user's specific plugin data.
+     *
+     * Returns `{ failed0xFFFF: true }` when the serialize crashed with
+     * exit code 0xFFFFFFFF so the "Clear Cache & Retry" handler can
+     * detect this specific failure mode and auto-unblock the freshly
+     * extracted assemblies before retrying.
      */
-    const runSpriggitDigest = async () => {
+    const runSpriggitDigest = async (): Promise<{ failed0xFFFF: boolean }> => {
         const api = getElectronApi();
         if (!api?.spriggitSerialize || !api?.saveKnowledgeVault) {
             setSpriggitMessage('Spriggit integration is not available in this build.');
             setSpriggitStatus('error');
-            return;
+            return { failed0xFFFF: false };
         }
         if (!spriggitCliPath || !spriggitDataPath) {
             setSpriggitMessage('Please select both Spriggit.CLI.exe and your Fallout 4 Data folder.');
-            return;
+            return { failed0xFFFF: false };
         }
         setSpriggitStatus('running');
         setSpriggitMessage('Running Spriggit — converting vanilla ESMs to YAML. This may take several minutes…');
@@ -847,7 +860,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             '💡 Tip: if your C: drive is low on space, click "Change" during setup\n' +
                             '   and install to D:\\Program Files\\dotnet — any drive works.'
                         );
-                        return;
+                        return { failed0xFFFF: false };
                     }
                 } catch (dotnetErr) {
                     console.warn('[Spriggit] checkDotnet pre-flight threw — proceeding anyway:', dotnetErr);
@@ -896,8 +909,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     } catch {
                         // Re-check threw (IPC unavailable) — leave dotnet status unchanged.
                     }
+                    return { failed0xFFFF: true };
                 }
-                return;
+                return { failed0xFFFF: false };
             }
             // Build Knowledge Vault entries from the YAML files, tagged as vanilla base records
             const getExistingVault = (): any[] => {
@@ -989,9 +1003,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     : `I've finished converting the vanilla ESMs with Spriggit and digested ${newEntries.length} files into my knowledge. I now have direct access to the base game records.`
                 );
             }
+            return { failed0xFFFF: false };
         } catch (err: any) {
             setSpriggitStatus('error');
             setSpriggitMessage(`Error: ${String(err?.message || err)}`);
+            return { failed0xFFFF: false };
         }
     };
 
@@ -1984,34 +2000,76 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         confirmed (spriggitVersionTooOld=true) — retrying will
                                                         fail again; re-downloading Spriggit is the only real fix.
                                                         When version is current, auto-retry after cache clear is
-                                                        helpful (SAC fix + cache clear → retry may succeed). */}
+                                                        helpful.  If the first retry still fails with 0xFFFFFFFF
+                                                        we also auto-run Unblock-File on the freshly extracted
+                                                        assemblies and retry once more, breaking the SAC loop
+                                                        where: unblock → clear cache → retry → NEW assemblies
+                                                        (never unblocked) → fail → repeat. */}
                                                     <button
                                                         type="button"
-                                                        disabled={cacheClearInProgress || spriggitStatus === 'running'}
+                                                        disabled={cacheClearInProgress || spriggitStatus === 'running' || autoUnblockRetryState === 'unblocking' || autoUnblockRetryState === 'retrying'}
                                                         className="px-3 py-1 rounded bg-amber-800/60 hover:bg-amber-700/60 disabled:opacity-50 text-amber-100 text-xs font-semibold transition-colors"
                                                         onClick={async () => {
                                                             const api = getElectronApi();
                                                             if (!api?.spriggitClearCache) return;
                                                             setCacheClearInProgress(true);
                                                             setCacheClearResult(null);
+                                                            setAutoUnblockRetryState('idle');
+                                                            let clearOk = false;
                                                             try {
                                                                 const res = await api.spriggitClearCache();
+                                                                clearOk = res.ok;
                                                                 setCacheClearResult(res.ok ? 'ok' : 'error');
                                                             } catch {
                                                                 setCacheClearResult('error');
                                                             } finally {
                                                                 setCacheClearInProgress(false);
-                                                                // Skip the auto-retry when main.ts confirmed a
-                                                                // version mismatch — it will fail for the same reason.
-                                                                if (!isMismatch) {
-                                                                    await runSpriggitDigest();
+                                                            }
+                                                            // Skip the auto-retry sequence when main.ts confirmed a
+                                                            // version mismatch — it will fail for the same reason.
+                                                            if (!isMismatch && clearOk) {
+                                                                // First pass: Spriggit re-extracts fresh assemblies to
+                                                                // the now-empty cache.  This may fail with 0xFFFFFFFF
+                                                                // if SAC blocks the new files, but critically it
+                                                                // populates the cache with the fresh assembly set.
+                                                                const firstResult = await runSpriggitDigest();
+
+                                                                // If the first pass crashed with 0xFFFFFFFF, auto-run
+                                                                // Unblock-File on the Spriggit folder (which now
+                                                                // contains the freshly extracted assemblies that were
+                                                                // NOT covered by any previous manual unblock run).
+                                                                // Then retry once more — these newly unblocked files
+                                                                // will load successfully if SAC is in Evaluation mode.
+                                                                if (firstResult.failed0xFFFF && api.spriggitUnblockFiles) {
+                                                                    setAutoUnblockRetryState('unblocking');
+                                                                    try {
+                                                                        const unblockRes = await api.spriggitUnblockFiles();
+                                                                        if (unblockRes?.ok) {
+                                                                            setUnblockResult(unblockRes);
+                                                                            setAutoUnblockRetryState('retrying');
+                                                                            await runSpriggitDigest();
+                                                                        } else {
+                                                                            setAutoUnblockRetryState('failed');
+                                                                        }
+                                                                    } catch {
+                                                                        setAutoUnblockRetryState('failed');
+                                                                    }
                                                                 }
                                                             }
                                                         }}
                                                     >
-                                                        {cacheClearInProgress ? '🔄 Clearing…' : '🗑️ Clear Cache & Retry'}
+                                                        {(cacheClearInProgress || autoUnblockRetryState === 'unblocking' || autoUnblockRetryState === 'retrying')
+                                                            ? (cacheClearInProgress ? '🔄 Clearing…' : autoUnblockRetryState === 'unblocking' ? '🔓 Unblocking…' : '🔄 Retrying…')
+                                                            : '🗑️ Clear Cache & Retry'}
                                                     </button>
-                                                    {cacheClearResult === 'ok' && spriggitStatus !== 'error' && !isMismatch && (
+                                                    {/* Auto-unblock progress feedback */}
+                                                    {autoUnblockRetryState === 'unblocking' && (
+                                                        <span className="text-xs text-violet-300 font-semibold">🔓 Auto-unblocking freshly extracted assemblies…</span>
+                                                    )}
+                                                    {autoUnblockRetryState === 'retrying' && (
+                                                        <span className="text-xs text-emerald-300 font-semibold">🔄 Retrying with unblocked assemblies…</span>
+                                                    )}
+                                                    {cacheClearResult === 'ok' && spriggitStatus !== 'error' && spriggitStatus !== 'running' && !isMismatch && autoUnblockRetryState === 'idle' && (
                                                         <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
                                                     )}
                                                     {cacheClearResult === 'ok' && isMismatch && (
@@ -2020,12 +2078,35 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                             Click <strong>{redownloadLabel}</strong> above to get the latest SpriggitCLI.zip.
                                                         </span>
                                                     )}
-                                                    {cacheClearResult === 'ok' && spriggitStatus === 'error' && !isMismatch && (
+                                                    {cacheClearResult === 'ok' && spriggitStatus === 'error' && !isMismatch && autoUnblockRetryState !== 'unblocking' && autoUnblockRetryState !== 'retrying' && (
                                                         <span className="text-xs text-amber-300 font-semibold">
-                                                            ⚠️ Cache cleared but still failing —{' '}
-                                                            {detectedFo4Version.startsWith('1.11.')
-                                                                ? <>Check <strong>Smart App Control</strong> (Windows Security → App &amp; browser control). If SAC is locked/greyed-out, click <strong>🔓 Unblock Files</strong> above to remove the web-download flag from your Spriggit files, then retry.</>
-                                                                : <>most likely fix: check Smart App Control (Windows Security) or click <strong>🔓 Unblock Files</strong> if SAC is locked. Also free disk space on the Spriggit drive and try Re-downloading Spriggit.</>
+                                                            {autoUnblockRetryState === 'idle'
+                                                                ? <>
+                                                                    ⚠️ Cache cleared but still failing.{' '}
+                                                                    <strong>Clearing the cache caused Spriggit to extract a fresh set of
+                                                                    .NET assemblies — those new files were never unblocked.</strong>{' '}
+                                                                    Click <strong>🔓 Unblock Files</strong> above (to unblock the newly
+                                                                    extracted assemblies), then click{' '}
+                                                                    <strong>🗑️ Clear Cache &amp; Retry</strong> once more.{' '}
+                                                                    {detectedFo4Version.startsWith('1.11.') && <>
+                                                                        Alternatively, add a <strong>Windows Defender exclusion</strong> for your
+                                                                        Spriggit folder (Windows Security → Virus &amp; threat protection →
+                                                                        Exclusions) so SAC cannot block any future extractions.
+                                                                    </>}
+                                                                  </>
+                                                                : <>
+                                                                    ⚠️ Auto-unblock ran but Spriggit is still crashing.{' '}
+                                                                    {detectedFo4Version.startsWith('1.11.')
+                                                                        ? <>Smart App Control may be set to <strong>&ldquo;On&rdquo;</strong> (not Evaluation) — in
+                                                                          that mode, Unblock-File alone is not enough.  The most reliable fix is
+                                                                          to add a <strong>Windows Defender exclusion</strong> for your Spriggit folder:
+                                                                          Windows Security → Virus &amp; threat protection → Exclusions →
+                                                                          Add an exclusion → Folder → select your Spriggit folder.  Then click{' '}
+                                                                          <strong>🗑️ Clear Cache &amp; Retry</strong> one more time.</>
+                                                                        : <>Check Smart App Control (Windows Security → App &amp; browser control)
+                                                                          or add a Windows Defender exclusion for your Spriggit folder.</>
+                                                                    }
+                                                                  </>
                                                             }
                                                         </span>
                                                     )}
