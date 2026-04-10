@@ -3396,13 +3396,15 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // A null result (timeout) is treated as "inconclusive — proceed".
       const SPRIGGIT_CRASH_EXIT_CODE = 0xFFFFFFFF; // 4294967295 — process crashed before CLR loaded
       const SPRIGGIT_SELFTEST_TIMEOUT_MS = 15_000;
-      // Shared wording for the incomplete-extraction root cause, used both in the
-      // pre-flight check error and in the SPRIGGIT_CRASH_CAUSES hint list.
+      // Shared wording for the wrong-zip root cause, used both in the pre-flight check
+      // error and in the SPRIGGIT_CRASH_CAUSES hint list.
+      // NOTE: recent SpriggitCLI.zip releases are single-file builds — the zip contains
+      // only Spriggit.CLI.exe.  There are no loose DLLs that need to be beside the exe.
       const SPRIGGIT_INCOMPLETE_EXTRACT_HINT =
-        'Incomplete extraction — you need SpriggitCLI.zip (NOT Spriggit.zip).\n' +
+        'Wrong zip downloaded — make sure you have SpriggitCLI.zip (NOT Spriggit.zip).\n' +
         '     On the releases page there are two zips: SpriggitCLI.zip (CLI, correct) and\n' +
         '     Spriggit.zip (GUI app, wrong — it will not work here).\n' +
-        '     Extract the full SpriggitCLI.zip into a clean folder and try again.';
+        '     Re-download SpriggitCLI.zip, extract it into a clean folder, and try again.';
       // Common cause list shared by the self-test crash error and the all-fail summary hint.
       const SPRIGGIT_CRASH_CAUSES =
         `  0. ${SPRIGGIT_INCOMPLETE_EXTRACT_HINT}\n` +
@@ -3439,11 +3441,16 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             files: [],
             error:
               'Spriggit.CLI.exe crashed immediately (exit code 0xFFFFFFFF).\n' +
-              '.NET Runtime 8.0+ was detected on this system, so the most likely causes are:\n' +
-              '  1. Antivirus is blocking Spriggit.CLI.exe — add an exception and try again.\n' +
-              '  2. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.\n' +
-              '  3. The Spriggit download may be corrupted — re-download from:\n' +
-              '     https://github.com/Mutagen-Modding/Spriggit/releases\n' +
+              '.NET Runtime 8.0+ was detected, so the most likely causes are:\n' +
+              '  1. Stale temp cache — Spriggit (single-file build) extracts assemblies to a temp\n' +
+              '     folder on first run.  Delete the cache folder and let it re-extract:\n' +
+              '       %LOCALAPPDATA%\\Temp\\.net\\SpriggitCLI\\\n' +
+              '     (If that path does not exist, try: %TEMP%\\.net\\SpriggitCLI\\)\n' +
+              '     Then try again.\n' +
+              '  2. Low disk space — the temp extraction needs several hundred MB free on C:.\n' +
+              '  3. Smart App Control (Windows 11) — can block unsigned temp-extracted binaries.\n' +
+              '     Check Windows Security → App & browser control → Smart App Control.\n' +
+              '  4. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +
               SPRIGGIT_MANUAL_RUN_HINT,
           };
         }
@@ -3612,33 +3619,39 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             // dotnetCheck.installed is known-true here (we returned early above if it was false).
             if (selfTestCode !== null && selfTestCode !== SPRIGGIT_CRASH_EXIT_CODE) {
               // Self-test (--version) passed: the executable starts and the CLR loads correctly.
-              // --version does NOT load game-specific assemblies (Spriggit.Yaml.Fallout4.*), but
-              // serialize does.  Every serialize crashing with 0xFFFFFFFF while --version works
-              // means the binary itself is fine — a game-specific assembly is being blocked.
-              // .NET installed ✓, binary starts ✓, so the cause is almost certainly AV.
-              // Drop "incomplete extraction" and "architecture mismatch" — the self-test already
-              // rules those out.
-              hint = '\n\nSpriggit.CLI.exe itself starts correctly (--version test passed), but the\n' +
-                'game-specific Fallout4 assemblies crash during serialize (exit code 4294967295 / 0xFFFFFFFF).\n' +
-                'Because .NET is installed and the binary works, the cause is almost always:\n\n' +
-                '  Antivirus blocking a Spriggit assembly (Spriggit.Yaml.Fallout4.dll or similar).\n' +
-                '  You must add the ENTIRE Spriggit FOLDER as an exclusion — not just the .exe:\n' +
-                '    Windows Defender: Windows Security → Virus & threat protection → Manage settings\n' +
-                '    → Add or remove exclusions → Add an exclusion → Folder → select the Spriggit folder\n' +
-                '    (e.g. D:\\Tools\\Spriggit\\).\n' +
-                '  After adding the exclusion, click "Convert & Digest" again.\n\n' +
+              // Spriggit is a single-file .NET publish — all assemblies are embedded in the exe
+              // and extracted to a temp cache at runtime.  --version loads a minimal set (works);
+              // serialize loads game-specific assemblies (crashes).  With .NET installed ✓, binary
+              // starts ✓, and AV not the cause, the most likely explanation is a stale or corrupted
+              // temp extraction cache from a previous Spriggit version.
+              hint = '\n\nSpriggit.CLI.exe starts correctly (--version passed) but crashes during serialize\n' +
+                '(exit code 4294967295 / 0xFFFFFFFF).\n\n' +
+                'Spriggit is a single-file build — it extracts game assemblies to a temp cache on first\n' +
+                'run.  If that cache is stale or corrupted (e.g. after upgrading Spriggit), the most\n' +
+                'likely fixes are:\n\n' +
+                '  1. Clear the Spriggit temp cache so it re-extracts cleanly:\n' +
+                '       Delete: %LOCALAPPDATA%\\Temp\\.net\\SpriggitCLI\\\n' +
+                '       (If that path does not exist, try: %TEMP%\\.net\\SpriggitCLI\\)\n' +
+                '       Then click "Convert & Digest" again.\n\n' +
+                '  2. Free up disk space — temp extraction needs several hundred MB free on C:.\n\n' +
+                '  3. Smart App Control (Windows 11) — can silently block unsigned temp-extracted\n' +
+                '     binaries even when standard AV shows nothing.\n' +
+                '     Check: Windows Security → App & browser control → Smart App Control.\n\n' +
                 '  ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
             } else {
               // Self-test timed out (null) — we cannot confirm the binary works; show the full list.
               hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
-                '.NET Runtime 8.0+ is installed, so the most likely causes are:\n' +
-                '  1. Antivirus quarantined a DLL — add the entire Spriggit folder as an exclusion and try again.\n' +
-                '     Windows Defender: Windows Security → Virus & threat protection → Manage settings\n' +
-                '     → Add or remove exclusions → Add an exclusion → Folder → select the Spriggit folder.\n' +
-                '  2. Incomplete extraction — Spriggit.CLI.exe needs ALL files from SpriggitCLI.zip beside it.\n' +
-                '     Re-extract SpriggitCLI.zip into a clean (empty) folder and point Mossy to the new exe.\n' +
-                '  3. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +
-                '  4. ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
+                '.NET Runtime 8.0+ is installed.  Spriggit is a single-file build that extracts game\n' +
+                'assemblies to a temp cache at runtime.  Most likely causes:\n' +
+                '  1. Stale temp cache — delete it so Spriggit can re-extract cleanly:\n' +
+                '       %LOCALAPPDATA%\\Temp\\.net\\SpriggitCLI\\\n' +
+                '     (If that path does not exist, try: %TEMP%\\.net\\SpriggitCLI\\)\n' +
+                '     Then try again.\n' +
+                '  2. Low disk space — temp extraction needs several hundred MB free on C:.\n' +
+                '  3. Smart App Control (Windows 11) — check Windows Security → App & browser control.\n' +
+                '  4. Wrong zip — make sure you have SpriggitCLI.zip (not the Spriggit.zip GUI app).\n' +
+                '  5. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +
+                '  6. ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
             }
           } else {
             hint = '\n\nSpriggit produced no output. Make sure Spriggit.CLI.exe is the correct executable and that your Data folder path is right.';
