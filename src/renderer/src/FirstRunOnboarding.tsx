@@ -1716,7 +1716,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             : 'bg-slate-800/60 border border-slate-600 text-slate-300'
                             }`}>
                                 {spriggitStatus === 'running' && <Loader className="w-4 h-4 inline-block animate-spin mr-2" />}
-                                {spriggitStatus === 'noMods' && <span className="font-bold">ℹ️ No custom mods found:{'\n'}</span>}
+                                {spriggitStatus === 'noMods' && <span className="font-bold">ℹ️ Vanilla ESMs not found:{'\n'}</span>}
                                 {spriggitMessage}
                                 {spriggitStatus === 'error' && spriggitMessage.includes('0xFFFFFFFF') && (
                                     <div className="mt-3 flex flex-wrap items-center gap-3">
