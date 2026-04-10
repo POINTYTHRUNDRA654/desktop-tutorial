@@ -3719,6 +3719,20 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         }
         errorSummary = shown + tail + hint;
       }
+      // All YAML content is now held in resultFiles (in memory).
+      // Clean up both temp directories from disk so nothing lingers on the C drive:
+      //   spriggit-output/      — YAML files produced by Spriggit (content already in memory)
+      //   spriggit-dotnet-cache/ — .NET assembled extracted during the run (no longer needed)
+      const dirsToClean = [safeOutput, spriggitDotnetCacheDir];
+      for (const dir of dirsToClean) {
+        try {
+          if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+        } catch (cleanErr) {
+          // Non-fatal: log but don't fail the whole operation if cleanup fails.
+          console.warn('[Main] spriggit post-digest cleanup failed for', dir, cleanErr);
+        }
+      }
+
       return {
         ok: resultFiles.length > 0,
         files: resultFiles,
