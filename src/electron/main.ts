@@ -3387,6 +3387,59 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     };
   });
 
+  /**
+   * Reads the Fallout4.exe file version from the game installation folder
+   * (the parent directory of the user's selected Data folder).
+   *
+   * Returns a version string such as "1.11.191.0" or "" when detection fails.
+   * Only meaningful on Windows; always returns "" on other platforms.
+   *
+   * Detection uses PowerShell's VersionInfo API — the most reliable cross-
+   * environment method without adding native binary dependencies to Mossy.
+   *
+   * Version strings map to game releases:
+   *   1.10.163.x  → OG (pre-NG)
+   *   1.10.980.x – 1.10.984.x → NG (Next-Gen, April 2024)
+   *   1.11.x      → Creations Menu / official Anniversary Edition (Nov 2025+)
+   */
+  const detectFallout4Version = async (dataPath: string): Promise<string> => {
+    if (process.platform !== 'win32') return '';
+    try {
+      const gameDir = path.dirname(dataPath);
+      const exePath = path.join(gameDir, 'Fallout4.exe');
+      if (!fs.existsSync(exePath)) return '';
+      // Escape single-quotes in the path for PowerShell string safety.
+      const escaped = exePath.replace(/'/g, "''");
+      return await new Promise<string>((resolve) => {
+        const ps = spawn(
+          'powershell',
+          ['-NoProfile', '-NonInteractive', '-Command',
+            `(Get-Item '${escaped}').VersionInfo.FileVersion`],
+          { windowsHide: true },
+        );
+        let out = '';
+        if (ps.stdout) ps.stdout.on('data', (d: Buffer) => { out += d.toString(); });
+        const timer = setTimeout(() => { try { ps.kill(); } catch { /**/ } resolve(''); }, 5000);
+        ps.on('close', () => { clearTimeout(timer); resolve(out.trim()); });
+        ps.on('error', () => { clearTimeout(timer); resolve(''); });
+      });
+    } catch {
+      return '';
+    }
+  };
+
+  /** Classifies a raw Fallout4.exe version string into a human-readable label. */
+  const classifyFo4Version = (v: string): string => {
+    if (!v) return '';
+    if (v.startsWith('1.11.')) return `Fallout 4 v${v} — 1.11.x (Creations Menu / Anniversary Edition, Nov 2025+)`;
+    if (v.startsWith('1.10.980') || v.startsWith('1.10.981') || v.startsWith('1.10.982') ||
+        v.startsWith('1.10.983') || v.startsWith('1.10.984')) {
+      return `Fallout 4 v${v} — NG (Next-Gen update, April 2024)`;
+    }
+    if (v.startsWith('1.10.163')) return `Fallout 4 v${v} — OG (Legacy / pre-NG)`;
+    return `Fallout 4 v${v}`;
+  };
+
   // spriggit-serialize: Run Spriggit.CLI.exe serialize on the user's Fallout 4
   // Data folder, then read the resulting YAML/JSON files into memory so the
   // caller can digest them into the Knowledge Vault.
@@ -3404,6 +3457,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       if (!dataPath || typeof dataPath !== 'string') return { ok: false, files: [], error: 'No Data folder path provided.' };
       if (!fs.existsSync(cliPath)) return { ok: false, files: [], error: `Spriggit.CLI.exe not found at: ${cliPath}` };
       if (!fs.existsSync(dataPath)) return { ok: false, files: [], error: `Fallout 4 Data folder not found at: ${dataPath}` };
+
+      // Detect the Fallout 4 game version from Fallout4.exe (one level up from
+      // the Data folder).  This runs in parallel with the plugin scan below so
+      // it adds no latency to the critical path.
+      const fo4Version = await detectFallout4Version(dataPath);
+      const fo4Label   = classifyFo4Version(fo4Version);
+      const fo4Is111x  = fo4Version.startsWith('1.11.');
 
       // Early-exit: scan the Data folder and apply the appropriate plugin filter
       // BEFORE doing any process spawning.
@@ -3517,17 +3577,33 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         '  5. To confirm the real error, open a Command Prompt and run Spriggit manually:\n' +
         '     Spriggit.CLI.exe serialize --InputPath "path\\to\\plugin.esp" --OutputPath "C:\\Temp\\out" --GameRelease Fallout4 --PackageName Spriggit.Yaml.Fallout4';
 
-      const selfTestCode = await new Promise<number | null>((resolve) => {
+      // Capture both the exit code AND stdout (the version string) from --version.
+      // The version string is used in error messages so users see exactly which
+      // build they have (e.g. "Spriggit 0.22.0 detected") and can decide whether
+      // to update — much more actionable than a generic "version too old" hint.
+      const selfTestResult = await new Promise<{ code: number | null; version: string }>((resolve) => {
         let settled = false;
-        const settle = (v: number | null) => { if (!settled) { settled = true; resolve(v); } };
+        let versionOut = '';
+        const settle = (v: { code: number | null; version: string }) => {
+          if (!settled) { settled = true; resolve(v); }
+        };
         const testChild = spawn(cliPath, ['--version'], { shell: false, windowsHide: true, cwd: path.dirname(cliPath), env: spriggitEnv });
+        if (testChild.stdout) testChild.stdout.on('data', (d: Buffer) => { versionOut += d.toString(); });
+        if (testChild.stderr) testChild.stderr.on('data', (d: Buffer) => { versionOut += d.toString(); });
         const timer = setTimeout(() => {
           try { testChild.kill(); } catch { /* ignore */ }
-          settle(null); // timed out → inconclusive, proceed with full serialize
+          settle({ code: null, version: versionOut.trim() }); // timed out → inconclusive, proceed
         }, SPRIGGIT_SELFTEST_TIMEOUT_MS);
-        testChild.on('error', () => { clearTimeout(timer); settle(-1); });
-        testChild.on('close', (code) => { clearTimeout(timer); settle(code); });
+        testChild.on('error', () => { clearTimeout(timer); settle({ code: -1, version: versionOut.trim() }); });
+        testChild.on('close', (code) => { clearTimeout(timer); settle({ code, version: versionOut.trim() }); });
       });
+      const selfTestCode = selfTestResult.code;
+      // Trim to the first non-empty line — Spriggit outputs just its version number,
+      // but some builds also emit a blank prefix line.  We want "0.25.3" not "\n0.25.3".
+      const spriggitDetectedVersion = selfTestResult.version
+        .split('\n')
+        .map(l => l.trim())
+        .find(l => l.length > 0) ?? '';
 
       if (selfTestCode === SPRIGGIT_CRASH_EXIT_CODE) {
         // Re-check .NET to produce a more targeted error message.
@@ -3729,6 +3805,12 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           );
           const hasSilentFailures = errors.some(e => e.includes('produced no YAML output'));
           if (allVersionRelated) {
+            // Build a version context banner shown at the top of every hint block so
+            // users and support can immediately see what was detected.
+            const versionBanner =
+              (fo4Label       ? `  Detected game:    ${fo4Label}\n`               : '') +
+              (spriggitDetectedVersion ? `  Detected Spriggit: v${spriggitDetectedVersion}\n` : '');
+
             // dotnetCheck.installed is known-true here (we returned early above if it was false).
             if (selfTestCode !== null && selfTestCode !== SPRIGGIT_CRASH_EXIT_CODE) {
               // Self-test (--version) passed: the executable starts and the CLR loads correctly.
@@ -3742,13 +3824,29 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                 ? 'crashes with exit code 4294967295 / 0xFFFFFFFF on DLC files\n' +
                   'and/or exits cleanly but produces no YAML for base-game ESMs'
                 : 'crashes during serialize\n(exit code 4294967295 / 0xFFFFFFFF)';
+
+              // Build a tailored first hint line depending on what we detected.
+              const versionHint = fo4Is111x && spriggitDetectedVersion
+                ? `  1. ⭐ VERSION MISMATCH — Spriggit v${spriggitDetectedVersion} is too old for\n` +
+                  `     ${fo4Label}.\n` +
+                  '     The Creations Menu update (November 2025) added new record types that\n' +
+                  '     require a post-November-2025 build of Spriggit.  Click "Re-download\n' +
+                  '     Spriggit →" → download SpriggitCLI.zip from the releases page →\n' +
+                  '     extract to a clean folder → select the new Spriggit.CLI.exe.\n'
+                : fo4Is111x
+                ? '  1. ⭐ Spriggit version too old — Fallout 4 1.11.x (Creations Menu,\n' +
+                  '     November 2025) introduced new record types.  Click "Re-download\n' +
+                  '     Spriggit →" to get the latest SpriggitCLI.zip from GitHub.\n'
+                : '  1. ⭐ Spriggit version too old for your game — the most common cause\n' +
+                  '     when FO4 has been updated more recently than your Spriggit build.\n' +
+                  '     Click "Re-download Spriggit →" to get the latest release from\n' +
+                  '     GitHub (github.com/Mutagen-Modding/Spriggit/releases).  Download\n' +
+                  '     SpriggitCLI.zip, extract it to a clean folder, then select the new exe.\n';
+
               hint = `\n\nSpriggit.CLI.exe starts correctly (--version passed) but ${serializeFailDesc}.\n\n` +
-                '  1. ⭐ Spriggit version too old for your game — the most common cause since\n' +
-                '     FO4 1.11.x (Creations Menu / November 2025 update) introduced new record\n' +
-                '     types.  Click "Re-download Spriggit →" to get the latest release from\n' +
-                '     GitHub (github.com/Mutagen-Modding/Spriggit/releases).  Download\n' +
-                '     SpriggitCLI.zip, extract it to a clean folder, then select the new exe.\n\n' +
-                '  2. Click "Clear Cache & Retry" — this wipes the Spriggit assembly cache at:\n' +
+                (versionBanner ? versionBanner + '\n' : '') +
+                versionHint +
+                '\n  2. Click "Clear Cache & Retry" — this wipes the Spriggit assembly cache at:\n' +
                 `       ${spriggitDotnetCacheDir}\n` +
                 '       Then Spriggit will re-extract cleanly.\n\n' +
                 '  3. Free up disk space — cache extraction needs several hundred MB free on C:.\n\n' +
@@ -3761,8 +3859,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
                 '.NET Runtime 8.0+ is installed.  Spriggit is a single-file build that extracts game\n' +
                 'assemblies to a cache at runtime.  Most likely causes:\n' +
-                '  1. ⭐ Spriggit version too old — if on FO4 1.11.x (Creations Menu / Nov 2025),\n' +
-                '     download the latest SpriggitCLI.zip from github.com/Mutagen-Modding/Spriggit/releases.\n' +
+                (versionBanner ? versionBanner : '') +
+                (fo4Is111x
+                  ? '  1. ⭐ VERSION MISMATCH — Fallout 4 1.11.x (Creations Menu) requires a\n' +
+                    '     post-November 2025 build of Spriggit.  Download the latest SpriggitCLI.zip\n' +
+                    '     from github.com/Mutagen-Modding/Spriggit/releases.\n'
+                  : '  1. ⭐ Spriggit version too old — if on FO4 1.11.x (Creations Menu / Nov 2025),\n' +
+                    '     download the latest SpriggitCLI.zip from github.com/Mutagen-Modding/Spriggit/releases.\n') +
                 '  2. Stale cache — click "Clear Cache & Retry" to wipe it so Spriggit can re-extract:\n' +
                 `       ${spriggitDotnetCacheDir}\n` +
                 '     Then try again.\n' +
@@ -3798,6 +3901,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         error: errorSummary,
         skippedVanillaCount,
         skippedCustomCount,
+        fo4Version,
+        fo4Label,
+        spriggitVersion: spriggitDetectedVersion,
       };
     } catch (e: any) {
       console.error('[Main] spriggit-serialize error:', e);
