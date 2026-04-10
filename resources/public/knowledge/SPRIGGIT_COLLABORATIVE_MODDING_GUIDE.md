@@ -268,6 +268,41 @@ Replace `Spriggit.Yaml` with `Spriggit.Json` for JSON format:
 
 ---
 
+## Architecture: Mutagen.Bethesda.Serialization
+
+Spriggit is built on top of the **Mutagen.Bethesda.Serialization** library
+(`https://github.com/Mutagen-Modding/Mutagen.Bethesda.Serialization`).
+
+- **Mutagen** handles binary parsing — it models every Bethesda record type as a strongly-typed .NET object.
+- **Mutagen.Bethesda.Serialization** uses C# Source Generators to convert those objects to/from YAML or JSON.
+- **Spriggit** wraps the above into a CLI/GUI and handles the NuGet package fetching, versioning, and file-structure conventions.
+
+### Translation Packages
+
+Mutagen.Bethesda.Serialization allows **full customization** of naming conventions, file structure, and other
+serialization behaviour through custom packages published to NuGet.org. This means:
+
+- You can build your own serialization layer if you need different output structure or naming.
+- Your custom package must be published to **NuGet.org** so Spriggit can fetch it on demand.
+- Specify it via the `--PackageName` CLI flag or in `spriggit-meta.json`.
+
+Two **built-in** packages are provided by the Spriggit project and require no additional publishing:
+
+| Package name pattern | Format | Notes |
+|---|---|---|
+| `Spriggit.Yaml.[GameName]` | YAML | Default for most users. `GameName` = `Fallout4`, `SkyrimSE`, `Starfield`, etc. |
+| `Spriggit.Json.[GameName]` | JSON | Alternative for tooling that prefers JSON. |
+
+Examples: `Spriggit.Yaml.Fallout4`, `Spriggit.Json.SkyrimSE`, `Spriggit.Yaml.Starfield`.
+
+If no `--PackageName` is supplied, Spriggit defaults to `Spriggit.Yaml.[GameName]` for the detected game.
+Unless you have a custom package, **always use one of the two built-in patterns above.**
+
+> **Documentation**: See the official Spriggit documentation and Mutagen.Bethesda.Serialization docs for
+> how to author and publish a custom serialization package to NuGet.
+
+---
+
 ## Version Control with NuGet Packages
 
 Spriggit uses **NuGet packages** (Spriggit.Yaml.Fallout4, Spriggit.Json.SkyrimSE, etc.) to define how records are serialized.
