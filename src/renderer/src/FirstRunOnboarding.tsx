@@ -123,7 +123,7 @@ const COMPLETE_TRANSITION_DELAY_MS = 2000;
 /** Shorter delay when Spriggit digest already ran — the user just clicked Continue. */
 const SPRIGGIT_DONE_TRANSITION_DELAY_MS = 500;
 /** Maximum characters of error text shown in the Spriggit status message box. */
-const MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH = 1500;
+const MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH = 4000;
 /** How long (ms) the .NET recheck result badge stays visible before auto-dismissing. */
 const DOTNET_RECHECK_BADGE_DURATION_MS = 6000;
 /** Message shown when a manual .NET recheck still cannot find the runtime. */
@@ -1538,7 +1538,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                         {/* Status message */}
                         {spriggitMessage && (
-                            <div className={`max-w-lg mx-auto mb-5 rounded-lg px-4 py-3 text-sm text-left whitespace-pre-line break-words ${
+                            <div className={`max-w-lg mx-auto mb-5 rounded-lg px-4 py-3 text-sm text-left whitespace-pre-line break-words max-h-64 overflow-y-auto ${
                                 spriggitStatus === 'error'
                                     ? 'bg-red-900/30 border border-red-700/50 text-red-200'
                                     : spriggitStatus === 'done'
