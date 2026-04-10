@@ -1866,11 +1866,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 className="px-3 py-1 rounded bg-sky-800/60 hover:bg-sky-700/60 text-sky-100 text-xs font-semibold transition-colors"
                                                 onClick={() => {
                                                     const api = getElectronApi();
-                                                    const sacUrl = 'ms-settings:windowsdefender';
+                                                    const windowsSecurityUrl = 'ms-settings:windowsdefender';
                                                     if (api?.openExternal) {
-                                                        void api.openExternal(sacUrl);
+                                                        void api.openExternal(windowsSecurityUrl);
                                                     } else {
-                                                        window.open(sacUrl, '_blank');
+                                                        window.open(windowsSecurityUrl, '_blank');
                                                     }
                                                 }}
                                             >
