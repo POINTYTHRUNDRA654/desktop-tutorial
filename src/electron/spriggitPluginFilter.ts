@@ -58,12 +58,12 @@ export function filterPluginsForSpriggit(allPluginFiles: string[]): {
  */
 const VANILLA_PLUGIN_PRIORITY: ReadonlyArray<string> = [
   'fallout4.esm',
-  'dlcworkshop01.esm',  // Wasteland Workshop  (~  50 MB — smallest DLC)
+  'dlcworkshop01.esm',  // Wasteland Workshop  (smallest DLC, approx. size varies by version)
   'dlcworkshop02.esm',  // Contraptions Workshop
   'dlcworkshop03.esm',  // Vault-Tec Workshop
-  'dlcrobot.esm',       // Automatron          (~ 150 MB)
-  'dlccoast.esm',       // Far Harbor          (~ 800 MB)
-  'dlcnukaworld.esm',   // Nuka-World          (~ 900 MB — largest DLC)
+  'dlcrobot.esm',       // Automatron
+  'dlccoast.esm',       // Far Harbor          (larger DLC)
+  'dlcnukaworld.esm',   // Nuka-World           (largest DLC, approx. size varies by version)
 ];
 
 /**

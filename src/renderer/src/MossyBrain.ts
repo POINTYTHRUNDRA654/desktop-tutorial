@@ -860,14 +860,15 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n| Blender | Official | https://www.blender.org/download |' +
       '\n| UModel / UEViewer | Gildor.org | https://www.gildor.org/en/projects/umodel |' +
       '\n| Wabbajack | Official | https://www.wabbajack.org |' +
-      '\n| Spriggit (Plugin Serializer) | GitHub | https://github.com/Noggog/Spriggit |' +
+      '\n| Spriggit (Plugin Serializer) | GitHub | https://github.com/Mutagen-Modding/Spriggit |' +
       '\n| Unsloth (LLM Fine-Tuning) | GitHub | https://github.com/unslothai/unsloth |' +
       '\n| Ollama (Local LLM Runtime) | Official | https://ollama.com |' +
       '\n**Rule**: If a tool is on Nexus, link to Nexus — not GitHub or any other mirror — unless the Nexus page explicitly directs to GitHub for the latest release (e.g. CKPE). The author earns Nexus endorsements and download credit, which matters for the modding community.' +
       '\n\n- **SPRIGGIT: PLUGIN VERSIONING WITH GIT — COLLABORATIVE MODDING FOR TEAMS:**' +
       '\n  Spriggit serializes Bethesda plugin files (.esp/.esm/.esl) into human-readable YAML or JSON format that GIT can track, diff, and merge. This transforms mod development into a collaborative, version-controlled workflow where multiple modders can work on the same mod, pull on branches, submit pull requests, and merge changes just like programmers do with code.' +
       '\n\n  **What is Spriggit?**' +
-      '\n  Spriggit is a cross-platform tool built by Noggog that converts Bethesda plugins to/from text format (.yaml / .json). Large-scale mods—whether single-author or team projects—can now live in Git repositories (GitHub, GitLab, etc.), accept pull requests, maintain version history, and collaborate seamlessly.' +
+      '\n  Spriggit is a tool by the Mutagen-Modding project that converts Bethesda plugins to/from text format (.yaml / .json). Large-scale mods—whether single-author or team projects—can now live in Git repositories (GitHub, GitLab, etc.), accept pull requests, maintain version history, and collaborate seamlessly.' +
+      '\n  GitHub: https://github.com/Mutagen-Modding/Spriggit' +
       '\n\n  **Why Use Git for Mods?**' +
       '\n  Git is the industry standard for collaborative development. Benefits for modders:' +
       '\n  • **Version History**: View your mod exactly as it was at any point in history. Revert changes instantly if something breaks.' +
@@ -878,15 +879,15 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  • **Tagging**: Mark releases with version tags (v1.0, v2.1, etc.). Users can see exactly what changed between versions.' +
       '\n  • **Code Review**: Team members review each other\'s changes before merging. Catch bugs early.' +
       '\n  • **CI/CD Integration**: Automate testing, scanning, or builds on every commit (optional advanced feature).' +
-      '\n\n  **Installation & Setup:**' +
-      '\n  **Download**: https://github.com/Noggog/Spriggit (GitHub releases page)' +
-      '\n  **Two versions available:**' +
-      '\n  1) **Spriggit UI** (Windows WPF application) — Click-based GUI, easiest for beginners. Has a one-click "Sync" button.' +
-      '\n  2) **Spriggit CLI** (Command-line tool, Windows/Linux)— For automation, scripting, or CI/CD pipelines.' +
-      '\n\n  **System Requirements**:' +
-      '\n  • **Windows**: .NET runtime (8.0+) for UI or CLI versions' +
-      '\n  • **Linux/Mac**: CLI version only; install .NET 8.0 SDK first' +
-      '\n  • **Game Assets**: BAE (Bethesda Archive Extractor) recommended if extracting game assets from BA2 archives' +
+      '\n\n  **Installation (Official Steps from Spriggit Docs):**' +
+      '\n  1) Install the latest .NET SDK from https://dotnet.microsoft.com/download/dotnet' +
+      '\n     IMPORTANT: The SDK is required (not just the Runtime) — Spriggit\'s engine downloads its translation packages' +
+      '\n     (e.g. Spriggit.Yaml.Fallout4) via "dotnet tool install" at first serialize run. The Runtime alone is insufficient.' +
+      '\n     Restart your PC after installing the SDK.' +
+      '\n  2) Download Spriggit from: https://github.com/Mutagen-Modding/Spriggit/releases' +
+      '\n     Two options: Spriggit UI (Windows WPF app, easiest) or Spriggit CLI (cross-platform, for scripting).' +
+      '\n     Note: The UI executable can also be used as a CLI.' +
+      '\n  **Self-contained option**: SpriggitCLI.zip is a self-contained build that bundles .NET — no separate SDK install needed for basic runs.' +
       '\n\n  **The Workflow: Individual Modder**' +
       '\n  1) Create or clone a Git repository (locally or on GitHub)' +
       '\n  2) Create your mod normally in the Creation Kit or xEdit' +
@@ -919,6 +920,10 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  ```' +
       '\n  Spriggit.CLI.exe deserialize --InputPath "C:\\MyRepo\\MyMod" --OutputPath "C:\\Games\\SkyrimSE\\Data\\MyMod.esp"' +
       '\n  ```' +
+      '\n  **Upgrade translation package to new version**:' +
+      '\n  ```' +
+      '\n  Spriggit.CLI.exe upgrade -p "C:\\MyGitRepository\\SomeMod.esp\\" -v "1.2.3"' +
+      '\n  ```' +
       '\n  (For Fallout 4: replace "SkyrimSE" with "Fallout4" in --GameRelease)' +
       '\n\n  **Output Format: Organized File Structure**' +
       '\n  Spriggit splits your mod into organized subfolders instead of one massive file:' +
@@ -933,23 +938,95 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n      SirenTheRogue.yaml' +
       '\n    Quests/' +
       '\n      MainQuestline.yaml' +
-      '\n```' +
+      '\n  ```' +
       '\n  This folder structure makes **Git diffs meaningful**: edits to one weapon show as changes to one file, not huge diffs across a monolithic ESP.' +
       '\n\n  **Translation Packages & Version Control**' +
       '\n  Spriggit uses NuGet packages (Spriggit.Yaml.Fallout4, Spriggit.Json.Skyrim, etc.) to handle serialization logic.' +
-      '\n  • Each text file is stamped with the NuGet package name & version used to created it' +
+      '\n  • Each text file is stamped with the NuGet package name & version used to create it' +
       '\n  • On deserialization, Spriggit auto-downloads the matching version from NuGet' +
       '\n  • If you have old .yaml files created with v1.1 and fields have changed in v1.2, the old package is used for those files' +
       '\n  • This allows **automatic schema upgrades** — re-serialize old files with the latest package to modernize them' +
+      '\n\n  **Upgrading Spriggit Version — Do This in a Dedicated Commit:**' +
+      '\n  When upgrading your Spriggit translation package, ALWAYS do it in a dedicated commit containing ONLY the upgrade changes.' +
+      '\n  Why: Version upgrades can cause formatting changes, improved serialization, or other structural modifications unrelated to your actual mod changes.' +
+      '\n  By upgrading and committing immediately, you avoid "ambush diffs" in future commits when working on actual mod content.' +
+      '\n  CLI Workflow:' +
+      '\n    1. Run: Spriggit.CLI.exe upgrade -p "C:\\MyRepo\\SomeMod.esp\\" -v "1.2.3"' +
+      '\n    2. Review: git diff' +
+      '\n    3. Commit: git add -A && git commit -m "Upgrade Spriggit to version 1.2.3"' +
+      '\n  Manual Workflow (via spriggit-meta.json):' +
+      '\n    1. Edit spriggit-meta.json to set the new version: { "Source": { "PackageName": "Spriggit.Yaml.Fallout4", "Version": "1.2.3" } }' +
+      '\n    2. Re-serialize with Spriggit CLI or UI' +
+      '\n    3. Review and commit: git add -A && git commit -m "Upgrade Spriggit to version 1.2.3"' +
+      '\n  NEVER mix mod changes with a Spriggit version upgrade in the same commit.' +
+      '\n\n  **Sorting — Why Spriggit Output Stays Stable:**' +
+      '\n  The Creation Kit automatically shuffles certain properties when saving plugin files. Without correction, the same data would appear in different orders across saves, creating Git noise.' +
+      '\n  Spriggit automatically sorts known shuffled categories so output is stable from translation to translation:' +
+      '\n  • Cleaner Diffs: Only actual changes appear — no random reorderings from the CK' +
+      '\n  • Meaningful History: Git history reflects intentional modifications, not CK artifacts' +
+      '\n  • Better Merges: Consistent ordering helps Git merge algorithms' +
+      '\n  • Reduced Conflicts: Stable ordering minimizes false merge conflicts' +
+      '\n  If you notice fields still being shuffled (appearing as changes in Git when you haven\'t modified them), report them to https://github.com/Mutagen-Modding/Spriggit with: game, record type, and specific field name.' +
+      '\n\n  **Omissions — Spriggit Strips Junk Data:**' +
+      '\n  The Creation Kit sometimes writes junk or unused data into certain fields that vary between saves even without changes. Spriggit omits these automatically:' +
+      '\n  • **Unused Fields**: Fields marked "Unused" in game data structures (e.g., unused condition parameters, PlayerSkills.Unused padding bytes)' +
+      '\n  • **Unknown/Internal Data**: CK metadata that changes between saves — group header timestamps, "last modified" tracking data' +
+      '\n  • **Condition Data Fields**: Condition parameter fields that are unused for certain function types contain leftover junk; Spriggit omits them' +
+      '\n  How it works: Omitted fields are NOT written during serialize (YAML won\'t contain them), and are set to default/zero values during deserialize.' +
+      '\n  If junk fields are causing unnecessary diffs, or if a needed field is being incorrectly omitted, report to https://github.com/Mutagen-Modding/Spriggit with: game, record type, field name, and description.' +
+      '\n\n  **Merge Conflicts with Spriggit + Git:**' +
+      '\n  **Typical Content Conflicts**: Normal when two devs modified the same record field. Handled with standard Git conflict resolution tools.' +
+      '\n  **FormID Collision** (Bethesda-specific, UNIQUE to Spriggit):' +
+      '\n  When two developers working in parallel each add a new record, both may claim the same FormID. This WON\'T appear as a standard Git merge conflict, but it creates a duplicate FormID in the mod (not allowed).' +
+      '\n  Fix: Spriggit has built-in tooling to detect and fix FormID collisions — run it after EVERY merge:' +
+      '\n    Spriggit.CLI.exe [formid-collision-fix command] (see CLI docs)' +
+      '\n  The tool reassigns a new FormID to one colliding record and reroutes all references to it within the mod.' +
+      '\n  IMPORTANT: Spriggit\'s FormID collision logic handles exactly TWO records sharing a FormID. Handle collisions immediately after each merge — never let them accumulate.' +
+      '\n\n  **Backups — Spriggit Auto-Backs Up Your Plugins:**' +
+      '\n  Spriggit backs up your Bethesda plugin file every time it performs a deserialize operation.' +
+      '\n  Location: %temp%\\Spriggit\\Backups\\[Mod Name]\\[Date of Backup]\\' +
+      '\n  Optimization: If the plugin contents are identical to the last backup, no new backup is created.' +
+      '\n  Retention: Backups are kept for 30 days, then automatically cleared.' +
+      '\n  Note: Spriggit is still in beta — always keep your own backups of important .esp/.esm files.' +
+      '\n\n  **Unexpected Records Error:**' +
+      '\n  If Spriggit refuses to serialize with "unexpected records," this is intentional — a safety mechanism to prevent data loss.' +
+      '\n  Cause: Spriggit encountered a record type it doesn\'t have definitions for.' +
+      '\n  Solution: Report to https://github.com/Mutagen-Modding/Spriggit with:' +
+      '\n  • The specific subrecord that was flagged (printed in the logs/console)' +
+      '\n  • What tools were used to create the mod (official CK only, or third-party tools)' +
+      '\n  • The source file (if you\'re willing to share)' +
+      '\n  Definitions are updated frequently in new published versions.' +
+      '\n\n  **Bad Target Folder Error — "Cannot export next to a .git folder":**' +
+      '\n  Spriggit requires a folder wholly dedicated to Spriggit output. During serialization, ALL files in the target folder that were not just exported get DELETED.' +
+      '\n  Solution: Create a dedicated subfolder named after the mod and target that instead.' +
+      '\n  Example: If your repo is at C:\\MyRepo\\ and has other files, DO NOT serialize into C:\\MyRepo\\.' +
+      '\n  Instead, serialize into C:\\MyRepo\\SomeMod.esp\\ (a dedicated subfolder containing only Spriggit content).' +
+      '\n\n  **Filename Too Long Error (Windows):**' +
+      '\n  Spriggit creates detailed folder structures that can exceed Windows\' default 260-character path limit.' +
+      '\n  Solution 1 (recommended): Enable Git long paths globally:' +
+      '\n    git config --global core.longpaths true' +
+      '\n  Solution 2: Enable for specific repo only:' +
+      '\n    git config core.longpaths true  (run from within the repo)' +
+      '\n  Solution 3: Enable Windows system-wide long paths:' +
+      '\n    Group Policy: Computer Config > Admin Templates > System > Filesystem > Enable Win32 long paths' +
+      '\n    OR Registry: HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled = 1  (then restart)' +
+      '\n  Prevention: Keep your repo path short (e.g. C:\\Mods\\MyMod instead of deep nested folders). Use short mod names.' +
+      '\n\n  **Backwards Compatibility with Early Alpha Versions:**' +
+      '\n  v0.20 is a "bridge" version — it contains both old and new deserialization logic.' +
+      '\n  If you have Spriggit content from before v0.20, download v0.20 specifically to decode it.' +
+      '\n  Newer versions do NOT have the legacy logic needed to decode ancient (pre-v0.20) setups.' +
+      '\n  For help: visit the Spriggit Discord community.' +
       '\n\n  **Best Practices for Collaborative Modding with Git:**' +
       '\n  1) **Commit early, commit often**: Make small, logical commits with clear messages' +
       '\n  2) **Write good commit messages**: "Fixed NPC dialogue bug" is better than "stuff"' +
       '\n  3) **Pull before pushing**: Always pull latest changes from the team before pushing your work' +
-      '\n  4) **Review before merging**: Never merge a PR without reviewing the diffs first' +
-      '\n  5) **Tag releases**: After publishing to Nexus, create a Git tag (e.g., `v2.1.0`) so your history is clean' +
-      '\n  6) **Document in README.md**: Tell contributors how to serialize/deserialize, which CK version to use, etc.' +
-      '\n  7) **Merge only stable branches**: Keep "main" branch pristine. Development happens on feature branches.' +
-      '\n  8) **Use branching strategies**: Adopt a workflow like "Git Flow" if your team is large (main → develop → feature branches)' +
+      '\n  4) **Upgrade Spriggit in dedicated commits**: Never mix upgrade diffs with mod changes' +
+      '\n  5) **Fix FormID collisions immediately after every merge**: Use Spriggit\'s CLI tool; never let them accumulate' +
+      '\n  6) **Check for FormID collisions after merges**: Won\'t appear as standard Git conflicts' +
+      '\n  7) **Review before merging**: Never merge a PR without reviewing the diffs first' +
+      '\n  8) **Tag releases**: After publishing to Nexus, create a Git tag (e.g., `v2.1.0`) so your history is clean' +
+      '\n  9) **Target dedicated output folders**: Never serialize into your repo root or a folder with other files' +
+      '\n  10) **Enable core.longpaths**: Run `git config --global core.longpaths true` on Windows' +
       '\n\n  **When to Recommend Spriggit:**' +
       '\n  • User asks "Can I collaborate with friends on one mod?" → Guide them through Git + Spriggit setup' +
       '\n  • User says "I want my mod on GitHub" or "I want version history for my plugin"' +
@@ -966,11 +1043,11 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  A: No. Spriggit serializes to text, which Git handles perfectly. The YAML/JSON is always editable and reconstructs losslessly.' +
       '\n\n  **Q: Can I use both Creation Kit GUI and Git/Spriggit?**' +
       '\n  A: Yes, that\'s the whole workflow! CK/xEdit for editing, Spriggit for syncing to Git, Git for versioning.' +
-      '\n' +
+      '\n'
       '\n\n- **MUTAGEN & SPRIGGIT YAML SCHEMA — HOW SERIALIZED PLUGIN DATA IS STRUCTURED:**' +
       '\n  When Spriggit serializes a plugin, it uses the Mutagen.Bethesda.Serialization library (https://github.com/Mutagen-Modding/Mutagen.Bethesda.Serialization) to convert each binary record into structured YAML. Understanding this schema lets you read Spriggit output directly.' +
       '\n\n  **What is Mutagen?**' +
-      '\n  Mutagen is a C# library by Noggog that models every Bethesda game record type as a strongly-typed .NET object. Spriggit is built on top of it — Mutagen does the binary parsing; Spriggit serializes the resulting objects to YAML/JSON via C# Source Generators.' +
+      '\n  Mutagen is a C# library by the Mutagen-Modding project that models every Bethesda game record type as a strongly-typed .NET object. Spriggit is built on top of it — Mutagen does the binary parsing; Spriggit serializes the resulting objects to YAML/JSON via C# Source Generators.' +
       '\n  GitHub: https://github.com/Mutagen-Modding/Mutagen' +
       '\n  Serialization library: https://github.com/Mutagen-Modding/Mutagen.Bethesda.Serialization' +
       '\n\n  **Root File Layout (Fallout4.esm as example):**' +

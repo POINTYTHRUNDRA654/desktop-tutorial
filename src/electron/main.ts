@@ -3279,14 +3279,14 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       return {
         installed: false,
         version: oldVersionFound,
-        reason: `Found .NET Runtime ${oldVersionFound}, but 8.0+ is required. Upgrade at: https://dotnet.microsoft.com/download/dotnet/8.0`,
+        reason: `Found .NET ${oldVersionFound}, but 8.0+ is required. Download the .NET SDK from: https://dotnet.microsoft.com/download/dotnet`,
       };
     }
 
     return {
       installed: false,
       version: null,
-      reason: '.NET Runtime 8.0+ not found. Download it from: https://dotnet.microsoft.com/download/dotnet/8.0\n\n(Note: Install the ".NET Runtime" or ".NET Desktop Runtime" package — both include the base runtime Spriggit needs.)',
+      reason: '.NET SDK not found. Spriggit requires the SDK (not just the Runtime) to download its translation packages via "dotnet tool install". Download from: https://dotnet.microsoft.com/download/dotnet — then restart your PC.',
     };
   };
 
@@ -3431,19 +3431,20 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         }
       }
 
-      // Pre-check: Verify .NET Runtime 8.0+ is installed before spawning Spriggit processes.
-      // This avoids wasting time on consecutive timeouts/crashes if .NET is missing.
+      // Pre-check: Verify .NET SDK is installed before spawning Spriggit processes.
+      // Spriggit uses "dotnet tool install" to download its translation packages
+      // (e.g. Spriggit.Yaml.Fallout4) on first serialize — this requires the SDK.
       const dotnetCheck = await checkDotNetRuntime();
       if (!dotnetCheck.installed) {
         const reason = dotnetCheck.reason || 'Unknown reason';
         return {
           ok: false,
           files: [],
-          error: `Cannot run Spriggit: .NET Runtime 8.0+ is required.\n` +
+          error: `Cannot run Spriggit: .NET SDK is required.\n` +
             `${reason}\n\n` +
-            `Download .NET Runtime 8.0 from:\n` +
-            `https://dotnet.microsoft.com/download/dotnet/8.0\n\n` +
-            `After installation, restart Mossy and try again.`,
+            `Download the .NET SDK from:\n` +
+            `https://dotnet.microsoft.com/download/dotnet\n\n` +
+            `After installing, restart your PC and try again.`,
         };
       }
 
@@ -3506,7 +3507,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         '     (bundles .NET, no separate install needed):\n' +
         '     https://github.com/Mutagen-Modding/Spriggit/releases\n' +
         '     Download SpriggitCLI.zip and use that Spriggit.CLI.exe instead.\n' +
-        '  2. .NET Runtime 8.0+ is not installed — download from: https://dotnet.microsoft.com/download/dotnet/8.0\n' +
+        '  2. .NET SDK not installed — Spriggit needs the SDK (not just Runtime) to\n' +
+        '     download translation packages via "dotnet tool install".\n' +
+        '     Download: https://dotnet.microsoft.com/download/dotnet  (then restart PC)\n' +
         '  3. Antivirus blocked Spriggit.CLI.exe — add an exception or try disabling AV temporarily.\n' +
         '  4. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.';
       // Shown at the end of both self-test error messages so the user can reproduce manually.
@@ -3535,7 +3538,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             files: [],
             error:
               'Spriggit.CLI.exe crashed immediately (exit code 0xFFFFFFFF).\n' +
-              '.NET Runtime 8.0+ was detected, so the most likely causes are:\n' +
+              '.NET SDK was detected, so the most likely causes are:\n' +
               '  1. Stale assembly cache — click "Clear Cache & Retry" to wipe it and let\n' +
               '     Spriggit re-extract cleanly.  Cache location (Mossy-controlled):\n' +
               `       ${spriggitDotnetCacheDir}\n` +
