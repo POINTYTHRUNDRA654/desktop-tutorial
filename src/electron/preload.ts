@@ -638,6 +638,10 @@ const electronAPI = {
     outputPath: string;
     /** When true, serialize only vanilla/DLC ESMs instead of custom mods. */
     vanillaOnly?: boolean;
+    /** Custom NuGet package name, e.g. 'Spriggit.Yaml.Fallout4' (default) or a user-published package. */
+    packageName?: string;
+    /** Local NuGet source directory — lets Spriggit use locally cached packages instead of downloading from nuget.org. */
+    nugetSource?: string;
   }): Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string; skippedVanillaCount?: number; skippedCustomCount?: number; noCustomMods?: boolean; noVanillaPlugins?: boolean }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_SERIALIZE, params);
   },
