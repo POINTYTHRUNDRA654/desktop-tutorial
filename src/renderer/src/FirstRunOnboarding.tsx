@@ -1935,8 +1935,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     try {
                                                         const res = await api.spriggitUnblockFiles();
                                                         setUnblockResult(res);
-                                                    } catch {
-                                                        setUnblockResult({ ok: false, error: 'Unblock-File failed unexpectedly.' });
+                                                    } catch (e: unknown) {
+                                                        const msg = e instanceof Error ? e.message : String(e);
+                                                        setUnblockResult({ ok: false, error: msg || 'Unblock-File failed unexpectedly.' });
                                                     } finally {
                                                         setUnblockInProgress(false);
                                                     }
@@ -1947,7 +1948,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         )}
                                         {unblockResult?.ok && (
                                             <span className="text-xs text-violet-300 font-semibold">
-                                                ✅ Unblocked {unblockResult.unblocked ?? 0} file(s) in {unblockResult.folderPath} — now click <strong>🗑️ Clear Cache &amp; Retry</strong> to finish.
+                                                ✅ Unblocked {unblockResult.unblocked ?? 0} file(s) in …{(unblockResult.folderPath ?? '').split(/[\\/]/).slice(-2).join('/')} — now click <strong>🗑️ Clear Cache &amp; Retry</strong> to finish.
                                             </span>
                                         )}
                                         {unblockResult && !unblockResult.ok && (
