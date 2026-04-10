@@ -602,8 +602,8 @@ export interface Settings {
     autoLockAfterInactivity: boolean;
     inactivityTimeoutMinutes: number;
 
-    // Mod Content Blacklist — mod names/IDs that Mossy will not reference or use as examples
-    modContentBlacklist: string[];
+    // Mod Content Whitelist — protected mod names/IDs that Mossy will not reference, use as examples, or touch in any way
+    modContentWhitelist: string[];
   };
 
   // Security Settings
@@ -843,8 +843,8 @@ export const DEFAULT_SETTINGS: Settings = {
     autoLockAfterInactivity: false,
     inactivityTimeoutMinutes: 30,
 
-    // Mod Content Blacklist
-    modContentBlacklist: [],
+    // Mod Content Whitelist
+    modContentWhitelist: [],
   },
 
   // Security Settings
