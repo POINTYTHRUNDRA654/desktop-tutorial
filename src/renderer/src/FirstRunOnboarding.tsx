@@ -32,14 +32,14 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     // ── Runtime prerequisites ─────────────────────────────────────────────────
     // These must be installed first; many Mossy features silently fail without them.
     {
-        name: '.NET Runtime 8.0+',
-        description: 'Required runtime for Spriggit.CLI.exe and many other .NET-based modding tools. Without it, the vanilla ESM digest step will fail immediately with exit code 0xFFFFFFFF.',
-        detectKeywords: ['microsoft .net', '.net desktop runtime', '.net runtime'],
-        url: 'https://dotnet.microsoft.com/download/dotnet/8.0',
+        name: '.NET SDK (latest)',
+        description: 'Required by Spriggit and other .NET-based modding tools. The SDK (not just the Runtime) is needed so Spriggit can download its translation packages via "dotnet tool install" at first serialize run. Restart your PC after installing.',
+        detectKeywords: ['microsoft .net', '.net desktop runtime', '.net runtime', '.net sdk', 'dotnet sdk'],
+        url: 'https://dotnet.microsoft.com/download/dotnet',
         urlLabel: 'dotnet.microsoft.com',
         category: 'runtime',
         required: true,
-        ifMissing: 'Spriggit digest will crash instantly (exit 0xFFFFFFFF). No vanilla ESM brain-boost. Mossy cannot run any .NET-based tools.',
+        ifMissing: 'Spriggit serialize will crash with exit 0xFFFFFFFF. The SDK is required so Spriggit can fetch its Fallout4 translation package on first run. Mossy cannot run any .NET-based tools.',
     },
     {
         name: 'Git for Windows',
@@ -714,13 +714,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 });
             });
 
-            // .NET Runtime — inject a warning card if missing
+            // .NET SDK — inject a warning card if missing
             if (!dotnetAvailable) {
                 recs.unshift({
-                    name: '.NET Runtime (missing)',
-                    path: 'https://dotnet.microsoft.com/download/dotnet/8.0',
+                    name: '.NET SDK (missing)',
+                    path: 'https://dotnet.microsoft.com/download/dotnet',
                     category: 'modding',
-                    benefit: '⚠️ Required by Spriggit and other .NET tools. Install .NET Runtime 8.0+ before using the Spriggit digest step.',
+                    benefit: '⚠️ Required by Spriggit (SDK, not just Runtime — needed for dotnet tool install of translation packages). Install then restart your PC.',
                     boostsMossy: true,
                 });
             }
@@ -822,9 +822,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     if (!ok) {
                         setSpriggitStatus('error');
                         setSpriggitMessage(
-                            '.NET Runtime 8.0 or later is required to run Spriggit (exit code 4294967295 / 0xFFFFFFFF).\n' +
-                            'Please install it and click Re-check .NET, then try again.\n' +
-                            'Download it from: https://dotnet.microsoft.com/download/dotnet/8.0'
+                            '.NET SDK is required to run Spriggit (exit code 4294967295 / 0xFFFFFFFF).\n' +
+                            'The SDK (not just the Runtime) is needed so Spriggit can download its\n' +
+                            'Fallout4 translation package via "dotnet tool install" on first serialize run.\n' +
+                            'After installing, restart your PC, then try again.\n' +
+                            'Download: https://dotnet.microsoft.com/download/dotnet'
                         );
                         return;
                     }
@@ -1590,15 +1592,17 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             This is optional — you can skip it now and do it later from the Memory Vault panel.
                         </p>
 
-                        {/* .NET Runtime warning — shown when .NET is confirmed missing or status is unknown.
+                        {/* .NET SDK warning — shown when .NET is confirmed missing or status is unknown.
                             Kept visible for dotnetOk === null so new users always see the install button
                             even before the auto-check finishes or when it is inconclusive. */}
                         {dotnetOk !== true && !dotnetCheckingOnEntry && (
                             <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 text-sm text-left bg-amber-900/30 border border-amber-600/50 text-amber-200">
-                                <strong>{dotnetOk === false ? '⚠️ .NET Runtime not detected.' : '⚠️ .NET Runtime status unknown.'}</strong>
+                                <strong>{dotnetOk === false ? '⚠️ .NET SDK not detected.' : '⚠️ .NET SDK status unknown.'}</strong>
                                 <br />
-                                Spriggit.CLI.exe requires <strong>.NET Runtime 8.0 or later</strong> to run.
-                                Without it every plugin will fail immediately with exit code 4294967295.
+                                Spriggit requires the <strong>.NET SDK</strong> (not just the Runtime) — it uses{' '}
+                                <code className="bg-amber-900/50 px-1 rounded">dotnet tool install</code> to download
+                                its Fallout4 translation package on first serialize run.{' '}
+                                <strong>Restart your PC after installing.</strong>
                                 <br />
                                 <div className="mt-2 p-2 rounded bg-amber-800/30 border border-amber-500/40 text-amber-100 text-xs">
                                     <strong>✨ Easiest fix:</strong> Download the <strong>self-contained Spriggit build</strong> — it bundles .NET and requires no separate installation.
@@ -1625,13 +1629,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         onClick={() => {
                                             const api = getElectronApi();
                                             if (api?.openExternal) {
-                                                void api.openExternal('https://dotnet.microsoft.com/download/dotnet/8.0');
+                                                void api.openExternal('https://dotnet.microsoft.com/download/dotnet');
                                             } else {
-                                                window.open('https://dotnet.microsoft.com/download/dotnet/8.0', '_blank');
+                                                window.open('https://dotnet.microsoft.com/download/dotnet', '_blank');
                                             }
                                         }}
                                     >
-                                        Or install .NET Runtime 8.0 →
+                                        Or install .NET SDK →
                                     </button>
                                     <button
                                         type="button"
@@ -1669,7 +1673,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         )}
                         {dotnetCheckingOnEntry && (
                             <div className="max-w-lg mx-auto mb-4 text-xs text-slate-400 flex items-center gap-2">
-                                <span className="animate-spin inline-block">🔄</span> Checking for .NET Runtime…
+                                <span className="animate-spin inline-block">🔄</span> Checking for .NET SDK…
                             </div>
                         )}
 
@@ -1775,13 +1779,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 onClick={() => {
                                                     const api = getElectronApi();
                                                     if (api?.openExternal) {
-                                                        void api.openExternal('https://dotnet.microsoft.com/download/dotnet/8.0');
+                                                        void api.openExternal('https://dotnet.microsoft.com/download/dotnet');
                                                     } else {
-                                                        window.open('https://dotnet.microsoft.com/download/dotnet/8.0', '_blank');
+                                                        window.open('https://dotnet.microsoft.com/download/dotnet', '_blank');
                                                     }
                                                 }}
                                             >
-                                                Download .NET Runtime 8.0 →
+                                                Download .NET SDK →
                                             </button>
                                         )}
                                         <button
