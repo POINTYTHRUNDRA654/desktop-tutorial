@@ -133,6 +133,9 @@ const CKExtension = React.lazy(() => import('./CKExtension').then(module => ({ d
 // Knowledge & Memory
 const MossyMemoryVault = React.lazy(() => import('./MossyMemoryVault'));
 const CKCrashPrevention = React.lazy(() => import('./CKCrashPreventionMining').then(module => ({ default: module.CKCrashPrevention })));
+
+/** Delay (ms) before navigating to the post-onboarding route (lets the overlay finish closing). */
+const POST_ONBOARDING_NAV_DELAY_MS = 150;
 const DDSConverter = React.lazy(() => import('./DDSConverter').then(module => ({ default: module.DDSConverter })));
 const TextureGenerator = React.lazy(() => import('./TextureGenerator').then(module => ({ default: module.TextureGenerator })));
 
@@ -961,6 +964,16 @@ const App: React.FC = () => {
           <FirstRunOnboarding
             onComplete={() => {
               setShowFirstRun(false);
+              // If the user clicked "Open in Auditor" on the Spriggit digest step,
+              // navigate there now that the onboarding overlay has been dismissed.
+              try {
+                const pendingNav = localStorage.getItem('mossy_post_onboarding_nav');
+                if (pendingNav) {
+                  localStorage.removeItem('mossy_post_onboarding_nav');
+                  setTimeout(() => { window.location.hash = pendingNav; }, POST_ONBOARDING_NAV_DELAY_MS);
+                  return; // skip tutorial launch prompt when navigating directly
+                }
+              } catch { /* ignore */ }
               // Show tutorial launch prompt after onboarding
               setTimeout(() => {
                 setShowTutorialLaunch(true);
