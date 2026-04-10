@@ -54,6 +54,10 @@ export function buildNoPluginsError(allPluginFiles: string[]): string {
   return (
     'Only vanilla/DLC Fallout 4 plugins were found in the Data folder.\n' +
     'The Spriggit digest is designed to learn your custom mods — Mossy already has built-in knowledge of the base game and official DLC.\n\n' +
-    'To use this feature, make sure your custom .esp/.esm/.esl mod files are present in the Data folder, then try again.'
+    '💡 Using Mod Organizer 2 (MO2)? MO2 uses a virtual file system — your mods are NOT stored in the actual Data folder. ' +
+    'To use this feature you would need to run the serialize step from inside MO2, or deploy your mods to the Data folder first.\n\n' +
+    '💡 Using Vortex? Vortex deploys mods directly to the Data folder. ' +
+    'If you have mods enabled in Vortex, make sure they are fully deployed, then try again.\n\n' +
+    'If you have custom mods installed another way, point to the folder that contains your .esp/.esm/.esl files and try again.'
   );
 }

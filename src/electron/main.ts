@@ -3354,7 +3354,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       );
       const { pluginFiles, skippedVanillaCount } = filterPluginsForSpriggit(allPluginFiles);
       if (pluginFiles.length === 0) {
-        return { ok: false, files: [], error: buildNoPluginsError(allPluginFiles), skippedVanillaCount };
+        return { ok: false, files: [], error: buildNoPluginsError(allPluginFiles), skippedVanillaCount, noCustomMods: true };
       }
 
       // Pre-check: Verify .NET Runtime 8.0+ is installed before spawning Spriggit processes.
