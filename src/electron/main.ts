@@ -3599,6 +3599,10 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const spriggitCliDir = path.dirname(cliPath);
       const spriggitDotnetCacheDir = path.join(spriggitCliDir, 'spriggit-dotnet-cache');
       try { fs.mkdirSync(spriggitDotnetCacheDir, { recursive: true }); } catch { /* non-fatal */ }
+      // Derive the drive letter / root of the cache directory so disk-space hints can
+      // reference the actual drive (e.g. "D:") rather than the hardcoded "C:".
+      // path.parse().root returns "D:\" on Windows; strip the trailing slash for display.
+      const cacheDriveRoot = path.parse(spriggitDotnetCacheDir).root.replace(/[/\\]$/, '') || 'C:';
       // Env vars passed to every Spriggit spawn:
       //   DOTNET_BUNDLE_EXTRACT_BASE_DIR — redirects single-file assembly extraction to the
       //                                    Spriggit folder so SAC sees them beside a trusted exe
@@ -3697,7 +3701,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               '  1. Stale assembly cache — click "Clear Cache & Retry" to wipe it and let\n' +
               '     Spriggit re-extract cleanly.  Cache location (Mossy-controlled):\n' +
               `       ${spriggitDotnetCacheDir}\n` +
-              '  2. Low disk space — the temp extraction needs several hundred MB free on C:.\n' +
+              `  2. Low disk space — the cache extraction needs several hundred MB free on ${cacheDriveRoot} (the drive where Spriggit is installed).\n` +
               '  3. Smart App Control (Windows 11) — can block unsigned extracted binaries.\n' +
               '     Check Windows Security → App & browser control → Smart App Control.\n' +
               '  4. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +
@@ -3957,7 +3961,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                 (versionBanner ? versionBanner + '\n' : '') +
                 versionHint +
                 cacheHint +
-                '\n  3. Free up disk space — cache extraction needs several hundred MB free on C:.\n\n' +
+                `\n  3. Free up disk space — cache extraction needs several hundred MB free on ${cacheDriveRoot} (the drive where Spriggit is installed).\n\n` +
                 (spriggitVersionTooOld
                   ? '  4. Smart App Control (Windows 11) — can silently block unsigned extracted\n' +
                     '     binaries even when standard AV shows nothing.\n' +
@@ -3985,7 +3989,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                 '  2. Stale cache — click "Clear Cache & Retry" to wipe it so Spriggit can re-extract:\n' +
                 `       ${spriggitDotnetCacheDir}\n` +
                 '     Then try again.\n' +
-                '  3. Low disk space — cache extraction needs several hundred MB free on C:.\n' +
+                `  3. Low disk space — cache extraction needs several hundred MB free on ${cacheDriveRoot} (the drive where Spriggit is installed).\n` +
                 '  4. Smart App Control (Windows 11) — check Windows Security → App & browser control.\n' +
                 '  5. Wrong zip — make sure you have SpriggitCLI.zip (not the Spriggit.zip GUI app).\n' +
                 '  6. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +

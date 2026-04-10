@@ -1955,7 +1955,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                             ⚠️ Cache cleared but still failing —{' '}
                                                             {detectedFo4Version.startsWith('1.11.')
                                                                 ? <>Check <strong>Smart App Control</strong> (Windows Security → App &amp; browser control) — this is the most likely cause when the Spriggit version is current.</>
-                                                                : <>most likely fix: check Smart App Control (Windows Security) and free disk space on C:. Also try Re-downloading Spriggit.</>
+                                                                : <>most likely fix: check Smart App Control (Windows Security) and free disk space on the drive where Spriggit is installed. Also try Re-downloading Spriggit.</>
                                                             }
                                                         </span>
                                                     )}
