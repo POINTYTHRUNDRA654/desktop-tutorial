@@ -3517,17 +3517,33 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         '  5. To confirm the real error, open a Command Prompt and run Spriggit manually:\n' +
         '     Spriggit.CLI.exe serialize --InputPath "path\\to\\plugin.esp" --OutputPath "C:\\Temp\\out" --GameRelease Fallout4 --PackageName Spriggit.Yaml.Fallout4';
 
-      const selfTestCode = await new Promise<number | null>((resolve) => {
+      // Capture both the exit code AND stdout (the version string) from --version.
+      // The version string is used in error messages so users see exactly which
+      // build they have (e.g. "Spriggit 0.22.0 detected") and can decide whether
+      // to update — much more actionable than a generic "version too old" hint.
+      const selfTestResult = await new Promise<{ code: number | null; version: string }>((resolve) => {
         let settled = false;
-        const settle = (v: number | null) => { if (!settled) { settled = true; resolve(v); } };
+        let versionOut = '';
+        const settle = (v: { code: number | null; version: string }) => {
+          if (!settled) { settled = true; resolve(v); }
+        };
         const testChild = spawn(cliPath, ['--version'], { shell: false, windowsHide: true, cwd: path.dirname(cliPath), env: spriggitEnv });
+        if (testChild.stdout) testChild.stdout.on('data', (d: Buffer) => { versionOut += d.toString(); });
+        if (testChild.stderr) testChild.stderr.on('data', (d: Buffer) => { versionOut += d.toString(); });
         const timer = setTimeout(() => {
           try { testChild.kill(); } catch { /* ignore */ }
-          settle(null); // timed out → inconclusive, proceed with full serialize
+          settle({ code: null, version: versionOut.trim() }); // timed out → inconclusive, proceed
         }, SPRIGGIT_SELFTEST_TIMEOUT_MS);
-        testChild.on('error', () => { clearTimeout(timer); settle(-1); });
-        testChild.on('close', (code) => { clearTimeout(timer); settle(code); });
+        testChild.on('error', () => { clearTimeout(timer); settle({ code: -1, version: versionOut.trim() }); });
+        testChild.on('close', (code) => { clearTimeout(timer); settle({ code, version: versionOut.trim() }); });
       });
+      const selfTestCode = selfTestResult.code;
+      // Trim to the first non-empty line — Spriggit outputs just its version number,
+      // but some builds also emit a blank prefix line.  We want "0.25.3" not "\n0.25.3".
+      const spriggitDetectedVersion = selfTestResult.version
+        .split('\n')
+        .map(l => l.trim())
+        .find(l => l.length > 0) ?? '';
 
       if (selfTestCode === SPRIGGIT_CRASH_EXIT_CODE) {
         // Re-check .NET to produce a more targeted error message.
