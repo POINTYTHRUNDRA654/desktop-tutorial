@@ -1856,6 +1856,27 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 📂 Open Spriggit folder
                                             </button>
                                         )}
+                                        {/* "Open Windows Security" — shown when version is current and
+                                            SAC is the #1 suspect.  Opens Settings → Windows Security
+                                            directly so the user can navigate to Smart App Control
+                                            without hunting through multiple menus. */}
+                                        {spriggitVersionTooOld === false && (
+                                            <button
+                                                type="button"
+                                                className="px-3 py-1 rounded bg-sky-800/60 hover:bg-sky-700/60 text-sky-100 text-xs font-semibold transition-colors"
+                                                onClick={() => {
+                                                    const api = getElectronApi();
+                                                    const sacUrl = 'ms-settings:windowsdefender';
+                                                    if (api?.openExternal) {
+                                                        void api.openExternal(sacUrl);
+                                                    } else {
+                                                        window.open(sacUrl, '_blank');
+                                                    }
+                                                }}
+                                            >
+                                                🔒 Open Windows Security →
+                                            </button>
+                                        )}
                                         {/* "Re-download Spriggit" — shown whenever a 0xFFFFFFFF crash or
                                             silent-failure occurs.  When a genuine version mismatch is
                                             confirmed (spriggitVersionTooOld=true), this is the ONLY real

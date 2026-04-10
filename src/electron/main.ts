@@ -3600,12 +3600,18 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const spriggitDotnetCacheDir = path.join(spriggitCliDir, 'spriggit-dotnet-cache');
       try { fs.mkdirSync(spriggitDotnetCacheDir, { recursive: true }); } catch { /* non-fatal */ }
       // Env vars passed to every Spriggit spawn:
-      //   DOTNET_BUNDLE_EXTRACT_BASE_DIR — redirects single-file assembly extraction
+      //   DOTNET_BUNDLE_EXTRACT_BASE_DIR — redirects single-file assembly extraction to the
+      //                                    Spriggit folder so SAC sees them beside a trusted exe
       //   DOTNET_CLI_TELEMETRY_OPTOUT    — disables telemetry probes that can stall on startup
+      //   DOTNET_EnableDiagnostics       — disables the .NET diagnostic infrastructure (EventPipe,
+      //                                    profiler sockets, debugger listener).  These hooks can
+      //                                    trigger additional SAC/AV scans that cause 0xFFFFFFFF
+      //                                    crashes even when the main binary is trusted.
       const spriggitEnv = {
         ...process.env,
         DOTNET_BUNDLE_EXTRACT_BASE_DIR: spriggitDotnetCacheDir,
         DOTNET_CLI_TELEMETRY_OPTOUT: '1',
+        DOTNET_EnableDiagnostics: '0',
       };
 
       // Quick self-test: run Spriggit.CLI.exe --version before processing all plugins.
@@ -3992,10 +3998,19 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         errorSummary = shown + tail + hint;
       }
       // All YAML content is now held in resultFiles (in memory).
-      // Clean up both temp directories from disk so nothing lingers on the C drive:
-      //   spriggit-output/      — YAML files produced by Spriggit (content already in memory)
-      //   spriggit-dotnet-cache/ — .NET assembled extracted during the run (no longer needed)
-      const dirsToClean = [safeOutput, spriggitDotnetCacheDir];
+      // Clean up the YAML output directory — its content is already read into memory so
+      // there is no reason to keep it on disk.
+      //
+      // NOTE: we intentionally do NOT delete spriggitDotnetCacheDir here.  Keeping the
+      // extracted .NET assemblies on disk between runs gives two benefits:
+      //   1. Speed — subsequent serialize runs skip the extraction step entirely.
+      //   2. Windows SAC compatibility — Smart App Control evaluates unsigned DLLs the
+      //      first time they appear.  If we delete the cache after every run, SAC has to
+      //      evaluate a fresh set of "new" assemblies on every attempt, which is exactly
+      //      what causes the persistent 0xFFFFFFFF crash.  Preserving the cache lets SAC
+      //      (in "Evaluation" mode) build trust for these assemblies over time.
+      //      Users can still wipe it manually via the "Clear Cache & Retry" button.
+      const dirsToClean = [safeOutput];
       for (const dir of dirsToClean) {
         try {
           if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
