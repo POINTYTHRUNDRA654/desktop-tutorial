@@ -20,6 +20,7 @@ import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
 import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
 import { autoUpdaterService } from './autoUpdater';
 import { detectAndHandleVersionUpdate, markFreshInstallProcessed } from './dataMigration';
+import { filterPluginsForSpriggit, buildNoPluginsError } from './spriggitPluginFilter';
 import fs from 'fs';
 import { spawn, exec } from 'child_process';
 import { BridgeServer } from './BridgeServer';
@@ -3308,6 +3309,25 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // spriggit-open-folder: Open the folder containing the Spriggit.CLI.exe in the
+  // system file manager.  Shown in the UI after a 0xFFFFFFFF crash so the user can
+  // verify that all DLLs were extracted beside the exe.
+  registerHandler(IPC_CHANNELS.SPRIGGIT_OPEN_FOLDER, async (_event, filePath: string) => {
+    try {
+      if (!filePath || typeof filePath !== 'string') {
+        return { ok: false, error: 'No path provided.' };
+      }
+      const folderPath = fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()
+        ? filePath
+        : path.dirname(filePath);
+      await shell.openPath(folderPath);
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[Main] spriggit-open-folder error:', e);
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
   // spriggit-serialize: Run Spriggit.CLI.exe serialize on the user's Fallout 4
   // Data folder, then read the resulting YAML/JSON files into memory so the
   // caller can digest them into the Knowledge Vault.
@@ -3417,12 +3437,15 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         : path.join(app.getPath('userData'), 'spriggit-output');
       fs.mkdirSync(safeOutput, { recursive: true });
 
-      // Find all .esp/.esm/.esl files in the Data folder (top-level only)
-      const pluginFiles = fs.readdirSync(dataPath).filter(f =>
+      // Vanilla / official-DLC Fallout 4 plugins — skip these during digest so we
+      // only process the user's own mods.  See spriggitPluginFilter.ts for rationale.
+      const allPluginFiles = fs.readdirSync(dataPath).filter(f =>
         /\.(esp|esm|esl)$/i.test(f)
       );
+      const { pluginFiles, skippedVanillaCount } = filterPluginsForSpriggit(allPluginFiles);
+
       if (pluginFiles.length === 0) {
-        return { ok: false, files: [], error: 'No plugin files (.esp/.esm/.esl) found in the Data folder.' };
+        return { ok: false, files: [], error: buildNoPluginsError(allPluginFiles) };
       }
 
       /**
@@ -3590,6 +3613,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         ok: resultFiles.length > 0,
         files: resultFiles,
         error: errorSummary,
+        skippedVanillaCount,
       };
     } catch (e: any) {
       console.error('[Main] spriggit-serialize error:', e);
