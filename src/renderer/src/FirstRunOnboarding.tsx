@@ -1487,7 +1487,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     </button>
                                 </div>
                                 <p className="text-xs text-slate-500 mt-1">
-                                    Download from <button type="button" onClick={() => void openExternal('https://github.com/Mutagen-Modding/Spriggit/releases')} className="text-emerald-400 hover:underline">github.com/Mutagen-Modding/Spriggit</button>
+                                    Download from{' '}
+                                    <button type="button" onClick={() => void openExternal('https://github.com/Mutagen-Modding/Spriggit/releases')} className="text-emerald-400 hover:underline">
+                                        github.com/Mutagen-Modding/Spriggit
+                                    </button>
+                                    {' '}— on the releases page, download{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">SpriggitCLI.zip</code>
+                                    {' '}(not <code className="bg-slate-700 px-1 rounded text-slate-400">Spriggit.zip</code>).
+                                    Extract the full zip and browse to the <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.CLI.exe</code> inside it.
                                 </p>
                             </div>
 
