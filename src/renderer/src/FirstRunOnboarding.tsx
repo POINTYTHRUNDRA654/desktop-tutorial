@@ -21,19 +21,56 @@ interface RecommendedDownload {
     detectKeywords: string[];
     url: string;
     urlLabel: string;
-    category: 'modding' | 'version-control' | 'creative';
+    category: 'modding' | 'version-control' | 'creative' | 'runtime';
     required: boolean;
+    /** One-line consequence shown when this tool is NOT installed, so the user
+     *  knows exactly which Mossy features will be broken or unavailable. */
+    ifMissing: string;
 }
 
 const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
+    // ── Runtime prerequisites ─────────────────────────────────────────────────
+    // These must be installed first; many Mossy features silently fail without them.
+    {
+        name: '.NET Runtime 8.0+',
+        description: 'Required runtime for Spriggit.CLI.exe and many other .NET-based modding tools. Without it, the vanilla ESM digest step will fail immediately with exit code 0xFFFFFFFF.',
+        detectKeywords: ['microsoft .net', '.net desktop runtime', '.net runtime'],
+        url: 'https://dotnet.microsoft.com/download/dotnet/8.0',
+        urlLabel: 'dotnet.microsoft.com',
+        category: 'runtime',
+        required: true,
+        ifMissing: 'Spriggit digest will crash instantly (exit 0xFFFFFFFF). No vanilla ESM brain-boost. Mossy cannot run any .NET-based tools.',
+    },
+    {
+        name: 'Git for Windows',
+        description: 'Version control system required for the Spriggit collaborative modding workflow and for pushing serialized plugin YAML to GitHub. Also lets Mossy give git-based advice.',
+        detectKeywords: ['git', 'git bash', 'git for windows'],
+        url: 'https://git-scm.com/download/win',
+        urlLabel: 'git-scm.com',
+        category: 'runtime',
+        required: false,
+        ifMissing: 'Spriggit YAML cannot be pushed to GitHub. Mossy cannot give git commit/branch/merge advice or help set up version control for your mods.',
+    },
+    {
+        name: 'Visual C++ Redistributables',
+        description: 'Microsoft runtime libraries required by xEdit, Buffout 4, F4SE, and most compiled Fallout 4 mods and tools. Install both the x64 and x86 versions.',
+        detectKeywords: ['visual c++', 'microsoft visual c++', 'vcredist'],
+        url: 'https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist',
+        urlLabel: 'microsoft.com',
+        category: 'runtime',
+        required: true,
+        ifMissing: 'xEdit, F4SE, Buffout 4, and most compiled modding tools will refuse to launch or crash on startup.',
+    },
+    // ── Modding tools ─────────────────────────────────────────────────────────
     {
         name: 'Spriggit',
-        description: 'Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Works with GitHub out of the box.',
+        description: 'Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Used by Mossy\'s onboarding brain-boost step to ingest the vanilla ESMs.',
         detectKeywords: ['spriggit'],
         url: 'https://github.com/Mutagen-Modding/Spriggit/releases',
         urlLabel: 'GitHub Releases',
         category: 'version-control',
         required: false,
+        ifMissing: 'Mossy cannot digest vanilla ESMs into her Knowledge Vault. The brain-boost onboarding step will be unavailable.',
     },
     {
         name: 'xEdit / FO4Edit',
@@ -43,6 +80,17 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: true,
+        ifMissing: 'Mossy cannot open plugins in xEdit from the Auditor. Conflict resolution, cleaning masters, and record editing will require manual setup outside Mossy.',
+    },
+    {
+        name: 'Fallout 4 Creation Kit',
+        description: 'Bethesda\'s official editor for Fallout 4. Required for CK Crash Prevention monitoring, Papyrus script compilation, worldspace editing, and quest creation. Free on Steam.',
+        detectKeywords: ['creation kit', 'creationkit', 'ck2'],
+        url: 'https://store.steampowered.com/app/1946160/Fallout_4_Creation_Kit/',
+        urlLabel: 'Steam (free)',
+        category: 'modding',
+        required: false,
+        ifMissing: 'CK Crash Prevention live monitoring will be unavailable. Papyrus compilation, navmesh editing, and worldspace tools inside Mossy will not function.',
     },
     {
         name: 'Mod Organizer 2',
@@ -52,6 +100,17 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'GitHub Releases',
         category: 'modding',
         required: false,
+        ifMissing: 'Mossy cannot detect your MO2 profile or load order. Load Order tools and MO2-specific advice will not be available.',
+    },
+    {
+        name: 'Vortex Mod Manager',
+        description: 'Nexus Mods\' official mod manager. Deploys mods directly to the Data folder and integrates with NexusMods.com for one-click installs.',
+        detectKeywords: ['vortex'],
+        url: 'https://www.nexusmods.com/about/vortex/',
+        urlLabel: 'Nexus Mods',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Mossy cannot read your Vortex profile or load order. Vortex-specific integration features will be unavailable.',
     },
     {
         name: 'LOOT',
@@ -61,6 +120,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'GitHub Releases',
         category: 'modding',
         required: false,
+        ifMissing: 'Load order sorting assistance will require manual effort. Mossy cannot trigger LOOT runs or interpret its sort results.',
     },
     {
         name: 'NifSkope',
@@ -70,6 +130,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'GitHub Releases',
         category: 'modding',
         required: false,
+        ifMissing: 'Mossy cannot open NIF files in NifSkope from the Auditor. Mesh inspection and BSX flag editing will require manual tool launch.',
     },
     {
         name: 'BodySlide & Outfit Studio',
@@ -79,6 +140,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: false,
+        ifMissing: 'Outfit mesh conversion and body preset building will not be available through Mossy.',
     },
     {
         name: 'F4SE (Fallout 4 Script Extender)',
@@ -88,6 +150,37 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Official Site',
         category: 'modding',
         required: true,
+        ifMissing: 'MCM Framework, Address Library, Addictol, and most advanced mods will not load. Many Mossy-guided workflows require F4SE to be active.',
+    },
+    {
+        name: 'Address Library for F4SE',
+        description: 'Required by virtually every F4SE plugin (Buffout 4, MCM Framework, etc.). Without it most SKSE/F4SE-dependent mods will fail to load. Install the All-in-One version.',
+        detectKeywords: ['address library'],
+        url: 'https://www.nexusmods.com/fallout4/mods/47327',
+        urlLabel: 'Nexus Mods',
+        category: 'modding',
+        required: true,
+        ifMissing: 'Addictol, MCM Framework, and virtually every F4SE plugin will fail to load. This is a hard dependency for the entire F4SE ecosystem.',
+    },
+    {
+        name: 'Addictol (Stability Suite)',
+        description: 'All-in-one stability fix for Fallout 4 (OG/NG/AE/1.11.x). Replaces and supersedes Buffout 4, X-Cell, BakaMaxPapyrusOps, Faster Workshop, and more. Do NOT install those separately alongside Addictol.',
+        detectKeywords: ['addictol'],
+        url: 'https://www.nexusmods.com/fallout4/mods/84214',
+        urlLabel: 'Nexus Mods',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Game stability may be reduced. Memory management, stutter fixes, and script heap optimisations will be absent. Crash logs may also be missing.',
+    },
+    {
+        name: 'CLASSIC Crash Log Scanner',
+        description: 'Automatically scans Buffout 4 crash logs and produces a human-readable diagnosis. Pair with Addictol for a complete crash-debugging setup.',
+        detectKeywords: ['classic'],
+        url: 'https://www.nexusmods.com/fallout4/mods/56255',
+        urlLabel: 'Nexus Mods',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Mossy cannot auto-scan crash logs. Post-crash analysis in the CK Crash Prevention panel will require manual log reading.',
     },
     {
         name: 'B.A.E. (Bethesda Archive Extractor)',
@@ -97,6 +190,18 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: false,
+        ifMissing: 'Vanilla .ba2 archives cannot be inspected or extracted. Asset comparison and base-game texture/mesh work will require an alternative tool.',
+    },
+    // ── Creative tools ────────────────────────────────────────────────────────
+    {
+        name: 'Blender',
+        description: 'Free open-source 3D creation suite. Mossy has a direct Neural Link integration (Mossy Link addon) for Blender 4.0+ — enabling live script execution, mesh automation, and FO4 asset export from within Mossy.',
+        detectKeywords: ['blender'],
+        url: 'https://www.blender.org/download/',
+        urlLabel: 'blender.org',
+        category: 'creative',
+        required: false,
+        ifMissing: 'Mossy Neural Link (Blender live scripting, mesh automation, FO4 export) will be completely unavailable. 3D asset workflows cannot be run from within Mossy.',
     },
     {
         name: 'Upscayl',
@@ -106,6 +211,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         urlLabel: 'GitHub Releases',
         category: 'creative',
         required: false,
+        ifMissing: 'Mossy\'s Upscayl Extension will not function. AI texture upscaling (2×/4×) will be unavailable.',
     },
 ];
 // ─────────────────────────────────────────────────────────────────────────────
@@ -697,7 +803,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             return;
         }
         setSpriggitStatus('running');
-        setSpriggitMessage('Running Spriggit — converting your plugins to YAML. This may take a few minutes…');
+        setSpriggitMessage('Running Spriggit — converting vanilla ESMs to YAML. This may take several minutes…');
         try {
             // Pre-flight: verify .NET 8.0+ is present before spawning Spriggit for every plugin.
             // This avoids spawning dozens of instantly-crashing processes when .NET is missing.
@@ -720,10 +826,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     console.warn('[Spriggit] checkDotnet pre-flight threw — proceeding anyway:', dotnetErr);
                 }
             }
+            // vanillaOnly: scan the base-game ESMs (Fallout4.esm + DLCs) so Mossy learns
+            // exact FormIDs, record structures, and script data from the live game files.
             const result = await api.spriggitSerialize({
                 cliPath: spriggitCliPath,
                 dataPath: spriggitDataPath,
                 outputPath: '',
+                vanillaOnly: true,
             });
             if (!result.ok || !result.files?.length) {
                 const errText = result.error || 'No YAML files were produced.';
@@ -731,8 +840,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 const displayErr = errText.length > MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH
                     ? errText.slice(0, MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH) + '\n…(truncated)'
                     : errText;
-                if (result.noCustomMods) {
-                    // Not a real failure — Spriggit never ran. Show a softer informational state.
+                if (result.noVanillaPlugins) {
+                    // Not a real failure — no vanilla ESMs found in the folder.
                     setSpriggitStatus('noMods');
                     setSpriggitMessage(displayErr);
                 } else {
@@ -754,34 +863,73 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 }
                 return;
             }
-            // Build Knowledge Vault entries from the YAML files
+            // Build Knowledge Vault entries from the YAML files, tagged as vanilla base records
             const getExistingVault = (): any[] => {
                 try { return JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]') as any[]; } catch { return []; }
             };
             const existing: any[] = Array.isArray(getExistingVault()) ? getExistingVault() : [];
             const now = new Date().toISOString();
             const newEntries = (result.files as Array<{ name: string; content: string }>).map((f) => ({
-                id: `spriggit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                title: `Spriggit: ${f.name}`,
+                id: `spriggit-vanilla-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                title: `Vanilla ESM: ${f.name}`,
                 content: f.content,
-                source: 'Spriggit serialize (onboarding)',
+                source: 'Spriggit serialize — vanilla ESMs (onboarding)',
                 trustLevel: 'personal',
                 date: now,
-                tags: ['spriggit', 'fallout4', 'plugin-data'],
+                tags: ['spriggit', 'fallout4', 'vanilla-base-records'],
                 status: 'learned',
             }));
             const merged = [...existing, ...newEntries];
             localStorage.setItem('mossy_knowledge_vault', JSON.stringify(merged));
             try { await api.saveKnowledgeVault(merged); } catch { /* fire-and-forget */ }
+
+            // Queue the vanilla ESMs into the Auditor so the user can run a full
+            // asset/plugin audit immediately after onboarding without re-picking files.
+            // We derive the plugin names from the serialized output paths — the first
+            // path component before the first slash is the plugin base-name.
+            const VANILLA_ESM_NAMES = [
+                'Fallout4.esm', 'DLCCoast.esm', 'DLCNukaWorld.esm',
+                'DLCRobot.esm', 'DLCWorkshop01.esm', 'DLCWorkshop02.esm', 'DLCWorkshop03.esm',
+            ];
+            const serializedBases = new Set(
+                (result.files as Array<{ name: string; content: string }>)
+                    .map(f => f.name.split(/[/\\]/)[0])
+                    .filter(Boolean)
+            );
+            const auditorEntries = VANILLA_ESM_NAMES
+                .filter(esm => serializedBases.has(esm.replace(/\.esm$/i, '')))
+                .map(esm => ({
+                    id: `vanilla-audit-${Date.now()}-${esm}`,
+                    name: esm,
+                    type: 'plugin' as const,
+                    path: `${spriggitDataPath.replace(/[/\\]$/, '')}/${esm}`,
+                    size: 'Pending',
+                    issues: [] as any[],
+                    status: 'pending' as const,
+                }));
+            if (auditorEntries.length > 0) {
+                // Merge with any pre-existing Auditor entries (don't wipe custom mods the
+                // user may have queued manually before onboarding completed).
+                const existingAudit: any[] = (() => {
+                    try { return JSON.parse(localStorage.getItem('mossy_scan_auditor') || '[]'); } catch { return []; }
+                })();
+                // Deduplicate: don't add an entry if a plugin with the same name already exists
+                const existingNames = new Set(existingAudit.map((e: any) => e.name?.toLowerCase()));
+                const newAuditEntries = auditorEntries.filter(e => !existingNames.has(e.name.toLowerCase()));
+                if (newAuditEntries.length > 0) {
+                    localStorage.setItem('mossy_scan_auditor', JSON.stringify([...existingAudit, ...newAuditEntries]));
+                    localStorage.setItem('mossy_auditor_auto_scan', 'true');
+                }
+            }
             setSpriggitFileCount(newEntries.length);
             setSpriggitStatus('done');
-            const skipNote = (result.skippedVanillaCount ?? 0) > 0
-                ? ` (${result.skippedVanillaCount} vanilla/DLC ESM${result.skippedVanillaCount === 1 ? '' : 's'} skipped — Mossy already knows those)`
+            const skipNote = (result.skippedCustomCount ?? 0) > 0
+                ? ` (${result.skippedCustomCount} custom mod${result.skippedCustomCount === 1 ? '' : 's'} skipped — use the Auditor to analyse those)`
                 : '';
             const warnMsg = result.error ? ` (some errors: ${result.error.slice(0, 120)})` : '';
-            setSpriggitMessage(`✅ Digested ${newEntries.length} YAML files into my Knowledge Vault.${skipNote}${warnMsg}`);
+            setSpriggitMessage(`✅ Digested ${newEntries.length} vanilla ESM YAML files into my Knowledge Vault.${skipNote}${warnMsg}`);
             if (shouldSpeak()) {
-                void speakMossy(`I've finished converting your plugins with Spriggit and digested ${newEntries.length} files into my knowledge.`);
+                void speakMossy(`I've finished converting the vanilla ESMs with Spriggit and digested ${newEntries.length} files into my knowledge. I now have direct access to the base game records.`);
             }
         } catch (err: any) {
             setSpriggitStatus('error');
@@ -1279,11 +1427,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     <div className="animate-fade-in">
                         <div className="text-center mb-6">
                             <Download className="w-16 h-16 mx-auto mb-4 text-amber-400" />
-                            <h2 className="text-2xl font-bold text-white mb-2">Recommended Downloads</h2>
+                            <h2 className="text-2xl font-bold text-white mb-2">Install Dependencies & Tools</h2>
                             <p className="text-slate-400 text-sm max-w-lg mx-auto">
-                                These tools work with Mossy. Download anything you don't already have — each
-                                button opens the official page in your browser. You can skip any of these and
-                                grab them later.
+                                Everything Mossy depends on is listed here — runtime prerequisites first, then modding tools.
+                                Items already found on your system show <span className="text-emerald-400 font-semibold">Installed</span>.
+                                Each missing item shows exactly <span className="text-amber-300 font-semibold">what won't work</span> without it.
                             </p>
                         </div>
 
@@ -1298,12 +1446,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     'modding': 'text-emerald-400',
                                     'version-control': 'text-blue-400',
                                     'creative': 'text-purple-400',
+                                    'runtime': 'text-amber-400',
                                 };
 
                                 const categoryLabel: Record<RecommendedDownload['category'], string> = {
                                     'modding': 'Modding Tool',
                                     'version-control': 'Version Control',
                                     'creative': 'Creative',
+                                    'runtime': 'Runtime / Prerequisite',
                                 };
 
                                 return (
@@ -1312,7 +1462,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         className={`p-4 rounded-lg border transition-all ${alreadyInstalled
                                             ? 'border-emerald-700/50 bg-emerald-900/10'
                                             : dl.required
-                                                ? 'border-amber-600/60 bg-amber-900/10'
+                                                ? 'border-red-600/60 bg-red-900/10'
                                                 : 'border-slate-700 bg-slate-800/40'
                                             }`}
                                     >
@@ -1326,8 +1476,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         </span>
                                                     )}
                                                     {dl.required && !alreadyInstalled && (
-                                                        <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full border border-amber-500/40">
-                                                            Recommended
+                                                        <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full border border-red-500/40 font-semibold">
+                                                            Required
                                                         </span>
                                                     )}
                                                     <span className={`text-xs font-medium ${categoryColor[dl.category]}`}>
@@ -1335,6 +1485,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     </span>
                                                 </div>
                                                 <p className="text-xs text-slate-400 leading-relaxed">{dl.description}</p>
+                                                {!alreadyInstalled && (
+                                                    <p className={`text-xs mt-1.5 leading-snug flex items-start gap-1 ${dl.required ? 'text-red-300' : 'text-amber-400/80'}`}>
+                                                        <span className="flex-shrink-0 mt-0.5">⚠️</span>
+                                                        <span><strong>Without this:</strong> {dl.ifMissing}</span>
+                                                    </p>
+                                                )}
                                             </div>
                                             <div className="flex-shrink-0">
                                                 {alreadyInstalled ? (
@@ -1345,7 +1501,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     <button
                                                         type="button"
                                                         onClick={() => void openExternal(dl.url)}
-                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-colors"
+                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-white text-xs font-semibold transition-colors ${dl.required ? 'bg-red-700 hover:bg-red-600' : 'bg-amber-600 hover:bg-amber-500'}`}
                                                         title={`Open ${dl.urlLabel}`}
                                                     >
                                                         <ExternalLink className="w-3.5 h-3.5" />
@@ -1377,9 +1533,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 {step === 'spriggit-digest' && (
                     <div className="text-center animate-fade-in">
                         <Brain className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
-                        <h2 className="text-3xl font-bold text-white mb-3">Feed Me Your Plugins</h2>
+                        <h2 className="text-3xl font-bold text-white mb-3">Feed Me the Base Game</h2>
                         <p className="text-slate-400 mb-2 max-w-xl mx-auto">
-                            I can use <strong className="text-emerald-300">Spriggit</strong> to convert your Fallout 4 plugins (.esp/.esm/.esl) into readable YAML files and then digest all that information directly into my brain, so I know your exact mod load order, records, and data from the start.
+                            I can use <strong className="text-emerald-300">Spriggit</strong> to convert the <strong className="text-white">vanilla Fallout 4 ESMs</strong> (Fallout4.esm and all DLCs) into YAML and digest them directly into my brain — giving me exact access to the base-game records, FormIDs, and script structures from the start.
+                        </p>
+                        <p className="text-slate-500 text-sm mb-2 max-w-xl mx-auto">
+                            Custom mods can be analysed any time in <strong className="text-slate-300">The Auditor</strong> panel.
                         </p>
                         <p className="text-slate-500 text-sm mb-6 max-w-xl mx-auto">
                             This is optional — you can skip it now and do it later from the Memory Vault panel.
@@ -1630,12 +1789,26 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 </button>
                             )}
 
+                            {spriggitStatus === 'done' && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        // Signal App to navigate to the Auditor after onboarding dismisses
+                                        try { localStorage.setItem('mossy_post_onboarding_nav', '#/ck-crash-prevention?tab=audit'); } catch { /* ignore */ }
+                                        handleSpriggitContinue();
+                                    }}
+                                    className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <Zap className="w-5 h-5" /> Open in Auditor &amp; Run Analysis
+                                </button>
+                            )}
+
                             <button
                                 type="button"
                                 onClick={handleSpriggitContinue}
                                 className="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-semibold transition-colors"
                             >
-                                {spriggitStatus === 'done' ? <><Check className="w-5 h-5 inline-block mr-1" /> Continue</> : 'Skip for now'}
+                                {spriggitStatus === 'done' ? <><Check className="w-5 h-5 inline-block mr-1" /> Continue to Mossy</> : 'Skip for now'}
                             </button>
                         </div>
                     </div>

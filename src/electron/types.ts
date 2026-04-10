@@ -546,7 +546,9 @@ export interface ElectronAPI {
     cliPath: string;
     dataPath: string;
     outputPath: string;
-  }) => Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string; skippedVanillaCount?: number; noCustomMods?: boolean }>;
+    /** When true, serialize only vanilla/DLC ESMs instead of custom mods. */
+    vanillaOnly?: boolean;
+  }) => Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string; skippedVanillaCount?: number; skippedCustomCount?: number; noCustomMods?: boolean; noVanillaPlugins?: boolean }>;
 
   /** Persist all mod projects to userData/mod-projects.json so work survives reinstalls */
   saveModProjects: (projects: unknown[]) => Promise<{ ok: boolean; error?: string }>;

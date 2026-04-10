@@ -134,6 +134,7 @@ export const CKCrashPrevention: React.FC = () => {
   const [texturePreview, setTexturePreview] = useState<string | null>(null);
   const [activeAuditSubTab, setActiveAuditSubTab] = useState<'audit' | 'debug'>('audit');
   const [userInputText, setUserInputText] = useState<string>('');
+  const [autoScanBanner, setAutoScanBanner] = useState(false);
   const fileListScrollRef = useRef<HTMLDivElement | null>(null);
   const issuesScrollRef = useRef<HTMLDivElement | null>(null);
   const adviceScrollRef = useRef<HTMLDivElement | null>(null);
@@ -165,11 +166,16 @@ export const CKCrashPrevention: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auditFiles]);
 
-  // Load previous scan from localStorage on mount
+  // Load previous scan from localStorage on mount; detect auto-scan flag from Spriggit digest
   useEffect(() => {
     const saved = localStorage.getItem('mossy_scan_auditor');
     if (saved) {
       setAuditFiles(JSON.parse(saved));
+    }
+    // If the Spriggit vanilla digest queued plugins for us, show the auto-scan banner
+    if (localStorage.getItem('mossy_auditor_auto_scan') === 'true') {
+      localStorage.removeItem('mossy_auditor_auto_scan');
+      setAutoScanBanner(true);
     }
   }, []);
 
@@ -579,6 +585,38 @@ export const CKCrashPrevention: React.FC = () => {
     const selectedFile = auditFiles.find(f => f.id === selectedFileId);
     return (
       <div data-testid="auditor-section" className="h-full flex flex-col bg-[#0d1117] text-slate-200 font-sans overflow-hidden min-h-0" onWheel={wheelProxy}>
+        {/* Auto-scan banner — shown when the Spriggit vanilla digest queued files for us */}
+        {autoScanBanner && (
+          <div className="bg-emerald-900/40 border-b border-emerald-600/50 px-4 py-3 flex items-center gap-3">
+            <Brain className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+            <p className="text-sm text-emerald-200 flex-1">
+              <strong>Vanilla ESMs queued from Spriggit digest.</strong> Run a full audit now to check every base-game plugin for issues.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setAutoScanBanner(false);
+                pendingAutoScan.current = true;
+                setIsScanning(true);
+                setScanProgress(0);
+                setAuditAdvice(null);
+                performAuditAnalysis();
+              }}
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-lg transition-colors flex-shrink-0"
+            >
+              Run Audit Now
+            </button>
+            <button
+              type="button"
+              onClick={() => setAutoScanBanner(false)}
+              className="text-emerald-400 hover:text-emerald-200 text-xs px-2"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Info Banner */}
         <div className="bg-blue-900/30 border-b border-blue-700/50 px-4 py-2 flex items-center gap-3">
           <CheckCircle2 className="w-4 h-4 text-blue-400 flex-shrink-0" />

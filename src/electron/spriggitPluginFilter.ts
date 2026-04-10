@@ -6,14 +6,12 @@
  */
 
 /**
- * The set of official Bethesda Fallout 4 ESM files that Mossy skips during
- * the Spriggit digest.  Reasons for skipping:
+ * The set of official Bethesda Fallout 4 ESM files.
  *
- *  1. These files crash Spriggit with exit-code 0xFFFFFFFF in some
- *     AV/extraction configurations, triggering the early-exit heuristic that
- *     synthetically marks every subsequent plugin as failed.
- *  2. Their content is already covered by Mossy's built-in knowledge — there
- *     is no value in adding them to the Knowledge Vault.
+ * Used in two modes:
+ *  - Custom-mod digest: these are SKIPPED so only user mods are serialized.
+ *  - Vanilla digest (vanillaOnly): ONLY these files are serialized so Mossy
+ *    learns the exact base-game records, FormIDs, and script structure.
  */
 export const VANILLA_FO4_PLUGINS = new Set([
   'fallout4.esm',
@@ -33,6 +31,7 @@ export const isVanillaPlugin = (filename: string): boolean =>
  * Given the raw list of plugin filenames found in the Data folder, returns
  * the subset that should be serialized (i.e. non-vanilla plugins) together
  * with a count of how many were skipped.
+ * Used for the custom-mod digest path.
  */
 export function filterPluginsForSpriggit(allPluginFiles: string[]): {
   pluginFiles: string[];
@@ -44,8 +43,23 @@ export function filterPluginsForSpriggit(allPluginFiles: string[]): {
 }
 
 /**
- * Build the error string for the "nothing to serialize" early-exit, choosing
- * between a "folder is empty" message and a "only vanilla ESMs found" message.
+ * Given the raw list of plugin filenames found in the Data folder, returns
+ * ONLY the vanilla/DLC ESMs together with a count of how many custom plugins
+ * were skipped.
+ * Used for the vanilla-brain-boost digest path.
+ */
+export function filterVanillaPluginsOnly(allPluginFiles: string[]): {
+  pluginFiles: string[];
+  skippedCustomCount: number;
+} {
+  const pluginFiles = allPluginFiles.filter(f => isVanillaPlugin(f));
+  const skippedCustomCount = allPluginFiles.length - pluginFiles.length;
+  return { pluginFiles, skippedCustomCount };
+}
+
+/**
+ * Build the error string for the "nothing to serialize" early-exit in custom-mod mode,
+ * choosing between a "folder is empty" message and a "only vanilla ESMs found" message.
  */
 export function buildNoPluginsError(allPluginFiles: string[]): string {
   if (allPluginFiles.length === 0) {
@@ -59,5 +73,22 @@ export function buildNoPluginsError(allPluginFiles: string[]): string {
     '💡 Using Vortex? Vortex deploys mods directly to the Data folder. ' +
     'If you have mods enabled in Vortex, make sure they are fully deployed, then try again.\n\n' +
     'If you have custom mods installed another way, point to the folder that contains your .esp/.esm/.esl files and try again.'
+  );
+}
+
+/**
+ * Build the error string for the "nothing to serialize" early-exit in vanilla-only mode,
+ * i.e. the user's Data folder contained no recognised Bethesda ESMs.
+ */
+export function buildNoVanillaPluginsError(allPluginFiles: string[]): string {
+  if (allPluginFiles.length === 0) {
+    return 'No plugin files (.esp/.esm/.esl) found in the Data folder.';
+  }
+  return (
+    'No vanilla Fallout 4 ESMs (Fallout4.esm, DLC files) were found in this folder.\n' +
+    'Make sure you are pointing to your Fallout 4 Data folder ' +
+    '(e.g. C:\\Steam\\steamapps\\common\\Fallout 4\\Data).\n\n' +
+    'The expected files are: Fallout4.esm, DLCCoast.esm (Far Harbor), ' +
+    'DLCNukaWorld.esm, DLCRobot.esm (Automatron), DLCWorkshop01-03.esm.'
   );
 }
