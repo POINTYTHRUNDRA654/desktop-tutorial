@@ -3328,6 +3328,40 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // spriggit-clear-cache: Delete the .NET single-file publish temp-cache directories
+  // so that Spriggit re-extracts cleanly on the next run.  The cache lives under
+  // %LOCALAPPDATA%\Temp\.net\SpriggitCLI\ (primary) and %TEMP%\.net\SpriggitCLI\
+  // (fallback).  A stale or corrupted cache causes every serialize call to crash with
+  // exit code 4294967295 even when .NET is installed and --version works fine.
+  registerHandler(IPC_CHANNELS.SPRIGGIT_CLEAR_CACHE, async () => {
+    const clearedPaths: string[] = [];
+    const errors: string[] = [];
+
+    const candidateDirs: string[] = [];
+    const localAppData = process.env.LOCALAPPDATA;
+    const temp = process.env.TEMP;
+    if (localAppData) candidateDirs.push(path.join(localAppData, 'Temp', '.net', 'SpriggitCLI'));
+    if (temp) candidateDirs.push(path.join(temp, '.net', 'SpriggitCLI'));
+
+    for (const dir of candidateDirs) {
+      try {
+        if (fs.existsSync(dir)) {
+          fs.rmSync(dir, { recursive: true, force: true });
+          clearedPaths.push(dir);
+        }
+      } catch (e: any) {
+        console.error('[Main] spriggit-clear-cache failed for', dir, e);
+        errors.push(`${dir}: ${String(e?.message || e)}`);
+      }
+    }
+
+    return {
+      ok: errors.length === 0,
+      clearedPaths,
+      error: errors.length > 0 ? errors.join('\n') : undefined,
+    };
+  });
+
   // spriggit-serialize: Run Spriggit.CLI.exe serialize on the user's Fallout 4
   // Data folder, then read the resulting YAML/JSON files into memory so the
   // caller can digest them into the Knowledge Vault.
