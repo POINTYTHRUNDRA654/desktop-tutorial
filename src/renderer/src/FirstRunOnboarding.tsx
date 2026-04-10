@@ -782,7 +782,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             return;
         }
         setSpriggitStatus('running');
-        setSpriggitMessage('Running Spriggit — converting vanilla ESMs to YAML. This may take several minutes for large files…');
+        setSpriggitMessage('Running Spriggit — converting vanilla ESMs to YAML. This may take several minutes…');
         try {
             // Pre-flight: verify .NET 8.0+ is present before spawning Spriggit for every plugin.
             // This avoids spawning dozens of instantly-crashing processes when .NET is missing.
@@ -861,6 +861,45 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             const merged = [...existing, ...newEntries];
             localStorage.setItem('mossy_knowledge_vault', JSON.stringify(merged));
             try { await api.saveKnowledgeVault(merged); } catch { /* fire-and-forget */ }
+
+            // Queue the vanilla ESMs into the Auditor so the user can run a full
+            // asset/plugin audit immediately after onboarding without re-picking files.
+            // We derive the plugin names from the serialized output paths — the first
+            // path component before the first slash is the plugin base-name.
+            const VANILLA_ESM_NAMES = [
+                'Fallout4.esm', 'DLCCoast.esm', 'DLCNukaWorld.esm',
+                'DLCRobot.esm', 'DLCWorkshop01.esm', 'DLCWorkshop02.esm', 'DLCWorkshop03.esm',
+            ];
+            const serializedBases = new Set(
+                (result.files as Array<{ name: string; content: string }>)
+                    .map(f => f.name.split(/[/\\]/)[0])
+                    .filter(Boolean)
+            );
+            const auditorEntries = VANILLA_ESM_NAMES
+                .filter(esm => serializedBases.has(esm.replace(/\.esm$/i, '')))
+                .map(esm => ({
+                    id: `vanilla-audit-${Date.now()}-${esm}`,
+                    name: esm,
+                    type: 'plugin' as const,
+                    path: `${spriggitDataPath.replace(/[/\\]$/, '')}/${esm}`,
+                    size: 'Pending',
+                    issues: [] as any[],
+                    status: 'pending' as const,
+                }));
+            if (auditorEntries.length > 0) {
+                // Merge with any pre-existing Auditor entries (don't wipe custom mods the
+                // user may have queued manually before onboarding completed).
+                const existingAudit: any[] = (() => {
+                    try { return JSON.parse(localStorage.getItem('mossy_scan_auditor') || '[]'); } catch { return []; }
+                })();
+                // Deduplicate: don't add an entry if a plugin with the same name already exists
+                const existingNames = new Set(existingAudit.map((e: any) => e.name?.toLowerCase()));
+                const newAuditEntries = auditorEntries.filter(e => !existingNames.has(e.name.toLowerCase()));
+                if (newAuditEntries.length > 0) {
+                    localStorage.setItem('mossy_scan_auditor', JSON.stringify([...existingAudit, ...newAuditEntries]));
+                    localStorage.setItem('mossy_auditor_auto_scan', 'true');
+                }
+            }
             setSpriggitFileCount(newEntries.length);
             setSpriggitStatus('done');
             const skipNote = (result.skippedCustomCount ?? 0) > 0
@@ -1723,12 +1762,26 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 </button>
                             )}
 
+                            {spriggitStatus === 'done' && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        // Signal App to navigate to the Auditor after onboarding dismisses
+                                        try { localStorage.setItem('mossy_post_onboarding_nav', '#/ck-crash-prevention?tab=audit'); } catch { /* ignore */ }
+                                        handleSpriggitContinue();
+                                    }}
+                                    className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <Zap className="w-5 h-5" /> Open in Auditor &amp; Run Analysis
+                                </button>
+                            )}
+
                             <button
                                 type="button"
                                 onClick={handleSpriggitContinue}
                                 className="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-semibold transition-colors"
                             >
-                                {spriggitStatus === 'done' ? <><Check className="w-5 h-5 inline-block mr-1" /> Continue</> : 'Skip for now'}
+                                {spriggitStatus === 'done' ? <><Check className="w-5 h-5 inline-block mr-1" /> Continue to Mossy</> : 'Skip for now'}
                             </button>
                         </div>
                     </div>

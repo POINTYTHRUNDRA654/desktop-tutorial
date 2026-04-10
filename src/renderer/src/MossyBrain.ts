@@ -967,6 +967,121 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n\n  **Q: Can I use both Creation Kit GUI and Git/Spriggit?**' +
       '\n  A: Yes, that\'s the whole workflow! CK/xEdit for editing, Spriggit for syncing to Git, Git for versioning.' +
       '\n' +
+      '\n\n- **MUTAGEN & SPRIGGIT YAML SCHEMA — HOW SERIALIZED PLUGIN DATA IS STRUCTURED:**' +
+      '\n  When Spriggit serializes a plugin, it uses the Mutagen.Bethesda.Serialization library (https://github.com/Mutagen-Modding/Mutagen.Bethesda.Serialization) to convert each binary record into structured YAML. Understanding this schema lets you read Spriggit output directly.' +
+      '\n\n  **What is Mutagen?**' +
+      '\n  Mutagen is a C# library by Noggog that models every Bethesda game record type as a strongly-typed .NET object. Spriggit is built on top of it — Mutagen does the binary parsing; Spriggit serializes the resulting objects to YAML/JSON via C# Source Generators.' +
+      '\n  GitHub: https://github.com/Mutagen-Modding/Mutagen' +
+      '\n  Serialization library: https://github.com/Mutagen-Modding/Mutagen.Bethesda.Serialization' +
+      '\n\n  **Root File Layout (Fallout4.esm as example):**' +
+      '\n  ```yaml' +
+      '\n  # RecordData.yaml — mod header' +
+      '\n  FormVersion: 131' +
+      '\n  Version: 0.95' +
+      '\n  Author: ""' +
+      '\n  Description: ""' +
+      '\n  MasterReferences:' +
+      '\n    - Master: Fallout4.esm' +
+      '\n  ```' +
+      '\n  Each record type gets its own subfolder: `NPC_/`, `KYWD/`, `GLOB/`, `WEAP/`, `CELL/`, `QUST/` etc.' +
+      '\n  Within each folder, individual records are separate `.yaml` files named by EditorID or FormID.' +
+      '\n\n  **FormIDs in Spriggit YAML:**' +
+      '\n  FormIDs appear as `FormKey` strings in the format `{HexID}:{PluginName}`. Examples:' +
+      '\n  • `000B2930:Fallout4.esm` = the base-game FormID 000B2930' +
+      '\n  • `00000000:MyMod.esp` = a new record defined in MyMod.esp' +
+      '\n  Links between records use FormKey references:' +
+      '\n  ```yaml' +
+      '\n  Race: 000013746:Fallout4.esm   # links NPC_ to RACE record' +
+      '\n  DefaultOutfit: 001234AB:MyMod.esp' +
+      '\n  ```' +
+      '\n\n  **NPC_ Record Example (simplified):**' +
+      '\n  ```yaml' +
+      '\n  EditorID: NPCHumanMaleAverage' +
+      '\n  FormKey: 000B2930:Fallout4.esm' +
+      '\n  Name: "Human Male"' +
+      '\n  Race: 000013746:Fallout4.esm' +
+      '\n  Class: 000BE11B:Fallout4.esm' +
+      '\n  Factions:' +
+      '\n    - Faction: 0001B2A4:Fallout4.esm' +
+      '\n      Rank: 0' +
+      '\n  Stats:' +
+      '\n    Level: 1' +
+      '\n    Health: 100' +
+      '\n  AIPackages:' +
+      '\n    - 00044B3B:Fallout4.esm' +
+      '\n  Keywords:' +
+      '\n    - 00045374:Fallout4.esm   # ActorTypeHuman' +
+      '\n  ```' +
+      '\n\n  **KYWD (Keyword) Record Example:**' +
+      '\n  ```yaml' +
+      '\n  EditorID: ActorTypeHuman' +
+      '\n  FormKey: 00045374:Fallout4.esm' +
+      '\n  ```' +
+      '\n\n  **GLOB (Global Variable) Example:**' +
+      '\n  ```yaml' +
+      '\n  EditorID: PlayerKarma' +
+      '\n  FormKey: 0000031C:Fallout4.esm' +
+      '\n  Type: Float' +
+      '\n  Value: 0.0' +
+      '\n  ```' +
+      '\n\n  **COBJ (Crafting Recipe) Example:**' +
+      '\n  ```yaml' +
+      '\n  EditorID: RecipeAmmo45Auto' +
+      '\n  FormKey: 00069090:Fallout4.esm' +
+      '\n  CreatedObject: 0004CE87:Fallout4.esm   # .45 Auto ammo' +
+      '\n  CreatedObjectCount: 10' +
+      '\n  WorkbenchKeyword: 00105F18:Fallout4.esm  # WorkbenchChemstation' +
+      '\n  Items:' +
+      '\n    - Item: 001BF72E:Fallout4.esm  # Lead' +
+      '\n      Count: 5' +
+      '\n    - Item: 000AEC5D:Fallout4.esm  # Oil' +
+      '\n      Count: 2' +
+      '\n  Conditions:' +
+      '\n    - Function: HasPerk' +
+      '\n      Parameter1: 0004A0CF:Fallout4.esm  # Scrapper' +
+      '\n      CompareOperator: EqualTo' +
+      '\n      Value: 1.0' +
+      '\n  ```' +
+      '\n\n  **QUST (Quest) Record Structure:**' +
+      '\n  ```yaml' +
+      '\n  EditorID: MQ101' +
+      '\n  FormKey: 000AEFB9:Fallout4.esm' +
+      '\n  Name: "War Never Changes"' +
+      '\n  Flags: StartGameEnabled' +
+      '\n  Stages:' +
+      '\n    - Index: 10' +
+      '\n      LogEntries:' +
+      '\n        - Flags: CompleteQuest' +
+      '\n          Entry: "This stage completes the quest."' +
+      '\n  Aliases:' +
+      '\n    - ID: 0' +
+      '\n      Name: "Player"' +
+      '\n      Flags: Player' +
+      '\n  ```' +
+      '\n\n  **CELL (Cell/Interior) Structure:**' +
+      '\n  ```yaml' +
+      '\n  EditorID: SanctuaryHillsHouse01' +
+      '\n  FormKey: 0001851C:Fallout4.esm' +
+      '\n  Flags: IsInteriorCell' +
+      '\n  Lighting:' +
+      '\n    AmbientColor: "FF202020"' +
+      '\n  ImageSpace: 000B4FB2:Fallout4.esm' +
+      '\n  ```' +
+      '\n\n  **Vanilla ESMs now in Mossy\'s Knowledge Vault (if Spriggit digest ran):**' +
+      '\n  Mossy\'s onboarding digest serializes the following vanilla ESMs using Spriggit and ingests all YAML output into the Knowledge Vault tagged `vanilla-base-records`:' +
+      '\n  • Fallout4.esm — base game (actors, weapons, quests, cells, leveled lists, keywords, etc.)' +
+      '\n  • DLCCoast.esm — Far Harbor' +
+      '\n  • DLCNukaWorld.esm — Nuka-World' +
+      '\n  • DLCRobot.esm — Automatron' +
+      '\n  • DLCWorkshop01/02/03.esm — Workshop DLCs' +
+      '\n  When a user asks about a specific vanilla record, FormID, script, or record structure, I can reference this ingested data directly for exact answers.' +
+      '\n\n  **How to Reason About Spriggit YAML in the Vault:**' +
+      '\n  1. FormKey `XXXXXXXX:Fallout4.esm` identifies a vanilla record — look it up by EditorID for context.' +
+      '\n  2. Folder path tells you the record type: `NPC_/NPCHumanMaleAverage.yaml` → NPC_ record, EditorID NPCHumanMaleAverage.' +
+      '\n  3. Nested FormKey links are references to other records — follow them to understand dependencies.' +
+      '\n  4. `Conditions:` arrays define when scripts/quests/crafting triggers — read each Function + Parameter pair.' +
+      '\n  5. Missing fields in YAML mean the record uses the game default for that field.' +
+      '\n' +
       '\n- **Quality Assurance & Asset Scanning (The Auditor (/auditor))**: This is your primary tool for plugin, mesh, texture, and material quality control. THE AUDITOR IS ESSENTIAL FOR MOD SCANNING AND REPAIR.' +
       '\n  **When to recommend The Auditor:**' +
       '\n  • User asks to "scan my mod", "check my plugin", "find issues in my ESP", "look for errors", "scan for problems", or anything about mod QA/integrity' +
