@@ -265,7 +265,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     // Spriggit digest step state
     const [spriggitCliPath, setSpriggitCliPath] = useState('');
     const [spriggitDataPath, setSpriggitDataPath] = useState('');
-    const [spriggitStatus, setSpriggitStatus] = useState<'idle' | 'running' | 'done' | 'error' | 'noMods'>('idle');
+    const [spriggitStatus, setSpriggitStatus] = useState<'idle' | 'running' | 'done' | 'partial' | 'error' | 'noMods'>('idle');
     const [spriggitMessage, setSpriggitMessage] = useState('');
     const [spriggitFileCount, setSpriggitFileCount] = useState(0);
     const [cacheClearInProgress, setCacheClearInProgress] = useState(false);
@@ -954,14 +954,36 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 }
             }
             setSpriggitFileCount(newEntries.length);
-            setSpriggitStatus('done');
-            const skipNote = (result.skippedCustomCount ?? 0) > 0
-                ? ` (${result.skippedCustomCount} custom mod${result.skippedCustomCount === 1 ? '' : 's'} skipped — use the Auditor to analyse those)`
-                : '';
-            const warnMsg = result.error ? ` (some errors: ${result.error.slice(0, 120)})` : '';
-            setSpriggitMessage(`✅ Digested ${newEntries.length} vanilla ESM YAML files into my Knowledge Vault.${skipNote}${warnMsg}`);
+            // Partial success: some plugins produced YAML but others hard-crashed (0xFFFFFFFF).
+            // Show an amber warning rather than green success so the user understands DLC data
+            // is missing and knows what to investigate.
+            const isPartial = !!(result.partialSuccess && result.error);
+            if (isPartial) {
+                setSpriggitStatus('partial');
+                const skipNote = (result.skippedCustomCount ?? 0) > 0
+                    ? ` (${result.skippedCustomCount} custom mod${result.skippedCustomCount === 1 ? '' : 's'} skipped)`
+                    : '';
+                // Cap the error block to avoid a wall of text — DLC crash errors are already
+                // truncated to MAX_SHOWN=3 in main.ts; 300 chars is enough for all of them.
+                const errPreview = result.error!.length > 300
+                    ? result.error!.slice(0, 300) + '\n…(see below for full details)'
+                    : result.error!;
+                setSpriggitMessage(
+                    `⚠️ Partial success — ${newEntries.length} YAML files digested${skipNote}.\n` +
+                    `Fallout4.esm converted successfully, but some DLC ESMs failed:\n\n${errPreview}`
+                );
+            } else {
+                setSpriggitStatus('done');
+                const skipNote = (result.skippedCustomCount ?? 0) > 0
+                    ? ` (${result.skippedCustomCount} custom mod${result.skippedCustomCount === 1 ? '' : 's'} skipped — use the Auditor to analyse those)`
+                    : '';
+                setSpriggitMessage(`✅ Digested ${newEntries.length} vanilla ESM YAML files into my Knowledge Vault.${skipNote}`);
+            }
             if (shouldSpeak()) {
-                void speakMossy(`I've finished converting the vanilla ESMs with Spriggit and digested ${newEntries.length} files into my knowledge. I now have direct access to the base game records.`);
+                void speakMossy(isPartial
+                    ? `I've digested ${newEntries.length} files from Fallout4.esm into my knowledge base. Some DLC files failed — check the status message for details.`
+                    : `I've finished converting the vanilla ESMs with Spriggit and digested ${newEntries.length} files into my knowledge. I now have direct access to the base game records.`
+                );
             }
         } catch (err: any) {
             setSpriggitStatus('error');
@@ -972,7 +994,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     /** Advance from the spriggit-digest step to complete, using a shorter delay if the digest ran. */
     const handleSpriggitContinue = () => {
         setStep('complete');
-        setTimeout(onComplete, spriggitFileCount > 0 ? SPRIGGIT_DONE_TRANSITION_DELAY_MS : COMPLETE_TRANSITION_DELAY_MS);
+        setTimeout(onComplete, (spriggitFileCount > 0 || spriggitStatus === 'partial') ? SPRIGGIT_DONE_TRANSITION_DELAY_MS : COMPLETE_TRANSITION_DELAY_MS);
     };
 
     return (
@@ -1788,7 +1810,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             <div className={`max-w-lg mx-auto mb-5 rounded-lg px-4 py-3 text-sm text-left whitespace-pre-line break-words max-h-64 overflow-y-auto ${
                                 spriggitStatus === 'error'
                                     ? 'bg-red-900/30 border border-red-700/50 text-red-200'
-                                    : spriggitStatus === 'noMods'
+                                    : spriggitStatus === 'noMods' || spriggitStatus === 'partial'
                                         ? 'bg-amber-900/30 border border-amber-600/50 text-amber-200'
                                         : spriggitStatus === 'done'
                                             ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
@@ -1796,8 +1818,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             }`}>
                                 {spriggitStatus === 'running' && <Loader className="w-4 h-4 inline-block animate-spin mr-2" />}
                                 {spriggitStatus === 'noMods' && <span className="font-bold">ℹ️ Vanilla ESMs not found:{'\n'}</span>}
-                                {/* Version badge — shown whenever we have detected versions and there's an error */}
-                                {spriggitStatus === 'error' && (detectedFo4Label || detectedSpriggitVersion) && (
+                                {/* Version badge — shown for error or partial status when versions are known */}
+                                {(spriggitStatus === 'error' || spriggitStatus === 'partial') && (detectedFo4Label || detectedSpriggitVersion) && (
                                     <div className="mb-2 p-2 bg-slate-800/80 rounded border border-slate-600 text-xs font-mono text-slate-300 space-y-0.5">
                                         {detectedFo4Label && (
                                             <div>🎮 <strong>Game:</strong> {detectedFo4Label}</div>
@@ -1818,7 +1840,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     </div>
                                 )}
                                 {spriggitMessage}
-                                {spriggitStatus === 'error' && spriggitMessage.includes('0xFFFFFFFF') && (
+                                {(spriggitStatus === 'error' || spriggitStatus === 'partial') && spriggitMessage.includes('0xFFFFFFFF') && (
                                     <div className="mt-3 flex flex-wrap items-center gap-3">
                                         {/* Only offer the .NET download when .NET is confirmed absent.
                                             When dotnetOk is true the crash is more likely AV or arch mismatch. */}
@@ -1984,7 +2006,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         )}
 
                         <div className="flex flex-col gap-3 max-w-lg mx-auto">
-                            {spriggitStatus !== 'done' && (
+                            {spriggitStatus !== 'done' && spriggitStatus !== 'partial' && (
                                 <button
                                     type="button"
                                     disabled={spriggitStatus === 'running' || !spriggitCliPath || !spriggitDataPath || (dotnetOk !== true && !dotnetOverride) || dotnetCheckingOnEntry}
@@ -1998,7 +2020,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 </button>
                             )}
 
-                            {spriggitStatus === 'done' && (
+                            {(spriggitStatus === 'done' || spriggitStatus === 'partial') && (
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -2017,7 +2039,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 onClick={handleSpriggitContinue}
                                 className="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-semibold transition-colors"
                             >
-                                {spriggitStatus === 'done' ? <><Check className="w-5 h-5 inline-block mr-1" /> Continue to Mossy</> : 'Skip for now'}
+                                {(spriggitStatus === 'done' || spriggitStatus === 'partial') ? <><Check className="w-5 h-5 inline-block mr-1" /> Continue to Mossy</> : 'Skip for now'}
                             </button>
                         </div>
                     </div>
