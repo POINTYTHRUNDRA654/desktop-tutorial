@@ -159,7 +159,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     // Spriggit digest step state
     const [spriggitCliPath, setSpriggitCliPath] = useState('');
     const [spriggitDataPath, setSpriggitDataPath] = useState('');
-    const [spriggitStatus, setSpriggitStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+    const [spriggitStatus, setSpriggitStatus] = useState<'idle' | 'running' | 'done' | 'error' | 'noMods'>('idle');
     const [spriggitMessage, setSpriggitMessage] = useState('');
     const [spriggitFileCount, setSpriggitFileCount] = useState(0);
 
@@ -726,13 +726,19 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 outputPath: '',
             });
             if (!result.ok || !result.files?.length) {
-                setSpriggitStatus('error');
                 const errText = result.error || 'No YAML files were produced.';
                 // Cap display length to avoid rendering a massive wall of text.
                 const displayErr = errText.length > MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH
                     ? errText.slice(0, MAX_SPRIGGIT_ERROR_DISPLAY_LENGTH) + '\n…(truncated)'
                     : errText;
-                setSpriggitMessage(`Spriggit failed:\n${displayErr}`);
+                if (result.noCustomMods) {
+                    // Not a real failure — Spriggit never ran. Show a softer informational state.
+                    setSpriggitStatus('noMods');
+                    setSpriggitMessage(displayErr);
+                } else {
+                    setSpriggitStatus('error');
+                    setSpriggitMessage(`Spriggit failed:\n${displayErr}`);
+                }
                 // If every plugin crashed with the .NET-missing signature, run a fresh
                 // checkDotnet() to confirm whether .NET is genuinely absent.  An AV block or
                 // x86/x64 architecture mismatch produces the same exit code even when .NET IS
@@ -1544,11 +1550,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             <div className={`max-w-lg mx-auto mb-5 rounded-lg px-4 py-3 text-sm text-left whitespace-pre-line break-words max-h-64 overflow-y-auto ${
                                 spriggitStatus === 'error'
                                     ? 'bg-red-900/30 border border-red-700/50 text-red-200'
-                                    : spriggitStatus === 'done'
-                                        ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
-                                        : 'bg-slate-800/60 border border-slate-600 text-slate-300'
+                                    : spriggitStatus === 'noMods'
+                                        ? 'bg-amber-900/30 border border-amber-600/50 text-amber-200'
+                                        : spriggitStatus === 'done'
+                                            ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
+                                            : 'bg-slate-800/60 border border-slate-600 text-slate-300'
                             }`}>
                                 {spriggitStatus === 'running' && <Loader className="w-4 h-4 inline-block animate-spin mr-2" />}
+                                {spriggitStatus === 'noMods' && <span className="font-bold">ℹ️ No custom mods found:{'\n'}</span>}
                                 {spriggitMessage}
                                 {spriggitStatus === 'error' && spriggitMessage.includes('0xFFFFFFFF') && (
                                     <div className="mt-3 flex flex-wrap items-center gap-3">
