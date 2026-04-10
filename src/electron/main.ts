@@ -20,7 +20,7 @@ import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
 import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
 import { autoUpdaterService } from './autoUpdater';
 import { detectAndHandleVersionUpdate, markFreshInstallProcessed } from './dataMigration';
-import { filterPluginsForSpriggit, buildNoPluginsError } from './spriggitPluginFilter';
+import { filterPluginsForSpriggit, buildNoPluginsError, filterVanillaPluginsOnly, buildNoVanillaPluginsError } from './spriggitPluginFilter';
 import fs from 'fs';
 import { spawn, exec } from 'child_process';
 import { BridgeServer } from './BridgeServer';
@@ -3337,24 +3337,39 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     cliPath: string;
     dataPath: string;
     outputPath: string;
+    vanillaOnly?: boolean;
   }) => {
     try {
-      const { cliPath, dataPath, outputPath } = params || {};
+      const { cliPath, dataPath, outputPath, vanillaOnly = false } = params || {};
       if (!cliPath || typeof cliPath !== 'string') return { ok: false, files: [], error: 'No Spriggit CLI path provided.' };
       if (!dataPath || typeof dataPath !== 'string') return { ok: false, files: [], error: 'No Data folder path provided.' };
       if (!fs.existsSync(cliPath)) return { ok: false, files: [], error: `Spriggit.CLI.exe not found at: ${cliPath}` };
       if (!fs.existsSync(dataPath)) return { ok: false, files: [], error: `Fallout 4 Data folder not found at: ${dataPath}` };
 
-      // Early-exit: scan the Data folder and filter out vanilla/DLC plugins BEFORE doing
-      // any process spawning.  This means users who only have vanilla plugins get an
-      // instant error instead of waiting up to ~20 s for the .NET check + self-test to
-      // time out — which was previously perceived as the app "crashing".
+      // Early-exit: scan the Data folder and apply the appropriate plugin filter
+      // BEFORE doing any process spawning.
+      // vanillaOnly=true  → keep only vanilla/DLC ESMs (brain-boost path)
+      // vanillaOnly=false → keep only custom mods, skip vanilla/DLC (default path)
       const allPluginFiles = fs.readdirSync(dataPath).filter(f =>
         /\.(esp|esm|esl)$/i.test(f)
       );
-      const { pluginFiles, skippedVanillaCount } = filterPluginsForSpriggit(allPluginFiles);
-      if (pluginFiles.length === 0) {
-        return { ok: false, files: [], error: buildNoPluginsError(allPluginFiles), skippedVanillaCount, noCustomMods: true };
+      let pluginFiles: string[];
+      let skippedVanillaCount = 0;
+      let skippedCustomCount = 0;
+      if (vanillaOnly) {
+        const filtered = filterVanillaPluginsOnly(allPluginFiles);
+        pluginFiles = filtered.pluginFiles;
+        skippedCustomCount = filtered.skippedCustomCount;
+        if (pluginFiles.length === 0) {
+          return { ok: false, files: [], error: buildNoVanillaPluginsError(allPluginFiles), skippedCustomCount, noVanillaPlugins: true };
+        }
+      } else {
+        const filtered = filterPluginsForSpriggit(allPluginFiles);
+        pluginFiles = filtered.pluginFiles;
+        skippedVanillaCount = filtered.skippedVanillaCount;
+        if (pluginFiles.length === 0) {
+          return { ok: false, files: [], error: buildNoPluginsError(allPluginFiles), skippedVanillaCount, noCustomMods: true };
+        }
       }
 
       // Pre-check: Verify .NET Runtime 8.0+ is installed before spawning Spriggit processes.
@@ -3618,6 +3633,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         files: resultFiles,
         error: errorSummary,
         skippedVanillaCount,
+        skippedCustomCount,
       };
     } catch (e: any) {
       console.error('[Main] spriggit-serialize error:', e);
