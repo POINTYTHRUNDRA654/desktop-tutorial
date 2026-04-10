@@ -3610,18 +3610,36 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           const allSameCode = errors.every(e => e.includes('exit code 4294967295'));
           if (allSameCode) {
             // dotnetCheck.installed is known-true here (we returned early above if it was false).
-            // The binary starts (prints its version banner) then crashes during serialize, which
-            // means the CLR loaded fine but an assembly required for serialization failed to load
-            // — typical causes: AV quarantined a DLL, or the zip was only partially extracted.
-            hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
-              '.NET Runtime 8.0+ is installed, so the most likely causes are:\n' +
-              '  1. Antivirus quarantined a DLL — add the entire Spriggit folder as an exclusion and try again.\n' +
-              '     Windows Defender: Windows Security → Virus & threat protection → Manage settings\n' +
-              '     → Add or remove exclusions → Add an exclusion → Folder → select the Spriggit folder.\n' +
-              '  2. Incomplete extraction — Spriggit.CLI.exe needs ALL files from SpriggitCLI.zip beside it.\n' +
-              '     Re-extract SpriggitCLI.zip into a clean (empty) folder and point Mossy to the new exe.\n' +
-              '  3. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +
-              '  4. ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
+            if (selfTestCode !== null && selfTestCode !== SPRIGGIT_CRASH_EXIT_CODE) {
+              // Self-test (--version) passed: the executable starts and the CLR loads correctly.
+              // --version does NOT load game-specific assemblies (Spriggit.Yaml.Fallout4.*), but
+              // serialize does.  Every serialize crashing with 0xFFFFFFFF while --version works
+              // means the binary itself is fine — a game-specific assembly is being blocked.
+              // .NET installed ✓, binary starts ✓, so the cause is almost certainly AV.
+              // Drop "incomplete extraction" and "architecture mismatch" — the self-test already
+              // rules those out.
+              hint = '\n\nSpriggit.CLI.exe itself starts correctly (--version test passed), but the\n' +
+                'game-specific Fallout4 assemblies crash during serialize (exit code 4294967295 / 0xFFFFFFFF).\n' +
+                'Because .NET is installed and the binary works, the cause is almost always:\n\n' +
+                '  Antivirus blocking a game-specific DLL (e.g. Spriggit.Yaml.Fallout4.dll).\n' +
+                '  You must add the ENTIRE Spriggit FOLDER as an exclusion — not just the .exe:\n' +
+                '    Windows Defender: Windows Security → Virus & threat protection → Manage settings\n' +
+                '    → Add or remove exclusions → Add an exclusion → Folder → select the Spriggit folder\n' +
+                '    (e.g. D:\\Tools\\Spriggit\\).\n' +
+                '  After adding the exclusion, click "Convert & Digest" again.\n\n' +
+                '  ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
+            } else {
+              // Self-test timed out (null) — we cannot confirm the binary works; show the full list.
+              hint = '\n\nSpriggit.CLI.exe crashed on every plugin (exit code 4294967295 / 0xFFFFFFFF).\n' +
+                '.NET Runtime 8.0+ is installed, so the most likely causes are:\n' +
+                '  1. Antivirus quarantined a DLL — add the entire Spriggit folder as an exclusion and try again.\n' +
+                '     Windows Defender: Windows Security → Virus & threat protection → Manage settings\n' +
+                '     → Add or remove exclusions → Add an exclusion → Folder → select the Spriggit folder.\n' +
+                '  2. Incomplete extraction — Spriggit.CLI.exe needs ALL files from SpriggitCLI.zip beside it.\n' +
+                '     Re-extract SpriggitCLI.zip into a clean (empty) folder and point Mossy to the new exe.\n' +
+                '  3. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +
+                '  4. ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
+            }
           } else {
             hint = '\n\nSpriggit produced no output. Make sure Spriggit.CLI.exe is the correct executable and that your Data folder path is right.';
           }
