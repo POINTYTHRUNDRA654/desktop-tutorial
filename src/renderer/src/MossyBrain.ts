@@ -893,8 +893,11 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n     Restart your PC after installing the SDK.' +
       '\n  2) Download Spriggit from: https://github.com/Mutagen-Modding/Spriggit/releases' +
       '\n     Two options: Spriggit UI (Windows WPF app, easiest) or Spriggit CLI (cross-platform, for scripting).' +
-      '\n     Note: The UI executable can also be used as a CLI.' +
-      '\n  **Self-contained option**: SpriggitCLI.zip is a self-contained build that bundles .NET — no separate SDK install needed for basic runs.' +
+      '\n     ⚠️ FOR FALLOUT 4 1.11.x (AE / Creations Menu, Nov 2025+): you MUST use the PRE-RELEASE (dev) build.' +
+      '\n     On the releases page, scroll past the top "Latest" stable entry and look for the one tagged "Pre-release".' +
+      '\n     Download its SpriggitCLI.zip. The stable "Latest" build does NOT support AE record types and will crash.' +
+      '\n  **Self-contained option**: SpriggitCLI.zip bundles .NET — no separate SDK install needed for basic runs.' +
+      '\n     Pre-release builds are also available as self-contained SpriggitCLI.zip on the same releases page.' +
       '\n\n  **The Workflow: Individual Modder**' +
       '\n  1) Create or clone a Git repository (locally or on GitHub)' +
       '\n  2) Create your mod normally in the Creation Kit or xEdit' +
@@ -947,6 +950,19 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n      MainQuestline.yaml' +
       '\n  ```' +
       '\n  This folder structure makes **Git diffs meaningful**: edits to one weapon show as changes to one file, not huge diffs across a monolithic ESP.' +
+      '\n\n  **Spriggit Architecture: Mutagen.Bethesda.Serialization**' +
+      '\n  Spriggit is built on top of two Mutagen libraries:' +
+      '\n  • Mutagen (https://github.com/Mutagen-Modding/Mutagen) — binary-parsing layer: models every Bethesda record type as a strongly-typed .NET object.' +
+      '\n  • Mutagen.Bethesda.Serialization (https://github.com/Mutagen-Modding/Mutagen.Bethesda.Serialization) — uses C# Source Generators to convert those objects to/from YAML/JSON.' +
+      '\n  Spriggit wraps both into a CLI/GUI, handles NuGet package fetching, versioning, and file-structure conventions.' +
+      '\n\n  **Translation Packages — Built-in vs Custom**' +
+      '\n  Mutagen.Bethesda.Serialization allows full customization of naming conventions, file structure, and other serialization behaviour through custom packages published to NuGet.org.' +
+      '\n  Two packages are built-in (no publishing required):' +
+      '\n    Spriggit.Yaml.[GameName]  — YAML output, e.g. Spriggit.Yaml.Fallout4, Spriggit.Yaml.SkyrimSE, Spriggit.Yaml.Starfield' +
+      '\n    Spriggit.Json.[GameName]  — JSON output, e.g. Spriggit.Json.Fallout4' +
+      '\n  If no --PackageName is supplied, Spriggit defaults to Spriggit.Yaml.[DetectedGame].' +
+      '\n  Custom packages: build your own serialization layer, publish to NuGet.org, then reference via --PackageName MyCompany.Spriggit.Custom.Fallout4.' +
+      '\n  Unless you have a custom package, always use one of the two built-in patterns above.' +
       '\n\n  **Translation Packages & Version Control**' +
       '\n  Spriggit uses NuGet packages (Spriggit.Yaml.Fallout4, Spriggit.Json.Skyrim, etc.) to handle serialization logic.' +
       '\n  • Each text file is stamped with the NuGet package name & version used to create it' +
@@ -1057,6 +1073,11 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  Mutagen is a C# library by the Mutagen-Modding project that models every Bethesda game record type as a strongly-typed .NET object. Spriggit is built on top of it — Mutagen does the binary parsing; Spriggit serializes the resulting objects to YAML/JSON via C# Source Generators.' +
       '\n  GitHub: https://github.com/Mutagen-Modding/Mutagen' +
       '\n  Serialization library: https://github.com/Mutagen-Modding/Mutagen.Bethesda.Serialization' +
+      '\n\n  **Custom Serialization Packages (Advanced):**' +
+      '\n  Mutagen.Bethesda.Serialization supports full customization of naming, file structure, and serialization behaviour through packages you author and publish to NuGet.org.' +
+      '\n  Once published, users reference them via --PackageName YourPackage.Name.Fallout4.' +
+      '\n  Built-in packages (no authoring required): Spriggit.Yaml.[GameName] and Spriggit.Json.[GameName].' +
+      '\n  Custom packages are for teams with non-standard structure needs; most modders should use the built-in packages.' +
       '\n\n  **Root File Layout (Fallout4.esm as example):**' +
       '\n  ```yaml' +
       '\n  # RecordData.yaml — mod header' +
