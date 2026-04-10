@@ -3308,6 +3308,25 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // spriggit-open-folder: Open the folder containing the Spriggit.CLI.exe in the
+  // system file manager.  Shown in the UI after a 0xFFFFFFFF crash so the user can
+  // verify that all DLLs were extracted beside the exe.
+  registerHandler(IPC_CHANNELS.SPRIGGIT_OPEN_FOLDER, async (_event, filePath: string) => {
+    try {
+      if (!filePath || typeof filePath !== 'string') {
+        return { ok: false, error: 'No path provided.' };
+      }
+      const folderPath = fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()
+        ? filePath
+        : path.dirname(filePath);
+      await shell.openPath(folderPath);
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[Main] spriggit-open-folder error:', e);
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
   // spriggit-serialize: Run Spriggit.CLI.exe serialize on the user's Fallout 4
   // Data folder, then read the resulting YAML/JSON files into memory so the
   // caller can digest them into the Knowledge Vault.
@@ -3417,12 +3436,43 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         : path.join(app.getPath('userData'), 'spriggit-output');
       fs.mkdirSync(safeOutput, { recursive: true });
 
-      // Find all .esp/.esm/.esl files in the Data folder (top-level only)
-      const pluginFiles = fs.readdirSync(dataPath).filter(f =>
+      // Vanilla / official-DLC Fallout 4 plugins — skip these during digest so we
+      // only process the user's own mods.  These files are:
+      //   • Known to crash Spriggit in some extraction/AV configurations (0xFFFFFFFF),
+      //     which triggers the early-exit logic and makes every subsequent plugin look
+      //     like it failed too.
+      //   • Already well-covered by Mossy's built-in knowledge — ingesting them again
+      //     provides no extra value.
+      const VANILLA_FO4_PLUGINS = new Set([
+        'fallout4.esm',
+        'dlccoast.esm',       // Far Harbor
+        'dlcnukaworld.esm',   // Nuka-World
+        'dlcrobot.esm',       // Automatron
+        'dlcworkshop01.esm',  // Wasteland Workshop
+        'dlcworkshop02.esm',  // Contraptions Workshop
+        'dlcworkshop03.esm',  // Vault-Tec Workshop
+      ]);
+
+      // Find all .esp/.esm/.esl files in the Data folder (top-level only),
+      // excluding vanilla/DLC ESMs that are not part of the user's mod load.
+      const allPluginFiles = fs.readdirSync(dataPath).filter(f =>
         /\.(esp|esm|esl)$/i.test(f)
       );
-      if (pluginFiles.length === 0) {
+      const pluginFiles = allPluginFiles.filter(f => !VANILLA_FO4_PLUGINS.has(f.toLowerCase()));
+      const skippedVanillaCount = allPluginFiles.length - pluginFiles.length;
+
+      if (allPluginFiles.length === 0) {
         return { ok: false, files: [], error: 'No plugin files (.esp/.esm/.esl) found in the Data folder.' };
+      }
+      if (pluginFiles.length === 0) {
+        return {
+          ok: false,
+          files: [],
+          error:
+            'Only vanilla/DLC Fallout 4 plugins were found in the Data folder.\n' +
+            'The Spriggit digest is designed to learn your custom mods — Mossy already has built-in knowledge of the base game and official DLC.\n\n' +
+            'To use this feature, make sure your custom .esp/.esm/.esl mod files are present in the Data folder, then try again.',
+        };
       }
 
       /**
@@ -3590,6 +3640,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         ok: resultFiles.length > 0,
         files: resultFiles,
         error: errorSummary,
+        skippedVanillaCount,
       };
     } catch (e: any) {
       console.error('[Main] spriggit-serialize error:', e);
