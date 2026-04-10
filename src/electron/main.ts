@@ -3503,6 +3503,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   const SPRIGGIT_MIN_VERSION_FOR_FO4_111X: [number, number, number] = [0, 34, 0];
 
   /**
+   * The --Source flag (local NuGet feed path) was removed from the Spriggit CLI
+   * in v0.40.0 when the CLI was repackaged as a dotnet tool.  Passing it to any
+   * build >= 0.40.0 produces "Option 'Source' is unknown" and exits with code 1.
+   */
+  const SPRIGGIT_SOURCE_FLAG_REMOVED: [number, number, number] = [0, 40, 0];
+
+  /**
    * Extract [major, minor, patch] from a raw Spriggit --version string.
    * Handles both bare semver ("0.40.0") and the full-sentence form emitted by
    * recent builds ("Spriggit version 0.40.0+Branch.main.Sha.abc123").
@@ -3530,6 +3537,19 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   };
 
   /**
+   * Compare a parsed semver triple against a reference triple.
+   * Returns negative when v < ref, 0 when equal, positive when v > ref.
+   */
+  const compareSpriggitVersions = (
+    v: [number, number, number],
+    ref: [number, number, number],
+  ): number => {
+    if (v[0] !== ref[0]) return v[0] - ref[0];
+    if (v[1] !== ref[1]) return v[1] - ref[1];
+    return v[2] - ref[2];
+  };
+
+  /**
    * Returns true when the raw --version string predates the minimum version
    * required for FO4 1.11.x support.  An unparseable string is treated as
    * "too old" (conservative — we'd rather over-warn than under-warn).
@@ -3537,11 +3557,19 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   const isSpriggitTooOldFor111x = (raw: string): boolean => {
     const v = parseSpriggitSemver(raw);
     if (!v) return true; // unparseable; warning already logged by parseSpriggitSemver
-    const [maj, min, patch] = v;
-    const [rMaj, rMin, rPatch] = SPRIGGIT_MIN_VERSION_FOR_FO4_111X;
-    if (maj !== rMaj) return maj < rMaj;
-    if (min !== rMin) return min < rMin;
-    return patch < rPatch;
+    return compareSpriggitVersions(v, SPRIGGIT_MIN_VERSION_FOR_FO4_111X) < 0;
+  };
+
+  /**
+   * Returns true when the detected Spriggit version still accepts the --Source
+   * flag (i.e. it predates 0.40.0 where the flag was removed).  An unparseable
+   * version string is treated as "new" (flag NOT supported) — safer default since
+   * almost all users will be on a recent build.
+   */
+  const isSpriggitSourceFlagSupported = (raw: string): boolean => {
+    const v = parseSpriggitSemver(raw);
+    if (!v) return false; // unknown → assume >= 0.40.0
+    return compareSpriggitVersions(v, SPRIGGIT_SOURCE_FLAG_REMOVED) < 0;
   };
 
   /**
@@ -3721,10 +3749,10 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         '  4. Architecture mismatch — make sure you downloaded the x64 build of Spriggit for a 64-bit system.';
       // Shown at the end of both self-test error messages so the user can reproduce manually.
       const resolvedPackageNameForHint = (packageName && packageName.trim()) ? packageName.trim() : 'Spriggit.Yaml.Fallout4';
-      const nugetSourceHint = (nugetSource && nugetSource.trim()) ? ` --Source "${nugetSource.trim()}"` : '';
       const SPRIGGIT_MANUAL_RUN_HINT =
         '  5. To confirm the real error, open a Command Prompt and run Spriggit manually:\n' +
-        `     Spriggit.CLI.exe serialize --InputPath "path\\to\\plugin.esp" --OutputPath "C:\\Temp\\out" --GameRelease Fallout4 --PackageName ${resolvedPackageNameForHint}${nugetSourceHint}`;
+        `     Spriggit.CLI.exe serialize --InputPath "path\\to\\plugin.esp" --OutputPath "C:\\Temp\\out" --GameRelease Fallout4 --PackageName ${resolvedPackageNameForHint}` +
+        (nugetSource && nugetSource.trim() ? '\n     (Note: --Source is only valid for Spriggit < v0.40.0 — omit it on newer builds)' : '');
 
       // Capture both the exit code AND stdout (the version string) from --version.
       // The version string is used in error messages so users see exactly which
@@ -3859,7 +3887,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             '--OutputPath', pluginOutputDir,
             '--GameRelease', 'Fallout4',
             '--PackageName', resolvedPackageName,
-            ...(nugetSource && nugetSource.trim() ? ['--Source', nugetSource.trim()] : []),
+            ...(nugetSource && nugetSource.trim() && isSpriggitSourceFlagSupported(spriggitDetectedVersion) ? ['--Source', nugetSource.trim()] : []),
           ];
           const child = spawn(cliPath, spawnArgs, { shell: false, windowsHide: true, cwd: path.dirname(cliPath), env: spriggitEnv });
 

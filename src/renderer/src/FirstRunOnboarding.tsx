@@ -1853,7 +1853,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {/* Local NuGet Source */}
                             <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-1">
-                                    Local NuGet Source <span className="text-slate-500 text-xs font-normal">(--Source, optional)</span>
+                                    Local NuGet Source <span className="text-slate-500 text-xs font-normal">(--Source, Spriggit &lt; v0.40.0 only)</span>
                                 </label>
                                 <div className="flex gap-2">
                                     <input
@@ -1884,7 +1884,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Yaml.Fallout4</code>
                                     {' '}and{' '}
                                     <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Json.Fallout4</code>
-                                    ) to skip the nuget.org download entirely.
+                                    ) to skip the nuget.org download entirely.{' '}
+                                    <span className="text-amber-400">⚠ Only supported by Spriggit &lt; v0.40.0 — ignored on newer builds.</span>
                                 </p>
                             </div>
                         </div>
