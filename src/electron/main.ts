@@ -3387,6 +3387,56 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     };
   });
 
+  // spriggit-unblock-files: Remove the Zone.Identifier alternate data stream (Mark of the Web)
+  // from all files in the user's Spriggit folder via PowerShell Unblock-File.
+  //
+  // Background: Files downloaded from the internet on Windows carry a Zone 3 flag in an NTFS
+  // alternate data stream called "Zone.Identifier".  Windows Smart App Control (SAC) reads this
+  // flag and blocks unsigned binaries whose zone is 3 (internet).  When SAC is in "On" or
+  // "Evaluation" mode it is locked and cannot be disabled — the UI is greyed out and you need
+  // a clean Windows reinstall to turn it off.  The workaround is to remove the Zone.Identifier
+  // from every file in the Spriggit folder, making them appear as locally-sourced to Windows.
+  // PowerShell's Unblock-File cmdlet does exactly that: it removes Zone.Identifier from the
+  // target file.  After Unblock-File succeeds, a "Clear Cache & Retry" cleans any previously
+  // extracted (still-blocked) cached assemblies, and the next serialize run succeeds.
+  //
+  // Security: the folder path is passed via an environment variable (MOSSY_UNBLOCK_PATH) rather
+  // than embedded in the command string, avoiding any PowerShell injection via special characters.
+  registerHandler(IPC_CHANNELS.SPRIGGIT_UNBLOCK_FILES, async () => {
+    if (process.platform !== 'win32') {
+      return { ok: false, unblocked: 0, folderPath: '', error: 'Unblock-File is a Windows-only operation.' };
+    }
+    try {
+      const s = loadSettings();
+      const spriggitPath: string = (s.spriggitPath && typeof s.spriggitPath === 'string') ? s.spriggitPath : '';
+      if (!spriggitPath) {
+        return { ok: false, unblocked: 0, folderPath: '', error: 'Spriggit path not set — pick Spriggit.CLI.exe first.' };
+      }
+      const folderPath = path.dirname(spriggitPath);
+      if (!fs.existsSync(folderPath)) {
+        return { ok: false, unblocked: 0, folderPath, error: `Spriggit folder not found: ${folderPath}` };
+      }
+      // The folder path is passed via the MOSSY_UNBLOCK_PATH environment variable so that
+      // no special characters in the path (backticks, $, quotes, etc.) can alter the command.
+      const ps = '$files = Get-ChildItem -Path $env:MOSSY_UNBLOCK_PATH -Recurse -File -ErrorAction SilentlyContinue; $files | Unblock-File -ErrorAction SilentlyContinue; Write-Output $files.Count';
+      const { execSync } = await import('child_process');
+      const output = execSync(
+        'powershell -NoProfile -NonInteractive -Command "' + ps + '"',
+        {
+          timeout: 30_000,
+          windowsHide: true,
+          env: { ...process.env, MOSSY_UNBLOCK_PATH: folderPath },
+        },
+      ).toString().trim();
+      const unblocked = parseInt(output, 10);
+      console.log(`[Main] spriggit-unblock-files: unblocked ${unblocked} file(s) in ${folderPath}`);
+      return { ok: true, unblocked: isNaN(unblocked) ? 0 : unblocked, folderPath };
+    } catch (e: any) {
+      console.error('[Main] spriggit-unblock-files error:', e);
+      return { ok: false, unblocked: 0, folderPath: '', error: String(e?.message || e) };
+    }
+  });
+
   /**
    * Reads the Fallout4.exe file version from the game installation folder
    * (the parent directory of the user's selected Data folder).
@@ -3957,7 +4007,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                   '     block the .NET assemblies that Spriggit extracts at runtime, causing\n' +
                   '     exactly this crash.  Check: Windows Security → App & browser control\n' +
                   '     → Smart App Control.  Switching to "Evaluation" mode (or Off) and\n' +
-                  '     retrying usually resolves it immediately.\n';
+                  '     retrying usually resolves it immediately.\n' +
+                  '     If Smart App Control is LOCKED (greyed out — common on Windows 11 in\n' +
+                  '     "On" or "Evaluation" mode), use the "🔓 Unblock Files" button instead:\n' +
+                  '     this removes the downloaded-from-internet flag from every file in your\n' +
+                  '     Spriggit folder, then click "Clear Cache & Retry" and run again.\n' +
+                  '     Alternatively, add a Windows Defender exclusion for your Spriggit folder\n' +
+                  '     (Windows Security → Virus & threat protection → Exclusions).\n';
               } else if (fo4Is111x) {
                 versionHint =
                   '  1. ⭐ Spriggit version too old — Fallout 4 1.11.x (Creations Menu,\n' +
@@ -4011,7 +4067,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                   : fo4Is111x && spriggitDisplayVersion
                   ? `  1. ⭐ Smart App Control (Windows 11) — Spriggit v${spriggitDisplayVersion} is\n` +
                     '     current; SAC is the most likely culprit.  Check Windows Security →\n' +
-                    '     App & browser control → Smart App Control.\n'
+                    '     App & browser control → Smart App Control.\n' +
+                    '     If SAC is LOCKED (greyed out), click "🔓 Unblock Files" in Mossy or\n' +
+                    '     add a Defender exclusion: Windows Security → Virus & threat protection → Exclusions.\n'
                   : '  1. ⭐ Spriggit version too old — if on FO4 1.11.x (Creations Menu / Nov 2025),\n' +
                     '     download the latest SpriggitCLI.zip from github.com/Mutagen-Modding/Spriggit/releases.\n') +
                 '  2. Stale cache — click "Clear Cache & Retry" to wipe it so Spriggit can re-extract:\n' +
