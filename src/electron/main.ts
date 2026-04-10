@@ -3355,9 +3355,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         'Incomplete extraction — you need SpriggitCLI.zip (NOT Spriggit.zip).\n' +
         '     On the releases page there are two zips: SpriggitCLI.zip (CLI, correct) and\n' +
         '     Spriggit.zip (GUI app, wrong — it will not work here).\n' +
-        '     Extract SpriggitCLI.zip fully; the folder needs Spriggit.Yaml.Fallout4.dll\n' +
-        '     and ~50+ other files alongside Spriggit.CLI.exe.\n' +
-        '     Re-extract the full SpriggitCLI.zip into a clean folder and try again.';
+        '     Extract the full SpriggitCLI.zip into a clean folder and try again.';
       // Common cause list shared by the self-test crash error and the all-fail summary hint.
       const SPRIGGIT_CRASH_CAUSES =
         `  0. ${SPRIGGIT_INCOMPLETE_EXTRACT_HINT}\n` +
@@ -3418,23 +3416,6 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         ? outputPath
         : path.join(app.getPath('userData'), 'spriggit-output');
       fs.mkdirSync(safeOutput, { recursive: true });
-
-      // Pre-flight: check that Spriggit.Yaml.Fallout4.dll is present alongside the CLI.
-      // A SpriggitCLI.zip extraction that only partially unpacked will be missing this DLL
-      // and every serialize call will crash with exit code 0xFFFFFFFF before any work is done.
-      const spriggitDir = path.dirname(cliPath);
-      const yamlDll = path.join(spriggitDir, 'Spriggit.Yaml.Fallout4.dll');
-      if (!fs.existsSync(yamlDll)) {
-        return {
-          ok: false,
-          files: [],
-          error:
-            'Incomplete Spriggit installation detected.\n' +
-            `Spriggit.Yaml.Fallout4.dll was not found in:\n  ${spriggitDir}\n\n` +
-            SPRIGGIT_INCOMPLETE_EXTRACT_HINT.replace(/^ {5}/gm, '') + '\n\n' +
-            'Download from: https://github.com/Mutagen-Modding/Spriggit/releases',
-        };
-      }
 
       // Find all .esp/.esm/.esl files in the Data folder (top-level only)
       const pluginFiles = fs.readdirSync(dataPath).filter(f =>
