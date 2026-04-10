@@ -3738,11 +3738,11 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               // Spriggit version cannot parse the record types in the target ESM/DLC.
               // FO4 1.11.x (Creations Menu, November 2025) introduced new record types; any
               // Spriggit build older than the corresponding release will fail exactly this way.
-              const serialiseFailDesc = hasSilentFailures
+              const serializeFailDesc = hasSilentFailures
                 ? 'crashes with exit code 4294967295 / 0xFFFFFFFF on DLC files\n' +
                   'and/or exits cleanly but produces no YAML for base-game ESMs'
                 : 'crashes during serialize\n(exit code 4294967295 / 0xFFFFFFFF)';
-              hint = `\n\nSpriggit.CLI.exe starts correctly (--version passed) but ${serialiseFailDesc}.\n\n` +
+              hint = `\n\nSpriggit.CLI.exe starts correctly (--version passed) but ${serializeFailDesc}.\n\n` +
                 '  1. ⭐ Spriggit version too old for your game — the most common cause since\n' +
                 '     FO4 1.11.x (Creations Menu / November 2025 update) introduced new record\n' +
                 '     types.  Click "Re-download Spriggit →" to get the latest release from\n' +
