@@ -1487,7 +1487,23 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     </button>
                                 </div>
                                 <p className="text-xs text-slate-500 mt-1">
-                                    Download from <button type="button" onClick={() => void openExternal('https://github.com/Mutagen-Modding/Spriggit/releases')} className="text-emerald-400 hover:underline">github.com/Mutagen-Modding/Spriggit</button>
+                                    Download from{' '}
+                                    <button type="button" onClick={() => void openExternal('https://github.com/Mutagen-Modding/Spriggit/releases')} className="text-emerald-400 hover:underline">
+                                        github.com/Mutagen-Modding/Spriggit
+                                    </button>
+                                    {' '}— on the releases page, download{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">SpriggitCLI.zip</code>
+                                    {' '}(not <code className="bg-slate-700 px-1 rounded text-slate-400">Spriggit.zip</code>).
+                                    Extract the full zip, then browse to{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.CLI.exe</code>.{' '}
+                                    <span className="text-slate-400">
+                                        Windows hides the <code className="bg-slate-700 px-1 rounded">.exe</code> extension by default,
+                                        so the folder will show two entries both named{' '}
+                                        <code className="bg-slate-700 px-1 rounded">Spriggit.CLI</code> — pick the one with the{' '}
+                                        <strong className="text-slate-300">application icon</strong> (looks like a small window), not the{' '}
+                                        <code className="bg-slate-700 px-1 rounded">.pdb</code> or{' '}
+                                        <code className="bg-slate-700 px-1 rounded">.Lib</code> files.
+                                    </span>
                                 </p>
                             </div>
 

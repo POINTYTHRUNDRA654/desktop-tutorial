@@ -3352,9 +3352,12 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // Shared wording for the incomplete-extraction root cause, used both in the
       // pre-flight check error and in the SPRIGGIT_CRASH_CAUSES hint list.
       const SPRIGGIT_INCOMPLETE_EXTRACT_HINT =
-        'Incomplete extraction — SpriggitCLI.zip must be fully extracted; the folder needs\n' +
-        '     Spriggit.Yaml.Fallout4.dll and ~50+ other files, not just Spriggit.CLI.exe.\n' +
-        '     Re-extract the full zip into a clean folder and try again.';
+        'Incomplete extraction — you need SpriggitCLI.zip (NOT Spriggit.zip).\n' +
+        '     On the releases page there are two zips: SpriggitCLI.zip (CLI, correct) and\n' +
+        '     Spriggit.zip (GUI app, wrong — it will not work here).\n' +
+        '     Extract SpriggitCLI.zip fully; the folder needs Spriggit.Yaml.Fallout4.dll\n' +
+        '     and ~50+ other files alongside Spriggit.CLI.exe.\n' +
+        '     Re-extract the full SpriggitCLI.zip into a clean folder and try again.';
       // Common cause list shared by the self-test crash error and the all-fail summary hint.
       const SPRIGGIT_CRASH_CAUSES =
         `  0. ${SPRIGGIT_INCOMPLETE_EXTRACT_HINT}\n` +
