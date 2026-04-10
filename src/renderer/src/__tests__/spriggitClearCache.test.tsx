@@ -104,7 +104,7 @@ const FAKE_0xFFFFFFFF_ERROR =
   'DLCCoast.esm: exit code 4294967295\n' +
   'DLCNukaWorld.esm: exit code 4294967295\n' +
   'DLCRobot.esm: exit code 4294967295\n' +
-  '…and 4 more plugin(s) failed.\n\n' +
+  '...and 4 more plugin(s) failed.\n\n' +
   'Spriggit.CLI.exe starts correctly (--version passed) but crashes during serialize\n' +
   '(exit code 4294967295 / 0xFFFFFFFF).';
 
@@ -206,18 +206,18 @@ describe('FirstRunOnboarding — spriggit-digest 0xFFFFFFFF error recovery', () 
 
     // There are exactly two Browse buttons in the spriggit-digest step.
     // First = Spriggit.CLI.exe, second = Fallout 4 Data Folder.
-    const [browseCli, browseData] = screen.getAllByRole('button', {
-      name: /browse/i,
-    });
+    const browseButtons = screen.getAllByRole('button', { name: /browse/i });
+    const browseCli = browseButtons[0];
+    const browseData = browseButtons[1];
 
-    await user.click(browseCli!);
+    await user.click(browseCli);
     await waitFor(() =>
       expect(
         screen.getByDisplayValue('D:\\Tools\\Spriggit\\Spriggit.CLI.exe')
       ).toBeInTheDocument()
     );
 
-    await user.click(browseData!);
+    await user.click(browseData);
     await waitFor(() =>
       expect(
         screen.getByDisplayValue('G:\\Steam\\steamapps\\common\\Fallout 4\\Data')
