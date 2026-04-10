@@ -1842,29 +1842,39 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             </button>
                                         )}
                                         {/* "Re-download Spriggit" — shown whenever a 0xFFFFFFFF crash or
-                                            silent-failure occurs.  For FO4 1.11.x (the current version
-                                            as of November 2025) an outdated Spriggit is the #1 cause.
-                                            Styled as a prominent action button so users see it first. */}
-                                        <button
-                                            type="button"
-                                            className="px-3 py-1 rounded bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 text-xs font-semibold transition-colors"
-                                            onClick={() => {
-                                                const api = getElectronApi();
-                                                if (api?.openExternal) {
-                                                    void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
-                                                } else {
-                                                    window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
-                                                }
-                                            }}
-                                        >
-                                            ⬇️ Re-download Spriggit →
-                                        </button>
+                                            silent-failure occurs.  When a version mismatch is confirmed
+                                            (FO4 1.11.x + old Spriggit), this is the ONLY real fix so we
+                                            style it more prominently (yellow border + bold label). */}
+                                        {(() => {
+                                            const isVersionMismatch = detectedFo4Version.startsWith('1.11.') && !!detectedSpriggitVersion;
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    className={isVersionMismatch
+                                                        ? 'px-3 py-1 rounded border-2 border-yellow-400 bg-yellow-700/60 hover:bg-yellow-600/70 text-yellow-100 text-xs font-bold transition-colors'
+                                                        : 'px-3 py-1 rounded bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 text-xs font-semibold transition-colors'}
+                                                    onClick={() => {
+                                                        const api = getElectronApi();
+                                                        if (api?.openExternal) {
+                                                            void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
+                                                        } else {
+                                                            window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
+                                                        }
+                                                    }}
+                                                >
+                                                    {isVersionMismatch ? '⭐ Re-download Spriggit (required) →' : '⬇️ Re-download Spriggit →'}
+                                                </button>
+                                            );
+                                        })()}
                                         {/* "Clear Cache & Retry" — the most common fix when --version
                                             passes but serialize crashes.  The .NET single-file publish
                                             caches extracted assemblies in a temp folder; a stale or
                                             corrupted cache (e.g. after upgrading Spriggit) causes this
                                             exact crash pattern.  This button deletes both candidate
-                                            cache paths and then auto-retries the digest. */}
+                                            cache paths.
+                                            IMPORTANT: when a version mismatch is confirmed (FO4 1.11.x +
+                                            detected old Spriggit), we skip the auto-retry because we know
+                                            it will fail again — re-downloading is the only real fix. */}
                                         <button
                                             type="button"
                                             disabled={cacheClearInProgress || spriggitStatus === 'running'}
@@ -1872,6 +1882,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             onClick={async () => {
                                                 const api = getElectronApi();
                                                 if (!api?.spriggitClearCache) return;
+                                                const isVersionMismatch = detectedFo4Version.startsWith('1.11.') && !!detectedSpriggitVersion;
                                                 setCacheClearInProgress(true);
                                                 setCacheClearResult(null);
                                                 try {
@@ -1881,25 +1892,32 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     setCacheClearResult('error');
                                                 } finally {
                                                     setCacheClearInProgress(false);
-                                                    // Auto-retry the digest after clearing the cache;
-                                                    // runSpriggitDigest() manages its own error state.
-                                                    await runSpriggitDigest();
+                                                    // Skip the auto-retry when a version mismatch is confirmed
+                                                    // — retrying will fail for the same reason and confuse the
+                                                    // user.  The correct fix is to re-download Spriggit first.
+                                                    if (!isVersionMismatch) {
+                                                        await runSpriggitDigest();
+                                                    }
                                                 }
                                             }}
                                         >
                                             {cacheClearInProgress ? '🔄 Clearing…' : '🗑️ Clear Cache & Retry'}
                                         </button>
-                                        {cacheClearResult === 'ok' && spriggitStatus !== 'error' && (
+                                        {cacheClearResult === 'ok' && spriggitStatus !== 'error' && !detectedFo4Version.startsWith('1.11.') && (
                                             <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
                                         )}
-                                        {cacheClearResult === 'ok' && spriggitStatus === 'error' && (
+                                        {cacheClearResult === 'ok' && detectedFo4Version.startsWith('1.11.') && !!detectedSpriggitVersion && (
+                                            <span className="text-xs text-yellow-300 font-semibold">
+                                                🗑️ Cache cleared — but <strong>re-downloading Spriggit is still required</strong> to fix the version mismatch.{' '}
+                                                Click <strong>⭐ Re-download Spriggit (required) →</strong> above to get the latest SpriggitCLI.zip.
+                                            </span>
+                                        )}
+                                        {cacheClearResult === 'ok' && spriggitStatus === 'error' && !detectedFo4Version.startsWith('1.11.') && (
                                             <span className="text-xs text-amber-300 font-semibold">
                                                 ⚠️ Cache cleared but still failing —{' '}
-                                                {detectedFo4Version.startsWith('1.11.') && detectedSpriggitVersion
-                                                    ? <>Spriggit <strong>v{detectedSpriggitVersion}</strong> is too old for <strong>FO4 {detectedFo4Version}</strong>. Click <strong>Re-download Spriggit →</strong> and get the latest SpriggitCLI.zip.</>
-                                                    : detectedFo4Version.startsWith('1.11.')
-                                                        ? <>FO4 1.11.x detected — you need a <strong>post-November 2025 Spriggit build</strong>. Click <strong>Re-download Spriggit →</strong>.</>
-                                                        : <>most likely fix: <strong>Re-download the latest Spriggit</strong> (version too old for FO4 1.11.x new record types). Also check: Smart App Control (Windows Security) and free disk space on C:.</>
+                                                {detectedFo4Version.startsWith('1.11.')
+                                                    ? <>FO4 1.11.x detected — you need a <strong>post-November 2025 Spriggit build</strong>. Click <strong>Re-download Spriggit →</strong>.</>
+                                                    : <>most likely fix: <strong>Re-download the latest Spriggit</strong> (version too old for FO4 1.11.x new record types). Also check: Smart App Control (Windows Security) and free disk space on C:.</>
                                                 }
                                             </span>
                                         )}
