@@ -33,7 +33,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     // These must be installed first; many Mossy features silently fail without them.
     {
         name: '.NET SDK (latest)',
-        description: 'Required by Spriggit and other .NET-based modding tools. The SDK (not just the Runtime) is needed so Spriggit can download its translation packages via "dotnet tool install" at first serialize run. Restart your PC after installing.',
+        description: 'Required by Spriggit and other .NET-based modding tools. The SDK (not just the Runtime) is needed so Spriggit can download its translation packages via "dotnet tool install" at first serialize run. Restart your PC after installing. 💡 Tip: if your C: drive is short on space, click "Change" during setup and install to D:\\Program Files\\dotnet — the installer supports any drive.',
         detectKeywords: ['microsoft .net', '.net desktop runtime', '.net runtime', '.net sdk', 'dotnet sdk'],
         url: 'https://dotnet.microsoft.com/download/dotnet',
         urlLabel: 'dotnet.microsoft.com',
@@ -733,7 +733,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     name: '.NET SDK (missing)',
                     path: 'https://dotnet.microsoft.com/download/dotnet',
                     category: 'modding',
-                    benefit: '⚠️ Required by Spriggit (SDK, not just Runtime — needed for dotnet tool install of translation packages). Install then restart your PC.',
+                    benefit: '⚠️ Required by Spriggit (SDK, not just Runtime — needed for dotnet tool install of translation packages). Install then restart your PC. 💡 Tip: if C: is short on space, click "Change" during setup and install to D:\\Program Files\\dotnet.',
                     boostsMossy: true,
                 });
             }
@@ -839,7 +839,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             'The SDK (not just the Runtime) is needed so Spriggit can download its\n' +
                             'Fallout4 translation package via "dotnet tool install" on first serialize run.\n' +
                             'After installing, restart your PC, then try again.\n' +
-                            'Download: https://dotnet.microsoft.com/download/dotnet'
+                            'Download: https://dotnet.microsoft.com/download/dotnet\n' +
+                            '💡 Tip: if your C: drive is low on space, click "Change" during setup\n' +
+                            '   and install to D:\\Program Files\\dotnet — any drive works.'
                         );
                         return;
                     }
@@ -1626,6 +1628,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 its Fallout4 translation package on first serialize run.{' '}
                                 <strong>Restart your PC after installing.</strong>
                                 <br />
+                                <div className="mt-2 p-2 rounded bg-amber-800/40 border border-amber-500/40 text-amber-100 text-xs">
+                                    💡 <strong>Tip — short on C: drive space?</strong> Click <strong>&ldquo;Change&rdquo;</strong> during the .NET installer to install to a different drive,
+                                    e.g. <code className="bg-amber-900/50 px-1 rounded">D:\Program Files\dotnet</code>.
+                                    Mossy detects .NET on any drive automatically.
+                                </div>
                                 <div className="mt-2 p-2 rounded bg-amber-800/30 border border-amber-500/40 text-amber-100 text-xs">
                                     <strong>✨ Easiest fix:</strong> Download the <strong>self-contained Spriggit build</strong> — it bundles .NET and requires no separate installation.
                                     On the releases page, download <code className="bg-amber-900/50 px-1 rounded">SpriggitCLI.zip</code> and use the <code className="bg-amber-900/50 px-1 rounded">Spriggit.CLI.exe</code> inside it.
