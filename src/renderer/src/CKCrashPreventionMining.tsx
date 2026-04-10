@@ -143,6 +143,70 @@ export const CKCrashPrevention: React.FC = () => {
   const wheelProxy = useWheelScrollProxyFrom(() => issuesScrollRef.current ?? fileListScrollRef.current ?? adviceScrollRef.current);
   const auditButtonsWheelProxy = useWheelScrollProxyFrom(() => auditButtonsRef.current);
 
+  // ── Spriggit Vanilla ESM Digest (in-Auditor) ─────────────────────────────
+  const [spriggitPanelOpen, setSpriggitPanelOpen] = useState(false);
+  const [sdCliPath, setSdCliPath] = useState('');
+  const [sdDataPath, setSdDataPath] = useState('');
+  const [sdPackageName, setSdPackageName] = useState('Spriggit.Yaml.Fallout4');
+  const [sdNugetSource, setSdNugetSource] = useState('');
+  const [sdStatus, setSdStatus] = useState<'idle' | 'running' | 'done' | 'partial' | 'error'>('idle');
+  const [sdMessage, setSdMessage] = useState('');
+  const [sdCacheClearInProgress, setSdCacheClearInProgress] = useState(false);
+  const [sdCacheClearResult, setSdCacheClearResult] = useState<'ok' | 'error' | null>(null);
+  const [sdUnblockInProgress, setSdUnblockInProgress] = useState(false);
+  const [sdUnblockResult, setSdUnblockResult] = useState<{ ok: boolean; unblocked?: number; folderPath?: string; error?: string } | null>(null);
+  const [sdAutoUnblockState, setSdAutoUnblockState] = useState<'idle' | 'unblocking' | 'retrying' | 'failed'>('idle');
+
+  const getApi = () => (window as any)?.electron?.api ?? (window as any)?.electronAPI;
+
+  const runSpriggitVanillaDigest = async (): Promise<{ failed0xFFFF: boolean }> => {
+    const api = getApi();
+    if (!api?.spriggitSerialize) { setSdStatus('error'); setSdMessage('Spriggit integration not available.'); return { failed0xFFFF: false }; }
+    if (!sdCliPath || !sdDataPath) { setSdMessage('Select Spriggit.CLI.exe and Fallout 4 Data folder first.'); return { failed0xFFFF: false }; }
+    setSdStatus('running');
+    setSdMessage('Running Spriggit — converting vanilla ESMs to YAML…');
+    try {
+      const result = await api.spriggitSerialize({
+        cliPath: sdCliPath,
+        dataPath: sdDataPath,
+        outputPath: '',
+        vanillaOnly: true,
+        packageName: sdPackageName.trim() || 'Spriggit.Yaml.Fallout4',
+        nugetSource: sdNugetSource.trim() || undefined,
+      });
+      if (!result.ok || !result.files?.length) {
+        const errText = result.error || 'No YAML files produced.';
+        setSdStatus('error');
+        setSdMessage(`Spriggit failed:\n${errText.length > 1200 ? errText.slice(0, 1200) + '\n…(truncated)' : errText}`);
+        return { failed0xFFFF: errText.includes('0xFFFFFFFF') };
+      }
+      // Merge results into the Knowledge Vault
+      const existing: any[] = (() => { try { return JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]'); } catch { return []; } })();
+      const now = new Date().toISOString();
+      const newEntries = (result.files as Array<{ name: string; content: string }>).map(f => ({
+        id: `spriggit-vanilla-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        title: `Vanilla ESM: ${f.name}`,
+        content: f.content,
+        source: 'Spriggit serialize — vanilla ESMs (Auditor)',
+        trustLevel: 'personal',
+        date: now,
+        tags: ['spriggit', 'fallout4', 'vanilla-base-records'],
+        status: 'learned',
+      }));
+      localStorage.setItem('mossy_knowledge_vault', JSON.stringify([...existing, ...newEntries]));
+      try { await api.saveKnowledgeVault?.([...existing, ...newEntries]); } catch { /* fire-and-forget */ }
+      const isPartial = !!(result.partialSuccess && result.error);
+      setSdStatus(isPartial ? 'partial' : 'done');
+      setSdMessage(isPartial
+        ? `⚠️ Partial: ${newEntries.length} files digested. Some DLC ESMs failed:\n${result.error!.slice(0, 400)}`
+        : `✅ Digested ${newEntries.length} vanilla ESM YAML files into the Knowledge Vault.`);
+      return { failed0xFFFF: false };
+    } catch (err: any) {
+      setSdStatus('error'); setSdMessage(`Error: ${String(err?.message || err)}`);
+      return { failed0xFFFF: false };
+    }
+  };
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -624,6 +688,186 @@ export const CKCrashPrevention: React.FC = () => {
             <strong>Real ESP Analysis:</strong> Files are validated and checked for size/record issues.
             Click issues to get AI-powered advice and fixes (requires an AI provider configured in Settings).
           </p>
+        </div>
+
+        {/* ── Spriggit Vanilla ESM Digest Panel ───────────────────────────── */}
+        <div className="border-b border-slate-700 bg-slate-900/60">
+          <button
+            type="button"
+            onClick={() => setSpriggitPanelOpen(o => !o)}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800/50 transition-colors"
+          >
+            <Brain className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span className="text-sm font-bold text-emerald-300">Spriggit Vanilla ESM Digest</span>
+            <span className="text-xs text-slate-400 ml-1">— convert base-game ESMs into Mossy's Knowledge Vault</span>
+            <span className="ml-auto text-slate-500 text-xs">{spriggitPanelOpen ? '▲ Collapse' : '▼ Expand'}</span>
+          </button>
+          {spriggitPanelOpen && (
+            <div className="px-4 pb-4 pt-1 space-y-3">
+              <p className="text-xs text-slate-400">
+                Uses <strong className="text-slate-300">Spriggit.CLI.exe serialize</strong> with{' '}
+                <code className="bg-slate-800 px-1 rounded text-emerald-300">--PackageName</code> to convert
+                vanilla ESMs (Fallout4.esm + all DLCs) to YAML and digest them into Mossy's brain.
+                Specify a <strong className="text-slate-300">Local NuGet Source</strong> folder if you have the
+                translation packages cached locally — this bypasses the nuget.org download entirely.
+              </p>
+
+              {/* Paths row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Spriggit.CLI.exe</label>
+                  <div className="flex gap-2">
+                    <input readOnly value={sdCliPath} placeholder="Not selected"
+                      className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-300 placeholder-slate-600 focus:outline-none" />
+                    <button type="button"
+                      onClick={async () => { const api = getApi(); if (!api?.spriggitPickCli) return; const p = await api.spriggitPickCli(); if (p) setSdCliPath(p); }}
+                      className="px-2 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded text-xs text-slate-200 flex items-center gap-1 transition-colors">
+                      <FolderOpen className="w-3.5 h-3.5" /> Browse
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Fallout 4 Data Folder</label>
+                  <div className="flex gap-2">
+                    <input readOnly value={sdDataPath} placeholder="e.g. C:\Steam\steamapps\common\Fallout 4\Data"
+                      className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-300 placeholder-slate-600 focus:outline-none" />
+                    <button type="button"
+                      onClick={async () => { const api = getApi(); if (!api?.pickDirectory) return; const p = await api.pickDirectory('Select Fallout 4 Data Folder'); if (p) setSdDataPath(p); }}
+                      className="px-2 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded text-xs text-slate-200 flex items-center gap-1 transition-colors">
+                      <FolderOpen className="w-3.5 h-3.5" /> Browse
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Package name + local NuGet source row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+                    Package Name <span className="text-slate-500 font-normal">(--PackageName)</span>
+                  </label>
+                  <input value={sdPackageName} onChange={e => setSdPackageName(e.target.value)}
+                    placeholder="Spriggit.Yaml.Fallout4"
+                    className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Built-in: <code className="text-emerald-400">Spriggit.Yaml.Fallout4</code> or <code className="text-emerald-400">Spriggit.Json.Fallout4</code>.
+                    Custom packages: publish to NuGet and enter the package name here.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+                    Local NuGet Source <span className="text-slate-500 font-normal">(--Source, optional)</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input value={sdNugetSource} onChange={e => setSdNugetSource(e.target.value)}
+                      placeholder="e.g. D:\Tools\Spriggit-dev\Translation Packages"
+                      className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                    <button type="button"
+                      onClick={async () => { const api = getApi(); if (!api?.pickDirectory) return; const p = await api.pickDirectory('Select Local NuGet Source Folder'); if (p) setSdNugetSource(p); }}
+                      className="px-2 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded text-xs text-slate-200 flex items-center gap-1 transition-colors">
+                      <FolderOpen className="w-3.5 h-3.5" /> Browse
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Point to the folder containing your local <code className="text-emerald-400">Spriggit.Yaml.Fallout4</code> /
+                    <code className="text-emerald-400"> Spriggit.Json.Fallout4</code> packages to skip nuget.org entirely.
+                    E.g. <code className="text-slate-400">D:\Tools\Spriggit-dev\Translation Packages</code>
+                  </p>
+                </div>
+              </div>
+
+              {/* Status message */}
+              {sdMessage && (
+                <div className={`rounded px-3 py-2 text-xs whitespace-pre-line break-words max-h-40 overflow-y-auto ${
+                  sdStatus === 'error' ? 'bg-red-900/30 border border-red-700/50 text-red-200'
+                  : sdStatus === 'partial' ? 'bg-amber-900/30 border border-amber-600/50 text-amber-200'
+                  : sdStatus === 'done' ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
+                  : 'bg-slate-800/60 border border-slate-600 text-slate-300'}`}>
+                  {sdMessage}
+                </div>
+              )}
+
+              {/* Troubleshooting row — shown on 0xFFFFFFFF errors */}
+              {sdStatus === 'error' && sdMessage.includes('0xFFFFFFFF') && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {sdCliPath && (
+                    <button type="button" disabled={sdUnblockInProgress}
+                      onClick={async () => {
+                        const api = getApi(); if (!api?.spriggitUnblockFiles) return;
+                        setSdUnblockInProgress(true); setSdUnblockResult(null);
+                        try { const r = await api.spriggitUnblockFiles(); setSdUnblockResult(r); }
+                        catch (e: any) { setSdUnblockResult({ ok: false, error: String(e?.message || e) }); }
+                        finally { setSdUnblockInProgress(false); }
+                      }}
+                      className="px-3 py-1 rounded bg-violet-800/60 hover:bg-violet-700/60 disabled:opacity-50 text-violet-100 text-xs font-semibold transition-colors">
+                      {sdUnblockInProgress ? '🔄 Unblocking…' : '🔓 Unblock Files'}
+                    </button>
+                  )}
+                  {sdUnblockResult?.ok && (
+                    <span className="text-xs text-violet-300 font-semibold">
+                      ✅ Unblocked {sdUnblockResult.unblocked ?? 0} file(s) — now click 🗑️ Clear Cache &amp; Retry
+                    </span>
+                  )}
+                  <button type="button"
+                    disabled={sdCacheClearInProgress || sdStatus === 'running' || sdAutoUnblockState === 'unblocking' || sdAutoUnblockState === 'retrying'}
+                    onClick={async () => {
+                      const api = getApi(); if (!api?.spriggitClearCache) return;
+                      setSdCacheClearInProgress(true); setSdCacheClearResult(null); setSdAutoUnblockState('idle');
+                      let clearOk = false;
+                      try { const r = await api.spriggitClearCache(); clearOk = r.ok; setSdCacheClearResult(r.ok ? 'ok' : 'error'); }
+                      catch { setSdCacheClearResult('error'); }
+                      finally { setSdCacheClearInProgress(false); }
+                      if (clearOk) {
+                        const first = await runSpriggitVanillaDigest();
+                        if (first.failed0xFFFF && api.spriggitUnblockFiles) {
+                          setSdAutoUnblockState('unblocking');
+                          try {
+                            const ur = await api.spriggitUnblockFiles();
+                            if (ur?.ok) {
+                              setSdUnblockResult(ur);
+                              setSdAutoUnblockState('retrying');
+                              await runSpriggitVanillaDigest();
+                            } else { setSdAutoUnblockState('failed'); }
+                          } catch { setSdAutoUnblockState('failed'); }
+                        }
+                      }
+                    }}
+                    className="px-3 py-1 rounded bg-amber-800/60 hover:bg-amber-700/60 disabled:opacity-50 text-amber-100 text-xs font-semibold transition-colors">
+                    {(sdCacheClearInProgress || sdAutoUnblockState === 'unblocking' || sdAutoUnblockState === 'retrying')
+                      ? (sdCacheClearInProgress ? '🔄 Clearing…' : sdAutoUnblockState === 'unblocking' ? '🔓 Unblocking…' : '🔄 Retrying…')
+                      : '🗑️ Clear Cache & Retry'}
+                  </button>
+                  {sdAutoUnblockState === 'unblocking' && <span className="text-xs text-violet-300">🔓 Auto-unblocking fresh assemblies…</span>}
+                  {sdAutoUnblockState === 'retrying' && <span className="text-xs text-emerald-300">🔄 Retrying with unblocked assemblies…</span>}
+                  {sdCacheClearResult === 'ok' && sdStatus === 'error' && sdAutoUnblockState === 'failed' && (
+                    <span className="text-xs text-amber-300 font-semibold">
+                      ⚠️ Auto-unblock ran but still failing — add a Windows Defender exclusion for your Spriggit folder:
+                      Windows Security → Virus &amp; threat protection → Exclusions → Add → Folder.
+                    </span>
+                  )}
+                  {sdCacheClearResult === 'ok' && sdStatus === 'error' && sdAutoUnblockState === 'idle' && (
+                    <span className="text-xs text-amber-300 font-semibold">
+                      ⚠️ Cache cleared but still failing — fresh assemblies extracted, click 🔓 Unblock Files then 🗑️ Clear Cache &amp; Retry again.
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-2 flex-wrap">
+                <button type="button"
+                  disabled={sdStatus === 'running' || !sdCliPath || !sdDataPath}
+                  onClick={() => void runSpriggitVanillaDigest()}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors flex items-center gap-2">
+                  <Brain className="w-4 h-4" />
+                  {sdStatus === 'running' ? 'Converting…' : 'Convert & Digest into Brain'}
+                </button>
+                {sdStatus === 'done' || sdStatus === 'partial' ? (
+                  <span className="self-center text-xs text-emerald-400 font-semibold">✅ Done — Knowledge Vault updated</span>
+                ) : null}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="px-4 pt-4 max-h-72 overflow-y-auto pr-2">

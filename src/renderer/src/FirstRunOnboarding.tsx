@@ -67,6 +67,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         description: 'Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Used by Mossy\'s onboarding brain-boost step to ingest the vanilla ESMs.',
         detectKeywords: ['spriggit'],
         url: 'https://github.com/Mutagen-Modding/Spriggit/releases',
+        note: '⚠️ For FO4 1.11.x (AE/Creations Menu): scroll past the top "Latest" release and download the PRE-RELEASE (dev) SpriggitCLI.zip.',
         urlLabel: 'GitHub Releases',
         category: 'version-control',
         required: false,
@@ -267,6 +268,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     // Spriggit digest step state
     const [spriggitCliPath, setSpriggitCliPath] = useState('');
     const [spriggitDataPath, setSpriggitDataPath] = useState('');
+    const [spriggitPackageName, setSpriggitPackageName] = useState('Spriggit.Yaml.Fallout4');
+    const [spriggitNugetSource, setSpriggitNugetSource] = useState('');
     const [spriggitStatus, setSpriggitStatus] = useState<'idle' | 'running' | 'done' | 'partial' | 'error' | 'noMods'>('idle');
     const [spriggitMessage, setSpriggitMessage] = useState('');
     const [spriggitFileCount, setSpriggitFileCount] = useState(0);
@@ -274,6 +277,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [cacheClearResult, setCacheClearResult] = useState<'ok' | 'error' | null>(null);
     const [unblockInProgress, setUnblockInProgress] = useState(false);
     const [unblockResult, setUnblockResult] = useState<{ ok: boolean; unblocked?: number; folderPath?: string; error?: string } | null>(null);
+    /**
+     * Tracks the automatic "unblock freshly extracted assemblies → retry" step that runs
+     * after a "Clear Cache & Retry" still fails with 0xFFFFFFFF.  Clearing the cache causes
+     * Spriggit to re-extract its .NET assemblies from scratch; those new files are not
+     * covered by any previous Unblock-File run and must be unblocked before SAC will allow
+     * them to load.
+     */
+    const [autoUnblockRetryState, setAutoUnblockRetryState] = useState<'idle' | 'unblocking' | 'retrying' | 'failed'>('idle');
     /** FO4 version detected from Fallout4.exe, e.g. "1.11.191.0". Empty if not detected. */
     const [detectedFo4Version, setDetectedFo4Version] = useState('');
     /** Human-readable FO4 version label, e.g. "Fallout 4 v1.11.191 — 1.11.x (Creations Menu…)". */
@@ -813,17 +824,22 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
      * Run Spriggit serialize on the user's Fallout 4 Data folder, then
      * ingest all produced YAML files into the Knowledge Vault so Mossy
      * can reason over the user's specific plugin data.
+     *
+     * Returns `{ failed0xFFFF: true }` when the serialize crashed with
+     * exit code 0xFFFFFFFF so the "Clear Cache & Retry" handler can
+     * detect this specific failure mode and auto-unblock the freshly
+     * extracted assemblies before retrying.
      */
-    const runSpriggitDigest = async () => {
+    const runSpriggitDigest = async (): Promise<{ failed0xFFFF: boolean }> => {
         const api = getElectronApi();
         if (!api?.spriggitSerialize || !api?.saveKnowledgeVault) {
             setSpriggitMessage('Spriggit integration is not available in this build.');
             setSpriggitStatus('error');
-            return;
+            return { failed0xFFFF: false };
         }
         if (!spriggitCliPath || !spriggitDataPath) {
             setSpriggitMessage('Please select both Spriggit.CLI.exe and your Fallout 4 Data folder.');
-            return;
+            return { failed0xFFFF: false };
         }
         setSpriggitStatus('running');
         setSpriggitMessage('Running Spriggit — converting vanilla ESMs to YAML. This may take several minutes…');
@@ -847,7 +863,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             '💡 Tip: if your C: drive is low on space, click "Change" during setup\n' +
                             '   and install to D:\\Program Files\\dotnet — any drive works.'
                         );
-                        return;
+                        return { failed0xFFFF: false };
                     }
                 } catch (dotnetErr) {
                     console.warn('[Spriggit] checkDotnet pre-flight threw — proceeding anyway:', dotnetErr);
@@ -860,6 +876,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 dataPath: spriggitDataPath,
                 outputPath: '',
                 vanillaOnly: true,
+                packageName: spriggitPackageName.trim() || 'Spriggit.Yaml.Fallout4',
+                nugetSource: spriggitNugetSource.trim() || undefined,
             });
             // Persist detected version info so the error UI can display them immediately.
             if (result.fo4Version)       setDetectedFo4Version(result.fo4Version as string);
@@ -896,8 +914,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     } catch {
                         // Re-check threw (IPC unavailable) — leave dotnet status unchanged.
                     }
+                    return { failed0xFFFF: true };
                 }
-                return;
+                return { failed0xFFFF: false };
             }
             // Build Knowledge Vault entries from the YAML files, tagged as vanilla base records
             const getExistingVault = (): any[] => {
@@ -989,9 +1008,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     : `I've finished converting the vanilla ESMs with Spriggit and digested ${newEntries.length} files into my knowledge. I now have direct access to the base game records.`
                 );
             }
+            return { failed0xFFFF: false };
         } catch (err: any) {
             setSpriggitStatus('error');
             setSpriggitMessage(`Error: ${String(err?.message || err)}`);
+            return { failed0xFFFF: false };
         }
     };
 
@@ -1661,7 +1682,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 </div>
                                 <div className="mt-2 p-2 rounded bg-amber-800/30 border border-amber-500/40 text-amber-100 text-xs">
                                     <strong>✨ Easiest fix:</strong> Download the <strong>self-contained Spriggit build</strong> — it bundles .NET and requires no separate installation.
-                                    On the releases page, download <code className="bg-amber-900/50 px-1 rounded">SpriggitCLI.zip</code> and use the <code className="bg-amber-900/50 px-1 rounded">Spriggit.CLI.exe</code> inside it.
+                                    On the releases page, look for the entry tagged <strong>Pre-release</strong> (scroll past the top "Latest" stable build) — download its <code className="bg-amber-900/50 px-1 rounded">SpriggitCLI.zip</code> and use the <code className="bg-amber-900/50 px-1 rounded">Spriggit.CLI.exe</code> inside it. ⚠️ The stable "Latest" does <em>not</em> support FO4 1.11.x (AE).
                                 </div>
                                 <div className="mt-2 flex flex-wrap items-center gap-3">
                                     <button
@@ -1807,6 +1828,65 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     </button>
                                 </div>
                             </div>
+
+                            {/* Package Name */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">
+                                    Package Name <span className="text-slate-500 text-xs font-normal">(--PackageName)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={spriggitPackageName}
+                                    onChange={e => setSpriggitPackageName(e.target.value)}
+                                    placeholder="Spriggit.Yaml.Fallout4"
+                                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                />
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Built-in:{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Yaml.Fallout4</code>
+                                    {' '}or{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Json.Fallout4</code>.
+                                    {' '}Custom packages must be published to NuGet.org first.
+                                </p>
+                            </div>
+
+                            {/* Local NuGet Source */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">
+                                    Local NuGet Source <span className="text-slate-500 text-xs font-normal">(--Source, optional)</span>
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={spriggitNugetSource}
+                                        onChange={e => setSpriggitNugetSource(e.target.value)}
+                                        placeholder='e.g. D:\Tools\Spriggit-dev\Translation Packages'
+                                        className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            const api = getElectronApi();
+                                            if (!api?.pickDirectory) return;
+                                            const p = await api.pickDirectory('Select Local NuGet Source Folder');
+                                            if (p) setSpriggitNugetSource(p);
+                                        }}
+                                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-lg text-sm text-slate-200 flex items-center gap-1.5 transition-colors"
+                                    >
+                                        <FolderOpen className="w-4 h-4" /> Browse
+                                    </button>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Point to the folder containing your local translation packages
+                                    (e.g.{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-slate-400">D:\Tools\Spriggit-dev\Translation Packages</code>
+                                    {' '}holding{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Yaml.Fallout4</code>
+                                    {' '}and{' '}
+                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Json.Fallout4</code>
+                                    ) to skip the nuget.org download entirely.
+                                </p>
+                            </div>
                         </div>
 
                         {/* Status message */}
@@ -1831,7 +1911,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         {detectedSpriggitVersion && (
                                             <div>🔧 <strong>Spriggit:</strong> v{detectedSpriggitVersion}
                                                 {spriggitVersionTooOld === true && (
-                                                    <span className="ml-1 text-amber-400 font-bold">⚠️ too old for FO4 1.11.x — re-download required</span>
+                                                    <span className="ml-1 text-amber-400 font-bold">⚠️ too old for FO4 1.11.x — download the PRE-RELEASE (dev) build</span>
                                                 )}
                                                 {spriggitVersionTooOld === false && detectedFo4Version.startsWith('1.11.') && (
                                                     <span className="ml-1 text-emerald-400 font-semibold">✓ version is current</span>
@@ -1957,8 +2037,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         {(() => {
                                             const isMismatch = spriggitVersionTooOld === true;
                                             const redownloadLabel = isMismatch
-                                                ? '⭐ Re-download Spriggit (required) →'
-                                                : '⬇️ Re-download Spriggit →';
+                                                ? '⭐ Re-download Spriggit — PRE-RELEASE (required) →'
+                                                : '⬇️ Re-download Spriggit (pre-release) →';
                                             const baseClasses = 'px-3 py-1 rounded text-xs transition-colors';
                                             const mismatchClasses = 'border-2 border-yellow-400 bg-yellow-700/60 hover:bg-yellow-600/70 text-yellow-100 font-bold';
                                             const normalClasses  = 'bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 font-semibold';
@@ -1984,48 +2064,113 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         confirmed (spriggitVersionTooOld=true) — retrying will
                                                         fail again; re-downloading Spriggit is the only real fix.
                                                         When version is current, auto-retry after cache clear is
-                                                        helpful (SAC fix + cache clear → retry may succeed). */}
+                                                        helpful.  If the first retry still fails with 0xFFFFFFFF
+                                                        we also auto-run Unblock-File on the freshly extracted
+                                                        assemblies and retry once more, breaking the SAC loop
+                                                        where: unblock → clear cache → retry → NEW assemblies
+                                                        (never unblocked) → fail → repeat. */}
                                                     <button
                                                         type="button"
-                                                        disabled={cacheClearInProgress || spriggitStatus === 'running'}
+                                                        disabled={cacheClearInProgress || spriggitStatus === 'running' || autoUnblockRetryState === 'unblocking' || autoUnblockRetryState === 'retrying'}
                                                         className="px-3 py-1 rounded bg-amber-800/60 hover:bg-amber-700/60 disabled:opacity-50 text-amber-100 text-xs font-semibold transition-colors"
                                                         onClick={async () => {
                                                             const api = getElectronApi();
                                                             if (!api?.spriggitClearCache) return;
                                                             setCacheClearInProgress(true);
                                                             setCacheClearResult(null);
+                                                            setAutoUnblockRetryState('idle');
+                                                            let clearOk = false;
                                                             try {
                                                                 const res = await api.spriggitClearCache();
+                                                                clearOk = res.ok;
                                                                 setCacheClearResult(res.ok ? 'ok' : 'error');
                                                             } catch {
                                                                 setCacheClearResult('error');
                                                             } finally {
                                                                 setCacheClearInProgress(false);
-                                                                // Skip the auto-retry when main.ts confirmed a
-                                                                // version mismatch — it will fail for the same reason.
-                                                                if (!isMismatch) {
-                                                                    await runSpriggitDigest();
+                                                            }
+                                                            // Skip the auto-retry sequence when main.ts confirmed a
+                                                            // version mismatch — it will fail for the same reason.
+                                                            if (!isMismatch && clearOk) {
+                                                                // First pass: Spriggit re-extracts fresh assemblies to
+                                                                // the now-empty cache.  This may fail with 0xFFFFFFFF
+                                                                // if SAC blocks the new files, but critically it
+                                                                // populates the cache with the fresh assembly set.
+                                                                const firstResult = await runSpriggitDigest();
+
+                                                                // If the first pass crashed with 0xFFFFFFFF, auto-run
+                                                                // Unblock-File on the Spriggit folder (which now
+                                                                // contains the freshly extracted assemblies that were
+                                                                // NOT covered by any previous manual unblock run).
+                                                                // Then retry once more — these newly unblocked files
+                                                                // will load successfully if SAC is in Evaluation mode.
+                                                                if (firstResult.failed0xFFFF && api.spriggitUnblockFiles) {
+                                                                    setAutoUnblockRetryState('unblocking');
+                                                                    try {
+                                                                        const unblockRes = await api.spriggitUnblockFiles();
+                                                                        if (unblockRes?.ok) {
+                                                                            setUnblockResult(unblockRes);
+                                                                            setAutoUnblockRetryState('retrying');
+                                                                            await runSpriggitDigest();
+                                                                        } else {
+                                                                            setAutoUnblockRetryState('failed');
+                                                                        }
+                                                                    } catch {
+                                                                        setAutoUnblockRetryState('failed');
+                                                                    }
                                                                 }
                                                             }
                                                         }}
                                                     >
-                                                        {cacheClearInProgress ? '🔄 Clearing…' : '🗑️ Clear Cache & Retry'}
+                                                        {(cacheClearInProgress || autoUnblockRetryState === 'unblocking' || autoUnblockRetryState === 'retrying')
+                                                            ? (cacheClearInProgress ? '🔄 Clearing…' : autoUnblockRetryState === 'unblocking' ? '🔓 Unblocking…' : '🔄 Retrying…')
+                                                            : '🗑️ Clear Cache & Retry'}
                                                     </button>
-                                                    {cacheClearResult === 'ok' && spriggitStatus !== 'error' && !isMismatch && (
+                                                    {/* Auto-unblock progress feedback */}
+                                                    {autoUnblockRetryState === 'unblocking' && (
+                                                        <span className="text-xs text-violet-300 font-semibold">🔓 Auto-unblocking freshly extracted assemblies…</span>
+                                                    )}
+                                                    {autoUnblockRetryState === 'retrying' && (
+                                                        <span className="text-xs text-emerald-300 font-semibold">🔄 Retrying with unblocked assemblies…</span>
+                                                    )}
+                                                    {cacheClearResult === 'ok' && spriggitStatus !== 'error' && spriggitStatus !== 'running' && !isMismatch && autoUnblockRetryState === 'idle' && (
                                                         <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
                                                     )}
                                                     {cacheClearResult === 'ok' && isMismatch && (
                                                         <span className="text-xs text-yellow-300 font-semibold">
-                                                            🗑️ Cache cleared — but <strong>re-downloading Spriggit is still required</strong> to fix the version mismatch.{' '}
-                                                            Click <strong>{redownloadLabel}</strong> above to get the latest SpriggitCLI.zip.
+                                                            🗑️ Cache cleared — but <strong>downloading the Spriggit PRE-RELEASE (dev) build is still required</strong> to fix the version mismatch.{' '}
+                                                            Click <strong>{redownloadLabel}</strong> above, then look for the entry tagged "Pre-release" on the releases page.
                                                         </span>
                                                     )}
-                                                    {cacheClearResult === 'ok' && spriggitStatus === 'error' && !isMismatch && (
+                                                    {cacheClearResult === 'ok' && spriggitStatus === 'error' && !isMismatch && autoUnblockRetryState !== 'unblocking' && autoUnblockRetryState !== 'retrying' && (
                                                         <span className="text-xs text-amber-300 font-semibold">
-                                                            ⚠️ Cache cleared but still failing —{' '}
-                                                            {detectedFo4Version.startsWith('1.11.')
-                                                                ? <>Check <strong>Smart App Control</strong> (Windows Security → App &amp; browser control). If SAC is locked/greyed-out, click <strong>🔓 Unblock Files</strong> above to remove the web-download flag from your Spriggit files, then retry.</>
-                                                                : <>most likely fix: check Smart App Control (Windows Security) or click <strong>🔓 Unblock Files</strong> if SAC is locked. Also free disk space on the Spriggit drive and try Re-downloading Spriggit.</>
+                                                            {autoUnblockRetryState === 'idle'
+                                                                ? <>
+                                                                    ⚠️ Cache cleared but still failing.{' '}
+                                                                    <strong>Clearing the cache caused Spriggit to extract a fresh set of
+                                                                    .NET assemblies — those new files were never unblocked.</strong>{' '}
+                                                                    Click <strong>🔓 Unblock Files</strong> above (to unblock the newly
+                                                                    extracted assemblies), then click{' '}
+                                                                    <strong>🗑️ Clear Cache &amp; Retry</strong> once more.{' '}
+                                                                    {detectedFo4Version.startsWith('1.11.') && <>
+                                                                        Alternatively, add a <strong>Windows Defender exclusion</strong> for your
+                                                                        Spriggit folder (Windows Security → Virus &amp; threat protection →
+                                                                        Exclusions) so SAC cannot block any future extractions.
+                                                                    </>}
+                                                                  </>
+                                                                : <>
+                                                                    ⚠️ Auto-unblock ran but Spriggit is still crashing.{' '}
+                                                                    {detectedFo4Version.startsWith('1.11.')
+                                                                        ? <>Smart App Control may be set to <strong>&ldquo;On&rdquo;</strong> (not Evaluation) — in
+                                                                          that mode, Unblock-File alone is not enough.  The most reliable fix is
+                                                                          to add a <strong>Windows Defender exclusion</strong> for your Spriggit folder:
+                                                                          Windows Security → Virus &amp; threat protection → Exclusions →
+                                                                          Add an exclusion → Folder → select your Spriggit folder.  Then click{' '}
+                                                                          <strong>🗑️ Clear Cache &amp; Retry</strong> one more time.</>
+                                                                        : <>Check Smart App Control (Windows Security → App &amp; browser control)
+                                                                          or add a Windows Defender exclusion for your Spriggit folder.</>
+                                                                    }
+                                                                  </>
                                                             }
                                                         </span>
                                                     )}
