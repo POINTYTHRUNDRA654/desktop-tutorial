@@ -286,6 +286,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     /** True while the automatic .NET check runs on entering the spriggit-digest step. */
     const [dotnetCheckingOnEntry, setDotnetCheckingOnEntry] = useState(false);
 
+    /** Tools the user has manually located via the "Browse to locate" button.
+     *  Key = dl.name, value = the .exe path they picked. */
+    const [manuallyLocated, setManuallyLocated] = useState<Record<string, string>>({});
+
     /**
      * Shared helper — persist the result of any checkDotnet() call to state and
      * localStorage.  Returns the ok boolean so callers can branch on it.
@@ -1441,6 +1445,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     const n = (app.displayName || app.name || '').toLowerCase();
                                     return dl.detectKeywords.some((kw) => n.includes(kw));
                                 });
+                                const manualPath = manuallyLocated[dl.name];
+                                const confirmed = alreadyInstalled || !!manualPath;
 
                                 const categoryColor: Record<RecommendedDownload['category'], string> = {
                                     'modding': 'text-emerald-400',
@@ -1459,7 +1465,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 return (
                                     <div
                                         key={dl.name}
-                                        className={`p-4 rounded-lg border transition-all ${alreadyInstalled
+                                        className={`p-4 rounded-lg border transition-all ${confirmed
                                             ? 'border-emerald-700/50 bg-emerald-900/10'
                                             : dl.required
                                                 ? 'border-red-600/60 bg-red-900/10'
@@ -1475,7 +1481,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                             <Check className="w-3 h-3" /> Installed
                                                         </span>
                                                     )}
-                                                    {dl.required && !alreadyInstalled && (
+                                                    {!alreadyInstalled && manualPath && (
+                                                        <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full border border-emerald-500/40">
+                                                            <Check className="w-3 h-3" /> Located
+                                                        </span>
+                                                    )}
+                                                    {dl.required && !confirmed && (
                                                         <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full border border-red-500/40 font-semibold">
                                                             Required
                                                         </span>
@@ -1485,28 +1496,61 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     </span>
                                                 </div>
                                                 <p className="text-xs text-slate-400 leading-relaxed">{dl.description}</p>
-                                                {!alreadyInstalled && (
+                                                {manualPath && (
+                                                    <p className="text-xs mt-1 text-emerald-600/80 truncate" title={manualPath}>
+                                                        📂 {manualPath}
+                                                    </p>
+                                                )}
+                                                {!confirmed && (
                                                     <p className={`text-xs mt-1.5 leading-snug flex items-start gap-1 ${dl.required ? 'text-red-300' : 'text-amber-400/80'}`}>
                                                         <span className="flex-shrink-0 mt-0.5">⚠️</span>
                                                         <span><strong>Without this:</strong> {dl.ifMissing}</span>
                                                     </p>
                                                 )}
                                             </div>
-                                            <div className="flex-shrink-0">
-                                                {alreadyInstalled ? (
-                                                    <div className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-emerald-900/30 border border-emerald-700/40 text-emerald-400 text-xs font-semibold">
-                                                        <Check className="w-3.5 h-3.5" /> Done
-                                                    </div>
+                                            <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
+                                                {confirmed ? (
+                                                    <>
+                                                        <div className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-emerald-900/30 border border-emerald-700/40 text-emerald-400 text-xs font-semibold">
+                                                            <Check className="w-3.5 h-3.5" /> Done
+                                                        </div>
+                                                        {/* Still allow opening the download page even when confirmed */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void openExternal(dl.url)}
+                                                            className="flex items-center gap-1 px-2 py-1 rounded text-slate-400 hover:text-slate-200 text-xs transition-colors"
+                                                            title={`Open ${dl.urlLabel}`}
+                                                        >
+                                                            <ExternalLink className="w-3 h-3" />
+                                                            {dl.urlLabel}
+                                                        </button>
+                                                    </>
                                                 ) : (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => void openExternal(dl.url)}
-                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-white text-xs font-semibold transition-colors ${dl.required ? 'bg-red-700 hover:bg-red-600' : 'bg-amber-600 hover:bg-amber-500'}`}
-                                                        title={`Open ${dl.urlLabel}`}
-                                                    >
-                                                        <ExternalLink className="w-3.5 h-3.5" />
-                                                        {dl.urlLabel}
-                                                    </button>
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void openExternal(dl.url)}
+                                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-white text-xs font-semibold transition-colors ${dl.required ? 'bg-red-700 hover:bg-red-600' : 'bg-amber-600 hover:bg-amber-500'}`}
+                                                            title={`Open ${dl.urlLabel}`}
+                                                        >
+                                                            <ExternalLink className="w-3.5 h-3.5" />
+                                                            {dl.urlLabel}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={async () => {
+                                                                const picked = await window.electron.api.pickToolPath(dl.name);
+                                                                if (picked) {
+                                                                    setManuallyLocated((prev) => ({ ...prev, [dl.name]: picked }));
+                                                                }
+                                                            }}
+                                                            className="flex items-center gap-1 px-2 py-1 rounded border border-slate-600 hover:border-slate-400 text-slate-400 hover:text-slate-200 text-xs transition-colors"
+                                                            title="Already have it? Browse to locate the executable"
+                                                        >
+                                                            <FolderOpen className="w-3 h-3" />
+                                                            I have it
+                                                        </button>
+                                                    </>
                                                 )}
                                             </div>
                                         </div>
