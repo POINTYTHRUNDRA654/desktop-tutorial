@@ -20,6 +20,7 @@ import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
 import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
 import { autoUpdaterService } from './autoUpdater';
 import { detectAndHandleVersionUpdate, markFreshInstallProcessed } from './dataMigration';
+import { filterPluginsForSpriggit, buildNoPluginsError } from './spriggitPluginFilter';
 import fs from 'fs';
 import { spawn, exec } from 'child_process';
 import { BridgeServer } from './BridgeServer';
@@ -3437,37 +3438,14 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       fs.mkdirSync(safeOutput, { recursive: true });
 
       // Vanilla / official-DLC Fallout 4 plugins — skip these during digest so we
-      // only process the user's own mods.  These files are:
-      //   • Known to crash Spriggit in some extraction/AV configurations (0xFFFFFFFF),
-      //     which triggers the early-exit logic and makes every subsequent plugin look
-      //     like it failed too.
-      //   • Already well-covered by Mossy's built-in knowledge — ingesting them again
-      //     provides no extra value.
-      const VANILLA_FO4_PLUGINS = new Set([
-        'fallout4.esm',
-        'dlccoast.esm',       // Far Harbor
-        'dlcnukaworld.esm',   // Nuka-World
-        'dlcrobot.esm',       // Automatron
-        'dlcworkshop01.esm',  // Wasteland Workshop
-        'dlcworkshop02.esm',  // Contraptions Workshop
-        'dlcworkshop03.esm',  // Vault-Tec Workshop
-      ]);
-
-      // Find all .esp/.esm/.esl files in the Data folder (top-level only),
-      // excluding vanilla/DLC ESMs that are not part of the user's mod load.
+      // only process the user's own mods.  See spriggitPluginFilter.ts for rationale.
       const allPluginFiles = fs.readdirSync(dataPath).filter(f =>
         /\.(esp|esm|esl)$/i.test(f)
       );
-      const pluginFiles = allPluginFiles.filter(f => !VANILLA_FO4_PLUGINS.has(f.toLowerCase()));
-      const skippedVanillaCount = allPluginFiles.length - pluginFiles.length;
+      const { pluginFiles, skippedVanillaCount } = filterPluginsForSpriggit(allPluginFiles);
 
       if (pluginFiles.length === 0) {
-        const error = allPluginFiles.length === 0
-          ? 'No plugin files (.esp/.esm/.esl) found in the Data folder.'
-          : 'Only vanilla/DLC Fallout 4 plugins were found in the Data folder.\n' +
-            'The Spriggit digest is designed to learn your custom mods — Mossy already has built-in knowledge of the base game and official DLC.\n\n' +
-            'To use this feature, make sure your custom .esp/.esm/.esl mod files are present in the Data folder, then try again.';
-        return { ok: false, files: [], error };
+        return { ok: false, files: [], error: buildNoPluginsError(allPluginFiles) };
       }
 
       /**
