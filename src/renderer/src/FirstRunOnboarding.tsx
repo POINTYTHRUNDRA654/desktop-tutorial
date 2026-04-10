@@ -270,6 +270,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [spriggitFileCount, setSpriggitFileCount] = useState(0);
     const [cacheClearInProgress, setCacheClearInProgress] = useState(false);
     const [cacheClearResult, setCacheClearResult] = useState<'ok' | 'error' | null>(null);
+    /** FO4 version detected from Fallout4.exe, e.g. "1.11.191.0". Empty if not detected. */
+    const [detectedFo4Version, setDetectedFo4Version] = useState('');
+    /** Human-readable FO4 version label, e.g. "Fallout 4 v1.11.191 — 1.11.x (Creations Menu…)". */
+    const [detectedFo4Label, setDetectedFo4Label] = useState('');
+    /** Spriggit version detected from `--version`, e.g. "0.22.0". Empty if not detected. */
+    const [detectedSpriggitVersion, setDetectedSpriggitVersion] = useState('');
 
     // .NET Runtime availability (detected during the startup scan)
     const [dotnetOk, setDotnetOk] = useState<boolean | null>(() => {
@@ -842,6 +848,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 outputPath: '',
                 vanillaOnly: true,
             });
+            // Persist detected version info so the error UI can display them immediately.
+            if (result.fo4Version)       setDetectedFo4Version(result.fo4Version as string);
+            if (result.fo4Label)         setDetectedFo4Label(result.fo4Label as string);
+            if (result.spriggitVersion)  setDetectedSpriggitVersion(result.spriggitVersion as string);
             if (!result.ok || !result.files?.length) {
                 const errText = result.error || 'No YAML files were produced.';
                 // Cap display length to avoid rendering a massive wall of text.
@@ -1767,6 +1777,24 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             }`}>
                                 {spriggitStatus === 'running' && <Loader className="w-4 h-4 inline-block animate-spin mr-2" />}
                                 {spriggitStatus === 'noMods' && <span className="font-bold">ℹ️ Vanilla ESMs not found:{'\n'}</span>}
+                                {/* Version badge — shown whenever we have detected versions and there's an error */}
+                                {spriggitStatus === 'error' && (detectedFo4Label || detectedSpriggitVersion) && (
+                                    <div className="mb-2 p-2 bg-slate-800/80 rounded border border-slate-600 text-xs font-mono text-slate-300 space-y-0.5">
+                                        {detectedFo4Label && (
+                                            <div>🎮 <strong>Game:</strong> {detectedFo4Label}</div>
+                                        )}
+                                        {detectedSpriggitVersion && (
+                                            <div>🔧 <strong>Spriggit:</strong> v{detectedSpriggitVersion}
+                                                {detectedFo4Version.startsWith('1.11.') && (
+                                                    <span className="ml-1 text-amber-400 font-bold">⚠️ needs post-Nov 2025 build for FO4 1.11.x</span>
+                                                )}
+                                            </div>
+                                        )}
+                                        {detectedFo4Version.startsWith('1.11.') && !detectedSpriggitVersion && (
+                                            <div className="text-amber-400">⚠️ FO4 1.11.x detected — Spriggit must be a post-November 2025 build</div>
+                                        )}
+                                    </div>
+                                )}
                                 {spriggitMessage}
                                 {spriggitStatus === 'error' && spriggitMessage.includes('0xFFFFFFFF') && (
                                     <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -1865,7 +1893,15 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
                                         )}
                                         {cacheClearResult === 'ok' && spriggitStatus === 'error' && (
-                                            <span className="text-xs text-amber-300 font-semibold">⚠️ Cache cleared but still failing — most likely fix: <strong>Re-download the latest Spriggit</strong> (version too old for FO4 1.11.x new record types). Also check: Smart App Control (Windows Security) and free disk space on C:.</span>
+                                            <span className="text-xs text-amber-300 font-semibold">
+                                                ⚠️ Cache cleared but still failing —{' '}
+                                                {detectedFo4Version.startsWith('1.11.') && detectedSpriggitVersion
+                                                    ? <>Spriggit <strong>v{detectedSpriggitVersion}</strong> is too old for <strong>FO4 {detectedFo4Version}</strong>. Click <strong>Re-download Spriggit →</strong> and get the latest SpriggitCLI.zip.</>
+                                                    : detectedFo4Version.startsWith('1.11.')
+                                                        ? <>FO4 1.11.x detected — you need a <strong>post-November 2025 Spriggit build</strong>. Click <strong>Re-download Spriggit →</strong>.</>
+                                                        : <>most likely fix: <strong>Re-download the latest Spriggit</strong> (version too old for FO4 1.11.x new record types). Also check: Smart App Control (Windows Security) and free disk space on C:.</>
+                                                }
+                                            </span>
                                         )}
                                         {cacheClearResult === 'error' && (
                                             <span className="text-xs text-amber-300 font-semibold">⚠️ Could not delete cache — try manually: %LOCALAPPDATA%\Temp\.net\SpriggitCLI\ or %TEMP%\.net\SpriggitCLI\</span>
