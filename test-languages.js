@@ -39,7 +39,7 @@ let passed = 0;
 let failed = 0;
 
 console.log('🔍 Language Translation Verification Test\n');
-console.log('=' .repeat(60));
+console.log('='.repeat(60));
 
 // Test 1: Verify all locale files exist
 console.log('\n📂 Test 1: Checking locale file existence...\n');
