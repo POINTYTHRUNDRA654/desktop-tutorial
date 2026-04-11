@@ -418,6 +418,16 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         };
     }, []);
 
+    // Load version mismatch acknowledgment from localStorage on mount (Phase 4)
+    useEffect(() => {
+        try {
+            const ack = localStorage.getItem('mossy_spriggit_version_mismatch_ack');
+            if (ack === 'true') {
+                setVersionMismatchAcknowledged(true);
+            }
+        } catch { /* ignore */ }
+    }, []);
+
     // Whenever the user reaches the spriggit-digest step, run a fresh .NET check.
     // This ensures dotnetOk is accurate even if the scan step was skipped or
     // if the cached localStorage value is stale.
@@ -933,6 +943,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 // installed — in that case we must not disable the button so the user can retry
                 // after fixing AV / downloading the correct Spriggit build.
                 if (errText.includes('0xFFFFFFFF')) {
+                    // PHASE 4: If version mismatch detected and not acknowledged, show modal
+                    if (result.spriggitVersionTooOld && !versionMismatchAcknowledged) {
+                        setShowVersionMismatchModal(true);
+                        return { failed0xFFFF: true };
+                    }
+                    
                     try {
                         const freshCheck = await api.checkDotnet!();
                         applyDotnetResult(freshCheck);
@@ -962,6 +978,19 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             const merged = [...existing, ...newEntries];
             localStorage.setItem('mossy_knowledge_vault', JSON.stringify(merged));
             try { await api.saveKnowledgeVault(merged); } catch { /* fire-and-forget */ }
+
+            // PHASE 5: Save detected versions to settings for future comparison
+            if (api.setSettings && (detectedFo4Version || detectedSpriggitVersion)) {
+                try {
+                    await api.setSettings({
+                        lastDetectedFo4Version: detectedFo4Version || undefined,
+                        lastDetectedSpriggitVersion: detectedSpriggitVersion || undefined,
+                        spriggitVersionMismatchAcknowledged: versionMismatchAcknowledged || undefined,
+                    });
+                } catch (settingsErr) {
+                    console.warn('[Spriggit] Failed to save version info to settings:', settingsErr);
+                }
+            }
 
             // Queue the vanilla ESMs into the Auditor so the user can run a full
             // asset/plugin audit immediately after onboarding without re-picking files.
@@ -2623,9 +2652,19 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={async () => {
                                         setShowVersionMismatchModal(false);
                                         setVersionMismatchAcknowledged(true);
+                                        // Persist acknowledgment to localStorage and settings
+                                        try {
+                                            localStorage.setItem('mossy_spriggit_version_mismatch_ack', 'true');
+                                        } catch { /* ignore */ }
+                                        const api = getElectronApi();
+                                        if (api?.setSettings) {
+                                            try {
+                                                await api.setSettings({ spriggitVersionMismatchAcknowledged: true });
+                                            } catch { /* ignore */ }
+                                        }
                                         // Reset status so user can retry
                                         setSpriggitStatus('idle');
                                         setSpriggitMessage('');
