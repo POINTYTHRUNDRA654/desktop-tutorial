@@ -1238,8 +1238,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     </button>
                                 ))}
                             </div>
-                            <div className="mt-3 pt-3 border-t border-slate-700 text-[10px] text-amber-300">
-                                ⚠️ <strong>Multi-language in development.</strong> UI language will change, but voice support requires installing Windows voices.
+                            <div className="mt-3 pt-3 border-t border-slate-700 text-[10px] text-emerald-400">
+                                ✅ <strong>12 languages supported.</strong> UI language will update immediately. For voice support in your language, install the corresponding Windows voice pack.
                             </div>
                         </div>
 
