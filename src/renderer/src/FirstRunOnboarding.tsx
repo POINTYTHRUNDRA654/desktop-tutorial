@@ -1758,9 +1758,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 )}
 
                 {step === 'spriggit-digest' && (
-                    <div className="flex flex-col animate-fade-in h-full min-h-[600px] max-h-[90vh]">
+                    <div className="flex flex-col animate-fade-in">
                         {/* Scrollable content area */}
-                        <div className="overflow-y-auto flex-1 text-center pr-2 min-h-0">
+                        <div className="overflow-y-auto max-h-[calc(90vh-200px)] text-center pr-2">
                             <Brain className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
                             <div className="flex items-center justify-center gap-3 mb-3">
                                 <h2 className="text-3xl font-bold text-white">Feed Me the Base Game</h2>
@@ -2593,8 +2593,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 </div>
                             )}
                         </div>
-                        {/* Sticky buttons footer - always visible at bottom */}
-                        <div className="flex-shrink-0 flex flex-col gap-3 max-w-lg mx-auto border-t border-slate-700 pt-4 pb-2 bg-slate-900">
+                        {/* Sticky buttons footer - always visible at bottom, with explicit z-index to ensure clickability */}
+                        <div className="flex-shrink-0 flex flex-col gap-3 max-w-lg mx-auto border-t border-slate-700 pt-4 pb-2 bg-slate-900 relative z-10 mt-4">
                             {spriggitStatus !== 'done' && spriggitStatus !== 'partial' && (
                                 <button
                                     type="button"
@@ -2626,7 +2626,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             <button
                                 type="button"
                                 onClick={handleSpriggitContinue}
-                                className="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-semibold transition-colors"
+                                disabled={spriggitStatus === 'running'}
+                                className="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-slate-200 rounded-lg font-semibold transition-colors"
                             >
                                 {(spriggitStatus === 'done' || spriggitStatus === 'partial') ? <><Check className="w-5 h-5 inline-block mr-1" /> Continue to Mossy</> : 'Skip for now'}
                             </button>
