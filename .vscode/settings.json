@@ -1,0 +1,7 @@
+{
+  "task.autoDetect": "on",
+  "task.allowAutomaticTasks": "on",
+  "files.autoSave": "afterDelay",
+  "editor.formatOnSave": true,
+  "typescript.tsdk": "node_modules/typescript/lib"
+}
