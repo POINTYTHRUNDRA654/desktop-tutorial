@@ -1,7 +1,0 @@
-
-Running 9 tests using 1 worker
-
-[1A[2K[1/9] [electron-packaged] ΓÇ║ e2e\app.spec.ts:79:7 ΓÇ║ Mossy Desktop App - Comprehensive Testing Suite ΓÇ║ App launches successfully
-[1A[2K[electron-packaged] ΓÇ║ e2e\app.spec.ts:79:7 ΓÇ║ Mossy Desktop App - Comprehensive Testing Suite ΓÇ║ App launches successfully
-[e2e] launching electron
-
