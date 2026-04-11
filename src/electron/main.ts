@@ -6941,23 +6941,29 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
         fs.writeFileSync(scriptPath, trainingScript, 'utf-8');
 
-        // Find Python executable
-        const systemCandidates = process.platform === 'win32'
-          ? ['python', 'python3', 'py']
-          : ['python3', 'python'];
-        let pythonExe = '';
-        for (const candidate of systemCandidates) {
-          const result = await new Promise<{ code: number }>((resolve) => {
-            const child = spawn(candidate, ['--version'], { stdio: 'ignore', windowsHide: true });
-            child.on('close', (code) => resolve({ code: code ?? -1 }));
-            child.on('error', () => resolve({ code: -1 }));
+        // Find Python executable using robust detection
+        const runCmdLocal = (cmd: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> =>
+          new Promise((resolve) => {
+            const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], timeout: 15_000, windowsHide: true });
+            let stdout = '';
+            let stderr = '';
+            child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+            child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+            child.on('close', (code: number | null) => resolve({ code: code ?? -1, stdout, stderr }));
+            child.on('error', (err: Error) => resolve({ code: -1, stdout: '', stderr: err.message }));
           });
-          if (result.code === 0) { pythonExe = candidate; break; }
+
+        const detectionResult = await detectPythonExecutable(runCmdLocal, (msg) => sendFtProgress(msg));
+        
+        if (!detectionResult.pythonExe) {
+          return {
+            ok: false,
+            error: 'Python not found on any drive. Install Python 3.10+ and restart Mossy.',
+            troubleshooting: detectionResult.troubleshooting,
+          };
         }
 
-        if (!pythonExe) {
-          return { ok: false, error: 'Python not found. Install Python 3.10+ and restart Mossy.' };
-        }
+        const pythonExe = detectionResult.pythonExe;
 
         sendFtProgress('🚀 Starting Unsloth fine-tuning run…');
 
@@ -10800,36 +10806,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   registerHandler('reinstall-pytorch-cpu-only', async () => {
     try {
       const userData = app.getPath('userData');
-      const pythonCandidates: string[] = [];
 
-      // Find Python (same logic as install-pytorch)
-      const venvPython = path.join(process.cwd(), '.venv', 'Scripts', 'python.exe');
-      if (fs.existsSync(venvPython)) {
-        pythonCandidates.push(venvPython);
-      }
-
-      if (process.platform === 'win32') {
-        const userProfile = process.env.USERPROFILE || path.join('C:\\Users', process.env.USERNAME || 'user');
-        const pythonDir = path.join(userProfile, 'AppData', 'Local', 'Programs', 'Python');
-        if (fs.existsSync(pythonDir)) {
-          try {
-            const versions = fs.readdirSync(pythonDir)
-              .filter((f) => f.match(/^Python\d+$/))
-              .sort()
-              .reverse();
-            for (const ver of versions) {
-              const pythonExePath = path.join(pythonDir, ver, 'python.exe');
-              if (fs.existsSync(pythonExePath)) {
-                pythonCandidates.push(pythonExePath);
-              }
-            }
-          } catch { /* ignore */ }
-        }
-      }
-
-      pythonCandidates.push(...(process.platform === 'win32' ? ['python', 'python3', 'py'] : ['python3', 'python']));
-
-      let pythonExe = '';
       const runCmd = (cmd: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> =>
         new Promise((resolve) => {
           const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], timeout: 600_000, windowsHide: true });
@@ -10841,14 +10818,18 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           child.on('error', (err: Error) => resolve({ code: -1, stdout: '', stderr: err.message }));
         });
 
-      for (const candidate of pythonCandidates) {
-        const r = await runCmd(candidate, ['--version']);
-        if (r.code === 0) { pythonExe = candidate; break; }
+      // Use robust all-drive Python detection
+      const detectionResult = await detectPythonExecutable(runCmd, (msg) => console.log(`[PyTorch Reinstall] ${msg}`));
+      
+      if (!detectionResult.pythonExe) {
+        return {
+          success: false,
+          error: 'Python not found on any drive. Cannot reinstall PyTorch.',
+          troubleshooting: detectionResult.troubleshooting,
+        };
       }
 
-      if (!pythonExe) {
-        return { success: false, error: 'Python not found. Cannot reinstall PyTorch.' };
-      }
+      const pythonExe = detectionResult.pythonExe;
 
       console.log('[PyTorch Reinstall] Uninstalling existing PyTorch...');
       const uninstall = await runCmd(pythonExe, ['-m', 'pip', 'uninstall', 'torch', 'torchvision', 'torchaudio', '-y']);
