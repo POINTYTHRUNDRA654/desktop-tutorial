@@ -28,6 +28,10 @@ interface RecommendedDownload {
     ifMissing: string;
     /** Optional static note shown on the download card (can be overridden dynamically) */
     note?: string;
+    /** Whether this item has a locatable executable (.exe) file.
+     *  Set to false for mods/plugins that are installed via mod manager (e.g., Address Library, Addictol).
+     *  When false, "I have it" browse button will not be shown. Defaults to true if omitted. */
+    hasExecutable?: boolean;
 }
 
 const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
@@ -62,6 +66,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         category: 'runtime',
         required: true,
         ifMissing: 'xEdit, F4SE, Buffout 4, and most compiled modding tools will refuse to launch or crash on startup.',
+        hasExecutable: false, // Installed via system installer, not a locatable .exe
     },
     // ── Modding tools ─────────────────────────────────────────────────────────
     {
@@ -69,7 +74,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         description: 'Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Used by Mossy\'s onboarding brain-boost step to ingest the vanilla ESMs.',
         detectKeywords: ['spriggit'],
         url: 'https://github.com/Mutagen-Modding/Spriggit/releases',
-        note: '⚠️ For FO4 1.11.x (AE/Creations Menu): scroll past the top "Latest" release and download the PRE-RELEASE (dev) SpriggitCLI.zip.',
+        note: '⚠️ For FO4 1.11.x (AE): Download PRE-RELEASE SpriggitCLI.zip (NOT the green "Code→Download ZIP" button!). If you already have it, click "I have it" button to browse to Spriggit.CLI.exe.',
         urlLabel: 'GitHub Releases',
         category: 'version-control',
         required: false,
@@ -147,43 +152,47 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'F4SE (Fallout 4 Script Extender)',
-        description: 'Extends the scripting capabilities of Fallout 4. Required by many mods and by Mossy\'s deeper game integrations.',
+        description: 'Extends the scripting capabilities of Fallout 4. Required by many mods and by Mossy\'s deeper game integrations. ⚠️ Extract to game folder and launch via f4se_loader.exe (NOT via Steam).',
         detectKeywords: ['f4se', 'script extender'],
         url: 'https://f4se.silverlock.org/',
         urlLabel: 'Official Site',
         category: 'modding',
         required: true,
         ifMissing: 'MCM Framework, Address Library, Addictol, and most advanced mods will not load. Many Mossy-guided workflows require F4SE to be active.',
+        hasExecutable: false, // Installed by extracting to game folder, not a standalone program
     },
     {
         name: 'Address Library for F4SE',
-        description: 'Required by virtually every F4SE plugin (Buffout 4, MCM Framework, etc.). Without it most SKSE/F4SE-dependent mods will fail to load. Install the All-in-One version.',
+        description: 'Required by virtually every F4SE plugin (Buffout 4, MCM Framework, etc.). Without it most SKSE/F4SE-dependent mods will fail to load. ⚠️ Install via mod manager (MO2/Vortex), NOT a standalone program.',
         detectKeywords: ['address library'],
         url: 'https://www.nexusmods.com/fallout4/mods/47327',
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: true,
         ifMissing: 'Addictol, MCM Framework, and virtually every F4SE plugin will fail to load. This is a hard dependency for the entire F4SE ecosystem.',
+        hasExecutable: false, // Mod installed via mod manager, not a standalone program
     },
     {
         name: 'Addictol (Stability Suite)',
-        description: 'All-in-one stability fix for Fallout 4 (OG/NG/AE/1.11.x). Replaces and supersedes Buffout 4, X-Cell, BakaMaxPapyrusOps, Faster Workshop, and more. Do NOT install those separately alongside Addictol.',
+        description: 'All-in-one stability fix for Fallout 4 (OG/NG/AE/1.11.x). Replaces Buffout 4, X-Cell, BakaMaxPapyrusOps, Faster Workshop, and more. ⚠️ Install via mod manager (MO2/Vortex), NOT a standalone program.',
         detectKeywords: ['addictol'],
         url: 'https://www.nexusmods.com/fallout4/mods/84214',
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: false,
         ifMissing: 'Game stability may be reduced. Memory management, stutter fixes, and script heap optimisations will be absent. Crash logs may also be missing.',
+        hasExecutable: false, // Mod installed via mod manager, not a standalone program
     },
     {
         name: 'CLASSIC Crash Log Scanner',
-        description: 'Automatically scans Buffout 4 crash logs and produces a human-readable diagnosis. Pair with Addictol for a complete crash-debugging setup.',
+        description: 'Automatically scans Buffout 4 crash logs and produces a human-readable diagnosis. ⚠️ Install via mod manager (MO2/Vortex), NOT a standalone program. Pair with Addictol for complete crash-debugging.',
         detectKeywords: ['classic'],
         url: 'https://www.nexusmods.com/fallout4/mods/56255',
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: false,
         ifMissing: 'Mossy cannot auto-scan crash logs. Post-crash analysis in the CK Crash Prevention panel will require manual log reading.',
+        hasExecutable: false, // Mod installed via mod manager, not a standalone program
     },
     {
         name: 'B.A.E. (Bethesda Archive Extractor)',
@@ -1238,8 +1247,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     </button>
                                 ))}
                             </div>
-                            <div className="mt-3 pt-3 border-t border-slate-700 text-[10px] text-amber-300">
-                                ⚠️ <strong>Multi-language in development.</strong> UI language will change, but voice support requires installing Windows voices.
+                            <div className="mt-3 pt-3 border-t border-slate-700 text-[10px] text-emerald-400">
+                                ✅ <strong>12 languages supported.</strong> UI language will update immediately. For voice support in your language, install the corresponding Windows voice pack.
                             </div>
                         </div>
 
@@ -1631,14 +1640,18 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         {fo4Version === 'ae' ? (
                                                             <>
                                                                 <strong className="text-red-100">⚠️ FO4 1.11.x (AE) Detected:</strong> You <strong className="text-red-100">MUST</strong> download the <strong className="text-red-100">PRE-RELEASE</strong> (dev) build.
-                                                                Scroll past the top "Latest" release and look for the entry tagged <strong className="text-red-100">Pre-release</strong>.
-                                                                Download its <code className="bg-red-900/40 px-1 rounded">SpriggitCLI.zip</code>.
+                                                                <br />
+                                                                <strong className="text-red-100">DO NOT</strong> click the green "Code" button or "Download ZIP" — that downloads <em>source code</em> with no .exe file!
+                                                                <br />
+                                                                Instead: Scroll past the top "Latest" release → find <strong className="text-red-100">Pre-release</strong> entry → expand "Assets" → download <code className="bg-red-900/40 px-1 rounded">SpriggitCLI.zip</code>.
+                                                                <br />
                                                                 The stable "Latest" build does NOT support 1.11.x and will crash with exit code 0xFFFFFFFF.
                                                             </>
                                                         ) : (
                                                             <>
                                                                 <strong className="text-blue-100">💡 FO4 {fo4Version.toUpperCase()} Detected:</strong> Use the <strong className="text-blue-100">Latest</strong> stable release for your version.
-                                                                Download <code className="bg-blue-900/40 px-1 rounded">SpriggitCLI.zip</code> from the top of the releases page.
+                                                                <br />
+                                                                <strong className="text-blue-100">DO NOT</strong> click the green "Code" button! Instead: Go to releases → expand "Assets" → download <code className="bg-blue-900/40 px-1 rounded">SpriggitCLI.zip</code>.
                                                             </>
                                                         )}
                                                     </div>
@@ -1689,20 +1702,33 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                             <ExternalLink className="w-3.5 h-3.5" />
                                                             {dl.urlLabel}
                                                         </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={async () => {
-                                                                const picked = await window.electron.api.pickToolPath(dl.name);
-                                                                if (picked) {
-                                                                    setManuallyLocated((prev) => ({ ...prev, [dl.name]: picked }));
-                                                                }
-                                                            }}
-                                                            className="flex items-center gap-1 px-2 py-1 rounded border border-slate-600 hover:border-slate-400 text-slate-400 hover:text-slate-200 text-xs transition-colors"
-                                                            title="Already have it? Browse to locate the executable"
-                                                        >
-                                                            <FolderOpen className="w-3 h-3" />
-                                                            I have it
-                                                        </button>
+                                                        {/* Only show "I have it" button for items with locatable executables */}
+                                                        {dl.hasExecutable !== false && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        console.log(`[FirstRunOnboarding] Opening file picker for ${dl.name}...`);
+                                                                        const picked = await window.electron.api.pickToolPath(dl.name);
+                                                                        console.log(`[FirstRunOnboarding] File picker result:`, picked);
+                                                                        if (picked) {
+                                                                            setManuallyLocated((prev) => ({ ...prev, [dl.name]: picked }));
+                                                                            console.log(`[FirstRunOnboarding] ${dl.name} located at:`, picked);
+                                                                        } else {
+                                                                            console.log(`[FirstRunOnboarding] File picker cancelled or no file selected`);
+                                                                        }
+                                                                    } catch (error) {
+                                                                        console.error(`[FirstRunOnboarding] Error picking tool path for ${dl.name}:`, error);
+                                                                        alert(`Error opening file picker: ${error instanceof Error ? error.message : String(error)}`);
+                                                                    }
+                                                                }}
+                                                                className="flex items-center gap-1 px-2 py-1 rounded border border-slate-600 hover:border-slate-400 text-slate-400 hover:text-slate-200 text-xs transition-colors"
+                                                                title="Already have it? Browse to locate the executable"
+                                                            >
+                                                                <FolderOpen className="w-3 h-3" />
+                                                                I have it
+                                                            </button>
+                                                        )}
                                                     </>
                                                 )}
                                             </div>
@@ -1883,7 +1909,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 <ol className="text-amber-200 text-xs space-y-2 list-decimal list-inside">
                                                     <li>Click the button below to open the Spriggit releases page</li>
                                                     <li><strong className="text-amber-50">Scroll past</strong> the top "Latest" release — you need the one tagged <strong className="text-amber-50">Pre-release</strong></li>
-                                                    <li>Download <code className="bg-amber-900/60 px-1.5 py-0.5 rounded text-emerald-300">SpriggitCLI.zip</code> (NOT <code className="bg-amber-900/60 px-1.5 py-0.5 rounded line-through">Spriggit.zip</code>)</li>
+                                                    <li>In the Assets section, download <code className="bg-amber-900/60 px-1.5 py-0.5 rounded text-emerald-300">SpriggitCLI.zip</code> (NOT the green "Code" button!)</li>
                                                     <li>Extract the <strong className="text-amber-50">entire zip</strong> to a permanent folder (e.g., <code className="bg-amber-900/60 px-1.5 py-0.5 rounded">C:\Tools\Spriggit\</code>)</li>
                                                     <li>Come back here and click Browse below to select <code className="bg-amber-900/60 px-1.5 py-0.5 rounded text-emerald-300">Spriggit.CLI.exe</code></li>
                                                 </ol>
