@@ -525,6 +525,12 @@ export interface Settings {
   // Game Paths
   fallout4Path?: string;
 
+  // Spriggit version management (April 2026)
+  spriggitPath?: string;
+  lastDetectedFo4Version?: string;
+  lastDetectedSpriggitVersion?: string;
+  spriggitVersionMismatchAcknowledged?: boolean;
+
   // Creation Kit / Papyrus
   papyrusCompilerPath?: string;
   papyrusFlagsPath?: string;
