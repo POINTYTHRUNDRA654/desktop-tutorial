@@ -2083,9 +2083,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                             onClick={() => {
                                                                 navigator.clipboard.writeText(
                                                                     `Add-MpPreference -ExclusionPath "${defenderExclusionPath}"`
-                                                                ).then(() => {
-                                                                    // Show a brief success indicator
-                                                                }).catch(() => {
+                                                                ).catch(() => {
                                                                     // Clipboard API may be unavailable; the command is selectable
                                                                 });
                                                             }}
