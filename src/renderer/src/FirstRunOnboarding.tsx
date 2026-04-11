@@ -1997,6 +1997,70 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 🔒 Open Windows Security →
                                             </button>
                                         )}
+                                        {/* "Add Defender Exclusion" — shown IMMEDIATELY when 0xFFFFFFFF
+                                            detected on FO4 1.11.x, making it the PRIMARY fix recommendation.
+                                            On Windows 11 with Smart App Control in "On" or "Evaluation" mode,
+                                            adding a Defender exclusion for the Spriggit folder is the ONLY
+                                            reliable permanent fix. Unblock-File is temporary and gets undone
+                                            when the cache is cleared (which forces re-extraction of assemblies).
+                                            This button appears BEFORE the Unblock Files button to guide users
+                                            to the correct solution first. */}
+                                        {spriggitVersionTooOld === false && detectedFo4Version.startsWith('1.11.') && defenderExclusionState !== 'ok' && (
+                                            <button
+                                                type="button"
+                                                disabled={defenderExclusionState === 'running'}
+                                                className="px-3 py-1 rounded border-2 border-yellow-400 bg-yellow-700/70 hover:bg-yellow-600/80 disabled:opacity-50 text-yellow-100 text-xs font-bold transition-colors"
+                                                onClick={async () => {
+                                                    const api = getElectronApi();
+                                                    if (!api?.spriggitAddDefenderExclusion) return;
+                                                    setDefenderExclusionState('running');
+                                                    try {
+                                                        const res = await api.spriggitAddDefenderExclusion();
+                                                        if (res?.excludedPath) setDefenderExclusionPath(res.excludedPath);
+                                                        if (res?.ok) {
+                                                            setDefenderExclusionState('ok');
+                                                        } else if (res?.error?.includes('Administrator rights')) {
+                                                            setDefenderExclusionState('needs-elevation');
+                                                        } else {
+                                                            setDefenderExclusionState('error');
+                                                        }
+                                                    } catch {
+                                                        setDefenderExclusionState('error');
+                                                    }
+                                                }}
+                                            >
+                                                {defenderExclusionState === 'running' ? '🔄 Adding exclusion…' : '⭐ Add Defender Exclusion (Recommended)'}
+                                            </button>
+                                        )}
+                                        {defenderExclusionState === 'ok' && (
+                                            <span className="text-xs text-emerald-300 font-semibold">
+                                                ✅ Defender exclusion added for {defenderExclusionPath ?? 'Spriggit folder'} — now click <strong>🗑️ Clear Cache &amp; Retry</strong>.
+                                            </span>
+                                        )}
+                                        {(defenderExclusionState === 'needs-elevation' || defenderExclusionState === 'error') && defenderExclusionPath && (
+                                            <span className="flex flex-wrap items-center gap-2">
+                                                <span className="text-xs text-amber-200">
+                                                    Run in <strong>PowerShell (Admin)</strong>:
+                                                </span>
+                                                <code className="text-xs bg-slate-800 text-emerald-300 px-2 py-0.5 rounded select-all">
+                                                    Add-MpPreference -ExclusionPath &quot;{defenderExclusionPath}&quot;
+                                                </code>
+                                                <button
+                                                    type="button"
+                                                    className="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-slate-200 text-xs font-semibold transition-colors"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(
+                                                            `Add-MpPreference -ExclusionPath "${defenderExclusionPath}"`
+                                                        ).catch(() => {
+                                                            // Clipboard API may be unavailable in some Electron contexts;
+                                                            // the command is selectable in the <code> block as a fallback.
+                                                        });
+                                                    }}
+                                                >
+                                                    📋 Copy
+                                                </button>
+                                            </span>
+                                        )}
                                         {/* "Re-download Spriggit" — shown whenever a 0xFFFFFFFF crash or
                                             silent-failure occurs.  When a genuine version mismatch is
                                             confirmed (spriggitVersionTooOld=true), this is the ONLY real
@@ -2035,7 +2099,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         )}
                                         {unblockResult?.ok && (
                                             <span className="text-xs text-violet-300 font-semibold">
-                                                ✅ Unblocked {unblockResult.unblocked ?? 0} file(s) in …{(unblockResult.folderPath ?? '').split(/[\\/]/).slice(-2).join('/')} — now click <strong>🗑️ Clear Cache &amp; Retry</strong> to finish.
+                                                ✅ Unblocked {unblockResult.unblocked ?? 0} file(s) in …{(unblockResult.folderPath ?? '').split(/[\\/]/).slice(-2).join('/')}
+                                                {detectedFo4Version.startsWith('1.11.') ? (
+                                                    <> — ⚠️ <strong>Unblock is temporary!</strong> Clearing cache will delete these files and extract NEW ones that will NOT be unblocked. <strong>Add a Windows Defender exclusion below instead</strong> for a permanent fix, then click Clear Cache.</>
+                                                ) : (
+                                                    <> — now click <strong>🗑️ Clear Cache &amp; Retry</strong> to finish.</>
+                                                )}
                                             </span>
                                         )}
                                         {unblockResult && !unblockResult.ok && (
@@ -2174,75 +2243,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                                     ⚠️ Auto-unblock ran but Spriggit is still crashing.{' '}
                                                                     {detectedFo4Version.startsWith('1.11.')
                                                                         ? <>Smart App Control may be set to <strong>&ldquo;On&rdquo;</strong> (not Evaluation) — in
-                                                                          that mode, Unblock-File alone is not enough.  The most reliable fix is
-                                                                          to add a <strong>Windows Defender exclusion</strong> for your Spriggit folder
+                                                                          that mode, Unblock-File alone is not enough.  <strong>Use the "⭐ Add Defender Exclusion" button at the top</strong>
                                                                           so SAC skips reputation checks on the extracted .NET assemblies.{' '}
-                                                                          Then click <strong>🗑️ Clear Cache &amp; Retry</strong> one more time.</>
+                                                                          After adding the exclusion, click <strong>🗑️ Clear Cache &amp; Retry</strong> one more time.</>
                                                                         : <>Check Smart App Control (Windows Security → App &amp; browser control)
-                                                                          or add a Windows Defender exclusion for your Spriggit folder.</>
+                                                                          or use the <strong>Add Defender Exclusion button above</strong> for your Spriggit folder.</>
                                                                     }
-                                                                    <br />
-                                                                    {/* "Add Defender Exclusion" — attempts Add-MpPreference directly (works
-                                                                        if Mossy has admin rights); if that fails, shows the exact command
-                                                                        and a copy button so the user can run it in an elevated shell. */}
-                                                                    <span className="mt-2 flex flex-wrap items-center gap-2">
-                                                                        {defenderExclusionState !== 'ok' && (
-                                                                            <button
-                                                                                type="button"
-                                                                                disabled={defenderExclusionState === 'running'}
-                                                                                className="px-3 py-1 rounded bg-rose-700/70 hover:bg-rose-600/70 disabled:opacity-50 text-rose-100 text-xs font-semibold transition-colors"
-                                                                                onClick={async () => {
-                                                                                    const api = getElectronApi();
-                                                                                    if (!api?.spriggitAddDefenderExclusion) return;
-                                                                                    setDefenderExclusionState('running');
-                                                                                    try {
-                                                                                        const res = await api.spriggitAddDefenderExclusion();
-                                                                                        if (res?.excludedPath) setDefenderExclusionPath(res.excludedPath);
-                                                                                        if (res?.ok) {
-                                                                                            setDefenderExclusionState('ok');
-                                                                                        } else if (res?.error?.includes('Administrator rights')) {
-                                                                                            setDefenderExclusionState('needs-elevation');
-                                                                                        } else {
-                                                                                            setDefenderExclusionState('error');
-                                                                                        }
-                                                                                    } catch {
-                                                                                        setDefenderExclusionState('error');
-                                                                                    }
-                                                                                }}
-                                                                            >
-                                                                                {defenderExclusionState === 'running' ? '🔄 Adding exclusion…' : '🛡️ Add Defender Exclusion'}
-                                                                            </button>
-                                                                        )}
-                                                                        {defenderExclusionState === 'ok' && (
-                                                                            <span className="text-xs text-emerald-300 font-semibold">
-                                                                                ✅ Exclusion added for {defenderExclusionPath ?? 'Spriggit folder'} — click <strong>🗑️ Clear Cache &amp; Retry</strong> to finish.
-                                                                            </span>
-                                                                        )}
-                                                                        {(defenderExclusionState === 'needs-elevation' || defenderExclusionState === 'error') && defenderExclusionPath && (
-                                                                            <>
-                                                                                <span className="text-xs text-amber-200">
-                                                                                    Run in <strong>PowerShell (Admin)</strong>:
-                                                                                </span>
-                                                                                <code className="text-xs bg-slate-800 text-emerald-300 px-2 py-0.5 rounded select-all">
-                                                                                    Add-MpPreference -ExclusionPath &quot;{defenderExclusionPath}&quot;
-                                                                                </code>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    className="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-slate-200 text-xs font-semibold transition-colors"
-                                                                                    onClick={() => {
-                                                                                        navigator.clipboard.writeText(
-                                                                                            `Add-MpPreference -ExclusionPath "${defenderExclusionPath}"`
-                                                                                        ).catch(() => {
-                                                                                            // Clipboard API may be unavailable in some Electron contexts;
-                                                                                            // the command is selectable in the <code> block as a fallback.
-                                                                                        });
-                                                                                    }}
-                                                                                >
-                                                                                    📋 Copy
-                                                                                </button>
-                                                                            </>
-                                                                        )}
-                                                                    </span>
                                                                   </>
                                                             }
                                                         </span>
