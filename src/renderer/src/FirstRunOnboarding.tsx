@@ -1692,9 +1692,19 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         <button
                                                             type="button"
                                                             onClick={async () => {
-                                                                const picked = await window.electron.api.pickToolPath(dl.name);
-                                                                if (picked) {
-                                                                    setManuallyLocated((prev) => ({ ...prev, [dl.name]: picked }));
+                                                                try {
+                                                                    console.log(`[FirstRunOnboarding] Opening file picker for ${dl.name}...`);
+                                                                    const picked = await window.electron.api.pickToolPath(dl.name);
+                                                                    console.log(`[FirstRunOnboarding] File picker result:`, picked);
+                                                                    if (picked) {
+                                                                        setManuallyLocated((prev) => ({ ...prev, [dl.name]: picked }));
+                                                                        console.log(`[FirstRunOnboarding] ${dl.name} located at:`, picked);
+                                                                    } else {
+                                                                        console.log(`[FirstRunOnboarding] File picker cancelled or no file selected`);
+                                                                    }
+                                                                } catch (error) {
+                                                                    console.error(`[FirstRunOnboarding] Error picking tool path for ${dl.name}:`, error);
+                                                                    alert(`Error opening file picker: ${error instanceof Error ? error.message : String(error)}`);
                                                                 }
                                                             }}
                                                             className="flex items-center gap-1 px-2 py-1 rounded border border-slate-600 hover:border-slate-400 text-slate-400 hover:text-slate-200 text-xs transition-colors"
