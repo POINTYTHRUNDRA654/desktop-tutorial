@@ -168,6 +168,12 @@ const LanguageSettings: React.FC<LanguageSettingsProps> = ({ embedded = false })
               { value: 'de', label: 'Deutsch' },
               { value: 'ru', label: 'Русский' },
               { value: 'zh-Hans', label: '中文（简体）' },
+              { value: 'pt-BR', label: 'Português (BR)' },
+              { value: 'ja', label: '日本語' },
+              { value: 'ko', label: '한국어' },
+              { value: 'it', label: 'Italiano' },
+              { value: 'pl', label: 'Polski' },
+              { value: 'tr', label: 'Türkçe' },
             ].map(({ value, label }) => (
               <button
                 key={value}

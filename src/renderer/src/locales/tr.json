@@ -1,0 +1,182 @@
+{
+  "nav": {
+    "home": "Mossy.Space",
+    "chat": "Yapay Zeka Sohbet",
+    "aiModAssistant": "Yapay Zeka Mod Asistanı",
+    "firstSuccess": "İlk Başarı",
+    "roadmap": "Modlama Yol Haritaları",
+    "whatsNew": "Yenilikler",
+    "modProjects": "Mod Projeleri",
+    "modBrowser": "Mod Tarayıcısı",
+    "quickReference": "Hızlı Referans",
+    "knowledgeSearch": "Bilgi Arama",
+    "installWizard": "Kurulum Sihirbazı",
+    "platforms": "Platformlar",
+    "wizards": "Sihirbazlar",
+    "crashTriage": "Çökme Triajı",
+    "ckCrashPrevention": "CK Güvenliği",
+    "ddsConverter": "DDS Dönüştürücü",
+    "textureGenerator": "Doku Oluşturucu",
+    "packagingRelease": "Paketleme ve Yayın",
+    "ckQuestDialogue": "CK Görev ve Diyalog",
+    "animationGuide": "Animasyon Kılavuzu",
+    "skeletonReference": "İskelet Referansı",
+    "riggingMistakes": "Rigging Hataları",
+    "questModAuthoring": "Görev Modu Yazarlığı",
+    "precombinePrpGuide": "Precombine ve PRP Kılavuzu",
+    "prpPatchBuilder": "PRP Yama Oluşturucu",
+    "leveledListInjection": "Seviyeli Liste Enjeksiyonu",
+    "lorekeeper": "Bilgi Koruyucusu",
+    "tools": "Araçlar",
+    "cosmosWorkflow": "Cosmos İş Akışı",
+    "devtools": "Geliştirici Araçları",
+    "templateGenerator": "Şablon Oluşturucu",
+    "scriptAnalyzer": "Betik Analizörü",
+    "assembler": "Montajcı",
+    "workshop": "Atölye",
+    "blueprint": "Plan",
+    "riggingChecklist": "Rigging Kontrol Listesi",
+    "exportSettingsHelper": "Dışa Aktarma Ayarları Yardımcısı",
+    "animationValidator": "Animasyon Doğrulayıcı",
+    "precombineChecker": "Precombine Denetleyici",
+    "auditor": "Denetçi",
+    "securityScanner": "Güvenlik Tarayıcı",
+    "miningDashboard": "Madencilik Panosu",
+    "advancedAnalysis": "Gelişmiş Analiz",
+    "scribe": "Katip",
+    "systemMonitor": "Sistem İzleyici",
+    "orchestrator": "Orkestratör",
+    "workflowRunner": "İş Akışı Çalıştırıcı",
+    "holodeck": "Holodeck",
+    "vault": "Kasa",
+    "ba2Manager": "BA2 Yöneticisi",
+    "localCapabilities": "Yerel Yetenekler",
+    "memoryVault": "Bellek Kasası",
+    "neuralLink": "Neural Link",
+    "imageStudio": "Görüntü Stüdyosu",
+    "audioStudio": "Ses Stüdyosu",
+    "liveSynapse": "Live Synapse",
+    "desktopBridge": "Desktop Bridge",
+    "mo2Extension": "MO2 Uzantısı",
+    "xeditTools": "xEdit Araçları",
+    "ckExtension": "CK Uzantısı",
+    "prpPatchTools": "PRP Yama Araçları",
+    "comfyuiExtension": "ComfyUI Uzantısı",
+    "upscaylExtension": "Upscayl Uzantısı",
+    "duplicateFinder": "Kopya Bulucu",
+    "communityLearning": "Topluluk Öğrenimi",
+    "toolVerify": "Araç Doğrulama",
+    "settings": "Ayarlar",
+    "privacySettings": "Gizlilik Ayarları",
+    "voiceSettings": "Ses Ayarları",
+    "languageSettings": "Dil Ayarları",
+    "diagnosticTools": "Tanı Araçları",
+    "supportMossy": "Mossy'yi Destekle"
+  },
+  "settings": {
+    "language": {
+      "title": "Dil Ayarları",
+      "subtitle": "Mossy arayüzünde kullanılan dili seçin.",
+      "uiLanguageLabel": "Uygulama dili",
+      "uiLanguageHelp": "Etiketleri, düğmeleri ve arayüz metnini etkiler (çevrilmiş olduğunda).",
+      "requestTitle": "Dil talep et",
+      "requestHelp": "Diliniz eksik mi? Hangi dili ekleyeceğimizi bize söyleyin.",
+      "requestCta": "Dil talep et",
+      "requestCtaTitle": "Dil talep formunu aç",
+      "auto": "Otomatik (sistem)",
+      "current": "Mevcut",
+      "save": "Kaydet"
+    }
+  },
+  "onboarding": {
+    "language": {
+      "label": "Dil",
+      "help": "Arayüz dilinizi seçin. Bunu daha sonra Ayarlar'dan değiştirebilirsiniz.",
+      "auto": "Otomatik (sistem)"
+    }
+  },
+  "installWizard": {
+    "tagline": "Mossy Tutor • Kurulum Sihirbazı",
+    "topics": "Konular",
+    "modManager": "Mod Yöneticisi",
+    "shortcuts": {
+      "title": "Kısayollar",
+      "externalTools": "Harici Araç Ayarları",
+      "precombinePrp": "Precombine ve PRP Kılavuzu",
+      "simSettlements": "Sim Settlements Kılavuzu"
+    },
+    "topicSelector": {
+      "xedit": "xEdit / FO4Edit",
+      "ss2": "SS2 Arsa İnşaatı",
+      "prp": "PRP (Previs/Precombine)",
+      "patching": "Yama Oluştur"
+    },
+    "actions": {
+      "askMossy": "Mossy'ye sor",
+      "askMossyTitle": "Sohbette Mossy'ye sor",
+      "sendToChat": "Sohbete Gönder",
+      "sendToChatTitle": "Bu konunun kontrol listesini Sohbet'e gönder",
+      "reset": "Sıfırla",
+      "resetTitle": "Sihirbaz ilerlemesini sıfırla"
+    },
+    "section": {
+      "prereqs": "Ön Gereksinimler",
+      "download": "İndir",
+      "installConfigure": "Kur / Yapılandır",
+      "buildPatch": "Yamayı oluştur",
+      "verify": "Doğrula",
+      "troubleshoot": "Sorun giderme"
+    },
+    "step": {
+      "markIncomplete": "Adımı tamamlanmamış olarak işaretle",
+      "markComplete": "Adımı tamamlanmış olarak işaretle",
+      "completed": "Tamamlandı",
+      "notCompleted": "Tamamlanmadı"
+    },
+    "topic": {
+      "xedit": {
+        "title": "xEdit / FO4Edit Kurulumu",
+        "subtitle": "Güvenli bir şekilde yama yapabilmeniz için xEdit'i kurun, yapılandırın ve doğrulayın."
+      },
+      "ss2": {
+        "title": "Sim Settlements 2 Kurulumu",
+        "subtitle": "Arsa inşaatı için bağımlılıklar + kurulum + temel doğrulama."
+      },
+      "prp": {
+        "title": "PRP Kurulumu",
+        "subtitle": "Çakışma bilinçli doğrulama ile Precombines/previs kurulumu."
+      },
+      "patching": {
+        "title": "Yama Oluşturma",
+        "subtitle": "Uyumluluk yamaları oluşturmak için güvenli, tekrarlanabilir bir iş akışı."
+      }
+    },
+    "verifyPanel": {
+      "description": "Bu sihirbaz, eksik ön gereksinimleri önlemek için tasarlanmıştır: resmi kaynaklara veya kararlı arama sayfalarına bağlanır ve minimum bir doğrulama döngüsü sağlar.",
+      "verify": {
+        "0": "Bir konu seçin ve kontrol listesinin oluşturulduğunu ve yenileme sonrasında onay kutularının kalıcı olduğunu doğrulayın.",
+        "1": "\"Güvenilir bağlantılar\"dan en az bir bağlantı açın ve openExternal/window.open aracılığıyla açıldığını doğrulayın.",
+        "2": "\"Sohbete Gönder\"i kullanın ve kontrol listesinin kopyalandığını ve Sohbet'te önceden doldurulduğunu doğrulayın."
+      },
+      "firstTestLoop": {
+        "0": "\"xEdit / FO4Edit\" ile başlayın ve önce bir temiz başlatma elde edin.",
+        "1": "Mod yöneticisi seçiminizi yapılandırın, ardından genişletmeden önce yalnızca minimum \"doğrulama\" adımlarını tamamlayın."
+      },
+      "troubleshooting": {
+        "0": "Bağlantılar açılmıyorsa, Tanılama'yı kontrol edin ve openExternal'ın kullanılabilir olduğunu doğrulayın (masaüstü uygulaması) veya açılır pencerelere izin verin.",
+        "1": "Onay kutusu durumu kalıcı değilse, localStorage'ın kullanılabilir olduğunu doğrulayın (Tanılama'ya bakın)."
+      }
+    },
+    "downloadsSources": "İndirmeler ve Kaynaklar",
+    "downloadsSourcesHelp": "Güvenilir kaynakları ve yerel Bilgi Kasanızda bulunan doğrudan URL'leri gösterir.",
+    "refresh": "Yenile",
+    "refreshTitle": "Bağlantıları yenile",
+    "fromVault": "Bilgi Kasanızdan",
+    "openVault": "Bellek Kasasını Aç",
+    "searchNexus": "Nexus'ta Ara",
+    "vaultLink": "Kasa bağlantısı",
+    "tutorTip": "Eğitmen İpucu",
+    "openLastLocation": "Son konumu aç",
+    "openLastLocationTitle": "(İsteğe bağlı) Varsa son kaydedilen konumu aç"
+  }
+}
