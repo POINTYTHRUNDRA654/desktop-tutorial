@@ -2038,28 +2038,81 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             </span>
                                         )}
                                         {(defenderExclusionState === 'needs-elevation' || defenderExclusionState === 'error') && defenderExclusionPath && (
-                                            <span className="flex flex-wrap items-center gap-2">
-                                                <span className="text-xs text-amber-200">
-                                                    Run in <strong>PowerShell (Admin)</strong>:
-                                                </span>
-                                                <code className="text-xs bg-slate-800 text-emerald-300 px-2 py-0.5 rounded select-all">
-                                                    Add-MpPreference -ExclusionPath &quot;{defenderExclusionPath}&quot;
-                                                </code>
-                                                <button
-                                                    type="button"
-                                                    className="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-slate-200 text-xs font-semibold transition-colors"
-                                                    onClick={() => {
-                                                        navigator.clipboard.writeText(
-                                                            `Add-MpPreference -ExclusionPath "${defenderExclusionPath}"`
-                                                        ).catch(() => {
-                                                            // Clipboard API may be unavailable in some Electron contexts;
-                                                            // the command is selectable in the <code> block as a fallback.
-                                                        });
-                                                    }}
-                                                >
-                                                    📋 Copy
-                                                </button>
-                                            </span>
+                                            <div className="w-full mt-4 p-4 rounded-lg bg-gradient-to-br from-yellow-900/40 to-amber-900/40 border-2 border-yellow-500/70 shadow-lg">
+                                                <div className="flex items-start gap-3 mb-3">
+                                                    <span className="text-2xl">🛡️</span>
+                                                    <div className="flex-1">
+                                                        <h3 className="text-yellow-100 font-bold text-base mb-1">
+                                                            ⚠️ Administrator Rights Required
+                                                        </h3>
+                                                        <p className="text-yellow-200 text-sm mb-2">
+                                                            Mossy tried to add a Windows Defender exclusion automatically, but it requires Administrator privileges. 
+                                                            <strong className="text-yellow-100"> Follow these steps to add the exclusion manually:</strong>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="bg-slate-900/60 rounded-lg p-4 border border-yellow-600/30 mb-3">
+                                                    <ol className="text-yellow-100 text-sm space-y-3 list-decimal list-inside">
+                                                        <li className="pl-2">
+                                                            <strong>Click the Windows Start button</strong> and type <code className="bg-slate-800 px-1.5 py-0.5 rounded text-emerald-300">PowerShell</code>
+                                                        </li>
+                                                        <li className="pl-2">
+                                                            <strong>Right-click on "Windows PowerShell"</strong> in the search results
+                                                        </li>
+                                                        <li className="pl-2">
+                                                            Select <strong className="text-yellow-200">"Run as administrator"</strong> (you may be prompted for permission)
+                                                        </li>
+                                                        <li className="pl-2">
+                                                            When PowerShell opens, <strong>paste and run this command</strong> (click 📋 Copy below):
+                                                        </li>
+                                                    </ol>
+                                                </div>
+
+                                                <div className="bg-slate-950/80 rounded-lg p-3 border border-emerald-500/50 mb-3">
+                                                    <div className="flex items-start gap-2 mb-1">
+                                                        <code className="flex-1 bg-slate-900 text-emerald-300 px-3 py-2 rounded font-mono text-sm select-all break-all">
+                                                            Add-MpPreference -ExclusionPath "{defenderExclusionPath}"
+                                                        </code>
+                                                        <button
+                                                            type="button"
+                                                            className="px-3 py-2 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-bold transition-colors shadow-md"
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(
+                                                                    `Add-MpPreference -ExclusionPath "${defenderExclusionPath}"`
+                                                                ).then(() => {
+                                                                    // Show a brief success indicator
+                                                                }).catch(() => {
+                                                                    // Clipboard API may be unavailable; the command is selectable
+                                                                });
+                                                            }}
+                                                        >
+                                                            📋 Copy
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-slate-400 text-xs ml-1">
+                                                        💡 Tip: Right-click in PowerShell to paste. Press Enter to run.
+                                                    </p>
+                                                </div>
+
+                                                <div className="bg-slate-900/60 rounded-lg p-3 border border-slate-600/50">
+                                                    <p className="text-yellow-100 text-sm mb-2">
+                                                        <strong>5. After running the command:</strong>
+                                                    </p>
+                                                    <ul className="text-yellow-200 text-sm space-y-1 list-disc list-inside ml-4">
+                                                        <li>If it succeeds, you'll see no output (that's normal!)</li>
+                                                        <li>Close PowerShell</li>
+                                                        <li className="font-bold text-yellow-100">
+                                                            Click the <strong className="text-emerald-300">"🗑️ Clear Cache & Retry"</strong> button below
+                                                        </li>
+                                                        <li>Spriggit should now work without being blocked</li>
+                                                    </ul>
+                                                </div>
+
+                                                <div className="mt-3 pt-3 border-t border-yellow-600/30 text-xs text-yellow-300/80">
+                                                    <strong>What this does:</strong> Tells Windows Defender to trust all files in your Spriggit folder, preventing Smart App Control from blocking the .NET assemblies that Spriggit extracts at runtime.
+                                                </div>
+                                            </div>
                                         )}
                                         {/* "Re-download Spriggit" — shown whenever a 0xFFFFFFFF crash or
                                             silent-failure occurs.  When a genuine version mismatch is
