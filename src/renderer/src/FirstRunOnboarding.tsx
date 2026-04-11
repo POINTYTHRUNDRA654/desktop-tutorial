@@ -327,6 +327,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     /** True while the automatic .NET check runs on entering the spriggit-digest step. */
     const [dotnetCheckingOnEntry, setDotnetCheckingOnEntry] = useState(false);
 
+    /** Version mismatch modal control */
+    const [showVersionMismatchModal, setShowVersionMismatchModal] = useState(false);
+    const [versionMismatchAcknowledged, setVersionMismatchAcknowledged] = useState(false);
+
     /** Tools the user has manually located via the "Browse to locate" button.
      *  Key = dl.name, value = the .exe path they picked. */
     const [manuallyLocated, setManuallyLocated] = useState<Record<string, string>>({});
@@ -899,6 +903,16 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             if (typeof result.spriggitVersionTooOld === 'boolean') {
                 setSpriggitVersionTooOld(result.spriggitVersionTooOld as boolean);
             }
+            
+            // PRE-FLIGHT VERSION MISMATCH CHECK (Phase 3)
+            // Show blocking modal if FO4 1.11.x + Spriggit < 0.34.0 and user hasn't acknowledged
+            if (result.spriggitVersionTooOld && !versionMismatchAcknowledged) {
+                setSpriggitStatus('error');
+                setSpriggitMessage('Version mismatch detected — see modal for details');
+                setShowVersionMismatchModal(true);
+                return { failed0xFFFF: false };
+            }
+            
             if (!result.ok || !result.files?.length) {
                 const errText = result.error || 'No YAML files were produced.';
                 // Cap display length to avoid rendering a massive wall of text.
@@ -2555,6 +2569,73 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         <p className="text-slate-400 text-sm">
                             Ready to experience the future of AI modding assistance?
                         </p>
+                    </div>
+                )}
+
+                {/* Version Mismatch Warning Modal */}
+                {showVersionMismatchModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                        <div className="bg-slate-900 border-2 border-red-600 rounded-xl p-6 max-w-lg mx-4 shadow-2xl">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-12 h-12 rounded-full bg-red-900/50 border-2 border-red-500 flex items-center justify-center flex-shrink-0">
+                                    <X className="w-7 h-7 text-red-400" />
+                                </div>
+                                <h3 className="text-xl font-bold text-white">⚠️ Version Mismatch Detected</h3>
+                            </div>
+                            <div className="space-y-3 mb-6 text-sm">
+                                <p className="text-slate-200">
+                                    <strong className="text-red-400">Your Fallout 4 version:</strong> {detectedFo4Label || detectedFo4Version || 'Unknown'}
+                                </p>
+                                <p className="text-slate-200">
+                                    <strong className="text-red-400">Your Spriggit version:</strong> {detectedSpriggitVersion || 'Unknown'}
+                                </p>
+                                <div className="bg-red-900/30 border border-red-600/50 rounded-lg p-3 text-red-200">
+                                    <p className="font-semibold mb-1">This combination will crash with exit code 0xFFFFFFFF.</p>
+                                    <p className="text-xs">
+                                        Fallout 4 version 1.11.x (Anniversary Edition / Creations Menu) requires Spriggit v0.34.0 or newer.
+                                        Your current Spriggit build is too old and cannot parse the new record types added in the November 2025 update.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowVersionMismatchModal(false);
+                                        void openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
+                                    }}
+                                    className="w-full px-4 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <ExternalLink className="w-4 h-4" /> Download Pre-Release Build
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        setShowVersionMismatchModal(false);
+                                        const api = getElectronApi();
+                                        if (!api?.spriggitPickCli) return;
+                                        const p = await api.spriggitPickCli();
+                                        if (p) setSpriggitCliPath(p);
+                                    }}
+                                    className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <FolderOpen className="w-4 h-4" /> Select Different Spriggit.exe
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowVersionMismatchModal(false);
+                                        setVersionMismatchAcknowledged(true);
+                                        // Reset status so user can retry
+                                        setSpriggitStatus('idle');
+                                        setSpriggitMessage('');
+                                    }}
+                                    className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded-lg text-sm transition-colors"
+                                >
+                                    I Know What I'm Doing (Continue Anyway)
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
