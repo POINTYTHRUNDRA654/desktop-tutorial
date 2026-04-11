@@ -93,7 +93,7 @@ console.log('\n🔧 Test 3: Checking i18n.ts configuration...\n');
 const i18nContent = fs.readFileSync(I18N_FILE, 'utf8');
 
 EXPECTED_LANGUAGES.forEach(lang => {
-  const importStatement = `import.*from.*'./locales/${lang.file.replace('.json', '.json')}'`;
+  const importStatement = `import.*from.*'./locales/${lang.file.replace('.json', '')}'`;
   const hasImport = new RegExp(importStatement).test(i18nContent);
   
   if (hasImport || i18nContent.includes(`'${lang.file.replace('.json', '')}'`)) {
