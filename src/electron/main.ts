@@ -351,28 +351,38 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
       : ['python3', 'python'];
 
     let pythonExe = '';
+    const triedCandidates: string[] = [];
 
     // Try system Python first
     for (const candidate of systemCandidates) {
       const r = await runCmd(candidate, ['--version']);
+      triedCandidates.push(`${candidate} (${r.code === 0 ? 'found' : r.stderr || 'not found'})`);
+      console.log(`[PyTorch Auto-Setup] Tried ${candidate}: code=${r.code}, stdout="${r.stdout.trim()}", stderr="${r.stderr.trim()}"`);
       if (r.code === 0) { pythonExe = candidate; break; }
     }
 
     // Fall back to bundled embedded Python (Windows only)
     if (!pythonExe && process.platform === 'win32') {
       const bundledPython = path.join(process.resourcesPath, 'python-embedded', 'python.exe');
+      console.log(`[PyTorch Auto-Setup] Checking bundled Python at: ${bundledPython}, exists: ${fs.existsSync(bundledPython)}`);
       if (fs.existsSync(bundledPython)) {
         sendProgress('System Python not found. Using bundled Python…');
+        triedCandidates.push(`bundled (${bundledPython})`);
         // The embedded Python needs pip. Bootstrap it if needed.
         const pipBootstrapped = await bootstrapEmbeddedPip(bundledPython, sendProgress, runCmd);
         if (pipBootstrapped) {
           pythonExe = bundledPython;
+        } else {
+          console.log('[PyTorch Auto-Setup] Bundled Python pip bootstrap failed');
         }
       }
     }
 
     if (!pythonExe) {
-      sendProgress('⚠️ Python not found. Visit https://www.python.org/downloads/ to install Python 3.10+, then restart Mossy.');
+      const diagnostics = `Tried: ${triedCandidates.join(', ')}`;
+      console.error(`[PyTorch Auto-Setup] Python detection failed. ${diagnostics}`);
+      sendProgress(`⚠️ Python not found. Visit https://www.python.org/downloads/ to install Python 3.10+, then restart Mossy.`);
+      sendProgress(`Debug: ${diagnostics}`);
       return;
     }
 
