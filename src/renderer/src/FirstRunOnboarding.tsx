@@ -1223,7 +1223,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             <div className="text-xs text-slate-400 mt-1">
                                 {t('onboarding.language.help', 'Choose your interface language. You can change this later in Settings.')}
                             </div>
-                            <div className="mt-3 grid grid-cols-2 gap-2">
+                            <div className="mt-3 grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-2">
                                 {[
                                     { value: 'auto', label: t('onboarding.language.auto', 'Auto (system)') },
                                     { value: 'en', label: 'English' },
@@ -1232,6 +1232,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     { value: 'de', label: 'Deutsch' },
                                     { value: 'ru', label: 'Русский' },
                                     { value: 'zh-Hans', label: '中文（简体）' },
+                                    { value: 'pt-BR', label: 'Português (Brasil)' },
+                                    { value: 'ja', label: '日本語' },
+                                    { value: 'ko', label: '한국어' },
+                                    { value: 'it', label: 'Italiano' },
+                                    { value: 'pl', label: 'Polski' },
+                                    { value: 'tr', label: 'Türkçe' },
                                 ].map(({ value, label }) => (
                                     <button
                                         key={value}
