@@ -4375,6 +4375,34 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       };
     } catch (e: any) {
       console.error('[Main] spriggit-serialize error:', e);
+      
+      // PRIORITIZE COMMON ERRORS FIRST (most user-actionable)
+      // Check for disk space errors (ENOSPC) - #1 most common
+      if (e?.code === 'ENOSPC' || e?.message?.includes('ENOSPC')) {
+        return { 
+          ok: false, 
+          files: [], 
+          error: `⚠️ DISK SPACE ERROR: Not enough space on ${cacheDriveRoot || 'drive'} to run Spriggit.\n\n` +
+                 `Free up at least 500MB and try again.\n` +
+                 `Error: ${e?.message || e}` 
+        };
+      }
+      
+      // Check for permission errors (EACCES, EPERM) - #2 most common
+      if (e?.code === 'EACCES' || e?.code === 'EPERM' || e?.message?.includes('EACCES') || e?.message?.includes('EPERM')) {
+        return { 
+          ok: false, 
+          files: [], 
+          error: `⚠️ PERMISSION ERROR: Cannot write to Spriggit folder or temp directory.\n\n` +
+                 `Try:\n` +
+                 `1. Run Mossy as Administrator\n` +
+                 `2. Move Spriggit to a folder where you have write permissions (like Documents)\n` +
+                 `3. Check folder security settings\n\n` +
+                 `Error: ${e?.message || e}` 
+        };
+      }
+      
+      // All other errors - generic message
       return { ok: false, files: [], error: String(e?.message || e) };
     }
   });

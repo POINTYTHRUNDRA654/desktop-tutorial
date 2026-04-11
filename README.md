@@ -8,6 +8,24 @@
 
 ---
 
+## ⚡ Requirements
+
+**Before running Mossy, you need:**
+
+- **[.NET 8.0+ SDK](https://dotnet.microsoft.com/download/dotnet/8.0)** (required for Spriggit)
+  - Download the SDK, not just the Runtime
+  - Restart your computer after installation
+- **[Spriggit CLI](https://github.com/Mutagen-Modding/Spriggit/releases)** (optional but recommended)
+  - Enables Git-based collaborative modding
+  - Converts .esp/.esm files to YAML for version control
+- **[Git](https://git-scm.com/)** (recommended)
+- **[Visual C++ Redistributables](https://aka.ms/vs/17/release/vc_redist.x64.exe)** (required)
+- **Windows 10/11** (64-bit)
+
+> 💡 **First-time setup?** Mossy will guide you through downloading these during onboarding.
+
+---
+
 ## 🚀 Onboarding & Installer Notes (v5.4.27)
 
 **New in v5.4.27 (Latest):**
