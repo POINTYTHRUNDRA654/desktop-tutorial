@@ -1,3 +1,0 @@
-resources/app.asar filter=lfs diff=lfs merge=lfs -text
-Mossy.exe filter=lfs diff=lfs merge=lfs -text
-release-alt/** filter=lfs diff=lfs merge=lfs -text
