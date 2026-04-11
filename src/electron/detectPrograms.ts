@@ -22,10 +22,12 @@ const execAsync = promisify(exec);
  */
 export async function detectPrograms(): Promise<InstalledProgram[]> {
   const programs = new Map<string, InstalledProgram>();
+  console.log('[Program Detection] Starting comprehensive program scan...');
 
   try {
     // Try to get programs from Windows Registry first (most reliable)
     const registryPrograms = await getRegistryPrograms();
+    console.log(`[Program Detection] Found ${registryPrograms.length} programs from Windows Registry`);
     registryPrograms.forEach(prog => {
       programs.set(prog.path.toLowerCase(), prog);
     });
@@ -36,6 +38,7 @@ export async function detectPrograms(): Promise<InstalledProgram[]> {
   try {
     // Scan Program Files directories as fallback or supplement
     const fileSystemPrograms = await scanProgramFiles();
+    console.log(`[Program Detection] Found ${fileSystemPrograms.length} programs from file system scan`);
     fileSystemPrograms.forEach(prog => {
       const key = prog.path.toLowerCase();
       if (!programs.has(key)) {
@@ -59,7 +62,7 @@ export async function detectPrograms(): Promise<InstalledProgram[]> {
     console.warn('Special programs scan failed:', error);
   }
 
-  return Array.from(programs.values())
+  const finalList = Array.from(programs.values())
     .filter(p => {
         const pathLower = p.path.toLowerCase();
         // Eliminate typical installer/helper noise that isn't the primary tool
@@ -69,6 +72,9 @@ export async function detectPrograms(): Promise<InstalledProgram[]> {
                !pathLower.includes('redist');
     })
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  
+  console.log(`[Program Detection] Total programs detected: ${finalList.length} (after filtering)`);
+  return finalList;
 }
 
 /**
@@ -515,6 +521,7 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
   
   // Get all mounted drives dynamically
   const driveRoots = await getWindowsDriveRoots();
+  console.log(`[Program Detection] Scanning ${driveRoots.length} mounted drives: ${driveRoots.join(', ')}`);
   
   // Define path templates (without drive letter) for special programs
   // These will be combined with all detected drives
@@ -739,6 +746,7 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
     }
   }
 
+  console.log(`[Program Detection] Found ${programs.length} special programs across all drives`);
   return programs;
 }
 
