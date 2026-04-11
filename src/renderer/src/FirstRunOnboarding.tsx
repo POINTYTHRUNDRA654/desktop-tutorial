@@ -1728,9 +1728,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 )}
 
                 {step === 'spriggit-digest' && (
-                    <div className="flex flex-col animate-fade-in h-screen max-h-[calc(90vh-2px)]">
+                    <div className="flex flex-col animate-fade-in h-full min-h-[600px] max-h-[90vh]">
                         {/* Scrollable content area */}
-                        <div className="overflow-y-auto flex-1 text-center pr-2">
+                        <div className="overflow-y-auto flex-1 text-center pr-2 min-h-0">
                             <Brain className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
                             <div className="flex items-center justify-center gap-3 mb-3">
                                 <h2 className="text-3xl font-bold text-white">Feed Me the Base Game</h2>
@@ -2528,8 +2528,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 </div>
                             )}
                         </div>
-                        {/* Sticky buttons footer */}
-                        <div className="flex flex-col gap-3 max-w-lg mx-auto border-t border-slate-700 pt-4 mt-4 bg-gradient-to-t from-slate-900/95 to-transparent">
+                        {/* Sticky buttons footer - always visible at bottom */}
+                        <div className="flex-shrink-0 flex flex-col gap-3 max-w-lg mx-auto border-t border-slate-700 pt-4 pb-2 bg-slate-900">
                             {spriggitStatus !== 'done' && spriggitStatus !== 'partial' && (
                                 <button
                                     type="button"
