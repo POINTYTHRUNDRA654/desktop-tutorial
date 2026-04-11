@@ -4,9 +4,15 @@ import fr from './locales/fr.json';
 import de from './locales/de.json';
 import ru from './locales/ru.json';
 import zhHans from './locales/zh-Hans.json';
+import ptBR from './locales/pt-BR.json';
+import ja from './locales/ja.json';
+import ko from './locales/ko.json';
+import it from './locales/it.json';
+import pl from './locales/pl.json';
+import tr from './locales/tr.json';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-type Lang = 'en' | 'es' | 'fr' | 'de' | 'ru' | 'zh-Hans';
+type Lang = 'en' | 'es' | 'fr' | 'de' | 'ru' | 'zh-Hans' | 'pt-BR' | 'ja' | 'ko' | 'it' | 'pl' | 'tr';
 export type UiLanguagePreference = 'auto' | Lang;
 
 type Dict = Record<string, any>;
@@ -29,18 +35,34 @@ export function resolveUiLanguage(value?: string): Lang {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw || raw === 'auto') {
     const nav = (typeof navigator !== 'undefined' ? navigator.language : '') || '';
-    const base = nav.split('-')[0].toLowerCase();
+    const normalized = nav.toLowerCase().replace('_', '-');
+    const base = normalized.split('-')[0];
+    
+    // Check for exact matches first
+    if (normalized === 'pt-br') return 'pt-BR';
+    if (normalized === 'zh-hans' || normalized === 'zh-cn') return 'zh-Hans';
+    
+    // Check base language codes
     if (base === 'es') return 'es';
     if (base === 'fr') return 'fr';
     if (base === 'de') return 'de';
     if (base === 'ru') return 'ru';
     if (base === 'zh') return 'zh-Hans';
+    if (base === 'pt') return 'pt-BR';
+    if (base === 'ja') return 'ja';
+    if (base === 'ko') return 'ko';
+    if (base === 'it') return 'it';
+    if (base === 'pl') return 'pl';
+    if (base === 'tr') return 'tr';
     return 'en';
   }
 
-  // Accept either exact supported tags (e.g. "zh-hans") or base tags (e.g. "zh").
+  // Accept either exact supported tags (e.g. "zh-hans", "pt-BR") or base tags (e.g. "zh", "pt").
   const normalized = raw.replace('_', '-');
-  if (normalized === 'zh-hans') return 'zh-Hans';
+  
+  // Exact matches
+  if (normalized === 'zh-hans' || normalized === 'zh-cn') return 'zh-Hans';
+  if (normalized === 'pt-br') return 'pt-BR';
 
   const base = normalized.split('-')[0];
   if (base === 'es') return 'es';
@@ -48,6 +70,12 @@ export function resolveUiLanguage(value?: string): Lang {
   if (base === 'de') return 'de';
   if (base === 'ru') return 'ru';
   if (base === 'zh') return 'zh-Hans';
+  if (base === 'pt') return 'pt-BR';
+  if (base === 'ja') return 'ja';
+  if (base === 'ko') return 'ko';
+  if (base === 'it') return 'it';
+  if (base === 'pl') return 'pl';
+  if (base === 'tr') return 'tr';
   return 'en';
 }
 
@@ -58,6 +86,12 @@ const DICTS: Record<Lang, Dict> = {
   de: de as any,
   ru: ru as any,
   'zh-Hans': zhHans as any,
+  'pt-BR': ptBR as any,
+  ja: ja as any,
+  ko: ko as any,
+  it: it as any,
+  pl: pl as any,
+  tr: tr as any,
 };
 
 export type I18nContextValue = {
