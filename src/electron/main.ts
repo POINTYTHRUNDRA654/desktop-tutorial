@@ -10314,6 +10314,251 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   /**
+   * Helper: Robust Python detection with common installation path fallbacks
+   * 
+   * Attempts to find Python executable by:
+   * 1. Checking system PATH (python, python3, py commands)
+   * 2. Checking common Windows installation directories
+   * 3. Using where/which commands
+   * 4. Checking bundled Python (if available)
+   * 
+   * @param runCmd - Function to execute shell commands
+   * @param sendProgress - Optional callback for progress messages
+   * @returns { pythonExe: string | null, diagnostics: string[], troubleshooting: string[] }
+   */
+  const detectPythonExecutable = async (
+    runCmd: (cmd: string, args: string[]) => Promise<{ code: number; stdout: string; stderr: string }>,
+    sendProgress?: (msg: string) => void
+  ): Promise<{ pythonExe: string | null; diagnostics: string[]; troubleshooting: string[] }> => {
+    const diagnostics: string[] = [];
+    const troubleshooting: string[] = [];
+    let pythonExe: string | null = null;
+
+    // Step 1: Try PATH-based commands
+    const systemCandidates = process.platform === 'win32'
+      ? ['python', 'python3', 'py']
+      : ['python3', 'python'];
+
+    sendProgress?.('Searching for Python in system PATH...');
+    for (const candidate of systemCandidates) {
+      const r = await runCmd(candidate, ['--version']);
+      const status = r.code === 0 ? `✓ found (${r.stdout.trim()})` : `✗ ${r.stderr || 'not found'}`;
+      diagnostics.push(`${candidate}: ${status}`);
+      console.log(`[Python Detection] Tried ${candidate}: code=${r.code}, stdout="${r.stdout.trim()}", stderr="${r.stderr.trim()}"`);
+      
+      if (r.code === 0) {
+        pythonExe = candidate;
+        sendProgress?.(`Found Python via PATH: ${candidate}`);
+        return { pythonExe, diagnostics, troubleshooting };
+      }
+    }
+
+    // Step 2: Windows-specific - scan ALL drives for Python installations
+    if (process.platform === 'win32') {
+      sendProgress?.('Python not in PATH. Scanning all drives for Python installations...');
+      
+      // Get all available drive letters
+      const availableDrives: string[] = [];
+      for (let charCode = 65; charCode <= 90; charCode++) { // A-Z
+        const driveLetter = String.fromCharCode(charCode);
+        const driveRoot = `${driveLetter}:\\`;
+        try {
+          if (fs.existsSync(driveRoot)) {
+            availableDrives.push(driveLetter);
+          }
+        } catch (err) {
+          // Drive not accessible, skip
+        }
+      }
+      
+      diagnostics.push(`Available drives: ${availableDrives.join(', ')}`);
+      sendProgress?.(`Scanning drives: ${availableDrives.join(', ')}`);
+
+      const candidatePaths: string[] = [];
+      const userProfile = process.env.USERPROFILE || '';
+      const localAppData = process.env.LOCALAPPDATA || '';
+
+      // Check user-specific installations first (most common)
+      if (localAppData) {
+        // Microsoft Store Python
+        const microsoftDir = path.join(localAppData, 'Microsoft', 'WindowsApps');
+        if (fs.existsSync(microsoftDir)) {
+          candidatePaths.push(
+            path.join(microsoftDir, 'python.exe'),
+            path.join(microsoftDir, 'python3.exe')
+          );
+        }
+
+        // Python.org user installations
+        const pythonDir = path.join(localAppData, 'Programs', 'Python');
+        if (fs.existsSync(pythonDir)) {
+          try {
+            const versions = fs.readdirSync(pythonDir)
+              .filter(name => /^Python3\d+$/i.test(name))
+              .sort()
+              .reverse();
+            for (const ver of versions) {
+              candidatePaths.push(path.join(pythonDir, ver, 'python.exe'));
+            }
+          } catch (err) {
+            console.warn('[Python Detection] Could not scan user Python dir:', err);
+          }
+        }
+      }
+
+      // Now scan each drive for Python installations
+      for (const drive of availableDrives) {
+        const driveRoot = `${drive}:\\`;
+        
+        // Pattern 1: Drive:\Python3x\ (direct installation)
+        for (let minor = 12; minor >= 8; minor--) {
+          candidatePaths.push(`${driveRoot}Python3${minor}\\python.exe`);
+          candidatePaths.push(`${driveRoot}Python${minor}\\python.exe`);
+        }
+        candidatePaths.push(`${driveRoot}Python\\python.exe`);
+        candidatePaths.push(`${driveRoot}Python3\\python.exe`);
+
+        // Pattern 2: Drive:\Program Files\Python\
+        const programFilesDirs = [
+          `${driveRoot}Program Files\\Python`,
+          `${driveRoot}Program Files (x86)\\Python`,
+        ];
+        
+        for (const baseDir of programFilesDirs) {
+          if (fs.existsSync(baseDir)) {
+            try {
+              const versions = fs.readdirSync(baseDir)
+                .filter(name => /^Python3?\d*$/i.test(name))
+                .sort()
+                .reverse();
+              for (const ver of versions) {
+                candidatePaths.push(path.join(baseDir, ver, 'python.exe'));
+              }
+            } catch (err) {
+              // Can't read directory, skip
+            }
+          }
+        }
+
+        // Pattern 3: Drive:\Users\{username}\AppData\Local\Programs\Python\
+        if (userProfile) {
+          const userName = path.basename(userProfile);
+          const userPythonDir = `${driveRoot}Users\\${userName}\\AppData\\Local\\Programs\\Python`;
+          if (fs.existsSync(userPythonDir)) {
+            try {
+              const versions = fs.readdirSync(userPythonDir)
+                .filter(name => /^Python3?\d*$/i.test(name))
+                .sort()
+                .reverse();
+              for (const ver of versions) {
+                candidatePaths.push(path.join(userPythonDir, ver, 'python.exe'));
+              }
+            } catch (err) {
+              // Can't read directory, skip
+            }
+          }
+        }
+
+        // Pattern 4: Common alternative installation paths
+        candidatePaths.push(
+          `${driveRoot}bin\\python.exe`,
+          `${driveRoot}tools\\python\\python.exe`,
+          `${driveRoot}dev\\python\\python.exe`,
+          `${driveRoot}opt\\python\\python.exe`
+        );
+      }
+
+      // Test each candidate path
+      let testedCount = 0;
+      for (const pythonPath of candidatePaths) {
+        if (fs.existsSync(pythonPath)) {
+          testedCount++;
+          const r = await runCmd(pythonPath, ['--version']);
+          
+          if (r.code === 0) {
+            const version = r.stdout.trim();
+            diagnostics.push(`✓ Found: ${pythonPath} (${version})`);
+            pythonExe = pythonPath;
+            sendProgress?.(`Found Python ${version} at: ${pythonPath}`);
+            troubleshooting.push(`Python was found at ${pythonPath}`);
+            troubleshooting.push('To improve startup time, consider adding Python to your system PATH.');
+            return { pythonExe, diagnostics, troubleshooting };
+          } else {
+            diagnostics.push(`✗ Invalid: ${pythonPath}`);
+          }
+        }
+      }
+      
+      if (testedCount > 0) {
+        diagnostics.push(`Tested ${testedCount} Python installations, none were valid.`);
+      } else {
+        diagnostics.push('No Python installations found on any drive.');
+      }
+    }
+
+    // Step 3: Try using 'where' (Windows) or 'which' (Unix)
+    sendProgress?.('Trying system location commands...');
+    if (process.platform === 'win32') {
+      const whereResult = await runCmd('where', ['python']);
+      if (whereResult.code === 0 && whereResult.stdout.trim()) {
+        const firstPath = whereResult.stdout.trim().split('\n')[0].trim();
+        if (firstPath && fs.existsSync(firstPath)) {
+          const verifyResult = await runCmd(firstPath, ['--version']);
+          if (verifyResult.code === 0) {
+            diagnostics.push(`where python: ✓ found (${firstPath})`);
+            pythonExe = firstPath;
+            sendProgress?.(`Found Python via 'where': ${firstPath}`);
+            return { pythonExe, diagnostics, troubleshooting };
+          }
+        }
+      }
+    } else {
+      const whichResult = await runCmd('which', ['python3']);
+      if (whichResult.code === 0 && whichResult.stdout.trim()) {
+        const foundPath = whichResult.stdout.trim();
+        if (foundPath && fs.existsSync(foundPath)) {
+          diagnostics.push(`which python3: ✓ found (${foundPath})`);
+          pythonExe = foundPath;
+          sendProgress?.(`Found Python via 'which': ${foundPath}`);
+          return { pythonExe, diagnostics, troubleshooting };
+        }
+      }
+    }
+
+    // Step 4: Check for bundled Python (Windows only)
+    if (process.platform === 'win32') {
+      const bundledPython = path.join(process.resourcesPath, 'python-embedded', 'python.exe');
+      if (fs.existsSync(bundledPython)) {
+        const verifyResult = await runCmd(bundledPython, ['--version']);
+        if (verifyResult.code === 0) {
+          diagnostics.push(`bundled Python: ✓ found (${bundledPython})`);
+          pythonExe = bundledPython;
+          sendProgress?.(`Using bundled Python: ${bundledPython}`);
+          return { pythonExe, diagnostics, troubleshooting };
+        }
+      }
+    }
+
+    // Not found - prepare troubleshooting guidance
+    troubleshooting.push('Python 3.10 or later is required but was not found on your system.');
+    troubleshooting.push('');
+    troubleshooting.push('Installation options:');
+    troubleshooting.push('1. Download from https://www.python.org/downloads/');
+    troubleshooting.push('   - During installation, check "Add Python to PATH"');
+    troubleshooting.push('   - Restart Mossy after installation');
+    
+    if (process.platform === 'win32') {
+      troubleshooting.push('2. Install via Microsoft Store (search for "Python 3.12")');
+      troubleshooting.push('3. Install via winget: winget install Python.Python.3.12');
+    }
+    
+    troubleshooting.push('');
+    troubleshooting.push('After installing, restart Mossy completely (close and reopen).');
+    
+    return { pythonExe: null, diagnostics, troubleshooting };
+  };
+
+  /**
    * Handler: install-pytorch
    *
    * Automatically installs PyTorch (CPU or GPU build) based on system capabilities.
