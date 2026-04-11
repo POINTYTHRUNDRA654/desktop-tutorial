@@ -1027,6 +1027,9 @@ const loadSettings = (): any => {
     nifUtilsSuitePath: '',
     pytorchPath: '',
     spriggitPath: '',
+    lastDetectedFo4Version: '',
+    lastDetectedSpriggitVersion: '',
+    spriggitVersionMismatchAcknowledged: false,
 
     // Papyrus
     papyrusCompilerPath: '',
