@@ -465,7 +465,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         const speakSequence = async () => {
             await new Promise(resolve => setTimeout(resolve, 800));
             await speakMossy("Hello, I'm Mossy, your Fallout 4 modding assistant.");
-            await speakMossy('First, confirm which edition you downloaded: Universal, or NVIDIA.');
+            await speakMossy('First, pick the version that fits your system: Universal works on any hardware, or NVIDIA if you have a compatible GPU.');
         };
         void speakSequence();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1042,7 +1042,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         <h1 className="text-4xl font-bold text-white mb-3">Welcome to Mossy v{packageJson.version}</h1>
                         <p className="text-lg text-slate-300 mb-2">Your AI-powered Fallout 4 modding assistant</p>
                         <p className="text-slate-400 mb-8">
-                            Before we begin — confirm which edition you downloaded. This lets Mossy unlock the right features for your hardware.
+                            Pick the version that fits your system. <strong className="text-slate-300">Universal</strong> works on any hardware (CPU-only). <strong className="text-slate-300">NVIDIA</strong> unlocks GPU-accelerated AI and fine-tuning if you have an RTX/GTX card.
                         </p>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
