@@ -291,6 +291,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
      */
     const [defenderExclusionState, setDefenderExclusionState] = useState<'idle' | 'running' | 'ok' | 'needs-elevation' | 'error'>('idle');
     const [defenderExclusionPath, setDefenderExclusionPath] = useState<string | null>(null);
+    /** Verification state — tracks whether the Defender exclusion was successfully added. */
+    const [verificationState, setVerificationState] = useState<'idle' | 'checking' | 'verified' | 'not-excluded' | 'error'>('idle');
+    const [verificationMessage, setVerificationMessage] = useState<string>('');
     /** FO4 version detected from Fallout4.exe, e.g. "1.11.191.0". Empty if not detected. */
     const [detectedFo4Version, setDetectedFo4Version] = useState('');
     /** Human-readable FO4 version label, e.g. "Fallout 4 v1.11.191 — 1.11.x (Creations Menu…)". */
@@ -2111,6 +2114,63 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                                                 <div className="mt-3 pt-3 border-t border-yellow-600/30 text-xs text-yellow-300/80">
                                                     <strong>What this does:</strong> Tells Windows Defender to trust all files in your Spriggit folder, preventing Smart App Control from blocking the .NET assemblies that Spriggit extracts at runtime.
+                                                </div>
+                                                
+                                                {/* Verification button — shown after manual command instructions */}
+                                                <div className="mt-4 pt-4 border-t border-yellow-600/30">
+                                                    <p className="text-yellow-100 text-sm font-semibold mb-2">
+                                                        ✅ After running the PowerShell command, click here to verify it worked:
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        disabled={verificationState === 'checking'}
+                                                        className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white font-semibold transition-colors shadow-md"
+                                                        onClick={async () => {
+                                                            const api = getElectronApi();
+                                                            if (!api?.spriggitVerifyDefenderExclusion) return;
+                                                            setVerificationState('checking');
+                                                            setVerificationMessage('');
+                                                            try {
+                                                                const res = await api.spriggitVerifyDefenderExclusion();
+                                                                if (res.ok && res.excluded) {
+                                                                    setVerificationState('verified');
+                                                                    setVerificationMessage(`✅ Confirmed! ${res.targetPath ?? 'Your Spriggit folder'} is excluded from Defender.`);
+                                                                } else if (res.ok && !res.excluded) {
+                                                                    setVerificationState('not-excluded');
+                                                                    setVerificationMessage(`⚠️ Not found. ${res.targetPath ?? 'Your Spriggit folder'} is NOT in the Defender exclusion list. Make sure you ran the PowerShell command as Administrator.`);
+                                                                } else {
+                                                                    setVerificationState('error');
+                                                                    setVerificationMessage(`❌ ${res.error || 'Verification failed.'}`);
+                                                                }
+                                                            } catch (e: unknown) {
+                                                                setVerificationState('error');
+                                                                setVerificationMessage(`❌ ${e instanceof Error ? e.message : String(e)}`);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {verificationState === 'checking' ? '🔄 Checking…' : '🔍 Verify Defender Exclusion'}
+                                                    </button>
+                                                    {verificationMessage && (
+                                                        <div className={`mt-2 p-3 rounded-lg text-sm font-medium ${
+                                                            verificationState === 'verified'
+                                                                ? 'bg-emerald-800/60 border border-emerald-600/50 text-emerald-100'
+                                                                : verificationState === 'not-excluded'
+                                                                    ? 'bg-amber-800/60 border border-amber-600/50 text-amber-100'
+                                                                    : 'bg-red-800/60 border border-red-600/50 text-red-100'
+                                                        }`}>
+                                                            {verificationMessage}
+                                                        </div>
+                                                    )}
+                                                    {verificationState === 'verified' && (
+                                                        <div className="mt-3 p-3 rounded-lg bg-emerald-900/40 border border-emerald-500/50 text-emerald-100 text-sm">
+                                                            <strong>✨ Great! Now:</strong>
+                                                            <ol className="mt-2 space-y-1 list-decimal list-inside ml-2">
+                                                                <li>Click <strong className="text-white">"🗑️ Clear Cache & Retry"</strong> below to wipe the old blocked assemblies</li>
+                                                                <li>Spriggit will re-extract fresh assemblies that won't be blocked</li>
+                                                                <li>The digest should complete successfully!</li>
+                                                            </ol>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}

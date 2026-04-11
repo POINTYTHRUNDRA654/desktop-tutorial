@@ -95,6 +95,7 @@ export const IPC_CHANNELS = {
   SPRIGGIT_CLEAR_CACHE: 'spriggit-clear-cache',
   SPRIGGIT_UNBLOCK_FILES: 'spriggit-unblock-files',
   SPRIGGIT_ADD_DEFENDER_EXCLUSION: 'spriggit-add-defender-exclusion',
+  SPRIGGIT_VERIFY_DEFENDER_EXCLUSION: 'spriggit-verify-defender-exclusion',
 
   // Mod Projects file persistence (backup/restore to userData/mod-projects.json)
   SAVE_MOD_PROJECTS: 'save-mod-projects',
@@ -555,6 +556,12 @@ export interface ElectronAPI {
    * Windows-only; returns ok:false with a message on other platforms.
    */
   spriggitAddDefenderExclusion: () => Promise<{ ok: boolean; excludedPath?: string; error?: string }>;
+  /**
+   * Check if the Spriggit folder is already excluded from Windows Defender.
+   * Returns ok:true with excluded:true/false, or ok:false with error on failure.
+   * Windows-only; returns ok:false with a message on other platforms.
+   */
+  spriggitVerifyDefenderExclusion: () => Promise<{ ok: boolean; excluded?: boolean; targetPath?: string; error?: string }>;
   /**
    * Run Spriggit.CLI.exe serialize on a Fallout 4 Data folder.
    * Returns the list of YAML files produced and their truncated text content,
