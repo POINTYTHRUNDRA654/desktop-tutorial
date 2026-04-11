@@ -1631,14 +1631,18 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         {fo4Version === 'ae' ? (
                                                             <>
                                                                 <strong className="text-red-100">⚠️ FO4 1.11.x (AE) Detected:</strong> You <strong className="text-red-100">MUST</strong> download the <strong className="text-red-100">PRE-RELEASE</strong> (dev) build.
-                                                                Scroll past the top "Latest" release and look for the entry tagged <strong className="text-red-100">Pre-release</strong>.
-                                                                Download its <code className="bg-red-900/40 px-1 rounded">SpriggitCLI.zip</code>.
+                                                                <br />
+                                                                <strong className="text-red-100">DO NOT</strong> click the green "Code" button or "Download ZIP" — that downloads <em>source code</em> with no .exe file!
+                                                                <br />
+                                                                Instead: Scroll past the top "Latest" release → find <strong className="text-red-100">Pre-release</strong> entry → expand "Assets" → download <code className="bg-red-900/40 px-1 rounded">SpriggitCLI.zip</code>.
+                                                                <br />
                                                                 The stable "Latest" build does NOT support 1.11.x and will crash with exit code 0xFFFFFFFF.
                                                             </>
                                                         ) : (
                                                             <>
                                                                 <strong className="text-blue-100">💡 FO4 {fo4Version.toUpperCase()} Detected:</strong> Use the <strong className="text-blue-100">Latest</strong> stable release for your version.
-                                                                Download <code className="bg-blue-900/40 px-1 rounded">SpriggitCLI.zip</code> from the top of the releases page.
+                                                                <br />
+                                                                <strong className="text-blue-100">DO NOT</strong> click the green "Code" button! Instead: Go to releases → expand "Assets" → download <code className="bg-blue-900/40 px-1 rounded">SpriggitCLI.zip</code>.
                                                             </>
                                                         )}
                                                     </div>
