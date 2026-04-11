@@ -4382,7 +4382,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         return { 
           ok: false, 
           files: [], 
-          error: `⚠️ DISK SPACE ERROR: Not enough space on ${cacheDriveRoot || 'drive'} to run Spriggit.\n\n` +
+          error: `⚠️ DISK SPACE ERROR: Not enough space on drive to run Spriggit.\n\n` +
                  `Free up at least 500MB and try again.\n` +
                  `Error: ${e?.message || e}` 
         };
