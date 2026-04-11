@@ -345,6 +345,31 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
     const userData = app.getPath('userData');
     const torchPackagesDir = path.join(userData, 'pytorch-packages');
 
+    // ── 0. Early check: Is PyTorch already available system-wide? ────────────
+    // Try common Python commands to see if torch is importable without detection
+    sendProgress('Checking for existing PyTorch installation…');
+    const quickCheckCandidates = process.platform === 'win32'
+      ? ['python', 'python3', 'py']
+      : ['python3', 'python'];
+    
+    for (const pyCmd of quickCheckCandidates) {
+      const torchCheck = await runCmd(pyCmd, ['-c', 'import torch; print(torch.__version__); import os; print(os.path.dirname(os.path.dirname(torch.__file__)))']);
+      if (torchCheck.code === 0 && torchCheck.stdout.trim()) {
+        const lines = torchCheck.stdout.trim().split('\n');
+        if (lines.length >= 2) {
+          const version = lines[0].trim();
+          const sitePkgs = lines[1].trim();
+          if (sitePkgs && fs.existsSync(sitePkgs)) {
+            console.log(`[PyTorch Auto-Setup] Found system PyTorch ${version} at ${sitePkgs} via ${pyCmd}`);
+            const s = loadSettings();
+            saveSettings({ ...s, pytorchPath: sitePkgs });
+            sendProgress(`✅ PyTorch ${version} already installed system-wide. Configured automatically.`);
+            return;
+          }
+        }
+      }
+    }
+
     // ── 1. Find Python ────────────────────────────────────────────────────────
     const systemCandidates = process.platform === 'win32'
       ? ['python', 'python3', 'py']
@@ -353,12 +378,37 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
     let pythonExe = '';
     const triedCandidates: string[] = [];
 
-    // Try system Python first
-    for (const candidate of systemCandidates) {
-      const r = await runCmd(candidate, ['--version']);
-      triedCandidates.push(`${candidate} (${r.code === 0 ? 'found' : r.stderr || 'not found'})`);
-      console.log(`[PyTorch Auto-Setup] Tried ${candidate}: code=${r.code}, stdout="${r.stdout.trim()}", stderr="${r.stderr.trim()}"`);
-      if (r.code === 0) { pythonExe = candidate; break; }
+    // First, try to locate Python using where/which
+    if (process.platform === 'win32') {
+      const whereResult = await runCmd('where', ['python']);
+      if (whereResult.code === 0 && whereResult.stdout.trim()) {
+        const firstPath = whereResult.stdout.trim().split('\n')[0].trim();
+        if (firstPath && fs.existsSync(firstPath)) {
+          console.log(`[PyTorch Auto-Setup] Found Python via 'where': ${firstPath}`);
+          pythonExe = firstPath;
+          triedCandidates.push(`where python (${firstPath})`);
+        }
+      }
+    } else {
+      const whichResult = await runCmd('which', ['python3']);
+      if (whichResult.code === 0 && whichResult.stdout.trim()) {
+        const foundPath = whichResult.stdout.trim();
+        if (foundPath && fs.existsSync(foundPath)) {
+          console.log(`[PyTorch Auto-Setup] Found Python via 'which': ${foundPath}`);
+          pythonExe = foundPath;
+          triedCandidates.push(`which python3 (${foundPath})`);
+        }
+      }
+    }
+
+    // Try system Python commands if not found via where/which
+    if (!pythonExe) {
+      for (const candidate of systemCandidates) {
+        const r = await runCmd(candidate, ['--version']);
+        triedCandidates.push(`${candidate} (${r.code === 0 ? 'found' : r.stderr || 'not found'})`);
+        console.log(`[PyTorch Auto-Setup] Tried ${candidate}: code=${r.code}, stdout="${r.stdout.trim()}", stderr="${r.stderr.trim()}"`);
+        if (r.code === 0) { pythonExe = candidate; break; }
+      }
     }
 
     // Fall back to bundled embedded Python (Windows only)
