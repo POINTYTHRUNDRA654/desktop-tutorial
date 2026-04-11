@@ -1655,425 +1655,427 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 )}
 
                 {step === 'spriggit-digest' && (
-                    <div className="text-center animate-fade-in">
-                        <Brain className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
-                        <div className="flex items-center justify-center gap-3 mb-3">
-                            <h2 className="text-3xl font-bold text-white">Feed Me the Base Game</h2>
-                            <span className="px-3 py-1 bg-amber-500/20 border border-amber-500/50 rounded-lg text-amber-300 text-xs font-bold uppercase tracking-wide">
-                                🚧 Work in Progress
-                            </span>
-                        </div>
-                        <p className="text-slate-400 mb-2 max-w-xl mx-auto">
-                            I can use <strong className="text-emerald-300">Spriggit</strong> to convert the <strong className="text-white">vanilla Fallout 4 ESMs</strong> (Fallout4.esm and all DLCs) into YAML and digest them directly into my brain — giving me exact access to the base-game records, FormIDs, and script structures from the start.
-                        </p>
-                        <p className="text-slate-500 text-sm mb-2 max-w-xl mx-auto">
-                            Custom mods can be analysed any time in <strong className="text-slate-300">The Auditor</strong> panel.
-                        </p>
-                        <div className="max-w-xl mx-auto mb-6 p-3 rounded-lg bg-blue-900/20 border border-blue-500/30">
-                            <p className="text-blue-300 text-sm font-semibold flex items-center gap-2">
-                                <span>ℹ️</span>
-                                <span>This feature is <strong className="text-blue-200">experimental and optional</strong> — you can skip it now and do it later from the Memory Vault panel.</span>
+                    <div className="flex flex-col animate-fade-in h-screen max-h-[calc(90vh-2px)]">
+                        {/* Scrollable content area */}
+                        <div className="overflow-y-auto flex-1 text-center pr-2">
+                            <Brain className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
+                            <div className="flex items-center justify-center gap-3 mb-3">
+                                <h2 className="text-3xl font-bold text-white">Feed Me the Base Game</h2>
+                                <span className="px-3 py-1 bg-amber-500/20 border border-amber-500/50 rounded-lg text-amber-300 text-xs font-bold uppercase tracking-wide">
+                                    🚧 Work in Progress
+                                </span>
+                            </div>
+                            <p className="text-slate-400 mb-2 max-w-xl mx-auto">
+                                I can use <strong className="text-emerald-300">Spriggit</strong> to convert the <strong className="text-white">vanilla Fallout 4 ESMs</strong> (Fallout4.esm and all DLCs) into YAML and digest them directly into my brain — giving me exact access to the base-game records, FormIDs, and script structures from the start.
                             </p>
-                        </div>
+                            <p className="text-slate-500 text-sm mb-2 max-w-xl mx-auto">
+                                Custom mods can be analysed any time in <strong className="text-slate-300">The Auditor</strong> panel.
+                            </p>
+                            <div className="max-w-xl mx-auto mb-6 p-3 rounded-lg bg-blue-900/20 border border-blue-500/30">
+                                <p className="text-blue-300 text-sm font-semibold flex items-center gap-2">
+                                    <span>ℹ️</span>
+                                    <span>This feature is <strong className="text-blue-200">experimental and optional</strong> — you can skip it now and do it later from the Memory Vault panel.</span>
+                                </p>
+                            </div>
 
-                        {/* .NET SDK warning — shown when .NET is confirmed missing or status is unknown.
+                            {/* .NET SDK warning — shown when .NET is confirmed missing or status is unknown.
                             Kept visible for dotnetOk === null so new users always see the install button
                             even before the auto-check finishes or when it is inconclusive. */}
-                        {dotnetOk !== true && !dotnetCheckingOnEntry && (
-                            <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 text-sm text-left bg-amber-900/30 border border-amber-600/50 text-amber-200">
-                                <strong>{dotnetOk === false ? '⚠️ .NET SDK not detected.' : '⚠️ .NET SDK status unknown.'}</strong>
-                                <br />
-                                Spriggit requires the <strong>.NET SDK</strong> (not just the Runtime) — it uses{' '}
-                                <code className="bg-amber-900/50 px-1 rounded">dotnet tool install</code> to download
-                                its Fallout4 translation package on first serialize run.{' '}
-                                <strong>Restart your PC after installing.</strong>
-                                <br />
-                                <div className="mt-2 p-2 rounded bg-amber-800/40 border border-amber-500/40 text-amber-100 text-xs">
-                                    💡 <strong>Tip — short on C: drive space?</strong> Click <strong>&ldquo;Change&rdquo;</strong> during the .NET installer to install to a different drive,
-                                    e.g. <code className="bg-amber-900/50 px-1 rounded">D:\Program Files\dotnet</code>.
-                                    Mossy detects .NET on any drive automatically.
-                                </div>
-                                <div className="mt-2 p-2 rounded bg-amber-800/30 border border-amber-500/40 text-amber-100 text-xs">
-                                    <strong>✨ Easiest fix:</strong> Download the <strong>self-contained Spriggit build</strong> — it bundles .NET and requires no separate installation.
-                                    On the releases page, look for the entry tagged <strong>Pre-release</strong> (scroll past the top "Latest" stable build) — download its <code className="bg-amber-900/50 px-1 rounded">SpriggitCLI.zip</code> and use the <code className="bg-amber-900/50 px-1 rounded">Spriggit.CLI.exe</code> inside it. ⚠️ The stable "Latest" does <em>not</em> support FO4 1.11.x (AE).
-                                </div>
-                                <div className="mt-2 flex flex-wrap items-center gap-3">
-                                    <button
-                                        type="button"
-                                        className="underline text-amber-300 hover:text-amber-100 transition-colors font-semibold"
-                                        onClick={() => {
-                                            const api = getElectronApi();
-                                            if (api?.openExternal) {
-                                                void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
-                                            } else {
-                                                window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
-                                            }
-                                        }}
-                                    >
-                                        Download self-contained Spriggit →
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="underline text-amber-400 hover:text-amber-200 transition-colors text-xs"
-                                        onClick={() => {
-                                            const api = getElectronApi();
-                                            if (api?.openExternal) {
-                                                void api.openExternal('https://dotnet.microsoft.com/download/dotnet');
-                                            } else {
-                                                window.open('https://dotnet.microsoft.com/download/dotnet', '_blank');
-                                            }
-                                        }}
-                                    >
-                                        Or install .NET SDK →
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={dotnetRecheckInProgress}
-                                        className="px-3 py-1 rounded bg-amber-700/60 hover:bg-amber-600/60 disabled:opacity-50 text-amber-100 text-xs font-semibold transition-colors"
-                                        onClick={() => void recheckDotnet()}
-                                    >
-                                        {dotnetRecheckInProgress ? '🔄 Checking…' : '🔄 Re-check .NET'}
-                                    </button>
-                                    {dotnetRecheckResult === 'not-found' && (
-                                        <span className="text-xs text-amber-300 font-semibold">{DOTNET_STILL_NOT_DETECTED_MSG}</span>
-                                    )}
-                                </div>
-                                <div className="mt-3 pt-2 border-t border-amber-700/40 flex flex-wrap items-center gap-3">
-                                    <span className="text-xs text-amber-400">Already have .NET installed but detection is wrong?</span>
-                                    {dotnetOverride ? (
-                                        <span className="px-3 py-1 rounded bg-emerald-800/60 border border-emerald-600/50 text-emerald-200 text-xs font-semibold">
-                                            ✅ Override active — button unlocked
-                                        </span>
-                                    ) : (
+                            {dotnetOk !== true && !dotnetCheckingOnEntry && (
+                                <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 text-sm text-left bg-amber-900/30 border border-amber-600/50 text-amber-200">
+                                    <strong>{dotnetOk === false ? '⚠️ .NET SDK not detected.' : '⚠️ .NET SDK status unknown.'}</strong>
+                                    <br />
+                                    Spriggit requires the <strong>.NET SDK</strong> (not just the Runtime) — it uses{' '}
+                                    <code className="bg-amber-900/50 px-1 rounded">dotnet tool install</code> to download
+                                    its Fallout4 translation package on first serialize run.{' '}
+                                    <strong>Restart your PC after installing.</strong>
+                                    <br />
+                                    <div className="mt-2 p-2 rounded bg-amber-800/40 border border-amber-500/40 text-amber-100 text-xs">
+                                        💡 <strong>Tip — short on C: drive space?</strong> Click <strong>&ldquo;Change&rdquo;</strong> during the .NET installer to install to a different drive,
+                                        e.g. <code className="bg-amber-900/50 px-1 rounded">D:\Program Files\dotnet</code>.
+                                        Mossy detects .NET on any drive automatically.
+                                    </div>
+                                    <div className="mt-2 p-2 rounded bg-amber-800/30 border border-amber-500/40 text-amber-100 text-xs">
+                                        <strong>✨ Easiest fix:</strong> Download the <strong>self-contained Spriggit build</strong> — it bundles .NET and requires no separate installation.
+                                        On the releases page, look for the entry tagged <strong>Pre-release</strong> (scroll past the top "Latest" stable build) — download its <code className="bg-amber-900/50 px-1 rounded">SpriggitCLI.zip</code> and use the <code className="bg-amber-900/50 px-1 rounded">Spriggit.CLI.exe</code> inside it. ⚠️ The stable "Latest" does <em>not</em> support FO4 1.11.x (AE).
+                                    </div>
+                                    <div className="mt-2 flex flex-wrap items-center gap-3">
                                         <button
                                             type="button"
-                                            className="px-3 py-1 rounded bg-amber-600/70 hover:bg-amber-500/70 text-white text-xs font-semibold transition-colors"
+                                            className="underline text-amber-300 hover:text-amber-100 transition-colors font-semibold"
                                             onClick={() => {
-                                                setDotnetOverride(true);
-                                                try { localStorage.setItem('mossy_dotnet_override', 'true'); } catch (e) { console.warn('[Spriggit] Could not persist dotnetOverride to localStorage:', e); }
+                                                const api = getElectronApi();
+                                                if (api?.openExternal) {
+                                                    void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
+                                                } else {
+                                                    window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
+                                                }
                                             }}
                                         >
-                                            I have .NET installed — proceed anyway
+                                            Download self-contained Spriggit →
                                         </button>
-                                    )}
-                                </div>
-                                <p className="mt-1 text-amber-400 text-xs">Installed .NET after opening this page? Click <em>Re-check .NET</em> to scan again and unlock the button automatically.</p>
-                            </div>
-                        )}
-                        {dotnetCheckingOnEntry && (
-                            <div className="max-w-lg mx-auto mb-4 text-xs text-slate-400 flex items-center gap-2">
-                                <span className="animate-spin inline-block">🔄</span> Checking for .NET SDK…
-                            </div>
-                        )}
-
-                        {/* FO4 Version + Build Requirements badge */}
-                        {detectedFo4Label && (
-                            <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 text-sm text-left bg-blue-900/20 border border-blue-600/40 text-blue-300">
-                                <strong className="text-blue-100">📋 Your Setup:</strong>
-                                <div className="mt-2 space-y-1">
-                                    <div className="flex items-center gap-2 text-xs">
-                                        <span className="text-blue-400">🎮</span>
-                                        <span><strong>Game:</strong> {detectedFo4Label}</span>
-                                    </div>
-                                    {detectedFo4Version.startsWith('1.11.') ? (
-                                        <div className="flex items-center gap-2 text-xs text-amber-300">
-                                            <span>⚠️</span>
-                                            <span><strong>Required:</strong> Spriggit <strong>PRE-RELEASE (dev)</strong> build — stable "Latest" does NOT support AE/Creations Menu</span>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-2 text-xs text-emerald-300">
-                                            <span>✓</span>
-                                            <span><strong>Spriggit:</strong> Any recent build works fine</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Readiness Checklist */}
-                        {(spriggitCliPath || spriggitDataPath) && (
-                            <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 bg-slate-800/40 border border-slate-600/50">
-                                <div className="text-sm font-semibold text-slate-300 mb-2 flex items-center gap-2">
-                                    <span>📍 Readiness Checklist</span>
-                                </div>
-                                <div className="space-y-1">
-                                    <div className={`flex items-center gap-2 text-xs ${spriggitCliPath ? 'text-emerald-300' : 'text-slate-400'}`}>
-                                        {spriggitCliPath ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border border-slate-500 rounded" />}
-                                        <span>Spriggit.CLI.exe selected</span>
-                                    </div>
-                                    <div className={`flex items-center gap-2 text-xs ${spriggitDataPath ? 'text-emerald-300' : 'text-slate-400'}`}>
-                                        {spriggitDataPath ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border border-slate-500 rounded" />}
-                                        <span>Fallout 4 Data folder picked</span>
-                                    </div>
-                                    {spriggitCliPath && spriggitDataPath && (
-                                        <div className="flex items-center gap-2 text-xs text-emerald-400 font-semibold mt-2 pt-2 border-t border-slate-600">
-                                            <span>✨</span>
-                                            <span>Ready to digest! Scroll down to start.</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="max-w-lg mx-auto space-y-4 mb-6 text-left">
-                            {/* Spriggit CLI path */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">
-                                    Spriggit.CLI.exe
-                                </label>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        readOnly
-                                        value={spriggitCliPath}
-                                        placeholder="Not selected"
-                                        className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={async () => {
-                                            const api = getElectronApi();
-                                            if (!api?.spriggitPickCli) return;
-                                            const p = await api.spriggitPickCli();
-                                            if (p) {
-                                                setSpriggitCliPath(p);
-                                                // Try to auto-detect Data folder: assume Spriggit is extracted in a folder
-                                                // adjacent to or inside the Steam Fallout 4 directory.
-                                                // Try progressively higher parent directories looking for a "Data" sibling.
-                                                try {
-                                                    const path = require('path');
-                                                    let candidate = path.dirname(p); // folder containing Spriggit.CLI.exe
-                                                    const fs = require('fs');
-                                                    for (let i = 0; i < 4; i++) {
-                                                        const parentDir = path.dirname(candidate);
-                                                        const dataPath = path.join(parentDir, 'Data');
-                                                        if (fs.existsSync(dataPath)) {
-                                                            setSpriggitDataPath(dataPath);
-                                                            break;
-                                                        }
-                                                        candidate = parentDir;
-                                                    }
-                                                } catch {
-                                                    // Auto-detection failed silently — user must pick manually
+                                        <button
+                                            type="button"
+                                            className="underline text-amber-400 hover:text-amber-200 transition-colors text-xs"
+                                            onClick={() => {
+                                                const api = getElectronApi();
+                                                if (api?.openExternal) {
+                                                    void api.openExternal('https://dotnet.microsoft.com/download/dotnet');
+                                                } else {
+                                                    window.open('https://dotnet.microsoft.com/download/dotnet', '_blank');
                                                 }
-                                            }
-                                        }}
-                                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-lg text-sm text-slate-200 flex items-center gap-1.5 transition-colors"
-                                    >
-                                        <FolderOpen className="w-4 h-4" /> Browse
-                                    </button>
-                                </div>
-                                <p className="text-xs text-slate-500 mt-1">
-                                    Download from{' '}
-                                    <button type="button" onClick={() => void openExternal('https://github.com/Mutagen-Modding/Spriggit/releases')} className="text-emerald-400 hover:underline">
-                                        github.com/Mutagen-Modding/Spriggit
-                                    </button>
-                                    {' '}— on the releases page, download{' '}
-                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">SpriggitCLI.zip</code>
-                                    {' '}(not <code className="bg-slate-700 px-1 rounded text-slate-400">Spriggit.zip</code>).
-                                    Extract the full zip, then browse to{' '}
-                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.CLI.exe</code>.{' '}
-                                    <span className="text-slate-400">
-                                        Windows hides the <code className="bg-slate-700 px-1 rounded">.exe</code> extension by default,
-                                        so the folder will show two entries both named{' '}
-                                        <code className="bg-slate-700 px-1 rounded">Spriggit.CLI</code> — pick the one with the{' '}
-                                        <strong className="text-slate-300">application icon</strong> (looks like a small window), not the{' '}
-                                        <code className="bg-slate-700 px-1 rounded">.pdb</code> or{' '}
-                                        <code className="bg-slate-700 px-1 rounded">.Lib</code> files.
-                                    </span>
-                                </p>
-                            </div>
-
-                            {/* Fallout 4 Data folder */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">
-                                    Fallout 4 Data Folder
-                                </label>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        readOnly
-                                        value={spriggitDataPath}
-                                        placeholder="Not selected (e.g. C:\Steam\steamapps\common\Fallout 4\Data)"
-                                        className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={async () => {
-                                            const api = getElectronApi();
-                                            if (!api?.pickDirectory) return;
-                                            const p = await api.pickDirectory('Select Fallout 4 Data Folder');
-                                            if (p) setSpriggitDataPath(p);
-                                        }}
-                                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-lg text-sm text-slate-200 flex items-center gap-1.5 transition-colors"
-                                    >
-                                        <FolderOpen className="w-4 h-4" /> Browse
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Package Name */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">
-                                    Package Name <span className="text-slate-500 text-xs font-normal">(--PackageName)</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={spriggitPackageName}
-                                    onChange={e => setSpriggitPackageName(e.target.value)}
-                                    placeholder="Spriggit.Yaml.Fallout4"
-                                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                />
-                                <p className="text-xs text-slate-500 mt-1">
-                                    Built-in:{' '}
-                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Yaml.Fallout4</code>
-                                    {' '}or{' '}
-                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Json.Fallout4</code>.
-                                    {' '}Custom packages must be published to NuGet.org first.
-                                </p>
-                            </div>
-
-                            {/* Local NuGet Source */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">
-                                    Local NuGet Source <span className="text-slate-500 text-xs font-normal">(--Source, Spriggit &lt; v0.40.0 only)</span>
-                                </label>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={spriggitNugetSource}
-                                        onChange={e => setSpriggitNugetSource(e.target.value)}
-                                        placeholder='e.g. D:\Tools\Spriggit-dev\Translation Packages'
-                                        className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={async () => {
-                                            const api = getElectronApi();
-                                            if (!api?.pickDirectory) return;
-                                            const p = await api.pickDirectory('Select Local NuGet Source Folder');
-                                            if (p) setSpriggitNugetSource(p);
-                                        }}
-                                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-lg text-sm text-slate-200 flex items-center gap-1.5 transition-colors"
-                                    >
-                                        <FolderOpen className="w-4 h-4" /> Browse
-                                    </button>
-                                </div>
-                                <p className="text-xs text-slate-500 mt-1">
-                                    Point to the folder containing your local translation packages
-                                    (e.g.{' '}
-                                    <code className="bg-slate-700 px-1 rounded text-slate-400">D:\Tools\Spriggit-dev\Translation Packages</code>
-                                    {' '}holding{' '}
-                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Yaml.Fallout4</code>
-                                    {' '}and{' '}
-                                    <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Json.Fallout4</code>
-                                    ) to skip the nuget.org download entirely.{' '}
-                                    <span className="text-amber-400">⚠ Only supported by Spriggit &lt; v0.40.0 — ignored on newer builds.</span>
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Status message */}
-                        {spriggitMessage && (
-                            <div className={`max-w-lg mx-auto mb-5 rounded-lg px-4 py-3 text-sm text-left whitespace-pre-line break-words max-h-64 overflow-y-auto ${spriggitStatus === 'error'
-                                ? 'bg-red-900/30 border border-red-700/50 text-red-200'
-                                : spriggitStatus === 'noMods' || spriggitStatus === 'partial'
-                                    ? 'bg-amber-900/30 border border-amber-600/50 text-amber-200'
-                                    : spriggitStatus === 'done'
-                                        ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
-                                        : 'bg-slate-800/60 border border-slate-600 text-slate-300'
-                                }`}>
-                                {spriggitStatus === 'running' && <Loader className="w-4 h-4 inline-block animate-spin mr-2" />}
-                                {spriggitStatus === 'noMods' && <span className="font-bold">ℹ️ Vanilla ESMs not found:{'\n'}</span>}
-                                {/* Version badge — shown for error or partial status when versions are known */}
-                                {(spriggitStatus === 'error' || spriggitStatus === 'partial') && (detectedFo4Label || detectedSpriggitVersion) && (
-                                    <div className="mb-2 p-2 bg-slate-800/80 rounded border border-slate-600 text-xs font-mono text-slate-300 space-y-0.5">
-                                        {detectedFo4Label && (
-                                            <div>🎮 <strong>Game:</strong> {detectedFo4Label}</div>
-                                        )}
-                                        {detectedSpriggitVersion && (
-                                            <div>🔧 <strong>Spriggit:</strong> v{detectedSpriggitVersion}
-                                                {spriggitVersionTooOld === true && (
-                                                    <span className="ml-1 text-amber-400 font-bold">⚠️ too old for FO4 1.11.x — download the PRE-RELEASE (dev) build</span>
-                                                )}
-                                                {spriggitVersionTooOld === false && detectedFo4Version.startsWith('1.11.') && (
-                                                    <span className="ml-1 text-emerald-400 font-semibold">✓ version is current</span>
-                                                )}
-                                            </div>
-                                        )}
-                                        {detectedFo4Version.startsWith('1.11.') && !detectedSpriggitVersion && (
-                                            <div className="text-amber-400">⚠️ FO4 1.11.x detected — Spriggit must be a post-November 2025 build</div>
-                                        )}
-                                    </div>
-                                )}
-                                {spriggitMessage}
-                                {(spriggitStatus === 'error' || spriggitStatus === 'partial') && spriggitMessage.includes('0xFFFFFFFF') && (
-                                    <div className="mt-3 flex flex-wrap items-center gap-3">
-                                        {/* Only offer the .NET download when .NET is confirmed absent.
-                                            When dotnetOk is true the crash is more likely AV or arch mismatch. */}
-                                        {dotnetOk !== true && (
-                                            <button
-                                                type="button"
-                                                className="underline text-red-300 hover:text-red-100 transition-colors"
-                                                onClick={() => {
-                                                    const api = getElectronApi();
-                                                    if (api?.openExternal) {
-                                                        void api.openExternal('https://dotnet.microsoft.com/download/dotnet');
-                                                    } else {
-                                                        window.open('https://dotnet.microsoft.com/download/dotnet', '_blank');
-                                                    }
-                                                }}
-                                            >
-                                                Download .NET SDK →
-                                            </button>
-                                        )}
+                                            }}
+                                        >
+                                            Or install .NET SDK →
+                                        </button>
                                         <button
                                             type="button"
                                             disabled={dotnetRecheckInProgress}
-                                            className="px-3 py-1 rounded bg-red-800/60 hover:bg-red-700/60 disabled:opacity-50 text-red-100 text-xs font-semibold transition-colors"
+                                            className="px-3 py-1 rounded bg-amber-700/60 hover:bg-amber-600/60 disabled:opacity-50 text-amber-100 text-xs font-semibold transition-colors"
                                             onClick={() => void recheckDotnet()}
                                         >
                                             {dotnetRecheckInProgress ? '🔄 Checking…' : '🔄 Re-check .NET'}
                                         </button>
-                                        {/* "Open Spriggit folder" — lets the user verify that all DLLs
-                                            from SpriggitCLI.zip are present beside the exe, which is the
-                                            most common cause of 0xFFFFFFFF when .NET IS installed. */}
-                                        {spriggitCliPath && (
+                                        {dotnetRecheckResult === 'not-found' && (
+                                            <span className="text-xs text-amber-300 font-semibold">{DOTNET_STILL_NOT_DETECTED_MSG}</span>
+                                        )}
+                                    </div>
+                                    <div className="mt-3 pt-2 border-t border-amber-700/40 flex flex-wrap items-center gap-3">
+                                        <span className="text-xs text-amber-400">Already have .NET installed but detection is wrong?</span>
+                                        {dotnetOverride ? (
+                                            <span className="px-3 py-1 rounded bg-emerald-800/60 border border-emerald-600/50 text-emerald-200 text-xs font-semibold">
+                                                ✅ Override active — button unlocked
+                                            </span>
+                                        ) : (
                                             <button
                                                 type="button"
-                                                className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold transition-colors"
-                                                onClick={async () => {
-                                                    const api = getElectronApi();
-                                                    if (api?.spriggitOpenFolder) {
-                                                        await api.spriggitOpenFolder(spriggitCliPath);
-                                                    }
+                                                className="px-3 py-1 rounded bg-amber-600/70 hover:bg-amber-500/70 text-white text-xs font-semibold transition-colors"
+                                                onClick={() => {
+                                                    setDotnetOverride(true);
+                                                    try { localStorage.setItem('mossy_dotnet_override', 'true'); } catch (e) { console.warn('[Spriggit] Could not persist dotnetOverride to localStorage:', e); }
                                                 }}
                                             >
-                                                📂 Open Spriggit folder
+                                                I have .NET installed — proceed anyway
                                             </button>
                                         )}
-                                        {/* "Open Windows Security" — shown when version is current and
+                                    </div>
+                                    <p className="mt-1 text-amber-400 text-xs">Installed .NET after opening this page? Click <em>Re-check .NET</em> to scan again and unlock the button automatically.</p>
+                                </div>
+                            )}
+                            {dotnetCheckingOnEntry && (
+                                <div className="max-w-lg mx-auto mb-4 text-xs text-slate-400 flex items-center gap-2">
+                                    <span className="animate-spin inline-block">🔄</span> Checking for .NET SDK…
+                                </div>
+                            )}
+
+                            {/* FO4 Version + Build Requirements badge */}
+                            {detectedFo4Label && (
+                                <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 text-sm text-left bg-blue-900/20 border border-blue-600/40 text-blue-300">
+                                    <strong className="text-blue-100">📋 Your Setup:</strong>
+                                    <div className="mt-2 space-y-1">
+                                        <div className="flex items-center gap-2 text-xs">
+                                            <span className="text-blue-400">🎮</span>
+                                            <span><strong>Game:</strong> {detectedFo4Label}</span>
+                                        </div>
+                                        {detectedFo4Version.startsWith('1.11.') ? (
+                                            <div className="flex items-center gap-2 text-xs text-amber-300">
+                                                <span>⚠️</span>
+                                                <span><strong>Required:</strong> Spriggit <strong>PRE-RELEASE (dev)</strong> build — stable "Latest" does NOT support AE/Creations Menu</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2 text-xs text-emerald-300">
+                                                <span>✓</span>
+                                                <span><strong>Spriggit:</strong> Any recent build works fine</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Readiness Checklist */}
+                            {(spriggitCliPath || spriggitDataPath) && (
+                                <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 bg-slate-800/40 border border-slate-600/50">
+                                    <div className="text-sm font-semibold text-slate-300 mb-2 flex items-center gap-2">
+                                        <span>📍 Readiness Checklist</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className={`flex items-center gap-2 text-xs ${spriggitCliPath ? 'text-emerald-300' : 'text-slate-400'}`}>
+                                            {spriggitCliPath ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border border-slate-500 rounded" />}
+                                            <span>Spriggit.CLI.exe selected</span>
+                                        </div>
+                                        <div className={`flex items-center gap-2 text-xs ${spriggitDataPath ? 'text-emerald-300' : 'text-slate-400'}`}>
+                                            {spriggitDataPath ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border border-slate-500 rounded" />}
+                                            <span>Fallout 4 Data folder picked</span>
+                                        </div>
+                                        {spriggitCliPath && spriggitDataPath && (
+                                            <div className="flex items-center gap-2 text-xs text-emerald-400 font-semibold mt-2 pt-2 border-t border-slate-600">
+                                                <span>✨</span>
+                                                <span>Ready to digest! Scroll down to start.</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="max-w-lg mx-auto space-y-4 mb-6 text-left">
+                                {/* Spriggit CLI path */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                                        Spriggit.CLI.exe
+                                    </label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            value={spriggitCliPath}
+                                            placeholder="Not selected"
+                                            className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                const api = getElectronApi();
+                                                if (!api?.spriggitPickCli) return;
+                                                const p = await api.spriggitPickCli();
+                                                if (p) {
+                                                    setSpriggitCliPath(p);
+                                                    // Try to auto-detect Data folder: assume Spriggit is extracted in a folder
+                                                    // adjacent to or inside the Steam Fallout 4 directory.
+                                                    // Try progressively higher parent directories looking for a "Data" sibling.
+                                                    try {
+                                                        const path = require('path');
+                                                        let candidate = path.dirname(p); // folder containing Spriggit.CLI.exe
+                                                        const fs = require('fs');
+                                                        for (let i = 0; i < 4; i++) {
+                                                            const parentDir = path.dirname(candidate);
+                                                            const dataPath = path.join(parentDir, 'Data');
+                                                            if (fs.existsSync(dataPath)) {
+                                                                setSpriggitDataPath(dataPath);
+                                                                break;
+                                                            }
+                                                            candidate = parentDir;
+                                                        }
+                                                    } catch {
+                                                        // Auto-detection failed silently — user must pick manually
+                                                    }
+                                                }
+                                            }}
+                                            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-lg text-sm text-slate-200 flex items-center gap-1.5 transition-colors"
+                                        >
+                                            <FolderOpen className="w-4 h-4" /> Browse
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Download from{' '}
+                                        <button type="button" onClick={() => void openExternal('https://github.com/Mutagen-Modding/Spriggit/releases')} className="text-emerald-400 hover:underline">
+                                            github.com/Mutagen-Modding/Spriggit
+                                        </button>
+                                        {' '}— on the releases page, download{' '}
+                                        <code className="bg-slate-700 px-1 rounded text-emerald-300">SpriggitCLI.zip</code>
+                                        {' '}(not <code className="bg-slate-700 px-1 rounded text-slate-400">Spriggit.zip</code>).
+                                        Extract the full zip, then browse to{' '}
+                                        <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.CLI.exe</code>.{' '}
+                                        <span className="text-slate-400">
+                                            Windows hides the <code className="bg-slate-700 px-1 rounded">.exe</code> extension by default,
+                                            so the folder will show two entries both named{' '}
+                                            <code className="bg-slate-700 px-1 rounded">Spriggit.CLI</code> — pick the one with the{' '}
+                                            <strong className="text-slate-300">application icon</strong> (looks like a small window), not the{' '}
+                                            <code className="bg-slate-700 px-1 rounded">.pdb</code> or{' '}
+                                            <code className="bg-slate-700 px-1 rounded">.Lib</code> files.
+                                        </span>
+                                    </p>
+                                </div>
+
+                                {/* Fallout 4 Data folder */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                                        Fallout 4 Data Folder
+                                    </label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            value={spriggitDataPath}
+                                            placeholder="Not selected (e.g. C:\Steam\steamapps\common\Fallout 4\Data)"
+                                            className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                const api = getElectronApi();
+                                                if (!api?.pickDirectory) return;
+                                                const p = await api.pickDirectory('Select Fallout 4 Data Folder');
+                                                if (p) setSpriggitDataPath(p);
+                                            }}
+                                            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-lg text-sm text-slate-200 flex items-center gap-1.5 transition-colors"
+                                        >
+                                            <FolderOpen className="w-4 h-4" /> Browse
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Package Name */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                                        Package Name <span className="text-slate-500 text-xs font-normal">(--PackageName)</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={spriggitPackageName}
+                                        onChange={e => setSpriggitPackageName(e.target.value)}
+                                        placeholder="Spriggit.Yaml.Fallout4"
+                                        className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                    />
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Built-in:{' '}
+                                        <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Yaml.Fallout4</code>
+                                        {' '}or{' '}
+                                        <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Json.Fallout4</code>.
+                                        {' '}Custom packages must be published to NuGet.org first.
+                                    </p>
+                                </div>
+
+                                {/* Local NuGet Source */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                                        Local NuGet Source <span className="text-slate-500 text-xs font-normal">(--Source, Spriggit &lt; v0.40.0 only)</span>
+                                    </label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={spriggitNugetSource}
+                                            onChange={e => setSpriggitNugetSource(e.target.value)}
+                                            placeholder='e.g. D:\Tools\Spriggit-dev\Translation Packages'
+                                            className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                const api = getElectronApi();
+                                                if (!api?.pickDirectory) return;
+                                                const p = await api.pickDirectory('Select Local NuGet Source Folder');
+                                                if (p) setSpriggitNugetSource(p);
+                                            }}
+                                            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-lg text-sm text-slate-200 flex items-center gap-1.5 transition-colors"
+                                        >
+                                            <FolderOpen className="w-4 h-4" /> Browse
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Point to the folder containing your local translation packages
+                                        (e.g.{' '}
+                                        <code className="bg-slate-700 px-1 rounded text-slate-400">D:\Tools\Spriggit-dev\Translation Packages</code>
+                                        {' '}holding{' '}
+                                        <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Yaml.Fallout4</code>
+                                        {' '}and{' '}
+                                        <code className="bg-slate-700 px-1 rounded text-emerald-300">Spriggit.Json.Fallout4</code>
+                                        ) to skip the nuget.org download entirely.{' '}
+                                        <span className="text-amber-400">⚠ Only supported by Spriggit &lt; v0.40.0 — ignored on newer builds.</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Status message */}
+                            {spriggitMessage && (
+                                <div className={`max-w-lg mx-auto mb-5 rounded-lg px-4 py-3 text-sm text-left whitespace-pre-line break-words max-h-64 overflow-y-auto ${spriggitStatus === 'error'
+                                    ? 'bg-red-900/30 border border-red-700/50 text-red-200'
+                                    : spriggitStatus === 'noMods' || spriggitStatus === 'partial'
+                                        ? 'bg-amber-900/30 border border-amber-600/50 text-amber-200'
+                                        : spriggitStatus === 'done'
+                                            ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
+                                            : 'bg-slate-800/60 border border-slate-600 text-slate-300'
+                                    }`}>
+                                    {spriggitStatus === 'running' && <Loader className="w-4 h-4 inline-block animate-spin mr-2" />}
+                                    {spriggitStatus === 'noMods' && <span className="font-bold">ℹ️ Vanilla ESMs not found:{'\n'}</span>}
+                                    {/* Version badge — shown for error or partial status when versions are known */}
+                                    {(spriggitStatus === 'error' || spriggitStatus === 'partial') && (detectedFo4Label || detectedSpriggitVersion) && (
+                                        <div className="mb-2 p-2 bg-slate-800/80 rounded border border-slate-600 text-xs font-mono text-slate-300 space-y-0.5">
+                                            {detectedFo4Label && (
+                                                <div>🎮 <strong>Game:</strong> {detectedFo4Label}</div>
+                                            )}
+                                            {detectedSpriggitVersion && (
+                                                <div>🔧 <strong>Spriggit:</strong> v{detectedSpriggitVersion}
+                                                    {spriggitVersionTooOld === true && (
+                                                        <span className="ml-1 text-amber-400 font-bold">⚠️ too old for FO4 1.11.x — download the PRE-RELEASE (dev) build</span>
+                                                    )}
+                                                    {spriggitVersionTooOld === false && detectedFo4Version.startsWith('1.11.') && (
+                                                        <span className="ml-1 text-emerald-400 font-semibold">✓ version is current</span>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {detectedFo4Version.startsWith('1.11.') && !detectedSpriggitVersion && (
+                                                <div className="text-amber-400">⚠️ FO4 1.11.x detected — Spriggit must be a post-November 2025 build</div>
+                                            )}
+                                        </div>
+                                    )}
+                                    {spriggitMessage}
+                                    {(spriggitStatus === 'error' || spriggitStatus === 'partial') && spriggitMessage.includes('0xFFFFFFFF') && (
+                                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                                            {/* Only offer the .NET download when .NET is confirmed absent.
+                                            When dotnetOk is true the crash is more likely AV or arch mismatch. */}
+                                            {dotnetOk !== true && (
+                                                <button
+                                                    type="button"
+                                                    className="underline text-red-300 hover:text-red-100 transition-colors"
+                                                    onClick={() => {
+                                                        const api = getElectronApi();
+                                                        if (api?.openExternal) {
+                                                            void api.openExternal('https://dotnet.microsoft.com/download/dotnet');
+                                                        } else {
+                                                            window.open('https://dotnet.microsoft.com/download/dotnet', '_blank');
+                                                        }
+                                                    }}
+                                                >
+                                                    Download .NET SDK →
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                disabled={dotnetRecheckInProgress}
+                                                className="px-3 py-1 rounded bg-red-800/60 hover:bg-red-700/60 disabled:opacity-50 text-red-100 text-xs font-semibold transition-colors"
+                                                onClick={() => void recheckDotnet()}
+                                            >
+                                                {dotnetRecheckInProgress ? '🔄 Checking…' : '🔄 Re-check .NET'}
+                                            </button>
+                                            {/* "Open Spriggit folder" — lets the user verify that all DLLs
+                                            from SpriggitCLI.zip are present beside the exe, which is the
+                                            most common cause of 0xFFFFFFFF when .NET IS installed. */}
+                                            {spriggitCliPath && (
+                                                <button
+                                                    type="button"
+                                                    className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold transition-colors"
+                                                    onClick={async () => {
+                                                        const api = getElectronApi();
+                                                        if (api?.spriggitOpenFolder) {
+                                                            await api.spriggitOpenFolder(spriggitCliPath);
+                                                        }
+                                                    }}
+                                                >
+                                                    📂 Open Spriggit folder
+                                                </button>
+                                            )}
+                                            {/* "Open Windows Security" — shown when version is current and
                                             SAC is the #1 suspect.  Opens Settings → Windows Security
                                             directly so the user can navigate to Smart App Control
                                             without hunting through multiple menus. */}
-                                        {spriggitVersionTooOld === false && (
-                                            <button
-                                                type="button"
-                                                className="px-3 py-1 rounded bg-sky-800/60 hover:bg-sky-700/60 text-sky-100 text-xs font-semibold transition-colors"
-                                                onClick={() => {
-                                                    const api = getElectronApi();
-                                                    const windowsSecurityUrl = 'ms-settings:windowsdefender';
-                                                    if (api?.openExternal) {
-                                                        void api.openExternal(windowsSecurityUrl);
-                                                    } else {
-                                                        window.open(windowsSecurityUrl, '_blank');
-                                                    }
-                                                }}
-                                            >
-                                                🔒 Open Windows Security →
-                                            </button>
-                                        )}
-                                        {/* "Add Defender Exclusion" — shown IMMEDIATELY when 0xFFFFFFFF
+                                            {spriggitVersionTooOld === false && (
+                                                <button
+                                                    type="button"
+                                                    className="px-3 py-1 rounded bg-sky-800/60 hover:bg-sky-700/60 text-sky-100 text-xs font-semibold transition-colors"
+                                                    onClick={() => {
+                                                        const api = getElectronApi();
+                                                        const windowsSecurityUrl = 'ms-settings:windowsdefender';
+                                                        if (api?.openExternal) {
+                                                            void api.openExternal(windowsSecurityUrl);
+                                                        } else {
+                                                            window.open(windowsSecurityUrl, '_blank');
+                                                        }
+                                                    }}
+                                                >
+                                                    🔒 Open Windows Security →
+                                                </button>
+                                            )}
+                                            {/* "Add Defender Exclusion" — shown IMMEDIATELY when 0xFFFFFFFF
                                             detected on FO4 1.11.x, making it the PRIMARY fix recommendation.
                                             On Windows 11 with Smart App Control in "On" or "Evaluation" mode,
                                             adding a Defender exclusion for the Spriggit folder is the ONLY
@@ -2081,243 +2083,243 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             when the cache is cleared (which forces re-extraction of assemblies).
                                             This button appears BEFORE the Unblock Files button to guide users
                                             to the correct solution first. */}
-                                        {spriggitVersionTooOld === false && detectedFo4Version.startsWith('1.11.') && defenderExclusionState !== 'ok' && (
-                                            <button
-                                                type="button"
-                                                disabled={defenderExclusionState === 'running'}
-                                                className="px-3 py-1 rounded border-2 border-yellow-400 bg-yellow-700/70 hover:bg-yellow-600/80 disabled:opacity-50 text-yellow-100 text-xs font-bold transition-colors"
-                                                onClick={async () => {
-                                                    const api = getElectronApi();
-                                                    if (!api?.spriggitAddDefenderExclusion) return;
-                                                    setDefenderExclusionState('running');
-                                                    try {
-                                                        const res = await api.spriggitAddDefenderExclusion();
-                                                        if (res?.excludedPath) setDefenderExclusionPath(res.excludedPath);
-                                                        if (res?.ok) {
-                                                            setDefenderExclusionState('ok');
-                                                        } else if (res?.error?.includes('Administrator rights')) {
-                                                            setDefenderExclusionState('needs-elevation');
-                                                        } else {
+                                            {spriggitVersionTooOld === false && detectedFo4Version.startsWith('1.11.') && defenderExclusionState !== 'ok' && (
+                                                <button
+                                                    type="button"
+                                                    disabled={defenderExclusionState === 'running'}
+                                                    className="px-3 py-1 rounded border-2 border-yellow-400 bg-yellow-700/70 hover:bg-yellow-600/80 disabled:opacity-50 text-yellow-100 text-xs font-bold transition-colors"
+                                                    onClick={async () => {
+                                                        const api = getElectronApi();
+                                                        if (!api?.spriggitAddDefenderExclusion) return;
+                                                        setDefenderExclusionState('running');
+                                                        try {
+                                                            const res = await api.spriggitAddDefenderExclusion();
+                                                            if (res?.excludedPath) setDefenderExclusionPath(res.excludedPath);
+                                                            if (res?.ok) {
+                                                                setDefenderExclusionState('ok');
+                                                            } else if (res?.error?.includes('Administrator rights')) {
+                                                                setDefenderExclusionState('needs-elevation');
+                                                            } else {
+                                                                setDefenderExclusionState('error');
+                                                            }
+                                                        } catch {
                                                             setDefenderExclusionState('error');
                                                         }
-                                                    } catch {
-                                                        setDefenderExclusionState('error');
-                                                    }
-                                                }}
-                                            >
-                                                {defenderExclusionState === 'running' ? '🔄 Adding exclusion…' : '⭐ Add Defender Exclusion (Recommended)'}
-                                            </button>
-                                        )}
-                                        {defenderExclusionState === 'ok' && (
-                                            <span className="text-xs text-emerald-300 font-semibold">
-                                                ✅ Defender exclusion added for {defenderExclusionPath ?? 'Spriggit folder'} — now click <strong>🗑️ Clear Cache &amp; Retry</strong>.
-                                            </span>
-                                        )}
-                                        {(defenderExclusionState === 'needs-elevation' || defenderExclusionState === 'error') && defenderExclusionPath && (
-                                            <div className="w-full mt-4 p-4 rounded-lg bg-gradient-to-br from-yellow-900/40 to-amber-900/40 border-2 border-yellow-500/70 shadow-lg">
-                                                <div className="flex items-start gap-3 mb-3">
-                                                    <span className="text-2xl">🛡️</span>
-                                                    <div className="flex-1">
-                                                        <h3 className="text-yellow-100 font-bold text-base mb-1">
-                                                            ⚠️ Administrator Rights Required
-                                                        </h3>
-                                                        <p className="text-yellow-200 text-sm mb-2">
-                                                            Mossy tried to add a Windows Defender exclusion automatically, but it requires Administrator privileges.
-                                                            <strong className="text-yellow-100"> Follow these steps to add the exclusion manually:</strong>
+                                                    }}
+                                                >
+                                                    {defenderExclusionState === 'running' ? '🔄 Adding exclusion…' : '⭐ Add Defender Exclusion (Recommended)'}
+                                                </button>
+                                            )}
+                                            {defenderExclusionState === 'ok' && (
+                                                <span className="text-xs text-emerald-300 font-semibold">
+                                                    ✅ Defender exclusion added for {defenderExclusionPath ?? 'Spriggit folder'} — now click <strong>🗑️ Clear Cache &amp; Retry</strong>.
+                                                </span>
+                                            )}
+                                            {(defenderExclusionState === 'needs-elevation' || defenderExclusionState === 'error') && defenderExclusionPath && (
+                                                <div className="w-full mt-4 p-4 rounded-lg bg-gradient-to-br from-yellow-900/40 to-amber-900/40 border-2 border-yellow-500/70 shadow-lg">
+                                                    <div className="flex items-start gap-3 mb-3">
+                                                        <span className="text-2xl">🛡️</span>
+                                                        <div className="flex-1">
+                                                            <h3 className="text-yellow-100 font-bold text-base mb-1">
+                                                                ⚠️ Administrator Rights Required
+                                                            </h3>
+                                                            <p className="text-yellow-200 text-sm mb-2">
+                                                                Mossy tried to add a Windows Defender exclusion automatically, but it requires Administrator privileges.
+                                                                <strong className="text-yellow-100"> Follow these steps to add the exclusion manually:</strong>
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="bg-slate-900/60 rounded-lg p-4 border border-yellow-600/30 mb-3">
+                                                        <ol className="text-yellow-100 text-sm space-y-3 list-decimal list-inside">
+                                                            <li className="pl-2">
+                                                                <strong>Click the Windows Start button</strong> and type <code className="bg-slate-800 px-1.5 py-0.5 rounded text-emerald-300">PowerShell</code>
+                                                            </li>
+                                                            <li className="pl-2">
+                                                                <strong>Right-click on "Windows PowerShell"</strong> in the search results
+                                                            </li>
+                                                            <li className="pl-2">
+                                                                Select <strong className="text-yellow-200">"Run as administrator"</strong> (you may be prompted for permission)
+                                                            </li>
+                                                            <li className="pl-2">
+                                                                When PowerShell opens, <strong>paste and run this command</strong> (click 📋 Copy below):
+                                                            </li>
+                                                        </ol>
+                                                    </div>
+
+                                                    <div className="bg-slate-950/80 rounded-lg p-3 border border-emerald-500/50 mb-3">
+                                                        <div className="flex items-start gap-2 mb-1">
+                                                            <code className="flex-1 bg-slate-900 text-emerald-300 px-3 py-2 rounded font-mono text-sm select-all break-all">
+                                                                Add-MpPreference -ExclusionPath "{defenderExclusionPath}"
+                                                            </code>
+                                                            <button
+                                                                type="button"
+                                                                className="px-3 py-2 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-bold transition-colors shadow-md"
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(
+                                                                        `Add-MpPreference -ExclusionPath "${defenderExclusionPath}"`
+                                                                    ).catch(() => {
+                                                                        // Clipboard API may be unavailable; the command is selectable
+                                                                    });
+                                                                }}
+                                                            >
+                                                                📋 Copy
+                                                            </button>
+                                                        </div>
+                                                        <p className="text-slate-400 text-xs ml-1">
+                                                            💡 Tip: Right-click in PowerShell to paste. Press Enter to run.
                                                         </p>
                                                     </div>
-                                                </div>
 
-                                                <div className="bg-slate-900/60 rounded-lg p-4 border border-yellow-600/30 mb-3">
-                                                    <ol className="text-yellow-100 text-sm space-y-3 list-decimal list-inside">
-                                                        <li className="pl-2">
-                                                            <strong>Click the Windows Start button</strong> and type <code className="bg-slate-800 px-1.5 py-0.5 rounded text-emerald-300">PowerShell</code>
-                                                        </li>
-                                                        <li className="pl-2">
-                                                            <strong>Right-click on "Windows PowerShell"</strong> in the search results
-                                                        </li>
-                                                        <li className="pl-2">
-                                                            Select <strong className="text-yellow-200">"Run as administrator"</strong> (you may be prompted for permission)
-                                                        </li>
-                                                        <li className="pl-2">
-                                                            When PowerShell opens, <strong>paste and run this command</strong> (click 📋 Copy below):
-                                                        </li>
-                                                    </ol>
-                                                </div>
+                                                    <div className="bg-slate-900/60 rounded-lg p-3 border border-slate-600/50">
+                                                        <p className="text-yellow-100 text-sm mb-2">
+                                                            <strong>5. After running the command:</strong>
+                                                        </p>
+                                                        <ul className="text-yellow-200 text-sm space-y-1 list-disc list-inside ml-4">
+                                                            <li>If it succeeds, you'll see no output (that's normal!)</li>
+                                                            <li>Close PowerShell</li>
+                                                            <li className="font-bold text-yellow-100">
+                                                                Click the <strong className="text-emerald-300">"🗑️ Clear Cache & Retry"</strong> button below
+                                                            </li>
+                                                            <li>Spriggit should now work without being blocked</li>
+                                                        </ul>
+                                                    </div>
 
-                                                <div className="bg-slate-950/80 rounded-lg p-3 border border-emerald-500/50 mb-3">
-                                                    <div className="flex items-start gap-2 mb-1">
-                                                        <code className="flex-1 bg-slate-900 text-emerald-300 px-3 py-2 rounded font-mono text-sm select-all break-all">
-                                                            Add-MpPreference -ExclusionPath "{defenderExclusionPath}"
-                                                        </code>
+                                                    <div className="mt-3 pt-3 border-t border-yellow-600/30 text-xs text-yellow-300/80">
+                                                        <strong>What this does:</strong> Tells Windows Defender to trust all files in your Spriggit folder, preventing Smart App Control from blocking the .NET assemblies that Spriggit extracts at runtime.
+                                                    </div>
+
+                                                    {/* Verification button — shown after manual command instructions */}
+                                                    <div className="mt-4 pt-4 border-t border-yellow-600/30">
+                                                        <p className="text-yellow-100 text-sm font-semibold mb-2">
+                                                            ✅ After running the PowerShell command, click here to verify it worked:
+                                                        </p>
                                                         <button
                                                             type="button"
-                                                            className="px-3 py-2 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-bold transition-colors shadow-md"
-                                                            onClick={() => {
-                                                                navigator.clipboard.writeText(
-                                                                    `Add-MpPreference -ExclusionPath "${defenderExclusionPath}"`
-                                                                ).catch(() => {
-                                                                    // Clipboard API may be unavailable; the command is selectable
-                                                                });
+                                                            disabled={verificationState === 'checking'}
+                                                            className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white font-semibold transition-colors shadow-md"
+                                                            onClick={async () => {
+                                                                const api = getElectronApi();
+                                                                if (!api?.spriggitVerifyDefenderExclusion) return;
+                                                                setVerificationState('checking');
+                                                                setVerificationMessage('');
+                                                                try {
+                                                                    const res = await api.spriggitVerifyDefenderExclusion();
+                                                                    if (res.ok && res.excluded) {
+                                                                        setVerificationState('verified');
+                                                                        setVerificationMessage(`✅ Confirmed! ${res.targetPath ?? 'Your Spriggit folder'} is excluded from Defender.`);
+                                                                    } else if (res.ok && !res.excluded) {
+                                                                        setVerificationState('not-excluded');
+                                                                        setVerificationMessage(`⚠️ Not found. ${res.targetPath ?? 'Your Spriggit folder'} is NOT in the Defender exclusion list. Make sure you ran the PowerShell command as Administrator.`);
+                                                                    } else {
+                                                                        setVerificationState('error');
+                                                                        setVerificationMessage(`❌ ${res.error || 'Verification failed.'}`);
+                                                                    }
+                                                                } catch (e: unknown) {
+                                                                    setVerificationState('error');
+                                                                    setVerificationMessage(`❌ ${e instanceof Error ? e.message : String(e)}`);
+                                                                }
                                                             }}
                                                         >
-                                                            📋 Copy
+                                                            {verificationState === 'checking' ? '🔄 Checking…' : '🔍 Verify Defender Exclusion'}
                                                         </button>
+                                                        {verificationMessage && (
+                                                            <div className={`mt-2 p-3 rounded-lg text-sm font-medium ${verificationState === 'verified'
+                                                                ? 'bg-emerald-800/60 border border-emerald-600/50 text-emerald-100'
+                                                                : verificationState === 'not-excluded'
+                                                                    ? 'bg-amber-800/60 border border-amber-600/50 text-amber-100'
+                                                                    : 'bg-red-800/60 border border-red-600/50 text-red-100'
+                                                                }`}>
+                                                                {verificationMessage}
+                                                            </div>
+                                                        )}
+                                                        {verificationState === 'verified' && (
+                                                            <div className="mt-3 p-3 rounded-lg bg-emerald-900/40 border border-emerald-500/50 text-emerald-100 text-sm">
+                                                                <strong>✨ Great! Now:</strong>
+                                                                <ol className="mt-2 space-y-1 list-decimal list-inside ml-2">
+                                                                    <li>Click <strong className="text-white">"🗑️ Clear Cache & Retry"</strong> below to wipe the old blocked assemblies</li>
+                                                                    <li>Spriggit will re-extract fresh assemblies that won't be blocked</li>
+                                                                    <li>The digest should complete successfully!</li>
+                                                                </ol>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <p className="text-slate-400 text-xs ml-1">
-                                                        💡 Tip: Right-click in PowerShell to paste. Press Enter to run.
-                                                    </p>
                                                 </div>
-
-                                                <div className="bg-slate-900/60 rounded-lg p-3 border border-slate-600/50">
-                                                    <p className="text-yellow-100 text-sm mb-2">
-                                                        <strong>5. After running the command:</strong>
-                                                    </p>
-                                                    <ul className="text-yellow-200 text-sm space-y-1 list-disc list-inside ml-4">
-                                                        <li>If it succeeds, you'll see no output (that's normal!)</li>
-                                                        <li>Close PowerShell</li>
-                                                        <li className="font-bold text-yellow-100">
-                                                            Click the <strong className="text-emerald-300">"🗑️ Clear Cache & Retry"</strong> button below
-                                                        </li>
-                                                        <li>Spriggit should now work without being blocked</li>
-                                                    </ul>
-                                                </div>
-
-                                                <div className="mt-3 pt-3 border-t border-yellow-600/30 text-xs text-yellow-300/80">
-                                                    <strong>What this does:</strong> Tells Windows Defender to trust all files in your Spriggit folder, preventing Smart App Control from blocking the .NET assemblies that Spriggit extracts at runtime.
-                                                </div>
-
-                                                {/* Verification button — shown after manual command instructions */}
-                                                <div className="mt-4 pt-4 border-t border-yellow-600/30">
-                                                    <p className="text-yellow-100 text-sm font-semibold mb-2">
-                                                        ✅ After running the PowerShell command, click here to verify it worked:
-                                                    </p>
-                                                    <button
-                                                        type="button"
-                                                        disabled={verificationState === 'checking'}
-                                                        className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white font-semibold transition-colors shadow-md"
-                                                        onClick={async () => {
-                                                            const api = getElectronApi();
-                                                            if (!api?.spriggitVerifyDefenderExclusion) return;
-                                                            setVerificationState('checking');
-                                                            setVerificationMessage('');
-                                                            try {
-                                                                const res = await api.spriggitVerifyDefenderExclusion();
-                                                                if (res.ok && res.excluded) {
-                                                                    setVerificationState('verified');
-                                                                    setVerificationMessage(`✅ Confirmed! ${res.targetPath ?? 'Your Spriggit folder'} is excluded from Defender.`);
-                                                                } else if (res.ok && !res.excluded) {
-                                                                    setVerificationState('not-excluded');
-                                                                    setVerificationMessage(`⚠️ Not found. ${res.targetPath ?? 'Your Spriggit folder'} is NOT in the Defender exclusion list. Make sure you ran the PowerShell command as Administrator.`);
-                                                                } else {
-                                                                    setVerificationState('error');
-                                                                    setVerificationMessage(`❌ ${res.error || 'Verification failed.'}`);
-                                                                }
-                                                            } catch (e: unknown) {
-                                                                setVerificationState('error');
-                                                                setVerificationMessage(`❌ ${e instanceof Error ? e.message : String(e)}`);
-                                                            }
-                                                        }}
-                                                    >
-                                                        {verificationState === 'checking' ? '🔄 Checking…' : '🔍 Verify Defender Exclusion'}
-                                                    </button>
-                                                    {verificationMessage && (
-                                                        <div className={`mt-2 p-3 rounded-lg text-sm font-medium ${verificationState === 'verified'
-                                                            ? 'bg-emerald-800/60 border border-emerald-600/50 text-emerald-100'
-                                                            : verificationState === 'not-excluded'
-                                                                ? 'bg-amber-800/60 border border-amber-600/50 text-amber-100'
-                                                                : 'bg-red-800/60 border border-red-600/50 text-red-100'
-                                                            }`}>
-                                                            {verificationMessage}
-                                                        </div>
-                                                    )}
-                                                    {verificationState === 'verified' && (
-                                                        <div className="mt-3 p-3 rounded-lg bg-emerald-900/40 border border-emerald-500/50 text-emerald-100 text-sm">
-                                                            <strong>✨ Great! Now:</strong>
-                                                            <ol className="mt-2 space-y-1 list-decimal list-inside ml-2">
-                                                                <li>Click <strong className="text-white">"🗑️ Clear Cache & Retry"</strong> below to wipe the old blocked assemblies</li>
-                                                                <li>Spriggit will re-extract fresh assemblies that won't be blocked</li>
-                                                                <li>The digest should complete successfully!</li>
-                                                            </ol>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {/* "Re-download Spriggit" — shown whenever a 0xFFFFFFFF crash or
+                                            )}
+                                            {/* "Re-download Spriggit" — shown whenever a 0xFFFFFFFF crash or
                                             silent-failure occurs.  When a genuine version mismatch is
                                             confirmed (spriggitVersionTooOld=true), this is the ONLY real
                                             fix so we style it prominently (yellow border + bold label).
                                             When version is current (spriggitVersionTooOld=false), Smart
                                             App Control is the #1 suspect — re-download is still offered
                                             as a fallback but uses the standard styling. */}
-                                        {/* "Unblock Files" — shown when version is current (SAC is suspect).
+                                            {/* "Unblock Files" — shown when version is current (SAC is suspect).
                                             If SAC is locked/greyed-out (common on Win 11 "On"/"Evaluation"),
                                             Unblock-File removes the Zone.Identifier web-download flag from
                                             every file in the Spriggit folder, making them appear local so
                                             SAC no longer blocks them.  Follow up with Clear Cache & Retry. */}
-                                        {spriggitVersionTooOld === false && (
-                                            <button
-                                                type="button"
-                                                disabled={unblockInProgress}
-                                                className="px-3 py-1 rounded bg-violet-800/60 hover:bg-violet-700/60 disabled:opacity-50 text-violet-100 text-xs font-semibold transition-colors"
-                                                onClick={async () => {
-                                                    const api = getElectronApi();
-                                                    if (!api?.spriggitUnblockFiles) return;
-                                                    setUnblockInProgress(true);
-                                                    setUnblockResult(null);
-                                                    try {
-                                                        const res = await api.spriggitUnblockFiles();
-                                                        setUnblockResult(res);
-                                                    } catch (e: unknown) {
-                                                        const msg = e instanceof Error ? e.message : String(e);
-                                                        setUnblockResult({ ok: false, error: msg || 'Unblock-File failed unexpectedly.' });
-                                                    } finally {
-                                                        setUnblockInProgress(false);
-                                                    }
-                                                }}
-                                            >
-                                                {unblockInProgress ? '🔄 Unblocking…' : '🔓 Unblock Files'}
-                                            </button>
-                                        )}
-                                        {unblockResult?.ok && (
-                                            <span className="text-xs text-violet-300 font-semibold">
-                                                ✅ Unblocked {unblockResult.unblocked ?? 0} file(s) in …{(unblockResult.folderPath ?? '').split(/[\\/]/).slice(-2).join('/')}
-                                                {detectedFo4Version.startsWith('1.11.') ? (
-                                                    <> — ⚠️ <strong>Unblock is temporary!</strong> Clearing cache will delete these files and extract NEW ones that will NOT be unblocked. <strong>Add a Windows Defender exclusion below instead</strong> for a permanent fix, then click Clear Cache.</>
-                                                ) : (
-                                                    <> — now click <strong>🗑️ Clear Cache &amp; Retry</strong> to finish.</>
-                                                )}
-                                            </span>
-                                        )}
-                                        {unblockResult && !unblockResult.ok && (
-                                            <span className="text-xs text-red-300 font-semibold">⚠️ Unblock-File failed: {unblockResult.error}</span>
-                                        )}
-                                        {(() => {
-                                            const isMismatch = spriggitVersionTooOld === true;
-                                            const redownloadLabel = isMismatch
-                                                ? '⭐ Re-download Spriggit — PRE-RELEASE (required) →'
-                                                : '⬇️ Re-download Spriggit (pre-release) →';
-                                            const baseClasses = 'px-3 py-1 rounded text-xs transition-colors';
-                                            const mismatchClasses = 'border-2 border-yellow-400 bg-yellow-700/60 hover:bg-yellow-600/70 text-yellow-100 font-bold';
-                                            const normalClasses = 'bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 font-semibold';
-                                            return (
-                                                <>
-                                                    <button
-                                                        type="button"
-                                                        className={`${baseClasses} ${isMismatch ? mismatchClasses : normalClasses}`}
-                                                        onClick={() => {
-                                                            const api = getElectronApi();
-                                                            if (api?.openExternal) {
-                                                                void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
-                                                            } else {
-                                                                window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
-                                                            }
-                                                        }}
-                                                    >
-                                                        {redownloadLabel}
-                                                    </button>
-                                                    {/* "Clear Cache & Retry" — useful when --version passes but
+                                            {spriggitVersionTooOld === false && (
+                                                <button
+                                                    type="button"
+                                                    disabled={unblockInProgress}
+                                                    className="px-3 py-1 rounded bg-violet-800/60 hover:bg-violet-700/60 disabled:opacity-50 text-violet-100 text-xs font-semibold transition-colors"
+                                                    onClick={async () => {
+                                                        const api = getElectronApi();
+                                                        if (!api?.spriggitUnblockFiles) return;
+                                                        setUnblockInProgress(true);
+                                                        setUnblockResult(null);
+                                                        try {
+                                                            const res = await api.spriggitUnblockFiles();
+                                                            setUnblockResult(res);
+                                                        } catch (e: unknown) {
+                                                            const msg = e instanceof Error ? e.message : String(e);
+                                                            setUnblockResult({ ok: false, error: msg || 'Unblock-File failed unexpectedly.' });
+                                                        } finally {
+                                                            setUnblockInProgress(false);
+                                                        }
+                                                    }}
+                                                >
+                                                    {unblockInProgress ? '🔄 Unblocking…' : '🔓 Unblock Files'}
+                                                </button>
+                                            )}
+                                            {unblockResult?.ok && (
+                                                <span className="text-xs text-violet-300 font-semibold">
+                                                    ✅ Unblocked {unblockResult.unblocked ?? 0} file(s) in …{(unblockResult.folderPath ?? '').split(/[\\/]/).slice(-2).join('/')}
+                                                    {detectedFo4Version.startsWith('1.11.') ? (
+                                                        <> — ⚠️ <strong>Unblock is temporary!</strong> Clearing cache will delete these files and extract NEW ones that will NOT be unblocked. <strong>Add a Windows Defender exclusion below instead</strong> for a permanent fix, then click Clear Cache.</>
+                                                    ) : (
+                                                        <> — now click <strong>🗑️ Clear Cache &amp; Retry</strong> to finish.</>
+                                                    )}
+                                                </span>
+                                            )}
+                                            {unblockResult && !unblockResult.ok && (
+                                                <span className="text-xs text-red-300 font-semibold">⚠️ Unblock-File failed: {unblockResult.error}</span>
+                                            )}
+                                            {(() => {
+                                                const isMismatch = spriggitVersionTooOld === true;
+                                                const redownloadLabel = isMismatch
+                                                    ? '⭐ Re-download Spriggit — PRE-RELEASE (required) →'
+                                                    : '⬇️ Re-download Spriggit (pre-release) →';
+                                                const baseClasses = 'px-3 py-1 rounded text-xs transition-colors';
+                                                const mismatchClasses = 'border-2 border-yellow-400 bg-yellow-700/60 hover:bg-yellow-600/70 text-yellow-100 font-bold';
+                                                const normalClasses = 'bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 font-semibold';
+                                                return (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            className={`${baseClasses} ${isMismatch ? mismatchClasses : normalClasses}`}
+                                                            onClick={() => {
+                                                                const api = getElectronApi();
+                                                                if (api?.openExternal) {
+                                                                    void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
+                                                                } else {
+                                                                    window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
+                                                                }
+                                                            }}
+                                                        >
+                                                            {redownloadLabel}
+                                                        </button>
+                                                        {/* "Clear Cache & Retry" — useful when --version passes but
                                                         serialize crashes due to a stale .NET assembly cache.
                                                         IMPORTANT: skip auto-retry when a version mismatch is
                                                         confirmed (spriggitVersionTooOld=true) — retrying will
@@ -2328,132 +2330,133 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         assemblies and retry once more, breaking the SAC loop
                                                         where: unblock → clear cache → retry → NEW assemblies
                                                         (never unblocked) → fail → repeat. */}
-                                                    <button
-                                                        type="button"
-                                                        disabled={cacheClearInProgress || spriggitStatus === 'running' || autoUnblockRetryState === 'unblocking' || autoUnblockRetryState === 'retrying'}
-                                                        className="px-3 py-1 rounded bg-amber-800/60 hover:bg-amber-700/60 disabled:opacity-50 text-amber-100 text-xs font-semibold transition-colors"
-                                                        onClick={async () => {
-                                                            const api = getElectronApi();
-                                                            if (!api?.spriggitClearCache) return;
-                                                            setCacheClearInProgress(true);
-                                                            setCacheClearResult(null);
-                                                            setAutoUnblockRetryState('idle');
-                                                            let clearOk = false;
-                                                            try {
-                                                                const res = await api.spriggitClearCache();
-                                                                clearOk = res.ok;
-                                                                setCacheClearResult(res.ok ? 'ok' : 'error');
-                                                            } catch {
-                                                                setCacheClearResult('error');
-                                                            } finally {
-                                                                setCacheClearInProgress(false);
-                                                            }
-                                                            // Skip the auto-retry sequence when main.ts confirmed a
-                                                            // version mismatch — it will fail for the same reason.
-                                                            if (!isMismatch && clearOk) {
-                                                                // First pass: Spriggit re-extracts fresh assemblies to
-                                                                // the now-empty cache.  This may fail with 0xFFFFFFFF
-                                                                // if SAC blocks the new files, but critically it
-                                                                // populates the cache with the fresh assembly set.
-                                                                const firstResult = await runSpriggitDigest();
+                                                        <button
+                                                            type="button"
+                                                            disabled={cacheClearInProgress || spriggitStatus === 'running' || autoUnblockRetryState === 'unblocking' || autoUnblockRetryState === 'retrying'}
+                                                            className="px-3 py-1 rounded bg-amber-800/60 hover:bg-amber-700/60 disabled:opacity-50 text-amber-100 text-xs font-semibold transition-colors"
+                                                            onClick={async () => {
+                                                                const api = getElectronApi();
+                                                                if (!api?.spriggitClearCache) return;
+                                                                setCacheClearInProgress(true);
+                                                                setCacheClearResult(null);
+                                                                setAutoUnblockRetryState('idle');
+                                                                let clearOk = false;
+                                                                try {
+                                                                    const res = await api.spriggitClearCache();
+                                                                    clearOk = res.ok;
+                                                                    setCacheClearResult(res.ok ? 'ok' : 'error');
+                                                                } catch {
+                                                                    setCacheClearResult('error');
+                                                                } finally {
+                                                                    setCacheClearInProgress(false);
+                                                                }
+                                                                // Skip the auto-retry sequence when main.ts confirmed a
+                                                                // version mismatch — it will fail for the same reason.
+                                                                if (!isMismatch && clearOk) {
+                                                                    // First pass: Spriggit re-extracts fresh assemblies to
+                                                                    // the now-empty cache.  This may fail with 0xFFFFFFFF
+                                                                    // if SAC blocks the new files, but critically it
+                                                                    // populates the cache with the fresh assembly set.
+                                                                    const firstResult = await runSpriggitDigest();
 
-                                                                // If the first pass crashed with 0xFFFFFFFF, auto-run
-                                                                // Unblock-File on the Spriggit folder (which now
-                                                                // contains the freshly extracted assemblies that were
-                                                                // NOT covered by any previous manual unblock run).
-                                                                // Then retry once more — these newly unblocked files
-                                                                // will load successfully if SAC is in Evaluation mode.
-                                                                if (firstResult.failed0xFFFF && api.spriggitUnblockFiles) {
-                                                                    setAutoUnblockRetryState('unblocking');
-                                                                    try {
-                                                                        const unblockRes = await api.spriggitUnblockFiles();
-                                                                        if (unblockRes?.ok) {
-                                                                            setUnblockResult(unblockRes);
-                                                                            setAutoUnblockRetryState('retrying');
-                                                                            const secondResult = await runSpriggitDigest();
-                                                                            // Reset state so the button re-enables after this retry
-                                                                            // completes.  Without this reset the button stays stuck on
-                                                                            // "🔄 Retrying…" and is permanently disabled, trapping the
-                                                                            // user until they restart the app.
-                                                                            setAutoUnblockRetryState(secondResult.failed0xFFFF ? 'failed' : 'idle');
-                                                                        } else {
+                                                                    // If the first pass crashed with 0xFFFFFFFF, auto-run
+                                                                    // Unblock-File on the Spriggit folder (which now
+                                                                    // contains the freshly extracted assemblies that were
+                                                                    // NOT covered by any previous manual unblock run).
+                                                                    // Then retry once more — these newly unblocked files
+                                                                    // will load successfully if SAC is in Evaluation mode.
+                                                                    if (firstResult.failed0xFFFF && api.spriggitUnblockFiles) {
+                                                                        setAutoUnblockRetryState('unblocking');
+                                                                        try {
+                                                                            const unblockRes = await api.spriggitUnblockFiles();
+                                                                            if (unblockRes?.ok) {
+                                                                                setUnblockResult(unblockRes);
+                                                                                setAutoUnblockRetryState('retrying');
+                                                                                const secondResult = await runSpriggitDigest();
+                                                                                // Reset state so the button re-enables after this retry
+                                                                                // completes.  Without this reset the button stays stuck on
+                                                                                // "🔄 Retrying…" and is permanently disabled, trapping the
+                                                                                // user until they restart the app.
+                                                                                setAutoUnblockRetryState(secondResult.failed0xFFFF ? 'failed' : 'idle');
+                                                                            } else {
+                                                                                setAutoUnblockRetryState('failed');
+                                                                            }
+                                                                        } catch {
                                                                             setAutoUnblockRetryState('failed');
                                                                         }
-                                                                    } catch {
-                                                                        setAutoUnblockRetryState('failed');
                                                                     }
                                                                 }
-                                                            }
-                                                        }}
-                                                    >
-                                                        {(cacheClearInProgress || autoUnblockRetryState === 'unblocking' || autoUnblockRetryState === 'retrying')
-                                                            ? (cacheClearInProgress ? '🔄 Clearing…' : autoUnblockRetryState === 'unblocking' ? '🔓 Unblocking…' : '🔄 Retrying…')
-                                                            : '🗑️ Clear Cache & Retry'}
-                                                    </button>
-                                                    {/* Auto-unblock progress feedback */}
-                                                    {autoUnblockRetryState === 'unblocking' && (
-                                                        <span className="text-xs text-violet-300 font-semibold">🔓 Auto-unblocking freshly extracted assemblies…</span>
-                                                    )}
-                                                    {autoUnblockRetryState === 'retrying' && (
-                                                        <span className="text-xs text-emerald-300 font-semibold">🔄 Retrying with unblocked assemblies…</span>
-                                                    )}
-                                                    {cacheClearResult === 'ok' && spriggitStatus !== 'error' && spriggitStatus !== 'running' && !isMismatch && autoUnblockRetryState === 'idle' && (
-                                                        <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
-                                                    )}
-                                                    {cacheClearResult === 'ok' && isMismatch && (
-                                                        <span className="text-xs text-yellow-300 font-semibold">
-                                                            🗑️ Cache cleared — but <strong>downloading the Spriggit PRE-RELEASE (dev) build is still required</strong> to fix the version mismatch.{' '}
-                                                            Click <strong>{redownloadLabel}</strong> above, then look for the entry tagged "Pre-release" on the releases page.
-                                                        </span>
-                                                    )}
-                                                    {cacheClearResult === 'ok' && spriggitStatus === 'error' && !isMismatch && autoUnblockRetryState !== 'unblocking' && autoUnblockRetryState !== 'retrying' && (
-                                                        <span className="text-xs text-amber-300 font-semibold">
-                                                            {autoUnblockRetryState === 'idle'
-                                                                ? <>
-                                                                    ⚠️ Cache cleared but still failing.{' '}
-                                                                    <strong>Clearing the cache caused Spriggit to extract a fresh set of
-                                                                        .NET assemblies — those new files were never unblocked.</strong>{' '}
-                                                                    Click <strong>🔓 Unblock Files</strong> above (to unblock the newly
-                                                                    extracted assemblies), then click{' '}
-                                                                    <strong>🗑️ Clear Cache &amp; Retry</strong> once more.{' '}
-                                                                    {detectedFo4Version.startsWith('1.11.') && <>
-                                                                        Alternatively, add a <strong>Windows Defender exclusion</strong> for your
-                                                                        Spriggit folder (Windows Security → Virus &amp; threat protection →
-                                                                        Exclusions) so SAC cannot block any future extractions.
-                                                                    </>}
-                                                                </>
-                                                                : <>
-                                                                    ⚠️ Auto-unblock ran but Spriggit is still crashing.{' '}
-                                                                    {detectedFo4Version.startsWith('1.11.')
-                                                                        ? <>Smart App Control may be set to <strong>&ldquo;On&rdquo;</strong> (not Evaluation) — in
-                                                                            that mode, Unblock-File alone is not enough.  <strong>Use the "⭐ Add Defender Exclusion" button at the top</strong>
-                                                                            so SAC skips reputation checks on the extracted .NET assemblies.{' '}
-                                                                            After adding the exclusion, click <strong>🗑️ Clear Cache &amp; Retry</strong> one more time.</>
-                                                                        : <>Check Smart App Control (Windows Security → App &amp; browser control)
-                                                                            or use the <strong>Add Defender Exclusion button above</strong> for your Spriggit folder.</>
-                                                                    }
-                                                                </>
-                                                            }
-                                                        </span>
-                                                    )}
-                                                </>
-                                            );
-                                        })()}
-                                        {cacheClearResult === 'error' && (
-                                            <span className="text-xs text-amber-300 font-semibold">⚠️ Could not delete cache — try manually: %LOCALAPPDATA%\Temp\.net\SpriggitCLI\ or %TEMP%\.net\SpriggitCLI\</span>
-                                        )}
-                                        {dotnetRecheckResult === 'not-found' && (
-                                            <span className="text-xs text-red-300 font-semibold">{DOTNET_STILL_NOT_DETECTED_MSG}</span>
-                                        )}
-                                        {dotnetRecheckResult === 'found' && (
-                                            <span className="text-xs text-emerald-300 font-semibold">✅ .NET detected! This error is cleared — click <em>Convert &amp; Digest</em> to try again.</span>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <div className="flex flex-col gap-3 max-w-lg mx-auto">
+                                                            }}
+                                                        >
+                                                            {(cacheClearInProgress || autoUnblockRetryState === 'unblocking' || autoUnblockRetryState === 'retrying')
+                                                                ? (cacheClearInProgress ? '🔄 Clearing…' : autoUnblockRetryState === 'unblocking' ? '🔓 Unblocking…' : '🔄 Retrying…')
+                                                                : '🗑️ Clear Cache & Retry'}
+                                                        </button>
+                                                        {/* Auto-unblock progress feedback */}
+                                                        {autoUnblockRetryState === 'unblocking' && (
+                                                            <span className="text-xs text-violet-300 font-semibold">🔓 Auto-unblocking freshly extracted assemblies…</span>
+                                                        )}
+                                                        {autoUnblockRetryState === 'retrying' && (
+                                                            <span className="text-xs text-emerald-300 font-semibold">🔄 Retrying with unblocked assemblies…</span>
+                                                        )}
+                                                        {cacheClearResult === 'ok' && spriggitStatus !== 'error' && spriggitStatus !== 'running' && !isMismatch && autoUnblockRetryState === 'idle' && (
+                                                            <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
+                                                        )}
+                                                        {cacheClearResult === 'ok' && isMismatch && (
+                                                            <span className="text-xs text-yellow-300 font-semibold">
+                                                                🗑️ Cache cleared — but <strong>downloading the Spriggit PRE-RELEASE (dev) build is still required</strong> to fix the version mismatch.{' '}
+                                                                Click <strong>{redownloadLabel}</strong> above, then look for the entry tagged "Pre-release" on the releases page.
+                                                            </span>
+                                                        )}
+                                                        {cacheClearResult === 'ok' && spriggitStatus === 'error' && !isMismatch && autoUnblockRetryState !== 'unblocking' && autoUnblockRetryState !== 'retrying' && (
+                                                            <span className="text-xs text-amber-300 font-semibold">
+                                                                {autoUnblockRetryState === 'idle'
+                                                                    ? <>
+                                                                        ⚠️ Cache cleared but still failing.{' '}
+                                                                        <strong>Clearing the cache caused Spriggit to extract a fresh set of
+                                                                            .NET assemblies — those new files were never unblocked.</strong>{' '}
+                                                                        Click <strong>🔓 Unblock Files</strong> above (to unblock the newly
+                                                                        extracted assemblies), then click{' '}
+                                                                        <strong>🗑️ Clear Cache &amp; Retry</strong> once more.{' '}
+                                                                        {detectedFo4Version.startsWith('1.11.') && <>
+                                                                            Alternatively, add a <strong>Windows Defender exclusion</strong> for your
+                                                                            Spriggit folder (Windows Security → Virus &amp; threat protection →
+                                                                            Exclusions) so SAC cannot block any future extractions.
+                                                                        </>}
+                                                                    </>
+                                                                    : <>
+                                                                        ⚠️ Auto-unblock ran but Spriggit is still crashing.{' '}
+                                                                        {detectedFo4Version.startsWith('1.11.')
+                                                                            ? <>Smart App Control may be set to <strong>&ldquo;On&rdquo;</strong> (not Evaluation) — in
+                                                                                that mode, Unblock-File alone is not enough.  <strong>Use the "⭐ Add Defender Exclusion" button at the top</strong>
+                                                                                so SAC skips reputation checks on the extracted .NET assemblies.{' '}
+                                                                                After adding the exclusion, click <strong>🗑️ Clear Cache &amp; Retry</strong> one more time.</>
+                                                                            : <>Check Smart App Control (Windows Security → App &amp; browser control)
+                                                                                or use the <strong>Add Defender Exclusion button above</strong> for your Spriggit folder.</>
+                                                                        }
+                                                                    </>
+                                                                }
+                                                            </span>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
+                                            {cacheClearResult === 'error' && (
+                                                <span className="text-xs text-amber-300 font-semibold">⚠️ Could not delete cache — try manually: %LOCALAPPDATA%\Temp\.net\SpriggitCLI\ or %TEMP%\.net\SpriggitCLI\</span>
+                                            )}
+                                            {dotnetRecheckResult === 'not-found' && (
+                                                <span className="text-xs text-red-300 font-semibold">{DOTNET_STILL_NOT_DETECTED_MSG}</span>
+                                            )}
+                                            {dotnetRecheckResult === 'found' && (
+                                                <span className="text-xs text-emerald-300 font-semibold">✅ .NET detected! This error is cleared — click <em>Convert &amp; Digest</em> to try again.</span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        {/* Sticky buttons footer */}
+                        <div className="flex flex-col gap-3 max-w-lg mx-auto border-t border-slate-700 pt-4 mt-4 bg-gradient-to-t from-slate-900/95 to-transparent">
                             {spriggitStatus !== 'done' && spriggitStatus !== 'partial' && (
                                 <button
                                     type="button"
