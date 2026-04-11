@@ -1728,9 +1728,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 )}
 
                 {step === 'spriggit-digest' && (
-                    <div className="flex flex-col animate-fade-in h-screen max-h-[calc(90vh-2px)]">
+                    <div className="flex flex-col animate-fade-in h-full min-h-[600px] max-h-[90vh]">
                         {/* Scrollable content area */}
-                        <div className="overflow-y-auto flex-1 text-center pr-2">
+                        <div className="overflow-y-auto flex-1 text-center pr-2 min-h-0">
                             <Brain className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
                             <div className="flex items-center justify-center gap-3 mb-3">
                                 <h2 className="text-3xl font-bold text-white">Feed Me the Base Game</h2>
@@ -1861,6 +1861,44 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 <span><strong>Spriggit:</strong> Any recent build works fine</span>
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* AE-specific Spriggit download instructions - shown prominently for 1.11.x users */}
+                            {detectedFo4Version.startsWith('1.11.') && !spriggitCliPath && (
+                                <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-4 text-sm text-left bg-gradient-to-br from-amber-900/40 to-orange-900/40 border-2 border-amber-500/60 shadow-lg">
+                                    <div className="flex items-start gap-3 mb-3">
+                                        <span className="text-3xl">⚠️</span>
+                                        <div className="flex-1">
+                                            <h3 className="text-amber-100 font-bold text-base mb-2">
+                                                Anniversary Edition Detected — Special Spriggit Build Required
+                                            </h3>
+                                            <p className="text-amber-200 text-sm mb-3 leading-relaxed">
+                                                Your Fallout 4 version ({detectedFo4Version}) requires the <strong className="text-amber-50">PRE-RELEASE (dev)</strong> build of Spriggit.
+                                                The stable "Latest" release will crash with exit code 0xFFFFFFFF.
+                                            </p>
+                                            <div className="bg-amber-950/60 border border-amber-600/40 rounded-lg p-3 mb-3">
+                                                <p className="text-amber-100 font-semibold text-xs mb-2">📥 Download Instructions:</p>
+                                                <ol className="text-amber-200 text-xs space-y-2 list-decimal list-inside">
+                                                    <li>Click the button below to open the Spriggit releases page</li>
+                                                    <li><strong className="text-amber-50">Scroll past</strong> the top "Latest" release — you need the one tagged <strong className="text-amber-50">Pre-release</strong></li>
+                                                    <li>Download <code className="bg-amber-900/60 px-1.5 py-0.5 rounded text-emerald-300">SpriggitCLI.zip</code> (NOT <code className="bg-amber-900/60 px-1.5 py-0.5 rounded line-through">Spriggit.zip</code>)</li>
+                                                    <li>Extract the <strong className="text-amber-50">entire zip</strong> to a permanent folder (e.g., <code className="bg-amber-900/60 px-1.5 py-0.5 rounded">C:\Tools\Spriggit\</code>)</li>
+                                                    <li>Come back here and click Browse below to select <code className="bg-amber-900/60 px-1.5 py-0.5 rounded text-emerald-300">Spriggit.CLI.exe</code></li>
+                                                </ol>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="w-full px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2 shadow-md"
+                                                onClick={() => void openExternal('https://github.com/Mutagen-Modding/Spriggit/releases')}
+                                            >
+                                                <ExternalLink className="w-4 h-4" /> Open Spriggit Releases Page (GitHub)
+                                            </button>
+                                            <p className="text-amber-300 text-xs mt-2 italic">
+                                                💡 Tip: The PRE-RELEASE build is self-contained and bundles .NET, so you don't need to install .NET separately.
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -2528,8 +2566,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 </div>
                             )}
                         </div>
-                        {/* Sticky buttons footer */}
-                        <div className="flex flex-col gap-3 max-w-lg mx-auto border-t border-slate-700 pt-4 mt-4 bg-gradient-to-t from-slate-900/95 to-transparent">
+                        {/* Sticky buttons footer - always visible at bottom */}
+                        <div className="flex-shrink-0 flex flex-col gap-3 max-w-lg mx-auto border-t border-slate-700 pt-4 pb-2 bg-slate-900">
                             {spriggitStatus !== 'done' && spriggitStatus !== 'partial' && (
                                 <button
                                     type="button"
