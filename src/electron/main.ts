@@ -3772,6 +3772,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // Pre-check: Verify .NET SDK is installed before spawning Spriggit processes.
       // Spriggit uses "dotnet tool install" to download its translation packages
       // (e.g. Spriggit.Yaml.Fallout4) on first serialize — this requires the SDK.
+      // 
+      // HOWEVER: The PRE-RELEASE self-contained build bundles .NET and should work
+      // without the SDK. We skip this pre-flight check and let the self-test (below)
+      // catch the crash if it happens — that provides a more detailed error message.
+      // 
+      // Leaving this check commented out for reference, but the self-test is more reliable:
+      /*
       const dotnetCheck = await checkDotNetRuntime();
       if (!dotnetCheck.installed) {
         const reason = dotnetCheck.reason || 'Unknown reason';
@@ -3780,11 +3787,15 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           files: [],
           error: `Cannot run Spriggit: .NET SDK is required.\n` +
             `${reason}\n\n` +
-            `Download the .NET SDK from:\n` +
-            `https://dotnet.microsoft.com/download/dotnet\n\n` +
+            `EASIEST FIX: Download the self-contained PRE-RELEASE build instead:\n` +
+            `https://github.com/Mutagen-Modding/Spriggit/releases\n` +
+            `(Scroll past "Latest", download SpriggitCLI.zip from Pre-release)\n\n` +
+            `OR install .NET SDK:\n` +
+            `https://dotnet.microsoft.com/download/dotnet\n` +
             `After installing, restart your PC and try again.`,
         };
       }
+      */
 
       // Persist the Spriggit CLI path to settings so the spriggit-clear-cache
       // handler (which has no access to the current call's params) can locate the
@@ -3923,32 +3934,84 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const spriggitVersionTooOld = fo4Is111x && isSpriggitTooOldFor111x(spriggitDetectedVersion);
 
       if (selfTestCode === SPRIGGIT_CRASH_EXIT_CODE) {
+        // Check disk space first — the most common cause when cache dir creation fails
+        let diskSpaceOk = true;
+        try {
+          // Test if we can write to the cache directory
+          const testFile = path.join(spriggitCliDir, '.mossy-write-test');
+          fs.writeFileSync(testFile, 'test');
+          fs.unlinkSync(testFile);
+        } catch {
+          diskSpaceOk = false;
+        }
+
         // Re-check .NET to produce a more targeted error message.
         const dotnetRecheck = await checkDotNetRuntime();
-        if (dotnetRecheck.installed) {
+        
+        // Build a simplified, prioritized error message
+        if (!diskSpaceOk) {
           return {
             ok: false,
             files: [],
             error:
-              'Spriggit.CLI.exe crashed immediately (exit code 0xFFFFFFFF).\n' +
-              '.NET SDK was detected, so the most likely causes are:\n' +
-              '  1. Stale assembly cache — click "Clear Cache & Retry" to wipe it and let\n' +
-              '     Spriggit re-extract cleanly.  Cache location (Mossy-controlled):\n' +
-              `       ${spriggitDotnetCacheDir}\n` +
-              `  2. Low disk space — the cache extraction needs several hundred MB free on ${cacheDriveRoot} (the drive where Spriggit is installed).\n` +
-              '  3. Smart App Control (Windows 11) — can block unsigned extracted binaries.\n' +
-              '     Check Windows Security → App & browser control → Smart App Control.\n' +
-              '  4. Architecture mismatch — make sure you downloaded the x64 build of Spriggit.\n' +
+              '❌ Spriggit crashed immediately (exit code 0xFFFFFFFF).\n\n' +
+              '🔴 MOST LIKELY CAUSE: Disk space or permission issue\n' +
+              `   Cannot write to: ${spriggitCliDir}\n\n` +
+              'FIXES TO TRY (in order):\n' +
+              `  1. Free up space on ${cacheDriveRoot} (need ~500MB)\n` +
+              '  2. Move Spriggit to a different folder with more space\n' +
+              '  3. Run Mossy as Administrator (if Spriggit is in Program Files)\n' +
+              '  4. Click "Clear Cache & Retry" below\n\n' +
+              `📁 Cache location: ${spriggitDotnetCacheDir}\n\n` +
               SPRIGGIT_MANUAL_RUN_HINT,
           };
         }
+
+        if (dotnetRecheck.installed) {
+          // .NET is installed, so it's NOT a .NET issue
+          return {
+            ok: false,
+            files: [],
+            error:
+              '❌ Spriggit crashed immediately (exit code 0xFFFFFFFF).\n\n' +
+              '✅ .NET SDK is installed — so that\'s NOT the problem.\n\n' +
+              'MOST LIKELY FIXES (try in order):\n' +
+              '  1. Click "Clear Cache & Retry" below — wipes stale .NET assemblies\n' +
+              `     Cache location: ${spriggitDotnetCacheDir}\n\n` +
+              `  2. Check disk space on ${cacheDriveRoot} — extraction needs ~500MB free\n\n` +
+              '  3. Wrong ZIP downloaded?\n' +
+              '     ⚠️ Make sure you have SpriggitCLI.zip (NOT Spriggit.zip)\n' +
+              '     ⚠️ For FO4 1.11.x, use the PRE-RELEASE build (not "Latest")\n' +
+              '     Download: https://github.com/Mutagen-Modding/Spriggit/releases\n\n' +
+              '  4. Antivirus blocking? Try adding an exception for:\n' +
+              `     ${spriggitCliDir}\n\n` +
+              '  5. Architecture mismatch? Verify you have the x64 build\n\n' +
+              SPRIGGIT_MANUAL_RUN_HINT,
+          };
+        }
+        
+        // .NET is NOT installed — but if they have the self-contained PRE-RELEASE,
+        // it should work anyway, so emphasize that first
         return {
           ok: false,
           files: [],
           error:
-            'Spriggit.CLI.exe crashed immediately (exit code 0xFFFFFFFF).\n' +
-            'Common causes:\n' +
-            SPRIGGIT_CRASH_CAUSES + '\n' +
+            '❌ Spriggit crashed immediately (exit code 0xFFFFFFFF).\n\n' +
+            '⚠️ .NET SDK not detected — but the PRE-RELEASE build should work anyway!\n\n' +
+            'EASIEST FIX — Use the self-contained PRE-RELEASE build:\n' +
+            '  1. Go to: https://github.com/Mutagen-Modding/Spriggit/releases\n' +
+            '  2. Scroll past "Latest" to find the entry tagged "Pre-release"\n' +
+            '  3. Download SpriggitCLI.zip (NOT Spriggit.zip)\n' +
+            '  4. Extract to a clean folder with plenty of space\n' +
+            '  5. Use that Spriggit.CLI.exe in Mossy\n\n' +
+            'This build bundles .NET and works out-of-the-box (no SDK needed).\n\n' +
+            'OR — Install .NET SDK if you prefer:\n' +
+            '  Download: https://dotnet.microsoft.com/download/dotnet\n' +
+            '  After installing, RESTART YOUR PC, then retry\n\n' +
+            'OTHER POSSIBLE CAUSES:\n' +
+            '  • Wrong zip: Spriggit.zip (GUI) won\'t work — need SpriggitCLI.zip\n' +
+            `  • Low disk space on ${cacheDriveRoot} (needs ~500MB for extraction)\n` +
+            '  • Antivirus blocking the exe\n\n' +
             SPRIGGIT_MANUAL_RUN_HINT,
         };
       }
