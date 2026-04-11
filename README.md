@@ -11,6 +11,9 @@
 ## 🚀 Onboarding & Installer Notes (v5.4.27)
 
 **New in v5.4.27 (Latest):**
+- ✅ **Multi-Language Support** - Mossy now supports 12 languages! Choose your preferred language in Settings → Language Settings
+  - Languages: English, Spanish, French, German, Russian, Chinese (Simplified), Portuguese (BR), Japanese, Korean, Italian, Polish, Turkish
+  - See [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md) to help translate
 - ✅ **Anniversary Edition Awareness** - Mossy now understands all four FO4 version states: OG, NG, AE, and Creations Menu
 - ✅ **AE Knowledge** - AE = same NG executable (1.10.984) + 76 bundled free CC items; mods often need AE patches; PRP 81+ required for AE cells
 - ✅ **Improved Version Guidance** - AI correctly identifies your runtime and gives version-accurate advice

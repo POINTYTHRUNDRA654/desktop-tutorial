@@ -68,7 +68,8 @@
     "backend:build": "tsc -p tsconfig.backend.json",
     "backend:start": "node dist-backend/index.js",
     "token-server": "ts-node backend/token-server.ts",
-    "check-conflicts": "node scripts/check-no-conflict-markers.js"
+    "check-conflicts": "node scripts/check-no-conflict-markers.js",
+    "extract-translations": "node scripts/extract-translations.mjs"
   },
   "dependencies": {
     "@emnapi/runtime": "1.8.1",
