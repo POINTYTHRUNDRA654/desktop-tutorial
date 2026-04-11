@@ -266,14 +266,14 @@ describe('Spriggit Error Messages - User Clarity', () => {
     const mainFilePath = path.resolve(__dirname, '../main.ts');
     const mainContent = fs.readFileSync(mainFilePath, 'utf-8');
     
-    // Most common errors should be checked FIRST
+    // Most common errors should be checked in the SPRIGGIT handler's catch block
     const spriggitSection = mainContent.substring(
       mainContent.indexOf('SPRIGGIT_SERIALIZE'),
-      mainContent.indexOf('SPRIGGIT_SERIALIZE') + 5000
+      mainContent.indexOf('SPRIGGIT_SERIALIZE') + 20000 // Extended range to include catch block
     );
     
-    const diskCheckIndex = spriggitSection.search(/disk|space|ENOSPC/i);
-    const permCheckIndex = spriggitSection.search(/permission|EACCES|EPERM/i);
+    const diskCheckIndex = spriggitSection.search(/ENOSPC|disk\s+space/i);
+    const permCheckIndex = spriggitSection.search(/EACCES|EPERM|permission/i);
     
     // At least one common error should be checked
     expect(diskCheckIndex > -1 || permCheckIndex > -1).toBe(true);
