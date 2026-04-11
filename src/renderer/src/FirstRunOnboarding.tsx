@@ -1935,10 +1935,18 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 )}
                                 {spriggitMessage}
                                 {/* CRITICAL: Smart App Control "On" mode banner — shown when Defender exclusion was added but Spriggit still crashes */}
-                                {(spriggitStatus === 'error' || spriggitStatus === 'partial') && 
-                                 spriggitMessage.includes('0xFFFFFFFF') && 
-                                 detectedFo4Version.startsWith('1.11.') && 
-                                 (defenderExclusionState === 'ok' || verificationState === 'verified') && (
+                                {(() => {
+                                    // Show SAC "On" mode banner when all conditions are met:
+                                    // 1. Spriggit crashed with 0xFFFFFFFF
+                                    // 2. User added Defender exclusion (confirmed)
+                                    // 3. FO4 1.11.x detected (AE version requires PRE-RELEASE Spriggit)
+                                    const showSmartAppControlWarning = 
+                                        (spriggitStatus === 'error' || spriggitStatus === 'partial') && 
+                                        spriggitMessage.includes('0xFFFFFFFF') && 
+                                        detectedFo4Version.startsWith('1.11.') && 
+                                        (defenderExclusionState === 'ok' || verificationState === 'verified');
+                                    
+                                    return showSmartAppControlWarning && (
                                     <div className="mt-4 p-5 rounded-xl bg-gradient-to-br from-red-950/70 via-orange-950/70 to-red-950/70 border-4 border-red-500 shadow-2xl animate-pulse">
                                         <div className="flex items-start gap-4 mb-4">
                                             <span className="text-5xl">🚨</span>
@@ -2043,7 +2051,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             </p>
                                         </div>
                                     </div>
-                                )}
+                                    );
+                                })()}
                                 {(spriggitStatus === 'error' || spriggitStatus === 'partial') && spriggitMessage.includes('0xFFFFFFFF') && (
                                     <div className="mt-3 flex flex-wrap items-center gap-3">
                                         {/* Only offer the .NET download when .NET is confirmed absent.
