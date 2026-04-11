@@ -114,7 +114,7 @@ Users can verify language switching works by:
 
 ## ✅ Conclusion
 
-All 12 languages are **verified working** with **authentic translations**. Users can now access all supported languages from the onboarding screen, and the "Scissors 12 more languages" accessibility issue has been resolved.
+All 12 languages are **verified working** with **authentic translations**. Users can now access all supported languages from the onboarding screen, and the missing languages accessibility issue has been resolved.
 
 **Build Status**: ✅ Successful (7.52s)
 **Test Status**: ✅ All 35 tests passing
