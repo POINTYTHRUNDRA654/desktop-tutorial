@@ -3502,6 +3502,52 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // spriggit-verify-defender-exclusion: Check if the Spriggit folder is already
+  // excluded from Windows Defender scanning. Returns {ok: true, excluded: true/false}.
+  // Used to verify that the manual PowerShell command succeeded.
+  registerHandler(IPC_CHANNELS.SPRIGGIT_VERIFY_DEFENDER_EXCLUSION, async () => {
+    if (process.platform !== 'win32') {
+      return { ok: false, error: 'Defender exclusions are a Windows-only feature.' };
+    }
+    try {
+      const s = loadSettings();
+      const spriggitPath: string = (s.spriggitPath && typeof s.spriggitPath === 'string') ? s.spriggitPath : '';
+      if (!spriggitPath) {
+        return { ok: false, error: 'Spriggit path not set — pick Spriggit.CLI.exe first.' };
+      }
+      const targetPath = path.dirname(spriggitPath);
+      if (!fs.existsSync(targetPath)) {
+        return { ok: false, error: `Spriggit folder not found: ${targetPath}` };
+      }
+      // Query the Windows Defender exclusion list via PowerShell Get-MpPreference.
+      // The command outputs all exclusion paths, one per line. We check if our target
+      // path appears in that list (case-insensitive, normalized to backslashes).
+      const { execSync } = await import('child_process');
+      const output = execSync(
+        'powershell -NoProfile -NonInteractive -Command "Get-MpPreference | Select-Object -ExpandProperty ExclusionPath"',
+        {
+          timeout: 15_000,
+          windowsHide: true,
+          encoding: 'utf-8',
+        },
+      );
+      // Normalize both the target path and each exclusion path to backslashes and
+      // lowercase for comparison, since Windows paths are case-insensitive.
+      const normalizedTarget = targetPath.replace(/\//g, '\\').toLowerCase();
+      const exclusions = output
+        .split('\n')
+        .map(line => line.trim().replace(/\//g, '\\').toLowerCase())
+        .filter(line => line.length > 0);
+      const excluded = exclusions.includes(normalizedTarget);
+      console.log(`[Main] spriggit-verify-defender-exclusion: ${targetPath} → excluded=${excluded}`);
+      return { ok: true, excluded, targetPath };
+    } catch (e: any) {
+      const msg: string = String(e?.message || e);
+      console.error('[Main] spriggit-verify-defender-exclusion error:', e);
+      return { ok: false, error: msg };
+    }
+  });
+
   /**
    * Reads the Fallout4.exe file version from the game installation folder
    * (the parent directory of the user's selected Data folder).
