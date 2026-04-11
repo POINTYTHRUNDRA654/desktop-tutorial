@@ -109,6 +109,7 @@ const IPC_CHANNELS = {
   SPRIGGIT_CLEAR_CACHE: 'spriggit-clear-cache',
   SPRIGGIT_UNBLOCK_FILES: 'spriggit-unblock-files',
   SPRIGGIT_ADD_DEFENDER_EXCLUSION: 'spriggit-add-defender-exclusion',
+  SPRIGGIT_VERIFY_DEFENDER_EXCLUSION: 'spriggit-verify-defender-exclusion',
 
   // Duplicate Finder
   DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',
@@ -682,6 +683,14 @@ const electronAPI = {
    */
   spriggitAddDefenderExclusion: (): Promise<{ ok: boolean; excludedPath?: string; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_ADD_DEFENDER_EXCLUSION);
+  },
+
+  /**
+   * Check if the Spriggit folder is already excluded from Windows Defender.
+   * Returns ok:true with excluded:true/false, or ok:false with error on failure.
+   */
+  spriggitVerifyDefenderExclusion: (): Promise<{ ok: boolean; excluded?: boolean; targetPath?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_VERIFY_DEFENDER_EXCLUSION);
   },
 
   /**
