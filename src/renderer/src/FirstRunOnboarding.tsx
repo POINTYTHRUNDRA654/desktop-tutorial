@@ -28,6 +28,10 @@ interface RecommendedDownload {
     ifMissing: string;
     /** Optional static note shown on the download card (can be overridden dynamically) */
     note?: string;
+    /** Whether this item has a locatable executable (.exe) file.
+     *  Set to false for mods/plugins that are installed via mod manager (e.g., Address Library, Addictol).
+     *  When false, "I have it" browse button will not be shown. Defaults to true if omitted. */
+    hasExecutable?: boolean;
 }
 
 const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
@@ -62,6 +66,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         category: 'runtime',
         required: true,
         ifMissing: 'xEdit, F4SE, Buffout 4, and most compiled modding tools will refuse to launch or crash on startup.',
+        hasExecutable: false, // Installed via system installer, not a locatable .exe
     },
     // ── Modding tools ─────────────────────────────────────────────────────────
     {
@@ -147,43 +152,47 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'F4SE (Fallout 4 Script Extender)',
-        description: 'Extends the scripting capabilities of Fallout 4. Required by many mods and by Mossy\'s deeper game integrations.',
+        description: 'Extends the scripting capabilities of Fallout 4. Required by many mods and by Mossy\'s deeper game integrations. ⚠️ Extract to game folder and launch via f4se_loader.exe (NOT via Steam).',
         detectKeywords: ['f4se', 'script extender'],
         url: 'https://f4se.silverlock.org/',
         urlLabel: 'Official Site',
         category: 'modding',
         required: true,
         ifMissing: 'MCM Framework, Address Library, Addictol, and most advanced mods will not load. Many Mossy-guided workflows require F4SE to be active.',
+        hasExecutable: false, // Installed by extracting to game folder, not a standalone program
     },
     {
         name: 'Address Library for F4SE',
-        description: 'Required by virtually every F4SE plugin (Buffout 4, MCM Framework, etc.). Without it most SKSE/F4SE-dependent mods will fail to load. Install the All-in-One version.',
+        description: 'Required by virtually every F4SE plugin (Buffout 4, MCM Framework, etc.). Without it most SKSE/F4SE-dependent mods will fail to load. ⚠️ Install via mod manager (MO2/Vortex), NOT a standalone program.',
         detectKeywords: ['address library'],
         url: 'https://www.nexusmods.com/fallout4/mods/47327',
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: true,
         ifMissing: 'Addictol, MCM Framework, and virtually every F4SE plugin will fail to load. This is a hard dependency for the entire F4SE ecosystem.',
+        hasExecutable: false, // Mod installed via mod manager, not a standalone program
     },
     {
         name: 'Addictol (Stability Suite)',
-        description: 'All-in-one stability fix for Fallout 4 (OG/NG/AE/1.11.x). Replaces and supersedes Buffout 4, X-Cell, BakaMaxPapyrusOps, Faster Workshop, and more. Do NOT install those separately alongside Addictol.',
+        description: 'All-in-one stability fix for Fallout 4 (OG/NG/AE/1.11.x). Replaces Buffout 4, X-Cell, BakaMaxPapyrusOps, Faster Workshop, and more. ⚠️ Install via mod manager (MO2/Vortex), NOT a standalone program.',
         detectKeywords: ['addictol'],
         url: 'https://www.nexusmods.com/fallout4/mods/84214',
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: false,
         ifMissing: 'Game stability may be reduced. Memory management, stutter fixes, and script heap optimisations will be absent. Crash logs may also be missing.',
+        hasExecutable: false, // Mod installed via mod manager, not a standalone program
     },
     {
         name: 'CLASSIC Crash Log Scanner',
-        description: 'Automatically scans Buffout 4 crash logs and produces a human-readable diagnosis. Pair with Addictol for a complete crash-debugging setup.',
+        description: 'Automatically scans Buffout 4 crash logs and produces a human-readable diagnosis. ⚠️ Install via mod manager (MO2/Vortex), NOT a standalone program. Pair with Addictol for complete crash-debugging.',
         detectKeywords: ['classic'],
         url: 'https://www.nexusmods.com/fallout4/mods/56255',
         urlLabel: 'Nexus Mods',
         category: 'modding',
         required: false,
         ifMissing: 'Mossy cannot auto-scan crash logs. Post-crash analysis in the CK Crash Prevention panel will require manual log reading.',
+        hasExecutable: false, // Mod installed via mod manager, not a standalone program
     },
     {
         name: 'B.A.E. (Bethesda Archive Extractor)',
@@ -1693,30 +1702,33 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                             <ExternalLink className="w-3.5 h-3.5" />
                                                             {dl.urlLabel}
                                                         </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={async () => {
-                                                                try {
-                                                                    console.log(`[FirstRunOnboarding] Opening file picker for ${dl.name}...`);
-                                                                    const picked = await window.electron.api.pickToolPath(dl.name);
-                                                                    console.log(`[FirstRunOnboarding] File picker result:`, picked);
-                                                                    if (picked) {
-                                                                        setManuallyLocated((prev) => ({ ...prev, [dl.name]: picked }));
-                                                                        console.log(`[FirstRunOnboarding] ${dl.name} located at:`, picked);
-                                                                    } else {
-                                                                        console.log(`[FirstRunOnboarding] File picker cancelled or no file selected`);
+                                                        {/* Only show "I have it" button for items with locatable executables */}
+                                                        {dl.hasExecutable !== false && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        console.log(`[FirstRunOnboarding] Opening file picker for ${dl.name}...`);
+                                                                        const picked = await window.electron.api.pickToolPath(dl.name);
+                                                                        console.log(`[FirstRunOnboarding] File picker result:`, picked);
+                                                                        if (picked) {
+                                                                            setManuallyLocated((prev) => ({ ...prev, [dl.name]: picked }));
+                                                                            console.log(`[FirstRunOnboarding] ${dl.name} located at:`, picked);
+                                                                        } else {
+                                                                            console.log(`[FirstRunOnboarding] File picker cancelled or no file selected`);
+                                                                        }
+                                                                    } catch (error) {
+                                                                        console.error(`[FirstRunOnboarding] Error picking tool path for ${dl.name}:`, error);
+                                                                        alert(`Error opening file picker: ${error instanceof Error ? error.message : String(error)}`);
                                                                     }
-                                                                } catch (error) {
-                                                                    console.error(`[FirstRunOnboarding] Error picking tool path for ${dl.name}:`, error);
-                                                                    alert(`Error opening file picker: ${error instanceof Error ? error.message : String(error)}`);
-                                                                }
-                                                            }}
-                                                            className="flex items-center gap-1 px-2 py-1 rounded border border-slate-600 hover:border-slate-400 text-slate-400 hover:text-slate-200 text-xs transition-colors"
-                                                            title="Already have it? Browse to locate the executable"
-                                                        >
-                                                            <FolderOpen className="w-3 h-3" />
-                                                            I have it
-                                                        </button>
+                                                                }}
+                                                                className="flex items-center gap-1 px-2 py-1 rounded border border-slate-600 hover:border-slate-400 text-slate-400 hover:text-slate-200 text-xs transition-colors"
+                                                                title="Already have it? Browse to locate the executable"
+                                                            >
+                                                                <FolderOpen className="w-3 h-3" />
+                                                                I have it
+                                                            </button>
+                                                        )}
                                                     </>
                                                 )}
                                             </div>
