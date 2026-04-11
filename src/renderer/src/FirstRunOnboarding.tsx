@@ -428,7 +428,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 setDotnetCheckingOnEntry(false);
             }
         })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [step]);
 
     useEffect(() => {
@@ -468,7 +468,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             await speakMossy('First, confirm which edition you downloaded: Universal, or NVIDIA.');
         };
         void speakSequence();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [step]);
 
     useEffect(() => {
@@ -889,9 +889,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 nugetSource: spriggitNugetSource.trim() || undefined,
             });
             // Persist detected version info so the error UI can display them immediately.
-            if (result.fo4Version)       setDetectedFo4Version(result.fo4Version as string);
-            if (result.fo4Label)         setDetectedFo4Label(result.fo4Label as string);
-            if (result.spriggitVersion)  setDetectedSpriggitVersion(result.spriggitVersion as string);
+            if (result.fo4Version) setDetectedFo4Version(result.fo4Version as string);
+            if (result.fo4Label) setDetectedFo4Label(result.fo4Label as string);
+            if (result.spriggitVersion) setDetectedSpriggitVersion(result.spriggitVersion as string);
             // spriggitVersionTooOld is set by main.ts using an actual semver comparison, so use it
             // directly rather than re-deriving it from the version string in the renderer.
             if (typeof result.spriggitVersionTooOld === 'boolean') {
@@ -1054,13 +1054,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     setMossyEdition('universal');
                                     try { localStorage.setItem('mossy_edition_choice', 'universal'); } catch { /* ignore */ }
                                     const api = getElectronApi();
-                                    if (api?.setSettings) void api.setSettings({ mossyEditionOverride: 'universal' }).catch(() => {});
+                                    if (api?.setSettings) void api.setSettings({ mossyEditionOverride: 'universal' }).catch(() => { });
                                 }}
-                                className={`relative text-left rounded-2xl border-2 p-6 transition-all ${
-                                    mossyEdition === 'universal'
-                                        ? 'bg-blue-900/60 border-blue-400 shadow-lg shadow-blue-900/40'
-                                        : 'bg-slate-800/60 border-slate-600 hover:border-slate-400'
-                                }`}
+                                className={`relative text-left rounded-2xl border-2 p-6 transition-all ${mossyEdition === 'universal'
+                                    ? 'bg-blue-900/60 border-blue-400 shadow-lg shadow-blue-900/40'
+                                    : 'bg-slate-800/60 border-slate-600 hover:border-slate-400'
+                                    }`}
                             >
                                 <Cpu className="w-10 h-10 text-blue-400 mb-3" />
                                 <div className="text-lg font-bold text-white mb-1">Universal Edition</div>
@@ -1086,13 +1085,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     setMossyEdition('nvidia');
                                     try { localStorage.setItem('mossy_edition_choice', 'nvidia'); } catch { /* ignore */ }
                                     const api = getElectronApi();
-                                    if (api?.setSettings) void api.setSettings({ mossyEditionOverride: 'nvidia' }).catch(() => {});
+                                    if (api?.setSettings) void api.setSettings({ mossyEditionOverride: 'nvidia' }).catch(() => { });
                                 }}
-                                className={`relative text-left rounded-2xl border-2 p-6 transition-all ${
-                                    mossyEdition === 'nvidia'
-                                        ? 'bg-green-900/60 border-green-400 shadow-lg shadow-green-900/40'
-                                        : 'bg-slate-800/60 border-slate-600 hover:border-slate-400'
-                                }`}
+                                className={`relative text-left rounded-2xl border-2 p-6 transition-all ${mossyEdition === 'nvidia'
+                                    ? 'bg-green-900/60 border-green-400 shadow-lg shadow-green-900/40'
+                                    : 'bg-slate-800/60 border-slate-600 hover:border-slate-400'
+                                    }`}
                             >
                                 <Zap className="w-10 h-10 text-green-400 mb-3" />
                                 <div className="text-lg font-bold text-white mb-1">NVIDIA Edition</div>
@@ -1246,11 +1244,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                         {/* Mossy Edition badge — clarifies Universal vs Nvidia up front */}
                         {mossyEdition && (
-                            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-6 ${
-                                mossyEdition === 'nvidia'
-                                    ? 'bg-green-900/70 border border-green-500 text-green-300'
-                                    : 'bg-blue-900/70 border border-blue-500 text-blue-300'
-                            }`}>
+                            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-6 ${mossyEdition === 'nvidia'
+                                ? 'bg-green-900/70 border border-green-500 text-green-300'
+                                : 'bg-blue-900/70 border border-blue-500 text-blue-300'
+                                }`}>
                                 {mossyEdition === 'nvidia' ? <Zap className="w-4 h-4" /> : <Cpu className="w-4 h-4" />}
                                 You have <strong className="ml-1">Mossy {mossyEdition === 'nvidia' ? 'NVIDIA Edition' : 'Universal Edition'}</strong>
                                 <span className="ml-1 font-normal opacity-80">
@@ -1298,11 +1295,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         // Auto-advance after a brief pause so the user sees the selection highlighted
                                         window.setTimeout(() => startScan(), 500);
                                     }}
-                                    className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-colors ${
-                                        fo4Version === value
-                                            ? selectedClass
-                                            : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-slate-400'
-                                    }`}
+                                    className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-colors ${fo4Version === value
+                                        ? selectedClass
+                                        : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-slate-400'
+                                        }`}
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="font-semibold text-sm">{label}</div>
@@ -1762,6 +1758,55 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             </div>
                         )}
 
+                        {/* FO4 Version + Build Requirements badge */}
+                        {detectedFo4Label && (
+                            <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 text-sm text-left bg-blue-900/20 border border-blue-600/40 text-blue-300">
+                                <strong className="text-blue-100">📋 Your Setup:</strong>
+                                <div className="mt-2 space-y-1">
+                                    <div className="flex items-center gap-2 text-xs">
+                                        <span className="text-blue-400">🎮</span>
+                                        <span><strong>Game:</strong> {detectedFo4Label}</span>
+                                    </div>
+                                    {detectedFo4Version.startsWith('1.11.') ? (
+                                        <div className="flex items-center gap-2 text-xs text-amber-300">
+                                            <span>⚠️</span>
+                                            <span><strong>Required:</strong> Spriggit <strong>PRE-RELEASE (dev)</strong> build — stable "Latest" does NOT support AE/Creations Menu</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2 text-xs text-emerald-300">
+                                            <span>✓</span>
+                                            <span><strong>Spriggit:</strong> Any recent build works fine</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Readiness Checklist */}
+                        {(spriggitCliPath || spriggitDataPath) && (
+                            <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-3 bg-slate-800/40 border border-slate-600/50">
+                                <div className="text-sm font-semibold text-slate-300 mb-2 flex items-center gap-2">
+                                    <span>📍 Readiness Checklist</span>
+                                </div>
+                                <div className="space-y-1">
+                                    <div className={`flex items-center gap-2 text-xs ${spriggitCliPath ? 'text-emerald-300' : 'text-slate-400'}`}>
+                                        {spriggitCliPath ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border border-slate-500 rounded" />}
+                                        <span>Spriggit.CLI.exe selected</span>
+                                    </div>
+                                    <div className={`flex items-center gap-2 text-xs ${spriggitDataPath ? 'text-emerald-300' : 'text-slate-400'}`}>
+                                        {spriggitDataPath ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border border-slate-500 rounded" />}
+                                        <span>Fallout 4 Data folder picked</span>
+                                    </div>
+                                    {spriggitCliPath && spriggitDataPath && (
+                                        <div className="flex items-center gap-2 text-xs text-emerald-400 font-semibold mt-2 pt-2 border-t border-slate-600">
+                                            <span>✨</span>
+                                            <span>Ready to digest! Scroll down to start.</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="max-w-lg mx-auto space-y-4 mb-6 text-left">
                             {/* Spriggit CLI path */}
                             <div>
@@ -1782,7 +1827,28 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             const api = getElectronApi();
                                             if (!api?.spriggitPickCli) return;
                                             const p = await api.spriggitPickCli();
-                                            if (p) setSpriggitCliPath(p);
+                                            if (p) {
+                                                setSpriggitCliPath(p);
+                                                // Try to auto-detect Data folder: assume Spriggit is extracted in a folder
+                                                // adjacent to or inside the Steam Fallout 4 directory.
+                                                // Try progressively higher parent directories looking for a "Data" sibling.
+                                                try {
+                                                    const path = require('path');
+                                                    let candidate = path.dirname(p); // folder containing Spriggit.CLI.exe
+                                                    const fs = require('fs');
+                                                    for (let i = 0; i < 4; i++) {
+                                                        const parentDir = path.dirname(candidate);
+                                                        const dataPath = path.join(parentDir, 'Data');
+                                                        if (fs.existsSync(dataPath)) {
+                                                            setSpriggitDataPath(dataPath);
+                                                            break;
+                                                        }
+                                                        candidate = parentDir;
+                                                    }
+                                                } catch {
+                                                    // Auto-detection failed silently — user must pick manually
+                                                }
+                                            }
                                         }}
                                         className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-lg text-sm text-slate-200 flex items-center gap-1.5 transition-colors"
                                     >
@@ -1901,15 +1967,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                         {/* Status message */}
                         {spriggitMessage && (
-                            <div className={`max-w-lg mx-auto mb-5 rounded-lg px-4 py-3 text-sm text-left whitespace-pre-line break-words max-h-64 overflow-y-auto ${
-                                spriggitStatus === 'error'
-                                    ? 'bg-red-900/30 border border-red-700/50 text-red-200'
-                                    : spriggitStatus === 'noMods' || spriggitStatus === 'partial'
-                                        ? 'bg-amber-900/30 border border-amber-600/50 text-amber-200'
-                                        : spriggitStatus === 'done'
-                                            ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
-                                            : 'bg-slate-800/60 border border-slate-600 text-slate-300'
-                            }`}>
+                            <div className={`max-w-lg mx-auto mb-5 rounded-lg px-4 py-3 text-sm text-left whitespace-pre-line break-words max-h-64 overflow-y-auto ${spriggitStatus === 'error'
+                                ? 'bg-red-900/30 border border-red-700/50 text-red-200'
+                                : spriggitStatus === 'noMods' || spriggitStatus === 'partial'
+                                    ? 'bg-amber-900/30 border border-amber-600/50 text-amber-200'
+                                    : spriggitStatus === 'done'
+                                        ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
+                                        : 'bg-slate-800/60 border border-slate-600 text-slate-300'
+                                }`}>
                                 {spriggitStatus === 'running' && <Loader className="w-4 h-4 inline-block animate-spin mr-2" />}
                                 {spriggitStatus === 'noMods' && <span className="font-bold">ℹ️ Vanilla ESMs not found:{'\n'}</span>}
                                 {/* Version badge — shown for error or partial status when versions are known */}
@@ -2049,12 +2114,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                             ⚠️ Administrator Rights Required
                                                         </h3>
                                                         <p className="text-yellow-200 text-sm mb-2">
-                                                            Mossy tried to add a Windows Defender exclusion automatically, but it requires Administrator privileges. 
+                                                            Mossy tried to add a Windows Defender exclusion automatically, but it requires Administrator privileges.
                                                             <strong className="text-yellow-100"> Follow these steps to add the exclusion manually:</strong>
                                                         </p>
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div className="bg-slate-900/60 rounded-lg p-4 border border-yellow-600/30 mb-3">
                                                     <ol className="text-yellow-100 text-sm space-y-3 list-decimal list-inside">
                                                         <li className="pl-2">
@@ -2113,7 +2178,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 <div className="mt-3 pt-3 border-t border-yellow-600/30 text-xs text-yellow-300/80">
                                                     <strong>What this does:</strong> Tells Windows Defender to trust all files in your Spriggit folder, preventing Smart App Control from blocking the .NET assemblies that Spriggit extracts at runtime.
                                                 </div>
-                                                
+
                                                 {/* Verification button — shown after manual command instructions */}
                                                 <div className="mt-4 pt-4 border-t border-yellow-600/30">
                                                     <p className="text-yellow-100 text-sm font-semibold mb-2">
@@ -2149,13 +2214,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         {verificationState === 'checking' ? '🔄 Checking…' : '🔍 Verify Defender Exclusion'}
                                                     </button>
                                                     {verificationMessage && (
-                                                        <div className={`mt-2 p-3 rounded-lg text-sm font-medium ${
-                                                            verificationState === 'verified'
-                                                                ? 'bg-emerald-800/60 border border-emerald-600/50 text-emerald-100'
-                                                                : verificationState === 'not-excluded'
-                                                                    ? 'bg-amber-800/60 border border-amber-600/50 text-amber-100'
-                                                                    : 'bg-red-800/60 border border-red-600/50 text-red-100'
-                                                        }`}>
+                                                        <div className={`mt-2 p-3 rounded-lg text-sm font-medium ${verificationState === 'verified'
+                                                            ? 'bg-emerald-800/60 border border-emerald-600/50 text-emerald-100'
+                                                            : verificationState === 'not-excluded'
+                                                                ? 'bg-amber-800/60 border border-amber-600/50 text-amber-100'
+                                                                : 'bg-red-800/60 border border-red-600/50 text-red-100'
+                                                            }`}>
                                                             {verificationMessage}
                                                         </div>
                                                     )}
@@ -2228,7 +2292,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 : '⬇️ Re-download Spriggit (pre-release) →';
                                             const baseClasses = 'px-3 py-1 rounded text-xs transition-colors';
                                             const mismatchClasses = 'border-2 border-yellow-400 bg-yellow-700/60 hover:bg-yellow-600/70 text-yellow-100 font-bold';
-                                            const normalClasses  = 'bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 font-semibold';
+                                            const normalClasses = 'bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 font-semibold';
                                             return (
                                                 <>
                                                     <button
@@ -2340,7 +2404,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                                 ? <>
                                                                     ⚠️ Cache cleared but still failing.{' '}
                                                                     <strong>Clearing the cache caused Spriggit to extract a fresh set of
-                                                                    .NET assemblies — those new files were never unblocked.</strong>{' '}
+                                                                        .NET assemblies — those new files were never unblocked.</strong>{' '}
                                                                     Click <strong>🔓 Unblock Files</strong> above (to unblock the newly
                                                                     extracted assemblies), then click{' '}
                                                                     <strong>🗑️ Clear Cache &amp; Retry</strong> once more.{' '}
@@ -2349,18 +2413,18 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                                         Spriggit folder (Windows Security → Virus &amp; threat protection →
                                                                         Exclusions) so SAC cannot block any future extractions.
                                                                     </>}
-                                                                  </>
+                                                                </>
                                                                 : <>
                                                                     ⚠️ Auto-unblock ran but Spriggit is still crashing.{' '}
                                                                     {detectedFo4Version.startsWith('1.11.')
                                                                         ? <>Smart App Control may be set to <strong>&ldquo;On&rdquo;</strong> (not Evaluation) — in
-                                                                          that mode, Unblock-File alone is not enough.  <strong>Use the "⭐ Add Defender Exclusion" button at the top</strong>
-                                                                          so SAC skips reputation checks on the extracted .NET assemblies.{' '}
-                                                                          After adding the exclusion, click <strong>🗑️ Clear Cache &amp; Retry</strong> one more time.</>
+                                                                            that mode, Unblock-File alone is not enough.  <strong>Use the "⭐ Add Defender Exclusion" button at the top</strong>
+                                                                            so SAC skips reputation checks on the extracted .NET assemblies.{' '}
+                                                                            After adding the exclusion, click <strong>🗑️ Clear Cache &amp; Retry</strong> one more time.</>
                                                                         : <>Check Smart App Control (Windows Security → App &amp; browser control)
-                                                                          or use the <strong>Add Defender Exclusion button above</strong> for your Spriggit folder.</>
+                                                                            or use the <strong>Add Defender Exclusion button above</strong> for your Spriggit folder.</>
                                                                     }
-                                                                  </>
+                                                                </>
                                                             }
                                                         </span>
                                                     )}

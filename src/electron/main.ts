@@ -3594,7 +3594,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     if (!v) return '';
     if (v.startsWith('1.11.')) return `Fallout 4 v${v} — 1.11.x (Creations Menu / Anniversary Edition, Nov 2025+)`;
     if (v.startsWith('1.10.980') || v.startsWith('1.10.981') || v.startsWith('1.10.982') ||
-        v.startsWith('1.10.983') || v.startsWith('1.10.984')) {
+      v.startsWith('1.10.983') || v.startsWith('1.10.984')) {
       return `Fallout 4 v${v} — NG (Next-Gen update, April 2024)`;
     }
     if (v.startsWith('1.10.163')) return `Fallout 4 v${v} — OG (Legacy / pre-NG)`;
@@ -3740,8 +3740,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // the Data folder).  This runs in parallel with the plugin scan below so
       // it adds no latency to the critical path.
       const fo4Version = await detectFallout4Version(dataPath);
-      const fo4Label   = classifyFo4Version(fo4Version);
-      const fo4Is111x  = fo4Version.startsWith('1.11.');
+      const fo4Label = classifyFo4Version(fo4Version);
+      const fo4Is111x = fo4Version.startsWith('1.11.');
 
       // Early-exit: scan the Data folder and apply the appropriate plugin filter
       // BEFORE doing any process spawning.
@@ -4151,7 +4151,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             // Build a version context banner shown at the top of every hint block so
             // users and support can immediately see what was detected.
             const versionBanner =
-              (fo4Label            ? `  Detected game:    ${fo4Label}\n`               : '') +
+              (fo4Label ? `  Detected game:    ${fo4Label}\n` : '') +
               (spriggitDisplayVersion ? `  Detected Spriggit: v${spriggitDisplayVersion}\n` : '');
 
             // dotnetCheck.installed is known-true here (we returned early above if it was false).
@@ -4165,7 +4165,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               // builds older than v0.34.0 cannot handle them and fail exactly this way.
               const serializeFailDesc = hasSilentFailures
                 ? 'crashes with exit code 4294967295 / 0xFFFFFFFF on DLC files\n' +
-                  'and/or exits cleanly but produces no YAML for base-game ESMs'
+                'and/or exits cleanly but produces no YAML for base-game ESMs'
                 : 'crashes during serialize\n(exit code 4294967295 / 0xFFFFFFFF)';
 
               // Build the #1 hint based on what was detected:
@@ -4219,12 +4219,12 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               // is a useful secondary step after the SAC fix.
               const cacheHint = spriggitVersionTooOld
                 ? '\n  2. "Clear Cache & Retry" alone will NOT fix a version mismatch.\n' +
-                  '     Only re-downloading Spriggit (step 1) solves this.  If you have already\n' +
-                  '     re-downloaded and still see this error, then clearing the cache helps:\n' +
-                  `       ${spriggitDotnetCacheDir}\n`
+                '     Only re-downloading Spriggit (step 1) solves this.  If you have already\n' +
+                '     re-downloaded and still see this error, then clearing the cache helps:\n' +
+                `       ${spriggitDotnetCacheDir}\n`
                 : '\n  2. Click "Clear Cache & Retry" — this wipes the Spriggit assembly cache at:\n' +
-                  `       ${spriggitDotnetCacheDir}\n` +
-                  '       Then Spriggit will re-extract cleanly.\n';
+                `       ${spriggitDotnetCacheDir}\n` +
+                '       Then Spriggit will re-extract cleanly.\n';
 
               hint = `\n\nSpriggit.CLI.exe starts correctly (--version passed) but ${serializeFailDesc}.\n\n` +
                 (versionBanner ? versionBanner + '\n' : '') +
@@ -4233,11 +4233,11 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                 `\n  3. Free up disk space — cache extraction needs several hundred MB free on ${cacheDriveRoot} (the drive where Spriggit is installed).\n\n` +
                 (spriggitVersionTooOld
                   ? '  4. Smart App Control (Windows 11) — can silently block unsigned extracted\n' +
-                    '     binaries even when standard AV shows nothing.\n' +
-                    '     Check: Windows Security → App & browser control → Smart App Control.\n\n'
+                  '     binaries even when standard AV shows nothing.\n' +
+                  '     Check: Windows Security → App & browser control → Smart App Control.\n\n'
                   : '  4. Re-download Spriggit (pre-release/dev) — if SAC and disk space are fine, try\n' +
-                    '     downloading the PRE-RELEASE SpriggitCLI.zip (github.com/Mutagen-Modding/Spriggit/releases)\n' +
-                    '     — look for the entry tagged "Pre-release", not the top "Latest" stable build.\n\n') +
+                  '     downloading the PRE-RELEASE SpriggitCLI.zip (github.com/Mutagen-Modding/Spriggit/releases)\n' +
+                  '     — look for the entry tagged "Pre-release", not the top "Latest" stable build.\n\n') +
                 '  ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
             } else {
               // Self-test timed out (null) — we cannot confirm the binary works; show the full list.
@@ -4247,15 +4247,15 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                 (versionBanner ? versionBanner : '') +
                 (spriggitVersionTooOld
                   ? '  1. ⭐ VERSION MISMATCH — Fallout 4 1.11.x (Creations Menu) requires a\n' +
-                    '     PRE-RELEASE (dev) build of Spriggit from github.com/Mutagen-Modding/Spriggit/releases.\n' +
-                    '     Look for the entry tagged \"Pre-release\" — the stable \"Latest\" does NOT support AE.\n'
+                  '     PRE-RELEASE (dev) build of Spriggit from github.com/Mutagen-Modding/Spriggit/releases.\n' +
+                  '     Look for the entry tagged \"Pre-release\" — the stable \"Latest\" does NOT support AE.\n'
                   : fo4Is111x && spriggitDisplayVersion
-                  ? `  1. ⭐ Smart App Control (Windows 11) — Spriggit v${spriggitDisplayVersion} is\n` +
+                    ? `  1. ⭐ Smart App Control (Windows 11) — Spriggit v${spriggitDisplayVersion} is\n` +
                     '     current; SAC is the most likely culprit.  Check Windows Security →\n' +
                     '     App & browser control → Smart App Control.\n' +
                     '     If SAC is LOCKED (greyed out), click "🔓 Unblock Files" in Mossy or\n' +
                     '     add a Defender exclusion: Windows Security → Virus & threat protection → Exclusions.\n'
-                  : '  1. ⭐ Spriggit version too old — if on FO4 1.11.x (Creations Menu / Nov 2025),\n' +
+                    : '  1. ⭐ Spriggit version too old — if on FO4 1.11.x (Creations Menu / Nov 2025),\n' +
                     '     download the PRE-RELEASE (dev) SpriggitCLI.zip from github.com/Mutagen-Modding/Spriggit/releases.\n' +
                     '     On the releases page look for \"Pre-release\" — NOT the top \"Latest\" stable build.\n') +
                 '  2. Stale cache — click "Clear Cache & Retry" to wipe it so Spriggit can re-extract:\n' +
@@ -7354,7 +7354,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // In-memory roadmap storage (in production, use persistent data)
   const roadmapStorage = new Map<string, any>();
 
-  ipcMain.handle('roadmap-get-all', async (_event) => {
+  registerHandler('roadmap-get-all', async (_event) => {
     try {
       return Array.from(roadmapStorage.values());
     } catch (error) {
@@ -7363,7 +7363,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
-  ipcMain.handle('roadmap-generate-ai', async (_event, params: { prompt: string; projectId: string }) => {
+  registerHandler('roadmap-generate-ai', async (_event, params: { prompt: string; projectId: string }) => {
     try {
       const { prompt, projectId } = params;
 
@@ -7398,7 +7398,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
-  ipcMain.handle('roadmap-update-step', async (_event, params: { roadmapId: string; stepId: string; status: string }) => {
+  registerHandler('roadmap-update-step', async (_event, params: { roadmapId: string; stepId: string; status: string }) => {
     try {
       const { roadmapId, stepId, status } = params;
       const roadmap = roadmapStorage.get(roadmapId);
@@ -7520,7 +7520,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     return 'general';
   }
 
-  ipcMain.handle('roadmap-create', async (_event, params: { title: string; goal: string; projectId: string }) => {
+  registerHandler('roadmap-create', async (_event, params: { title: string; goal: string; projectId: string }) => {
     try {
       const { title, goal, projectId } = params;
       const roadmapId = `roadmap-${Date.now()}`;
@@ -7543,7 +7543,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
-  ipcMain.handle('roadmap-get-active', async (_event, params: { projectId: string }) => {
+  registerHandler('roadmap-get-active', async (_event, params: { projectId: string }) => {
     try {
       const { projectId } = params;
       // Get the most recently created roadmap for this project
@@ -7567,65 +7567,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
-  ipcMain.handle('roadmap-delete', async (_event, params: { roadmapId: string }) => {
-    try {
-      const { roadmapId } = params;
-      roadmapStorage.delete(roadmapId);
-      return { ok: true };
-    } catch (error) {
-      console.error('[Roadmap] Error deleting roadmap:', error);
-      return { ok: false, error: (error as Error).message };
-    }
-  });
-
-  ipcMain.handle('roadmap-create', async (_event, params: { title: string; goal: string; projectId: string }) => {
-    try {
-      const { title, goal, projectId } = params;
-      const roadmapId = `roadmap-${Date.now()}`;
-
-      const newRoadmap = {
-        id: roadmapId,
-        title,
-        goal,
-        steps: parseRoadmapSteps(goal),
-        projectId,
-        createdAt: new Date().toISOString(),
-        currentStepId: null,
-      };
-
-      roadmapStorage.set(roadmapId, newRoadmap);
-      return { ok: true, roadmap: newRoadmap };
-    } catch (error) {
-      console.error('[Roadmap] Error creating roadmap:', error);
-      return { ok: false, error: (error as Error).message };
-    }
-  });
-
-  ipcMain.handle('roadmap-get-active', async (_event, params: { projectId: string }) => {
-    try {
-      const { projectId } = params;
-      // Get the most recently created roadmap for this project
-      let activeRoadmap = null;
-      let latestTime = 0;
-
-      for (const roadmap of roadmapStorage.values()) {
-        if (roadmap.projectId === projectId) {
-          const time = new Date(roadmap.createdAt).getTime();
-          if (time > latestTime) {
-            latestTime = time;
-            activeRoadmap = roadmap;
-          }
-        }
-      }
-
-      return { ok: true, roadmap: activeRoadmap };
-    } catch (error) {
-      console.error('[Roadmap] Error getting active roadmap:', error);
-      return { ok: false, error: (error as Error).message };
-    }
-  });
-
-  ipcMain.handle('roadmap-delete', async (_event, params: { roadmapId: string }) => {
+  registerHandler('roadmap-delete', async (_event, params: { roadmapId: string }) => {
     try {
       const { roadmapId } = params;
       roadmapStorage.delete(roadmapId);
