@@ -3922,6 +3922,12 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // Used to avoid a false-positive "VERSION MISMATCH" when the user has a current build.
       const spriggitVersionTooOld = fo4Is111x && isSpriggitTooOldFor111x(spriggitDetectedVersion);
 
+      // **DEBUG LOG**: Log the detected version and flag support
+      console.log('[Spriggit] Detected version raw:', JSON.stringify(spriggitDetectedVersion));
+      console.log('[Spriggit] Parsed display version:', spriggitDisplayVersion);
+      console.log('[Spriggit] PackageName flag supported?', isSpriggitPackageNameFlagSupported(spriggitDetectedVersion));
+      console.log('[Spriggit] Source flag supported?', isSpriggitSourceFlagSupported(spriggitDetectedVersion));
+
       if (selfTestCode === SPRIGGIT_CRASH_EXIT_CODE) {
         // Re-check .NET to produce a more targeted error message.
         const dotnetRecheck = await checkDotNetRuntime();
@@ -4025,6 +4031,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             ...(isSpriggitPackageNameFlagSupported(spriggitDetectedVersion) ? ['--PackageName', resolvedPackageName] : []),
             ...(nugetSource && nugetSource.trim() && isSpriggitSourceFlagSupported(spriggitDetectedVersion) ? ['--Source', nugetSource.trim()] : []),
           ];
+          // **DEBUG LOG**: Log the spawn args for this plugin
+          console.log(`[Spriggit] Serializing ${plugin} with args:`, spawnArgs.slice(0, 10).join(' '), spawnArgs.length > 10 ? '...' : '');
           const child = spawn(cliPath, spawnArgs, { shell: false, windowsHide: true, cwd: path.dirname(cliPath), env: spriggitEnv });
 
           let stderr = '';
