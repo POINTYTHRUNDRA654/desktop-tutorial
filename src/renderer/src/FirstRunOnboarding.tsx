@@ -69,7 +69,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         description: 'Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Used by Mossy\'s onboarding brain-boost step to ingest the vanilla ESMs.',
         detectKeywords: ['spriggit'],
         url: 'https://github.com/Mutagen-Modding/Spriggit/releases',
-        note: '⚠️ For FO4 1.11.x (AE/Creations Menu): scroll past the top "Latest" release and download the PRE-RELEASE (dev) SpriggitCLI.zip.',
+        note: '⚠️ For FO4 1.11.x (AE): Download PRE-RELEASE SpriggitCLI.zip (NOT the green "Code→Download ZIP" button!). If you already have it, click "I have it" button to browse to Spriggit.CLI.exe.',
         urlLabel: 'GitHub Releases',
         category: 'version-control',
         required: false,
@@ -1883,7 +1883,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 <ol className="text-amber-200 text-xs space-y-2 list-decimal list-inside">
                                                     <li>Click the button below to open the Spriggit releases page</li>
                                                     <li><strong className="text-amber-50">Scroll past</strong> the top "Latest" release — you need the one tagged <strong className="text-amber-50">Pre-release</strong></li>
-                                                    <li>Download <code className="bg-amber-900/60 px-1.5 py-0.5 rounded text-emerald-300">SpriggitCLI.zip</code> (NOT <code className="bg-amber-900/60 px-1.5 py-0.5 rounded line-through">Spriggit.zip</code>)</li>
+                                                    <li>In the Assets section, download <code className="bg-amber-900/60 px-1.5 py-0.5 rounded text-emerald-300">SpriggitCLI.zip</code> (NOT the green "Code" button!)</li>
                                                     <li>Extract the <strong className="text-amber-50">entire zip</strong> to a permanent folder (e.g., <code className="bg-amber-900/60 px-1.5 py-0.5 rounded">C:\Tools\Spriggit\</code>)</li>
                                                     <li>Come back here and click Browse below to select <code className="bg-amber-900/60 px-1.5 py-0.5 rounded text-emerald-300">Spriggit.CLI.exe</code></li>
                                                 </ol>
