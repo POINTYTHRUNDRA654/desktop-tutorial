@@ -71,14 +71,14 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     // ── Modding tools ─────────────────────────────────────────────────────────
     {
         name: 'Spriggit',
-        description: 'Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Used by Mossy\'s onboarding brain-boost step to ingest the vanilla ESMs.',
+        description: `Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Used by Mossy's onboarding brain-boost step to ingest the vanilla ESMs.`,
         detectKeywords: ['spriggit'],
         url: 'https://github.com/Mutagen-Modding/Spriggit/releases',
-        note: '⚠️ For FO4 1.11.x (AE): Download PRE-RELEASE SpriggitCLI.zip (NOT the green "Code→Download ZIP" button!). If you already have it, click "I have it" button to browse to Spriggit.CLI.exe.',
+        note: `💡 Download SpriggitCLI.zip from the latest release (NOT the green "Code→Download ZIP" button — that's source code with no .exe). Requires Spriggit v0.34.0+ for FO4 1.11.x (AE) support. If you already have it, click "I have it" to browse to Spriggit.CLI.exe.`,
         urlLabel: 'GitHub Releases',
         category: 'version-control',
         required: false,
-        ifMissing: 'Mossy cannot digest vanilla ESMs into her Knowledge Vault. The brain-boost onboarding step will be unavailable.',
+        ifMissing: `Mossy cannot digest vanilla ESMs into her Knowledge Vault. The brain-boost onboarding step will be unavailable.`,
     },
     {
         name: 'xEdit / FO4Edit',
@@ -1223,7 +1223,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             <div className="text-xs text-slate-400 mt-1">
                                 {t('onboarding.language.help', 'Choose your interface language. You can change this later in Settings.')}
                             </div>
-                            <div className="mt-3 grid grid-cols-2 gap-2">
+                            <div className="mt-3 grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-2">
                                 {[
                                     { value: 'auto', label: t('onboarding.language.auto', 'Auto (system)') },
                                     { value: 'en', label: 'English' },
@@ -1232,6 +1232,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     { value: 'de', label: 'Deutsch' },
                                     { value: 'ru', label: 'Русский' },
                                     { value: 'zh-Hans', label: '中文（简体）' },
+                                    { value: 'pt-BR', label: 'Português (Brasil)' },
+                                    { value: 'ja', label: '日本語' },
+                                    { value: 'ko', label: '한국어' },
+                                    { value: 'it', label: 'Italiano' },
+                                    { value: 'pl', label: 'Polski' },
+                                    { value: 'tr', label: 'Türkçe' },
                                 ].map(({ value, label }) => (
                                     <button
                                         key={value}
@@ -1639,17 +1645,15 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     }`}>
                                                         {fo4Version === 'ae' ? (
                                                             <>
-                                                                <strong className="text-red-100">⚠️ FO4 1.11.x (AE) Detected:</strong> You <strong className="text-red-100">MUST</strong> download the <strong className="text-red-100">PRE-RELEASE</strong> (dev) build.
+                                                                <strong className="text-blue-100">💡 FO4 1.11.x (AE) Detected:</strong> Download <code className="bg-blue-900/40 px-1 rounded">SpriggitCLI.zip</code> from the latest release (v0.34.0+ required).
                                                                 <br />
                                                                 <strong className="text-red-100">DO NOT</strong> click the green "Code" button or "Download ZIP" — that downloads <em>source code</em> with no .exe file!
                                                                 <br />
-                                                                Instead: Scroll past the top "Latest" release → find <strong className="text-red-100">Pre-release</strong> entry → expand "Assets" → download <code className="bg-red-900/40 px-1 rounded">SpriggitCLI.zip</code>.
-                                                                <br />
-                                                                The stable "Latest" build does NOT support 1.11.x and will crash with exit code 0xFFFFFFFF.
+                                                                Instead: Go to <strong>Releases</strong> → expand <strong>"Assets"</strong> → download <code className="bg-blue-900/40 px-1 rounded">SpriggitCLI.zip</code>.
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <strong className="text-blue-100">💡 FO4 {fo4Version.toUpperCase()} Detected:</strong> Use the <strong className="text-blue-100">Latest</strong> stable release for your version.
+                                                                <strong className="text-blue-100">💡 FO4 {fo4Version.toUpperCase()} Detected:</strong> Download <code className="bg-blue-900/40 px-1 rounded">SpriggitCLI.zip</code> from the latest release.
                                                                 <br />
                                                                 <strong className="text-blue-100">DO NOT</strong> click the green "Code" button! Instead: Go to releases → expand "Assets" → download <code className="bg-blue-900/40 px-1 rounded">SpriggitCLI.zip</code>.
                                                             </>
@@ -1794,9 +1798,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         e.g. <code className="bg-amber-900/50 px-1 rounded">D:\Program Files\dotnet</code>.
                                         Mossy detects .NET on any drive automatically.
                                     </div>
-                                    <div className="mt-2 p-2 rounded bg-amber-800/30 border border-amber-500/40 text-amber-100 text-xs">
-                                        <strong>✨ Easiest fix:</strong> Download the <strong>self-contained Spriggit build</strong> — it bundles .NET and requires no separate installation.
-                                        On the releases page, look for the entry tagged <strong>Pre-release</strong> (scroll past the top "Latest" stable build) — download its <code className="bg-amber-900/50 px-1 rounded">SpriggitCLI.zip</code> and use the <code className="bg-amber-900/50 px-1 rounded">Spriggit.CLI.exe</code> inside it. ⚠️ The stable "Latest" does <em>not</em> support FO4 1.11.x (AE).
+                                    <div className="mt-2 p-2 rounded bg-blue-800/30 border border-blue-500/40 text-blue-100 text-xs">
+                                        <strong>✨ Download Spriggit:</strong> Get the latest <code className="bg-blue-900/50 px-1 rounded">SpriggitCLI.zip</code> from the GitHub releases page. It's self-contained and bundles .NET (v0.34.0+ required for FO4 1.11.x).
                                     </div>
                                     <div className="mt-2 flex flex-wrap items-center gap-3">
                                         <button
@@ -1879,7 +1882,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         {detectedFo4Version.startsWith('1.11.') ? (
                                             <div className="flex items-center gap-2 text-xs text-amber-300">
                                                 <span>⚠️</span>
-                                                <span><strong>Required:</strong> Spriggit <strong>PRE-RELEASE (dev)</strong> build — stable "Latest" does NOT support AE/Creations Menu</span>
+                                                <span><strong>Required:</strong> Spriggit v0.34.0+ for FO4 1.11.x (AE/Creations Menu) support</span>
                                             </div>
                                         ) : (
                                             <div className="flex items-center gap-2 text-xs text-emerald-300">
@@ -1893,36 +1896,34 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                             {/* AE-specific Spriggit download instructions - shown prominently for 1.11.x users */}
                             {detectedFo4Version.startsWith('1.11.') && !spriggitCliPath && (
-                                <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-4 text-sm text-left bg-gradient-to-br from-amber-900/40 to-orange-900/40 border-2 border-amber-500/60 shadow-lg">
+                                <div className="max-w-lg mx-auto mb-6 rounded-lg px-4 py-4 text-sm text-left bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border-2 border-blue-500/60 shadow-lg">
                                     <div className="flex items-start gap-3 mb-3">
-                                        <span className="text-3xl">⚠️</span>
+                                        <span className="text-3xl">💡</span>
                                         <div className="flex-1">
-                                            <h3 className="text-amber-100 font-bold text-base mb-2">
-                                                Anniversary Edition Detected — Special Spriggit Build Required
+                                            <h3 className="text-blue-100 font-bold text-base mb-2">
+                                                Download Spriggit for Anniversary Edition
                                             </h3>
-                                            <p className="text-amber-200 text-sm mb-3 leading-relaxed">
-                                                Your Fallout 4 version ({detectedFo4Version}) requires the <strong className="text-amber-50">PRE-RELEASE (dev)</strong> build of Spriggit.
-                                                The stable "Latest" release will crash with exit code 0xFFFFFFFF.
+                                            <p className="text-blue-200 text-sm mb-3 leading-relaxed">
+                                                Your Fallout 4 version ({detectedFo4Version}) requires <strong className="text-blue-50">Spriggit v0.34.0 or newer</strong> (latest stable: v0.40.0).
                                             </p>
-                                            <div className="bg-amber-950/60 border border-amber-600/40 rounded-lg p-3 mb-3">
-                                                <p className="text-amber-100 font-semibold text-xs mb-2">📥 Download Instructions:</p>
-                                                <ol className="text-amber-200 text-xs space-y-2 list-decimal list-inside">
+                                            <div className="bg-blue-950/60 border border-blue-600/40 rounded-lg p-3 mb-3">
+                                                <p className="text-blue-100 font-semibold text-xs mb-2">📥 Download Instructions:</p>
+                                                <ol className="text-blue-200 text-xs space-y-2 list-decimal list-inside">
                                                     <li>Click the button below to open the Spriggit releases page</li>
-                                                    <li><strong className="text-amber-50">Scroll past</strong> the top "Latest" release — you need the one tagged <strong className="text-amber-50">Pre-release</strong></li>
-                                                    <li>In the Assets section, download <code className="bg-amber-900/60 px-1.5 py-0.5 rounded text-emerald-300">SpriggitCLI.zip</code> (NOT the green "Code" button!)</li>
-                                                    <li>Extract the <strong className="text-amber-50">entire zip</strong> to a permanent folder (e.g., <code className="bg-amber-900/60 px-1.5 py-0.5 rounded">C:\Tools\Spriggit\</code>)</li>
-                                                    <li>Come back here and click Browse below to select <code className="bg-amber-900/60 px-1.5 py-0.5 rounded text-emerald-300">Spriggit.CLI.exe</code></li>
+                                                    <li>Download <code className="bg-blue-900/60 px-1.5 py-0.5 rounded text-emerald-300">SpriggitCLI.zip</code> from the latest release (NOT the green "Code" button!)</li>
+                                                    <li>Extract the <strong className="text-blue-50">entire zip</strong> to a permanent folder (e.g., <code className="bg-blue-900/60 px-1.5 py-0.5 rounded">C:\Tools\Spriggit\</code>)</li>
+                                                    <li>Come back here and click Browse below to select <code className="bg-blue-900/60 px-1.5 py-0.5 rounded text-emerald-300">Spriggit.CLI.exe</code></li>
                                                 </ol>
                                             </div>
                                             <button
                                                 type="button"
-                                                className="w-full px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2 shadow-md"
+                                                className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2 shadow-md"
                                                 onClick={() => void openExternal('https://github.com/Mutagen-Modding/Spriggit/releases')}
                                             >
                                                 <ExternalLink className="w-4 h-4" /> Open Spriggit Releases Page (GitHub)
                                             </button>
-                                            <p className="text-amber-300 text-xs mt-2 italic">
-                                                💡 Tip: The PRE-RELEASE build is self-contained and bundles .NET, so you don't need to install .NET separately.
+                                            <p className="text-blue-300 text-xs mt-2 italic">
+                                                💡 Tip: SpriggitCLI.zip is self-contained and bundles .NET, so you don't need to install .NET separately.
                                             </p>
                                         </div>
                                     </div>
@@ -2133,7 +2134,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             {detectedSpriggitVersion && (
                                                 <div>🔧 <strong>Spriggit:</strong> v{detectedSpriggitVersion}
                                                     {spriggitVersionTooOld === true && (
-                                                        <span className="ml-1 text-amber-400 font-bold">⚠️ too old for FO4 1.11.x — download the PRE-RELEASE (dev) build</span>
+                                                        <span className="ml-1 text-amber-400 font-bold">⚠️ too old for FO4 1.11.x — download v0.34.0+</span>
                                                     )}
                                                     {spriggitVersionTooOld === false && detectedFo4Version.startsWith('1.11.') && (
                                                         <span className="ml-1 text-emerald-400 font-semibold">✓ version is current</span>
@@ -2141,7 +2142,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 </div>
                                             )}
                                             {detectedFo4Version.startsWith('1.11.') && !detectedSpriggitVersion && (
-                                                <div className="text-amber-400">⚠️ FO4 1.11.x detected — Spriggit must be a post-November 2025 build</div>
+                                                <div className="text-amber-400">⚠️ FO4 1.11.x detected — Spriggit v0.34.0+ required</div>
                                             )}
                                         </div>
                                     )}
@@ -2435,8 +2436,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                             {(() => {
                                                 const isMismatch = spriggitVersionTooOld === true;
                                                 const redownloadLabel = isMismatch
-                                                    ? '⭐ Re-download Spriggit — PRE-RELEASE (required) →'
-                                                    : '⬇️ Re-download Spriggit (pre-release) →';
+                                                    ? '⭐ Re-download Spriggit — v0.34.0+ required →'
+                                                    : '⬇️ Re-download Spriggit (latest) →';
                                                 const baseClasses = 'px-3 py-1 rounded text-xs transition-colors';
                                                 const mismatchClasses = 'border-2 border-yellow-400 bg-yellow-700/60 hover:bg-yellow-600/70 text-yellow-100 font-bold';
                                                 const normalClasses = 'bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 font-semibold';
@@ -2541,8 +2542,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         )}
                                                         {cacheClearResult === 'ok' && isMismatch && (
                                                             <span className="text-xs text-yellow-300 font-semibold">
-                                                                🗑️ Cache cleared — but <strong>downloading the Spriggit PRE-RELEASE (dev) build is still required</strong> to fix the version mismatch.{' '}
-                                                                Click <strong>{redownloadLabel}</strong> above, then look for the entry tagged "Pre-release" on the releases page.
+                                                                🗑️ Cache cleared — but <strong>downloading Spriggit v0.34.0+ is still required</strong> to fix the version mismatch.{' '}
+                                                                Click <strong>{redownloadLabel}</strong> above to get the latest version from GitHub releases.
                                                             </span>
                                                         )}
                                                         {cacheClearResult === 'ok' && spriggitStatus === 'error' && !isMismatch && autoUnblockRetryState !== 'unblocking' && autoUnblockRetryState !== 'retrying' && (
@@ -2702,7 +2703,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     }}
                                     className="w-full px-4 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
                                 >
-                                    <ExternalLink className="w-4 h-4" /> Download Pre-Release Build
+                                    <ExternalLink className="w-4 h-4" /> Download Latest Spriggit (v0.34.0+)
                                 </button>
                                 <button
                                     type="button"

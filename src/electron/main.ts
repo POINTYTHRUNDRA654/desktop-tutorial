@@ -3924,18 +3924,17 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         'Wrong zip downloaded — make sure you have SpriggitCLI.zip (NOT Spriggit.zip).\n' +
         '     On the releases page there are two zips: SpriggitCLI.zip (CLI, correct) and\n' +
         '     Spriggit.zip (GUI app, wrong — it will not work here).\n' +
-        '     ⚠️ For FO4 1.11.x (AE/Creations Menu) you MUST use the PRE-RELEASE (dev) build —\n' +
-        '     on the releases page scroll past \"Latest\" and look for the entry tagged \"Pre-release\".\n' +
-        '     Download its SpriggitCLI.zip, extract to a clean folder, and try again.';
+        '     💡 For FO4 1.11.x (AE/Creations Menu) you need Spriggit v0.34.0 or newer —\n' +
+        '     download SpriggitCLI.zip from the latest release (NOT the green "Code" button).\n' +
+        '     Extract to a clean folder and try again.';
       // Common cause list shared by the self-test crash error and the all-fail summary hint.
       const SPRIGGIT_CRASH_CAUSES =
         `  0. ${SPRIGGIT_INCOMPLETE_EXTRACT_HINT}\n` +
         '  1. EASIEST FIX if you lack .NET — Download the self-contained Spriggit build\n' +
         '     (bundles .NET, no separate install needed):\n' +
         '     https://github.com/Mutagen-Modding/Spriggit/releases\n' +
-        '     ⚠️ For FO4 1.11.x (AE): scroll past \"Latest\" and grab the PRE-RELEASE (dev) SpriggitCLI.zip.\n' +
-        '     The stable \"Latest\" release does NOT support AE record types (0xFFFFFFFF on DLC ESMs).\n' +
-        '     Download SpriggitCLI.zip and use that Spriggit.CLI.exe instead.\n' +
+        '     💡 For FO4 1.11.x (AE): Spriggit v0.34.0+ required. Download SpriggitCLI.zip from\n' +
+        '     the latest release and use that Spriggit.CLI.exe instead.\n' +
         '  2. .NET SDK not installed — Spriggit needs the SDK (not just Runtime) to\n' +
         '     download translation packages via "dotnet tool install".\n' +
         '     Download: https://dotnet.microsoft.com/download/dotnet  (then restart PC)\n' +
@@ -4249,9 +4248,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                   `  1. ⭐ VERSION MISMATCH — Spriggit v${spriggitDisplayVersion} is too old for\n` +
                   `     ${fo4Label}.\n` +
                   '     The Creations Menu update (November 2025) added new record types that\n' +
-                  '     require the PRE-RELEASE (dev) build of Spriggit.  Click\n' +
-                  '     "Re-download Spriggit →" → on the releases page look for the entry\n' +
-                  '     tagged "Pre-release" (NOT the top "Latest") → download its SpriggitCLI.zip\n' +
+                  '     require Spriggit v0.34.0 or newer. Click "Re-download Spriggit →" →\n' +
+                  '     download SpriggitCLI.zip from the latest release (NOT the green "Code" button)\n' +
                   '     → extract to a clean folder → select the new Spriggit.CLI.exe.\n';
               } else if (fo4Is111x && spriggitDisplayVersion) {
                 // Version is current — most likely cause is Smart App Control or disk space.
@@ -4271,17 +4269,17 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
               } else if (fo4Is111x) {
                 versionHint =
                   '  1. ⭐ Spriggit version too old — Fallout 4 1.11.x (Creations Menu,\n' +
-                  '     November 2025) introduced new record types.  Click "Re-download Spriggit →"\n' +
-                  '     and download the PRE-RELEASE (dev) SpriggitCLI.zip from the releases page.\n' +
-                  '     Look for the entry tagged "Pre-release" — NOT the top "Latest" stable build.\n';
+                  '     November 2025) introduced new record types. Click "Re-download Spriggit →"\n' +
+                  '     and download SpriggitCLI.zip from the latest release (v0.34.0+ required).\n' +
+                  '     Extract to a clean folder and select the new Spriggit.CLI.exe.\n';
               } else {
                 versionHint =
                   '  1. ⭐ Spriggit version too old for your game — the most common cause\n' +
                   '     when FO4 has been updated more recently than your Spriggit build.\n' +
                   '     Click "Re-download Spriggit →" to get the latest release from\n' +
                   '     GitHub (github.com/Mutagen-Modding/Spriggit/releases).\n' +
-                  '     ⚠️ For FO4 1.11.x (AE): grab the PRE-RELEASE (dev) SpriggitCLI.zip,\n' +
-                  '     not the top "Latest" stable build. Extract to a clean folder, then select the new exe.\n';
+                  '     💡 For FO4 1.11.x (AE): Spriggit v0.34.0+ required. Download SpriggitCLI.zip,\n' +
+                  '     extract to a clean folder, then select the new exe.\n';
               }
 
               // When it is a confirmed version mismatch, "Clear Cache & Retry" will NOT
@@ -4306,9 +4304,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                   ? '  4. Smart App Control (Windows 11) — can silently block unsigned extracted\n' +
                   '     binaries even when standard AV shows nothing.\n' +
                   '     Check: Windows Security → App & browser control → Smart App Control.\n\n'
-                  : '  4. Re-download Spriggit (pre-release/dev) — if SAC and disk space are fine, try\n' +
-                  '     downloading the PRE-RELEASE SpriggitCLI.zip (github.com/Mutagen-Modding/Spriggit/releases)\n' +
-                  '     — look for the entry tagged "Pre-release", not the top "Latest" stable build.\n\n') +
+                  : '  4. Re-download Spriggit — if SAC and disk space are fine, try downloading\n' +
+                  '     the latest SpriggitCLI.zip (github.com/Mutagen-Modding/Spriggit/releases).\n' +
+                  '     For FO4 1.11.x (AE): v0.34.0+ required.\n\n') +
                 '  ' + SPRIGGIT_MANUAL_RUN_HINT.replace(/^\s*\d+\.\s*/, '');
             } else {
               // Self-test timed out (null) — we cannot confirm the binary works; show the full list.
@@ -4317,9 +4315,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                 'assemblies to a cache at runtime.  Most likely causes:\n' +
                 (versionBanner ? versionBanner : '') +
                 (spriggitVersionTooOld
-                  ? '  1. ⭐ VERSION MISMATCH — Fallout 4 1.11.x (Creations Menu) requires a\n' +
-                  '     PRE-RELEASE (dev) build of Spriggit from github.com/Mutagen-Modding/Spriggit/releases.\n' +
-                  '     Look for the entry tagged \"Pre-release\" — the stable \"Latest\" does NOT support AE.\n'
+                  ? '  1. ⭐ VERSION MISMATCH — Fallout 4 1.11.x (Creations Menu) requires\n' +
+                  '     Spriggit v0.34.0+. Download SpriggitCLI.zip from the latest release:\n' +
+                  '     github.com/Mutagen-Modding/Spriggit/releases\n'
                   : fo4Is111x && spriggitDisplayVersion
                     ? `  1. ⭐ Smart App Control (Windows 11) — Spriggit v${spriggitDisplayVersion} is\n` +
                     '     current; SAC is the most likely culprit.  Check Windows Security →\n' +
@@ -4327,8 +4325,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
                     '     If SAC is LOCKED (greyed out), click "🔓 Unblock Files" in Mossy or\n' +
                     '     add a Defender exclusion: Windows Security → Virus & threat protection → Exclusions.\n'
                     : '  1. ⭐ Spriggit version too old — if on FO4 1.11.x (Creations Menu / Nov 2025),\n' +
-                    '     download the PRE-RELEASE (dev) SpriggitCLI.zip from github.com/Mutagen-Modding/Spriggit/releases.\n' +
-                    '     On the releases page look for \"Pre-release\" — NOT the top \"Latest\" stable build.\n') +
+                    '     download SpriggitCLI.zip from the latest release (v0.34.0+ required):\n' +
+                    '     github.com/Mutagen-Modding/Spriggit/releases\n') +
                 '  2. Stale cache — click "Clear Cache & Retry" to wipe it so Spriggit can re-extract:\n' +
                 `       ${spriggitDotnetCacheDir}\n` +
                 '     Then try again.\n' +
