@@ -371,68 +371,44 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
     }
 
     // ── 1. Find Python ────────────────────────────────────────────────────────
-    const systemCandidates = process.platform === 'win32'
-      ? ['python', 'python3', 'py']
-      : ['python3', 'python'];
-
+    sendProgress('Searching for Python installation...');
+    
+    // Use robust all-drive Python detection
+    const detectionResult = await detectPythonExecutable(runCmd, sendProgress);
     let pythonExe = '';
-    const triedCandidates: string[] = [];
-
-    // First, try to locate Python using where/which
-    if (process.platform === 'win32') {
-      const whereResult = await runCmd('where', ['python']);
-      if (whereResult.code === 0 && whereResult.stdout.trim()) {
-        const firstPath = whereResult.stdout.trim().split('\n')[0].trim();
-        if (firstPath && fs.existsSync(firstPath)) {
-          console.log(`[PyTorch Auto-Setup] Found Python via 'where': ${firstPath}`);
-          pythonExe = firstPath;
-          triedCandidates.push(`where python (${firstPath})`);
+    
+    if (detectionResult.pythonExe) {
+      pythonExe = detectionResult.pythonExe;
+      sendProgress(`✓ Python found: ${pythonExe}`);
+      
+      // Check if bundled Python was used and bootstrap pip if needed
+      if (process.platform === 'win32') {
+        const bundledPython = path.join(process.resourcesPath, 'python-embedded', 'python.exe');
+        if (pythonExe === bundledPython) {
+          sendProgress('Using bundled Python. Bootstrapping pip...');
+          const pipBootstrapped = await bootstrapEmbeddedPip(bundledPython, sendProgress, runCmd);
+          if (!pipBootstrapped) {
+            sendProgress('⚠️ Bundled Python pip bootstrap failed');
+            sendProgress('Please install Python 3.10+ from https://www.python.org/downloads/ and restart Mossy.');
+            return;
+          }
         }
       }
     } else {
-      const whichResult = await runCmd('which', ['python3']);
-      if (whichResult.code === 0 && whichResult.stdout.trim()) {
-        const foundPath = whichResult.stdout.trim();
-        if (foundPath && fs.existsSync(foundPath)) {
-          console.log(`[PyTorch Auto-Setup] Found Python via 'which': ${foundPath}`);
-          pythonExe = foundPath;
-          triedCandidates.push(`which python3 (${foundPath})`);
-        }
+      // Python not found - send detailed diagnostics to user
+      console.error('[PyTorch Auto-Setup] Python detection failed');
+      sendProgress('⚠️ Python not found on any drive.');
+      sendProgress('');
+      
+      // Send diagnostic summary
+      if (detectionResult.diagnostics.length > 0) {
+        sendProgress('Detection Summary:');
+        detectionResult.diagnostics.forEach(diag => sendProgress(`  ${diag}`));
+        sendProgress('');
       }
-    }
-
-    // Try system Python commands if not found via where/which
-    if (!pythonExe) {
-      for (const candidate of systemCandidates) {
-        const r = await runCmd(candidate, ['--version']);
-        triedCandidates.push(`${candidate} (${r.code === 0 ? 'found' : r.stderr || 'not found'})`);
-        console.log(`[PyTorch Auto-Setup] Tried ${candidate}: code=${r.code}, stdout="${r.stdout.trim()}", stderr="${r.stderr.trim()}"`);
-        if (r.code === 0) { pythonExe = candidate; break; }
-      }
-    }
-
-    // Fall back to bundled embedded Python (Windows only)
-    if (!pythonExe && process.platform === 'win32') {
-      const bundledPython = path.join(process.resourcesPath, 'python-embedded', 'python.exe');
-      console.log(`[PyTorch Auto-Setup] Checking bundled Python at: ${bundledPython}, exists: ${fs.existsSync(bundledPython)}`);
-      if (fs.existsSync(bundledPython)) {
-        sendProgress('System Python not found. Using bundled Python…');
-        triedCandidates.push(`bundled (${bundledPython})`);
-        // The embedded Python needs pip. Bootstrap it if needed.
-        const pipBootstrapped = await bootstrapEmbeddedPip(bundledPython, sendProgress, runCmd);
-        if (pipBootstrapped) {
-          pythonExe = bundledPython;
-        } else {
-          console.log('[PyTorch Auto-Setup] Bundled Python pip bootstrap failed');
-        }
-      }
-    }
-
-    if (!pythonExe) {
-      const diagnostics = `Tried: ${triedCandidates.join(', ')}`;
-      console.error(`[PyTorch Auto-Setup] Python detection failed. ${diagnostics}`);
-      sendProgress(`⚠️ Python not found. Visit https://www.python.org/downloads/ to install Python 3.10+, then restart Mossy.`);
-      sendProgress(`Debug: ${diagnostics}`);
+      
+      // Send troubleshooting steps
+      detectionResult.troubleshooting.forEach(tip => sendProgress(tip));
       return;
     }
 
@@ -10181,33 +10157,14 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // Build list of Python candidates to check (order matters)
       const pythonCandidates: string[] = [];
 
-      // 1. Project .venv first (highest priority)
-      if (process.platform === 'win32') {
-        const venvPython = path.join(process.cwd(), '.venv', 'Scripts', 'python.exe');
-        if (fs.existsSync(venvPython)) {
-          pythonCandidates.push(venvPython);
-        }
-
-        // 2. Common Python installation directories
-        const userProfile = process.env.USERPROFILE || path.join('C:\\Users', process.env.USERNAME || 'user');
-        const pythonDir = path.join(userProfile, 'AppData', 'Local', 'Programs', 'Python');
-        if (fs.existsSync(pythonDir)) {
-          try {
-            const versions = fs.readdirSync(pythonDir).filter(f => f.match(/^Python\d+$/));
-            versions.sort().reverse(); // Latest first
-            for (const ver of versions) {
-              const pythonExe = path.join(pythonDir, ver, 'python.exe');
-              if (fs.existsSync(pythonExe)) {
-                pythonCandidates.push(pythonExe);
-              }
-            }
-          } catch (e) {
-            // Ignore if can't read directory
-          }
-        }
+      // Use our robust all-drive detection to find Python
+      const detectionResult = await detectPythonExecutable(runCmd);
+      
+      if (detectionResult.pythonExe) {
+        pythonCandidates.push(detectionResult.pythonExe);
       }
-
-      // 3. PATH candidates
+      
+      // Also add PATH candidates as fallbacks
       const pathCandidates = process.platform === 'win32' ? ['python', 'python3', 'py'] : ['python3', 'python'];
       pythonCandidates.push(...pathCandidates);
 
@@ -10296,9 +10253,21 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
       // 3. At least check if Python itself is present.
       let pythonFound = false;
-      for (const py of pythonCandidates) {
-        const r = await runCmd(py, ['--version']);
-        if (r.code === 0) { pythonFound = true; break; }
+      if (detectionResult.pythonExe || pythonCandidates.length > 0) {
+        for (const py of pythonCandidates) {
+          const r = await runCmd(py, ['--version']);
+          if (r.code === 0) { pythonFound = true; break; }
+        }
+      }
+
+      // Provide detailed diagnostics if Python wasn't found
+      if (!pythonFound && detectionResult.troubleshooting.length > 0) {
+        return {
+          available: false,
+          pythonFound: false,
+          error: 'Python not found on any drive.',
+          troubleshooting: detectionResult.troubleshooting,
+        };
       }
 
       return {
@@ -10637,69 +10606,48 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       }
 
       // ── Find Python ─────────────────────────────────────────────────────────
-      let pythonCandidates: string[] = [];
       let pythonExe = '';
       let usingEmbedded = false;
 
-      // 1. Check project .venv first (highest priority)
-      const venvPython = path.join(process.cwd(), '.venv', 'Scripts', 'python.exe');
-      if (fs.existsSync(venvPython)) {
-        pythonCandidates.push(venvPython);
-      }
-
-      // 2. Check user Python installations (enumerate and sort descending for latest version)
-      if (process.platform === 'win32') {
-        const userProfile = process.env.USERPROFILE || path.join('C:\\Users', process.env.USERNAME || 'user');
-        const pythonDir = path.join(userProfile, 'AppData', 'Local', 'Programs', 'Python');
-        if (fs.existsSync(pythonDir)) {
-          try {
-            const versions = fs.readdirSync(pythonDir)
-              .filter((f) => f.match(/^Python\d+$/))
-              .sort()
-              .reverse(); // Latest version first
-            for (const ver of versions) {
-              const pythonExePath = path.join(pythonDir, ver, 'python.exe');
-              if (fs.existsSync(pythonExePath)) {
-                pythonCandidates.push(pythonExePath);
-              }
+      // Use the robust all-drive Python detection
+      const detectionResult = await detectPythonExecutable(runCmd, (msg) => console.log(`[PyTorch Install] ${msg}`));
+      
+      if (detectionResult.pythonExe) {
+        pythonExe = detectionResult.pythonExe;
+        
+        // Check if bundled Python was used
+        if (process.platform === 'win32') {
+          const bundledPython = path.join(process.resourcesPath, 'python-embedded', 'python.exe');
+          if (pythonExe === bundledPython) {
+            // Bootstrap pip if needed for embedded Python
+            const bootstrapped = await bootstrapEmbeddedPip(bundledPython, (m) => console.log('[PyTorch Install]', m), runCmd);
+            if (bootstrapped) {
+              usingEmbedded = true;
+            } else {
+              return {
+                success: false,
+                error: 'Bundled Python found but pip bootstrap failed.',
+                troubleshooting: detectionResult.troubleshooting,
+              };
             }
-          } catch (err) {
-            console.log('[PyTorch Install] Could not enumerate user Python directory:', err);
           }
         }
-      }
-
-      // 3. Fallback to PATH search
-      pythonCandidates.push(
-        ...(process.platform === 'win32' ? ['python', 'python3', 'py'] : ['python3', 'python']),
-      );
-
-      // Find first working Python
-      for (const candidate of pythonCandidates) {
-        const r = await runCmd(candidate, ['--version']);
-        if (r.code === 0) { pythonExe = candidate; break; }
-      }
-
-      // Fall back to bundled embedded Python (Windows only)
-      if (!pythonExe && process.platform === 'win32') {
-        const bundledPython = path.join(process.resourcesPath, 'python-embedded', 'python.exe');
-        if (fs.existsSync(bundledPython)) {
-          console.log('[PyTorch Install] System Python not found; trying bundled embedded Python…');
-          const bootstrapped = await bootstrapEmbeddedPip(bundledPython, (m) => console.log('[PyTorch Install]', m), runCmd);
-          if (bootstrapped) {
-            pythonExe = bundledPython;
-            usingEmbedded = true;
-          }
-        }
-      }
-
-      if (!pythonExe) {
+        
+        console.log(`[PyTorch Install] Using Python: ${pythonExe} (embedded=${usingEmbedded})`);
+      } else {
+        // Python not found - return detailed error with troubleshooting
+        const diagnosticSummary = detectionResult.diagnostics.join('\n');
         return {
           success: false,
-          error: 'Python is not installed. Please install Python 3.10+ from https://www.python.org/downloads/ and try again.',
+          error: 'Python is not installed or not found on any drive.',
+          troubleshooting: [
+            'Python Detection Summary:',
+            diagnosticSummary,
+            '',
+            ...detectionResult.troubleshooting,
+          ],
         };
       }
-      console.log(`[PyTorch Install] Using Python: ${pythonExe} (embedded=${usingEmbedded})`);
 
       // ── Choose install strategy and PyTorch version ──────────────────────────
       // Embedded Python does not support venv well; use pip --target instead.
