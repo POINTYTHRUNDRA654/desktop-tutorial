@@ -10253,11 +10253,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
       // 3. At least check if Python itself is present.
       let pythonFound = false;
-      if (detectionResult.pythonExe || pythonCandidates.length > 0) {
-        for (const py of pythonCandidates) {
-          const r = await runCmd(py, ['--version']);
-          if (r.code === 0) { pythonFound = true; break; }
-        }
+      for (const py of pythonCandidates) {
+        const r = await runCmd(py, ['--version']);
+        if (r.code === 0) { pythonFound = true; break; }
       }
 
       // Provide detailed diagnostics if Python wasn't found
@@ -10302,6 +10300,11 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     const diagnostics: string[] = [];
     const troubleshooting: string[] = [];
     let pythonExe: string | null = null;
+
+    // Constants for Python version matching
+    const PYTHON_VERSION_REGEX = /^Python3?\d*$/i;  // Matches Python, Python3, Python310, Python312, etc.
+    const PYTHON_MIN_MINOR = 8;
+    const PYTHON_MAX_MINOR = 13;  // Support up to Python 3.13
 
     // Step 1: Try PATH-based commands
     const systemCandidates = process.platform === 'win32'
@@ -10363,7 +10366,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         if (fs.existsSync(pythonDir)) {
           try {
             const versions = fs.readdirSync(pythonDir)
-              .filter(name => /^Python3\d+$/i.test(name))
+              .filter(name => PYTHON_VERSION_REGEX.test(name))
               .sort()
               .reverse();
             for (const ver of versions) {
@@ -10380,7 +10383,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         const driveRoot = `${drive}:\\`;
         
         // Pattern 1: Drive:\Python3x\ (direct installation)
-        for (let minor = 12; minor >= 8; minor--) {
+        for (let minor = PYTHON_MAX_MINOR; minor >= PYTHON_MIN_MINOR; minor--) {
           candidatePaths.push(`${driveRoot}Python3${minor}\\python.exe`);
           candidatePaths.push(`${driveRoot}Python${minor}\\python.exe`);
         }
@@ -10397,7 +10400,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           if (fs.existsSync(baseDir)) {
             try {
               const versions = fs.readdirSync(baseDir)
-                .filter(name => /^Python3?\d*$/i.test(name))
+                .filter(name => PYTHON_VERSION_REGEX.test(name))
                 .sort()
                 .reverse();
               for (const ver of versions) {
@@ -10416,7 +10419,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           if (fs.existsSync(userPythonDir)) {
             try {
               const versions = fs.readdirSync(userPythonDir)
-                .filter(name => /^Python3?\d*$/i.test(name))
+                .filter(name => PYTHON_VERSION_REGEX.test(name))
                 .sort()
                 .reverse();
               for (const ver of versions) {
@@ -10449,8 +10452,6 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             diagnostics.push(`✓ Found: ${pythonPath} (${version})`);
             pythonExe = pythonPath;
             sendProgress?.(`Found Python ${version} at: ${pythonPath}`);
-            troubleshooting.push(`Python was found at ${pythonPath}`);
-            troubleshooting.push('To improve startup time, consider adding Python to your system PATH.');
             return { pythonExe, diagnostics, troubleshooting };
           } else {
             diagnostics.push(`✗ Invalid: ${pythonPath}`);
