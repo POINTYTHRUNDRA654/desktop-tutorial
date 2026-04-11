@@ -26,6 +26,8 @@ interface RecommendedDownload {
     /** One-line consequence shown when this tool is NOT installed, so the user
      *  knows exactly which Mossy features will be broken or unavailable. */
     ifMissing: string;
+    /** Optional static note shown on the download card (can be overridden dynamically) */
+    note?: string;
 }
 
 const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
@@ -325,6 +327,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     /** True while the automatic .NET check runs on entering the spriggit-digest step. */
     const [dotnetCheckingOnEntry, setDotnetCheckingOnEntry] = useState(false);
 
+    /** Version mismatch modal control */
+    const [showVersionMismatchModal, setShowVersionMismatchModal] = useState(false);
+    const [versionMismatchAcknowledged, setVersionMismatchAcknowledged] = useState(false);
+
     /** Tools the user has manually located via the "Browse to locate" button.
      *  Key = dl.name, value = the .exe path they picked. */
     const [manuallyLocated, setManuallyLocated] = useState<Record<string, string>>({});
@@ -410,6 +416,16 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 window.clearTimeout(dotnetRecheckTimerRef.current);
             }
         };
+    }, []);
+
+    // Load version mismatch acknowledgment from localStorage on mount (Phase 4)
+    useEffect(() => {
+        try {
+            const ack = localStorage.getItem('mossy_spriggit_version_mismatch_ack');
+            if (ack === 'true') {
+                setVersionMismatchAcknowledged(true);
+            }
+        } catch { /* ignore */ }
     }, []);
 
     // Whenever the user reaches the spriggit-digest step, run a fresh .NET check.
@@ -897,6 +913,16 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             if (typeof result.spriggitVersionTooOld === 'boolean') {
                 setSpriggitVersionTooOld(result.spriggitVersionTooOld as boolean);
             }
+            
+            // PRE-FLIGHT VERSION MISMATCH CHECK (Phase 3)
+            // Show blocking modal if FO4 1.11.x + Spriggit < 0.34.0 and user hasn't acknowledged
+            if (result.spriggitVersionTooOld && !versionMismatchAcknowledged) {
+                setSpriggitStatus('error');
+                setSpriggitMessage('Version mismatch detected — see modal for details');
+                setShowVersionMismatchModal(true);
+                return { failed0xFFFF: false };
+            }
+            
             if (!result.ok || !result.files?.length) {
                 const errText = result.error || 'No YAML files were produced.';
                 // Cap display length to avoid rendering a massive wall of text.
@@ -917,6 +943,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 // installed — in that case we must not disable the button so the user can retry
                 // after fixing AV / downloading the correct Spriggit build.
                 if (errText.includes('0xFFFFFFFF')) {
+                    // PHASE 4: If version mismatch detected and not acknowledged, show modal
+                    if (result.spriggitVersionTooOld && !versionMismatchAcknowledged) {
+                        setShowVersionMismatchModal(true);
+                        return { failed0xFFFF: true };
+                    }
+                    
                     try {
                         const freshCheck = await api.checkDotnet!();
                         applyDotnetResult(freshCheck);
@@ -946,6 +978,19 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             const merged = [...existing, ...newEntries];
             localStorage.setItem('mossy_knowledge_vault', JSON.stringify(merged));
             try { await api.saveKnowledgeVault(merged); } catch { /* fire-and-forget */ }
+
+            // PHASE 5: Save detected versions to settings for future comparison
+            if (api.setSettings && (detectedFo4Version || detectedSpriggitVersion)) {
+                try {
+                    await api.setSettings({
+                        lastDetectedFo4Version: detectedFo4Version || undefined,
+                        lastDetectedSpriggitVersion: detectedSpriggitVersion || undefined,
+                        spriggitVersionMismatchAcknowledged: versionMismatchAcknowledged || undefined,
+                    });
+                } catch (settingsErr) {
+                    console.warn('[Spriggit] Failed to save version info to settings:', settingsErr);
+                }
+            }
 
             // Queue the vanilla ESMs into the Auditor so the user can run a full
             // asset/plugin audit immediately after onboarding without re-picking files.
@@ -1576,6 +1621,34 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     </span>
                                                 </div>
                                                 <p className="text-xs text-slate-400 leading-relaxed">{dl.description}</p>
+                                                {/* Dynamic version-aware note for Spriggit */}
+                                                {dl.name === 'Spriggit' && fo4Version && fo4Version !== 'unknown' && (
+                                                    <div className={`mt-2 p-2 rounded-md border text-xs leading-relaxed ${
+                                                        fo4Version === 'ae'
+                                                            ? 'bg-red-900/30 border-red-600/50 text-red-200'
+                                                            : 'bg-blue-900/20 border-blue-600/40 text-blue-200'
+                                                    }`}>
+                                                        {fo4Version === 'ae' ? (
+                                                            <>
+                                                                <strong className="text-red-100">⚠️ FO4 1.11.x (AE) Detected:</strong> You <strong className="text-red-100">MUST</strong> download the <strong className="text-red-100">PRE-RELEASE</strong> (dev) build.
+                                                                Scroll past the top "Latest" release and look for the entry tagged <strong className="text-red-100">Pre-release</strong>.
+                                                                Download its <code className="bg-red-900/40 px-1 rounded">SpriggitCLI.zip</code>.
+                                                                The stable "Latest" build does NOT support 1.11.x and will crash with exit code 0xFFFFFFFF.
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <strong className="text-blue-100">💡 FO4 {fo4Version.toUpperCase()} Detected:</strong> Use the <strong className="text-blue-100">Latest</strong> stable release for your version.
+                                                                Download <code className="bg-blue-900/40 px-1 rounded">SpriggitCLI.zip</code> from the top of the releases page.
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {/* Static note fallback when FO4 version unknown */}
+                                                {dl.note && (!fo4Version || fo4Version === 'unknown') && dl.name === 'Spriggit' && (
+                                                    <div className="mt-2 p-2 rounded-md border bg-amber-900/20 border-amber-600/40 text-amber-200 text-xs leading-relaxed">
+                                                        {dl.note}
+                                                    </div>
+                                                )}
                                                 {manualPath && (
                                                     <p className="text-xs mt-1 text-emerald-600/80 truncate" title={manualPath}>
                                                         📂 {manualPath}
@@ -2528,6 +2601,83 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         <p className="text-slate-400 text-sm">
                             Ready to experience the future of AI modding assistance?
                         </p>
+                    </div>
+                )}
+
+                {/* Version Mismatch Warning Modal */}
+                {showVersionMismatchModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                        <div className="bg-slate-900 border-2 border-red-600 rounded-xl p-6 max-w-lg mx-4 shadow-2xl">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-12 h-12 rounded-full bg-red-900/50 border-2 border-red-500 flex items-center justify-center flex-shrink-0">
+                                    <X className="w-7 h-7 text-red-400" />
+                                </div>
+                                <h3 className="text-xl font-bold text-white">⚠️ Version Mismatch Detected</h3>
+                            </div>
+                            <div className="space-y-3 mb-6 text-sm">
+                                <p className="text-slate-200">
+                                    <strong className="text-red-400">Your Fallout 4 version:</strong> {detectedFo4Label || detectedFo4Version || 'Unknown'}
+                                </p>
+                                <p className="text-slate-200">
+                                    <strong className="text-red-400">Your Spriggit version:</strong> {detectedSpriggitVersion || 'Unknown'}
+                                </p>
+                                <div className="bg-red-900/30 border border-red-600/50 rounded-lg p-3 text-red-200">
+                                    <p className="font-semibold mb-1">This combination will crash with exit code 0xFFFFFFFF.</p>
+                                    <p className="text-xs">
+                                        Fallout 4 version 1.11.x (Anniversary Edition / Creations Menu) requires Spriggit v0.34.0 or newer.
+                                        Your current Spriggit build is too old and cannot parse the new record types added in the November 2025 update.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowVersionMismatchModal(false);
+                                        void openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
+                                    }}
+                                    className="w-full px-4 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <ExternalLink className="w-4 h-4" /> Download Pre-Release Build
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        setShowVersionMismatchModal(false);
+                                        const api = getElectronApi();
+                                        if (!api?.spriggitPickCli) return;
+                                        const p = await api.spriggitPickCli();
+                                        if (p) setSpriggitCliPath(p);
+                                    }}
+                                    className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <FolderOpen className="w-4 h-4" /> Select Different Spriggit.exe
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        setShowVersionMismatchModal(false);
+                                        setVersionMismatchAcknowledged(true);
+                                        // Persist acknowledgment to localStorage and settings
+                                        try {
+                                            localStorage.setItem('mossy_spriggit_version_mismatch_ack', 'true');
+                                        } catch { /* ignore */ }
+                                        const api = getElectronApi();
+                                        if (api?.setSettings) {
+                                            try {
+                                                await api.setSettings({ spriggitVersionMismatchAcknowledged: true });
+                                            } catch { /* ignore */ }
+                                        }
+                                        // Reset status so user can retry
+                                        setSpriggitStatus('idle');
+                                        setSpriggitMessage('');
+                                    }}
+                                    className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded-lg text-sm transition-colors"
+                                >
+                                    I Know What I'm Doing (Continue Anyway)
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
