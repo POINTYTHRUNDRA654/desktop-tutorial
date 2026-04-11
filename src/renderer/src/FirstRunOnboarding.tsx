@@ -465,7 +465,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         const speakSequence = async () => {
             await new Promise(resolve => setTimeout(resolve, 800));
             await speakMossy("Hello, I'm Mossy, your Fallout 4 modding assistant.");
-            await speakMossy('First, confirm which edition you downloaded: Universal, or NVIDIA.');
+            await speakMossy('First, pick the version that fits your system: Universal works on any hardware, or NVIDIA if you have a compatible GPU.');
         };
         void speakSequence();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1042,7 +1042,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         <h1 className="text-4xl font-bold text-white mb-3">Welcome to Mossy v{packageJson.version}</h1>
                         <p className="text-lg text-slate-300 mb-2">Your AI-powered Fallout 4 modding assistant</p>
                         <p className="text-slate-400 mb-8">
-                            Before we begin — confirm which edition you downloaded. This lets Mossy unlock the right features for your hardware.
+                            Pick the version that fits your system. <strong className="text-slate-300">Universal</strong> works on any hardware (CPU-only). <strong className="text-slate-300">NVIDIA</strong> unlocks GPU-accelerated AI and fine-tuning if you have an RTX/GTX card.
                         </p>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
@@ -1657,16 +1657,24 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 {step === 'spriggit-digest' && (
                     <div className="text-center animate-fade-in">
                         <Brain className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
-                        <h2 className="text-3xl font-bold text-white mb-3">Feed Me the Base Game</h2>
+                        <div className="flex items-center justify-center gap-3 mb-3">
+                            <h2 className="text-3xl font-bold text-white">Feed Me the Base Game</h2>
+                            <span className="px-3 py-1 bg-amber-500/20 border border-amber-500/50 rounded-lg text-amber-300 text-xs font-bold uppercase tracking-wide">
+                                🚧 Work in Progress
+                            </span>
+                        </div>
                         <p className="text-slate-400 mb-2 max-w-xl mx-auto">
                             I can use <strong className="text-emerald-300">Spriggit</strong> to convert the <strong className="text-white">vanilla Fallout 4 ESMs</strong> (Fallout4.esm and all DLCs) into YAML and digest them directly into my brain — giving me exact access to the base-game records, FormIDs, and script structures from the start.
                         </p>
                         <p className="text-slate-500 text-sm mb-2 max-w-xl mx-auto">
                             Custom mods can be analysed any time in <strong className="text-slate-300">The Auditor</strong> panel.
                         </p>
-                        <p className="text-slate-500 text-sm mb-6 max-w-xl mx-auto">
-                            This is optional — you can skip it now and do it later from the Memory Vault panel.
-                        </p>
+                        <div className="max-w-xl mx-auto mb-6 p-3 rounded-lg bg-blue-900/20 border border-blue-500/30">
+                            <p className="text-blue-300 text-sm font-semibold flex items-center gap-2">
+                                <span>ℹ️</span>
+                                <span>This feature is <strong className="text-blue-200">experimental and optional</strong> — you can skip it now and do it later from the Memory Vault panel.</span>
+                            </p>
+                        </div>
 
                         {/* .NET SDK warning — shown when .NET is confirmed missing or status is unknown.
                             Kept visible for dotnetOk === null so new users always see the install button
