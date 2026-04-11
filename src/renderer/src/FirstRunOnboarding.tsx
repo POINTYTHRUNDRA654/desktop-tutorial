@@ -71,14 +71,14 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     // ── Modding tools ─────────────────────────────────────────────────────────
     {
         name: 'Spriggit',
-        description: 'Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Used by Mossy\'s onboarding brain-boost step to ingest the vanilla ESMs.',
+        description: `Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Used by Mossy's onboarding brain-boost step to ingest the vanilla ESMs.`,
         detectKeywords: ['spriggit'],
         url: 'https://github.com/Mutagen-Modding/Spriggit/releases',
-        note: '💡 Download SpriggitCLI.zip from the latest release (NOT the green "Code→Download ZIP" button — that's source code with no .exe). Requires Spriggit v0.34.0+ for FO4 1.11.x (AE) support. If you already have it, click "I have it" to browse to Spriggit.CLI.exe.',
+        note: `💡 Download SpriggitCLI.zip from the latest release (NOT the green "Code→Download ZIP" button — that's source code with no .exe). Requires Spriggit v0.34.0+ for FO4 1.11.x (AE) support. If you already have it, click "I have it" to browse to Spriggit.CLI.exe.`,
         urlLabel: 'GitHub Releases',
         category: 'version-control',
         required: false,
-        ifMissing: 'Mossy cannot digest vanilla ESMs into her Knowledge Vault. The brain-boost onboarding step will be unavailable.',
+        ifMissing: `Mossy cannot digest vanilla ESMs into her Knowledge Vault. The brain-boost onboarding step will be unavailable.`,
     },
     {
         name: 'xEdit / FO4Edit',
