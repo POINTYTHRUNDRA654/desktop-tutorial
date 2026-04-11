@@ -26,6 +26,8 @@ interface RecommendedDownload {
     /** One-line consequence shown when this tool is NOT installed, so the user
      *  knows exactly which Mossy features will be broken or unavailable. */
     ifMissing: string;
+    /** Optional static note shown on the download card (can be overridden dynamically) */
+    note?: string;
 }
 
 const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
@@ -1576,6 +1578,34 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     </span>
                                                 </div>
                                                 <p className="text-xs text-slate-400 leading-relaxed">{dl.description}</p>
+                                                {/* Dynamic version-aware note for Spriggit */}
+                                                {dl.name === 'Spriggit' && fo4Version && fo4Version !== 'unknown' && (
+                                                    <div className={`mt-2 p-2 rounded-md border text-xs leading-relaxed ${
+                                                        fo4Version === 'ae'
+                                                            ? 'bg-red-900/30 border-red-600/50 text-red-200'
+                                                            : 'bg-blue-900/20 border-blue-600/40 text-blue-200'
+                                                    }`}>
+                                                        {fo4Version === 'ae' ? (
+                                                            <>
+                                                                <strong className="text-red-100">⚠️ FO4 1.11.x (AE) Detected:</strong> You <strong className="text-red-100">MUST</strong> download the <strong className="text-red-100">PRE-RELEASE</strong> (dev) build.
+                                                                Scroll past the top "Latest" release and look for the entry tagged <strong className="text-red-100">Pre-release</strong>.
+                                                                Download its <code className="bg-red-900/40 px-1 rounded">SpriggitCLI.zip</code>.
+                                                                The stable "Latest" build does NOT support 1.11.x and will crash with exit code 0xFFFFFFFF.
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <strong className="text-blue-100">💡 FO4 {fo4Version.toUpperCase()} Detected:</strong> Use the <strong className="text-blue-100">Latest</strong> stable release for your version.
+                                                                Download <code className="bg-blue-900/40 px-1 rounded">SpriggitCLI.zip</code> from the top of the releases page.
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {/* Static note fallback when FO4 version unknown */}
+                                                {dl.note && (!fo4Version || fo4Version === 'unknown') && dl.name === 'Spriggit' && (
+                                                    <div className="mt-2 p-2 rounded-md border bg-amber-900/20 border-amber-600/40 text-amber-200 text-xs leading-relaxed">
+                                                        {dl.note}
+                                                    </div>
+                                                )}
                                                 {manualPath && (
                                                     <p className="text-xs mt-1 text-emerald-600/80 truncate" title={manualPath}>
                                                         📂 {manualPath}
