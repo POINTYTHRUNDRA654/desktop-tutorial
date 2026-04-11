@@ -1934,6 +1934,116 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     </div>
                                 )}
                                 {spriggitMessage}
+                                {/* CRITICAL: Smart App Control "On" mode banner — shown when Defender exclusion was added but Spriggit still crashes */}
+                                {(spriggitStatus === 'error' || spriggitStatus === 'partial') && 
+                                 spriggitMessage.includes('0xFFFFFFFF') && 
+                                 detectedFo4Version.startsWith('1.11.') && 
+                                 (defenderExclusionState === 'ok' || verificationState === 'verified') && (
+                                    <div className="mt-4 p-5 rounded-xl bg-gradient-to-br from-red-950/70 via-orange-950/70 to-red-950/70 border-4 border-red-500 shadow-2xl animate-pulse">
+                                        <div className="flex items-start gap-4 mb-4">
+                                            <span className="text-5xl">🚨</span>
+                                            <div className="flex-1">
+                                                <h3 className="text-red-100 font-black text-xl mb-2 uppercase tracking-wide">
+                                                    Smart App Control "ON" Mode Detected
+                                                </h3>
+                                                <p className="text-red-200 font-semibold text-base leading-relaxed">
+                                                    You've added the Defender exclusion, but Spriggit still crashes.{' '}
+                                                    <strong className="text-red-100">This means Windows Smart App Control is in "ON" mode</strong> — the most restrictive setting that blocks Spriggit's .NET assemblies even with Defender exclusions.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="bg-slate-950/90 rounded-lg p-5 border-2 border-orange-500/70 mb-4">
+                                            <h4 className="text-orange-200 font-bold text-lg mb-3 flex items-center gap-2">
+                                                <span className="text-2xl">🎯</span>
+                                                <span>Required Actions (choose ONE):</span>
+                                            </h4>
+                                            
+                                            <div className="space-y-4">
+                                                {/* Option 1: Turn off SAC - EASIEST */}
+                                                <div className="bg-gradient-to-r from-emerald-900/50 to-emerald-800/50 rounded-lg p-4 border-2 border-emerald-400">
+                                                    <div className="flex items-start gap-3">
+                                                        <span className="text-3xl">✅</span>
+                                                        <div className="flex-1">
+                                                            <h5 className="text-emerald-100 font-bold text-base mb-2">
+                                                                OPTION 1 (EASIEST): Turn Smart App Control to "Evaluation" or "Off"
+                                                            </h5>
+                                                            <ol className="text-emerald-200 text-sm space-y-2 list-decimal list-inside ml-3">
+                                                                <li>Open <strong className="text-white">Windows Security</strong> (click button below or search Start menu)</li>
+                                                                <li>Go to <strong className="text-white">App & browser control</strong></li>
+                                                                <li>Click <strong className="text-white">Smart App Control settings</strong></li>
+                                                                <li>Change from <strong className="text-orange-300">"On"</strong> to <strong className="text-emerald-300">"Evaluation"</strong> or <strong className="text-slate-300">"Off"</strong></li>
+                                                                <li className="font-bold text-emerald-100">Click <strong className="bg-emerald-700 px-1 rounded">"🗑️ Clear Cache & Retry"</strong> below</li>
+                                                            </ol>
+                                                            <button
+                                                                type="button"
+                                                                className="mt-3 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-all shadow-lg"
+                                                                onClick={() => {
+                                                                    const api = getElectronApi();
+                                                                    const windowsSecurityUrl = 'ms-settings:windowsdefender';
+                                                                    if (api?.openExternal) {
+                                                                        void api.openExternal(windowsSecurityUrl);
+                                                                    } else {
+                                                                        window.open(windowsSecurityUrl, '_blank');
+                                                                    }
+                                                                }}
+                                                            >
+                                                                🔒 Open Windows Security →
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Option 2: Use PRE-RELEASE Spriggit */}
+                                                <div className="bg-gradient-to-r from-sky-900/50 to-blue-900/50 rounded-lg p-4 border-2 border-sky-400">
+                                                    <div className="flex items-start gap-3">
+                                                        <span className="text-3xl">📦</span>
+                                                        <div className="flex-1">
+                                                            <h5 className="text-sky-100 font-bold text-base mb-2">
+                                                                OPTION 2: Download Spriggit PRE-RELEASE (required for FO4 1.11.x)
+                                                            </h5>
+                                                            <p className="text-sky-200 text-sm mb-3 leading-relaxed">
+                                                                <strong className="text-amber-300">⚠️ IMPORTANT:</strong> For FO4 1.11.x (Anniversary Edition / Creations Menu update), you <strong className="text-white">MUST</strong> use the <strong className="text-white">PRE-RELEASE (dev)</strong> build of Spriggit.{' '}
+                                                                The "Latest" stable release does <strong className="text-red-300">NOT</strong> support the new record types added in November 2025.
+                                                            </p>
+                                                            <ol className="text-sky-200 text-sm space-y-2 list-decimal list-inside ml-3 mb-3">
+                                                                <li>Visit <a href="https://github.com/Mutagen-Modding/Spriggit/releases" target="_blank" rel="noopener noreferrer" className="text-sky-300 underline hover:text-sky-100">github.com/Mutagen-Modding/Spriggit/releases</a></li>
+                                                                <li>Scroll past the <strong className="text-amber-300">"Latest"</strong> release</li>
+                                                                <li>Look for the entry tagged <strong className="text-emerald-300">"Pre-release"</strong></li>
+                                                                <li>Download <code className="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300 font-mono">SpriggitCLI.zip</code> (NOT Spriggit.zip)</li>
+                                                                <li>Extract to a new folder (e.g., <code className="bg-slate-800 px-1.5 py-0.5 rounded font-mono">D:\Tools\Spriggit-dev</code>)</li>
+                                                                <li className="font-bold text-sky-100">Click "📂 Browse" above and select the <strong className="bg-sky-700 px-1 rounded">Spriggit.CLI.exe</strong> from the new folder</li>
+                                                            </ol>
+                                                            <button
+                                                                type="button"
+                                                                className="mt-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm transition-all shadow-lg"
+                                                                onClick={() => {
+                                                                    const api = getElectronApi();
+                                                                    if (api?.openExternal) {
+                                                                        void api.openExternal('https://github.com/Mutagen-Modding/Spriggit/releases');
+                                                                    } else {
+                                                                        window.open('https://github.com/Mutagen-Modding/Spriggit/releases', '_blank');
+                                                                    }
+                                                                }}
+                                                            >
+                                                                📥 Download Spriggit PRE-RELEASE →
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-slate-900/80 rounded-lg p-4 border border-slate-600">
+                                            <h5 className="text-slate-200 font-bold text-sm mb-2">Why is this happening?</h5>
+                                            <p className="text-slate-300 text-xs leading-relaxed">
+                                                Windows 11's Smart App Control in "On" mode blocks <strong className="text-white">all unsigned binaries from the internet</strong>, including the .NET assemblies that Spriggit extracts at runtime.{' '}
+                                                Windows Defender exclusions <strong className="text-white">do not override SAC</strong> when it's in "On" mode.{' '}
+                                                The only solutions are to change SAC to a less restrictive mode, or use a Spriggit build that SAC trusts (which requires Microsoft signing certificates that the Spriggit project doesn't have).
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                                 {(spriggitStatus === 'error' || spriggitStatus === 'partial') && spriggitMessage.includes('0xFFFFFFFF') && (
                                     <div className="mt-3 flex flex-wrap items-center gap-3">
                                         {/* Only offer the .NET download when .NET is confirmed absent.
