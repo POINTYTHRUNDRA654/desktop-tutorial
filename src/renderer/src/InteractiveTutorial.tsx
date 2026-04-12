@@ -51,12 +51,30 @@ const getImageForPage = (pageId: keyof typeof imageMap | string): string | undef
     'learning-hub': 'quick-reference',
     'roadmap-panel': 'modding-roadmaps',
     'mining-dashboard': 'mining-and-analysis-hub',
+    'mining-panel': 'mining-and-analysis-hub',
+    'advanced-analysis-panel': 'mining-and-analysis-hub',
+    'advanced-analysis': 'mining-and-analysis-hub',
     'image-suite': 'image-studio',
     packaging: 'packaging-release',
     diagnostics: 'diagnostic-tools',
     support: 'support-mossy',
     'fallout4-wiki': 'fallout-4-wiki',
     'pip-boy-mode': 'pip-boy-on-off',
+    monitor: 'system-monitor',
+    orchestrator: 'the-orchestrator',
+    holodeck: 'the-holodeck',
+    'project-hub': 'mod-projects',
+    scribe: 'the-scribe',
+    'blender-animation-guide': 'animation-guide',
+    'quest-authoring-guide': 'quest-mod-authorizing',
+    'animation-suite': 'animation-guide',
+    'upscayl-extension': 'upscale-extension',
+    // Pages without specific images - use generic fallbacks
+    'load-order': 'the-workshop',
+    'bodyslide-guide': 'tools',
+    'sim-settlements-guide': 'tools',
+    'paperscript-guide': 'tools',
+    'formid-remapper': 'the-workshop',
   };
 
   // Explicit fallbacks for images that exist on disk but were omitted from the auto-generated map
@@ -129,6 +147,9 @@ export function getOrderedTutorialContexts(allContexts: Record<string, TutorialP
     'learning-hub': 'quick-reference',
     'roadmap-panel': 'modding-roadmaps',
     'mining-dashboard': 'mining-and-analysis-hub',
+    'mining-panel': 'mining-and-analysis-hub',
+    'advanced-analysis-panel': 'mining-and-analysis-hub',
+    'advanced-analysis': 'mining-and-analysis-hub',
     'image-suite': 'image-studio',
     packaging: 'packaging-release',
     diagnostics: 'diagnostic-tools',
@@ -136,6 +157,19 @@ export function getOrderedTutorialContexts(allContexts: Record<string, TutorialP
     'fallout4-wiki': 'fallout-4-wiki',
     'pip-boy-mode': 'pip-boy-on-off',
     monitor: 'system-monitor',
+    orchestrator: 'the-orchestrator',
+    holodeck: 'the-holodeck',
+    'project-hub': 'mod-projects',
+    scribe: 'the-scribe',
+    'blender-animation-guide': 'animation-guide',
+    'quest-authoring-guide': 'quest-mod-authorizing',
+    'animation-suite': 'animation-guide',
+    'upscayl-extension': 'upscale-extension',
+    'load-order': 'the-workshop',
+    'bodyslide-guide': 'tools',
+    'sim-settlements-guide': 'tools',
+    'paperscript-guide': 'tools',
+    'formid-remapper': 'the-workshop',
   };
 
   const imageToContext: Record<string, string> = Object.fromEntries(
@@ -289,6 +323,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       route: '/',
       action: 'Get familiar with The Nexus dashboard — your home base',
       icon: <Home className="w-8 h-8" />,
+      image: getImageForPage('mossy-space'),
     },
     // Dynamically generate steps from tutorial contexts
     ...orderedContexts.map((context, index) => {
@@ -311,6 +346,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       route: '/',
       action: 'Start exploring — try the Chat or Learning Hub first!',
       icon: <CheckCircle2 className="w-8 h-8" />,
+      image: getImageForPage('mossy-space'),
     },
   ];
 
