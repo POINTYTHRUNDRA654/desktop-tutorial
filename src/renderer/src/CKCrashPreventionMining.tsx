@@ -102,14 +102,14 @@ interface ModFile {
 
 export const CKCrashPrevention: React.FC = () => {
   const [searchParams] = useSearchParams();
-  
+
   // Safely extract and validate tab parameter
   const tabParam = searchParams.get('tab');
   const validTabs: Tab[] = ['preflight', 'monitoring', 'postcrash', 'audit'];
   const initialTab: Tab = tabParam && validTabs.includes(tabParam as Tab)
     ? (tabParam as Tab)
     : 'preflight';
-  
+
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
   // Pre-flight state
@@ -308,26 +308,26 @@ export const CKCrashPrevention: React.FC = () => {
       // Read RecordData.yaml/json from the repository
       const fs = require('fs') as any;
       const path = require('path') as any;
-      
+
       let recordDataContent = '';
       let recordFiles: string[] = [];
-      
+
       // Try to find and read YAML/JSON files
       try {
         const files = await api.readDirectory?.(customModDiagnosticPath);
         if (files) {
           // Look for RecordData file
-          const recordDataFile = files.find((f: string) => 
+          const recordDataFile = files.find((f: string) =>
             f === 'RecordData.yaml' || f === 'RecordData.json'
           );
-          
+
           if (recordDataFile) {
             const fullPath = `${customModDiagnosticPath}/${recordDataFile}`;
             recordDataContent = await api.readFile(fullPath);
           }
 
           // Collect all YAML/JSON files for analysis
-          recordFiles = files.filter((f: string) => 
+          recordFiles = files.filter((f: string) =>
             f.endsWith('.yaml') || f.endsWith('.json')
           );
         }
@@ -1018,11 +1018,10 @@ Format your response clearly with headers and bullet points.`;
 
               {/* Status message */}
               {sdMessage && (
-                <div className={`rounded px-3 py-2 text-xs whitespace-pre-line break-words max-h-40 overflow-y-auto ${
-                  sdStatus === 'error' ? 'bg-red-900/30 border border-red-700/50 text-red-200'
+                <div className={`rounded px-3 py-2 text-xs whitespace-pre-line break-words max-h-40 overflow-y-auto ${sdStatus === 'error' ? 'bg-red-900/30 border border-red-700/50 text-red-200'
                   : sdStatus === 'partial' ? 'bg-amber-900/30 border border-amber-600/50 text-amber-200'
-                  : sdStatus === 'done' ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
-                  : 'bg-slate-800/60 border border-slate-600 text-slate-300'}`}>
+                    : sdStatus === 'done' ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
+                      : 'bg-slate-800/60 border border-slate-600 text-slate-300'}`}>
                   {sdMessage}
                 </div>
               )}
@@ -1156,21 +1155,19 @@ Format your response clearly with headers and bullet points.`;
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setCustomModOperation('serialize')}
-                    className={`px-4 py-2 rounded text-xs font-bold transition-colors ${
-                      customModOperation === 'serialize'
-                        ? 'bg-cyan-700 text-white border-2 border-cyan-500'
-                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-2 border-transparent'
-                    }`}
+                    className={`px-4 py-2 rounded text-xs font-bold transition-colors ${customModOperation === 'serialize'
+                      ? 'bg-cyan-700 text-white border-2 border-cyan-500'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-2 border-transparent'
+                      }`}
                   >
                     📤 Serialize (Plugin → Git)
                   </button>
                   <button
                     onClick={() => setCustomModOperation('deserialize')}
-                    className={`px-4 py-2 rounded text-xs font-bold transition-colors ${
-                      customModOperation === 'deserialize'
-                        ? 'bg-cyan-700 text-white border-2 border-cyan-500'
-                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-2 border-transparent'
-                    }`}
+                    className={`px-4 py-2 rounded text-xs font-bold transition-colors ${customModOperation === 'deserialize'
+                      ? 'bg-cyan-700 text-white border-2 border-cyan-500'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-2 border-transparent'
+                      }`}
                   >
                     📥 Deserialize (Git → Plugin)
                   </button>
@@ -1184,21 +1181,19 @@ Format your response clearly with headers and bullet points.`;
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => setCustomModFormat('yaml')}
-                      className={`px-4 py-2 rounded text-xs font-bold transition-colors ${
-                        customModFormat === 'yaml'
-                          ? 'bg-emerald-700 text-white border-2 border-emerald-500'
-                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-2 border-transparent'
-                      }`}
+                      className={`px-4 py-2 rounded text-xs font-bold transition-colors ${customModFormat === 'yaml'
+                        ? 'bg-emerald-700 text-white border-2 border-emerald-500'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-2 border-transparent'
+                        }`}
                     >
                       YAML (Recommended)
                     </button>
                     <button
                       onClick={() => setCustomModFormat('json')}
-                      className={`px-4 py-2 rounded text-xs font-bold transition-colors ${
-                        customModFormat === 'json'
-                          ? 'bg-emerald-700 text-white border-2 border-emerald-500'
-                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-2 border-transparent'
-                      }`}
+                      className={`px-4 py-2 rounded text-xs font-bold transition-colors ${customModFormat === 'json'
+                        ? 'bg-emerald-700 text-white border-2 border-emerald-500'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-2 border-transparent'
+                        }`}
                     >
                       JSON
                     </button>
@@ -1273,13 +1268,12 @@ Format your response clearly with headers and bullet points.`;
               {/* Status Message */}
               {customModMessage && (
                 <div
-                  className={`rounded px-3 py-2 text-xs whitespace-pre-line break-words max-h-48 overflow-y-auto ${
-                    customModStatus === 'error'
-                      ? 'bg-red-900/30 border border-red-700/50 text-red-200'
-                      : customModStatus === 'success'
+                  className={`rounded px-3 py-2 text-xs whitespace-pre-line break-words max-h-48 overflow-y-auto ${customModStatus === 'error'
+                    ? 'bg-red-900/30 border border-red-700/50 text-red-200'
+                    : customModStatus === 'success'
                       ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
                       : 'bg-slate-800/60 border border-slate-600 text-slate-300'
-                  }`}
+                    }`}
                 >
                   {customModMessage}
                 </div>
@@ -1297,8 +1291,8 @@ Format your response clearly with headers and bullet points.`;
                   {customModStatus === 'running'
                     ? 'Converting...'
                     : customModOperation === 'serialize'
-                    ? '📤 Convert to Git Format'
-                    : '📥 Convert to Plugin'}
+                      ? '📤 Convert to Git Format'
+                      : '📥 Convert to Plugin'}
                 </button>
                 {!sdCliPath && (
                   <span className="self-center text-xs text-amber-400 font-semibold">
@@ -1349,7 +1343,7 @@ Format your response clearly with headers and bullet points.`;
                   Let Mossy analyze your mod's Spriggit data to find issues, suggest fixes, and improve quality.
                   Works best after you've serialized your mod to YAML/JSON format.
                 </p>
-                
+
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
@@ -1553,7 +1547,7 @@ Format your response clearly with headers and bullet points.`;
 
             {/* Center: Inspector */}
             <div className="flex-1 min-h-0 bg-[#0a0d14] flex flex-col overflow-hidden">
-              {selectedFile ? (
+              {selectedFile && selectedFile.name ? (
                 <div className="flex flex-col h-full">
                   <div className="p-6 border-b border-slate-800 bg-slate-900/30">
                     <div className="flex items-start justify-between">
@@ -1596,25 +1590,25 @@ Format your response clearly with headers and bullet points.`;
                       <div data-testid="absolute-path-detection">Absolute Path Detection</div>
                     </div>
 
-                    {selectedFile.issues.length === 0 && selectedFile.status === 'clean' && (
+                    {selectedFile?.issues?.length === 0 && selectedFile?.status === 'clean' && (
                       <div className="flex flex-col items-center justify-center h-full text-slate-400">
                         <CheckCircle2 className="w-24 h-24 mb-4 text-emerald-500 opacity-40" />
                         <p className="text-lg font-bold text-emerald-400/80">Analysis Complete: Clean</p>
                         <p className="text-sm opacity-60">No anomalies detected.</p>
-                        {selectedFile.type === 'texture' && selectedFile.dimensions && (
+                        {selectedFile?.type === 'texture' && selectedFile?.dimensions && (
                           <div className="mt-8 p-4 bg-slate-900 border border-slate-800 rounded-xl w-64 animate-slide-up">
                             <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Visual Diagnostics</h4>
                             <div className="aspect-square bg-slate-800 rounded-lg flex items-center justify-center border border-slate-700 overflow-hidden relative group shadow-inner">
                               {texturePreview ? (<img src={texturePreview} alt="Preview" className="w-full h-full object-contain" />) : (
                                 <div className="text-center group-hover:scale-110 transition-transform duration-500">
                                   <FileImage className="w-12 h-12 text-slate-700 mx-auto mb-2" />
-                                  <span className="text-[10px] font-mono text-slate-600 uppercase tracking-tighter">{selectedFile.dimensions.format}</span>
+                                  <span className="text-[10px] font-mono text-slate-600 uppercase tracking-tighter">{selectedFile?.dimensions?.format}</span>
                                 </div>
                               )}
                               <div className="absolute inset-x-0 bottom-0 bg-slate-900/90 backdrop-blur-sm p-3 border-t border-slate-800">
                                 <div className="flex justify-between items-center">
-                                  <span className="text-[10px] font-mono text-emerald-400 font-bold">{selectedFile.dimensions.width} <span className="text-slate-600">x</span> {selectedFile.dimensions.height}</span>
-                                  <span className="px-2 py-0.5 bg-emerald-950/30 text-emerald-400 border border-emerald-500/20 rounded text-[9px] font-black">{selectedFile.dimensions.format}</span>
+                                  <span className="text-[10px] font-mono text-emerald-400 font-bold">{selectedFile?.dimensions?.width} <span className="text-slate-600">x</span> {selectedFile?.dimensions?.height}</span>
+                                  <span className="px-2 py-0.5 bg-emerald-950/30 text-emerald-400 border border-emerald-500/20 rounded text-[9px] font-black">{selectedFile?.dimensions?.format}</span>
                                 </div>
                               </div>
                             </div>
@@ -1622,20 +1616,20 @@ Format your response clearly with headers and bullet points.`;
                         )}
                       </div>
                     )}
-                    {selectedFile.issues.length === 0 && (selectedFile.status === 'error' || selectedFile.status === 'warning') && (
+                    {selectedFile?.issues?.length === 0 && (selectedFile?.status === 'error' || selectedFile?.status === 'warning') && (
                       <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-60">
                         <AlertTriangle className="w-24 h-24 mb-4 text-yellow-500" />
                         <p className="text-lg">Analysis detected issues but details are unavailable.</p>
                         <p className="text-sm mt-2">This file may have been flagged due to file type or size.</p>
                       </div>
                     )}
-                    {selectedFile.status === 'pending' && (
+                    {selectedFile?.status === 'pending' && (
                       <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-60">
                         <Search className="w-24 h-24 mb-4" />
                         <p>Run audit to scan this file.</p>
                       </div>
                     )}
-                    {selectedFile.issues.map(issue => (
+                    {selectedFile?.issues?.map(issue => (
                       <div key={issue.id} onClick={() => getAuditAdvice(issue)} className={`group p-4 rounded-xl border transition-all cursor-pointer ${issue.severity === 'error' ? 'bg-red-950/10 border-red-500/30 hover:bg-red-900/20' : 'bg-yellow-950/10 border-yellow-500/30 hover:bg-yellow-900/20'}`}>
                         <div className="flex items-center gap-2 mb-2">
                           {issue.severity === 'error' ? <XCircle className="w-5 h-5 text-red-500" /> : <AlertTriangle className="w-5 h-5 text-yellow-500" />}
