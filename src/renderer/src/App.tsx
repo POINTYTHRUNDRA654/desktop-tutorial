@@ -314,25 +314,46 @@ const App: React.FC = () => {
 
     const unsubscribe = api.onFreshInstall(() => {
       // A fresh-install.marker was found by the main process, meaning the user
-      // just installed (or reinstalled) via the NSIS installer.  Clear
-      // onboarding flags AND stale scan data so the full first-run wizard runs
-      // from scratch (instead of silently skipping due to old scan results).
+      // just installed (or reinstalled) via the NSIS installer.  IMPORTANT: if the
+      // user has ALREADY completed onboarding in a previous install, preserve that
+      // state so they don't have to redo the tutorial.  Only clear stale scan data
+      // so the first-run wizard (if shown) gets fresh program detection results.
       // Chat history, projects, and other user data are preserved.
-      const onboardingKeysToReset = [
-        'mossy_has_booted',
-        'mossy_onboarding_complete',
-        'mossy_onboarding_completed',
-        'mossy_tutorial_completed',
-        'mossy_tutorial_autostart',
-        'mossy_voice_setup_complete',
+      const userCompletedOnboardingBefore = localStorage.getItem('mossy_onboarding_completed') === 'true';
+
+      // These flags can be safely cleared on every reinstall (program scan + tutorial)
+      const staleDataKeysToClear = [
         'mossy_scan_summary',
         'mossy_all_detected_apps',
+        'mossy_tutorial_completed',
+        'mossy_tutorial_autostart',
+        'mossy_tutorial_skipped',
+        'mossy_tutorial_step',
       ];
-      onboardingKeysToReset.forEach(k => localStorage.removeItem(k));
+      staleDataKeysToClear.forEach(k => localStorage.removeItem(k));
 
-      console.log('[App] Fresh install detected. Cleared onboarding flags and stale scan data. User data preserved.');
-      setShowFirstRun(true);
-      setShowOnboarding(true);
+      // Only clear onboarding flags if the user has NOT already completed it.
+      // This preserves the completion state across reinstalls/updates.
+      if (!userCompletedOnboardingBefore) {
+        const onboardingKeysToReset = [
+          'mossy_has_booted',
+          'mossy_onboarding_complete',
+          'mossy_onboarding_completed',
+          'mossy_voice_setup_complete',
+        ];
+        onboardingKeysToReset.forEach(k => localStorage.removeItem(k));
+        console.log('[App] Fresh install detected. User has NOT completed onboarding before. Showing onboarding wizard.');
+        setShowFirstRun(true);
+        setShowOnboarding(true);
+      } else {
+        console.log('[App] Fresh install detected. User ALREADY completed onboarding in a previous install. Skipping tutorial.');
+        // User completed it before — mark as booted so we skip the startup sequence
+        try {
+          localStorage.setItem('mossy_has_booted', 'true');
+        } catch { /* ignore */ }
+      }
+
+      console.log('[App] Fresh install: cleared stale scan data. Chat history, projects, and other user data preserved.');
       setShowVoiceSetup(false);
     });
 
