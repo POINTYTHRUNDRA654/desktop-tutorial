@@ -40,6 +40,10 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   // Mod Content Whitelist
   const [whitelistInput, setWhitelistInput] = useState<string>('');
 
+  // Blacklists
+  const [modBlacklistInput, setModBlacklistInput] = useState<string>('');
+  const [programBlacklistInput, setProgramBlacklistInput] = useState<string>('');
+
   useEffect(() => {
     console.log('[PrivacySettings] useEffect running');
     loadSettings();
@@ -275,6 +279,70 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
       privacySettings: {
         ...settings.privacySettings,
         modContentWhitelist: currentWhitelist().filter((e) => e !== entry),
+      },
+    });
+  };
+
+  // Mod Blacklist handlers
+  const currentModBlacklist = (): string[] => {
+    return settings?.privacySettings?.modContentBlacklist ?? [];
+  };
+
+  const handleAddToModBlacklist = () => {
+    const trimmed = modBlacklistInput.trim();
+    if (!trimmed || !settings) return;
+    const existing = currentModBlacklist();
+    if (existing.includes(trimmed)) {
+      setModBlacklistInput('');
+      return;
+    }
+    saveSettings({
+      privacySettings: {
+        ...settings.privacySettings,
+        modContentBlacklist: [...existing, trimmed],
+      },
+    });
+    setModBlacklistInput('');
+  };
+
+  const handleRemoveFromModBlacklist = (entry: string) => {
+    if (!settings) return;
+    saveSettings({
+      privacySettings: {
+        ...settings.privacySettings,
+        modContentBlacklist: currentModBlacklist().filter((e) => e !== entry),
+      },
+    });
+  };
+
+  // Program Blacklist handlers
+  const currentProgramBlacklist = (): string[] => {
+    return settings?.privacySettings?.programBlacklist ?? [];
+  };
+
+  const handleAddToProgramBlacklist = () => {
+    const trimmed = programBlacklistInput.trim();
+    if (!trimmed || !settings) return;
+    const existing = currentProgramBlacklist();
+    if (existing.includes(trimmed)) {
+      setProgramBlacklistInput('');
+      return;
+    }
+    saveSettings({
+      privacySettings: {
+        ...settings.privacySettings,
+        programBlacklist: [...existing, trimmed],
+      },
+    });
+    setProgramBlacklistInput('');
+  };
+
+  const handleRemoveFromProgramBlacklist = (entry: string) => {
+    if (!settings) return;
+    saveSettings({
+      privacySettings: {
+        ...settings.privacySettings,
+        programBlacklist: currentProgramBlacklist().filter((e) => e !== entry),
       },
     });
   };
@@ -875,6 +943,150 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
 
             <p className="text-xs text-slate-500">
               {currentWhitelist().length} mod{currentWhitelist().length !== 1 ? 's' : ''} protected.
+              Changes take effect on your next message to Mossy.
+            </p>
+          </div>
+        </div>
+
+        {/* Mod Content Blacklist */}
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold text-slate-100 mb-2">Mod Content Blacklist</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            Add mods that are problematic, broken, or incompatible that Mossy should warn against.
+            When users ask about these mods, Mossy will provide warnings about potential issues.
+          </p>
+
+          <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50 space-y-4">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-red-900/20 border border-red-700/40">
+              <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
+              <div className="text-sm text-red-200">
+                <span className="font-semibold">Problematic mod warning:</span> Mods added here will be
+                flagged as potentially problematic. Mossy will warn users about known issues with these mods
+                and suggest alternatives when appropriate.
+              </div>
+            </div>
+
+            {/* Add entry */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={modBlacklistInput}
+                onChange={(e) => setModBlacklistInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && modBlacklistInput.trim()) handleAddToModBlacklist(); }}
+                placeholder="Mod name or keyword (e.g. Broken Mod X)"
+                className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleAddToModBlacklist}
+                disabled={!modBlacklistInput.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 bg-orange-700 text-white rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+            </div>
+
+            {/* Blacklist entries */}
+            {currentModBlacklist().length === 0 ? (
+              <p className="text-slate-500 text-sm italic">
+                No mods are blacklisted yet. Mossy will not warn about any specific mods.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {currentModBlacklist().map((entry) => (
+                  <li
+                    key={entry}
+                    className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-700/40 rounded-md border border-orange-600/50"
+                  >
+                    <span className="text-slate-200 text-sm font-mono truncate">{entry}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromModBlacklist(entry)}
+                      className="shrink-0 p-1 rounded text-slate-400 hover:text-orange-400 hover:bg-orange-900/20 transition-colors"
+                      title="Remove from blacklist"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <p className="text-xs text-slate-500">
+              {currentModBlacklist().length} mod{currentModBlacklist().length !== 1 ? 's' : ''} blacklisted.
+              Changes take effect on your next message to Mossy.
+            </p>
+          </div>
+        </div>
+
+        {/* Program Blacklist */}
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold text-slate-100 mb-2">Program Blacklist</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            Add programs or tools that are known to cause issues, conflicts, or problems with modding workflows.
+            Mossy will warn users against using these programs and suggest safer alternatives.
+          </p>
+
+          <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50 space-y-4">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-red-900/20 border border-red-700/40">
+              <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
+              <div className="text-sm text-red-200">
+                <span className="font-semibold">Problematic program warning:</span> Programs added here will be
+                flagged as potentially dangerous or incompatible. Mossy will actively discourage their use
+                and recommend safer alternatives when asked.
+              </div>
+            </div>
+
+            {/* Add entry */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={programBlacklistInput}
+                onChange={(e) => setProgramBlacklistInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && programBlacklistInput.trim()) handleAddToProgramBlacklist(); }}
+                placeholder="Program name (e.g. Buggy Tool 2023)"
+                className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleAddToProgramBlacklist}
+                disabled={!programBlacklistInput.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 bg-orange-700 text-white rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+            </div>
+
+            {/* Blacklist entries */}
+            {currentProgramBlacklist().length === 0 ? (
+              <p className="text-slate-500 text-sm italic">
+                No programs are blacklisted yet. Mossy will not warn against any specific programs.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {currentProgramBlacklist().map((entry) => (
+                  <li
+                    key={entry}
+                    className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-700/40 rounded-md border border-orange-600/50"
+                  >
+                    <span className="text-slate-200 text-sm font-mono truncate">{entry}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromProgramBlacklist(entry)}
+                      className="shrink-0 p-1 rounded text-slate-400 hover:text-orange-400 hover:bg-orange-900/20 transition-colors"
+                      title="Remove from blacklist"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <p className="text-xs text-slate-500">
+              {currentProgramBlacklist().length} program{currentProgramBlacklist().length !== 1 ? 's' : ''} blacklisted.
               Changes take effect on your next message to Mossy.
             </p>
           </div>
