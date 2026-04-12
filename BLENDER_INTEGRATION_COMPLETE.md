@@ -1,6 +1,8 @@
 # Blender Integration Complete — Mossy Bridge v6.1 ✓
 
-## Status: PRODUCTION READY
+## Status: FUNCTIONAL (Under Active Development)
+
+⚠️ **Development Notice:** The Blender add-on is fully functional but still under active development. Features and stability may change as we continue to improve the integration.
 
 The Blender add-on integration is now fully functional. The exact TCP protocol from the official Blender add-on has been integrated into Mossy, enabling real-time Blender-to-Mossy communication for PyTorch access and AI-powered tool execution.
 

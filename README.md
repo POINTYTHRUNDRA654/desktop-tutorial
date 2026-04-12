@@ -35,6 +35,7 @@
 - Real-time tool monitoring (Neural Link)
 - Explicit user permission and audit logging for all direct-write and automation features
 - All modules are functional—no placeholders
+- ⚠️ **Note:** The Blender add-on is still under active development
 - **Fixed**: Encryption key parity between dev and production builds
 - **Added**: Automatic API key decryption in packaged builds
 - **New**: Tutorial replay feature - Re-experience the installation tutorial anytime!
