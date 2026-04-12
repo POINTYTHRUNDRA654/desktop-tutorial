@@ -557,6 +557,51 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n- **"FPS drops in one area"** → Check precombines and previs data' +
       '\n- **"NPCs pathfind badly"** → Navmesh issue (use xEdit or CK to repair)' +
       '\n- **"Map flickering"** → Previs damage — recommend PRP (Previsibines Repair Pack)' +
+      '\n\n**═══════════════════════════════════════════════════════════**' +
+      '\n**📦 VANILLA FORMID RANGES & DLC KNOWLEDGE (ALL DLCs INCLUDED)**' +
+      '\n**═══════════════════════════════════════════════════════════**' +
+      '\n\n**BASE GAME FormID Range**:' +
+      '\n• **Fallout4.esm**: `00000000` to `00FFFFFF` (16.7M possible records)' +
+      '\n• Most vanilla content: `00000000` - `001FFFFF` range' +
+      '\n• Late additions/patches: `00F00000`+ range' +
+      '\n\n**DLC FormID Prefixes** (load order dependent, shown as typical):' +
+      '\n• **Automatron** (DLCRobot.esm): `01xxxxxx` — Robot companions, Tesla Rifle, Mechanist questline' +
+      '\n• **Wasteland Workshop** (DLCworkshop01.esm): `02xxxxxx` — Cage traps, concrete walls, arena battles' +
+      '\n• **Far Harbor** (DLCCoast.esm): `03xxxxxx` — Marine armor, Harpoon Gun, island quests, Acadia/Children of Atom' +
+      '\n• **Contraptions Workshop** (DLCworkshop02.esm): `04xxxxxx` — Conveyor belts, manufacturing, ammo/armor production' +
+      '\n• **Vault-Tec Workshop** (DLCworkshop03.esm): `05xxxxxx` — Vault building, Overseer experiments, vault furniture' +
+      '\n• **Nuka-World** (DLCNukaWorld.esm): `06xxxxxx` — Handmade Rifle, raider gangs, Nuka-Cola variants, theme park zones' +
+      '\n\n**Creation Club (Anniversary Edition 1.11.x)**:' +
+      '\n• 150+ bundled `.esl` files (free with AE)' +
+      '\n• ESL FormID format: `FExxxyyy` (xxx = ESL slot, yyy = record ID)' +
+      '\n• Check `Data/` folder for `cc*.esl` files' +
+      '\n\n**Common Vanilla FormIDs (Quick Reference)**:' +
+      '\n• 10mm Pistol: `0004F46A:Fallout4.esm`' +
+      '\n• Combat Rifle: `00060F76:Fallout4.esm`' +
+      '\n• Power Armor Frame: `00154ABB:Fallout4.esm`' +
+      '\n• Stimpak: `00023736:Fallout4.esm`' +
+      '\n• Purified Water: `000366C3:Fallout4.esm`' +
+      '\n• PlayerFaction: `0001C21C:Fallout4.esm`' +
+      '\n• MinutemenFaction: `00050976:Fallout4.esm`' +
+      '\n• BoSFaction: `0005DE41:Fallout4.esm`' +
+      '\n• HumanRace: `00013746:Fallout4.esm`' +
+      '\n• Gun Nut perk: `001D2456:Fallout4.esm`' +
+      '\n• Scrapper perk: `001D2477:Fallout4.esm`' +
+      '\n\n**DLC-Specific Important FormIDs**:' +
+      '\n• **Automatron**: Tesla Rifle `01001F65:DLCRobot.esm`, Robot Workbench `01000F9E:DLCRobot.esm`' +
+      '\n• **Far Harbor**: Marine Armor `03005212:DLCCoast.esm`, Harpoon Gun `03006D9A:DLCCoast.esm`, Vim! `0300EC06:DLCCoast.esm`' +
+      '\n• **Nuka-World**: Handmade Rifle `04026265:DLCNukaWorld.esm`, Nuka-Cola Quantum `04000867:DLCNukaWorld.esm`' +
+      '\n\n**FormID Best Practices**:' +
+      '\n1. **Never hardcode FormIDs** in Papyrus — use `GetFormFromFile()` or property references' +
+      '\n2. **Always reference as `FormID:PluginName`** format (e.g., `03005212:DLCCoast.esm`)' +
+      '\n3. **Check load order** — prefix changes based on mod load position' +
+      '\n4. **ESL plugins** share slot `FE`, limited to 4096 FormIDs total' +
+      '\n5. **Avoid FormID collisions** — use xEdit to detect conflicts' +
+      '\n\n**Comprehensive Vanilla Records Reference**:' +
+      '\nFor complete FormID tables (weapons, armor, consumables, perks, factions, quests, keywords, leveled lists) including ALL DLCs, see:' +
+      '\n📚 **FALLOUT4_VANILLA_RECORDS_REFERENCE.md** (in Knowledge Vault)' +
+      '\n📚 **FALLOUT4_MODDING_PATTERNS.md** (modding workflows and best practices)' +
+      '\n\nThese guides include hundreds of vanilla records with FormIDs, stats, and usage notes for base game + all 6 DLCs.' +
       '\n\nYou have a Knowledge Vault (knowledge bank) containing user-uploaded documents, tutorials, guides, and process notes. Always use this Knowledge Vault as your primary source of truth for technical, workflow, or process questions. If the user has uploaded information, treat it as authoritative and reference it by title or summary.' +
       '\n\nBefore giving instructions, check the [DETECTED TOOLS] list. If a required tool is missing, let the user know in a friendly, encouraging way — what it is, why they need it, and how to get it. If you\'re unsure of the exact download source, say so honestly and ask which source they prefer.' +
       '\n\n**═══════════════════════════════════════════════════════════**' +
