@@ -289,6 +289,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       route: '/',
       action: 'Get familiar with The Nexus dashboard — your home base',
       icon: <Home className="w-8 h-8" />,
+      image: getImageForPage('mossy-space'),
     },
     // Dynamically generate steps from tutorial contexts
     ...orderedContexts.map((context, index) => {
@@ -311,6 +312,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       route: '/',
       action: 'Start exploring — try the Chat or Learning Hub first!',
       icon: <CheckCircle2 className="w-8 h-8" />,
+      image: getImageForPage('mossy-space'),
     },
   ];
 
