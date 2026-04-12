@@ -984,6 +984,12 @@ const App: React.FC = () => {
         <div className="relative h-full w-full min-h-0">
           <FirstRunOnboarding
             onComplete={() => {
+              // CRITICAL: Set localStorage flags so onboarding doesn't show again on next launch
+              try {
+                localStorage.setItem('mossy_onboarding_complete', 'true');
+                localStorage.setItem('mossy_onboarding_completed', 'true');
+              } catch { /* ignore */ }
+
               setShowFirstRun(false);
               // If the user clicked "Open in Auditor" on the Spriggit digest step,
               // navigate there now that the onboarding overlay has been dismissed.
