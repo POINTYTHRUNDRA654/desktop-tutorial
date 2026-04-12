@@ -1864,7 +1864,8 @@ Format your response clearly with headers and bullet points.`;
   /**
    * Render helpers
    */
-  const getSeverityColor = (severity: string) => {
+  const getSeverityColor = (severity: string | undefined) => {
+    if (!severity) return 'text-gray-600';
     switch (severity) {
       case 'critical': return 'text-red-600';
       case 'high': return 'text-orange-600';
@@ -1874,7 +1875,8 @@ Format your response clearly with headers and bullet points.`;
     }
   };
 
-  const getSeverityBadge = (severity: string) => {
+  const getSeverityBadge = (severity: string | undefined) => {
+    if (!severity) return 'bg-gray-100 text-gray-800 border-gray-300';
     const colors = {
       critical: 'bg-red-100 text-red-800 border-red-300',
       high: 'bg-orange-100 text-orange-800 border-orange-300',
@@ -1884,7 +1886,8 @@ Format your response clearly with headers and bullet points.`;
     return colors[severity as keyof typeof colors] || 'bg-gray-100 text-gray-800 border-gray-300';
   };
 
-  const getRiskColor = (risk: number) => {
+  const getRiskColor = (risk: number | undefined) => {
+    if (risk === undefined || risk === null) return 'text-gray-600';
     if (risk >= 80) return 'text-red-600';
     if (risk >= 50) return 'text-orange-600';
     if (risk >= 25) return 'text-yellow-600';
@@ -1992,25 +1995,25 @@ Format your response clearly with headers and bullet points.`;
               <div className="bg-gray-900/50 rounded p-4">
                 <div className="text-sm text-gray-400 mb-1">Crash Risk</div>
                 <div className={`text-2xl font-bold ${getRiskColor(validationResult.crashRisk)}`}>
-                  {validationResult.crashRisk}%
+                  {validationResult.crashRisk ?? 0}%
                 </div>
               </div>
               <div className="bg-gray-900/50 rounded p-4">
                 <div className="text-sm text-gray-400 mb-1">Memory Est.</div>
                 <div className="text-2xl font-bold text-white">
-                  {validationResult.memoryEstimateMB} MB
+                  {validationResult.memoryEstimateMB ?? 0} MB
                 </div>
               </div>
               <div className="bg-gray-900/50 rounded p-4">
                 <div className="text-sm text-gray-400 mb-1">Issues Found</div>
                 <div className="text-2xl font-bold text-white">
-                  {validationResult.issues.length}
+                  {validationResult.issues?.length ?? 0}
                 </div>
               </div>
             </div>
 
             {/* Issues List */}
-            {validationResult.issues.length > 0 && (
+            {validationResult.issues && validationResult.issues.length > 0 && (
               <div className="space-y-2">
                 <h4 className="font-semibold text-white text-sm mb-2">Issues:</h4>
                 {validationResult.issues.map((issue, idx) => (
@@ -2019,13 +2022,13 @@ Format your response clearly with headers and bullet points.`;
                       <AlertTriangle className={`w-4 h-4 mt-1 ${getSeverityColor(issue.severity)}`} />
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-white">{issue.type}</span>
+                          <span className="font-semibold text-white">{issue.type ?? 'Unknown'}</span>
                           <span className={`text-xs px-2 py-0.5 rounded border ${getSeverityBadge(issue.severity)}`}>
-                            {issue.severity}
+                            {issue.severity ?? 'unknown'}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-300 mb-1">{issue.message}</p>
-                        <p className="text-xs text-cyan-400">{issue.solution}</p>
+                        <p className="text-sm text-gray-300 mb-1">{issue.message ?? 'No details available'}</p>
+                        {issue.solution && <p className="text-xs text-cyan-400">{issue.solution}</p>}
                       </div>
                     </div>
                   </div>
@@ -2034,7 +2037,7 @@ Format your response clearly with headers and bullet points.`;
             )}
 
             {/* Recommendations */}
-            {validationResult.recommendations.length > 0 && (
+            {validationResult.recommendations && validationResult.recommendations.length > 0 && (
               <div className="mt-4 space-y-2">
                 <h4 className="font-semibold text-white text-sm mb-2 flex items-center gap-2">
                   <Lightbulb className="w-4 h-4 text-yellow-400" />
@@ -2050,7 +2053,7 @@ Format your response clearly with headers and bullet points.`;
           </div>
 
           {/* Prevention Plan */}
-          {preventionPlan && preventionPlan.steps.length > 0 && (
+          {preventionPlan && preventionPlan.steps && preventionPlan.steps.length > 0 && (
             <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                 <Brain className="w-5 h-5 text-purple-400" />
@@ -2060,18 +2063,20 @@ Format your response clearly with headers and bullet points.`;
               <div className="mb-4 flex gap-4 text-sm">
                 <div>
                   <span className="text-gray-400">Risk Reduction: </span>
-                  <span className="text-green-400 font-semibold">{preventionPlan.estimatedRiskReduction}%</span>
+                  <span className="text-green-400 font-semibold">{preventionPlan.estimatedRiskReduction ?? 0}%</span>
                 </div>
                 <div>
                   <span className="text-gray-400">Est. Time: </span>
-                  <span className="text-white font-semibold">{preventionPlan.estimatedTime}</span>
+                  <span className="text-white font-semibold">{preventionPlan.estimatedTime ?? 'Unknown'}</span>
                 </div>
-                <div>
-                  <span className="text-gray-400">Priority: </span>
-                  <span className={`font-semibold ${getSeverityColor(preventionPlan.priority)}`}>
-                    {preventionPlan.priority.toUpperCase()}
-                  </span>
-                </div>
+                {preventionPlan.priority && (
+                  <div>
+                    <span className="text-gray-400">Priority: </span>
+                    <span className={`font-semibold ${getSeverityColor(preventionPlan.priority)}`}>
+                      {preventionPlan.priority.toUpperCase()}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -2082,19 +2087,23 @@ Format your response clearly with headers and bullet points.`;
                         {idx + 1}
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm text-white mb-1">{step.description}</p>
+                        <p className="text-sm text-white mb-1">{step.description ?? 'No description'}</p>
                         {step.command && (
                           <code className="text-xs text-cyan-400 bg-gray-800 px-2 py-1 rounded block mt-1">
                             {step.command}
                           </code>
                         )}
                         <div className="flex gap-4 mt-2 text-xs">
-                          <span className="text-gray-400">
-                            Time: <span className="text-white">{step.estimatedTime}</span>
-                          </span>
-                          <span className={getSeverityColor(step.priority)}>
-                            Priority: {step.priority.toUpperCase()}
-                          </span>
+                          {step.estimatedTime && (
+                            <span className="text-gray-400">
+                              Time: <span className="text-white">{step.estimatedTime}</span>
+                            </span>
+                          )}
+                          {step.priority && (
+                            <span className={getSeverityColor(step.priority)}>
+                              Priority: {step.priority.toUpperCase()}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
