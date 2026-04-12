@@ -5,11 +5,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Info, CheckCircle, AlertTriangle, Zap, Cpu, ExternalLink } from 'lucide-react';
+import { Info, CheckCircle, AlertTriangle, Zap, Cpu } from 'lucide-react';
 import packageJson from '../../../package.json';
-import { openExternal } from './utils/openExternal';
-
-const NVIDIA_EDITION_RELEASES_URL = 'https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases';
 
 interface VersionInfoProps {
   embedded?: boolean;
@@ -158,18 +155,6 @@ const VersionInfo: React.FC<VersionInfoProps> = ({ embedded = false }) => {
                     Want local AI fine-tuning with Unsloth (CUDA 12.4)? Download the NVIDIA Edition —
                     it requires an NVIDIA GPU with 8 GB+ VRAM. Your settings and knowledge vault
                     carry over automatically.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void openExternal(NVIDIA_EDITION_RELEASES_URL)}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded-md text-xs font-bold transition-colors"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    Download NVIDIA Edition from GitHub Releases
-                  </button>
-                  <p className="text-[10px] text-slate-500">
-                    Install over this version — Mossy will re-run the 30-second PyTorch + Unsloth setup
-                    on first launch.
                   </p>
                 </div>
               )}

@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { openExternal } from './utils/openExternal';
-
-const NVIDIA_EDITION_RELEASES_URL = 'https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases';
 
 type CapsStatus = {
   ok: true;
@@ -546,18 +543,10 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
           <p className="text-xs text-slate-400 leading-relaxed">
             Train Gemma 4, Llama 3, or Qwen 2.5 on your own Fallout 4 Q&A dataset using Unsloth (8 GB+ VRAM).
             You are currently on the <strong className="text-slate-300">Universal Edition</strong>.
-            Download the NVIDIA Edition to unlock this feature — your settings and knowledge vault carry over automatically.
           </p>
-          <button
-            type="button"
-            onClick={() => void openExternal(NVIDIA_EDITION_RELEASES_URL)}
-            className="flex items-center gap-2 px-3 py-2 bg-green-700 hover:bg-green-600 text-white rounded-md text-xs font-bold transition-colors"
-          >
-            <span>⬇</span>
-            Download Mossy NVIDIA Edition
-          </button>
-          <p className="text-[10px] text-slate-500">
-            Install over this version — Mossy re-runs the PyTorch + Unsloth setup (~30 s) on first NVIDIA launch.
+          <p className="text-xs text-slate-400 leading-relaxed">
+            To use fine-tuning features, download and install the <strong className="text-slate-300">Mossy NVIDIA Edition</strong> installer from GitHub Releases.
+            Your settings and knowledge vault will carry over automatically.
           </p>
         </div>
       ) : (
