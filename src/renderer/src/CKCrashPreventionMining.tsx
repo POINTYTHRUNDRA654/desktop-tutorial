@@ -472,42 +472,97 @@ Format your response clearly with headers and bullet points.`;
 
   // Load previous scan from localStorage on mount; detect auto-scan flag from Spriggit digest
   useEffect(() => {
+    // Wrap everything in try-catch to prevent crashes from localStorage issues
     try {
-      const saved = localStorage.getItem('mossy_scan_auditor');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Validate parsed data is an array
-        if (Array.isArray(parsed)) {
-          setAuditFiles(parsed);
-        } else {
-          console.warn('Invalid audit files data in localStorage, clearing...');
+      // Check if localStorage is available (it might not be in some contexts)
+      if (typeof localStorage === 'undefined') {
+        console.warn('localStorage not available, skipping audit data load');
+        return;
+      }
+
+      // Load audit files
+      try {
+        const saved = localStorage.getItem('mossy_scan_auditor');
+        if (saved && typeof saved === 'string' && saved.trim().length > 0) {
+          const parsed = JSON.parse(saved);
+          // Validate parsed data is an array with proper structure
+          if (Array.isArray(parsed)) {
+            // Additional validation: check if items have required properties
+            const isValid = parsed.every(item => 
+              item && 
+              typeof item === 'object' && 
+              'id' in item && 
+              'name' in item && 
+              'type' in item
+            );
+            if (isValid) {
+              setAuditFiles(parsed);
+            } else {
+              console.warn('Invalid audit files structure in localStorage, clearing...');
+              localStorage.removeItem('mossy_scan_auditor');
+            }
+          } else {
+            console.warn('Invalid audit files data in localStorage (not an array), clearing...');
+            localStorage.removeItem('mossy_scan_auditor');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load audit files from localStorage:', error);
+        try {
           localStorage.removeItem('mossy_scan_auditor');
+        } catch (removeError) {
+          console.error('Failed to remove corrupted audit data:', removeError);
         }
       }
-    } catch (error) {
-      console.error('Failed to load audit files from localStorage:', error);
-      localStorage.removeItem('mossy_scan_auditor');
-    }
-    
-    // If the Spriggit vanilla digest queued plugins for us, show the auto-scan banner
-    try {
-      if (localStorage.getItem('mossy_auditor_auto_scan') === 'true') {
-        localStorage.removeItem('mossy_auditor_auto_scan');
-        setAutoScanBanner(true);
+      
+      // Check for auto-scan flag from Spriggit digest
+      try {
+        const autoScanFlag = localStorage.getItem('mossy_auditor_auto_scan');
+        if (autoScanFlag === 'true') {
+          localStorage.removeItem('mossy_auditor_auto_scan');
+          setAutoScanBanner(true);
+        }
+      } catch (error) {
+        console.error('Failed to check auto-scan flag:', error);
+        try {
+          localStorage.removeItem('mossy_auditor_auto_scan');
+        } catch (removeError) {
+          console.error('Failed to remove auto-scan flag:', removeError);
+        }
       }
-    } catch (error) {
-      console.error('Failed to check auto-scan flag:', error);
+    } catch (outerError) {
+      console.error('Critical error in audit data initialization:', outerError);
+      // Don't crash the component, just log the error
     }
   }, []);
 
   // Persist file list to localStorage for Mossy context
   useEffect(() => {
-    if (auditFiles.length > 0) {
-      localStorage.setItem('mossy_scan_auditor', JSON.stringify(auditFiles));
-    } else {
-      localStorage.removeItem('mossy_scan_auditor');
+    try {
+      // Check if localStorage is available
+      if (typeof localStorage === 'undefined') {
+        return;
+      }
+
+      if (auditFiles.length > 0) {
+        // Validate auditFiles before saving
+        const isValid = Array.isArray(auditFiles) && auditFiles.every(f => 
+          f && typeof f === 'object' && f.id && f.name && f.type
+        );
+        if (isValid) {
+          localStorage.setItem('mossy_scan_auditor', JSON.stringify(auditFiles));
+          window.dispatchEvent(new Event('mossy-memory-update'));
+        } else {
+          console.warn('Attempted to save invalid audit files, skipping...');
+        }
+      } else {
+        localStorage.removeItem('mossy_scan_auditor');
+        window.dispatchEvent(new Event('mossy-memory-update'));
+      }
+    } catch (error) {
+      console.error('Failed to persist audit files to localStorage:', error);
+      // Don't crash, just log the error
     }
-    window.dispatchEvent(new Event('mossy-memory-update'));
   }, [auditFiles]);
 
   // Load texture metadata when a texture file is selected
@@ -866,8 +921,15 @@ Format your response clearly with headers and bullet points.`;
     setIsScanning(false);
     setScanProgress(0);
 
-    localStorage.setItem('mossy_scan_auditor', JSON.stringify(updatedFiles));
-    window.dispatchEvent(new Event('mossy-memory-update'));
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('mossy_scan_auditor', JSON.stringify(updatedFiles));
+        window.dispatchEvent(new Event('mossy-memory-update'));
+      }
+    } catch (error) {
+      console.error('Failed to save audit results to localStorage:', error);
+      // Don't crash, just log the error
+    }
 
     const totalIssues = updatedFiles.reduce((sum, f) => sum + f.issues.length, 0);
     const errorCount = updatedFiles.filter(f => f.status === 'error').length;
@@ -1864,7 +1926,8 @@ Format your response clearly with headers and bullet points.`;
   /**
    * Render helpers
    */
-  const getSeverityColor = (severity: string) => {
+  const getSeverityColor = (severity: string | undefined) => {
+    if (!severity) return 'text-gray-600';
     switch (severity) {
       case 'critical': return 'text-red-600';
       case 'high': return 'text-orange-600';
@@ -1874,7 +1937,8 @@ Format your response clearly with headers and bullet points.`;
     }
   };
 
-  const getSeverityBadge = (severity: string) => {
+  const getSeverityBadge = (severity: string | undefined) => {
+    if (!severity) return 'bg-gray-100 text-gray-800 border-gray-300';
     const colors = {
       critical: 'bg-red-100 text-red-800 border-red-300',
       high: 'bg-orange-100 text-orange-800 border-orange-300',
@@ -1884,7 +1948,8 @@ Format your response clearly with headers and bullet points.`;
     return colors[severity as keyof typeof colors] || 'bg-gray-100 text-gray-800 border-gray-300';
   };
 
-  const getRiskColor = (risk: number) => {
+  const getRiskColor = (risk: number | undefined) => {
+    if (risk === undefined || risk === null) return 'text-gray-600';
     if (risk >= 80) return 'text-red-600';
     if (risk >= 50) return 'text-orange-600';
     if (risk >= 25) return 'text-yellow-600';
@@ -1992,25 +2057,25 @@ Format your response clearly with headers and bullet points.`;
               <div className="bg-gray-900/50 rounded p-4">
                 <div className="text-sm text-gray-400 mb-1">Crash Risk</div>
                 <div className={`text-2xl font-bold ${getRiskColor(validationResult.crashRisk)}`}>
-                  {validationResult.crashRisk}%
+                  {validationResult.crashRisk ?? 0}%
                 </div>
               </div>
               <div className="bg-gray-900/50 rounded p-4">
                 <div className="text-sm text-gray-400 mb-1">Memory Est.</div>
                 <div className="text-2xl font-bold text-white">
-                  {validationResult.memoryEstimateMB} MB
+                  {validationResult.memoryEstimateMB ?? 0} MB
                 </div>
               </div>
               <div className="bg-gray-900/50 rounded p-4">
                 <div className="text-sm text-gray-400 mb-1">Issues Found</div>
                 <div className="text-2xl font-bold text-white">
-                  {validationResult.issues.length}
+                  {validationResult.issues?.length ?? 0}
                 </div>
               </div>
             </div>
 
             {/* Issues List */}
-            {validationResult.issues.length > 0 && (
+            {validationResult.issues && validationResult.issues.length > 0 && (
               <div className="space-y-2">
                 <h4 className="font-semibold text-white text-sm mb-2">Issues:</h4>
                 {validationResult.issues.map((issue, idx) => (
@@ -2019,13 +2084,13 @@ Format your response clearly with headers and bullet points.`;
                       <AlertTriangle className={`w-4 h-4 mt-1 ${getSeverityColor(issue.severity)}`} />
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-white">{issue.type}</span>
+                          <span className="font-semibold text-white">{issue.type ?? 'Unknown'}</span>
                           <span className={`text-xs px-2 py-0.5 rounded border ${getSeverityBadge(issue.severity)}`}>
-                            {issue.severity}
+                            {issue.severity ?? 'unknown'}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-300 mb-1">{issue.message}</p>
-                        <p className="text-xs text-cyan-400">{issue.solution}</p>
+                        <p className="text-sm text-gray-300 mb-1">{issue.message ?? 'No details available'}</p>
+                        {issue.solution && <p className="text-xs text-cyan-400">{issue.solution}</p>}
                       </div>
                     </div>
                   </div>
@@ -2034,7 +2099,7 @@ Format your response clearly with headers and bullet points.`;
             )}
 
             {/* Recommendations */}
-            {validationResult.recommendations.length > 0 && (
+            {validationResult.recommendations && validationResult.recommendations.length > 0 && (
               <div className="mt-4 space-y-2">
                 <h4 className="font-semibold text-white text-sm mb-2 flex items-center gap-2">
                   <Lightbulb className="w-4 h-4 text-yellow-400" />
@@ -2050,7 +2115,7 @@ Format your response clearly with headers and bullet points.`;
           </div>
 
           {/* Prevention Plan */}
-          {preventionPlan && preventionPlan.steps.length > 0 && (
+          {preventionPlan && preventionPlan.steps && preventionPlan.steps.length > 0 && (
             <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                 <Brain className="w-5 h-5 text-purple-400" />
@@ -2060,18 +2125,20 @@ Format your response clearly with headers and bullet points.`;
               <div className="mb-4 flex gap-4 text-sm">
                 <div>
                   <span className="text-gray-400">Risk Reduction: </span>
-                  <span className="text-green-400 font-semibold">{preventionPlan.estimatedRiskReduction}%</span>
+                  <span className="text-green-400 font-semibold">{preventionPlan.estimatedRiskReduction ?? 0}%</span>
                 </div>
                 <div>
                   <span className="text-gray-400">Est. Time: </span>
-                  <span className="text-white font-semibold">{preventionPlan.estimatedTime}</span>
+                  <span className="text-white font-semibold">{preventionPlan.estimatedTime ?? 'Unknown'}</span>
                 </div>
-                <div>
-                  <span className="text-gray-400">Priority: </span>
-                  <span className={`font-semibold ${getSeverityColor(preventionPlan.priority)}`}>
-                    {preventionPlan.priority.toUpperCase()}
-                  </span>
-                </div>
+                {preventionPlan.priority && (
+                  <div>
+                    <span className="text-gray-400">Priority: </span>
+                    <span className={`font-semibold ${getSeverityColor(preventionPlan.priority)}`}>
+                      {preventionPlan.priority.toUpperCase()}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -2082,19 +2149,23 @@ Format your response clearly with headers and bullet points.`;
                         {idx + 1}
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm text-white mb-1">{step.description}</p>
+                        <p className="text-sm text-white mb-1">{step.description ?? 'No description'}</p>
                         {step.command && (
                           <code className="text-xs text-cyan-400 bg-gray-800 px-2 py-1 rounded block mt-1">
                             {step.command}
                           </code>
                         )}
                         <div className="flex gap-4 mt-2 text-xs">
-                          <span className="text-gray-400">
-                            Time: <span className="text-white">{step.estimatedTime}</span>
-                          </span>
-                          <span className={getSeverityColor(step.priority)}>
-                            Priority: {step.priority.toUpperCase()}
-                          </span>
+                          {step.estimatedTime && (
+                            <span className="text-gray-400">
+                              Time: <span className="text-white">{step.estimatedTime}</span>
+                            </span>
+                          )}
+                          {step.priority && (
+                            <span className={getSeverityColor(step.priority)}>
+                              Priority: {step.priority.toUpperCase()}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
