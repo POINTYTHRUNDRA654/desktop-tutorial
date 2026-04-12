@@ -13,6 +13,7 @@ import {
   FileText, Brain, Lightbulb, Download, XCircle,
   RefreshCw, FolderOpen, ShieldCheck,
   Scan, CheckCircle2, FileImage, Box, FileCode, Search, Wrench, ArrowRight, X, File, Bug,
+  GitBranch, Star,
 } from 'lucide-react';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
@@ -162,6 +163,18 @@ export const CKCrashPrevention: React.FC = () => {
   const [sdUnblockResult, setSdUnblockResult] = useState<{ ok: boolean; unblocked?: number; folderPath?: string; error?: string } | null>(null);
   const [sdAutoUnblockState, setSdAutoUnblockState] = useState<'idle' | 'unblocking' | 'retrying' | 'failed'>('idle');
 
+  // ── Spriggit Custom Mod Conversion ─────────────────────────────────────
+  const [customModPanelOpen, setCustomModPanelOpen] = useState(false);
+  const [customModInputPath, setCustomModInputPath] = useState('');
+  const [customModOutputPath, setCustomModOutputPath] = useState('');
+  const [customModFormat, setCustomModFormat] = useState<'yaml' | 'json'>('yaml');
+  const [customModOperation, setCustomModOperation] = useState<'serialize' | 'deserialize'>('serialize');
+  const [customModStatus, setCustomModStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+  const [customModMessage, setCustomModMessage] = useState('');
+  const [customModDiagnosticPath, setCustomModDiagnosticPath] = useState('');
+  const [customModDiagnosticRunning, setCustomModDiagnosticRunning] = useState(false);
+  const [customModDiagnosticResults, setCustomModDiagnosticResults] = useState('');
+
   const getApi = () => (window as any)?.electron?.api ?? (window as any)?.electronAPI;
 
   const runSpriggitVanillaDigest = async (): Promise<{ failed0xFFFF: boolean }> => {
@@ -209,6 +222,228 @@ export const CKCrashPrevention: React.FC = () => {
     } catch (err: any) {
       setSdStatus('error'); setSdMessage(`Error: ${String(err?.message || err)}`);
       return { failed0xFFFF: false };
+    }
+  };
+
+  const runCustomModConversion = async () => {
+    const api = getApi();
+    if (!api?.spriggitSerialize) {
+      setCustomModStatus('error');
+      setCustomModMessage('Spriggit integration not available.');
+      return;
+    }
+
+    if (!customModInputPath) {
+      setCustomModMessage('Please select an input file/folder.');
+      return;
+    }
+
+    if (!customModOutputPath && customModOperation === 'serialize') {
+      setCustomModMessage('Please select an output folder for the Git repository.');
+      return;
+    }
+
+    setCustomModStatus('running');
+    setCustomModMessage(`${customModOperation === 'serialize' ? 'Converting plugin to YAML/JSON...' : 'Converting YAML/JSON back to plugin...'}`);
+
+    try {
+      const packageName = customModFormat === 'yaml' ? 'Spriggit.Yaml.Fallout4' : 'Spriggit.Json.Fallout4';
+
+      const result = await api.spriggitSerialize({
+        cliPath: sdCliPath,
+        dataPath: customModInputPath,
+        outputPath: customModOutputPath,
+        vanillaOnly: false,
+        packageName: packageName,
+        nugetSource: sdNugetSource.trim() || undefined,
+      });
+
+      if (!result.ok) {
+        setCustomModStatus('error');
+        setCustomModMessage(`Conversion failed:\n${result.error || 'Unknown error'}`);
+        return;
+      }
+
+      setCustomModStatus('success');
+      if (customModOperation === 'serialize') {
+        setCustomModMessage(
+          `✅ Success! Your mod has been converted to ${customModFormat.toUpperCase()} format.\n\n` +
+          `📁 Output Location: ${customModOutputPath}\n\n` +
+          `Next Steps:\n` +
+          `1. Initialize a Git repository in the output folder: git init\n` +
+          `2. Create a .gitignore file if needed\n` +
+          `3. Make your first commit: git add . && git commit -m "Initial commit"\n` +
+          `4. Push to GitHub: gh repo create --source=. --public (or --private)`
+        );
+      } else {
+        setCustomModMessage(
+          `✅ Success! Your mod has been converted from ${customModFormat.toUpperCase()} back to plugin format.\n\n` +
+          `📁 Output Location: ${customModOutputPath}\n\n` +
+          `You can now load it in Creation Kit or other modding tools.`
+        );
+      }
+    } catch (err: any) {
+      setCustomModStatus('error');
+      setCustomModMessage(`Error: ${String(err?.message || err)}`);
+    }
+  };
+
+  const runModDiagnostic = async () => {
+    if (!customModDiagnosticPath) {
+      setCustomModDiagnosticResults('Please select a Git repository folder to diagnose.');
+      return;
+    }
+
+    setCustomModDiagnosticRunning(true);
+    setCustomModDiagnosticResults('🔍 Analyzing mod data...');
+
+    try {
+      const api = getApi();
+      if (!api?.readFile) {
+        setCustomModDiagnosticResults('File reading not available. Please use the desktop app.');
+        setCustomModDiagnosticRunning(false);
+        return;
+      }
+
+      // Read RecordData.yaml/json from the repository
+      const fs = require('fs') as any;
+      const path = require('path') as any;
+      
+      let recordDataContent = '';
+      let recordFiles: string[] = [];
+      
+      // Try to find and read YAML/JSON files
+      try {
+        const files = await api.readDirectory?.(customModDiagnosticPath);
+        if (files) {
+          // Look for RecordData file
+          const recordDataFile = files.find((f: string) => 
+            f === 'RecordData.yaml' || f === 'RecordData.json'
+          );
+          
+          if (recordDataFile) {
+            const fullPath = `${customModDiagnosticPath}/${recordDataFile}`;
+            recordDataContent = await api.readFile(fullPath);
+          }
+
+          // Collect all YAML/JSON files for analysis
+          recordFiles = files.filter((f: string) => 
+            f.endsWith('.yaml') || f.endsWith('.json')
+          );
+        }
+      } catch (err) {
+        console.error('Error reading directory:', err);
+      }
+
+      // Build diagnostic prompt for AI
+      const diagnosticPrompt = `You are Mossy, an expert Fallout 4 modding assistant. Analyze this mod's Spriggit data and provide a comprehensive diagnostic report.
+
+Repository Path: ${customModDiagnosticPath}
+Files Found: ${recordFiles.length} YAML/JSON files
+
+${recordDataContent ? `RecordData Content (first 2000 chars):\n${recordDataContent.slice(0, 2000)}\n` : 'RecordData file not found.'}
+
+Please analyze and provide:
+
+1. **Mod Overview**: What does this mod do? What records does it contain?
+2. **Common Issues**: Check for:
+   - Missing master files
+   - FormID conflicts (duplicate or overlapping IDs)
+   - Invalid references
+   - Performance concerns (high poly counts, too many scripts, etc.)
+   - Compatibility issues
+   - NavMesh problems
+   - Precombine/Previs issues
+3. **Best Practices**: Are there any violations of Fallout 4 modding best practices?
+4. **Recommendations**: Specific actionable fixes for any issues found
+5. **Quality Rating**: Rate the mod's quality on a scale of 1-10
+
+Format your response clearly with headers and bullet points.`;
+
+      // Send to AI for analysis
+      const settings = await api.getSettings?.();
+      const aiProvider = settings?.aiProvider || 'openai';
+      const apiKey = settings?.openaiApiKey || settings?.anthropicApiKey;
+
+      if (!apiKey) {
+        setCustomModDiagnosticResults(
+          '⚠️ AI API key not configured.\n\n' +
+          'To use mod diagnostics, please:\n' +
+          '1. Go to Settings\n' +
+          '2. Configure your OpenAI or Anthropic API key\n' +
+          '3. Return here and try again\n\n' +
+          'For now, here\'s what I found:\n' +
+          `- Repository: ${customModDiagnosticPath}\n` +
+          `- Files: ${recordFiles.length} YAML/JSON files\n` +
+          `- ${recordDataContent ? 'RecordData found' : 'RecordData NOT found'}\n\n` +
+          'Manual inspection recommended.'
+        );
+        setCustomModDiagnosticRunning(false);
+        return;
+      }
+
+      // Call AI for analysis
+      let aiResponse = '';
+      if (aiProvider === 'openai' && settings?.openaiApiKey) {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${settings.openaiApiKey}`
+          },
+          body: JSON.stringify({
+            model: settings?.openaiModel || 'gpt-4-turbo-preview',
+            messages: [
+              { role: 'system', content: 'You are Mossy, an expert Fallout 4 modding assistant with deep knowledge of the Creation Engine, Papyrus, and modding best practices.' },
+              { role: 'user', content: diagnosticPrompt }
+            ],
+            max_tokens: 2000,
+            temperature: 0.7
+          })
+        });
+
+        const data = await response.json();
+        aiResponse = data.choices?.[0]?.message?.content || 'Failed to get AI response';
+      } else if (aiProvider === 'anthropic' && settings?.anthropicApiKey) {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': settings.anthropicApiKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: settings?.anthropicModel || 'claude-3-sonnet-20240229',
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: diagnosticPrompt }]
+          })
+        });
+
+        const data = await response.json();
+        aiResponse = data.content?.[0]?.text || 'Failed to get AI response';
+      }
+
+      setCustomModDiagnosticResults(
+        `🔍 **Mod Diagnostic Report**\n\n` +
+        `📁 Repository: ${customModDiagnosticPath}\n` +
+        `📊 Files Analyzed: ${recordFiles.length} YAML/JSON files\n\n` +
+        `---\n\n${aiResponse}\n\n---\n\n` +
+        `💡 **Next Steps:**\n` +
+        `- Address any critical issues found above\n` +
+        `- Re-serialize after making fixes: Deserialize → Edit in CK → Serialize\n` +
+        `- Commit changes to Git with descriptive messages\n` +
+        `- Run this diagnostic again to verify fixes`
+      );
+    } catch (err: any) {
+      setCustomModDiagnosticResults(
+        `❌ Diagnostic Error: ${String(err?.message || err)}\n\n` +
+        'Please ensure:\n' +
+        '- The path points to a valid Spriggit repository\n' +
+        '- The repository contains YAML/JSON files\n' +
+        '- Your AI API key is configured in Settings'
+      );
+    } finally {
+      setCustomModDiagnosticRunning(false);
     }
   };
 
@@ -870,6 +1105,306 @@ export const CKCrashPrevention: React.FC = () => {
                 {sdStatus === 'done' || sdStatus === 'partial' ? (
                   <span className="self-center text-xs text-emerald-400 font-semibold">✅ Done — Knowledge Vault updated</span>
                 ) : null}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Spriggit Custom Mod Conversion Panel ─────────────────────────── */}
+        <div className="border-b border-slate-700 bg-slate-900/60">
+          <button
+            type="button"
+            onClick={() => setCustomModPanelOpen(o => !o)}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800/50 transition-colors"
+          >
+            <GitBranch className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+            <span className="text-sm font-bold text-cyan-300">Custom Mod Version Control (Git)</span>
+            <span className="text-xs text-slate-400 ml-1">— convert YOUR mods to/from Git-friendly format</span>
+            <span className="ml-auto text-slate-500 text-xs">{customModPanelOpen ? '▲ Collapse' : '▼ Expand'}</span>
+          </button>
+          {customModPanelOpen && (
+            <div className="px-4 pb-4 pt-1 space-y-3">
+              {/* Education Section */}
+              <div className="bg-gradient-to-r from-cyan-900/30 to-blue-900/30 border border-cyan-700/30 rounded-lg p-4">
+                <h4 className="text-sm font-bold text-cyan-200 mb-2 flex items-center gap-2">
+                  <Star className="w-4 h-4" />
+                  Why Use Git for Mods?
+                </h4>
+                <ul className="text-xs text-slate-300 space-y-1 ml-5 list-disc">
+                  <li>Keep track of all versions without "Dropbox folder hell"</li>
+                  <li>Create a living changelog as you work</li>
+                  <li>Go back in time and view your mod at any point in history</li>
+                  <li>Stamp versions with tags (v1.0, v2.0, etc.)</li>
+                  <li>Experiment on branches without breaking your stable version</li>
+                  <li>Share your work on GitHub for community visibility</li>
+                  <li>Accept contributions via Pull Requests from other modders</li>
+                  <li>Merge work from multiple developers with Git merge technology</li>
+                </ul>
+                <div className="mt-3 pt-3 border-t border-cyan-800/30 flex gap-2 flex-wrap text-xs">
+                  <button onClick={() => auditOpenUrl('https://github.com/Mutagen-Modding/Spriggit')} className="px-2 py-1 bg-cyan-800/40 hover:bg-cyan-700/40 rounded text-cyan-200 font-semibold transition-colors">
+                    📚 Spriggit Docs
+                  </button>
+                  <button onClick={() => auditOpenUrl('https://docs.github.com/en/get-started/quickstart/hello-world')} className="px-2 py-1 bg-blue-800/40 hover:bg-blue-700/40 rounded text-blue-200 font-semibold transition-colors">
+                    📖 Git Basics
+                  </button>
+                </div>
+              </div>
+
+              {/* Operation Type */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-2">Operation</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setCustomModOperation('serialize')}
+                    className={`px-4 py-2 rounded text-xs font-bold transition-colors ${
+                      customModOperation === 'serialize'
+                        ? 'bg-cyan-700 text-white border-2 border-cyan-500'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-2 border-transparent'
+                    }`}
+                  >
+                    📤 Serialize (Plugin → Git)
+                  </button>
+                  <button
+                    onClick={() => setCustomModOperation('deserialize')}
+                    className={`px-4 py-2 rounded text-xs font-bold transition-colors ${
+                      customModOperation === 'deserialize'
+                        ? 'bg-cyan-700 text-white border-2 border-cyan-500'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-2 border-transparent'
+                    }`}
+                  >
+                    📥 Deserialize (Git → Plugin)
+                  </button>
+                </div>
+              </div>
+
+              {/* Format Selection (only for serialize) */}
+              {customModOperation === 'serialize' && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-2">Output Format</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setCustomModFormat('yaml')}
+                      className={`px-4 py-2 rounded text-xs font-bold transition-colors ${
+                        customModFormat === 'yaml'
+                          ? 'bg-emerald-700 text-white border-2 border-emerald-500'
+                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-2 border-transparent'
+                      }`}
+                    >
+                      YAML (Recommended)
+                    </button>
+                    <button
+                      onClick={() => setCustomModFormat('json')}
+                      className={`px-4 py-2 rounded text-xs font-bold transition-colors ${
+                        customModFormat === 'json'
+                          ? 'bg-emerald-700 text-white border-2 border-emerald-500'
+                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-2 border-transparent'
+                      }`}
+                    >
+                      JSON
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Input/Output Paths */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+                    {customModOperation === 'serialize' ? 'Plugin File (.esp/.esm/.esl)' : 'Git Repository Folder'}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      readOnly
+                      value={customModInputPath}
+                      placeholder={customModOperation === 'serialize' ? 'Select your plugin file' : 'Select Git folder with YAML/JSON'}
+                      className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-300 placeholder-slate-600 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const api = getApi();
+                        if (customModOperation === 'serialize') {
+                          if (!api?.pickEspFile) return;
+                          const p = await api.pickEspFile();
+                          if (p) setCustomModInputPath(p);
+                        } else {
+                          if (!api?.pickDirectory) return;
+                          const p = await api.pickDirectory('Select Git Repository Folder');
+                          if (p) setCustomModInputPath(p);
+                        }
+                      }}
+                      className="px-2 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded text-xs text-slate-200 flex items-center gap-1 transition-colors"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5" /> Browse
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+                    {customModOperation === 'serialize' ? 'Output Git Folder' : 'Output Plugin File'}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      readOnly
+                      value={customModOutputPath}
+                      placeholder={customModOperation === 'serialize' ? 'Where to create Git repo' : 'Where to save .esp file'}
+                      className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-300 placeholder-slate-600 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const api = getApi();
+                        if (!api?.pickDirectory) return;
+                        const p = await api.pickDirectory(
+                          customModOperation === 'serialize'
+                            ? 'Select Output Folder for Git Repository'
+                            : 'Select Output Folder for Plugin'
+                        );
+                        if (p) setCustomModOutputPath(p);
+                      }}
+                      className="px-2 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded text-xs text-slate-200 flex items-center gap-1 transition-colors"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5" /> Browse
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Message */}
+              {customModMessage && (
+                <div
+                  className={`rounded px-3 py-2 text-xs whitespace-pre-line break-words max-h-48 overflow-y-auto ${
+                    customModStatus === 'error'
+                      ? 'bg-red-900/30 border border-red-700/50 text-red-200'
+                      : customModStatus === 'success'
+                      ? 'bg-emerald-900/30 border border-emerald-700/50 text-emerald-200'
+                      : 'bg-slate-800/60 border border-slate-600 text-slate-300'
+                  }`}
+                >
+                  {customModMessage}
+                </div>
+              )}
+
+              {/* Action Button */}
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  disabled={customModStatus === 'running' || !sdCliPath || !customModInputPath}
+                  onClick={runCustomModConversion}
+                  className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <GitBranch className="w-4 h-4" />
+                  {customModStatus === 'running'
+                    ? 'Converting...'
+                    : customModOperation === 'serialize'
+                    ? '📤 Convert to Git Format'
+                    : '📥 Convert to Plugin'}
+                </button>
+                {!sdCliPath && (
+                  <span className="self-center text-xs text-amber-400 font-semibold">
+                    ⚠️ First set Spriggit.CLI.exe path above
+                  </span>
+                )}
+                {customModStatus === 'success' && (
+                  <span className="self-center text-xs text-emerald-400 font-semibold">
+                    ✅ Conversion complete!
+                  </span>
+                )}
+              </div>
+
+              {/* Workflow Guide */}
+              <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-3">
+                <h4 className="text-xs font-bold text-slate-300 mb-2">
+                  {customModOperation === 'serialize' ? '📤 Serialize Workflow:' : '📥 Deserialize Workflow:'}
+                </h4>
+                {customModOperation === 'serialize' ? (
+                  <ol className="text-xs text-slate-400 space-y-1 ml-4 list-decimal">
+                    <li>Create your mod with Creation Kit or other tools</li>
+                    <li>Select your .esp/.esm/.esl file above</li>
+                    <li>Choose an output folder (your Git repository)</li>
+                    <li>Click "Convert to Git Format"</li>
+                    <li>In the output folder, run: <code className="bg-slate-900 px-1 rounded text-cyan-300">git init</code></li>
+                    <li>Make your first commit: <code className="bg-slate-900 px-1 rounded text-cyan-300">git add . && git commit -m "Initial commit"</code></li>
+                    <li>Push to GitHub: <code className="bg-slate-900 px-1 rounded text-cyan-300">gh repo create --source=. --public</code></li>
+                  </ol>
+                ) : (
+                  <ol className="text-xs text-slate-400 space-y-1 ml-4 list-decimal">
+                    <li>Clone a Git repository: <code className="bg-slate-900 px-1 rounded text-cyan-300">git clone [url]</code></li>
+                    <li>Select the cloned folder as input above</li>
+                    <li>Choose where to save the .esp file</li>
+                    <li>Click "Convert to Plugin"</li>
+                    <li>Open the plugin in Creation Kit or load in game</li>
+                    <li>Make changes, then serialize again to update the Git repo</li>
+                  </ol>
+                )}
+              </div>
+
+              {/* AI-Powered Mod Diagnostic */}
+              <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-700/30 rounded-lg p-4">
+                <h4 className="text-sm font-bold text-purple-200 mb-3 flex items-center gap-2">
+                  <Brain className="w-4 h-4" />
+                  AI Mod Diagnostic
+                </h4>
+                <p className="text-xs text-slate-300 mb-3">
+                  Let Mossy analyze your mod's Spriggit data to find issues, suggest fixes, and improve quality.
+                  Works best after you've serialized your mod to YAML/JSON format.
+                </p>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      Git Repository to Diagnose
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        readOnly
+                        value={customModDiagnosticPath}
+                        placeholder="Select a Spriggit repository folder"
+                        className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-300 placeholder-slate-600 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const api = getApi();
+                          if (!api?.pickDirectory) return;
+                          const p = await api.pickDirectory('Select Spriggit Repository for Diagnostic');
+                          if (p) setCustomModDiagnosticPath(p);
+                        }}
+                        className="px-2 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded text-xs text-slate-200 flex items-center gap-1 transition-colors"
+                      >
+                        <FolderOpen className="w-3.5 h-3.5" /> Browse
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={customModDiagnosticRunning || !customModDiagnosticPath}
+                    onClick={runModDiagnostic}
+                    className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Brain className="w-4 h-4" />
+                    {customModDiagnosticRunning ? '🔍 Analyzing...' : '🔍 Run AI Diagnostic'}
+                  </button>
+
+                  {customModDiagnosticResults && (
+                    <div className="bg-slate-900/60 border border-purple-700/50 rounded px-3 py-3 text-xs text-slate-200 whitespace-pre-wrap max-h-96 overflow-y-auto">
+                      {customModDiagnosticResults}
+                    </div>
+                  )}
+
+                  <div className="text-[10px] text-slate-500 space-y-1">
+                    <p>✨ <strong className="text-purple-300">What Mossy Checks:</strong></p>
+                    <ul className="ml-4 list-disc space-y-0.5">
+                      <li>Missing master files & FormID conflicts</li>
+                      <li>Invalid references & broken records</li>
+                      <li>Performance issues (poly counts, scripts)</li>
+                      <li>NavMesh & Precombine problems</li>
+                      <li>Best practice violations</li>
+                      <li>Compatibility concerns</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           )}
