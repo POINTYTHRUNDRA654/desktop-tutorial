@@ -8,6 +8,7 @@ interface TutorialResetSettingsProps {
 const TutorialResetSettings: React.FC<TutorialResetSettingsProps> = ({ embedded = false }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [resetComplete, setResetComplete] = useState(false);
+  const [clearScanData, setClearScanData] = useState(true); // Default to true - full reset
 
   const handleResetTutorial = () => {
     // Clear all onboarding-related localStorage items
@@ -18,12 +19,22 @@ const TutorialResetSettings: React.FC<TutorialResetSettingsProps> = ({ embedded 
     localStorage.removeItem('mossy_tutorial_autostart');
     localStorage.removeItem('mossy_voice_setup_complete');
     
-    // Optional: Clear scan results and tool preferences
-    // localStorage.removeItem('mossy_all_detected_apps');
-    // localStorage.removeItem('mossy_scan_summary');
-    // localStorage.removeItem('mossy_tool_preferences');
-    // localStorage.removeItem('mossy_integrated_tools');
-    // localStorage.removeItem('mossy_last_scan');
+    // Set flag to force onboarding to run even if scan data exists
+    localStorage.setItem('mossy_force_onboarding', 'true');
+    
+    // Optionally clear scan results and tool preferences (now controlled by checkbox)
+    if (clearScanData) {
+      localStorage.removeItem('mossy_all_detected_apps');
+      localStorage.removeItem('mossy_scan_summary');
+      localStorage.removeItem('mossy_scan_summary_prev');
+      localStorage.removeItem('mossy_tool_preferences');
+      localStorage.removeItem('mossy_integrated_tools');
+      localStorage.removeItem('mossy_apps');
+      localStorage.removeItem('mossy_last_scan');
+      console.log('[TutorialReset] Cleared scan data and tool preferences');
+    } else {
+      console.log('[TutorialReset] Preserved scan data and tool preferences');
+    }
 
     setShowConfirm(false);
     setResetComplete(true);
@@ -80,6 +91,13 @@ const TutorialResetSettings: React.FC<TutorialResetSettingsProps> = ({ embedded 
                     <li>Tutorial completion status</li>
                     <li>Voice setup wizard status</li>
                     <li>Boot animation flag</li>
+                    {clearScanData && (
+                      <>
+                        <li className="text-amber-300 font-semibold">System scan results (will be re-scanned)</li>
+                        <li className="text-amber-300 font-semibold">Detected programs and tool paths</li>
+                        <li className="text-amber-300 font-semibold">Tool preferences and selections</li>
+                      </>
+                    )}
                   </ul>
                 </div>
 
@@ -87,12 +105,38 @@ const TutorialResetSettings: React.FC<TutorialResetSettingsProps> = ({ embedded 
                   <h4 className="text-sm font-bold text-emerald-300 mb-2">What will be preserved:</h4>
                   <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
                     <li>All settings and API keys</li>
-                    <li>Detected programs and tool paths</li>
-                    <li>System scan results</li>
-                    <li>Tool preferences and integrated tools</li>
+                    {!clearScanData && (
+                      <>
+                        <li>Detected programs and tool paths</li>
+                        <li>System scan results</li>
+                        <li>Tool preferences and integrated tools</li>
+                      </>
+                    )}
                     <li>Knowledge Vault and custom data</li>
                     <li>Project data and mod configurations</li>
                   </ul>
+                </div>
+
+                {/* Clear Scan Data Checkbox */}
+                <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-4 mb-4">
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={clearScanData}
+                      onChange={(e) => setClearScanData(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 rounded border-slate-600 bg-slate-700 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-slate-900"
+                    />
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-white mb-1 group-hover:text-emerald-400 transition-colors">
+                        Clear all scan data and start fresh
+                      </div>
+                      <div className="text-xs text-slate-400 leading-relaxed">
+                        <strong>Recommended if you're having issues with the onboarding.</strong> This will clear your 
+                        detected programs list and tool selections, forcing a complete re-scan. If you're just wanting 
+                        to replay the tutorial with your existing data, uncheck this box.
+                      </div>
+                    </div>
+                  </label>
                 </div>
 
                 {!showConfirm && !resetComplete && (

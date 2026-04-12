@@ -469,9 +469,19 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             return;
         }
 
+        // Check if user explicitly wants to redo onboarding (from Tutorial Reset in Settings)
+        // If so, ignore any leftover scan data and let them go through the full flow again.
+        const forceOnboarding = localStorage.getItem('mossy_force_onboarding') === 'true';
+        if (forceOnboarding) {
+            console.log('[FirstRunOnboarding] Force onboarding flag detected. Running full onboarding flow.');
+            localStorage.removeItem('mossy_force_onboarding'); // Clear the flag
+            return; // Don't skip - let the user go through onboarding
+        }
+
         // If scan data already exists from a previous run (preserved during reinstall),
         // skip the scan step entirely and complete onboarding silently. User data is
         // preserved so they don't lose program selections or downloaded tool paths.
+        // BUT: Only do this if they haven't explicitly reset onboarding via Settings.
         const hasScanData =
             !!localStorage.getItem('mossy_scan_summary') &&
             !!localStorage.getItem('mossy_all_detected_apps');
