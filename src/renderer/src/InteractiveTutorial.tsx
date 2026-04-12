@@ -34,11 +34,9 @@ import { speakMossy } from './mossyTts';
 
 // Map a tutorial pageId to its visual guide image asset with alias fallbacks for legacy ids
 const resolveImageUrl = (filename: string): string => {
-  try {
-    return new URL(`./visual-guide-images/${filename}`, window.location.href).toString();
-  } catch {
-    return `visual-guide-images/${filename}`;
-  }
+  // In Vite/Electron, images in public/ are served from root
+  // Use absolute path to ensure they load correctly regardless of route
+  return `/visual-guide-images/${filename}`;
 };
 
 const getImageForPage = (pageId: keyof typeof imageMap | string): string | undefined => {
