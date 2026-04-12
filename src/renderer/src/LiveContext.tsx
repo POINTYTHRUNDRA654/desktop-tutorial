@@ -46,7 +46,7 @@ export interface LiveContextType {
   /** Last response spoken by Mossy — shown as text for users without speakers */
   lastResponse: string;
   // test-only helper
-  __test_handleTranscription?: (text: string, sessionId?: number) => Promise<void>;
+  __test_handleTranscription?: (text: string, sessionId?: number, isTextInput?: boolean) => Promise<void>;
   __test_setLastSpeakEnd?: (ts: number) => void;
 }
 
@@ -360,8 +360,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const handleTranscription = async (text: string, sessionId?: number) => {
-    console.log(`[LiveContext] Received transcription: "${text}" (session: ${sessionId}, current: ${currentSessionRef.current})`);
+  const handleTranscription = async (text: string, sessionId?: number, isTextInput: boolean = false) => {
+    console.log(`[LiveContext] Received transcription: "${text}" (session: ${sessionId}, current: ${currentSessionRef.current}, isTextInput: ${isTextInput})`);
 
     // Validate session ID to prevent old transcriptions from interfering
     if (sessionId !== undefined && sessionId !== currentSessionRef.current) {
@@ -377,8 +377,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     // ignore any transcription that arrives too soon after Mossy finished speaking
+    // ONLY for voice input (prevents audio feedback), NOT for text input
     const now = Date.now();
-    if (lastSpeakEndRef.current && now - lastSpeakEndRef.current < 600) {
+    if (!isTextInput && lastSpeakEndRef.current && now - lastSpeakEndRef.current < 600) {
       console.log('[LiveContext] Ignoring transcription - within grace period after speaking');
       return;
     }
@@ -768,9 +769,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     // Process the text message the same way as voice transcription
+    // but flag it as text input so the audio feedback grace period is skipped
     const currentSessionId = currentSessionRef.current;
     try {
-      await handleTranscription(text, currentSessionId);
+      await handleTranscription(text, currentSessionId, true); // true = isTextInput
     } catch (err) {
       console.error('[LiveContext] Text message processing failed:', err);
       throw err;
