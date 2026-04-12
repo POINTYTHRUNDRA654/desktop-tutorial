@@ -80,7 +80,7 @@ bl_info = {
         "validation, one-click automation, Move X, Cursor Array, and direct "
         "script execution via Mossy Desktop Bridge."
     ),
-    "warning":     "",
+    "warning":     "This add-on is still under active development. Features and stability may change.",
     "wiki_url":    "",
     "tracker_url": "",
     "category":    "3D View",

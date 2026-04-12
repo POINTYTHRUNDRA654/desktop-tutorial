@@ -2,6 +2,8 @@
 
 **Updated for Mossy v5.4.23**
 
+⚠️ **Development Notice:** The Mossy Link Blender add-on is still under active development. Features and stability may change as we continue to improve the integration.
+
 This guide helps technical artists and developers extend Blender with Python add-ons, from first operator to headless automation. Now includes direct-write and headless execution via Mossy.
 
 ---

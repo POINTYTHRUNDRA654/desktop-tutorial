@@ -1,5 +1,7 @@
 # Blender Master Guide
 
+⚠️ **Development Notice:** The Mossy Link Blender add-on is still under active development. Features and stability may change as we continue to improve the integration.
+
 This consolidated guide groups Blender documentation into high-level sections and points to detailed reference pages (kept in `resources/public/knowledge/`). Use this as the single entry point for Blender topics.
 
 ## Sections
