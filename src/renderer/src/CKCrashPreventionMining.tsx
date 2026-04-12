@@ -472,42 +472,97 @@ Format your response clearly with headers and bullet points.`;
 
   // Load previous scan from localStorage on mount; detect auto-scan flag from Spriggit digest
   useEffect(() => {
+    // Wrap everything in try-catch to prevent crashes from localStorage issues
     try {
-      const saved = localStorage.getItem('mossy_scan_auditor');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Validate parsed data is an array
-        if (Array.isArray(parsed)) {
-          setAuditFiles(parsed);
-        } else {
-          console.warn('Invalid audit files data in localStorage, clearing...');
+      // Check if localStorage is available (it might not be in some contexts)
+      if (typeof localStorage === 'undefined') {
+        console.warn('localStorage not available, skipping audit data load');
+        return;
+      }
+
+      // Load audit files
+      try {
+        const saved = localStorage.getItem('mossy_scan_auditor');
+        if (saved && typeof saved === 'string' && saved.trim().length > 0) {
+          const parsed = JSON.parse(saved);
+          // Validate parsed data is an array with proper structure
+          if (Array.isArray(parsed)) {
+            // Additional validation: check if items have required properties
+            const isValid = parsed.every(item => 
+              item && 
+              typeof item === 'object' && 
+              'id' in item && 
+              'name' in item && 
+              'type' in item
+            );
+            if (isValid) {
+              setAuditFiles(parsed);
+            } else {
+              console.warn('Invalid audit files structure in localStorage, clearing...');
+              localStorage.removeItem('mossy_scan_auditor');
+            }
+          } else {
+            console.warn('Invalid audit files data in localStorage (not an array), clearing...');
+            localStorage.removeItem('mossy_scan_auditor');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load audit files from localStorage:', error);
+        try {
           localStorage.removeItem('mossy_scan_auditor');
+        } catch (removeError) {
+          console.error('Failed to remove corrupted audit data:', removeError);
         }
       }
-    } catch (error) {
-      console.error('Failed to load audit files from localStorage:', error);
-      localStorage.removeItem('mossy_scan_auditor');
-    }
-    
-    // If the Spriggit vanilla digest queued plugins for us, show the auto-scan banner
-    try {
-      if (localStorage.getItem('mossy_auditor_auto_scan') === 'true') {
-        localStorage.removeItem('mossy_auditor_auto_scan');
-        setAutoScanBanner(true);
+      
+      // Check for auto-scan flag from Spriggit digest
+      try {
+        const autoScanFlag = localStorage.getItem('mossy_auditor_auto_scan');
+        if (autoScanFlag === 'true') {
+          localStorage.removeItem('mossy_auditor_auto_scan');
+          setAutoScanBanner(true);
+        }
+      } catch (error) {
+        console.error('Failed to check auto-scan flag:', error);
+        try {
+          localStorage.removeItem('mossy_auditor_auto_scan');
+        } catch (removeError) {
+          console.error('Failed to remove auto-scan flag:', removeError);
+        }
       }
-    } catch (error) {
-      console.error('Failed to check auto-scan flag:', error);
+    } catch (outerError) {
+      console.error('Critical error in audit data initialization:', outerError);
+      // Don't crash the component, just log the error
     }
   }, []);
 
   // Persist file list to localStorage for Mossy context
   useEffect(() => {
-    if (auditFiles.length > 0) {
-      localStorage.setItem('mossy_scan_auditor', JSON.stringify(auditFiles));
-    } else {
-      localStorage.removeItem('mossy_scan_auditor');
+    try {
+      // Check if localStorage is available
+      if (typeof localStorage === 'undefined') {
+        return;
+      }
+
+      if (auditFiles.length > 0) {
+        // Validate auditFiles before saving
+        const isValid = Array.isArray(auditFiles) && auditFiles.every(f => 
+          f && typeof f === 'object' && f.id && f.name && f.type
+        );
+        if (isValid) {
+          localStorage.setItem('mossy_scan_auditor', JSON.stringify(auditFiles));
+          window.dispatchEvent(new Event('mossy-memory-update'));
+        } else {
+          console.warn('Attempted to save invalid audit files, skipping...');
+        }
+      } else {
+        localStorage.removeItem('mossy_scan_auditor');
+        window.dispatchEvent(new Event('mossy-memory-update'));
+      }
+    } catch (error) {
+      console.error('Failed to persist audit files to localStorage:', error);
+      // Don't crash, just log the error
     }
-    window.dispatchEvent(new Event('mossy-memory-update'));
   }, [auditFiles]);
 
   // Load texture metadata when a texture file is selected
@@ -866,8 +921,15 @@ Format your response clearly with headers and bullet points.`;
     setIsScanning(false);
     setScanProgress(0);
 
-    localStorage.setItem('mossy_scan_auditor', JSON.stringify(updatedFiles));
-    window.dispatchEvent(new Event('mossy-memory-update'));
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('mossy_scan_auditor', JSON.stringify(updatedFiles));
+        window.dispatchEvent(new Event('mossy-memory-update'));
+      }
+    } catch (error) {
+      console.error('Failed to save audit results to localStorage:', error);
+      // Don't crash, just log the error
+    }
 
     const totalIssues = updatedFiles.reduce((sum, f) => sum + f.issues.length, 0);
     const errorCount = updatedFiles.filter(f => f.status === 'error').length;
