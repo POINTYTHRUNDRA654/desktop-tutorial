@@ -101,10 +101,14 @@ interface ModFile {
 
 export const CKCrashPrevention: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const tabParam = searchParams?.get?.('tab');
-  const initialTab = tabParam && (['preflight', 'monitoring', 'postcrash', 'audit'] as Tab[]).includes(tabParam as Tab)
+  
+  // Safely extract and validate tab parameter
+  const tabParam = searchParams.get('tab');
+  const validTabs: Tab[] = ['preflight', 'monitoring', 'postcrash', 'audit'];
+  const initialTab: Tab = tabParam && validTabs.includes(tabParam as Tab)
     ? (tabParam as Tab)
     : 'preflight';
+  
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
   // Pre-flight state
