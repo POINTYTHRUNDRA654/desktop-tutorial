@@ -147,14 +147,14 @@ const VersionInfo: React.FC<VersionInfoProps> = ({ embedded = false }) => {
                   : 'CPU-only PyTorch · works on all hardware · local fine-tuning not available.'}
               </p>
               {mossyEdition === 'universal' && (
-                <div className="rounded-md border border-green-700/50 bg-green-900/10 p-3">
-                  <p className="text-xs font-semibold text-green-300 mb-1">
-                    ⚡ NVIDIA Edition Available
+                <div className="rounded-md border border-green-700/50 bg-green-900/10 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-green-300">
+                    ⚡ Upgrade to Mossy NVIDIA Edition
                   </p>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    For local AI fine-tuning with Unsloth (CUDA 12.4), download and install the
-                    NVIDIA Edition installer from GitHub Releases. Requires an NVIDIA GPU with 8 GB+ VRAM.
-                    Your settings and knowledge vault carry over automatically.
+                    Want local AI fine-tuning with Unsloth (CUDA 12.4)? Download the NVIDIA Edition —
+                    it requires an NVIDIA GPU with 8 GB+ VRAM. Your settings and knowledge vault
+                    carry over automatically.
                   </p>
                 </div>
               )}

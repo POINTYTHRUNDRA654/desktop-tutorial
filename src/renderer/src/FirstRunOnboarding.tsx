@@ -251,7 +251,7 @@ const DOTNET_STILL_NOT_DETECTED_MSG = '⚠️ Still not detected — try restart
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
-    const [step, setStep] = useState<'edition' | 'welcome' | 'version' | 'scanning' | 'recommendations' | 'downloads' | 'spriggit-digest' | 'complete'>('welcome');
+    const [step, setStep] = useState<'edition' | 'welcome' | 'version' | 'scanning' | 'recommendations' | 'downloads' | 'spriggit-digest' | 'complete'>('edition');
     const [fo4Version, setFo4Version] = useState<string>(() => {
         try { return localStorage.getItem('mossy_fo4_version') || ''; } catch { return ''; }
     });
@@ -265,6 +265,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [showTutorialVideo, setShowTutorialVideo] = useState(false);
     const hasSpokenIntro = useRef(false);
     const hasSpokenVersion = useRef(false);
+    const hasSpokenEdition = useRef(false);
     const [voiceTestPlaying, setVoiceTestPlaying] = useState(false);
     const scanTutorialStartedRef = useRef(false);
     const [languageReady, setLanguageReady] = useState(false);
@@ -495,7 +496,24 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         console.log('[FirstRunOnboarding] No existing scan data. Starting fresh onboarding wizard.');
     }, [onComplete]);
 
-    // Speak greeting on the welcome screen (first screen).
+    // Speak greeting on the edition picker (very first screen).
+    useEffect(() => {
+        if (step !== 'edition') return;
+        if (hasSpokenEdition.current) return;
+        hasSpokenEdition.current = true;
+
+        // Ensure voice is on and TTS settings are ready before speaking.
+        enableVoice();
+
+        const speakSequence = async () => {
+            await new Promise(resolve => setTimeout(resolve, 800));
+            await speakMossy("Hello, I'm Mossy, your Fallout 4 modding assistant.");
+            await speakMossy('First, pick the version that fits your system: Universal works on any hardware, or NVIDIA if you have a compatible GPU.');
+        };
+        void speakSequence();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [step]);
+
     useEffect(() => {
         if (step !== 'welcome') return;
         if (hasSpokenIntro.current) return;
@@ -505,7 +523,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         // Delay first TTS to let Electron/Chromium finish loading speech synthesis voices.
         const speakSequence = async () => {
             await new Promise(resolve => setTimeout(resolve, 800));
-            await speakMossy("Hello, I'm Mossy, your Fallout 4 modding assistant.");
+            await speakMossy("Hello, I'm Mossy.");
             await speakMossy('Pick your language to begin.');
             await speakMossy('When you are ready, press Next.');
         };
@@ -1120,6 +1138,117 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-8">
             <div className="max-w-3xl w-full max-h-[90vh] overflow-y-auto bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-2xl p-8 shadow-2xl">
 
+                {/* ── Edition picker — very first screen ───────────────────────── */}
+                {step === 'edition' && (
+                    <div className="text-center animate-fade-in">
+                        <Sparkles className="w-20 h-20 mx-auto mb-6 text-amber-400" />
+                        <h1 className="text-4xl font-bold text-white mb-3">Welcome to Mossy v{packageJson.version}</h1>
+                        <p className="text-lg text-slate-300 mb-2">Your AI-powered Fallout 4 modding assistant</p>
+                        <p className="text-slate-400 mb-8">
+                            Pick the version that fits your system. <strong className="text-slate-300">Universal</strong> works on any hardware (CPU-only). <strong className="text-slate-300">NVIDIA</strong> unlocks GPU-accelerated AI and fine-tuning if you have an RTX/GTX card.
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
+                            {/* Universal Edition */}
+                            <button
+                                type="button"
+                                aria-pressed={mossyEdition === 'universal'}
+                                onClick={() => {
+                                    setMossyEdition('universal');
+                                    try { localStorage.setItem('mossy_edition_choice', 'universal'); } catch { /* ignore */ }
+                                    const api = getElectronApi();
+                                    if (api?.setSettings) void api.setSettings({ mossyEditionOverride: 'universal' }).catch(() => { });
+                                }}
+                                className={`relative text-left rounded-2xl border-2 p-6 transition-all ${mossyEdition === 'universal'
+                                    ? 'bg-blue-900/60 border-blue-400 shadow-lg shadow-blue-900/40'
+                                    : 'bg-slate-800/60 border-slate-600 hover:border-slate-400'
+                                    }`}
+                            >
+                                <Cpu className="w-10 h-10 text-blue-400 mb-3" />
+                                <div className="text-lg font-bold text-white mb-1">Universal Edition</div>
+                                <div className="text-xs text-slate-300 mb-3">CPU-based · Works on any hardware</div>
+                                <ul className="text-xs text-slate-400 space-y-1">
+                                    <li>✓ AI assistant &amp; mod tools</li>
+                                    <li>✓ Full modding workflow</li>
+                                    <li>✓ No GPU required</li>
+                                    <li className="text-slate-500">– Local AI fine-tuning not available</li>
+                                </ul>
+                                {mossyEdition === 'universal' && (
+                                    <span className="absolute top-3 right-3 flex items-center gap-1 text-xs font-bold text-blue-300 bg-blue-900/70 px-2 py-0.5 rounded-full border border-blue-500">
+                                        <Check className="w-3 h-3" /> Selected
+                                    </span>
+                                )}
+                            </button>
+
+                            {/* NVIDIA Edition */}
+                            <button
+                                type="button"
+                                aria-pressed={mossyEdition === 'nvidia'}
+                                onClick={() => {
+                                    setMossyEdition('nvidia');
+                                    try { localStorage.setItem('mossy_edition_choice', 'nvidia'); } catch { /* ignore */ }
+                                    const api = getElectronApi();
+                                    if (api?.setSettings) void api.setSettings({ mossyEditionOverride: 'nvidia' }).catch(() => { });
+                                }}
+                                className={`relative text-left rounded-2xl border-2 p-6 transition-all ${mossyEdition === 'nvidia'
+                                    ? 'bg-green-900/60 border-green-400 shadow-lg shadow-green-900/40'
+                                    : 'bg-slate-800/60 border-slate-600 hover:border-slate-400'
+                                    }`}
+                            >
+                                <Zap className="w-10 h-10 text-green-400 mb-3" />
+                                <div className="text-lg font-bold text-white mb-1">NVIDIA Edition</div>
+                                <div className="text-xs text-slate-300 mb-3">CUDA 12.4 · GPU-accelerated AI</div>
+                                <ul className="text-xs text-slate-400 space-y-1">
+                                    <li>✓ Everything in Universal</li>
+                                    <li>✓ Local AI fine-tuning (Unsloth)</li>
+                                    <li>✓ Faster local inference</li>
+                                    <li>⚠ Requires NVIDIA RTX / GTX GPU</li>
+                                </ul>
+                                {mossyEdition === 'nvidia' && (
+                                    <span className="absolute top-3 right-3 flex items-center gap-1 text-xs font-bold text-green-300 bg-green-900/70 px-2 py-0.5 rounded-full border border-green-500">
+                                        <Check className="w-3 h-3" /> Selected
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Voice test */}
+                        <div className="max-w-md mx-auto mb-6 bg-slate-900/50 border border-slate-700 rounded-xl p-4 text-left">
+                            <div className="flex items-center gap-2 text-white font-semibold text-sm mb-1">
+                                <Volume2 className="w-4 h-4 text-amber-400" />
+                                Voice Check
+                            </div>
+                            <p className="text-xs text-slate-400 mb-3">
+                                Mossy speaks to you during onboarding and in the chat. Click below to confirm your audio is working.
+                            </p>
+                            <button
+                                type="button"
+                                disabled={voiceTestPlaying}
+                                onClick={async () => {
+                                    enableVoice();
+                                    setVoiceTestPlaying(true);
+                                    await speakMossy("Voice check. I'm Mossy. Your audio is working!", { cancelExisting: true });
+                                    setVoiceTestPlaying(false);
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 bg-amber-700/60 hover:bg-amber-600/60 border border-amber-500/60 text-amber-200 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                            >
+                                <Volume2 className="w-4 h-4" />
+                                {voiceTestPlaying ? 'Speaking…' : 'Test Voice'}
+                            </button>
+                            <p className="mt-2 text-[10px] text-slate-500">
+                                No audio? Go to Settings → Voice after setup to configure your voices.
+                            </p>
+                        </div>
+
+                        <button
+                            onClick={() => setStep('welcome')}
+                            className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 mx-auto transition-colors"
+                        >
+                            Continue <ArrowRight className="w-5 h-5" />
+                        </button>
+                    </div>
+                )}
+
                 {step === 'welcome' && (
                     <div className="text-center animate-fade-in">
                         <Sparkles className="w-20 h-20 mx-auto mb-6 text-amber-400" />
@@ -1183,6 +1312,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 mx-auto transition-colors"
                         >
                             Next <ArrowRight className="w-5 h-5" />
+                        </button>
+                        <button
+                            type="button"
+                            aria-label="Go back to edition selection"
+                            onClick={() => setStep('edition')}
+                            className="mt-4 text-sm text-slate-400 hover:text-slate-200 underline block mx-auto"
+                        >
+                            ← Back to Edition
                         </button>
 
                         <div className="mt-6">
