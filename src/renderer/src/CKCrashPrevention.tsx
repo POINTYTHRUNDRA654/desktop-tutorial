@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import {
   Shield,
@@ -15,17 +15,21 @@ import {
   Brain,
   Lightbulb,
   RefreshCw,
+  FolderOpen,
+  GitBranch,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 // Lightweight types to keep the screen compiling without pulling shared deps
- type ValidationIssue = {
+type ValidationIssue = {
   type: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
   message: string;
   solution?: string;
 };
 
- type ValidationResult = {
+type ValidationResult = {
   isValid: boolean;
   severity: 'safe' | 'warning' | 'danger';
   estimatedCrashRisk: number;
@@ -33,13 +37,13 @@ import {
   recommendations: string[];
 };
 
- type PreventionPlan = {
+type PreventionPlan = {
   estimatedRiskReduction: number;
   estimatedTime: string;
   steps: { order: number; action: string; description: string; automated?: boolean; tool?: string }[];
 };
 
- type CrashDiagnosis = {
+type CrashDiagnosis = {
   crashType: string;
   preventable: boolean;
   rootCause: string;
@@ -48,7 +52,7 @@ import {
   stackTrace?: string[];
 };
 
- type HealthMetrics = {
+type HealthMetrics = {
   memoryUsageMB: number;
   cpuPercent: number;
   handleCount: number;
@@ -56,7 +60,7 @@ import {
   warningSignals: string[];
 };
 
- interface Props {
+interface Props {
   onClose?: () => void;
 }
 
@@ -72,7 +76,15 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
   const [healthMetrics, setHealthMetrics] = useState<HealthMetrics | null>(null);
   const [crashDiagnosis, setCrashDiagnosis] = useState<CrashDiagnosis | null>(null);
 
-  const getCKApi = () => (window as any)?.electron?.api ?? {};
+  // Spriggit Vanilla ESM Digest state
+  const [spriggitPanelOpen, setSpriggitPanelOpen] = useState(false);
+  const [sdCliPath, setSdCliPath] = useState('');
+  const [sdDataPath, setSdDataPath] = useState('');
+  const [sdPackageName, setSdPackageName] = useState('Spriggit.Yaml.Fallout4');
+  const [sdStatus, setSdStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [sdMessage, setSdMessage] = useState('');
+
+  const getCKApi = () => (window as any)?.electron?.api ?? (window as any)?.electronAPI ?? {};
 
   const buildStubValidation = (): ValidationResult => ({
     isValid: true,
@@ -91,6 +103,55 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
       { order: 3, action: 'Stage saves', description: 'Save and restart CK between heavy edits' },
     ],
   });
+
+  const runSpriggitVanillaDigest = async () => {
+    const api = getCKApi();
+    if (!api?.spriggitSerialize) {
+      setSdStatus('error');
+      setSdMessage('Spriggit integration not available.');
+      return;
+    }
+    if (!sdCliPath || !sdDataPath) {
+      setSdMessage('Select Spriggit.CLI.exe and Fallout 4 Data folder first.');
+      return;
+    }
+    setSdStatus('running');
+    setSdMessage('Running Spriggit — converting vanilla ESMs to YAML…');
+    try {
+      const result = await api.spriggitSerialize({
+        cliPath: sdCliPath,
+        dataPath: sdDataPath,
+        outputPath: '',
+        vanillaOnly: true,
+        packageName: sdPackageName.trim() || 'Spriggit.Yaml.Fallout4',
+      });
+      if (!result.ok || !result.files?.length) {
+        const errText = result.error || 'No YAML files produced.';
+        setSdStatus('error');
+        setSdMessage(`Spriggit failed:\n${errText.length > 1200 ? errText.slice(0, 1200) + '\n…(truncated)' : errText}`);
+        return;
+      }
+      const existing: any[] = (() => { try { return JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]'); } catch { return []; } })();
+      const now = new Date().toISOString();
+      const newEntries = (result.files as Array<{ name: string; content: string }>).map(f => ({
+        id: `spriggit-vanilla-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        title: `Vanilla ESM: ${f.name}`,
+        content: f.content,
+        source: 'Spriggit serialize — vanilla ESMs',
+        trustLevel: 'personal',
+        date: now,
+        tags: ['spriggit', 'fallout4', 'vanilla-base-records'],
+        status: 'learned',
+      }));
+      localStorage.setItem('mossy_knowledge_vault', JSON.stringify([...existing, ...newEntries]));
+      try { await api.saveKnowledgeVault?.([...existing, ...newEntries]); } catch { /* fire-and-forget */ }
+      setSdStatus('done');
+      setSdMessage(`✅ Digested ${newEntries.length} vanilla ESM YAML files into the Knowledge Vault.`);
+    } catch (err: any) {
+      setSdStatus('error');
+      setSdMessage(`Error: ${String(err?.message || err)}`);
+    }
+  };
 
   const statusLabel = useMemo(() => {
     switch (phase) {
@@ -246,6 +307,83 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
     </div>
   );
 
+  const renderSpriggitPanel = () => (
+    <div className="bg-mossy-bg border border-mossy-border rounded mt-4">
+      <button
+        onClick={() => setSpriggitPanelOpen(!spriggitPanelOpen)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-mossy-darker transition-colors"
+      >
+        <GitBranch className="w-5 h-5 text-emerald-400" />
+        <span className="text-sm font-bold text-emerald-300 flex-1">Spriggit Vanilla ESM Digest</span>
+        <span className="text-xs text-mossy-text-muted">Convert base-game ESMs into Knowledge Vault</span>
+        {spriggitPanelOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+      </button>
+      {spriggitPanelOpen && (
+        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-mossy-border">
+          <p className="text-xs text-mossy-text-muted">
+            Uses <strong className="text-mossy-text">Spriggit.CLI.exe serialize</strong> to convert vanilla ESMs (Fallout4.esm + DLCs) to YAML and digest them into Mossy's Knowledge Vault.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-mossy-text-muted mb-1">Spriggit.CLI.exe</label>
+              <div className="flex gap-2">
+                <input readOnly value={sdCliPath} placeholder="Not selected"
+                  className="flex-1 bg-mossy-darker border border-mossy-border rounded px-2 py-1.5 text-xs text-mossy-text placeholder-mossy-text-muted focus:outline-none" />
+                <button type="button"
+                  onClick={async () => { const api = getCKApi(); if (!api?.spriggitPickCli) return; const p = await api.spriggitPickCli(); if (p) setSdCliPath(p); }}
+                  className="px-2 py-1.5 bg-mossy-accent hover:bg-mossy-accent-hover border border-mossy-border rounded text-xs text-black flex items-center gap-1 transition-colors font-semibold">
+                  <FolderOpen className="w-3.5 h-3.5" /> Browse
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-mossy-text-muted mb-1">Fallout 4 Data Folder</label>
+              <div className="flex gap-2">
+                <input readOnly value={sdDataPath} placeholder="e.g. C:\Steam\...fallout 4\Data"
+                  className="flex-1 bg-mossy-darker border border-mossy-border rounded px-2 py-1.5 text-xs text-mossy-text placeholder-mossy-text-muted focus:outline-none" />
+                <button type="button"
+                  onClick={async () => { const api = getCKApi(); if (!api?.pickDirectory) return; const p = await api.pickDirectory('Select Fallout 4 Data Folder'); if (p) setSdDataPath(p); }}
+                  className="px-2 py-1.5 bg-mossy-accent hover:bg-mossy-accent-hover border border-mossy-border rounded text-xs text-black flex items-center gap-1 transition-colors font-semibold">
+                  <FolderOpen className="w-3.5 h-3.5" /> Browse
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-mossy-text-muted mb-1">Package Name</label>
+            <input value={sdPackageName} onChange={e => setSdPackageName(e.target.value)}
+              placeholder="Spriggit.Yaml.Fallout4"
+              className="w-full bg-mossy-darker border border-mossy-border rounded px-2 py-1.5 text-xs text-mossy-text placeholder-mossy-text-muted focus:outline-none focus:ring-1 focus:ring-mossy-accent" />
+            <p className="text-[10px] text-mossy-text-muted mt-0.5">Built-in: <code className="text-emerald-400">Spriggit.Yaml.Fallout4</code> or <code className="text-emerald-400">Spriggit.Json.Fallout4</code></p>
+          </div>
+
+          {sdMessage && (
+            <div className={`rounded px-3 py-2 text-xs whitespace-pre-line break-words max-h-40 overflow-y-auto border ${sdStatus === 'error' ? 'bg-red-900/20 border-red-700/50 text-red-200'
+              : sdStatus === 'done' ? 'bg-emerald-900/20 border-emerald-700/50 text-emerald-200'
+                : 'bg-mossy-darker border-mossy-border text-mossy-text'}`}>
+              {sdMessage}
+            </div>
+          )}
+
+          <div className="flex gap-2 flex-wrap">
+            <button type="button"
+              disabled={sdStatus === 'running' || !sdCliPath || !sdDataPath}
+              onClick={() => void runSpriggitVanillaDigest()}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors flex items-center gap-2">
+              <Brain className="w-4 h-4" />
+              {sdStatus === 'running' ? 'Converting…' : 'Convert & Digest into Brain'}
+            </button>
+            {sdStatus === 'done' ? (
+              <span className="self-center text-xs text-emerald-400 font-semibold">✅ Done — Knowledge Vault updated</span>
+            ) : null}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   const renderPreFlightTab = () => (
     <div className="space-y-4">
       <div className="bg-mossy-bg p-4 rounded border border-mossy-border space-y-3">
@@ -274,11 +412,10 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Shield className="w-5 h-5 text-mossy-accent" /> Validation Results
           </h3>
-          <div className={`p-3 rounded border ${
-            validationResult.severity === 'safe' ? 'border-green-500/30 bg-green-500/10' :
+          <div className={`p-3 rounded border ${validationResult.severity === 'safe' ? 'border-green-500/30 bg-green-500/10' :
             validationResult.severity === 'warning' ? 'border-yellow-500/30 bg-yellow-500/10' :
-            'border-red-500/30 bg-red-500/10'
-          }`}>
+              'border-red-500/30 bg-red-500/10'
+            }`}>
             <div className="flex items-center justify-between">
               <span className="font-semibold">Crash Risk: {validationResult.estimatedCrashRisk}%</span>
               <span className="text-sm text-mossy-text-muted">{validationResult.severity.toUpperCase()}</span>
@@ -375,11 +512,10 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="p-3 bg-mossy-darker rounded space-y-1">
               <div className="text-xs text-mossy-text-muted">Memory</div>
-              <div className={`text-xl font-bold ${
-                healthMetrics.memoryUsageMB > 3500 ? 'text-red-400' :
+              <div className={`text-xl font-bold ${healthMetrics.memoryUsageMB > 3500 ? 'text-red-400' :
                 healthMetrics.memoryUsageMB > 2500 ? 'text-yellow-400' :
-                'text-green-400'
-              }`}>
+                  'text-green-400'
+                }`}>
                 {healthMetrics.memoryUsageMB.toFixed(0)} MB
               </div>
             </div>
@@ -389,21 +525,19 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
             </div>
             <div className="p-3 bg-mossy-darker rounded space-y-1">
               <div className="text-xs text-mossy-text-muted">Handles</div>
-              <div className={`text-xl font-bold ${
-                healthMetrics.handleCount > 10000 ? 'text-red-400' :
+              <div className={`text-xl font-bold ${healthMetrics.handleCount > 10000 ? 'text-red-400' :
                 healthMetrics.handleCount > 7000 ? 'text-yellow-400' :
-                'text-green-400'
-              }`}>
+                  'text-green-400'
+                }`}>
                 {healthMetrics.handleCount.toLocaleString()}
               </div>
             </div>
             <div className="p-3 bg-mossy-darker rounded space-y-1">
               <div className="text-xs text-mossy-text-muted">Status</div>
-              <div className={`text-xl font-bold ${
-                healthMetrics.responsiveness === 'frozen' ? 'text-red-400' :
+              <div className={`text-xl font-bold ${healthMetrics.responsiveness === 'frozen' ? 'text-red-400' :
                 healthMetrics.responsiveness === 'slow' ? 'text-yellow-400' :
-                'text-green-400'
-              }`}>
+                  'text-green-400'
+                }`}>
                 {healthMetrics.responsiveness}
               </div>
             </div>
@@ -501,7 +635,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
           </div>
         </div>
         {onClose && (
-          <button onClick={onClose} className="p-2 hover:bg-mossy-border rounded transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-mossy-border rounded transition-colors" title="Close panel">
             <Square className="w-5 h-5" />
           </button>
         )}
@@ -510,7 +644,12 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {renderTabs()}
 
-        {activeTab === 'preflight' && renderPreFlightTab()}
+        {activeTab === 'preflight' && (
+          <>
+            {renderPreFlightTab()}
+            {renderSpriggitPanel()}
+          </>
+        )}
         {activeTab === 'monitoring' && renderMonitoringTab()}
         {activeTab === 'postcrash' && renderPostCrashTab()}
       </div>
