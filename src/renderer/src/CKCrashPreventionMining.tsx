@@ -472,14 +472,31 @@ Format your response clearly with headers and bullet points.`;
 
   // Load previous scan from localStorage on mount; detect auto-scan flag from Spriggit digest
   useEffect(() => {
-    const saved = localStorage.getItem('mossy_scan_auditor');
-    if (saved) {
-      setAuditFiles(JSON.parse(saved));
+    try {
+      const saved = localStorage.getItem('mossy_scan_auditor');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Validate parsed data is an array
+        if (Array.isArray(parsed)) {
+          setAuditFiles(parsed);
+        } else {
+          console.warn('Invalid audit files data in localStorage, clearing...');
+          localStorage.removeItem('mossy_scan_auditor');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load audit files from localStorage:', error);
+      localStorage.removeItem('mossy_scan_auditor');
     }
+    
     // If the Spriggit vanilla digest queued plugins for us, show the auto-scan banner
-    if (localStorage.getItem('mossy_auditor_auto_scan') === 'true') {
-      localStorage.removeItem('mossy_auditor_auto_scan');
-      setAutoScanBanner(true);
+    try {
+      if (localStorage.getItem('mossy_auditor_auto_scan') === 'true') {
+        localStorage.removeItem('mossy_auditor_auto_scan');
+        setAutoScanBanner(true);
+      }
+    } catch (error) {
+      console.error('Failed to check auto-scan flag:', error);
     }
   }, []);
 
@@ -535,20 +552,36 @@ Format your response clearly with headers and bullet points.`;
 
   const launchToolWithFile = async (toolSettingsKey: 'xeditPath' | 'nifSkopePath' | 'creationKitPath' | 'blenderPath', filePath: string, toolLabel: string) => {
     const bridge = (window as any).electron?.api || (window as any).electronAPI;
-    if (!bridge) return;
+    if (!bridge) {
+      setAuditAdvice('⚠️ Desktop integration not available. Please use the desktop app version.');
+      return;
+    }
+    if (!bridge.getSettings) {
+      setAuditAdvice('⚠️ Settings API not available. Please restart the app.');
+      return;
+    }
     try {
-      const settings = await bridge.getSettings?.();
-      const toolPath: string = settings?.[toolSettingsKey] ?? '';
+      const settings = await bridge.getSettings();
+      if (!settings) {
+        setAuditAdvice(`⚠️ Could not load settings. Please go to Settings and configure ${toolLabel} path.`);
+        return;
+      }
+      const toolPath: string = settings[toolSettingsKey] ?? '';
       if (!toolPath) {
         setAuditAdvice(`⚙️ ${toolLabel} path is not configured. Go to Settings → External Tools and set the path to ${toolLabel}, then try again.`);
         return;
       }
-      const result = await bridge.launchToolWithFile?.(toolPath, filePath);
+      if (!bridge.launchToolWithFile) {
+        setAuditAdvice('⚠️ Tool launch API not available. Please restart the app.');
+        return;
+      }
+      const result = await bridge.launchToolWithFile(toolPath, filePath);
       if (result && !result.success) {
         setAuditAdvice(`⚠️ Could not launch ${toolLabel}: ${result.error}`);
       }
     } catch (e) {
       console.error(`launchToolWithFile(${toolLabel}):`, e);
+      setAuditAdvice(`❌ Error launching ${toolLabel}: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
