@@ -610,6 +610,10 @@ export interface Settings {
 
     // Mod Content Whitelist — protected mod names/IDs that Mossy will not reference, use as examples, or touch in any way
     modContentWhitelist: string[];
+
+    // Mod/Program Blacklist — mods and programs that are problematic and should be warned against
+    modContentBlacklist: string[];
+    programBlacklist: string[];
   };
 
   // Security Settings
@@ -851,6 +855,10 @@ export const DEFAULT_SETTINGS: Settings = {
 
     // Mod Content Whitelist
     modContentWhitelist: [],
+
+    // Mod/Program Blacklist
+    modContentBlacklist: [],
+    programBlacklist: [],
   },
 
   // Security Settings
