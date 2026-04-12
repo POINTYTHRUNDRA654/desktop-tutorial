@@ -20,12 +20,15 @@ export interface MigrationManifest {
 /**
  * Data sources that should be preserved across updates
  * These include scan results, user settings, knowledge vault, projects, etc.
+ * CRITICAL: These keys are NEVER cleared, even during fresh installs or reinstalls.
  */
 const PRESERVED_DATA_SOURCES = [
     'mossy_scan_auditor',           // Auditor scan results
+    'mossy_scan_summary',           // Program detection summary (NEVER CLEAR)
+    'mossy_all_detected_apps',      // Full list of detected apps (NEVER CLEAR)
     'mossy_project_data',           // User projects
     'mossy_settings',               // User settings
-    'mossy_vault_items',            // Knowledge vault
+    'mossy_vault_items',            // Knowledge vault items
     'mossy_load_order_cache',       // Load order analysis
     'mossy_mod_projects',           // Mod projects file
     'mossy_chat_history',           // Chat history
@@ -34,6 +37,8 @@ const PRESERVED_DATA_SOURCES = [
     'mossy_workflow_state',         // Saved workflow state
     'mossy_automation_state',       // Automation settings
     'mossy_roadmap',                // Roadmaps
+    'mossy_onboarding_completed',   // Onboarding completion (preserve across reinstalls)
+    'mossy_has_booted',             // Boot completion flag
 ];
 
 /**

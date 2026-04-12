@@ -460,23 +460,27 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         // If onboarding was already completed, skip straight through.
         const hasOnboarded = localStorage.getItem('mossy_onboarding_complete');
         if (hasOnboarded) {
+            console.log('[FirstRunOnboarding] User already completed onboarding. Skipping wizard.');
             onComplete();
             return;
         }
 
-        // If the onboarding flag was cleared by an app update (e.g. by the NSIS
-        // fresh-install.marker path in main.ts, which calls App.tsx's IPC handler that
-        // removes 'mossy_onboarding_complete') but prior scan data still exists, skip
-        // the re-scan entirely and complete onboarding silently. User data is preserved; only the "What's New" page
-        // communicates what changed in the new release.
+        // If scan data already exists from a previous run (preserved during reinstall),
+        // skip the scan step entirely and complete onboarding silently. User data is
+        // preserved so they don't lose program selections or downloaded tool paths.
         const hasScanData =
             !!localStorage.getItem('mossy_scan_summary') &&
             !!localStorage.getItem('mossy_all_detected_apps');
         if (hasScanData) {
+            console.log('[FirstRunOnboarding] Scan data already exists from previous install. Preserving and completing onboarding.');
             localStorage.setItem('mossy_onboarding_complete', 'true');
+            localStorage.setItem('mossy_onboarding_completed', 'true');
             onComplete();
+            return;
         }
-    }, []);
+        
+        console.log('[FirstRunOnboarding] No existing scan data. Starting fresh onboarding wizard.');
+    }, [onComplete]);
 
     // Speak greeting on the edition picker (very first screen).
     useEffect(() => {
