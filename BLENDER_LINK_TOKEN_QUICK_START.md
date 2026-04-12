@@ -1,5 +1,7 @@
 # Quick Start: Mossy Link Token Setup
 
+⚠️ **Development Notice:** The Mossy Link Blender add-on is still under active development. Features and stability may change as we continue to improve the integration.
+
 ## 🔒 New Security Feature - Optional Token-Based Authentication
 
 Mossy v6.1 and Blender add-on v6.1+ now support **optional token authentication** to secure your Blender ↔ Mossy connection.
