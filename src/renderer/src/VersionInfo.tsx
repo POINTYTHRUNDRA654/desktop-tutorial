@@ -5,11 +5,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Info, CheckCircle, AlertTriangle, Zap, Cpu, ExternalLink } from 'lucide-react';
+import { Info, CheckCircle, AlertTriangle, Zap, Cpu } from 'lucide-react';
 import packageJson from '../../../package.json';
-import { openExternal } from './utils/openExternal';
-
-const NVIDIA_EDITION_RELEASES_URL = 'https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases';
 
 interface VersionInfoProps {
   embedded?: boolean;
@@ -150,26 +147,14 @@ const VersionInfo: React.FC<VersionInfoProps> = ({ embedded = false }) => {
                   : 'CPU-only PyTorch · works on all hardware · local fine-tuning not available.'}
               </p>
               {mossyEdition === 'universal' && (
-                <div className="rounded-md border border-green-700/50 bg-green-900/10 p-3 space-y-2">
-                  <p className="text-xs font-semibold text-green-300">
-                    ⚡ Upgrade to Mossy NVIDIA Edition
+                <div className="rounded-md border border-green-700/50 bg-green-900/10 p-3">
+                  <p className="text-xs font-semibold text-green-300 mb-1">
+                    ⚡ NVIDIA Edition Available
                   </p>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Want local AI fine-tuning with Unsloth (CUDA 12.4)? Download the NVIDIA Edition —
-                    it requires an NVIDIA GPU with 8 GB+ VRAM. Your settings and knowledge vault
-                    carry over automatically.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void openExternal(NVIDIA_EDITION_RELEASES_URL)}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded-md text-xs font-bold transition-colors"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    Download NVIDIA Edition from GitHub Releases
-                  </button>
-                  <p className="text-[10px] text-slate-500">
-                    Install over this version — Mossy will re-run the 30-second PyTorch + Unsloth setup
-                    on first launch.
+                    For local AI fine-tuning with Unsloth (CUDA 12.4), download and install the
+                    NVIDIA Edition installer from GitHub Releases. Requires an NVIDIA GPU with 8 GB+ VRAM.
+                    Your settings and knowledge vault carry over automatically.
                   </p>
                 </div>
               )}
