@@ -276,6 +276,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
     const [uiLanguage, setUiLanguage] = useState<string>('auto');
 
+    // Scan error state
+    const [scanError, setScanError] = useState<string | null>(null);
+    const [scanRetryCount, setScanRetryCount] = useState(0);
+
     // Spriggit digest step state
     const [spriggitCliPath, setSpriggitCliPath] = useState('');
     const [spriggitDataPath, setSpriggitDataPath] = useState('');
@@ -465,9 +469,19 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             return;
         }
 
+        // Check if user explicitly wants to redo onboarding (from Tutorial Reset in Settings)
+        // If so, ignore any leftover scan data and let them go through the full flow again.
+        const forceOnboarding = localStorage.getItem('mossy_force_onboarding') === 'true';
+        if (forceOnboarding) {
+            console.log('[FirstRunOnboarding] Force onboarding flag detected. Running full onboarding flow.');
+            localStorage.removeItem('mossy_force_onboarding'); // Clear the flag
+            return; // Don't skip - let the user go through onboarding
+        }
+
         // If scan data already exists from a previous run (preserved during reinstall),
         // skip the scan step entirely and complete onboarding silently. User data is
         // preserved so they don't lose program selections or downloaded tool paths.
+        // BUT: Only do this if they haven't explicitly reset onboarding via Settings.
         const hasScanData =
             !!localStorage.getItem('mossy_scan_summary') &&
             !!localStorage.getItem('mossy_all_detected_apps');
@@ -639,6 +653,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const startScan = async () => {
         setStep('scanning');
         setScanProgress(10);
+        setScanError(null); // Clear any previous error
 
         if (shouldSpeak()) {
             void speakMossy('Starting system scan. While I scan, I will walk you through the tutorial so you can get oriented.', { cancelExisting: true });
@@ -649,16 +664,27 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
         try {
             const api = getElectronApi();
+            console.log('[FirstRunOnboarding] Electron API check:', {
+                hasApi: !!api,
+                hasGetSystemInfo: !!api?.getSystemInfo,
+                hasDetectPrograms: !!api?.detectPrograms,
+                hasCheckDotnet: !!api?.checkDotnet
+            });
+
             if (!api?.getSystemInfo || !api?.detectPrograms) {
-                throw new Error('Electron API not available');
+                throw new Error('Electron API not available. The required system scan functions are missing. This may indicate that the app was not started correctly or there is an issue with the Electron bridge.');
             }
 
             // Get system info
+            console.log('[FirstRunOnboarding] Calling getSystemInfo...');
             const systemInfo = await api.getSystemInfo();
+            console.log('[FirstRunOnboarding] System info received:', systemInfo);
             setScanProgress(30);
 
             // Detect all programs
+            console.log('[FirstRunOnboarding] Calling detectPrograms...');
             const allDetectedApps = await api.detectPrograms();
+            console.log('[FirstRunOnboarding] Detected programs:', allDetectedApps?.length || 0);
             setAllApps(allDetectedApps);
             setScanProgress(70);
 
@@ -667,11 +693,18 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             let dotnetAvailable = false;
             try {
                 if (api.checkDotnet) {
+                    console.log('[FirstRunOnboarding] Checking .NET Runtime...');
                     const dotnetResult = await api.checkDotnet();
+                    console.log('[FirstRunOnboarding] .NET check result:', dotnetResult);
                     dotnetAvailable = applyDotnetResult(dotnetResult);
                 }
-            } catch { /* non-fatal */ }
-            if (!api.checkDotnet) setDotnetOk(false);
+            } catch (dotnetError) {
+                console.warn('[FirstRunOnboarding] .NET check failed (non-fatal):', dotnetError);
+            }
+            if (!api.checkDotnet) {
+                console.warn('[FirstRunOnboarding] checkDotnet API not available');
+                setDotnetOk(false);
+            }
             setScanProgress(80);
 
             // Analyze and categorize
@@ -809,12 +842,24 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setScanProgress(100);
             setRecommendations(recs);
             setFilteredRecommendations(recs);
+            setScanRetryCount(0); // Reset retry count on success
             setStep('recommendations');
 
         } catch (error) {
-            console.error('[Onboarding] Scan failed:', error);
-            // Skip to complete if scan fails
-            setStep('complete');
+            console.error('[FirstRunOnboarding] Scan failed:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            setScanError(errorMessage);
+            
+            // Log detailed error information for debugging
+            console.error('[FirstRunOnboarding] Detailed error:', {
+                error,
+                message: errorMessage,
+                stack: error instanceof Error ? error.stack : undefined,
+                retryCount: scanRetryCount
+            });
+
+            // Don't automatically skip to complete - stay on scanning step to show error
+            // User can retry or continue manually
         }
     };
 
@@ -1403,18 +1448,59 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     <div className="animate-fade-in">
                         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
                             <div className="text-center">
-                                <Loader className="w-16 h-16 mx-auto mb-6 text-amber-400 animate-spin" />
-                                <h2 className="text-2xl font-bold text-white mb-4">Scanning Your System</h2>
-                                <p className="text-slate-400 mb-6">
-                                    Detecting installed programs and tools...
-                                </p>
-                                <div className="w-full bg-slate-800 rounded-full h-3 mb-4">
-                                    <div
-                                        className="bg-amber-500 h-3 rounded-full transition-all duration-300"
-                                        style={{ width: `${scanProgress}%` }}
-                                    />
-                                </div>
-                                <p className="text-sm text-slate-500">{scanProgress}%</p>
+                                {!scanError ? (
+                                    <>
+                                        <Loader className="w-16 h-16 mx-auto mb-6 text-amber-400 animate-spin" />
+                                        <h2 className="text-2xl font-bold text-white mb-4">Scanning Your System</h2>
+                                        <p className="text-slate-400 mb-6">
+                                            Detecting installed programs and tools...
+                                        </p>
+                                        <div className="w-full bg-slate-800 rounded-full h-3 mb-4">
+                                            <div
+                                                className="bg-amber-500 h-3 rounded-full transition-all duration-300"
+                                                style={{ width: `${scanProgress}%` }}
+                                            />
+                                        </div>
+                                        <p className="text-sm text-slate-500">{scanProgress}%</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <X className="w-16 h-16 mx-auto mb-6 text-red-400" />
+                                        <h2 className="text-2xl font-bold text-white mb-4">Scan Failed</h2>
+                                        <div className="bg-red-900/20 border border-red-700/40 rounded-lg p-4 mb-6 text-left">
+                                            <p className="text-red-300 text-sm font-semibold mb-2">Error Details:</p>
+                                            <p className="text-red-200/80 text-xs leading-relaxed break-words">
+                                                {scanError}
+                                            </p>
+                                        </div>
+                                        <div className="flex gap-3 justify-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setScanRetryCount(prev => prev + 1);
+                                                    void startScan();
+                                                }}
+                                                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                                            >
+                                                <ArrowRight className="w-4 h-4" />
+                                                Retry Scan {scanRetryCount > 0 && `(Attempt ${scanRetryCount + 1})`}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    console.log('[FirstRunOnboarding] User chose to skip scan after error');
+                                                    setStep('downloads');
+                                                }}
+                                                className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-semibold transition-colors"
+                                            >
+                                                Skip Scan &amp; Continue
+                                            </button>
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-4">
+                                            If the scan keeps failing, you can skip it and manually configure tools later.
+                                        </p>
+                                    </>
+                                )}
                                 <div className="mt-6">
                                     <button
                                         type="button"
@@ -1585,7 +1671,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                         <div className="space-y-3 mb-6 max-h-[52vh] overflow-y-auto pr-1">
                             {RECOMMENDED_DOWNLOADS.map((dl) => {
-                                const alreadyInstalled = allApps.some((app: { displayName?: string; name?: string }) => {
+                                const alreadyInstalled = allApps && allApps.length > 0 && allApps.some((app: { displayName?: string; name?: string }) => {
                                     const n = (app.displayName || app.name || '').toLowerCase();
                                     return dl.detectKeywords.some((kw) => n.includes(kw));
                                 });
