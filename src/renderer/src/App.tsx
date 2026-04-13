@@ -132,7 +132,7 @@ const CKExtension = React.lazy(() => import('./CKExtension').then(module => ({ d
 
 // Knowledge & Memory
 const MossyMemoryVault = React.lazy(() => import('./MossyMemoryVault'));
-const CKCrashPrevention = React.lazy(() => import('./CKCrashPreventionMining').then(module => ({ default: module.CKCrashPrevention })));
+const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
 
 /** Delay (ms) before navigating to the post-onboarding route (lets the overlay finish closing). */
 const POST_ONBOARDING_NAV_DELAY_MS = 150;
@@ -264,10 +264,10 @@ const App: React.FC = () => {
   const [freshInstallDetected] = useState(() => {
     try {
       if (!new URLSearchParams(window.location.search).has('freshInstall')) return false;
-      
+
       // Check if user already completed onboarding in a previous install
       const userCompletedOnboardingBefore = localStorage.getItem('mossy_onboarding_completed') === 'true';
-      
+
       if (userCompletedOnboardingBefore) {
         // User already did onboarding - only clear UI flags, preserve all data
         console.log('[App] Fresh install detected but onboarding was already completed. Preserving all user data.');
@@ -342,7 +342,7 @@ const App: React.FC = () => {
         // User already completed onboarding - preserve EVERYTHING including scan data
         console.log('[App] Fresh install detected. User ALREADY completed onboarding in a previous install.');
         console.log('[App] Preserving ALL user data: scan results, program selections, downloads, chat history, projects.');
-        
+
         // Only clear tutorial progress flags (user can restart tutorial if they want)
         const tutorialFlagsOnly = [
           'mossy_tutorial_completed',
@@ -351,7 +351,7 @@ const App: React.FC = () => {
           'mossy_tutorial_step',
         ];
         tutorialFlagsOnly.forEach(k => localStorage.removeItem(k));
-        
+
         // Keep scan data, onboarding completion, and all other user data intact
         // Mark as booted so we skip the startup sequence
         try {
@@ -361,7 +361,7 @@ const App: React.FC = () => {
         // First time user - clear onboarding flags but preserve any existing scan data
         console.log('[App] Fresh install detected. User has NOT completed onboarding before.');
         console.log('[App] Preserving any existing scan data so user doesn\'t have to re-scan if they already did.');
-        
+
         const onboardingKeysToReset = [
           'mossy_has_booted',
           'mossy_onboarding_complete',
@@ -373,12 +373,12 @@ const App: React.FC = () => {
           'mossy_tutorial_step',
         ];
         onboardingKeysToReset.forEach(k => localStorage.removeItem(k));
-        
+
         // NOTE: We intentionally do NOT clear these keys so scan data persists:
         // - mossy_scan_summary (program detection results)
         // - mossy_all_detected_apps (full list of detected programs)
         // - any selected program paths or download selections
-        
+
         setShowFirstRun(true);
         setShowOnboarding(true);
       }
