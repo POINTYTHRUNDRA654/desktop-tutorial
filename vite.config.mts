@@ -33,6 +33,7 @@ export default defineConfig(({ mode }) => {
   return {
     root: 'src/renderer',
     base: './',
+    publicDir: '../../public',
     envDir,
     build: {
       outDir: '../../dist',

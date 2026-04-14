@@ -78,6 +78,12 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
   const [installLog, setInstallLog] = useState<string[]>([]);
   const [foundTools, setFoundTools] = useState<Array<{name: string, category: string}>>([]);
 
+  // Deployment / build state
+  const [buildStatus, setBuildStatus] = useState<'idle' | 'building' | 'complete' | 'error'>('idle');
+  const [buildProgress, setBuildProgress] = useState(0);
+  const [buildLog, setBuildLog] = useState<string[]>([]);
+  const [releaseUrl, setReleaseUrl] = useState<string>('');
+
   const logsEndRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const buildLogRef = useRef<HTMLDivElement>(null);
@@ -190,8 +196,8 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
             setData(prev => {
                 const newData = [...prev, {
                     name: new Date().toLocaleTimeString(),
-                    cpu: perf.cpu || Math.floor(Math.random() * 20) + 10,
-                    neural: perf.mem || Math.floor(Math.random() * 10) + 5
+                    cpu: perf.cpu ?? Math.floor(Math.random() * 20) + 10,
+                    neural: perf.mem ?? Math.floor(Math.random() * 10) + 5
                 }].slice(-20);
                 return newData;
             });
@@ -228,12 +234,12 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
 
     // STEP 1: Get System Hardware Info
     let sysInfo: any = null;
-    if (window.electron?.api?.getSystemInfo) {
+    if (typeof window.electron?.api?.getSystemInfo === 'function') {
         try {
             addLog("[STEP 1/3] Scanning system hardware...", 'info');
             setScanProgress(10);
             console.log('[SystemMonitor] Calling getSystemInfo...');
-            sysInfo = await window.electronAPI.getSystemInfo();
+            sysInfo = await window.electron.api.getSystemInfo();
             
             console.log('[SystemMonitor] Received system info from Electron:', sysInfo);
             
@@ -716,7 +722,7 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
 
       </div>
 
-            <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 pb-24 bg-slate-900/50">
+            <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-6 pb-24 bg-slate-900/50">
       
       {/* TELEMETRY TAB */}
       {activeTab === 'telemetry' && (

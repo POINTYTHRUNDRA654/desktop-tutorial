@@ -916,7 +916,7 @@ OtherWorldspaceEdit - Precombines.esp
 
 ### Optional but Recommended
 - **PRP (PreVis Repair Pack)** - https://www.nexusmods.com/fallout4/mods/46403
-- **Buffout 4** - Crash logger that detects precombine issues
+- **Addictol** (Nexus #84214) - ALL-IN-ONE stability tool for OG/NG/1.11.x. Supersedes Buffout 4 (all variants), X-Cell, and many others. Do NOT install Buffout 4 or X-Cell alongside it.
 - **NifSkope** - Verify generated combined meshes
 - **7-Zip** - Archive management
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { Image as ImageIcon, ScanSearch, ArrowDownToLine, Layers, Upload, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useLive } from './LiveContext';
@@ -89,7 +90,7 @@ const ImageSuite: React.FC = () => {
       });
     } catch (err) {
       console.error('PBR generation error:', err);
-      alert('Failed to generate PBR maps. Check console for details.');
+      toast.error('Failed to generate PBR maps. Check console for details.');
     } finally {
       setIsProcessingPBR(false);
     }
@@ -225,7 +226,7 @@ const ImageSuite: React.FC = () => {
           document.body.removeChild(link);
         } catch (err) {
           console.error('Format conversion error:', err);
-          alert('Failed to convert image format. Check console for details.');
+          toast.error('Failed to convert image format. Check console for details.');
         } finally {
           setIsConverting(false);
         }
@@ -299,7 +300,7 @@ const ImageSuite: React.FC = () => {
       downloadAs(ddsSpec, `${baseName}_s.dds`);
     } catch (err) {
       console.error('FO4 export error:', err);
-      alert('Export failed. Please check console for details.');
+      toast.error('Export failed. Please check console for details.');
     }
   };
 

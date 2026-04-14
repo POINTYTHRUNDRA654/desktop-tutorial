@@ -65,11 +65,11 @@ export const QuestModAuthoringGuide: React.FC = () => {
                 <ExternalLink className="w-4 h-4 text-blue-300" /> Nexus: FO4Edit
               </button>
               <button
-                onClick={() => openUrl('https://www.nexusmods.com/fallout4/search/?query=Buffout%204')}
+                onClick={() => openUrl('https://www.nexusmods.com/fallout4/mods/84214')}
                 className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-blue-700/40 rounded text-xs font-bold text-slate-200 flex items-center gap-2"
-                title="Nexus search for Buffout 4 (optional but strongly recommended)"
+                title="Addictol: ALL-IN-ONE stability tool (supersedes Buffout 4)"
               >
-                <ExternalLink className="w-4 h-4 text-blue-300" /> Nexus: Buffout 4
+                <ExternalLink className="w-4 h-4 text-blue-300" /> Nexus: Addictol #84214
               </button>
             </div>
             <p className="text-slate-300 text-xs leading-relaxed mt-3">

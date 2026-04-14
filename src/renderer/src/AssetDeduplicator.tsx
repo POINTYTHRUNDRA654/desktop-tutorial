@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Search, 
-  Trash2, 
-  AlertTriangle, 
-  CheckCircle, 
+import {
+  Search,
+  Trash2,
+  AlertTriangle,
+  CheckCircle,
   FolderOpen,
   Zap,
   Eye,
@@ -47,6 +47,7 @@ interface ScanResult {
   totalVramWaste?: number;
   scannedFiles?: number;
   scannedFolders?: number;
+  pendingTools?: string[];
 }
 
 interface Progress {
@@ -82,7 +83,7 @@ export const AssetDeduplicator: React.FC = () => {
   const [scanPaths, setScanPaths] = useState<string[]>([]);
   const [extensions, setExtensions] = useState<string[]>(defaultExtensions);
   const [minSizeBytes, setMinSizeBytes] = useState<number>(1);
-  
+
   // State - Scanning
   const [scanId, setScanId] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -90,49 +91,112 @@ export const AssetDeduplicator: React.FC = () => {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
-  
+
   // State - UI
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
-  
+  const [showInstallRecovery, setShowInstallRecovery] = useState(false);
+  const [toolsNeedingSetup, setToolsNeedingSetup] = useState<string[]>([]);
+
+  // Refs
   const contentRef = useRef<HTMLDivElement>(null);
+  const listenerRef = useRef<(() => void) | null>(null);
   const scanIdRef = useRef<string | null>(null);
-  scanIdRef.current = scanId;
 
   // Effects
+  // Load on mount
   useEffect(() => {
     loadLastScanPath();
-    
-    // Listen for progress updates (modern API)
+  }, []);
+
+  // Effect: Maintain progress listener even when component unmounts/remounts
+  // This prevents the scan from being cancelled when navigating away
+  useEffect(() => {
+    // Clean up old listener if it exists
+    if (listenerRef.current) {
+      listenerRef.current();
+    }
+
+    // Set up progress listener (modern API)
+    let unsubscribe: (() => void) | null = null;
+
     if (api?.onDedupeProgress) {
-      api.onDedupeProgress((p: Progress) => {
+      const progressHandler = (p: Progress) => {
         if (!p) return;
-        
+
         // Adopt scanId from progress if we don't have one yet
         if (!scanIdRef.current && p.scanId) {
           setScanId(p.scanId);
+          scanIdRef.current = p.scanId;
         }
-        
+
         // Ignore unrelated scan events
         if (scanIdRef.current && p.scanId && p.scanId !== scanIdRef.current) return;
-        
+
         setProgress(p);
-        
+
+        // Save state to persistent storage so we can recover if user navigates away
+        if (api?.savePanelData) {
+          api.savePanelData('assetDeduplicator', {
+            isScanning: p.stage !== 'done' && p.stage !== 'canceled' && p.stage !== 'error',
+            scanId: scanIdRef.current,
+            progress: p,
+            scanPaths,
+            extensions,
+            minSizeBytes,
+          }).catch(() => {/* silent fail */ });
+        }
+
         if (p.stage === 'done' || p.stage === 'canceled' || p.stage === 'error') {
           setIsScanning(false);
         }
-        
+
         if (p.stage === 'error' && p.message) {
           setError(p.message);
         }
-      });
+      };
+
+      // Register listener and get unsubscribe function if API supports it
+      const result = api.onDedupeProgress(progressHandler);
+      if (typeof result === 'function') {
+        unsubscribe = result;
+      }
     }
-  }, [api]);
+
+    listenerRef.current = unsubscribe || (() => { }); // Always have a cleanup function
+
+    // Cleanup
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [api, scanPaths, extensions, minSizeBytes]);
+
+  // Check for pending installations after scan completes
+  useEffect(() => {
+    if (scanResult && !isScanning) {
+      // Check if any tools from the asset scan need installation
+      // This would be populated by the backend when scan detects missing dependencies
+      if (scanResult.pendingTools && scanResult.pendingTools.length > 0) {
+        setToolsNeedingSetup(scanResult.pendingTools);
+        setShowInstallRecovery(true);
+
+        // Save to persistent storage
+        if (api?.savePanelData) {
+          api.savePanelData('assetDeduplicator', {
+            scanResult,
+            toolsNeedingSetup: scanResult.pendingTools,
+          });
+        }
+      }
+    }
+  }, [scanResult, isScanning, api]);
 
   // Computed values
   const totalGroups = scanResult?.groups?.length ?? 0;
-  
+
   const totalDuplicateFiles = useMemo(() => {
     const groups = scanResult?.groups ?? [];
     return groups.reduce((sum, g) => sum + Math.max(0, g.files.length - 1), 0);
@@ -173,7 +237,7 @@ export const AssetDeduplicator: React.FC = () => {
           return;
         }
       }
-      
+
       // Fallback to legacy API
       if (api?.assetScanner?.browseFolder) {
         const selectedPath = await api.assetScanner.browseFolder();
@@ -211,11 +275,11 @@ export const AssetDeduplicator: React.FC = () => {
           extensions,
           minSize: minSizeBytes,
         });
-        
+
         setScanId(result.scanId || null);
         setScanResult(result);
         setIsScanning(false);
-        
+
         if (result.groups.length === 0) {
           showMessage('success', 'No duplicates found! Your mod collection is clean.');
         } else {
@@ -226,10 +290,10 @@ export const AssetDeduplicator: React.FC = () => {
       // Fallback to legacy scanner API
       else if (api?.assetScanner?.scanForDuplicates) {
         const result = await api.assetScanner.scanForDuplicates(scanPaths[0]);
-        
+
         setScanResult(result);
         setIsScanning(false);
-        
+
         if (result.totalDuplicates === 0) {
           showMessage('success', 'No duplicates found! Your mod collection is clean.');
         } else {
@@ -307,15 +371,15 @@ export const AssetDeduplicator: React.FC = () => {
     const confirmed = window.confirm(
       `Delete ${selectedGroups.size} duplicate group(s)? This will move files to trash.`
     );
-    
+
     if (!confirmed) return;
 
     setIsProcessing(true);
-    
+
     try {
       const filesToDelete: string[] = [];
       const groups = scanResult?.groups || [];
-      
+
       groups.forEach(group => {
         if (selectedGroups.has(group.hash)) {
           // Keep first file, delete the rest
@@ -401,7 +465,7 @@ export const AssetDeduplicator: React.FC = () => {
           </div>
           <Copy className="w-4 h-4 text-amber-400 ml-2" />
         </div>
-        
+
         {isExpanded && (
           <div className="p-4 pt-0 space-y-1">
             {group.files.map((file, idx) => renderFile(file, idx))}
@@ -429,10 +493,7 @@ export const AssetDeduplicator: React.FC = () => {
         <ToolsInstallVerifyPanel
           accentClassName="text-green-300"
           description="Scan your mod folders to find duplicate textures, meshes, and other assets"
-          tools={[
-            { label: 'File system access', href: '#', kind: 'required' },
-            { label: 'Electron IPC', href: '#', kind: 'required' },
-          ]}
+          tools={[]}
           verify={[
             'Select one or more folders to scan',
             'Click Start Scan to analyze for duplicates',
@@ -447,11 +508,10 @@ export const AssetDeduplicator: React.FC = () => {
 
         {/* Message banner */}
         {message && (
-          <div className={`mb-4 p-4 rounded-lg border ${
-            message.type === 'success' ? 'bg-green-900/20 border-green-700 text-green-300' :
+          <div className={`mb-4 p-4 rounded-lg border ${message.type === 'success' ? 'bg-green-900/20 border-green-700 text-green-300' :
             message.type === 'error' ? 'bg-red-900/20 border-red-700 text-red-300' :
-            'bg-blue-900/20 border-blue-700 text-blue-300'
-          }`}>
+              'bg-blue-900/20 border-blue-700 text-blue-300'
+            }`}>
             {message.text}
           </div>
         )}
@@ -461,6 +521,55 @@ export const AssetDeduplicator: React.FC = () => {
           <div className="mb-4 p-4 rounded-lg border bg-red-900/20 border-red-700 text-red-300 flex items-start gap-2">
             <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div>{error}</div>
+          </div>
+        )}
+
+        {/* Install Recovery Panel */}
+        {showInstallRecovery && toolsNeedingSetup.length > 0 && (
+          <div className="mb-6 bg-gradient-to-r from-amber-900/30 to-orange-900/30 border border-amber-700 rounded-lg p-4">
+            <div className="flex items-start gap-3 mb-3">
+              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-amber-300 mb-1">
+                  Installation Recovery: {toolsNeedingSetup.length} Item{toolsNeedingSetup.length !== 1 ? 's' : ''} Pending
+                </h3>
+                <p className="text-xs text-amber-100 mb-3">
+                  Your previous scan found these tools/dependencies that weren't fully installed. You can resume the installation process now.
+                </p>
+                <div className="space-y-2">
+                  {toolsNeedingSetup.map((tool, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-slate-900/50 rounded px-3 py-2">
+                      <div className="text-xs text-amber-100">{tool}</div>
+                      <span className="text-[10px] px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        Pending Setup
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() => {
+                      setShowInstallRecovery(false);
+                      // In a full implementation, this would trigger the installation workflow
+                      setMessage({
+                        type: 'info',
+                        text: 'Installation workflow would be triggered here. Configure your tools and dependencies.',
+                      });
+                    }}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 rounded text-sm font-bold flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Resume Installation
+                  </button>
+                  <button
+                    onClick={() => setShowInstallRecovery(false)}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm font-bold"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -495,11 +604,10 @@ export const AssetDeduplicator: React.FC = () => {
                 <button
                   key={level}
                   onClick={() => setSkillLevel(level)}
-                  className={`px-4 py-2 rounded text-sm font-bold ${
-                    skillLevel === level
-                      ? 'bg-green-600 text-white'
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                  }`}
+                  className={`px-4 py-2 rounded text-sm font-bold ${skillLevel === level
+                    ? 'bg-green-600 text-white'
+                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
                 >
                   {level.charAt(0).toUpperCase() + level.slice(1)}
                 </button>
@@ -528,7 +636,7 @@ export const AssetDeduplicator: React.FC = () => {
               Cancel
             </button>
           )}
-          
+
           {scanResult && !isScanning && (
             <>
               <button

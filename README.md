@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v5.4.24** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v5.4.27** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 > 🔄 **For Contributors:** If you have this repository cloned and want to update your local copy with recent bug fixes, see [GIT_UPDATE_GUIDE.md](GIT_UPDATE_GUIDE.md)
 > 
@@ -8,15 +8,19 @@
 
 ---
 
-## 🚀 Onboarding & Installer Notes (v5.4.24)
+## 🚀 Onboarding & Installer Notes (v5.4.27)
 
-**New in v5.4.24 (Latest):**
-- ✅ **Comprehensive Quality Audit** - All pages audited and improved
-- ✅ **Real Data Integration** - Replaced all mock data with real system metrics via Electron IPC
-- ✅ **Corrected Game References** - Fixed Skyrim references, Fallout 4 content throughout
-- ✅ **Completed Features** - Image preview, INI presets, and build tracking now fully functional
-- ✅ **Professional Standards** - Clear demo feature labeling, 0 security vulnerabilities
-- 📄 See [PAGE_AUDIT_COMPLETE.md](PAGE_AUDIT_COMPLETE.md) for detailed audit results
+**New in v5.4.27 (Latest):**
+- ✅ **Multi-Language Support** - Mossy now supports 12 languages! Choose your preferred language in Settings → Language Settings
+  - Languages: English, Spanish, French, German, Russian, Chinese (Simplified), Portuguese (BR), Japanese, Korean, Italian, Polish, Turkish
+  - See [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md) to help translate
+- ✅ **Anniversary Edition Awareness** - Mossy now understands all four FO4 version states: OG, NG, AE, and Creations Menu
+- ✅ **AE Knowledge** - AE = same NG executable (1.10.984) + 76 bundled free CC items; mods often need AE patches; PRP 81+ required for AE cells
+- ✅ **Improved Version Guidance** - AI correctly identifies your runtime and gives version-accurate advice
+- 📄 See [CHANGES.md](CHANGES.md) for full change history
+
+**From v5.4.25:**
+- Deep scan of all Fallout 4 modding knowledge — updated tool recommendations, version compatibility, and community best practices
 
 **From v5.4.24:**
 - Fixed tutorial TTS integration - Mossy now speaks during tutorials
@@ -31,6 +35,7 @@
 - Real-time tool monitoring (Neural Link)
 - Explicit user permission and audit logging for all direct-write and automation features
 - All modules are functional—no placeholders
+- ⚠️ **Note:** The Blender add-on is still under active development
 - **Fixed**: Encryption key parity between dev and production builds
 - **Added**: Automatic API key decryption in packaged builds
 - **New**: Tutorial replay feature - Re-experience the installation tutorial anytime!
@@ -51,7 +56,7 @@
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 5.4.24)
+- Version is auto-set from `package.json` (currently 5.4.27)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 - Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
@@ -70,7 +75,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
-![Version](https://img.shields.io/badge/version-5.4.24-blue.svg)
+![Version](https://img.shields.io/badge/version-5.4.27-blue.svg)
 
 ---
 
@@ -80,7 +85,7 @@
 
 **Ready to use Mossy?** Download the latest installer:
 
-👉 **[Download Mossy v5.4.24 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**
+👉 **[Download Mossy v5.4.27 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**
 
 ### System Requirements
 
@@ -498,7 +503,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 5.4.24.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 5.4.27.exe`).
 
 ---
 

@@ -595,7 +595,7 @@ const Workshop: React.FC = () => {
                     {/* Bottom tools area */}
                     <div className="w-full border-t border-slate-800 bg-slate-900/70 p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                         <ExternalToolNotice toolKey="nifSkopePath" toolName="NifSkope" nexusUrl="https://www.nexusmods.com/newvegas/mods/75969" description="Inspect meshes related to this project." />
-                        <ExternalToolNotice toolKey="fomodCreatorPath" toolName="FOMOD Creation Tool" nexusUrl="https://www.nexusmods.com/fallout4/mods/6821" description="Package this project with a FOMOD installer." />
+                        <ExternalToolNotice toolKey="fomodCreatorPath" toolName="FOMOD Creation Tool" nexusUrl="https://www.nexusmods.com/fallout4/mods/6821" description="Package this project with a FOMOD installer." author="AlexxEG" />
                     </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Plus, Trash2, Copy, Search, Move, RotateCcw, Grid, Sun, FilePlus } from 'lucide-react';
 import './CellEditor.css';
 
@@ -228,7 +229,8 @@ export const CellEditor: React.FC = () => {
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d < 12 && d < minDist) { found = r; minDist = d; }
     });
-    setSelectedId(found ? found.id : null);
+    // TypeScript narrows 'found' to null after a forEach callback mutation; cast back to the declared type
+    setSelectedId((found as Reference | null)?.id ?? null);
   };
 
   // keyboard controls: WASD (move), R rotate, S scale (increment)
@@ -379,12 +381,12 @@ export const CellEditor: React.FC = () => {
                 const resp = await (window as any).electronAPI?.generateNavmesh?.(cellPayload, { /* default settings */ });
                 if (resp?.success) {
                   // attach navmesh id to cell locally for preview
-                  alert(`Navmesh generated — id=${resp.data?.id}`);
+                  toast.success(`Navmesh generated — id=${resp.data?.id}`);
                 } else {
-                  alert(`Navmesh generation failed: ${resp?.error || 'unknown'}`);
+                  toast.error(`Navmesh generation failed: ${resp?.error || 'unknown'}`);
                 }
               } catch (err) {
-                alert('Navmesh generation error');
+                toast.error('Navmesh generation error');
               }
             }}>Generate Navmesh</button>
             <button className="btn-primary" onClick={async () => {
@@ -392,12 +394,12 @@ export const CellEditor: React.FC = () => {
               try {
                 const resp = await (window as any).electronAPI?.saveCell?.(cellPayload);
                 if (resp?.success) {
-                  alert('Cell saved (in-memory)');
+                  toast.success('Cell saved (in-memory)');
                 } else {
-                  alert(`Save failed: ${resp?.error || 'unknown'}`);
+                  toast.error(`Save failed: ${resp?.error || 'unknown'}`);
                 }
               } catch (err) {
-                alert('Save cell error');
+                toast.error('Save cell error');
               }
             }}>Save Cell</button>
           </div>
@@ -455,7 +457,7 @@ export const CellEditor: React.FC = () => {
               <div className="legend">{placed.length} objects</div>
               <div style={{display:'flex',gap:8}}>
                 <button className="small-btn" onClick={() => { setPlaced([]); setSelectedId(null); }}>Clear</button>
-                <button className="small-btn" onClick={() => { /* show in game */ alert('Select in CK'); }}>Select in CK</button>
+                <button className="small-btn" onClick={() => { toast.success('Select in CK'); }}>Select in CK</button>
               </div>
             </div>
 

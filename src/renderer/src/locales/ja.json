@@ -1,0 +1,182 @@
+{
+  "nav": {
+    "home": "Mossy.Space",
+    "chat": "AI チャット",
+    "aiModAssistant": "AI Mod アシスタント",
+    "firstSuccess": "最初の成功",
+    "roadmap": "モッディングロードマップ",
+    "whatsNew": "新着情報",
+    "modProjects": "Mod プロジェクト",
+    "modBrowser": "Mod ブラウザ",
+    "quickReference": "クイックリファレンス",
+    "knowledgeSearch": "ナレッジ検索",
+    "installWizard": "インストールウィザード",
+    "platforms": "プラットフォーム",
+    "wizards": "ウィザード",
+    "crashTriage": "クラッシュトリアージ",
+    "ckCrashPrevention": "CK セーフティ",
+    "ddsConverter": "DDS コンバーター",
+    "textureGenerator": "テクスチャジェネレーター",
+    "packagingRelease": "パッケージングとリリース",
+    "ckQuestDialogue": "CK クエストと対話",
+    "animationGuide": "アニメーションガイド",
+    "skeletonReference": "スケルトンリファレンス",
+    "riggingMistakes": "リギングミス",
+    "questModAuthoring": "クエスト Mod 作成",
+    "precombinePrpGuide": "Precombine と PRP ガイド",
+    "prpPatchBuilder": "PRP パッチビルダー",
+    "leveledListInjection": "レベルドリストインジェクション",
+    "lorekeeper": "ロアキーパー",
+    "tools": "ツール",
+    "cosmosWorkflow": "Cosmos ワークフロー",
+    "devtools": "開発ツール",
+    "templateGenerator": "テンプレートジェネレーター",
+    "scriptAnalyzer": "スクリプトアナライザー",
+    "assembler": "アセンブラー",
+    "workshop": "ワークショップ",
+    "blueprint": "ブループリント",
+    "riggingChecklist": "リギングチェックリスト",
+    "exportSettingsHelper": "エクスポート設定ヘルパー",
+    "animationValidator": "アニメーションバリデーター",
+    "precombineChecker": "Precombine チェッカー",
+    "auditor": "監査官",
+    "securityScanner": "セキュリティスキャナー",
+    "miningDashboard": "マイニングダッシュボード",
+    "advancedAnalysis": "高度な分析",
+    "scribe": "記録者",
+    "systemMonitor": "システムモニター",
+    "orchestrator": "オーケストレーター",
+    "workflowRunner": "ワークフローランナー",
+    "holodeck": "ホロデッキ",
+    "vault": "ボールト",
+    "ba2Manager": "BA2 マネージャー",
+    "localCapabilities": "ローカル機能",
+    "memoryVault": "メモリーボールト",
+    "neuralLink": "Neural Link",
+    "imageStudio": "イメージスタジオ",
+    "audioStudio": "オーディオスタジオ",
+    "liveSynapse": "Live Synapse",
+    "desktopBridge": "Desktop Bridge",
+    "mo2Extension": "MO2 拡張機能",
+    "xeditTools": "xEdit ツール",
+    "ckExtension": "CK 拡張機能",
+    "prpPatchTools": "PRP パッチツール",
+    "comfyuiExtension": "ComfyUI 拡張機能",
+    "upscaylExtension": "Upscayl 拡張機能",
+    "duplicateFinder": "重複ファインダー",
+    "communityLearning": "コミュニティ学習",
+    "toolVerify": "ツール検証",
+    "settings": "設定",
+    "privacySettings": "プライバシー設定",
+    "voiceSettings": "音声設定",
+    "languageSettings": "言語設定",
+    "diagnosticTools": "診断ツール",
+    "supportMossy": "Mossy をサポート"
+  },
+  "settings": {
+    "language": {
+      "title": "言語設定",
+      "subtitle": "Mossy インターフェースで使用する言語を選択してください。",
+      "uiLanguageLabel": "アプリの言語",
+      "uiLanguageHelp": "ラベル、ボタン、UI テキストに影響します(翻訳されている場合)。",
+      "requestTitle": "言語をリクエスト",
+      "requestHelp": "お使いの言語がありませんか?次に追加する言語を教えてください。",
+      "requestCta": "言語をリクエスト",
+      "requestCtaTitle": "言語リクエストフォームを開く",
+      "auto": "自動(システム)",
+      "current": "現在",
+      "save": "保存"
+    }
+  },
+  "onboarding": {
+    "language": {
+      "label": "言語",
+      "help": "インターフェース言語を選択してください。後で設定で変更できます。",
+      "auto": "自動(システム)"
+    }
+  },
+  "installWizard": {
+    "tagline": "Mossy Tutor • インストールウィザード",
+    "topics": "トピック",
+    "modManager": "Mod マネージャー",
+    "shortcuts": {
+      "title": "ショートカット",
+      "externalTools": "外部ツール設定",
+      "precombinePrp": "Precombine と PRP ガイド",
+      "simSettlements": "Sim Settlements ガイド"
+    },
+    "topicSelector": {
+      "xedit": "xEdit / FO4Edit",
+      "ss2": "SS2 プロット構築",
+      "prp": "PRP (Previs/Precombine)",
+      "patching": "パッチをビルド"
+    },
+    "actions": {
+      "askMossy": "Mossy に尋ねる",
+      "askMossyTitle": "チャットで Mossy に尋ねる",
+      "sendToChat": "チャットに送信",
+      "sendToChatTitle": "このトピックのチェックリストをチャットに送信",
+      "reset": "リセット",
+      "resetTitle": "ウィザードの進行状況をリセット"
+    },
+    "section": {
+      "prereqs": "前提条件",
+      "download": "ダウンロード",
+      "installConfigure": "インストール / 設定",
+      "buildPatch": "パッチをビルド",
+      "verify": "検証",
+      "troubleshoot": "トラブルシューティング"
+    },
+    "step": {
+      "markIncomplete": "ステップを未完了にする",
+      "markComplete": "ステップを完了にする",
+      "completed": "完了",
+      "notCompleted": "未完了"
+    },
+    "topic": {
+      "xedit": {
+        "title": "xEdit / FO4Edit セットアップ",
+        "subtitle": "xEdit をインストール、設定、検証して、安全にパッチを作成できるようにします。"
+      },
+      "ss2": {
+        "title": "Sim Settlements 2 セットアップ",
+        "subtitle": "プロット構築のための依存関係 + インストール + 基本検証。"
+      },
+      "prp": {
+        "title": "PRP セットアップ",
+        "subtitle": "競合を認識した検証を備えた Precombines/previs のインストール。"
+      },
+      "patching": {
+        "title": "パッチビルド",
+        "subtitle": "互換性パッチをビルドするための安全で再現可能なワークフロー。"
+      }
+    },
+    "verifyPanel": {
+      "description": "このウィザードは、前提条件の欠落を回避するように設計されています。公式ソースまたは安定した検索ページにリンクし、最小限の検証ループを提供します。",
+      "verify": {
+        "0": "トピックを選択し、チェックリストがレンダリングされ、更新後もチェックボックスが保持されることを確認してください。",
+        "1": "「信頼できるリンク」から少なくとも1つのリンクを開き、openExternal/window.open経由で開くことを確認してください。",
+        "2": "「チャットに送信」を使用して、チェックリストがコピーされ、チャットに事前入力されることを確認してください。"
+      },
+      "firstTestLoop": {
+        "0": "「xEdit / FO4Edit」から始めて、最初にクリーンな起動を1つ取得してください。",
+        "1": "Mod マネージャーの選択を設定し、拡張する前に最小限の「検証」ステップのみを完了してください。"
+      },
+      "troubleshooting": {
+        "0": "リンクが開かない場合は、診断を確認し、openExternal が利用可能であることを確認するか(デスクトップアプリ)、ポップアップを許可してください。",
+        "1": "チェックボックスの状態が保持されない場合は、localStorage が利用可能であることを確認してください(診断を参照)。"
+      }
+    },
+    "downloadsSources": "ダウンロードとソース",
+    "downloadsSourcesHelp": "信頼できるソースと、ローカルのナレッジボールト内で見つかった直接 URL を表示します。",
+    "refresh": "更新",
+    "refreshTitle": "リンクを更新",
+    "fromVault": "あなたのナレッジボールトから",
+    "openVault": "メモリーボールトを開く",
+    "searchNexus": "Nexus を検索",
+    "vaultLink": "ボールトリンク",
+    "tutorTip": "チューターのヒント",
+    "openLastLocation": "最後の場所を開く",
+    "openLastLocationTitle": "(オプション)利用可能な場合は最後に保存した場所を開く"
+  }
+}

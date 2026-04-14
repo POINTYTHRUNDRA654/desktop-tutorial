@@ -154,9 +154,9 @@ export const VideoTutorial: React.FC<VideoTutorialProps> = ({ isOpen, onClose })
                             className="w-full h-full"
                             src={`https://www.youtube.com/embed/${youtubeId}?autoplay=0&rel=0`}
                             title="Mossy Tutorial Video"
-                            frameBorder="0"
+                            frameBorder={0}
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullscreen
+                            allowFullScreen
                         />
                     ) : videoSource ? (
                         // Local/External video

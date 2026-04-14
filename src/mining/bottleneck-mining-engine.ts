@@ -48,7 +48,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
     // Convert legacy PerformanceBottleneck[] into Phase2PerformanceBottleneck[]
     const phase2Bottlenecks = bottlenecks.map(b => ({
       type: (b.bottleneckType || 'cpu') as any,
-      severity: b.confidence > 0.75 ? 'high' : (b.confidence > 0.4 ? 'medium' : 'low'),
+      severity: (b.confidence ?? 0) > 0.75 ? 'high' : ((b.confidence ?? 0) > 0.4 ? 'medium' : 'low'),
       impact: { fps: b.impact || 0, memory: 0, loadTime: 0 },
       affectedMods: [b.modName],
       rootCause: b.modName,
@@ -151,11 +151,11 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
     const impacts = new Map<string, { fpsDelta: number; memoryDelta: number; loadTimeDelta: number }>();
 
     for (const metric of performanceData.metrics) {
-      for (const mod of metric.modCombination) {
+      for (const mod of metric.modCombination ?? []) {
         // Find comparable metric without this mod
-        const withoutMod = metric.modCombination.filter(m => m !== mod);
+        const withoutMod = (metric.modCombination ?? []).filter(m => m !== mod);
         const comparableMetric = performanceData.metrics.find(m =>
-          this.arraysEqual(m.modCombination.sort(), withoutMod.sort())
+          this.arraysEqual((m.modCombination ?? []).sort(), withoutMod.sort())
         );
 
         if (comparableMetric) {
@@ -177,7 +177,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
 
     // Average the impacts
     for (const [mod, impact] of impacts) {
-      const count = performanceData.metrics.filter(m => m.modCombination.includes(mod)).length;
+      const count = performanceData.metrics.filter(m => (m.modCombination ?? []).includes(mod)).length;
       if (count > 0) {
         impact.fpsDelta /= count;
         impact.memoryDelta /= count;
@@ -265,7 +265,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
     }
 
     // Add system context
-    const relevantMetrics = performanceData.metrics.filter(m => m.modCombination.includes(modName));
+    const relevantMetrics = performanceData.metrics.filter(m => (m.modCombination ?? []).includes(modName));
     if (relevantMetrics.length > 0) {
       const avgFps = relevantMetrics.reduce((acc, m) => acc + (typeof m.fps === 'number' ? m.fps : 0), 0) / relevantMetrics.length;
       evidence.push({
@@ -319,7 +319,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
   private calculateCriticalPath(bottlenecks: PerformanceBottleneck[], loadOrder: string[]): string[] {
     // Calculate the most impactful mod sequence
     const sortedBottlenecks = bottlenecks
-      .filter(b => b.confidence > 0.5)
+      .filter(b => (b.confidence ?? 0) > 0.5)
       .sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact));
 
     // Return mods in load order that are bottlenecks
@@ -366,7 +366,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
             description: `High VRAM usage (${memoryValue}MB) with low FPS (${fpsValue}). Consider texture optimization.`,
             potentialGain: Math.min(memoryValue * 0.3, 20), // Estimate 30% memory reduction = ~20 FPS gain
             difficulty: 'medium',
-            affectedMods: metric.modCombination
+            affectedMods: metric.modCombination ?? []
           });
         }
       }
@@ -380,13 +380,13 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
 
     // Look for mods with high load times but normal memory usage
     for (const metric of performanceData.metrics) {
-      if (metric.loadTime > 30 && metric.memoryUsage < 4096) { // >30s load, <4GB RAM
+      if ((metric.loadTime ?? 0) > 30 && (metric.memoryUsage ?? 0) < 4096) { // >30s load, <4GB RAM
         opportunities.push({
           type: 'script',
           description: `Long load time (${metric.loadTime}s) suggests script optimization opportunities.`,
-          potentialGain: Math.min(metric.loadTime * 0.4, 15), // Estimate 40% load time reduction
+          potentialGain: Math.min((metric.loadTime ?? 0) * 0.4, 15), // Estimate 40% load time reduction
           difficulty: 'hard',
-          affectedMods: metric.modCombination
+          affectedMods: metric.modCombination ?? []
         });
       }
     }
@@ -398,7 +398,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
     const opportunities: OptimizationOpportunity[] = [];
 
     // Analyze load order impact
-    const loadOrderMetrics = performanceData.metrics.filter(m => m.modCombination.length > 1);
+    const loadOrderMetrics = performanceData.metrics.filter(m => (m.modCombination ?? []).length > 1);
 
     if (loadOrderMetrics.length > 1) {
       // Find load orders with significantly different performance
@@ -421,7 +421,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
           description: `Load order optimization could improve FPS by up to ${(bestFps - worstFps).toFixed(1)}`,
           potentialGain: bestFps - worstFps,
           difficulty: 'easy',
-          affectedMods: sortedByFps[0].modCombination,
+          affectedMods: sortedByFps[0].modCombination ?? [],
           prerequisites: []
         });
       }
@@ -447,7 +447,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
           description: `Memory leak detected (${memoryTrend.toFixed(0)}MB/hour). Memory optimization needed.`,
           potentialGain: Math.min(memoryTrend * 0.5, 10), // Estimate 50% reduction in leak rate
           difficulty: 'hard',
-          affectedMods: timeSortedMetrics[timeSortedMetrics.length - 1].modCombination,
+          affectedMods: timeSortedMetrics[timeSortedMetrics.length - 1].modCombination ?? [],
           prerequisites: []
         });
       }
@@ -462,8 +462,8 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
     // Simple linear regression for memory over time
     const n = metrics.length;
     const sumX = metrics.reduce((acc, m, i) => acc + i, 0);
-    const sumY = metrics.reduce((acc, m) => acc + m.memoryUsage, 0);
-    const sumXY = metrics.reduce((acc, m, i) => acc + i * m.memoryUsage, 0);
+    const sumY = metrics.reduce((acc, m) => acc + (m.memoryUsage ?? 0), 0);
+    const sumXY = metrics.reduce((acc, m, i) => acc + i * (m.memoryUsage ?? 0), 0);
     const sumXX = metrics.reduce((acc, m, i) => acc + i * i, 0);
 
     const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
@@ -503,7 +503,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
     }
 
     // RAM limitation
-    const maxRamUsage = Math.max(...metrics.map(m => m.memoryUsage));
+    const maxRamUsage = Math.max(...metrics.map(m => m.memoryUsage ?? 0));
     const totalRamMb = (systemInfo.ram && (systemInfo.ram.total ?? (systemInfo.ram as any))) || 0;
     const ramUsagePercent = totalRamMb > 0 ? (maxRamUsage / totalRamMb) * 100 : 0;
     if (ramUsagePercent > 85) {
@@ -516,7 +516,7 @@ export class BottleneckMiningEngine implements IBottleneckMiningEngine {
     }
 
     // Storage I/O limitation (inferred from load times)
-    const avgLoadTime = metrics.reduce((acc, m) => acc + m.loadTime, 0) / metrics.length;
+    const avgLoadTime = metrics.reduce((acc, m) => acc + (m.loadTime ?? 0), 0) / metrics.length;
     if (avgLoadTime > 60) { // >1 minute load time suggests I/O bottleneck
       limitations.push({
         component: 'storage',

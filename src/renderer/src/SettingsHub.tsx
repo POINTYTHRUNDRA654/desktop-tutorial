@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ArrowDownToLine, ChevronDown, ChevronUp, Lock, Map, RotateCcw, Settings as SettingsIcon, Wifi, Wrench } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw, Settings as SettingsIcon, Wifi, Wrench, Check } from 'lucide-react';
 import type { ElectronAPI } from '../../electron/types';
 import PrivacySettings from './PrivacySettings';
 import LanguageSettings from './LanguageSettings';
@@ -7,6 +7,119 @@ import ExternalToolsSettings from './ExternalToolsSettings';
 import { SettingsImportExport } from './SettingsImportExport';
 import TutorialResetSettings from './TutorialResetSettings';
 import VersionInfo from './VersionInfo';
+import { CreditsPanel } from './CreditsPanel';
+
+// ─── Credits Section ───────────────────────────────────────────────────────────
+
+const CredsSection: React.FC = () => {
+  const [showCreditPanel, setShowCreditPanel] = useState(false);
+
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="p-3 rounded-md border border-emerald-700/30 bg-emerald-900/10 text-emerald-200 text-xs">
+        <div className="font-semibold mb-1">❤️ Built with Love on Amazing Open-Source Software</div>
+        <p>
+          Mossy stands on the shoulders of giants. Every feature you use is powered by
+          dedicated developers and vibrant communities. Click below to see the full searchable
+          credits, licenses, and attributions for all tools and frameworks.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setShowCreditPanel(true)}
+        className="flex items-center gap-2 px-4 py-2 rounded-md bg-rose-700 hover:bg-rose-600 text-white font-semibold text-xs transition-colors"
+      >
+        <Heart className="w-4 h-4" />
+        View Full Credits &amp; Licenses
+      </button>
+
+      {showCreditPanel && (
+        <CreditsPanel onClose={() => setShowCreditPanel(false)} />
+      )}
+
+      {/* Quick-reference list of major tools */}
+      <div className="rounded-md border border-slate-700 bg-slate-800/30 p-4 space-y-3 text-xs">
+        <div>
+          <h4 className="font-semibold text-slate-200 mb-2">📦 Core Framework</h4>
+          <ul className="space-y-1 text-slate-300">
+            <li>• <strong>Electron</strong> - Cross-platform desktop framework (MIT)</li>
+            <li>• <strong>React</strong> - UI library by Meta (MIT)</li>
+            <li>• <strong>TypeScript</strong> - Typed JavaScript by Microsoft (Apache 2.0)</li>
+            <li>• <strong>Vite</strong> - Next-gen build tool (MIT)</li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="font-semibold text-slate-200 mb-2">🤖 AI & Machine Learning</h4>
+          <ul className="space-y-1 text-slate-300">
+            <li>• <strong>OpenAI SDK</strong> - ChatGPT integration (Apache 2.0)</li>
+            <li>• <strong>Groq SDK</strong> - Fast LLM inference (Apache 2.0)</li>
+            <li>• <strong>PyTorch</strong> - ML framework by Meta (BSD)</li>
+            <li>• <strong>NumPy</strong> - Numerical computing (BSD 3-Clause)</li>
+            <li>• <strong>Krea AI Suite</strong> - AI image, video &amp; 3D generation (Commercial / krea.ai)</li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="font-semibold text-slate-200 mb-2">🎨 UI & Design</h4>
+          <ul className="space-y-1 text-slate-300">
+            <li>• <strong>TailwindCSS</strong> - Utility-first CSS (MIT)</li>
+            <li>• <strong>Lucide Icons</strong> - Icon library (ISC)</li>
+            <li>• <strong>react-markdown</strong> - Markdown renderer (MIT)</li>
+            <li>• <strong>Recharts</strong> - Charts library (MIT)</li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="font-semibold text-slate-200 mb-2">🎮 Modding Tools (separate downloads)</h4>
+          <ul className="space-y-1 text-slate-300">
+            <li>• <strong>Blender</strong> - 3D modeling (GPL 2.0)</li>
+            <li>• <strong>PyNifly</strong> - NIF import/export for Blender by BadDogSkyrim (MIT)</li>
+            <li>• <strong>xEdit / FO4Edit</strong> - Plugin editor by ElminsterAU (GPL 2.0)</li>
+            <li>• <strong>Creation Kit</strong> - Official Bethesda modding tool</li>
+            <li>• <strong>NifSkope</strong> - NIF mesh &amp; texture viewer by hexabits (GPL 3.0)</li>
+            <li>• <strong>Mod Organizer 2</strong> - Mod manager by Tannin42 / MO2 Team (GPL 3.0)</li>
+            <li>• <strong>Vortex</strong> - Mod manager by Nexus Mods</li>
+            <li>• <strong>F4SE</strong> - Fallout 4 Script Extender by ianpatt &amp; behippo</li>
+            <li>• <strong>LOOT</strong> - Load Order Optimisation Tool (GPL 3.0)</li>
+            <li>• <strong>BodySlide &amp; Outfit Studio</strong> - Body morphing by ousnius &amp; Caliente (MIT)</li>
+            <li>• <strong>B.A.E.</strong> - Bethesda Archive Extractor by jonwd7</li>
+            <li>• <strong>GIMP</strong> - GNU Image Manipulation Program (GPL 3.0)</li>
+            <li>• <strong>UModel (UEViewer)</strong> - Unreal Engine asset viewer by Gildor</li>
+          </ul>
+        </div>
+
+        <div className="pt-2 border-t border-slate-700">
+          <p className="text-slate-400">
+            …and 100+ more dependencies. Click <strong>View Full Credits &amp; Licenses</strong> above for the
+            complete searchable list with version numbers and license links.
+          </p>
+        </div>
+      </div>
+
+      <div className="p-3 rounded-md border border-blue-700/30 bg-blue-900/10 text-blue-200 text-xs space-y-2">
+        <div className="font-semibold">📋 License Compliance</div>
+        <p>
+          Mossy respects all open-source licenses. Our LICENSE and CREDITS.md files are included
+          in your installation folder and this app bundle for transparency and attribution.
+        </p>
+        <p className="text-blue-300">
+          Found a license issue?{' '}
+          <a
+            href="https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues/new?title=License%20Compliance%20Issue"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-blue-200"
+          >
+            Report it on GitHub
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+};
+
 
 type HubSection = {
   id: string;
@@ -16,7 +129,87 @@ type HubSection = {
   content: React.ReactNode;
 };
 
-// ─── Internet Access Test panel ───────────────────────────────────────────────
+// ─── Utility Hook for Tracking Activated Settings Buttons ───────────────────
+
+export const useSettingsActivation = () => {
+  const markActivated = (buttonId: string) => {
+    const activated = new Set(
+      (localStorage.getItem('mossy_settings_activated_buttons') !== null
+        ? JSON.parse(localStorage.getItem('mossy_settings_activated_buttons')!)
+        : []
+      )
+    );
+    activated.add(buttonId);
+    localStorage.setItem('mossy_settings_activated_buttons', JSON.stringify(Array.from(activated)));
+    // Dispatch custom event to notify UI updates
+    window.dispatchEvent(new CustomEvent('settings-button-activated', { detail: { buttonId } }));
+  };
+
+  const isActivated = (buttonId: string) => {
+    const activated = new Set(
+      (localStorage.getItem('mossy_settings_activated_buttons') !== null
+        ? JSON.parse(localStorage.getItem('mossy_settings_activated_buttons')!)
+        : []
+      )
+    );
+    return activated.has(buttonId);
+  };
+
+  return { markActivated, isActivated };
+};
+
+// ─── Custom Button Wrapper for Settings ───────────────────────────────────────
+/**
+ * Uses this wrapper in child settings components like:
+ * &lt;SettingsButton id="test-internet-access" onClick={() => { runTest(); }}&gt;
+ *   Test Internet
+ * &lt;/SettingsButton&gt;
+ */
+export const SettingsButton: React.FC<{
+  id: string;
+  children: React.ReactNode;
+  onClick: () => void | Promise<void>;
+  className?: string;
+  disabled?: boolean;
+  variant?: 'primary' | 'secondary';
+}> = ({ id, children, onClick, className = '', disabled, variant = 'primary' }) => {
+  const [isActivated, setIsActivated] = useState(false);
+  const { markActivated, isActivated: checkActivated } = useSettingsActivation();
+
+  useEffect(() => {
+    setIsActivated(checkActivated(id));
+    const handleActivated = (e: CustomEvent) => {
+      if (e.detail.buttonId === id) setIsActivated(true);
+    };
+    window.addEventListener('settings-button-activated', handleActivated as EventListener);
+    return () => window.removeEventListener('settings-button-activated', handleActivated as EventListener);
+  }, [id, checkActivated]);
+
+  const handleClick = async () => {
+    await onClick();
+    markActivated(id);
+    setIsActivated(true);
+  };
+
+  const baseClass = variant === 'primary'
+    ? 'bg-emerald-700 hover:bg-emerald-600 text-white'
+    : 'bg-slate-700 hover:bg-slate-600 text-white';
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={disabled}
+      className={`flex items-center gap-2 px-4 py-2 rounded-md ${baseClass} font-semibold text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${className} ${isActivated ? 'ring-2 ring-emerald-400 ring-offset-1 ring-offset-slate-900' : ''
+        }`}
+    >
+      {children}
+      {isActivated && <Check className="w-4 h-4 ml-auto" />}
+    </button>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 type ProviderResult = {
   name: string;
   url: string;
@@ -47,7 +240,7 @@ const InternetTestPanel: React.FC = () => {
     setReport(null);
     setError(null);
     try {
-      const api: ElectronAPI | undefined = (window.electron?.api ?? (window as { electronAPI?: ElectronAPI }).electronAPI);
+      const api: ElectronAPI | undefined = (window.electron?.api ?? (window as unknown as { electronAPI?: ElectronAPI }).electronAPI);
       if (typeof api?.testInternetAccess !== 'function') {
         setError('testInternetAccess API not available — make sure you are running inside Electron.');
         return;
@@ -69,15 +262,15 @@ const InternetTestPanel: React.FC = () => {
         before asking Mossy to go online.
       </p>
 
-      <button
-        type="button"
+      <SettingsButton
+        id="test-internet-access"
         onClick={runTest}
         disabled={running}
-        className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs transition-colors"
+        variant="primary"
       >
         <Wifi className={`w-4 h-4 ${running ? 'animate-pulse' : ''}`} />
         {running ? 'Testing…' : 'Test Internet Access Now'}
-      </button>
+      </SettingsButton>
 
       {error && (
         <div className="rounded-md border border-red-700/50 bg-red-900/20 p-3 text-xs text-red-300 font-mono">
@@ -88,13 +281,12 @@ const InternetTestPanel: React.FC = () => {
       {report && (
         <div className="space-y-3">
           {/* Summary banner */}
-          <div className={`rounded-md border p-3 text-xs font-semibold ${
-            report.wikiOk && report.generalOk
-              ? 'border-emerald-600/50 bg-emerald-900/20 text-emerald-300'
-              : report.wikiOk || report.generalOk
-                ? 'border-yellow-600/50 bg-yellow-900/20 text-yellow-300'
-                : 'border-red-600/50 bg-red-900/20 text-red-300'
-          }`}>
+          <div className={`rounded-md border p-3 text-xs font-semibold ${report.wikiOk && report.generalOk
+            ? 'border-emerald-600/50 bg-emerald-900/20 text-emerald-300'
+            : report.wikiOk || report.generalOk
+              ? 'border-yellow-600/50 bg-yellow-900/20 text-yellow-300'
+              : 'border-red-600/50 bg-red-900/20 text-red-300'
+            }`}>
             {report.summary}
           </div>
 
@@ -160,6 +352,23 @@ const InternetTestPanel: React.FC = () => {
 
 const SettingsHub: React.FC = () => {
   const [expandedSection, setExpandedSection] = useState<string>('privacy');
+  const [activatedButtons, setActivatedButtons] = useState<Set<string>>(() => {
+    // Load previously activated buttons from localStorage
+    const saved = localStorage.getItem('mossy_settings_activated_buttons');
+    return new Set(saved ? JSON.parse(saved) : []);
+  });
+
+  // Save activated buttons to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('mossy_settings_activated_buttons', JSON.stringify(Array.from(activatedButtons)));
+  }, [activatedButtons]);
+
+  // Callback to mark a button as activated when clicked
+  const markButtonActivated = (buttonId: string) => {
+    setActivatedButtons(prev => new Set(prev).add(buttonId));
+  };
+
+  const isButtonActivated = (buttonId: string) => activatedButtons.has(buttonId);
 
   const toggleSection = (id: string) => {
     setExpandedSection((current) => (current === id ? '' : id));
@@ -207,6 +416,13 @@ const SettingsHub: React.FC = () => {
       description: 'Check that Mossy can reach search providers and go online.',
       icon: Wifi,
       content: <InternetTestPanel />,
+    },
+    {
+      id: 'credits',
+      title: 'Credits & Acknowledgments',
+      description: 'View the incredible open-source projects that power Mossy.',
+      icon: Heart,
+      content: <CredsSection />,
     },
   ];
 

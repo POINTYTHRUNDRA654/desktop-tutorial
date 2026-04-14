@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Maximize2, Play, RefreshCw, AlertTriangle, CheckCircle2, Image, Upload, Download, Settings, FolderOpen, Grid3x3 } from 'lucide-react';
 
 interface UpscaleJob {
@@ -48,6 +48,7 @@ const UPSCALE_MODELS: UpscaleModel[] = [
 ];
 
 export const UpscaylExtension: React.FC = () => {
+  const navigate = useNavigate();
   const [isConnected, setIsConnected] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState(UPSCALE_MODELS[0].id);
@@ -55,6 +56,7 @@ export const UpscaylExtension: React.FC = () => {
   const [outputFormat, setOutputFormat] = useState<'png' | 'jpg' | 'webp'>('png');
   const [jobs, setJobs] = useState<UpscaleJob[]>([]);
   const [batchMode, setBatchMode] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string>('');
 
   // Check if Upscayl is running via Neural Link
   useEffect(() => {
@@ -133,6 +135,56 @@ export const UpscaylExtension: React.FC = () => {
   const queuedCount = jobs.filter(j => j.status === 'queued').length;
   const processingCount = jobs.filter(j => j.status === 'processing').length;
   const completedCount = jobs.filter(j => j.status === 'complete').length;
+
+  const openOutputFolder = async () => {
+    const bridge: any = (window as any).electron?.api;
+    if (bridge?.assetScanner?.browseFolder) {
+      await bridge.assetScanner.browseFolder();
+    } else if (bridge?.browseFolder) {
+      await bridge.browseFolder();
+    } else {
+      setStatusMsg('Open your file manager and navigate to your Upscayl output folder.');
+    }
+  };
+
+  const handleBatchUpload = async () => {
+    const bridge: any = (window as any).electron?.api;
+    setBatchMode(true);
+    if (bridge?.assetScanner?.browseFolder) {
+      const folder = await bridge.assetScanner.browseFolder();
+      if (folder) setStatusMsg(`Batch source set to: ${folder}`);
+    } else if (bridge?.browseFolder) {
+      const folder = await bridge.browseFolder();
+      if (folder) setStatusMsg(`Batch source set to: ${folder}`);
+    } else {
+      setStatusMsg('Batch mode enabled. Use "Start Upscaling" to process multiple files.');
+    }
+  };
+
+  const exportAllJobs = async () => {
+    const bridge: any = (window as any).electron?.api;
+    const completed = jobs.filter(j => j.status === 'complete');
+    if (completed.length === 0) {
+      setStatusMsg('No completed jobs to export.');
+      return;
+    }
+    if (!bridge?.saveFile) {
+      setStatusMsg('Export is not available in this environment.');
+      return;
+    }
+    const lines = [
+      `# Upscayl Completed Jobs – ${new Date().toLocaleString()}`,
+      '',
+      ...completed.map(j => `${j.fileName} → ${j.targetScale}x (${j.model}) – output: ${j.outputPath ?? 'unknown'}`),
+    ];
+    try {
+      const savedTo = await bridge.saveFile(lines.join('\n'), 'upscayl-export.txt');
+      if (savedTo) setStatusMsg(`Exported ${completed.length} job(s) to: ${savedTo}`);
+    } catch {
+      setStatusMsg('Export failed.');
+    }
+  };
+
 
   const selectedModelInfo = UPSCALE_MODELS.find(m => m.id === selectedModel);
 
@@ -383,20 +435,33 @@ export const UpscaylExtension: React.FC = () => {
           {isConnected && (
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
               <h3 className="text-lg font-bold text-white mb-4">Quick Actions</h3>
+              {statusMsg && (
+                <div className="mb-4 px-4 py-2 bg-slate-900/70 border border-slate-600/50 rounded-lg text-sm text-slate-300">
+                  {statusMsg}
+                </div>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <button className="px-4 py-3 bg-purple-900/20 border border-purple-500/30 text-purple-300 rounded-lg hover:bg-purple-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={openOutputFolder}
+                  className="px-4 py-3 bg-purple-900/20 border border-purple-500/30 text-purple-300 rounded-lg hover:bg-purple-900/30 transition-colors flex items-center gap-2 justify-center">
                   <FolderOpen className="w-4 h-4" />
                   Open Output
                 </button>
-                <button className="px-4 py-3 bg-blue-900/20 border border-blue-500/30 text-blue-300 rounded-lg hover:bg-blue-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={handleBatchUpload}
+                  className="px-4 py-3 bg-blue-900/20 border border-blue-500/30 text-blue-300 rounded-lg hover:bg-blue-900/30 transition-colors flex items-center gap-2 justify-center">
                   <Upload className="w-4 h-4" />
                   Batch Upload
                 </button>
-                <button className="px-4 py-3 bg-cyan-900/20 border border-cyan-500/30 text-cyan-300 rounded-lg hover:bg-cyan-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={exportAllJobs}
+                  className="px-4 py-3 bg-cyan-900/20 border border-cyan-500/30 text-cyan-300 rounded-lg hover:bg-cyan-900/30 transition-colors flex items-center gap-2 justify-center">
                   <Download className="w-4 h-4" />
                   Export All
                 </button>
-                <button className="px-4 py-3 bg-emerald-900/20 border border-emerald-500/30 text-emerald-300 rounded-lg hover:bg-emerald-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={() => navigate('/settings')}
+                  className="px-4 py-3 bg-emerald-900/20 border border-emerald-500/30 text-emerald-300 rounded-lg hover:bg-emerald-900/30 transition-colors flex items-center gap-2 justify-center">
                   <Settings className="w-4 h-4" />
                   Settings
                 </button>

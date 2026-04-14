@@ -29,10 +29,11 @@ export const IPC_CHANNELS = {
   GET_VOICE_HISTORY_PATH: 'get-voice-history-path',
   OPEN_PROGRAM: 'open-program',
   OPEN_EXTERNAL: 'open-external',
+  LAUNCH_TOOL_WITH_FILE: 'launch-tool-with-file',
   REVEAL_IN_FOLDER: 'reveal-in-folder',
   GET_TOOL_VERSION: 'get-tool-version',
   GET_RUNNING_PROCESSES: 'get-running-processes',
-  
+
   // Vault integration
   VAULT_RUN_TOOL: 'vault-run-tool',
   VAULT_SAVE_MANIFEST: 'vault-save-manifest',
@@ -40,7 +41,7 @@ export const IPC_CHANNELS = {
   VAULT_GET_DDS_DIMENSIONS: 'vault-get-dds-dimensions',
   VAULT_GET_IMAGE_DIMENSIONS: 'vault-get-image-dimensions',
   VAULT_PICK_TOOL_PATH: 'vault-pick-tool-path',
-  
+
   // Workshop integration
   WORKSHOP_BROWSE_DIRECTORY: 'workshop-browse-directory',
   WORKSHOP_READ_FILE: 'workshop-read-file',
@@ -51,7 +52,7 @@ export const IPC_CHANNELS = {
   WORKSHOP_PARSE_SCRIPT_DEPS: 'workshop-parse-script-deps',
   // special helper for blender add-on ZIP (binary data encoded as base64)
   WORKSHOP_READ_BLENDER_ZIP: 'workshop-read-blender-zip',
-  
+
   // Image Suite
   IMAGE_GENERATE_NORMAL_MAP: 'image-generate-normal-map',
   IMAGE_GENERATE_ROUGHNESS_MAP: 'image-generate-roughness-map',
@@ -60,19 +61,49 @@ export const IPC_CHANNELS = {
   IMAGE_GENERATE_AO_MAP: 'image-generate-ao-map',
   IMAGE_GET_INFO: 'image-get-info',
   IMAGE_CONVERT_FORMAT: 'image-convert-format',
-  
+
   // FOMOD Assembler
   FOMOD_SCAN_MOD_FOLDER: 'fomod-scan-mod-folder',
   FOMOD_ANALYZE_STRUCTURE: 'fomod-analyze-structure',
   FOMOD_VALIDATE_XML: 'fomod-validate-xml',
   FOMOD_EXPORT_PACKAGE: 'fomod-export-package',
-  
+
   // Auditor ESP Analysis
   AUDITOR_ANALYZE_ESP: 'auditor-analyze-esp',
+  AUDITOR_READ_BINARY_FILE: 'auditor-read-binary-file',
   AUDITOR_PICK_ESP_FILE: 'auditor-pick-esp-file',
   AUDITOR_PICK_NIF_FILE: 'auditor-pick-nif-file',
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
+  AUDITOR_SCAN_MOD_DIRECTORY: 'auditor-scan-mod-directory',
+  AUDITOR_SCAN_MOD_DIRECTORY_PATH: 'auditor-scan-mod-directory-path',
+
+  // DDS Converter & Texture Generator
+  DDS_CONVERTER_PICK_FILES: 'dds-converter:pick-files',
+
+  // Knowledge Vault file persistence (backup/restore to userData/knowledge-vault.json)
+  SAVE_KNOWLEDGE_VAULT: 'save-knowledge-vault',
+  LOAD_KNOWLEDGE_VAULT: 'load-knowledge-vault',
+
+  // .NET Desktop Runtime detection (needed by Spriggit and other .NET tools)
+  CHECK_DOTNET: 'check-dotnet',
+
+  // Spriggit integration — run Spriggit.CLI.exe serialize and read results
+  SPRIGGIT_PICK_CLI: 'spriggit-pick-cli',
+  SPRIGGIT_SERIALIZE: 'spriggit-serialize',
+  SPRIGGIT_OPEN_FOLDER: 'spriggit-open-folder',
+  SPRIGGIT_CLEAR_CACHE: 'spriggit-clear-cache',
+  SPRIGGIT_UNBLOCK_FILES: 'spriggit-unblock-files',
+  SPRIGGIT_ADD_DEFENDER_EXCLUSION: 'spriggit-add-defender-exclusion',
+  SPRIGGIT_VERIFY_DEFENDER_EXCLUSION: 'spriggit-verify-defender-exclusion',
+
+  // Mod Projects file persistence (backup/restore to userData/mod-projects.json)
+  SAVE_MOD_PROJECTS: 'save-mod-projects',
+  LOAD_MOD_PROJECTS: 'load-mod-projects',
+
+  // Chat History file persistence (backup/restore to userData/chat-history.json)
+  SAVE_CHAT_HISTORY: 'save-chat-history',
+  LOAD_CHAT_HISTORY: 'load-chat-history',
 
   // Project Management
   PROJECT_LIST: 'project-list',
@@ -190,6 +221,15 @@ export const IPC_CHANNELS = {
   PICK_DIRECTORY: 'pick-directory',
   SAVE_FILE: 'save-file',
 
+  // Creation Kit Link - path pickers
+  CK_PICK_CREATIONKIT_EXE: 'ck-pick-creationkit-exe',
+  CK_PICK_FALLOUT4_FOLDER: 'ck-pick-fallout4-folder',
+  CK_PICK_PAPYRUS_COMPILER: 'ck-pick-papyrus-compiler',
+  CK_PICK_PAPYRUS_FLAGS: 'ck-pick-papyrus-flags',
+  CK_PICK_IMPORT_PATHS: 'ck-pick-import-paths',
+  CK_PICK_SOURCE_FOLDER: 'ck-pick-source-folder',
+  CK_PICK_OUTPUT_FOLDER: 'ck-pick-output-folder',
+
   // Local ML (offline semantic search)
   ML_INDEX_BUILD: 'ml-index-build',
   ML_INDEX_QUERY: 'ml-index-query',
@@ -202,10 +242,22 @@ export const IPC_CHANNELS = {
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
 
-  // ElevenLabs TTS (optional)
-  ELEVENLABS_STATUS: 'elevenlabs-status',
-  ELEVENLABS_LIST_VOICES: 'elevenlabs-list-voices',
-  ELEVENLABS_SYNTHESIZE: 'elevenlabs-synthesize',
+  // Edition detection
+  GET_MOSSY_EDITION: 'get-mossy-edition',
+
+  // GGUF / Unsloth model import
+  GGUF_PICK_FILE: 'gguf-pick-file',
+  GGUF_IMPORT_TO_OLLAMA: 'gguf-import-to-ollama',
+
+  // NVIDIA fine-tuning (Unsloth)
+  FINE_TUNE_PICK_DATASET: 'fine-tune-pick-dataset',
+  FINE_TUNE_START: 'fine-tune-start',
+
+  // Training dataset (fine-tuning pipeline)
+  TRAINING_DATA_ADD_PAIR: 'training-data-add-pair',
+  TRAINING_DATA_GET_STATS: 'training-data-get-stats',
+  TRAINING_DATA_EXPORT_JSONL: 'training-data-export-jsonl',
+  TRAINING_DATA_CLEAR: 'training-data-clear',
 
   // Secrets presence-only status
   SECRET_STATUS: 'secret-status',
@@ -215,6 +267,14 @@ export const IPC_CHANNELS = {
 
   // Speech-to-text (main process handles keys)
   TRANSCRIBE_AUDIO: 'transcribe-audio',
+
+  // Fresh-install detection: sent to renderer when a fresh-install.marker is found
+  TRIGGER_FRESH_INSTALL: 'trigger-fresh-install',
+
+  // Panel data persistence
+  SAVE_PANEL_DATA: 'panel-data-save',
+  LOAD_PANEL_DATA: 'panel-data-load',
+  DELETE_PANEL_DATA: 'panel-data-delete',
 } as const;
 
 export type MlIndexBuildRequest = {
@@ -236,9 +296,9 @@ export type MlIndexQueryRequest = {
 
 export type MlIndexQueryResponse =
   | {
-      ok: true;
-      results: Array<{ score: number; sourcePath: string; title: string; content: string }>;
-    }
+    ok: true;
+    results: Array<{ score: number; sourcePath: string; title: string; content: string }>;
+  }
   | { ok: false; error: string };
 
 export type MlLlmStatusResponse =
@@ -249,11 +309,11 @@ export type MlCapsStatusResponse = {
   ok: true;
   ollama: MlLlmStatusResponse;
   cosmos:
-    | { ok: true; provider: 'cosmos'; baseUrl: string; models: string[] }
-    | { ok: false; provider: 'cosmos'; baseUrl: string; error: string };
+  | { ok: true; provider: 'cosmos'; baseUrl: string; models: string[] }
+  | { ok: false; provider: 'cosmos'; baseUrl: string; error: string };
   openaiCompat:
-    | { ok: true; provider: 'openai_compat'; baseUrl: string; models: string[] }
-    | { ok: false; provider: 'openai_compat'; baseUrl: string; error: string };
+  | { ok: true; provider: 'openai_compat'; baseUrl: string; models: string[] }
+  | { ok: false; provider: 'openai_compat'; baseUrl: string; error: string };
 };
 
 export type MlLlmGenerateRequest = {
@@ -265,6 +325,16 @@ export type MlLlmGenerateRequest = {
 
 export type MlLlmGenerateResponse =
   | { ok: true; text: string }
+  | { ok: false; error: string };
+
+export type GgufImportRequest = {
+  ggufPath: string;
+  modelName: string;
+  systemPrompt?: string;
+};
+
+export type GgufImportResponse =
+  | { ok: true; modelName: string }
   | { ok: false; error: string };
 
 export type DedupeProgressStage = 'collect' | 'stat' | 'hash' | 'group' | 'done' | 'canceled' | 'error';
@@ -340,32 +410,8 @@ export interface ElectronAPI {
   minimizeWindow: () => void;
   closeWindow: () => void;
 
-  elevenLabsStatus: () => Promise<
-    | { ok: true; configured: boolean; voiceId?: string; provider?: 'browser' | 'elevenlabs' }
-    | { ok: false; error: string }
-  >;
-  elevenLabsListVoices: () => Promise<
-    | {
-        ok: true;
-        voices: Array<{
-          voice_id: string;
-          name: string;
-          category?: string;
-          labels?: Record<string, string>;
-        }>;
-      }
-    | { ok: false; error: string }
-  >;
-  elevenLabsSynthesizeSpeech: (args: {
-    text: string;
-    voiceId?: string;
-  }) => Promise<
-    | { ok: true; audioBase64: string; mimeType?: string }
-    | { ok: false; error: string }
-  >;
-
   getSecretStatus: () => Promise<
-    | { ok: true; openai: boolean; groq: boolean; elevenlabs: boolean }
+    | { ok: true; openai: boolean; groq: boolean; backendToken: boolean }
     | { ok: false; error: string }
   >;
 
@@ -373,19 +419,19 @@ export interface ElectronAPI {
   saveVoiceHistory: (line: string) => Promise<{ success: boolean; error?: string }>;
   checkBlenderAddon: () => Promise<{ connected: boolean; error?: string }>;
   getSystemInfo: () => Promise<{
-    os: string; 
-    cpu: string; 
-    gpu: string; 
-    ram: number; 
-    cores: number; 
-    arch: string; 
-    vram?: number; 
-    blenderVersion?: string; 
-    storageFreeGB?: number; 
-    storageTotalGB?: number; 
+    os: string;
+    cpu: string;
+    gpu: string;
+    ram: number;
+    cores: number;
+    arch: string;
+    vram?: number;
+    blenderVersion?: string;
+    storageFreeGB?: number;
+    storageTotalGB?: number;
     displayResolution?: string;
     allGpus?: string[];
-    storageDrives?: Array<{device: string, free: number, total: number}>;
+    storageDrives?: Array<{ device: string, free: number, total: number }>;
     motherboard?: string;
     username?: string;
     computerName?: string;
@@ -403,6 +449,33 @@ export interface ElectronAPI {
   getDdsDimensions: (filePath: string) => Promise<{ width: number; height: number }>;
   getImageDimensions: (filePath: string) => Promise<{ width: number; height: number }>;
   pickToolPath: (toolName: string) => Promise<string>;
+
+  // Tool auto-download — lets the app download optional tools (e.g. UModel) on demand.
+  downloadUModel: (destDir?: string) => Promise<any>;
+
+  // PyTorch — check availability and auto-install builds with CUDA diagnostics
+  checkPyTorch: () => Promise<{
+    available: boolean;
+    version?: string;
+    path?: string;
+    pythonFound?: boolean;
+    cudaAvailable?: boolean;
+    computeMode?: 'CPU' | 'CUDA' | 'UNKNOWN';
+    cudaIssue?: boolean;
+    error?: string;
+    troubleshooting?: string[];
+  }>;
+  installPyTorch: (destDir?: string, mode?: string) => Promise<{
+    success: boolean;
+    path?: string;
+    version?: string;
+    message?: string;
+    error?: string;
+    troubleshooting?: string[];
+  }>;
+  onPytorchSetupProgress: (callback: (data: { message: string }) => void) => (() => void);
+  onFreshInstall: (callback: () => void) => (() => void);
+
   // Workshop
   browseDirectory: (startPath?: string) => Promise<{ name: string; type: 'folder' | 'file'; path: string; fileType?: string }[]>;
   readFile: (filePath: string) => Promise<string>;
@@ -442,14 +515,92 @@ export interface ElectronAPI {
   fomodExportPackage: (outputPath: string, structure: any, files: any[]) => Promise<{ success: boolean; path?: string; error?: string }>;
   // Auditor
   analyzeEsp: (filePath: string) => Promise<{ success: boolean; fileSize?: number; recordCount?: number; issues?: any[]; error?: string }>;
+  /** Read any mod asset file as binary — returns base64-encoded bytes for the renderer worker */
+  readBinaryFile: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
   pickEspFile: () => Promise<string>;
-  pickNifFile: () => Promise<string>;
-  pickDdsFile: () => Promise<string>;
-  pickBgsmFile: () => Promise<string>;
+  pickNifFile: () => Promise<string[]>;
+  pickDdsFile: () => Promise<string[]>;
+  pickBgsmFile: () => Promise<string[]>;
+  /** Scan a mod directory for mod files (opens OS folder dialog) */
+  scanModDirectory: () => Promise<Array<{ path: string; type: string }>>;
+  /** Scan a mod directory for mod files using a pre-selected path (no OS dialog) */
+  scanModDirectoryPath: (folderPath: string) => Promise<Array<{ path: string; type: string }>>;
+
+  // Knowledge Vault file persistence
+  /** Persist the full Knowledge Vault to userData/knowledge-vault.json */
+  saveKnowledgeVault: (items: unknown[]) => Promise<{ ok: boolean; error?: string }>;
+  /** Load the Knowledge Vault from userData/knowledge-vault.json (returns [] if not found) */
+  loadKnowledgeVaultFromFile: () => Promise<unknown[]>;
+
+  // Spriggit integration
+  /** Open a file picker to select Spriggit.CLI.exe — returns selected path or '' */
+  spriggitPickCli: () => Promise<string>;
+  /**
+   * Open the folder containing the given path (e.g. the Spriggit install folder)
+   * in the OS file manager so the user can verify the extraction.
+   * Returns {ok: true} on success or {ok: false, error} on failure.
+   */
+  spriggitOpenFolder: (filePath: string) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Clear the Spriggit single-file publish temp-cache directories so Spriggit
+   * re-extracts cleanly on the next run.  Attempts both the %LOCALAPPDATA% and
+   * %TEMP% paths that .NET single-file apps use.
+   * Returns the paths it cleared plus any error string.
+   */
+  spriggitClearCache: () => Promise<{ ok: boolean; clearedPaths: string[]; error?: string }>;
+  /**
+   * Add the user's Spriggit folder to Windows Defender exclusions so Smart App Control
+   * can no longer block the .NET assemblies Spriggit extracts at runtime.
+   * Tries direct Add-MpPreference first (works when Mossy runs as admin); if that fails,
+   * returns the folder path and command so the user can run it in an elevated shell.
+   * Windows-only; returns ok:false with a message on other platforms.
+   */
+  spriggitAddDefenderExclusion: () => Promise<{ ok: boolean; excludedPath?: string; error?: string }>;
+  /**
+   * Check if the Spriggit folder is already excluded from Windows Defender.
+   * Returns ok:true with excluded:true/false, or ok:false with error on failure.
+   * Windows-only; returns ok:false with a message on other platforms.
+   */
+  spriggitVerifyDefenderExclusion: () => Promise<{ ok: boolean; excluded?: boolean; targetPath?: string; error?: string }>;
+  /**
+   * Run Spriggit.CLI.exe serialize on a Fallout 4 Data folder.
+   * Returns the list of YAML files produced and their truncated text content,
+   * or an error string on failure.
+   */
+  spriggitSerialize: (params: {
+    cliPath: string;
+    dataPath: string;
+    outputPath: string;
+    /** When true, serialize only vanilla/DLC ESMs instead of custom mods. */
+    vanillaOnly?: boolean;
+    /** Custom NuGet package name, e.g. 'Spriggit.Yaml.Fallout4' (default) or a user-published package. */
+    packageName?: string;
+    /** Local NuGet source directory — lets Spriggit use locally cached packages instead of downloading from nuget.org. */
+    nugetSource?: string;
+  }) => Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string; skippedVanillaCount?: number; skippedCustomCount?: number; noCustomMods?: boolean; noVanillaPlugins?: boolean; fo4Version?: string; fo4Label?: string; spriggitVersion?: string; spriggitVersionTooOld?: boolean }>;
+
+  /** Persist all mod projects to userData/mod-projects.json so work survives reinstalls */
+  saveModProjects: (projects: unknown[]) => Promise<{ ok: boolean; error?: string }>;
+  /** Load mod projects from userData/mod-projects.json (returns [] if not found) */
+  loadModProjectsFromFile: () => Promise<unknown[]>;
+
+  /** Persist chat history to userData/chat-history.json so conversations survive reinstalls */
+  saveChatHistory: (messages: unknown[]) => Promise<{ ok: boolean; error?: string }>;
+  /** Load chat history from userData/chat-history.json (returns [] if not found) */
+  loadChatHistoryFromFile: () => Promise<unknown[]>;
 
   // Generic file helpers
   pickJsonFile: () => Promise<string>;
   pickDirectory: (title?: string) => Promise<string>;
+
+  // Creation Kit Link - path pickers
+  pickCreationKitExe: () => Promise<string>;
+  pickFallout4Folder: () => Promise<string>;
+  pickPapyrusCompiler: () => Promise<string>;
+  pickPapyrusFlags: () => Promise<string>;
+  pickImportPaths: () => Promise<string>;
+  pickSourceFolder: () => Promise<string>;
+  pickOutputFolder: () => Promise<string>;
   saveFile: (content: string, filename: string) => Promise<string>;
 
   // Local ML (offline semantic search)
@@ -464,6 +615,16 @@ export interface ElectronAPI {
   mlLlmStatus: () => Promise<MlLlmStatusResponse>;
   mlLlmGenerate: (req: MlLlmGenerateRequest) => Promise<MlLlmGenerateResponse>;
 
+  // GGUF / Unsloth model import
+  ggufPickFile: () => Promise<string>;
+  ggufImportToOllama: (req: GgufImportRequest) => Promise<GgufImportResponse>;
+
+  // Training dataset (fine-tuning pipeline)
+  trainingDataAddPair: (pair: { question: string; answer: string; rating: 'good' | 'bad'; topic?: string; editedAnswer?: string }) => Promise<{ ok: boolean; error?: string }>;
+  trainingDataGetStats: () => Promise<{ total: number; good: number; bad: number; topics: Record<string, number> }>;
+  trainingDataExportJsonl: (opts?: { goodOnly?: boolean; outputPath?: string }) => Promise<{ ok: boolean; path?: string; count?: number; error?: string }>;
+  trainingDataClear: () => Promise<{ ok: boolean; error?: string }>;
+
   // Duplicate Finder
   pickDedupeFolders: () => Promise<string[]>;
   dedupeScan: (options: DedupeScanOptions) => Promise<DedupeScanResult>;
@@ -476,8 +637,8 @@ export interface ElectronAPI {
   invoke: (channel: string, ...args: any[]) => Promise<any>;
   on: (channel: string, callback: (...args: any[]) => void) => (() => void);
   openDialog: (options: any) => Promise<string | null>;
-  listProcesses: () => Promise<any[]>;
-  getProcessMetrics: () => Promise<any[]>;
+  listProcesses: (filter?: string) => Promise<any[]>;
+  getProcessMetrics: (pid: number) => Promise<any>;
   gameLogMonitor: {
     getLastLogPath: () => Promise<string | null>;
     browseLogFile: () => Promise<string | null>;
@@ -491,9 +652,13 @@ export interface ElectronAPI {
     scanConflicts: (path: string) => Promise<{ count: number; conflicts: any[] }>;
     remapFormIds: (path: string) => Promise<{ success: boolean }>;
   };
-  modComparisonTool: (action: string, payload?: any) => Promise<any>;
-  modConflictVisualizer: (action: string, payload?: any) => Promise<any>;
-  projectTemplates: (action: string, payload?: any) => Promise<any>;
+  modComparisonTool: { compare: (mod1: string, mod2: string) => Promise<{ differences: any[] }>; merge?: () => Promise<any>; export?: () => Promise<any> };
+  modConflictVisualizer: { scanLoadOrder: () => Promise<{ plugins: string[]; conflicts: any[] }>; analyze?: () => Promise<any>; resolve?: () => Promise<any> };
+  projectTemplates: {
+    browsePath: () => Promise<string | null>;
+    createProject: (config: { templateId: string; projectName: string; projectPath: string; authorName: string }) => Promise<{ success: boolean; path?: string; error?: string }>;
+    downloadTemplate: (templateId: string) => Promise<boolean>;
+  };
   voiceCommands: {
     startListening: () => Promise<void>;
     stopListening: () => Promise<void>;
@@ -509,17 +674,17 @@ export interface ElectronAPI {
     executeScript: (xEditPath: string, plugin: string, scriptId: string) => Promise<{ success: boolean; output: string; errors: string[]; warnings: string[]; duration: number }>;
   };
   fomodCreate: (payload: any) => Promise<any>;
-  fomodPreview: (payload: any) => Promise<any>;
+  fomodPreview: (payload: any, selections?: any) => Promise<any>;
   fomodValidate: (payload: any) => Promise<any>;
-  fomodExport: (payload: any) => Promise<any>;
-  fomodSaveProject: (payload: any) => Promise<any>;
+  fomodExport: (payload: any, outputPath?: any) => Promise<any>;
+  fomodSaveProject: (payload: any, projectPath?: any) => Promise<any>;
   modPackagingValidateStructure: (payload: any) => Promise<any>;
-  modPackagingGenerateReadme: (payload: any) => Promise<any>;
-  modPackagingCreateArchive: (payload: any) => Promise<any>;
+  modPackagingGenerateReadme: (payload: any, template?: any) => Promise<any>;
+  modPackagingCreateArchive: (payload: any, modInfo?: any, readme?: any, settings?: any) => Promise<any>;
   modPackagingPrepareNexus: (payload: any) => Promise<any>;
-  modPackagingIncrementVersion: (payload: any) => Promise<any>;
+  modPackagingIncrementVersion: (version: any, type?: any) => Promise<any>;
   exportAnalyticsReport: (payload: any) => Promise<any>;
-  getAppVersion: () => Promise<string>;
+  getAppVersion: () => Promise<{ success: boolean; version?: string; error?: string }>;
   aiGenerateScript: (payload: any) => Promise<any>;
   aiPlanWorkflow: (payload: any) => Promise<any>;
   aiDiagnoseError: (payload: any) => Promise<any>;

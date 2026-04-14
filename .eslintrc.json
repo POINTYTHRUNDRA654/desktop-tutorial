@@ -29,7 +29,8 @@
     "react/no-unescaped-entities": "off",
     "@typescript-eslint/no-var-requires": "off",
     "react-hooks/exhaustive-deps": "off",
-    "prefer-const": "off"
+    "prefer-const": "off",
+    "react/prop-types": "off"
   },
   "settings": {
     "react": {

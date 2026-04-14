@@ -238,10 +238,9 @@ const DiagnosticTools: React.FC<DiagnosticToolsProps> = ({ embedded = false }) =
           const flags = [
             `backend=${status.backendToken ? 'yes' : 'no'}`,
             `openai=${status.openai ? 'yes' : 'no'}`,
-            `elevenlabs=${status.elevenlabs ? 'yes' : 'no'}`,
             `groq=${status.groq ? 'yes' : 'no'}`,
           ].join(' | ');
-          const anyConfigured = status.backendToken || status.openai || status.elevenlabs || status.groq;
+          const anyConfigured = status.backendToken || status.openai || status.groq;
           setCheck('secret-status', { result: flags, status: anyConfigured ? 'success' : 'error' });
         }
       }
@@ -633,7 +632,7 @@ ${listAvailableAPIs()}
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(testOutput);
-                      alert('Output copied to clipboard');
+                      toast.success('Output copied to clipboard');
                     }}
                     className="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1"
                   >
@@ -667,7 +666,7 @@ ${listAvailableAPIs()}
                   if ((window as any).electron?.webContents?.openDevTools) {
                     (window as any).electron.webContents.openDevTools();
                   } else {
-                    alert('Dev tools not available. Try pressing F12 or check if you are running the desktop app.');
+                    toast.error('Dev tools not available. Try pressing F12 or check if you are running the desktop app.');
                   }
                 }
               }}

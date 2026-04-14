@@ -132,3 +132,14 @@ tmp-release/win-unpacked/resources/app.asar
 behavior-history.json
 longitudinal-data.json
 user-profile.json
+
+# Bundled embedded Python (downloaded at build time via fetch-python-embedded.mjs)
+# The directory itself is tracked via .gitkeep; its contents are generated
+resources/python-embedded/*
+!resources/python-embedded/.gitkeep
+release/
+
+# Encrypted API key bundle — encryption key is in source (encrypt-keys.js),
+# so this file must NOT be committed to a public repository.
+.env.encrypted
+.env.encrypted.backup

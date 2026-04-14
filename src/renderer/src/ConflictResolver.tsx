@@ -44,7 +44,7 @@ const ConflictResolver: React.FC<ConflictResolverProps> = ({ embedded = false })
       if (selectedType !== 'all' && conflict.type !== selectedType) return false;
       if (searchText) {
         const term = searchText.toLowerCase();
-        const matches = `${conflict.recordType} ${conflict.formId || ''} ${conflict.plugins.join(' ')}`.toLowerCase();
+        const matches = `${conflict.recordType} ${conflict.formId || ''} ${( conflict.plugins ?? []).join(' ')}`.toLowerCase();
         if (!matches.includes(term)) return false;
       }
       return true;
@@ -218,26 +218,26 @@ const ConflictResolver: React.FC<ConflictResolverProps> = ({ embedded = false })
                       <div className="text-slate-100 font-semibold">{conflict.recordType} {conflict.formId || ''}</div>
                       <span className="text-[10px] uppercase text-emerald-200">{conflict.severity}</span>
                     </div>
-                    <div className="text-slate-400">{conflict.plugins.join(' → ')}</div>
+                    <div className="text-slate-400">{( conflict.plugins ?? []).join(' → ')}</div>
                     <div className="text-slate-500">{conflict.description}</div>
                   </div>
                 ))}
                 {filteredConflicts.length === 0 && <div className="text-slate-500">No conflicts match the filter.</div>}
               </div>
 
-              {summary && (
+              {summary && typeof summary === 'object' && (
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                   <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
                     <div className="text-slate-400">Total Conflicts</div>
-                    <div className="text-lg font-black text-white">{summary.total}</div>
+                    <div className="text-lg font-black text-white">{summary.total ?? 0}</div>
                   </div>
                   <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
                     <div className="text-slate-400">Critical</div>
-                    <div className="text-lg font-black text-white">{summary.bySeverity.critical}</div>
+                    <div className="text-lg font-black text-white">{summary.bySeverity?.critical ?? 0}</div>
                   </div>
                   <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
                     <div className="text-slate-400">NavMesh</div>
-                    <div className="text-lg font-black text-white">{summary.byType.navmesh}</div>
+                    <div className="text-lg font-black text-white">{summary.byType?.navmesh ?? 0}</div>
                   </div>
                 </div>
               )}
@@ -326,7 +326,7 @@ const ConflictResolver: React.FC<ConflictResolverProps> = ({ embedded = false })
               {patch && (
                 <div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-xs">
                   <div className="text-slate-200 font-semibold">{patch.fileName}</div>
-                  <div className="text-slate-400">Masters: {patch.masters.join(', ') || 'None'}</div>
+                  <div className="text-slate-400">Masters: {(patch.masters ?? []).join(', ') || 'None'}</div>
                   <div className="text-slate-500">Records: {patch.records.length}</div>
                 </div>
               )}

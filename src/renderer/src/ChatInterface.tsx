@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import { LocalAIEngine } from './LocalAIEngine';
 import { getFullSystemInstruction } from './MossyBrain';
@@ -9,12 +10,14 @@ import { Send, Paperclip, Loader2, Bot, BotOff, Leaf, Search, FolderOpen, Save, 
 import { Message } from '../../shared/types';
 import { useLive } from './LiveContext';
 import { speakMossy, stopMossySpeech } from './mossyTts';
+import { loadBrowserTtsSettings } from './browserTts';
 import { executeMossyTool, sanitizeBlenderScript } from './MossyTools';
 import { ModProjectStorage } from './services/ModProjectStorage';
 import { useActivityMonitor } from './hooks/useActivityMonitor';
 import { SuggestionPanel } from './components/SuggestionPanel';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { SelfImprovementPanel } from './components/SelfImprovementPanel';
+import { useHorizontalScroll } from './components/useHorizontalScroll';
 import { buildKnowledgeManifestForModel, buildRelevantKnowledgeVaultContext, buildBlenderAddonContext, KnowledgeCitation } from './knowledgeRetrieval';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { autoSaveManager } from './AutoSaveManager';
@@ -61,13 +64,9 @@ interface ToolExecution {
     isManualTrigger?: boolean; // New Flag for manual execution
 }
 
-// Speech Recognition Type Definition
-declare global {
-    interface Window {
-        webkitSpeechRecognition: any;
-        SpeechRecognition: any;
-    }
-}
+// Speech Recognition compatibility shim (avoids conflict with DOM lib types)
+type WebkitSpeechRecognition = typeof window extends { webkitSpeechRecognition: infer T } ? T : any;
+declare let webkitSpeechRecognition: WebkitSpeechRecognition;
 
 
 
@@ -181,9 +180,12 @@ const ProjectWizard: React.FC<{ onSubmit: (data: any) => void, onCancel: () => v
 type ChatMessage = Message & { citations?: KnowledgeCitation[] };
 
 // Memoized Message Item to prevent re-rendering list on typing
-const MessageItem = React.memo(({ msg }: { msg: ChatMessage }) => {
+const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (msgId: string, rating: 'good' | 'bad') => void }) => {
     MessageItem.displayName = 'MessageItem';
     const [showCitations, setShowCitations] = useState(false);
+    const [rating, setRating] = useState<'good' | 'bad' | null>(null);
+    const [showEditBox, setShowEditBox] = useState(false);
+    const [editedAnswer, setEditedAnswer] = useState('');
     const roleLabel = msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Mossy' : msg.role;
 
     const savedPath = useMemo(() => {
@@ -291,6 +293,59 @@ const MessageItem = React.memo(({ msg }: { msg: ChatMessage }) => {
                         )}
                     </div>
                 )}
+                {/* ── Training feedback row (assistant messages only) ── */}
+                {msg.role === 'assistant' && msg.content && !msg.content.startsWith('**[') && (
+                    <div className="pt-1 flex items-center gap-1 flex-wrap">
+                        <button
+                            type="button"
+                            title="Good answer — save to training dataset"
+                            aria-label="Rate response good"
+                            onClick={() => {
+                                if (rating === 'good') return;
+                                setRating('good');
+                                onRate?.(msg.id, 'good');
+                            }}
+                            className={`px-2 py-0.5 rounded text-xs transition-colors ${rating === 'good' ? 'bg-emerald-700/60 text-emerald-200 border border-emerald-600' : 'bg-slate-800/60 text-slate-400 hover:text-emerald-300 border border-slate-700'}`}
+                        >
+                            👍
+                        </button>
+                        <button
+                            type="button"
+                            title="Bad answer — save to training dataset to improve"
+                            aria-label="Rate response bad"
+                            onClick={() => {
+                                setRating('bad');
+                                setShowEditBox(true);
+                                onRate?.(msg.id, 'bad');
+                            }}
+                            className={`px-2 py-0.5 rounded text-xs transition-colors ${rating === 'bad' ? 'bg-red-800/60 text-red-200 border border-red-700' : 'bg-slate-800/60 text-slate-400 hover:text-red-300 border border-slate-700'}`}
+                        >
+                            👎
+                        </button>
+                        {rating && <span className="text-[10px] text-slate-500">{rating === 'good' ? 'Saved to training data ✓' : 'Saved — edit to improve:'}</span>}
+                        {showEditBox && (
+                            <div className="w-full mt-1 space-y-1">
+                                <textarea
+                                    value={editedAnswer || msg.content}
+                                    onChange={e => setEditedAnswer(e.target.value)}
+                                    rows={3}
+                                    className="w-full bg-slate-950/70 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 resize-y outline-none"
+                                    placeholder="Edit this response to the correct answer…"
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => { onRate?.(msg.id, 'bad'); setShowEditBox(false); }}
+                                        className="text-xs px-2 py-1 rounded bg-emerald-800 hover:bg-emerald-700 text-white"
+                                    >
+                                        Save correction
+                                    </button>
+                                    <button type="button" onClick={() => setShowEditBox(false)} className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">Cancel</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -298,11 +353,18 @@ const MessageItem = React.memo(({ msg }: { msg: ChatMessage }) => {
 MessageItem.displayName = 'MessageItem';
 
 // Memoized List Container
-const MessageList = React.memo(({ messages, ...props }: any) => {
+const MessageList = React.memo(({ messages, onRate, ...props }: any) => {
+    const messageListRef = useRef<HTMLDivElement>(null);
+    const wheelHandler = useHorizontalScroll(messageListRef);
+
     return (
-        <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
+        <div
+            ref={messageListRef}
+            onWheel={wheelHandler}
+            className="flex-1 overflow-y-auto overflow-x-auto p-4 space-y-6 scroll-smooth"
+        >
             {messages.map((msg: ChatMessage) => (
-                <MessageItem key={msg.id} msg={msg} {...props} />
+                <MessageItem key={msg.id} msg={msg} onRate={onRate} {...props} />
             ))}
             {props.children}
         </div>
@@ -315,6 +377,7 @@ export const ChatInterface: React.FC = () => {
     const location = useLocation();
 
     const appliedPrefillRef = useRef(false);
+    const voiceStateBeforeLiveRef = useRef<boolean | null>(null);
     const CHAT_PREFILL_KEY = 'mossy_chat_prefill_v1';
     const CHAT_NOTES_SNAPSHOT = 12;
     const CHAT_NOTES_MAX_CHARS = 8000;
@@ -670,6 +733,10 @@ export const ChatInterface: React.FC = () => {
                     localStorage.setItem('mossy_messages', JSON.stringify(messages));
                     // Also save to auto-save manager
                     autoSaveManager.updateCurrentChatHistory(messages);
+                    // Durable file backup — survives reinstalls and localStorage clears
+                    window.electron?.api?.saveChatHistory(messages).catch((err: unknown) => {
+                        console.error('[ChatInterface] Failed to write chat history backup:', err);
+                    });
                 } catch (e) {
                     console.error("Failed to save history (Quota Exceeded?)", e);
                 }
@@ -787,7 +854,20 @@ export const ChatInterface: React.FC = () => {
                 } else if (savedMessages) {
                     setMessages(JSON.parse(savedMessages));
                 } else {
-                    initMossy();
+                    // localStorage is empty — try restoring from the durable file backup
+                    // so conversations are never lost after a reinstall.
+                    try {
+                        const fromFile = await window.electron?.api?.loadChatHistoryFromFile?.() ?? [];
+                        if (Array.isArray(fromFile) && fromFile.length > 0) {
+                            console.info('[ChatInterface] Restored', fromFile.length, 'message(s) from file backup.');
+                            localStorage.setItem('mossy_messages', JSON.stringify(fromFile));
+                            setMessages(fromFile as any[]);
+                        } else {
+                            initMossy();
+                        }
+                    } catch {
+                        initMossy();
+                    }
                 }
 
                 if (savedMemory) setWorkingMemory(savedMemory);
@@ -888,8 +968,19 @@ export const ChatInterface: React.FC = () => {
     // Conflict Resolution for Audio
     useEffect(() => {
         if (isLiveActive) {
+            // Save current voice state before Live forces it off, so we can restore it later.
+            // Guard: only save if not already saved (prevents overwrite on re-entry).
+            if (voiceStateBeforeLiveRef.current === null) {
+                voiceStateBeforeLiveRef.current = isVoiceEnabled;
+            }
             if (isVoiceEnabled) setIsVoiceEnabled(false);
             if (isPlayingAudio) stopAudio();
+        } else if (voiceStateBeforeLiveRef.current !== null) {
+            // Live session ended — restore the voice state that was active before it started.
+            // Note: the voice toggle is disabled while Live is active, so the saved state
+            // always reflects the user's last explicit preference.
+            setIsVoiceEnabled(voiceStateBeforeLiveRef.current);
+            voiceStateBeforeLiveRef.current = null;
         }
     }, [isLiveActive]);
 
@@ -928,25 +1019,26 @@ export const ChatInterface: React.FC = () => {
     };
 
     const resetMemory = () => {
-        if (window.confirm("Perform Chat Reset? This will clear the conversation history and current project state, but keep global settings (Avatar, Bridge, Tutorial).")) {
+        if (window.confirm("Perform Chat Reset? This will clear the conversation history and current project state, but keep global settings (Avatar, Bridge, Tutorial) and your scan results.")) {
+            // Clear ONLY conversation-related data.
+            // Scan results (mossy_all_detected_apps, mossy_scan_summary, etc.) and
+            // tool integration choices are kept — they belong to the scan, not the chat.
             localStorage.removeItem('mossy_messages');
             localStorage.removeItem('mossy_state');
             localStorage.removeItem('mossy_project');
-            localStorage.removeItem('mossy_apps');
-            localStorage.removeItem('mossy_integrated_tools');
-            localStorage.removeItem('mossy_tool_preferences');
-            localStorage.removeItem('mossy_all_detected_apps');
-            localStorage.removeItem('mossy_scan_summary');
-            localStorage.removeItem('mossy_last_scan');
-            localStorage.removeItem('mossy_scan_auditor');
-            localStorage.removeItem('mossy_scan_cartographer');
             localStorage.removeItem('mossy_cortex_memory');
             localStorage.removeItem('mossy_conversation_paused');
+            // Also wipe the durable file backup so the cleared history does not
+            // restore itself on the next launch. If this IPC call fails, the file
+            // backup remains but localStorage is still cleared — old messages may
+            // reappear on the next restart in that unlikely case.
+            window.electron?.api?.saveChatHistory([]).catch((err: unknown) => {
+                console.warn('[ChatInterface] Failed to clear chat history file backup — old messages may restore on next launch:', err);
+            });
 
             setMessages([]);
             setProjectContext(null);
             setProjectData(null);
-            setDetectedApps([]);
             initMossy();
             setShowProjectPanel(false);
         }
@@ -1007,15 +1099,13 @@ export const ChatInterface: React.FC = () => {
         });
 
         // Voice button fix: check TTS settings and available voices
-        const browserTtsSettings = window.localStorage.getItem('mossy_voice_enabled') === 'true';
-        const preferredVoice = window.localStorage.getItem('mossy_preferred_voice');
-        if (!browserTtsSettings) {
+        const browserTtsSettings = loadBrowserTtsSettings();
+        if (!browserTtsSettings.enabled) {
             console.warn('[ChatInterface] TTS is not enabled. Enable TTS in Voice Settings.');
             return;
         }
-        if (!preferredVoice) {
+        if (!browserTtsSettings.preferredVoiceName) {
             console.warn('[ChatInterface] No preferred voice selected. Select a voice in Voice Settings.');
-            return;
         }
         if ('speechSynthesis' in window) {
             const voices = window.speechSynthesis.getVoices();
@@ -1033,7 +1123,7 @@ export const ChatInterface: React.FC = () => {
         // Stop all active speech via the shared mossyTts helper.
         // stopMossySpeech() applies the pause() + cancel() workaround for the
         // Electron/Chromium bug where cancel() alone sometimes fails to stop TTS,
-        // and also stops any ElevenLabs/cloud audio elements via VoiceService.
+        // and also stops any cloud audio elements via VoiceService.
         try {
             stopMossySpeech();
         } catch (e) {
@@ -1059,14 +1149,14 @@ export const ChatInterface: React.FC = () => {
 
     const startListening = async () => {
         if (isLiveActive) {
-            alert("Live Voice is currently active. Please disconnect Live Voice to use the chat microphone.");
+            toast.error('Live Voice is currently active. Disconnect Live Voice to use the chat microphone.');
             return;
         }
 
         // Check if transcription is available
         const api = (window as any).electron?.api || (window as any).electronAPI;
         if (!api?.transcribeAudio) {
-            alert('Voice transcription is not available. Please configure an OpenAI API key in Settings.');
+            toast.error('Voice transcription is not available. Configure an OpenAI API key in Settings.');
             return;
         }
 
@@ -1122,7 +1212,7 @@ export const ChatInterface: React.FC = () => {
                     const api = (window as any).electron?.api || (window as any).electronAPI;
                     if (!api?.transcribeAudio) {
                         console.warn('[VoiceInput] transcribeAudio IPC not available - check if API keys are configured');
-                        alert('Voice transcription is not available. Please configure an OpenAI API key in Settings.');
+                        toast.error('Voice transcription is not available. Configure an OpenAI API key in Settings.');
                         return;
                     } else {
                         console.log('[VoiceInput] Transcribing audio via main process... (size:', audioBlob.size, 'bytes)');
@@ -1146,7 +1236,7 @@ export const ChatInterface: React.FC = () => {
                                 audioSize: audioBlob.size
                             });
 
-                            alert(`Voice transcription failed: ${resp?.error || 'Unknown error'}`);
+                            toast.error(`Voice transcription failed: ${resp?.error || 'Unknown error'}`);
                         }
                     }
                 } catch (err) {
@@ -1176,7 +1266,7 @@ export const ChatInterface: React.FC = () => {
                         reason: 'no_transcription'
                     });
 
-                    alert('Voice transcription failed. If you want STT, configure OpenAI in Desktop settings, then try again.');
+                    toast.error('Voice transcription failed. Configure OpenAI in Desktop settings to use STT.');
                 }
             };
 
@@ -1219,7 +1309,7 @@ export const ChatInterface: React.FC = () => {
         } catch (err) {
             console.error('[VoiceInput] Mic access failed:', err);
             setIsListening(false);
-            alert(`Microphone access failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please check your microphone permissions and try again.`);
+            toast.error(`Microphone access failed: ${err instanceof Error ? err.message : 'Unknown error'}. Check your microphone permissions.`);
         }
     };
 
@@ -1232,7 +1322,15 @@ export const ChatInterface: React.FC = () => {
         setIsPlayingAudio(true);
 
         try {
-            await speakMossy(textToSpeak, { cancelExisting: true });
+            // Race TTS against a generous safety timeout so that a hung browser
+            // speech-synthesis promise can never block the next user message
+            // from being sent (isLoading / isStreaming would stay true forever).
+            const ttsTimeoutMs = Math.max(30000, textToSpeak.length * 100); // ~100ms/char, min 30s
+            const ttsTimeout = new Promise<void>(resolve => setTimeout(() => {
+                console.warn('[ChatInterface] speakText safety timeout reached — releasing send lock');
+                resolve();
+            }, ttsTimeoutMs));
+            await Promise.race([speakMossy(textToSpeak, { cancelExisting: true }), ttsTimeout]);
             console.log('[ChatInterface] speakText completed successfully');
         } catch (err) {
             console.error('[ChatInterface] speakText failed:', err);
@@ -1393,6 +1491,27 @@ export const ChatInterface: React.FC = () => {
                     (s.creationKitPath ? `- Creation Kit: ${s.creationKitPath}\n` : "") +
                     (s.nifSkopePath ? `- NifSkope: ${s.nifSkopePath}\n` : "") +
                     (s.blenderPath ? `- Blender: ${s.blenderPath}\n` : "");
+
+                const whitelist: string[] = s?.privacySettings?.modContentWhitelist ?? [];
+                if (whitelist.length > 0) {
+                    settingsCtx += `\n**MOD CONTENT WHITELIST (STRICT — DO NOT TOUCH THESE MODS):**\n` +
+                        whitelist.map((m: string) => `- ${m}`).join('\n') + '\n' +
+                        `(The user has protected these mods. Never mention, recommend, discuss, use them as examples, reference, modify, or interact with them in any way under any circumstances.)`;
+                }
+
+                const modBlacklist: string[] = s?.privacySettings?.modContentBlacklist ?? [];
+                if (modBlacklist.length > 0) {
+                    settingsCtx += `\n**MOD CONTENT BLACKLIST (WARN AGAINST THESE MODS):**\n` +
+                        modBlacklist.map((m: string) => `- ${m}`).join('\n') + '\n' +
+                        `(These mods are known to be problematic, broken, or incompatible. If a user asks about them, warn them about potential issues and suggest safer alternatives.)`;
+                }
+
+                const programBlacklist: string[] = s?.privacySettings?.programBlacklist ?? [];
+                if (programBlacklist.length > 0) {
+                    settingsCtx += `\n**PROGRAM BLACKLIST (WARN AGAINST THESE PROGRAMS):**\n` +
+                        programBlacklist.map((p: string) => `- ${p}`).join('\n') + '\n' +
+                        `(These programs are known to cause issues, conflicts, or problems with modding workflows. Actively discourage their use and recommend safer alternatives.)`;
+                }
             }
 
             // Extract ALL Fallout 4 game paths from detected apps (user may have multiple installations)
@@ -1646,6 +1765,37 @@ export const ChatInterface: React.FC = () => {
         }]);
     };
 
+    // ── Training data: rate a message 👍/👎 ──────────────────────────────────
+    const handleRateMessage = React.useCallback(async (msgId: string, rating: 'good' | 'bad') => {
+        const api = (window as any).electron?.api;
+        if (!api?.trainingDataAddPair) return;
+        // Find the Q&A pair: the user message just before this assistant message
+        const idx = messages.findIndex(m => m.id === msgId);
+        if (idx < 0) return;
+        const assistantMsg = messages[idx];
+        const userMsg = messages.slice(0, idx).reverse().find(m => m.role === 'user');
+        if (!assistantMsg || !userMsg) return;
+        // Auto-detect topic from content
+        const content = (assistantMsg.content || '').toLowerCase();
+        const topic =
+            content.includes('papyrus') || content.includes('.psc') ? 'papyrus' :
+            content.includes('nif') || content.includes('mesh') ? 'nif' :
+            content.includes('xedit') || content.includes('record') || content.includes('formid') ? 'xedit' :
+            content.includes('creation kit') || content.includes('ck ') ? 'ck' :
+            content.includes('texture') || content.includes('dds') ? 'textures' :
+            content.includes('fomod') ? 'fomod' :
+            content.includes('load order') || content.includes('loot') ? 'load-order' :
+            'general';
+        try {
+            await api.trainingDataAddPair({
+                question: userMsg.content,
+                answer: assistantMsg.content,
+                rating,
+                topic,
+            });
+        } catch { /* non-critical */ }
+    }, [messages]);
+
     const handleStartProject = () => {
         setOnboardingState('project_setup');
         setMessages(prev => [...prev, { id: 'proj-start', role: 'assistant', content: "Initializing new Workspace configuration protocol...", timestamp: Date.now() }]);
@@ -1702,7 +1852,7 @@ export const ChatInterface: React.FC = () => {
         // Track tool execution completion
         trackEvent('tool_execution_completed', {
             toolName: name,
-            success: !result?.error,
+            success: !(result as any)?.error,
             hasResult: !!result
         });
 
@@ -1785,15 +1935,15 @@ export const ChatInterface: React.FC = () => {
         };
 
         const localHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [
-            ...messages.map((msg) => ({ role: msg.role, content: msg.content })),
+            ...messages.filter(m => m.role !== 'system').map((msg) => ({ role: msg.role as 'user' | 'assistant', content: msg.content })),
             { role: 'user', content: textToSend }
         ];
 
         // Prior context to pass to the AI (all previous messages, capped to avoid context overflow)
         const priorHistory = messages
-            .filter(m => m.content && m.content.trim() && m.content !== '..Processing..')
+            .filter(m => m.content && m.content.trim() && m.content !== '..Processing..' && m.role !== 'system')
             .slice(-20)
-            .map(m => ({ role: m.role, content: m.content }));
+            .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
         setMessages(prev => [...prev, userMessage]);
         setInputText('');
@@ -1848,7 +1998,7 @@ export const ChatInterface: React.FC = () => {
                 content: aiResponseText,
                 timestamp: Date.now()
             };
-            autoSaveManager.saveChatMessage(assistantMessage);
+            autoSaveManager.saveChatMessage({ role: assistantMessage.role, content: assistantMessage.content });
             updateChatWorkingMemory([...localHistory, { role: 'assistant', content: aiResponseText }]);
 
             // Record interaction for self-improvement
@@ -1875,6 +2025,11 @@ export const ChatInterface: React.FC = () => {
                 tags: ['ai_chat', 'response'],
             });
 
+            // Notify user when a longer task finishes so they don't have to ask
+            if (duration > 2500) {
+                toast.success('✓ Mossy is done', { duration: 2500, id: 'mossy-task-done' });
+            }
+
         } catch (error) {
             console.error(error);
             const errText = error instanceof Error ? error.message : 'Unknown error';
@@ -1897,8 +2052,8 @@ export const ChatInterface: React.FC = () => {
     return (
         <div data-testid="chat-container" className="flex flex-col h-full bg-forge-dark text-slate-200">
             {/* Header */}
-            <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-forge-panel">
-                <div className="flex items-center gap-3">
+            <div className="p-4 border-b border-slate-700 flex flex-wrap justify-between items-center bg-forge-panel gap-y-2">
+                <div className="flex items-center gap-3 min-w-0 flex-shrink overflow-hidden">
                     <h2 className="text-lg font-bold flex items-center gap-2 text-white">
                         <Leaf className="text-emerald-400" />
                         Mossy <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-emerald-400 border border-emerald-900">FO4 EDITION</span>
@@ -1943,7 +2098,7 @@ export const ChatInterface: React.FC = () => {
                         </div>
                     )}
                 </div>
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-center flex-shrink-0 flex-wrap">
                     <button
                         type="button"
                         onClick={() => navigate('/reference')}
@@ -2094,6 +2249,7 @@ export const ChatInterface: React.FC = () => {
 
                     <MessageList
                         messages={messages}
+                        onRate={handleRateMessage}
                         onboardingState={onboardingState}
                         scanProgress={scanProgress}
                         detectedApps={detectedApps}
@@ -2128,7 +2284,7 @@ export const ChatInterface: React.FC = () => {
                             <div className="flex justify-start">
                                 <div className="bg-forge-panel border border-slate-700 rounded-2xl rounded-tl-none p-4 flex items-center gap-3 shadow-sm">
                                     {isStreaming ? <Bot className="w-4 h-4 text-emerald-400 animate-pulse" /> : <Loader2 className="animate-spin text-emerald-400 w-4 h-4" />}
-                                    <span className="text-slate-400 text-sm font-medium">{isStreaming ? 'Mossy is typing...' : 'Mossy is thinking...'}</span>
+                                    <span className="text-slate-400 text-sm font-medium">{isStreaming ? 'Mossy is typing...' : 'Mossy is thinking… (responses can take 30–60 seconds)'}</span>
                                     <button onClick={handleStopGeneration} className="ml-4 p-1 hover:bg-slate-700 rounded-full text-slate-500 hover:text-white" title="Stop Generation">
                                         <Square className="w-3 h-3 fill-current" />
                                     </button>

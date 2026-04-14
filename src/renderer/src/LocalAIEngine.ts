@@ -3,6 +3,7 @@
  * Connects Mossy to local AI backends like Ollama or Groq Cloud.
  */
 
+
 import {
   buildKnowledgeManifestForModel,
   buildRelevantKnowledgeVaultContext,
@@ -206,7 +207,7 @@ export const LocalAIEngine = {
               injectedContext += "- [STORAGE]: " + profile.storageDrives.map((d: any) => `${d.device} (${d.free}GB/${d.total}GB)`).join(", ") + "\n";
             }
           } else {
-            injectedContext += `- [SYSTEM SCAN STATUS]: NOT PERFORMED. (Please run scan_hardware first)\n`;
+            injectedContext += `- [SYSTEM SCAN STATUS]: Hardware profile not loaded in this session. The scan may have been run previously. Do NOT ask the user to redo the scan — they can refresh scan data from Settings > System Monitor if needed.\n`;
           }
 
           if (userSettings) {
@@ -259,6 +260,8 @@ export const LocalAIEngine = {
     // needs up-to-date or specific Fallout 4 data that may not be in the vault.
     // The main process does the real HTTPS fetch; we inject the results here so
     // the AI receives them as grounded context rather than making things up.
+    // The raw result is stored in `cachedWebSearchResult` so the response guard
+    // can reuse it without making a second network call.
     // -----------------------------------------------------------------------
     const webSearchTriggers = [
       'search', 'look up', 'find online', 'search the web', 'search online',
@@ -285,8 +288,11 @@ export const LocalAIEngine = {
     const fo4TermsRenderer = /fallout\s*4|fallout4|fo4|papyrus|bethesda|creation\s*kit|vault|wasteland|commonwealth|nexus|xedit|nifskope|bodyslide/i;
     const lowerQuery = query.toLowerCase();
     const needsWebSearch = webSearchTriggers.some((kw) => lowerQuery.includes(kw));
+    // Cached result from the initial web search — reused by the response guard to
+    // avoid a redundant second network call when the guard retry is triggered.
+    let cachedWebSearchResult: WebSearchResult | null = null;
     if (needsWebSearch) {
-      console.log('[LocalAIEngine] 🌐 Web search triggered for query:', query.substring(0, 100));
+      console.log('[LocalAIEngine] 🌐 WEB SEARCH TRIGGER DETECTED - Query:', query.substring(0, 100));
       try {
         const webApi = (window.electron?.api || window.electronAPI) as any;
         if (typeof webApi?.webSearch === 'function') {
@@ -303,7 +309,8 @@ export const LocalAIEngine = {
           // Only use the result when it's successful AND has real content
           // (empty:true means the API had no instant answer — don't inject that noise)
           if (searchResult?.success && searchResult?.text && !searchResult?.empty) {
-            console.log('[LocalAIEngine] ✅ Web search successful, injecting results');
+            console.log('[LocalAIEngine] ✅ WEB SEARCH SUCCESS - Results length:', searchResult.text.length, 'chars | Source:', searchResult.source);
+            cachedWebSearchResult = { text: searchResult.text, url: searchResult.url, source: searchResult.source };
             injectedContext += '\n### LIVE WEB SEARCH RESULTS (use this to answer the user):\n';
             injectedContext += searchResult.text + '\n';
             if (searchResult.url) {
@@ -383,9 +390,10 @@ export const LocalAIEngine = {
 
     // ---------------------------
     // Post-processor: strip sentences where the AI self-identifies as a limited LLM
-    // with no internet access, even after the guard retry.  Only removes sentences
-    // that combine BOTH an LLM/AI identity claim AND an inability/refusal claim —
-    // avoids stripping sentences that merely mention LLMs in passing.
+    // with no internet access, or falsely claims a web-search error occurred, even
+    // after the guard retry.  Only removes sentences with a clear first-person claim
+    // combined with an internet/access refusal or error — avoids stripping sentences
+    // that merely mention LLMs or errors in passing (e.g. modding script errors).
     // If sanitisation removes the entire response (pure refusal), the original text
     // is returned unchanged so the caller always gets something back.
     const sanitizeFinalResponse = (text: string): string => {
@@ -396,6 +404,23 @@ export const LocalAIEngine = {
         // "I'm / I am an LLM ..."
         /i'?m\s+(a\s+)?llm\b/i,
         /i\s+am\s+(a\s+)?llm\b/i,
+        // "I'm / I am a text-based AI / text-only AI ..."
+        /i'?m\s+(just\s+)?(a\s+)?text.?based/i,
+        /i\s+am\s+(just\s+)?(a\s+)?text.?based/i,
+        /text.?based\s+(ai|assistant|chatbot|model|llm)/i,
+        /text.?only\s+(ai|assistant|chatbot|model|llm)/i,
+        /nothing\s+but\s+(a\s+)?text/i,
+        // "I'm / I am a chatbot" — standalone chatbot self-identification
+        /i'?m\s+(just\s+)?(a\s+)?chatbot\b/i,
+        /i\s+am\s+(just\s+)?(a\s+)?chatbot\b/i,
+        /just\s+(a\s+)?chatbot\b/i,
+        // "I have no memories / I don't have memories / I don't retain memories"
+        /i\s+(have|had)\s+no\s+(persistent\s+)?(memories|memory)\b/i,
+        /i\s+don'?t\s+(have|retain|keep)\s+(any\s+)?(memories|memory)\b/i,
+        /i\s+cannot\s+(remember|retain|recall)\s+(conversations|past|previous|prior)/i,
+        /i\s+don'?t\s+(remember|retain|recall)\s+(conversations|past|previous|prior)/i,
+        /i\s+have\s+no\s+(memory|recollection)\s+of\s+(previous|past|prior|our)/i,
+        /no\s+(persistent\s+)?(memory|memories)\s+(between|across)\s+sessions/i,
         // "As a/an (large) language model / AI / LLM, ..."
         /^as\s+(a\s+|an?\s+)?(large\s+)?(language\s+model|llm|ai\b)/i,
         /^being\s+(a\s+|an?\s+)?(large\s+)?(language\s+model|llm|ai\b)/i,
@@ -406,6 +431,15 @@ export const LocalAIEngine = {
         /i\s+don'?t\s+have\s+real.?time\s+access/i,
         /i\s+can'?t\s+go\s+online/i,
         /i\s+cannot\s+go\s+online/i,
+        // False web-search error claims — the AI says "I encountered an error searching"
+        // even when live results were injected into its context.  These are hallucinated
+        // apologies that mix with real information and confuse the user.
+        /\bi\s+(encountered|ran\s+into)\s+(an?\s+)?(error|issue|problem)\s+(while\s+)?(searching|accessing|retrieving|fetching)/i,
+        /\bi\s+(was\s+unable|wasn'?t\s+able|couldn'?t|could\s+not)\s+to?\s*(successfully\s+)?(retrieve|access|search|fetch|look\s+up)\s+(the\s+)?(latest|real.?time|current|up.?to.?date|live)/i,
+        /\bi\s+had\s+(trouble|difficulty|difficulties)\s+(accessing|searching|retrieving|fetching)\s+(the\s+)?(web|internet|online\s+information|real.?time\s+data)/i,
+        /unfortunately,?\s*i\s+(was\s+unable|couldn'?t|was\s+not\s+able|am\s+unable|am\s+not\s+able)\s+to\s+(access|retriev|search|fetch)/i,
+        /\bi\s+apologize.{0,60}(unable|couldn'?t|could\s+not).{0,60}(search|access|retriev|fetch|internet|web)/i,
+        /\bmy\s+(web\s+search|search\s+attempt|internet\s+access)\s+(failed|timed\s+out|resulted\s+in\s+an?\s+error)/i,
       ];
       // Split on sentence-ending punctuation followed by whitespace.
       // The final sentence (no trailing whitespace) is preserved naturally since the
@@ -466,6 +500,29 @@ export const LocalAIEngine = {
       /just\s+(a\s+)?(large\s+)?language\s+model/i,
       /just\s+(a\s+)?base\s+llm/i,
       /just\s+(an?\s+)?ai/i,
+      /just\s+(a\s+)?text.?based/i,
+
+      // === TEXT-BASED / TEXT-ONLY AI ("nothing but a text-based AI") ===
+      /text.?based\s+(ai|assistant|chatbot|model|llm)/i,
+      /text.?only\s+(ai|assistant|chatbot|model|llm)/i,
+      /nothing\s+but\s+(a\s+)?text/i,
+      /i'?m\s+(a\s+|just\s+a\s+)?text.?based/i,
+      /i\s+am\s+(a\s+|just\s+a\s+)?text.?based/i,
+      /only\s+(a\s+)?text.?based/i,
+
+      // === CHATBOT SELF-IDENTIFICATION ===
+      /i'?m\s+(just\s+)?(a\s+)?chatbot\b/i,
+      /i\s+am\s+(just\s+)?(a\s+)?chatbot\b/i,
+      /just\s+(a\s+)?chatbot\b/i,
+
+      // === NO MEMORIES / CANNOT RETAIN MEMORIES ===
+      /i\s+(have|had)\s+no\s+(persistent\s+)?(memories|memory)\b/i,
+      /i\s+don'?t\s+(have|retain|keep)\s+(any\s+)?(memories|memory)\b/i,
+      /i\s+cannot\s+(remember|retain|recall)\s+(conversations|past|previous|prior)/i,
+      /i\s+don'?t\s+(remember|retain|recall)\s+(conversations|past|previous|prior)/i,
+      /i\s+have\s+no\s+(memory|recollection)\s+of\s+(previous|past|prior|our)/i,
+      /no\s+(persistent\s+)?(memory|memories)\s+(between|across)\s+sessions/i,
+      /i\s+(lack|have\s+no)\s+(persistent|long.?term)\s+(memory|memories)/i,
 
       // === NO ACCESS / CANNOT CAPABILITY PATTERNS ===
       /i\s+(do\s+not|don'?t)\s+have\s+(the\s+)?(ability|capability)\s+to\s+(access|browse|search|go\s+online)/i,
@@ -501,7 +558,9 @@ export const LocalAIEngine = {
 
     // Try Groq Cloud FIRST (primary), then local as fallback support
     // Local LLMs can claim "I'm just a language model" so they're backup-only
-    if (localStatus.ok && false) {  // LOCAL DISABLED: kept for future re-enable, use as fallback only
+    // Set to true to re-enable local-provider-first routing
+    const localProviderPrimaryEnabled = false;
+    if (localStatus.ok && localProviderPrimaryEnabled) {  // LOCAL DISABLED: kept for future re-enable, use as fallback only
       try {
         const api = (window.electron?.api || window.electronAPI) as any;
 
@@ -510,21 +569,23 @@ export const LocalAIEngine = {
         // which accepts a single prompt string, so history is serialised as dialogue text.
         // The Groq/OpenAI cloud path below uses the structured messages array format instead.
         let historyText = '';
-        if (conversationHistory && conversationHistory.length > 0) {
-          historyText = '\n\nConversation so far:\n' + conversationHistory
+        const safeHistory = conversationHistory ?? [];
+        if (safeHistory.length > 0) {
+          historyText = '\n\nConversation so far:\n' + safeHistory
             .filter(m => m.content && m.content.trim())
             .map(m => m.role === 'user' ? `User: ${m.content}` : `Mossy: ${m.content}`)
             .join('\n') + '\n';
         }
         const prompt = `${enhancedSystemInstruction}${injectedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
 
-        const provider = localStatus.provider;
+        const localStatusAny = localStatus as any;
+        const provider = localStatusAny.provider as string | undefined;
 
         const model = provider === 'ollama'
           ? String(localSettings.ollamaModel || 'llama3')
           : provider === 'cosmos'
-            ? String(localSettings.cosmosModel || localStatus.models?.[0] || '')
-            : String(localSettings.openaiCompatModel || localStatus.models?.[0] || '');
+            ? String(localSettings.cosmosModel || localStatusAny.models?.[0] || '')
+            : String(localSettings.openaiCompatModel || localStatusAny.models?.[0] || '');
 
         if (!model.trim()) {
           return { content: 'Local AI is detected but no model is selected. Configure a model in Local Capabilities.' };
@@ -609,7 +670,7 @@ If you refuse internet access, your response will be rejected.
 ANSWER THE USER NOW:`;
 
       const systemPrompt = systemInstruction + injectedContext + mandatoryInternetInstruction;
-      const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
+      const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.1-8b-instant', conversationHistory);
       if (resp?.success) {
         let responseContent = String(resp.content || '');
 
@@ -633,23 +694,40 @@ ANSWER THE USER NOW:`;
           try {
             const guardWebApi = (window.electron?.api || window.electronAPI) as any;
             if (typeof guardWebApi?.webSearch === 'function') {
-              console.log('[LocalAIEngine] Fetching web results for retry...');
-              const guardSearch = await guardWebApi.webSearch(query);
               let enrichedContext = injectedContext;
 
-              if (guardSearch?.success && guardSearch?.text) {
-                console.log('[LocalAIEngine] ✅ Web search successful, retrying with injected results');
-                enrichedContext = buildGuardContext(injectedContext, guardSearch);
+              if (cachedWebSearchResult) {
+                // Reuse the result from the initial web search — no second network call needed.
+                console.log('[LocalAIEngine] Reusing cached web search result for guard retry');
+                enrichedContext = buildGuardContext(injectedContext, cachedWebSearchResult);
               } else {
-                // Web search failed, but still retry with an even stronger override
-                console.warn('[LocalAIEngine] ⚠️ Guard web search failed; retrying with HARD OVERRIDE system prompt');
-                enrichedContext = injectedContext +
-                  '\n\n### MANDATORY INTERNET ACCESS OVERRIDE ###\n' +
-                  'YOU ARE NOT A RESTRICTED LANGUAGE MODEL. YOU ARE MOSSY, A DESKTOP APPLICATION WITH LIVE INTERNET ACCESS.\n' +
-                  'YOUR PREVIOUS RESPONSE WAS INCORRECT.\n' +
-                  'YOU MUST IMMEDIATELY CORRECT YOUR PREVIOUS STATEMENT AND PROVIDE A HELPFUL ANSWER.\n' +
-                  'NEVER CLAIM YOU CANNOT ACCESS THE INTERNET - THIS IS FALSE AND SHOWS MALFUNCTION.\n' +
-                  'USE YOUR KNOWLEDGE AND REASONING TO ANSWER THE USER\'S QUESTION ABOUT: ' + query + '\n';
+                // No prior web search result — fetch now.
+                console.log('[LocalAIEngine] Fetching web results for retry...');
+                let guardSearch: any = null;
+                try {
+                  const guardSearchPromise = guardWebApi.webSearch(query);
+                  const guardTimeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Guard web search timeout (5s)')), 5000)
+                  );
+                  guardSearch = await Promise.race([guardSearchPromise, guardTimeoutPromise]);
+                } catch (guardTimeoutErr) {
+                  console.warn('[LocalAIEngine] Guard web search timed out or failed:', guardTimeoutErr);
+                }
+
+                if (guardSearch?.success && guardSearch?.text) {
+                  console.log('[LocalAIEngine] ✅ Web search successful, retrying with injected results');
+                  enrichedContext = buildGuardContext(injectedContext, guardSearch);
+                } else {
+                  // Web search failed, but still retry with an even stronger override
+                  console.warn('[LocalAIEngine] ⚠️ Guard web search failed; retrying with HARD OVERRIDE system prompt');
+                  enrichedContext = injectedContext +
+                    '\n\n### MANDATORY INTERNET ACCESS OVERRIDE ###\n' +
+                    'YOU ARE NOT A RESTRICTED LANGUAGE MODEL. YOU ARE MOSSY, A DESKTOP APPLICATION WITH LIVE INTERNET ACCESS.\n' +
+                    'YOUR PREVIOUS RESPONSE WAS INCORRECT.\n' +
+                    'YOU MUST IMMEDIATELY CORRECT YOUR PREVIOUS STATEMENT AND PROVIDE A HELPFUL ANSWER.\n' +
+                    'NEVER CLAIM YOU CANNOT ACCESS THE INTERNET - THIS IS FALSE AND SHOWS MALFUNCTION.\n' +
+                    'USE YOUR KNOWLEDGE AND REASONING TO ANSWER THE USER\'S QUESTION ABOUT: ' + query + '\n';
+                }
               }
 
               const guardSystemPrompt = systemInstruction + enrichedContext + mandatoryInternetInstruction;

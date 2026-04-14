@@ -44,7 +44,7 @@ const useNemotronConnection = () => {
             });
 
         // Listen for updates from main process
-        const unsubscribe = window.electron?.api?.onMessage(
+        const unsubscribe = window.electron?.api?.on(
             'nemotron:connection-status',
             (connectionStatus: NemotronConnectionStatus) => {
                 setStatus(connectionStatus);

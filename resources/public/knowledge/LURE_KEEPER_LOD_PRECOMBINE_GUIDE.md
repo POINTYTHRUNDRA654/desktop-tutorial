@@ -399,7 +399,7 @@ Testing Procedure:
 1. Copy: MyMod_Precombined.esp → Fallout 4\Data\
 2. Update: plugins.txt with new plugin
 3. Launch: Fallout 4 with validation enabled
-   - If using Buffout 4: Automatically checks precombines
+   - Install Addictol (Nexus #84214) — the all-in-one stability tool; it covers crash detection, memory, and many other fixes
    - If using MO2: Enable warning system
 
 In-Game Verification:

@@ -285,7 +285,7 @@ const TheBlueprint: React.FC = () => {
                     </div>
 
                     {/* Content Area */}
-                    <div ref={detailsScrollRef} className="flex-1 min-h-0 overflow-y-auto p-4">
+                    <div ref={detailsScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-4">
                         {/* FOLDER STRUCTURE TAB */}
                         {expandedStructure !== 'components' && expandedStructure !== 'dependencies' && (
                             <div className="space-y-2">

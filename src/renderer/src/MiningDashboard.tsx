@@ -226,7 +226,7 @@ export const MiningDashboard: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to execute batch job:', error);
-      setBatchJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'failed', errors: [error.message] } : j));
+      setBatchJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'failed', errors: [(error as Error).message ?? String(error)] } : j));
     }
   };
 

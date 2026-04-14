@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { ArrowDownToLine, GitBranch, Play, Plus, Trash2 } from 'lucide-react';
 import './QuestEditor.css';
 
@@ -262,7 +263,7 @@ const QuestEditor: React.FC = () => {
   };
 
   const testQuest = () => {
-    alert(`Quest Test\nStages: ${stages.length}\nConnections: ${connections.length}`);
+    toast.success(`Quest Test. Stages: ${stages.length}. Connections: ${connections.length}`);
   };
 
   return (

@@ -3,39 +3,45 @@ name: Build and Deploy Desktop App
 on:
   push:
     branches: [ master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-and-package:
     runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: false
 
       - name: Setup Node.js 20.x
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20.x
           cache: 'npm'
 
+      - name: Configure npm for CI stability
+        run: |
+          npm config set fund false
+          npm config set audit false
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          npm config set fetch-timeout 300000
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Build app
         run: npm run build
 
-      - name: Package Windows installer
-        run: npm run package:win
+      - name: Run prepackage steps
+        run: npm run prepackage
 
-      - name: Upload Windows installer artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Mossy-Desktop-Installer
-          path: dist-electron/*.exe
-
-      - name: Upload build output
-        uses: actions/upload-artifact@v4
-        with:
-          name: Mossy-Build-Output
-          path: dist/**
+      - name: Package and publish to GitHub Releases
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

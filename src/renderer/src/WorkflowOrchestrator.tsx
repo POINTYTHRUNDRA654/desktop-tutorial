@@ -412,7 +412,7 @@ const WorkflowOrchestrator = () => {
                                     </div>
                                 </div>
 
-                                <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 pb-24">
+                                <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-6 pb-24">
                                     <div className="space-y-4">
                                         {runSteps.length === 0 && (
                                             <div className="text-center text-slate-500 py-8 text-sm">

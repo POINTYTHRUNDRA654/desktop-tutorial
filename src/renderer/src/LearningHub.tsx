@@ -66,7 +66,7 @@ const LearningHub: React.FC = () => {
     if (step) {
       bridge.learningHub.trackProgress(USER_ID, selectedTutorial.id, i).then(() => {
         setProgress(prev => (prev || { userId: USER_ID, completedTutorials: [], currentTutorials: [], achievements: [], totalPoints: 0, level: 1 }) as UserProgress);
-      }).catch(() => {});
+      }).catch(() => { });
     }
   };
 
@@ -130,11 +130,11 @@ const LearningHub: React.FC = () => {
         </div>
 
         <div className="space-y-2">
-          <button className={`w-full text-left px-3 py-2 rounded ${!selectedCategory ? 'bg-slate-800/30' : 'hover:bg-slate-800/10'}`} onClick={() => setSelectedCategory(null)}>
-            <List className="w-4 h-4 inline mr-2"/> All
+          <button className={`w-full text-left px-3 py-2 rounded truncate ${!selectedCategory ? 'bg-slate-800/30' : 'hover:bg-slate-800/10'}`} onClick={() => setSelectedCategory(null)}>
+            <List className="w-4 h-4 inline mr-2" /> All
           </button>
           {categories.map(c => (
-            <button key={c} className={`w-full text-left px-3 py-2 rounded ${selectedCategory === c ? 'bg-slate-800/30' : 'hover:bg-slate-800/10'}`} onClick={() => setSelectedCategory(c)}>
+            <button key={c} className={`w-full text-left px-3 py-2 rounded truncate ${selectedCategory === c ? 'bg-slate-800/30' : 'hover:bg-slate-800/10'}`} onClick={() => setSelectedCategory(c)}>
               <span className="capitalize">{c}</span>
             </button>
           ))}
@@ -145,7 +145,7 @@ const LearningHub: React.FC = () => {
           {Object.keys(bookmarks).length === 0 ? <div className="text-[12px] text-slate-500">No bookmarks</div> : Object.keys(bookmarks).map(tid => {
             const tut = tutorials.find(t => t.id === tid);
             if (!tut) return null;
-            return <div key={tid} className="text-sm text-slate-200">• {tut.title}</div>;
+            return <div key={tid} className="text-sm text-slate-200 truncate">• {tut.title}</div>;
           })}
         </div>
       </div>
@@ -158,8 +158,8 @@ const LearningHub: React.FC = () => {
             <div className="mt-3 text-[12px] text-slate-400">⏱ {selectedTutorial?.duration} min • {selectedTutorial?.difficulty} / 10</div>
           </div>
           <div className="flex items-center gap-2">
-            {selectedTutorial && <button onClick={() => toggleBookmark(selectedTutorial.id)} className="px-3 py-1 rounded bg-black/20"> <Bookmark className="inline w-4 h-4 mr-2"/> Bookmark</button>}
-            {selectedTutorial && <button onClick={() => unlockAchievement(`complete-${selectedTutorial.id}`)} className="px-3 py-1 rounded bg-yellow-900/10"> <Star className="inline w-4 h-4 mr-2"/> Award</button>}
+            {selectedTutorial && <button onClick={() => toggleBookmark(selectedTutorial.id)} className="px-3 py-1 rounded bg-black/20"> <Bookmark className="inline w-4 h-4 mr-2" /> Bookmark</button>}
+            {selectedTutorial && <button onClick={() => unlockAchievement(`complete-${selectedTutorial.id}`)} className="px-3 py-1 rounded bg-yellow-900/10"> <Star className="inline w-4 h-4 mr-2" /> Award</button>}
           </div>
         </div>
 
@@ -219,31 +219,31 @@ const LearningHub: React.FC = () => {
             </div>
           </div>
 
-          <div className="col-span-1">
-            <div className="mb-4 p-3 border border-slate-800 rounded bg-black/10">
+          <div className="col-span-1 flex flex-col gap-4 min-h-0">
+            <div className="mb-2 p-3 border border-slate-800 rounded bg-black/10 flex-shrink-0">
               <div className="text-xs font-semibold">Progress</div>
               <div className="mt-2 text-sm font-bold">{progress?.totalPoints || 0} pts</div>
               <div className="text-xs text-slate-400">Level {progress?.level || 1}</div>
-              <div className="mt-3 text-[12px] text-slate-300">Completed: {(progress?.completedTutorials || []).length}</div>
+              <div className="mt-3 text-[12px] text-slate-300 break-words">Completed: {(progress?.completedTutorials || []).length}</div>
             </div>
 
-            <div className="mb-4 p-3 border border-slate-800 rounded bg-black/10">
+            <div className="mb-2 p-3 border border-slate-800 rounded bg-black/10 flex-1 overflow-y-auto min-h-0">
               <div className="text-xs font-semibold">Achievements</div>
               <div className="mt-2 space-y-2">
                 {achievements.length === 0 ? <div className="text-xs text-slate-500">No achievements yet</div> : achievements.map(a => (
-                  <div key={a.id} className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-slate-900 rounded flex items-center justify-center text-xs">{a.icon ? <img src={a.icon} alt="icon"/> : '🏆'}</div>
-                    <div className="text-sm">{a.name} <div className="text-xs text-slate-400">{a.points} pts</div></div>
+                  <div key={a.id} className="flex items-start gap-2 min-w-0">
+                    <div className="w-8 h-8 bg-slate-900 rounded flex items-center justify-center text-xs flex-shrink-0">{a.icon ? <img src={a.icon} alt="icon" /> : '🏆'}</div>
+                    <div className="text-sm break-words min-w-0">{a.name} <div className="text-xs text-slate-400 break-words">{a.points} pts</div></div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="p-3 border border-slate-800 rounded bg-black/10">
+            <div className="p-3 border border-slate-800 rounded bg-black/10 flex-shrink-0">
               <div className="text-xs font-semibold">Actions</div>
-              <div className="mt-2 flex flex-col gap-2">
-                <button className="px-3 py-2 bg-green-700/10 rounded text-sm flex items-center gap-2" onClick={() => bridge.learningHub.listTutorials().then((ts:any) => { setTutorials(ts); })}><Activity className="w-4 h-4"/> Refresh</button>
-                <button className="px-3 py-2 bg-black/20 rounded text-sm flex items-center gap-2" onClick={() => { if (selectedTutorial) window.open(`#learn?tutorial=${selectedTutorial.id}`, '_self'); }}><Play className="w-4 h-4"/> Start</button>
+              <div className="mt-2 flex flex-col gap-2 overflow-hidden">
+                <button className="px-3 py-2 bg-green-700/10 rounded text-sm flex items-center gap-2 whitespace-nowrap overflow-hidden text-ellipsis" onClick={() => bridge.learningHub.listTutorials().then((ts: any) => { setTutorials(ts); })}><Activity className="w-4 h-4 flex-shrink-0" /> Refresh</button>
+                <button className="px-3 py-2 bg-black/20 rounded text-sm flex items-center gap-2 whitespace-nowrap overflow-hidden text-ellipsis" onClick={() => { if (selectedTutorial) window.open(`#learn?tutorial=${selectedTutorial.id}`, '_self'); }}><Play className="w-4 h-4 flex-shrink-0" /> Start</button>
               </div>
             </div>
           </div>

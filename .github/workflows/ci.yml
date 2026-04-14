@@ -7,24 +7,76 @@ on:
     branches: [main, master, develop]
 
 jobs:
+  check-conflicts:
+    name: Check for unresolved conflict markers
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.x
+
+      - name: Detect conflict markers
+        run: node scripts/check-no-conflict-markers.js
+
   verify:
     name: Verify (reproducible)
+    needs: check-conflicts
     runs-on: windows-latest
+    env:
+      ELECTRON_CACHE: ${{ runner.temp }}\electron-cache
+      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\electron-builder-cache
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: false
 
       - name: Setup Node.js 20.x
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20.x
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}\electron-cache
+            ${{ runner.temp }}\electron-builder-cache
+          key: ${{ runner.os }}-electron-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-
+
+      - name: Configure npm for CI stability
+        run: |
+          npm config set fund false
+          npm config set audit false
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          npm config set fetch-timeout 300000
+
+      - name: Install dependencies (with retry)
+        shell: pwsh
+        run: |
+          $retries = 3
+          for ($i=1; $i -le $retries; $i++) {
+            npm ci --prefer-offline --no-audit --no-fund
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Write-Host "npm ci failed (attempt $i/$retries). Retrying in 15s..."
+            Start-Sleep -Seconds 15
+          }
+          Write-Host "npm ci failed after $retries attempts."
+          exit 1
 
       - name: Verify
         run: npm run verify
@@ -35,18 +87,27 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20.x
           cache: 'npm'
 
+      - name: Configure npm for CI stability
+        run: |
+          npm config set fund false
+          npm config set audit false
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          npm config set fetch-timeout 300000
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Run npm audit
         run: npm audit --audit-level=moderate

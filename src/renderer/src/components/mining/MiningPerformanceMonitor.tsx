@@ -152,8 +152,8 @@ export const MiningPerformanceMonitor: React.FC<MiningPerformanceMonitorProps> =
       const systemInfo = await window.electronAPI.getSystemInfo();
       
       // Extract memory stats from system info
-      const totalMemBytes = (systemInfo?.memory?.total || 1) * 1024 * 1024 * 1024; // Convert GB to bytes
-      const usedMemBytes = totalMemBytes * ((systemInfo?.memory?.usage || 0) / 100);
+      const totalMemBytes = ((systemInfo as any)?.memory?.total || 1) * 1024 * 1024 * 1024; // Convert GB to bytes
+      const usedMemBytes = totalMemBytes * (((systemInfo as any)?.memory?.usage || 0) / 100);
       
       const realMemoryStats: MemoryStats = {
         totalHeap: totalMemBytes,

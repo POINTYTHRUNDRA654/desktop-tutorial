@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Mic, Send, MessageCircle, Code, Zap, Book } from 'lucide-react';
-import type { ChatContext, ChatResponse } from '../../shared/types';
+import { LocalAIEngine } from './LocalAIEngine';
+import { getFullSystemInstruction } from './MossyBrain';
+import { useHorizontalScroll } from './components/useHorizontalScroll';
 
 // prefer preload API when available, otherwise fall back to in-memory engine for dev
 let bridge: any = (window as any).electron?.api || (window as any).electronAPI;
@@ -8,56 +11,95 @@ try {
   if (!bridge || !bridge.aiModAssistant) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const local = require('../../mining/aiModAssistant');
-    bridge = bridge || { aiModAssistant: local.aiModAssistant || local.default };
+    if (!bridge) {
+      bridge = { aiModAssistant: local.aiModAssistant || local.default };
+    } else {
+      bridge.aiModAssistant = local.aiModAssistant || local.default;
+    }
   }
 } catch (err) {
   // ignore - UI will still render but actions will fail gracefully
 }
 
-const USER_ID = 'local-user';
-
 const AIModAssistant: React.FC = () => {
+  const navigate = useNavigate();
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<Array<{ role: 'user'|'assistant'; text: string }>>([]);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [codePreview, setCodePreview] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [learningMode, setLearningMode] = useState(false);
-  const messagesRef = useRef<HTMLDivElement | null>(null);
-
+  const messagesRef = useRef<HTMLDivElement | null>(null); const wheelHandler = useHorizontalScroll(messagesRef);
   useEffect(() => { messagesRef.current?.scrollTo({ top: 99999, behavior: 'smooth' }); }, [messages]);
 
   const send = async () => {
-    if (!input.trim()) return;
-    const ctx: ChatContext = { conversationId: conversationId || undefined, userId: USER_ID, recentActions: [] } as any;
-    setMessages(m => [...m, { role: 'user', text: input }]);
-    const res: ChatResponse = await bridge.aiModAssistant.chat(input, ctx);
-    setConversationId(res.conversationId || res.conversationId === '' ? res.conversationId : conversationId);
-    setMessages(m => [...m, { role: 'assistant', text: res.message }]);
-    setSuggestions(res.suggestions || []);
+    if (!input.trim() || isLoading) return;
+    const userText = input;
+    setMessages(m => [...m, { role: 'user', text: userText }]);
     setInput('');
+    setIsLoading(true);
+    try {
+      const systemInstruction = getFullSystemInstruction(
+        'The user is working on a Fallout 4 mod. Provide concise, practical modding guidance.'
+      );
+      const history = messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.text }));
+      const result = await LocalAIEngine.generateResponse(userText, systemInstruction, history);
+      const replyText = result.content || "I'm having trouble responding right now. Please check your AI settings.";
+      setMessages(m => [...m, { role: 'assistant', text: replyText }]);
+    } catch (err) {
+      console.error('[AIModAssistant] send failed:', err);
+      setMessages(m => [...m, { role: 'assistant', text: 'Error: could not reach the AI engine. Please check your settings.' }]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleQuickAction = async (action: any) => {
-    // For UI demo: execute a few common actions locally
     if (action.type === 'create-file') {
       await bridge.saveFile(action.parameters.content || '// new file', action.parameters.name || 'new.txt');
-      alert('File created (simulated)');
+      setMessages(m => [...m, { role: 'assistant', text: `File created: ${action.parameters.name || 'new.txt'}` }]);
     }
     if (action.type === 'edit-code') {
       setCodePreview(action.parameters.patch || '// patched code');
     }
     if (action.type === 'open-panel') {
-      // navigate would normally be used, for demo show alert
-      alert(`Open panel: ${action.parameters.panel}`);
+      const routeMap: Record<string, string> = {
+        chat: '/chat',
+        vault: '/vault',
+        auditor: '/auditor',
+        scribe: '/scribe',
+        holo: '/holo',
+        bridge: '/bridge',
+        settings: '/settings',
+      };
+      const route = routeMap[action.parameters.panel] || `/${action.parameters.panel}`;
+      navigate(route);
     }
   };
 
   const generateCode = async (prompt: string) => {
-    const out = await bridge.aiModAssistant.generateScript(prompt, 'papyrus');
-    setCodePreview(out.code);
-    setMessages(m => [...m, { role: 'assistant', text: out.explanation || 'Generated code' }]);
+    setMessages(m => [...m, { role: 'user', text: prompt }]);
+    try {
+      const systemInstruction = getFullSystemInstruction(
+        'Generate Papyrus script code for Fallout 4. Return only the script block followed by a brief explanation. Use proper Papyrus syntax.'
+      );
+      const result = await LocalAIEngine.generateResponse(prompt, systemInstruction, []);
+      const responseText = result.content || 'Could not generate script. Please check your AI settings.';
+      // Extract a code block if present, otherwise display the full response
+      const codeMatch = responseText.match(/```[\w]*\n?([\s\S]*?)```/);
+      if (codeMatch) {
+        setCodePreview(codeMatch[1].trim());
+        const explanation = responseText.replace(/```[\w]*\n?[\s\S]*?```/, '').trim();
+        setMessages(m => [...m, { role: 'assistant', text: explanation || 'Script generated — see Code Assistant panel.' }]);
+      } else {
+        setCodePreview(responseText);
+        setMessages(m => [...m, { role: 'assistant', text: 'Script generated — see Code Assistant panel.' }]);
+      }
+    } catch (err) {
+      console.error('[AIModAssistant] generateCode failed:', err);
+      setMessages(m => [...m, { role: 'assistant', text: 'Error generating script. Please check your AI settings.' }]);
+    }
   };
 
   const toggleListening = async () => {
@@ -80,12 +122,12 @@ const AIModAssistant: React.FC = () => {
               <h2 className="text-lg font-semibold">AI Mod Assistant — Chat</h2>
             </div>
             <div className="flex items-center gap-2">
-              <button className={`px-3 py-1 rounded text-sm ${learningMode ? 'bg-amber-600/20' : 'bg-slate-700/10'}`} onClick={() => setLearningMode(l => !l)}><Book className="w-4 h-4 mr-2 inline"/>Learning</button>
-              <button className={`px-3 py-1 rounded text-sm ${listening ? 'bg-rose-600/20' : 'bg-emerald-700/10'}`} onClick={toggleListening}><Mic className="w-4 h-4 mr-2 inline"/>{listening ? 'Stop' : 'Voice'}</button>
+              <button className={`px-3 py-1 rounded text-sm ${learningMode ? 'bg-amber-600/20' : 'bg-slate-700/10'}`} onClick={() => setLearningMode(l => !l)}><Book className="w-4 h-4 mr-2 inline" />Learning</button>
+              <button className={`px-3 py-1 rounded text-sm ${listening ? 'bg-rose-600/20' : 'bg-emerald-700/10'}`} onClick={toggleListening}><Mic className="w-4 h-4 mr-2 inline" />{listening ? 'Stop' : 'Voice'}</button>
             </div>
           </div>
 
-          <div ref={messagesRef} className="flex-1 overflow-auto mb-4 space-y-3 p-2 bg-[#05100d] rounded">
+          <div ref={messagesRef} onWheel={wheelHandler} className="flex-1 overflow-auto overflow-x-auto mb-4 space-y-3 p-2 bg-[#05100d] rounded">
             {messages.length === 0 ? <div className="text-sm text-slate-500">Start a conversation — ask for code, fixes, or smart actions.</div> : messages.map((m, i) => (
               <div key={i} className={`p-3 rounded ${m.role === 'user' ? 'bg-black/20 self-end text-right' : 'bg-slate-900/30'}`}>
                 <div className="text-sm">{m.text}</div>
@@ -94,8 +136,8 @@ const AIModAssistant: React.FC = () => {
           </div>
 
           <div className="flex gap-3 items-center">
-            <input value={input} onChange={e=>setInput(e.target.value)} className="flex-1 p-2 bg-black/10 border border-slate-800 rounded text-sm" placeholder="Ask the assistant or paste code..." />
-            <button className="px-3 py-2 bg-emerald-700/10 rounded text-sm flex items-center gap-2" onClick={send}><Send className="w-4 h-4"/>Send</button>
+            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()} className="flex-1 p-2 bg-black/10 border border-slate-800 rounded text-sm" placeholder="Ask Mossy a question..." disabled={isLoading} aria-label="Chat with Mossy" />
+            <button className="px-3 py-2 bg-emerald-700/10 rounded text-sm flex items-center gap-2 disabled:opacity-50" onClick={send} disabled={isLoading} aria-label="Send message to Mossy"><Send className="w-4 h-4" />{isLoading ? '...' : 'Send'}</button>
           </div>
 
           <div className="mt-4 p-3 bg-[#06110e] border border-slate-800 rounded text-sm">
@@ -104,7 +146,7 @@ const AIModAssistant: React.FC = () => {
               <div className="text-xs text-slate-500">One-click implementations</div>
             </div>
             <div className="flex gap-2 flex-wrap">
-              <button className="px-3 py-1 bg-slate-700/10 rounded text-xs" onClick={() => generateCode('Create a basic dialogue script for an NPC') }><Code className="w-3 h-3 mr-1 inline"/>Generate Script</button>
+              <button className="px-3 py-1 bg-slate-700/10 rounded text-xs" onClick={() => generateCode('Create a basic dialogue script for an NPC')}><Code className="w-3 h-3 mr-1 inline" />Generate Script</button>
               <button className="px-3 py-1 bg-slate-700/10 rounded text-xs" onClick={() => setMessages(m => [...m, { role: 'assistant', text: 'Showing inline suggestions (stub)' }])}>Inline Suggestions</button>
               <button className="px-3 py-1 bg-slate-700/10 rounded text-xs" onClick={() => setMessages(m => [...m, { role: 'assistant', text: 'Refactor preview (stub)' }])}>Refactor</button>
               <button className="px-3 py-1 bg-slate-700/10 rounded text-xs" onClick={() => setMessages(m => [...m, { role: 'assistant', text: 'Run quick fix (simulated)' }])}>Quick Fix</button>

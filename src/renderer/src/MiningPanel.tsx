@@ -239,7 +239,7 @@ export const MiningPanel = () => {
             {miningResult?.performanceReport && (
               <div className="performance-report">
                 <h4>Baseline Metrics</h4>
-                <p>FPS: {miningResult.performanceReport.baselineMetrics.fps}</p>
+                <p>FPS: {typeof miningResult.performanceReport.baselineMetrics.fps === "number" ? miningResult.performanceReport.baselineMetrics.fps : (miningResult.performanceReport.baselineMetrics.fps as any)?.average ?? 0}</p>
                 <p>Memory: {miningResult.performanceReport.baselineMetrics.memoryUsage} MB</p>
                 <p>Load Time: {miningResult.performanceReport.baselineMetrics.loadTime}s</p>
 
@@ -377,9 +377,9 @@ export const MiningPanel = () => {
                 <div className="animation-list">
                   {miningResult.assetDiscovery.animationOptimizations.optimizableAnimations.slice(0, 10).map((opt, index) => (
                     <div key={index} className="animation-item">
-                      <h5>{opt.animation.path.split('/').pop()}</h5>
-                      <p>Duration: {opt.animation.duration.toFixed(1)}s</p>
-                      <p>Keyframes: {opt.animation.keyframeCount} → {Math.floor(opt.animation.keyframeCount * opt.recommendedKeyframeReduction)}</p>
+                      <h5>{( opt.animation as any).path?.split('/').pop()}</h5>
+                      <p>Duration: {(( opt.animation as any).duration ?? 0).toFixed(1)}s</p>
+                      <p>Keyframes: {(opt.animation as any).keyframeCount ?? 0} → {Math.floor(((opt.animation as any).keyframeCount ?? 0) * opt.recommendedKeyframeReduction)}</p>
                       <p>Quality Impact: {opt.qualityImpact}%</p>
                       <div className="suggestions">
                         {opt.suggestions.slice(0, 2).map((suggestion, sIndex) => (

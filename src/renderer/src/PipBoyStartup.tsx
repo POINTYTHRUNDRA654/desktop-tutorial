@@ -22,7 +22,7 @@ export const PipBoyStartup: React.FC<{ onComplete: () => void }> = ({ onComplete
 
   // Check if we're in test mode and skip the loading sequence
   const isTestMode = window.location.search.includes('test') ||
-                     window.localStorage.getItem('mossy_test_mode') === 'true';
+    window.localStorage.getItem('mossy_test_mode') === 'true';
 
   useEffect(() => {
     if (isTestMode) {
@@ -36,10 +36,10 @@ export const PipBoyStartup: React.FC<{ onComplete: () => void }> = ({ onComplete
 
     if (currentStep < steps.length) {
       const step = steps[currentStep];
-      
+
       const timer = setTimeout(() => {
         setSteps(prev => prev.map((s, i) => i === currentStep ? { ...s, status: 'in-progress' } : s));
-        
+
         // Execute boot sequence
         setTimeout(async () => {
           setSteps(prev => prev.map((s, i) => i === currentStep ? { ...s, status: 'completed' } : s));
@@ -49,10 +49,10 @@ export const PipBoyStartup: React.FC<{ onComplete: () => void }> = ({ onComplete
           // Real logic for certain steps
           if (step.text === 'SCANNING FOR FALLOUT 4 INSTALLATION...') {
             localStorage.setItem('mossy_system_profile', JSON.stringify({
-                detected: true,
-                version: '1.10.163',
-                f4se: '0.6.23',
-                lastScan: new Date().toISOString()
+              detected: true,
+              version: '1.10.163',
+              f4se: '0.6.23',
+              lastScan: new Date().toISOString()
             }));
           }
 
@@ -68,7 +68,7 @@ export const PipBoyStartup: React.FC<{ onComplete: () => void }> = ({ onComplete
       const finalTimer = setTimeout(() => {
         setLogs(prev => [...prev, "[MOSSY] Neural network stable. I am ready, Architect."]);
         setTimeout(() => {
-            onComplete();
+          onComplete();
         }, 1500);
       }, 1000);
       return () => clearTimeout(finalTimer);
@@ -77,9 +77,9 @@ export const PipBoyStartup: React.FC<{ onComplete: () => void }> = ({ onComplete
 
   return (
     <div className="flex flex-col h-full w-full bg-black font-mono p-8 text-[#00ff00] overflow-hidden">
-      <div className="mb-4 text-xs opacity-50">ROBCO INDUSTRIES UNIFIED OPERATING SYSTEM</div>
+      <div className="mb-4 text-xs opacity-50">MOSSY INDUSTRIES UNIFIED OPERATING SYSTEM</div>
       <div className="mb-8 text-2xl font-bold tracking-widest border-b border-[#00ff00] pb-2">PIP-BOY 3000 Mk IV</div>
-      
+
       <div className="flex-1 space-y-4">
         {steps.map((step, i) => (
           <div key={i} className="flex items-center gap-4">
@@ -104,7 +104,7 @@ export const PipBoyStartup: React.FC<{ onComplete: () => void }> = ({ onComplete
         <div>MEMORY: 640KB RAM</div>
         <div>PROCESSOR: 1.2MHz</div>
       </div>
-      
+
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]"></div>
     </div>
   );

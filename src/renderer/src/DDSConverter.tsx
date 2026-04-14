@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Image, FileImage, Layers, Zap, Download, Upload, 
-  Settings, CheckCircle, XCircle, AlertCircle, 
+import toast from 'react-hot-toast';
+import {
+  Image, FileImage, Layers, Zap, Download, Upload,
+  Settings, CheckCircle, XCircle, AlertCircle,
   FolderOpen, RefreshCw, TrendingDown, Clock, Info,
   Eye, ArrowRight, BarChart3, HelpCircle
 } from 'lucide-react';
@@ -59,7 +60,7 @@ interface FormatMappingRule {
 
 export const DDSConverter: React.FC = () => {
   const [activeSection, setActiveSection] = useState<ActiveSection>('single');
-  
+
   // Single Conversion State
   const [singleFile, setSingleFile] = useState<SingleFile | null>(null);
   const [singleSettings, setSingleSettings] = useState<ConversionSettings>({
@@ -71,7 +72,7 @@ export const DDSConverter: React.FC = () => {
   });
   const [singleConverting, setSingleConverting] = useState(false);
   const [singleResult, setSingleResult] = useState<any>(null);
-  
+
   // Batch Conversion State
   const [batchFiles, setBatchFiles] = useState<BatchFile[]>([]);
   const [batchSettings, setBatchSettings] = useState<ConversionSettings>({
@@ -93,12 +94,12 @@ export const DDSConverter: React.FC = () => {
   const [batchConverting, setBatchConverting] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, currentFile: '' });
   const [batchResults, setBatchResults] = useState<any>(null);
-  
+
   // Load presets on mount
   useEffect(() => {
     loadPresets();
   }, []);
-  
+
   const loadPresets = async () => {
     try {
       const result = await (window.electron.api as any).ddsGetAllPresets();
@@ -117,52 +118,66 @@ export const DDSConverter: React.FC = () => {
   const handleSingleFilePick = async () => {
     try {
       const result = await (window.electron.api as any).ddsPickFiles();
-      if (result.success && result.paths && result.paths.length > 0) {
-        const filePath = result.paths[0];
-        const fileName = filePath.split(/[\\/]/).pop() || 'Unknown';
-        
-        setSingleFile({
-          path: filePath,
-          name: fileName,
-          size: 0,
-          preview: undefined
-        });
-        
-        // Detect format
-        const formatResult = await (window.electron.api as any).ddsDetectFormat(filePath);
-        if (formatResult.success) {
-          setSingleFile(prev => prev ? { ...prev, format: formatResult.format } : null);
-        }
-        
-        // Generate preview using image info API
-        try {
-          const imageInfo = await window.electronAPI.getImageInfo(filePath);
-          if (imageInfo && imageInfo.data) {
-            // Set preview as base64 data URL
-            setSingleFile(prev => prev ? { 
-              ...prev, 
-              preview: `data:image/${imageInfo.format || 'png'};base64,${imageInfo.data}` 
-            } : null);
-          }
-        } catch (previewError) {
-          console.warn('Failed to generate preview:', previewError);
-          // Preview is optional, don't fail the whole operation
-        }
-        
-        setSingleResult(null);
+
+      if (!result) {
+        toast.error('No files selected');
+        return;
       }
+
+      if (!result.success) {
+        toast.error(result.error || 'Failed to pick file');
+        return;
+      }
+
+      if (!result.paths || result.paths.length === 0) {
+        toast.error('No files selected');
+        return;
+      }
+
+      const filePath = result.paths[0];
+      const fileName = filePath.split(/[\\/]/).pop() || 'Unknown';
+
+      setSingleFile({
+        path: filePath,
+        name: fileName,
+        size: 0,
+        preview: undefined
+      });
+
+      // Detect format
+      const formatResult = await (window.electron.api as any).ddsDetectFormat(filePath);
+      if (formatResult?.success) {
+        setSingleFile(prev => prev ? { ...prev, format: formatResult.format } : null);
+      }
+
+      // Generate preview using image info API
+      try {
+        const imageInfo = await (window.electronAPI as any).getImageInfo(filePath);
+        if (imageInfo && (imageInfo as any).data) {
+          // Set preview as base64 data URL
+          setSingleFile(prev => prev ? {
+            ...prev,
+            preview: `data:image/${imageInfo.format || 'png'};base64,${(imageInfo as any).data}`
+          } : null);
+        }
+      } catch (previewError) {
+        console.warn('Failed to generate preview:', previewError);
+        // Preview is optional, don't fail the whole operation
+      }
+
+      setSingleResult(null);
     } catch (error) {
       console.error('File picker error:', error);
-      alert('Failed to open file picker');
+      toast.error('Failed to open file picker: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
   const handleSingleConvert = async () => {
     if (!singleFile) return;
-    
+
     setSingleConverting(true);
     setSingleResult(null);
-    
+
     try {
       const input = {
         inputPath: singleFile.path,
@@ -174,14 +189,14 @@ export const DDSConverter: React.FC = () => {
         flipY: singleSettings.flipY,
         textureType: singleSettings.textureType
       };
-      
+
       const result = await (window.electron.api as any).ddsConvert(input);
       setSingleResult(result);
-      
+
       if (result.success) {
-        alert(`Conversion successful!\nSaved to: ${result.outputPath}\nCompression: ${result.compressionRatio.toFixed(2)}x`);
+        toast.success(`Conversion successful! Saved to: ${result.outputPath}. Compression: ${result.compressionRatio.toFixed(2)}x`);
       } else {
-        alert(`Conversion failed: ${result.error}`);
+        toast.error(`Conversion failed: ${result.error}`);
       }
     } catch (error: any) {
       console.error('Conversion error:', error);
@@ -206,10 +221,10 @@ export const DDSConverter: React.FC = () => {
           size: 0,
           status: 'pending' as const
         }));
-        
+
         setBatchFiles(newFiles);
         setBatchResults(null);
-        
+
         // Detect formats
         for (const file of newFiles) {
           detectBatchFileFormat(file.path, file.id);
@@ -217,7 +232,7 @@ export const DDSConverter: React.FC = () => {
       }
     } catch (error) {
       console.error('File picker error:', error);
-      alert('Failed to open file picker');
+      toast.error('Failed to open file picker');
     }
   };
 
@@ -225,7 +240,7 @@ export const DDSConverter: React.FC = () => {
     try {
       const result = await (window.electron.api as any).ddsDetectFormat(filePath);
       if (result.success) {
-        setBatchFiles(prev => prev.map(f => 
+        setBatchFiles(prev => prev.map(f =>
           f.id === fileId ? { ...f, format: result.format } : f
         ));
       }
@@ -236,11 +251,11 @@ export const DDSConverter: React.FC = () => {
 
   const handleBatchConvert = async () => {
     if (batchFiles.length === 0) return;
-    
+
     setBatchConverting(true);
     setBatchProgress({ current: 0, total: batchFiles.length, currentFile: '' });
     setBatchResults(null);
-    
+
     try {
       // Prepare input files
       const inputs = batchFiles.map(file => ({
@@ -253,19 +268,19 @@ export const DDSConverter: React.FC = () => {
         flipY: batchSettings.flipY,
         textureType: batchSettings.textureType
       }));
-      
+
       // Prepare batch options with format mapping rules
       const options = {
         defaultFormat: batchSettings.format,
         defaultQuality: batchSettings.quality,
         generateMipmaps: batchSettings.generateMipmaps,
-        formatMappingRules: formatMappingEnabled 
+        formatMappingRules: formatMappingEnabled
           ? formatRules
-              .filter(rule => rule.enabled)
-              .map(rule => ({
-                pattern: convertPatternToRegex(rule.pattern),
-                format: rule.format
-              }))
+            .filter(rule => rule.enabled)
+            .map(rule => ({
+              pattern: convertPatternToRegex(rule.pattern),
+              format: rule.format
+            }))
           : [],
         onProgress: (current: number, total: number, filePath: string) => {
           setBatchProgress({ current, total, currentFile: filePath });
@@ -274,10 +289,10 @@ export const DDSConverter: React.FC = () => {
           console.error(`Batch error for ${filePath}:`, error);
         }
       };
-      
+
       const result = await (window.electron.api as any).ddsConvertBatch(inputs, options);
       setBatchResults(result);
-      
+
       // Update file statuses
       setBatchFiles(prev => prev.map((file, index) => ({
         ...file,
@@ -285,11 +300,11 @@ export const DDSConverter: React.FC = () => {
         result: result.results[index],
         error: result.results[index]?.error
       })));
-      
-      alert(`Batch conversion complete!\nSuccess: ${result.successCount}/${result.totalFiles}\nTotal time: ${(result.totalProcessingTime / 1000).toFixed(2)}s`);
+
+      toast.success(`Batch conversion complete! Success: ${result.successCount}/${result.totalFiles}. Total time: ${(result.totalProcessingTime / 1000).toFixed(2)}s`);
     } catch (error: any) {
       console.error('Batch conversion error:', error);
-      alert(`Batch conversion failed: ${error.message}`);
+      toast.error(`Batch conversion failed: ${error.message}`);
     } finally {
       setBatchConverting(false);
     }
@@ -322,33 +337,30 @@ export const DDSConverter: React.FC = () => {
       <div className="bg-slate-800 rounded-lg p-1 flex gap-1">
         <button
           onClick={() => setActiveSection('single')}
-          className={`flex-1 py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${
-            activeSection === 'single'
+          className={`flex-1 py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeSection === 'single'
               ? 'bg-purple-600 text-white'
               : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
-          }`}
+            }`}
         >
           <FileImage size={18} />
           Single Conversion
         </button>
         <button
           onClick={() => setActiveSection('batch')}
-          className={`flex-1 py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${
-            activeSection === 'batch'
+          className={`flex-1 py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeSection === 'batch'
               ? 'bg-purple-600 text-white'
               : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
-          }`}
+            }`}
         >
           <Layers size={18} />
           Batch Processing
         </button>
         <button
           onClick={() => setActiveSection('guide')}
-          className={`flex-1 py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${
-            activeSection === 'guide'
+          className={`flex-1 py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeSection === 'guide'
               ? 'bg-purple-600 text-white'
               : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
-          }`}
+            }`}
         >
           <HelpCircle size={18} />
           Format Guide
@@ -375,7 +387,7 @@ export const DDSConverter: React.FC = () => {
             <Upload size={20} />
             Select Source File
           </h2>
-          
+
           {!singleFile ? (
             <button
               onClick={handleSingleFilePick}
@@ -441,7 +453,7 @@ export const DDSConverter: React.FC = () => {
               <Settings size={20} />
               Conversion Settings
             </h2>
-            
+
             <div className="grid grid-cols-2 gap-4">
               {/* Format Selection */}
               <div>
@@ -797,7 +809,7 @@ export const DDSConverter: React.FC = () => {
         {/* Format Comparison */}
         <div className="bg-slate-800 rounded-lg p-6">
           <h3 className="text-lg font-bold mb-4">Format Comparison</h3>
-          
+
           <div className="space-y-3">
             {/* BC1 (DXT1) */}
             <div className="bg-slate-700 rounded-lg p-4">
@@ -875,7 +887,7 @@ export const DDSConverter: React.FC = () => {
             <TrendingDown size={20} />
             Memory Usage Comparison (1024x1024 texture)
           </h3>
-          
+
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <div className="w-32 text-sm text-gray-400">PNG (Uncompressed)</div>
@@ -925,7 +937,7 @@ export const DDSConverter: React.FC = () => {
             <CheckCircle size={20} />
             Best Practices
           </h3>
-          
+
           <div className="space-y-3 text-sm">
             <div className="flex gap-3">
               <CheckCircle size={16} className="text-green-500 flex-shrink-0 mt-0.5" />

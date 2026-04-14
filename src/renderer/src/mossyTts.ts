@@ -10,7 +10,6 @@ function getVoiceService(): VoiceService {
     const config: VoiceServiceConfig = {
       sttProvider: 'backend',
       ttsProvider: 'browser',
-      elevenlabsKey: undefined,
     };
     voiceService = new VoiceService(config);
     voiceService.initialize().catch(console.error);
@@ -131,10 +130,10 @@ export function isMossySpeechPaused(): boolean {
 /**
  * Stop Mossy's speech output completely (cannot resume).
  * Calls both the shared speechSynthesis cancel AND the VoiceService stopSpeaking()
- * so that all TTS paths (browser, ElevenLabs, cloud) are reliably stopped.
+ * so that all TTS paths (browser, cloud) are reliably stopped.
  */
 export function stopMossySpeech(): void {
-  // Also stop via VoiceService (handles ElevenLabs audio elements and internal state).
+  // Also stop via VoiceService (handles audio elements and internal state).
   if (voiceService) {
     try {
       voiceService.stopSpeaking();

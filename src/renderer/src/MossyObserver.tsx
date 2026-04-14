@@ -20,10 +20,10 @@ const QUIPS: Record<string, string[]> = {
         "Your RAM usage is... ambitious."
     ],
     '/crucible': [
-        "Load your crash logs from Buffout 4 NG (Nexus #64880) — always use the NG fork, not the original. Crash logs are at %LOCALAPPDATA%\\Fallout4\\F4SE\\.",
+        "Crash logs from Addictol (Nexus #84214) are at %LOCALAPPDATA%\\Fallout4\\F4SE\\. Addictol is the all-in-one stability tool that supersedes Buffout 4 — do NOT install both.",
         "Run CLASSIC (Nexus #56255) on your crash log first — it covers 250+ error scenarios and names the exact cause automatically.",
-        "X-Cell / Addictol is the primary stability tool, not Buffout 4 NG. If you're still crashing after installing Buffout 4 NG, install X-Cell (Nexus #84214) — it fills the memory management gap.",
-        "Using both X-Cell and Buffout 4 NG? Disable in Buffout4.toml: MemoryManager=false, HavokMemorySystem=false, BSTextureStreamerLocalHeap=false. Community TOML at: nexusmods.com/fallout4/articles/5976",
+        "Addictol (Nexus #84214) is the ALL-IN-ONE stability tool for OG/NG/1.11.x — it supersedes Buffout 4 (all variants), X-Cell, BakaMaxPapyrusOps, Faster Workshop, and more. Do NOT install Buffout 4 alongside it.",
+        "Address Library AiO (Nexus #47327) + Addictol + High FPS Physics Fix is the core 2026 stability stack.",
         "I analyze stack traces for common culprits — null pointers, bad references, corrupted meshes.",
         "Look for EXCEPTION_ACCESS_VIOLATION and check which registers are null (RAX/RCX = 0x0).",
         "TESObjectREFR crashes often mean deleted references or bad object calls.",
@@ -32,7 +32,7 @@ const QUIPS: Record<string, string[]> = {
         "FormIDs starting with FF are temporary — they can't be saved and often cause issues.",
         "If multiple plugins appear in the stack, the lowest one is usually the culprit.",
         "A [D] NAVM FormID in the crash log means a deleted navmesh — use the xEdit Change FormID fix (see NAVMESH_FIX_GUIDE.md).",
-        "Update Buffout 4 NG and X-Cell after every game patch — they both need runtime-specific builds."
+        "Update Addictol after every game patch — it needs runtime-specific builds."
     ],
     '/reverie': [
         "Ideas Bank is your brainstorm vault - capture quest concepts, settlement designs, NPC backstories before you forget them.",

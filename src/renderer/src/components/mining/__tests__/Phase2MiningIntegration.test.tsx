@@ -149,13 +149,17 @@ describe('Phase 2 Mining Engines Integration', () => {
     const mockProps = {
       isActive: true,
       status: {
+        isRunning: true,
         interactionsProcessed: 1500,
         recommendationsGenerated: 0,
         learningProgress: 0,
         lastUpdate: new Date()
       },
       results: {
-        behaviorPatterns: []
+        userProfile: null,
+        contextualRecommendations: [],
+        behaviorPatterns: [],
+        personalizationMetrics: null
       },
       onToggle: vi.fn(),
       onConfigure: vi.fn()
@@ -200,7 +204,13 @@ describe('Phase 2 Mining Engines Integration', () => {
     });
 
     it('handles engine status updates from backend', async () => {
-      const mockStatus = { interactionsProcessed: 1500, userProfiles: 50 };
+      const mockStatus = {
+        isRunning: true,
+        interactionsProcessed: 1500,
+        recommendationsGenerated: 0,
+        learningProgress: 0,
+        lastUpdate: new Date()
+      };
       mockElectronAPI.mining.getEngineStatus.mockResolvedValue(mockStatus);
 
       render(
@@ -250,12 +260,15 @@ describe('Phase 2 Mining Engines Integration', () => {
 
     it('handles large datasets efficiently', () => {
       const largeResults = {
-        recommendations: Array.from({ length: 1000 }, (_, i) => ({
+        userProfile: null,
+        contextualRecommendations: Array.from({ length: 1000 }, (_, i) => ({
           id: i.toString(),
           type: 'optimization',
           confidence: Math.random(),
           description: `Optimization ${i}`
-        }))
+        })),
+        behaviorPatterns: [],
+        personalizationMetrics: null
       };
 
       const startTime = performance.now();

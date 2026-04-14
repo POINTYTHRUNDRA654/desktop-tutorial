@@ -51,6 +51,12 @@ Section "!Mossy Core Application" SEC_CORE
     ; Write "Nemotron not installed" flag (will be overwritten if section 2 runs)
     WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "NemotronInstalled" "0"
     
+    ; Write fresh-install marker so the app runs the first-run wizard on launch,
+    ; even if a previous installation left stale userData/localStorage behind.
+    FileOpen $R0 "$INSTDIR\fresh-install.marker" w
+    FileWrite $R0 "fresh-install"
+    FileClose $R0
+
     ; Basic registry entries
     WriteRegStr HKLM "${PRODUCT_DIR_REGKEY}" "" "$INSTDIR\mossy.exe"
     WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "DisplayName" "${PRODUCT_NAME} v${PRODUCT_VERSION}"

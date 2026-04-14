@@ -363,7 +363,11 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                   <div className="text-slate-400">Build the knowledge index or add your own notes to the Memory Vault.</div>
                   <div className="text-slate-500 italic">Use Knowledge Search to review built-in docs, then add your own notes to Memory Vault.</div>
 
-                  <div className="mt-3"><strong>4) Ask your first question</strong></div>
+                  <div className="mt-3"><strong>4) Digest your plugins with Spriggit (optional)</strong></div>
+                  <div className="text-slate-400">If you have Spriggit installed, let Mossy serialize and learn your .esp/.esm/.esl files.</div>
+                  <div className="text-slate-500 italic">Available at the end of the first-run setup wizard — or run it later from the Memory Vault.</div>
+
+                  <div className="mt-3"><strong>5) Ask your first question</strong></div>
                   <div className="text-slate-400">Mossy will use your scans and knowledge vault to answer precisely.</div>
                   <div className="border border-emerald-800 bg-emerald-950/20 p-1 mt-1 text-emerald-400/80">
                     Example: How do I build a simple quest in the Creation Kit?
@@ -378,7 +382,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
             data: {
               stepId: 'page-first-success',
               route: '/first-success',
-              narration: 'The First Success Wizard is a fast onboarding checklist. Run a system scan, verify your tools, index your guides, and ask your first question to get started.'
+              narration: 'The First Success Wizard is a fast onboarding checklist. Run a system scan, verify your tools, index your guides, optionally digest your plugins with Spriggit, and ask your first question to get started.'
             } satisfies TourStepData,
           },
 
@@ -503,15 +507,18 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
             content: (
               <div>
                 <h4 className="font-bold text-white mb-2">You are ready</h4>
-                <p className="text-slate-300 text-sm">
+                <p className="text-slate-300 text-sm mb-3">
                   That is the core layout. You can revisit this tour any time from the sidebar.
                 </p>
+                <div className="rounded-md border border-amber-700/40 bg-amber-900/10 p-3 text-xs text-amber-200">
+                  <strong>Disclaimer:</strong> Mossy is not affiliated with, endorsed by, or officially connected to any of the third-party tools or add-ons referenced in this app (xEdit, Mod Organizer 2, Vortex, LOOT, Spriggit, Blender, BodySlide, FOMOD Creator, NifSkope, or any other listed tool). All tool names, logos, and trademarks belong to their respective owners. Mossy simply helps you use them — always download tools directly from their official sources.
+                </div>
               </div>
             ),
             data: {
               stepId: 'page-finish',
               route: '/',
-              narration: 'That completes the welcome tour. You can replay it any time from the sidebar.'
+              narration: 'That completes the welcome tour. You can replay it any time from the sidebar. Remember: Mossy is not affiliated with any of the third-party tools listed in this app — always download from official sources.'
             } satisfies TourStepData,
           },
         ];

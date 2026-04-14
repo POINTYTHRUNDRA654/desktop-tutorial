@@ -1,6 +1,14 @@
 /**
  * Mod Project Storage Service
- * Handles persistence of mod projects to localStorage and file system
+ * Handles persistence of mod projects to localStorage and file system.
+ *
+ * Dual-persistence pattern (same as Knowledge Vault):
+ *   - localStorage  → fast read/write during normal use
+ *   - userData/mod-projects.json → durable backup that survives app reinstalls
+ *     and localStorage clears
+ *
+ * On first access, if localStorage is empty the service automatically restores
+ * from the file backup so users never lose their mod work.
  */
 
 import type {
@@ -15,6 +23,47 @@ import type {
 
 const STORAGE_KEY = 'mossy_mod_projects';
 const CURRENT_MOD_KEY = 'mossy_current_mod';
+
+// Whether we've already attempted to restore from the file backup this session.
+let _restoreAttempted = false;
+
+/** Write projects to both localStorage and the userData file backup. */
+function persistProjects(projects: ModProject[]): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  // Fire-and-forget — failures are logged but must not interrupt normal use.
+  window.electron?.api?.saveModProjects(projects).catch((err: unknown) => {
+    console.error('[ModProjectStorage] Failed to write file backup:', err);
+  });
+}
+
+/** Load projects from localStorage; if empty, attempt a one-time file restore. */
+async function loadProjectsWithRestore(): Promise<ModProject[]> {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as ModProject[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  // localStorage is empty — try restoring from the file backup once per session.
+  if (_restoreAttempted) return [];
+  _restoreAttempted = true;
+
+  try {
+    const fromFile = await window.electron?.api?.loadModProjectsFromFile?.() ?? [];
+    if (Array.isArray(fromFile) && fromFile.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(fromFile));
+      console.info('[ModProjectStorage] Restored', fromFile.length, 'project(s) from file backup.');
+      return fromFile as ModProject[];
+    }
+  } catch (err) {
+    console.error('[ModProjectStorage] File restore failed:', err);
+  }
+  return [];
+}
 
 export class ModProjectStorage {
   
@@ -45,10 +94,9 @@ export class ModProjectStorage {
       espName: input.espName,
     };
     
-    // Save to localStorage
     const projects = this.getAllProjects();
     projects.push(project);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+    persistProjects(projects);
     
     return project;
   }
@@ -66,6 +114,14 @@ export class ModProjectStorage {
       return [];
     }
   }
+
+  /**
+   * Async variant of getAllProjects that also attempts a file restore if
+   * localStorage is empty. Call this on component mount.
+   */
+  static async getAllProjectsWithRestore(): Promise<ModProject[]> {
+    return loadProjectsWithRestore();
+  }
   
   static updateProject(projectId: string, updates: UpdateModProjectInput): ModProject | null {
     const projects = this.getAllProjects();
@@ -81,7 +137,7 @@ export class ModProjectStorage {
       completionPercentage: this.calculateCompletion(project)
     };
     
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+    persistProjects(projects);
     return projects[index];
   }
   
@@ -91,7 +147,7 @@ export class ModProjectStorage {
     
     if (filtered.length === projects.length) return false;
     
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+    persistProjects(filtered);
     
     // If this was the current mod, clear it
     if (this.getCurrentModId() === projectId) {
@@ -128,7 +184,7 @@ export class ModProjectStorage {
     const index = projects.findIndex(p => p.id === projectId);
     if (index !== -1) {
       projects[index] = project;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+      persistProjects(projects);
     }
     
     return step;
@@ -159,7 +215,7 @@ export class ModProjectStorage {
     const index = projects.findIndex(p => p.id === projectId);
     if (index !== -1) {
       projects[index] = project;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+      persistProjects(projects);
     }
     
     return project.steps[stepIndex];
@@ -180,7 +236,7 @@ export class ModProjectStorage {
     const index = projects.findIndex(p => p.id === projectId);
     if (index !== -1) {
       projects[index] = project;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+      persistProjects(projects);
     }
     
     return true;

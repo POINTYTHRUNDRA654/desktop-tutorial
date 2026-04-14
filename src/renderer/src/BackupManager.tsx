@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Clock, Save, Undo, FolderOpen, Upload, Cloud, GitBranch, ArrowDownToLine, Trash2, AlertCircle } from 'lucide-react';
 
@@ -102,7 +103,7 @@ export const BackupManager: React.FC = () => {
     setSnapshots(updated);
     localStorage.setItem('mossy_snapshots', JSON.stringify(updated));
 
-    alert('Snapshot created!');
+    toast.success('Snapshot created!');
   };
 
   const restoreSnapshot = async (snapshot: Snapshot) => {
@@ -117,12 +118,12 @@ export const BackupManager: React.FC = () => {
       });
 
       if (response.ok) {
-        alert('Restored successfully!');
+        toast.success('Restored successfully!');
       } else {
         throw new Error('Restore failed');
       }
     } catch (error) {
-      alert(`Bridge Offline: Could not restore snapshot. Please ensure the Desktop Bridge is running.`);
+      toast.error('Bridge Offline: Could not restore snapshot. Ensure Desktop Bridge is running.');
     }
   };
 
@@ -146,10 +147,10 @@ export const BackupManager: React.FC = () => {
         body: JSON.stringify({ message })
       });
 
-      alert('Committed!');
+      toast.success('Committed!');
       checkGitStatus();
     } catch (error) {
-      alert(`Git commit: "${message}"\n\n(Demo mode - requires Desktop Bridge)`);
+      toast.error('Git commit requires Desktop Bridge. Configure in Settings → External Tools.');
     }
   };
 
@@ -157,13 +158,13 @@ export const BackupManager: React.FC = () => {
     try {
       const response = await fetch('http://localhost:21337/git/push', { method: 'POST' });
       if (response.ok) {
-        alert('Pushed to remote!');
+        toast.success('Pushed to remote!');
         checkGitStatus();
       } else {
         throw new Error('Push failed');
       }
     } catch (error) {
-      alert('Bridge Offline: Could not push to Git. Please ensure the Desktop Bridge is running.');
+      toast.error('Bridge Offline: Could not push to Git.');
     }
   };
 
@@ -171,12 +172,12 @@ export const BackupManager: React.FC = () => {
     try {
       const response = await fetch(`http://localhost:21337/backup/export/${snapshot.id}`);
       if (response.ok) {
-        alert(`Snapshot "${snapshot.name}" exported as ZIP.`);
+        toast.success(`Snapshot "${snapshot.name}" exported as ZIP.`);
       } else {
         throw new Error('Export failed');
       }
     } catch (error) {
-       alert(`Bridge Offline: Could not export snapshot. Please ensure the Desktop Bridge is running.`);
+       toast.error('Bridge Offline: Could not export snapshot. Ensure Desktop Bridge is running.');
     }
   };
 

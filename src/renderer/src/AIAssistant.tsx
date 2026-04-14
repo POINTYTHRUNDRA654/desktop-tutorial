@@ -166,7 +166,7 @@ export const AIAssistant: React.FC = () => {
    * Handle code generation
    */
   const handleCodeGeneration = async (description: string) => {
-    const result = await window.electronAPI.aiGenerateScript({
+    const result = await window.electronAPI?.aiGenerateScript?.({
       description,
       language: codeGenSession?.language || 'papyrus',
       context: { projectType: 'Fallout4 mod' },
@@ -205,7 +205,7 @@ export const AIAssistant: React.FC = () => {
    * Handle workflow planning
    */
   const handleWorkflowPlanning = async (goal: string) => {
-    const result = await window.electronAPI.aiPlanWorkflow({
+    const result = await window.electronAPI?.aiPlanWorkflow?.({
       description: goal,
       goal,
       timeEstimate: 'medium',
@@ -238,7 +238,7 @@ export const AIAssistant: React.FC = () => {
    * Handle error diagnosis
    */
   const handleErrorDiagnosis = async (errorDescription: string) => {
-    const result = await window.electronAPI.aiDiagnoseError({
+    const result = await window.electronAPI?.aiDiagnoseError?.({
       errorMessage: errorDescription,
     });
 
@@ -264,7 +264,7 @@ export const AIAssistant: React.FC = () => {
    * Handle learning requests
    */
   const handleLearning = async (topic: string) => {
-    const result = await window.electronAPI.aiExplain({
+    const result = await window.electronAPI?.aiExplain?.({
       concept: topic,
       skillLevel: 'intermediate',
       includeExamples: true,
@@ -290,7 +290,7 @@ export const AIAssistant: React.FC = () => {
    * Handle asset organization
    */
   const handleAssetOrganization = async (assetDescription: string) => {
-    const result = await window.electronAPI.aiSuggestNames({
+    const result = await window.electronAPI?.aiSuggestNames?.({
       type: 'texture',
       description: assetDescription,
       enforceLdFormat: true,
@@ -324,7 +324,7 @@ export const AIAssistant: React.FC = () => {
    * Handle general queries
    */
   const handleGeneralQuery = async (query: string) => {
-    const result = await window.electronAPI.aiExplain({
+    const result = await window.electronAPI?.aiExplain?.({
       concept: query,
       includeExamples: true,
     });
@@ -374,7 +374,7 @@ export const AIAssistant: React.FC = () => {
     setWorkflowSession(prev => ({ ...prev!, isExecuting: true, progress: 0 }));
 
     try {
-      const result = await window.electronAPI.aiExecuteWorkflow(workflowSession);
+      const result = await window.electronAPI?.aiExecuteWorkflow?.(workflowSession);
       
       if (result.success) {
         setWorkflowSession(prev => ({

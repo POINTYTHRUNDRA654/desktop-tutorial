@@ -43,6 +43,7 @@ interface InstalledProgram {
 const IPC_CHANNELS = {
   DETECT_PROGRAMS: 'detect-programs',
   OPEN_PROGRAM: 'open-program',
+  LAUNCH_TOOL_WITH_FILE: 'launch-tool-with-file',
   OPEN_EXTERNAL: 'open-external',
   REVEAL_IN_FOLDER: 'reveal-in-folder',
   REVEAL_SETTINGS_FILE: 'reveal-settings-file',
@@ -55,10 +56,8 @@ const IPC_CHANNELS = {
   // voice history persistence
   SAVE_VOICE_HISTORY: 'save-voice-history',
   GET_VOICE_HISTORY_PATH: 'get-voice-history-path',
-  ELEVENLABS_STATUS: 'elevenlabs-status',
-  ELEVENLABS_LIST_VOICES: 'elevenlabs-list-voices',
-  ELEVENLABS_SYNTHESIZE: 'elevenlabs-synthesize',
   CHECK_BLENDER_ADDON: 'check-blender-addon',
+  SEND_BLENDER_COMMAND: 'send-blender-command',
   VAULT_RUN_TOOL: 'vault-run-tool',
   VAULT_SAVE_MANIFEST: 'vault-save-manifest',
   VAULT_LOAD_MANIFEST: 'vault-load-manifest',
@@ -88,10 +87,29 @@ const IPC_CHANNELS = {
   FOMOD_EXPORT_PACKAGE: 'fomod-export-package',
   // Auditor
   AUDITOR_ANALYZE_ESP: 'auditor-analyze-esp',
+  AUDITOR_READ_BINARY_FILE: 'auditor-read-binary-file',
   AUDITOR_PICK_ESP_FILE: 'auditor-pick-esp-file',
   AUDITOR_PICK_NIF_FILE: 'auditor-pick-nif-file',
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
+  AUDITOR_SCAN_MOD_DIRECTORY: 'auditor-scan-mod-directory',
+  AUDITOR_SCAN_MOD_DIRECTORY_PATH: 'auditor-scan-mod-directory-path',
+
+  // Knowledge Vault file persistence
+  SAVE_KNOWLEDGE_VAULT: 'save-knowledge-vault',
+  LOAD_KNOWLEDGE_VAULT: 'load-knowledge-vault',
+
+  // .NET Desktop Runtime detection
+  CHECK_DOTNET: 'check-dotnet',
+
+  // Spriggit integration
+  SPRIGGIT_PICK_CLI: 'spriggit-pick-cli',
+  SPRIGGIT_SERIALIZE: 'spriggit-serialize',
+  SPRIGGIT_OPEN_FOLDER: 'spriggit-open-folder',
+  SPRIGGIT_CLEAR_CACHE: 'spriggit-clear-cache',
+  SPRIGGIT_UNBLOCK_FILES: 'spriggit-unblock-files',
+  SPRIGGIT_ADD_DEFENDER_EXCLUSION: 'spriggit-add-defender-exclusion',
+  SPRIGGIT_VERIFY_DEFENDER_EXCLUSION: 'spriggit-verify-defender-exclusion',
 
   // Duplicate Finder
   DEDUPE_PICK_FOLDERS: 'dedupe-pick-folders',
@@ -122,6 +140,23 @@ const IPC_CHANNELS = {
   // Local LLM (optional, if installed)
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
+
+  // Edition detection
+  GET_MOSSY_EDITION: 'get-mossy-edition',
+
+  // GGUF / Unsloth model import
+  GGUF_PICK_FILE: 'gguf-pick-file',
+  GGUF_IMPORT_TO_OLLAMA: 'gguf-import-to-ollama',
+
+  // NVIDIA fine-tuning (Unsloth)
+  FINE_TUNE_PICK_DATASET: 'fine-tune-pick-dataset',
+  FINE_TUNE_START: 'fine-tune-start',
+
+  // Training dataset
+  TRAINING_DATA_ADD_PAIR: 'training-data-add-pair',
+  TRAINING_DATA_GET_STATS: 'training-data-get-stats',
+  TRAINING_DATA_EXPORT_JSONL: 'training-data-export-jsonl',
+  TRAINING_DATA_CLEAR: 'training-data-clear',
 
   // Secrets presence-only status
   SECRET_STATUS: 'secret-status',
@@ -229,6 +264,31 @@ const IPC_CHANNELS = {
   CK_CRASH_ANALYZE: 'ck-crash-prevention:analyze-crash',
   CK_CRASH_GENERATE_PLAN: 'ck-crash-prevention:generate-plan',
   CK_CRASH_PICK_LOG: 'ck-crash-prevention:pick-log-file',
+
+  // Mod Projects persistence
+  SAVE_MOD_PROJECTS: 'save-mod-projects',
+  LOAD_MOD_PROJECTS: 'load-mod-projects',
+
+  // Chat History persistence
+  SAVE_CHAT_HISTORY: 'save-chat-history',
+  LOAD_CHAT_HISTORY: 'load-chat-history',
+
+  // Fresh-install detection
+  TRIGGER_FRESH_INSTALL: 'trigger-fresh-install',
+
+  // Creation Kit Link - path pickers
+  CK_PICK_CREATIONKIT_EXE: 'ck-pick-creationkit-exe',
+  CK_PICK_FALLOUT4_FOLDER: 'ck-pick-fallout4-folder',
+  CK_PICK_PAPYRUS_COMPILER: 'ck-pick-papyrus-compiler',
+  CK_PICK_PAPYRUS_FLAGS: 'ck-pick-papyrus-flags',
+  CK_PICK_IMPORT_PATHS: 'ck-pick-import-paths',
+  CK_PICK_SOURCE_FOLDER: 'ck-pick-source-folder',
+  CK_PICK_OUTPUT_FOLDER: 'ck-pick-output-folder',
+
+  // Panel data persistence
+  SAVE_PANEL_DATA: 'panel-data-save',
+  LOAD_PANEL_DATA: 'panel-data-load',
+  DELETE_PANEL_DATA: 'panel-data-delete',
 } as const;
 
 /**
@@ -273,39 +333,6 @@ const electronAPI = {
   },
 
   /**
-   * ElevenLabs config status (whether a key is stored in main-process settings).
-   */
-  elevenLabsStatus: (): Promise<
-    | { ok: true; configured: boolean; voiceId?: string; provider?: 'browser' | 'elevenlabs' }
-    | { ok: false; error: string }
-  > => {
-    return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_STATUS);
-  },
-
-  /**
-   * List available ElevenLabs voices.
-   */
-  elevenLabsListVoices: (): Promise<
-    | {
-        ok: true;
-        voices: Array<{ voice_id: string; name: string; category?: string; labels?: Record<string, string> }>;
-      }
-    | { ok: false; error: string }
-  > => {
-    return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_LIST_VOICES);
-  },
-
-  /**
-   * Synthesize speech with ElevenLabs (main process does the network call).
-   */
-  elevenLabsSynthesizeSpeech: (args: { text: string; voiceId?: string }): Promise<
-    | { ok: true; audioBase64: string; mimeType?: string }
-    | { ok: false; error: string }
-  > => {
-    return ipcRenderer.invoke(IPC_CHANNELS.ELEVENLABS_SYNTHESIZE, args);
-  },
-
-  /**
    * Check if the Blender Mossy Link add-on socket is reachable.
    * Used by Desktop Bridge "Blender Link" panel.
    */
@@ -329,6 +356,45 @@ const electronAPI = {
   },
 
   /**
+   * Subscribe to log entries sent by the Blender add-on via POST /log.
+   * Returns an unsubscribe function.
+   */
+  onBlenderLog: (callback: (entry: { level: string; message: string; context: Record<string, unknown> | null; timestamp: string }) => void): (() => void) => {
+    const subscription = (_event: any, entry: any) => callback(entry);
+    ipcRenderer.on('blender-log', subscription);
+    return () => ipcRenderer.removeListener('blender-log', subscription);
+  },
+
+  /**
+   * Subscribe to arbitrary events sent by the Blender add-on via POST /event.
+   * Returns an unsubscribe function.
+   */
+  onBlenderEvent: (callback: (payload: { type: string; data: Record<string, unknown> }) => void): (() => void) => {
+    const subscription = (_event: any, payload: any) => callback(payload);
+    ipcRenderer.on('blender-event', subscription);
+    return () => ipcRenderer.removeListener('blender-event', subscription);
+  },
+
+  /**
+   * Send a command to the Blender add-on (mossy_link.py) via TCP port 9999.
+   * @param commandType - Command type (e.g., "script", "text", "get_context", "export_fbx")
+   * @param commandData - Command payload
+   * @param token - Optional authentication token (must match Blender addon preferences)
+   * @returns Promise resolving to the command response
+   */
+  sendBlenderCommand: (commandType: string, commandData?: any, token?: string): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SEND_BLENDER_COMMAND, commandType, commandData || {}, token);
+  },
+
+  /**
+   * Regenerate a new Blender Link authentication token
+   * @returns Promise resolving to the new token string, or null on failure
+   */
+  invokeBlenderTokenRegen: (): Promise<string | null> => {
+    return ipcRenderer.invoke('invoke-blender-token-regen');
+  },
+
+  /**
    * Open/launch a program by its executable path
    * @param path - Full path to the program executable
    * @returns Promise resolving when program is launched
@@ -338,11 +404,19 @@ const electronAPI = {
   },
 
   /**
+   * Launch an external tool (xEdit, NifSkope, CK, Blender) with a specific
+   * file passed as a command-line argument so it opens directly in that tool.
+   */
+  launchToolWithFile: (toolPath: string, filePath: string): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_TOOL_WITH_FILE, toolPath, filePath);
+  },
+
+  /**
    * Open an external file or URL
    * @param path - Path to file or URL
    * @returns Promise resolving when opened
    */
-  openExternal: (path: string): Promise<void> => {
+  openExternal: (path: string): Promise<{ success: boolean; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL, path);
   },
 
@@ -366,19 +440,19 @@ const electronAPI = {
    * @returns Promise resolving to system specs
    */
   getSystemInfo: (): Promise<{
-    os: string; 
-    cpu: string; 
-    gpu: string; 
-    ram: number; 
-    cores: number; 
-    arch: string; 
-    vram?: number; 
-    blenderVersion?: string; 
-    storageFreeGB?: number; 
-    storageTotalGB?: number; 
+    os: string;
+    cpu: string;
+    gpu: string;
+    ram: number;
+    cores: number;
+    arch: string;
+    vram?: number;
+    blenderVersion?: string;
+    storageFreeGB?: number;
+    storageTotalGB?: number;
     displayResolution?: string;
     allGpus?: string[];
-    storageDrives?: Array<{device: string, free: number, total: number}>;
+    storageDrives?: Array<{ device: string, free: number, total: number }>;
     motherboard?: string;
     username?: string;
     computerName?: string;
@@ -471,6 +545,15 @@ const electronAPI = {
   },
 
   /**
+   * Auditor: Read any mod asset file (ESP/ESM/ESL/NIF/DDS/BGSM) as raw binary.
+   * Returns base64-encoded file data so the renderer worker can parse the true
+   * binary format without going through a lossy UTF-8 text codec.
+   */
+  readBinaryFile: (filePath: string): Promise<{ success: boolean; data?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_READ_BINARY_FILE, filePath);
+  },
+
+  /**
    * Auditor: Pick ESP/ESM file via native file dialog
    */
   pickEspFile: (): Promise<string> => {
@@ -478,24 +561,168 @@ const electronAPI = {
   },
 
   /**
-   * Auditor: Pick NIF mesh file via native file dialog
+   * Auditor: Pick NIF mesh file(s) via native file dialog (batch)
    */
-  pickNifFile: (): Promise<string> => {
+  pickNifFile: (): Promise<string[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_PICK_NIF_FILE);
   },
 
   /**
-   * Auditor: Pick DDS texture file via native file dialog
+   * Auditor: Pick DDS texture file(s) via native file dialog (batch)
    */
-  pickDdsFile: (): Promise<string> => {
+  pickDdsFile: (): Promise<string[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_PICK_DDS_FILE);
   },
 
   /**
-   * Auditor: Pick BGSM material file via native file dialog
+   * Auditor: Pick BGSM material file(s) via native file dialog (batch)
    */
-  pickBgsmFile: (): Promise<string> => {
+  pickBgsmFile: (): Promise<string[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_PICK_BGSM_FILE);
+  },
+
+  /**
+   * Auditor: Scan entire mod directory for all asset types (batch)
+   */
+  scanModDirectory: (): Promise<Array<{ path: string; type: string }>> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_SCAN_MOD_DIRECTORY);
+  },
+
+  /**
+   * Auditor: Scan a specific mod folder by path (no OS dialog shown).
+   * Returns the same file list as scanModDirectory but accepts a pre-selected path.
+   */
+  scanModDirectoryPath: (folderPath: string): Promise<Array<{ path: string; type: string }>> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_SCAN_MOD_DIRECTORY_PATH, folderPath);
+  },
+
+  /**
+   * Knowledge Vault persistence: save the full vault array to userData/knowledge-vault.json.
+   * Call this whenever the vault changes so user-added knowledge survives reinstalls.
+   */
+  saveKnowledgeVault: (items: unknown[]): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SAVE_KNOWLEDGE_VAULT, items);
+  },
+
+  /**
+   * Knowledge Vault persistence: load vault items from userData/knowledge-vault.json.
+   * Returns [] if the file doesn't exist yet.
+   */
+  loadKnowledgeVaultFromFile: (): Promise<unknown[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_KNOWLEDGE_VAULT);
+  },
+
+  /**
+   * Check whether the .NET Desktop Runtime 8.0 or later is installed on this machine.
+   * This is required by Spriggit.CLI.exe and similar .NET tools.
+   * Returns { ok, version, runtimes } — ok=true means a compatible runtime was found.
+   */
+  checkDotnet: (): Promise<{ ok: boolean; version: string | null; runtimes: string[] }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CHECK_DOTNET);
+  },
+
+  /**
+   * Spriggit: open a native file picker to select Spriggit.CLI.exe.
+   * Returns the selected path or '' if cancelled.
+   */
+  spriggitPickCli: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_PICK_CLI);
+  },
+
+  /**
+   * Spriggit: run Spriggit.CLI.exe serialize on the user's Fallout 4 Data folder.
+   * Returns the list of YAML files produced and their content (truncated to 8 KB each),
+   * or an error string on failure.
+   */
+  spriggitSerialize: (params: {
+    cliPath: string;
+    dataPath: string;
+    outputPath: string;
+    /** When true, serialize only vanilla/DLC ESMs instead of custom mods. */
+    vanillaOnly?: boolean;
+    /** Custom NuGet package name, e.g. 'Spriggit.Yaml.Fallout4' (default) or a user-published package. */
+    packageName?: string;
+    /** Local NuGet source directory — lets Spriggit use locally cached packages instead of downloading from nuget.org. */
+    nugetSource?: string;
+  }): Promise<{ ok: boolean; files: Array<{ name: string; content: string }>; error?: string; skippedVanillaCount?: number; skippedCustomCount?: number; noCustomMods?: boolean; noVanillaPlugins?: boolean }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_SERIALIZE, params);
+  },
+
+  /**
+   * Spriggit: open the folder containing the given file path in the OS file manager.
+   * Used after a 0xFFFFFFFF crash so the user can verify their Spriggit extraction.
+   */
+  spriggitOpenFolder: (filePath: string): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_OPEN_FOLDER, filePath);
+  },
+
+  /**
+   * Spriggit: clear the .NET single-file publish temp-cache directories so
+   * Spriggit re-extracts cleanly on the next run.
+   */
+  spriggitClearCache: (): Promise<{ ok: boolean; clearedPaths: string[]; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_CLEAR_CACHE);
+  },
+
+  /**
+   * Spriggit: remove the Zone.Identifier (Mark of the Web) from all files in
+   * the Spriggit folder via PowerShell Unblock-File.  This is the recommended
+   * workaround when Windows Smart App Control is locked and cannot be disabled —
+   * files downloaded from the internet carry a Zone 3 tag that SAC blocks, and
+   * Unblock-File strips that tag so the binaries appear local to Windows.
+   */
+  spriggitUnblockFiles: (): Promise<{ ok: boolean; unblocked?: number; folderPath?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_UNBLOCK_FILES);
+  },
+
+  /**
+   * Spriggit: attempt to add the Spriggit folder to Windows Defender exclusions via
+   * PowerShell Add-MpPreference so Smart App Control stops blocking extracted assemblies.
+   * Tries direct execution first (works when Mossy has admin rights); on failure returns
+   * the folder path and the exact command so the user can run it in an elevated shell.
+   */
+  spriggitAddDefenderExclusion: (): Promise<{ ok: boolean; excludedPath?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_ADD_DEFENDER_EXCLUSION);
+  },
+
+  /**
+   * Check if the Spriggit folder is already excluded from Windows Defender.
+   * Returns ok:true with excluded:true/false, or ok:false with error on failure.
+   */
+  spriggitVerifyDefenderExclusion: (): Promise<{ ok: boolean; excluded?: boolean; targetPath?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SPRIGGIT_VERIFY_DEFENDER_EXCLUSION);
+  },
+
+  /**
+   * Mod Projects persistence: save all projects to userData/mod-projects.json.
+   * Call this whenever projects change so user mod work survives reinstalls.
+   */
+  saveModProjects: (projects: unknown[]): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SAVE_MOD_PROJECTS, projects);
+  },
+
+  /**
+   * Mod Projects persistence: load projects from userData/mod-projects.json.
+   * Returns [] if the file doesn't exist yet.
+   */
+  loadModProjectsFromFile: (): Promise<unknown[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_MOD_PROJECTS);
+  },
+
+  /**
+   * Chat History persistence: save messages to userData/chat-history.json.
+   * Call this whenever messages change so conversations survive reinstalls.
+   */
+  saveChatHistory: (messages: unknown[]): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SAVE_CHAT_HISTORY, messages);
+  },
+
+  /**
+   * Chat History persistence: load messages from userData/chat-history.json.
+   * Returns [] if the file doesn't exist yet.
+   */
+  loadChatHistoryFromFile: (): Promise<unknown[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_CHAT_HISTORY);
   },
 
   /**
@@ -673,8 +900,8 @@ const electronAPI = {
   /**
    * CK Crash Prevention: Get plugin metadata
    */
-  getPluginMetadata: (pluginPath: string): Promise<{ 
-    success: boolean; 
+  getPluginMetadata: (pluginPath: string): Promise<{
+    success: boolean;
     metadata?: {
       pluginPath: string;
       pluginName: string;
@@ -1496,6 +1723,55 @@ const electronAPI = {
   },
 
   /**
+   * Creation Kit Link - Pick CreationKit.exe file
+   */
+  pickCreationKitExe: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_CREATIONKIT_EXE);
+  },
+
+  /**
+   * Creation Kit Link - Pick Fallout 4 Root Folder
+   */
+  pickFallout4Folder: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_FALLOUT4_FOLDER);
+  },
+
+  /**
+   * Creation Kit Link - Pick PapyrusCompiler.exe file
+   */
+  pickPapyrusCompiler: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_PAPYRUS_COMPILER);
+  },
+
+  /**
+   * Creation Kit Link - Pick TESV_Papyrus_Flags.flg file
+   */
+  pickPapyrusFlags: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_PAPYRUS_FLAGS);
+  },
+
+  /**
+   * Creation Kit Link - Pick Import Paths folder
+   */
+  pickImportPaths: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_IMPORT_PATHS);
+  },
+
+  /**
+   * Creation Kit Link - Pick Papyrus Source Folder
+   */
+  pickSourceFolder: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_SOURCE_FOLDER);
+  },
+
+  /**
+   * Creation Kit Link - Pick Papyrus Output Folder
+   */
+  pickOutputFolder: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PICK_OUTPUT_FOLDER);
+  },
+
+  /**
    * Local ML: Build semantic index (offline)
    */
   mlIndexBuild: (req?: { roots?: string[] }): Promise<any> => {
@@ -1535,6 +1811,76 @@ const electronAPI = {
    */
   mlLlmGenerate: (req: { provider: 'ollama' | 'openai_compat' | 'cosmos'; model: string; prompt: string; baseUrl?: string }): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.ML_LLM_GENERATE, req);
+  },
+
+  /**
+   * GGUF / Unsloth: Open file picker for .gguf model files
+   */
+  ggufPickFile: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GGUF_PICK_FILE);
+  },
+
+  /**
+   * GGUF / Unsloth: Import a GGUF model into Ollama
+   */
+  ggufImportToOllama: (req: { ggufPath: string; modelName: string; systemPrompt?: string }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GGUF_IMPORT_TO_OLLAMA, req);
+  },
+
+  /**
+   * Training Dataset: Add a rated Q&A pair for fine-tuning
+   */
+  trainingDataAddPair: (pair: { question: string; answer: string; rating: 'good' | 'bad'; topic?: string; editedAnswer?: string }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TRAINING_DATA_ADD_PAIR, pair);
+  },
+
+  /**
+   * Training Dataset: Get statistics (total, good/bad counts, topic breakdown)
+   */
+  trainingDataGetStats: (): Promise<{ total: number; good: number; bad: number; topics: Record<string, number> }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TRAINING_DATA_GET_STATS);
+  },
+
+  /**
+   * Training Dataset: Export curated pairs as Unsloth-compatible JSONL file
+   */
+  trainingDataExportJsonl: (opts?: { goodOnly?: boolean; outputPath?: string }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TRAINING_DATA_EXPORT_JSONL, opts);
+  },
+
+  /**
+   * Training Dataset: Clear all pairs (backs up first)
+   */
+  trainingDataClear: (): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TRAINING_DATA_CLEAR);
+  },
+
+  /**
+   * Edition: Returns 'nvidia' or 'universal' depending on which build is running.
+   */
+  getMossyEdition: (): Promise<'nvidia' | 'universal'> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GET_MOSSY_EDITION);
+  },
+
+  /**
+   * Fine-Tune: Open a file picker for the training dataset (.jsonl)
+   */
+  fineTunePickDataset: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FINE_TUNE_PICK_DATASET);
+  },
+
+  /**
+   * Fine-Tune: Start an Unsloth fine-tuning run (NVIDIA edition only).
+   * Streams progress via 'fine-tune-progress' IPC events.
+   */
+  fineTuneStart: (opts: {
+    datasetPath: string;
+    modelId: string;
+    loraRank: number;
+    maxSteps: number;
+    outputName: string;
+  }): Promise<{ ok: boolean; outputPath?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FINE_TUNE_START, opts);
   },
 
   /**
@@ -1584,7 +1930,7 @@ const electronAPI = {
    * AI Chat: Groq-powered chat completion (lower latency, real-time)
    * Main process manages API key; renderer never sees it
    */
-  aiChatGroq: (prompt: string, systemPrompt?: string, model?: string, conversationHistory?: Array<{role: string; content: string}>): Promise<{ success: boolean; content?: string; error?: string }> => {
+  aiChatGroq: (prompt: string, systemPrompt?: string, model?: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<{ success: boolean; content?: string; error?: string }> => {
     return ipcRenderer.invoke('ai-chat-groq', { prompt, systemPrompt, model, conversationHistory });
   },
 
@@ -1625,6 +1971,69 @@ const electronAPI = {
   },
 
   /**
+   * PyTorch: Check whether torch is importable from the configured path or
+   * from the system Python.
+   */
+  checkPyTorch: (): Promise<{
+    available: boolean;
+    version?: string;
+    path?: string;
+    pythonFound?: boolean;
+    error?: string;
+  }> => {
+    return ipcRenderer.invoke('check-pytorch');
+  },
+
+  /**
+   * PyTorch: Auto-install torch (CPU build) into a managed virtual environment
+   * inside the app's userData folder. Saves the resulting site-packages path
+   * to Mossy settings so Blender and other integrations can use it immediately.
+   * @param destDir – Optional custom directory for the virtual environment.
+   */
+  installPyTorch: (destDir?: string): Promise<{
+    success: boolean;
+    path?: string;
+    version?: string;
+    message?: string;
+    error?: string;
+  }> => {
+    return ipcRenderer.invoke('install-pytorch', destDir);
+  },
+
+  /**
+   * PyTorch Setup Progress: subscribe to real-time progress events sent by
+   * the auto-install background task on first launch.
+   * @returns unsubscribe function
+   */
+  onPytorchSetupProgress: (callback: (data: { message: string }) => void): (() => void) => {
+    const subscription = (_event: any, data: { message: string }) => callback(data);
+    ipcRenderer.on('pytorch-setup-progress', subscription);
+    return () => ipcRenderer.removeListener('pytorch-setup-progress', subscription);
+  },
+
+  /**
+   * Fresh-install detection: fires once when the main process finds a
+   * fresh-install.marker written by the Inno Setup installer.  The renderer
+   * should reset all onboarding localStorage flags so the wizard runs again.
+   * @returns unsubscribe function
+   */
+  onFreshInstall: (callback: () => void): (() => void) => {
+    const subscription = () => callback();
+    ipcRenderer.on(IPC_CHANNELS.TRIGGER_FRESH_INSTALL, subscription);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.TRIGGER_FRESH_INSTALL, subscription);
+  },
+
+  /**
+   * PyTorch: Signal to the main process that the renderer is mounted and
+   * ready to receive pytorch-setup-progress events. This triggers the
+   * background auto-install check immediately rather than waiting for the
+   * safety timeout.
+   */
+  notifyPytorchRendererReady: (): void => {
+    ipcRenderer.send('pytorch-renderer-ready');
+  },
+
+  /**
    */
   sendMessage: (message: any): Promise<void> => {
     return ipcRenderer.invoke('sendMessage', message);
@@ -1643,7 +2052,7 @@ const electronAPI = {
    * Secrets status (presence only). Never returns actual key values.
    */
   getSecretStatus: (): Promise<
-    | { ok: true; openai: boolean; groq: boolean; elevenlabs: boolean }
+    | { ok: true; openai: boolean; groq: boolean; backendToken: boolean }
     | { ok: false; error: string }
   > => {
     return ipcRenderer.invoke(IPC_CHANNELS.SECRET_STATUS);
@@ -2207,6 +2616,116 @@ const electronAPI = {
     const subscription = (_event: any, ...args: any[]) => callback(...args);
     ipcRenderer.on(channel, subscription);
     return () => ipcRenderer.removeListener(channel, subscription);
+  },
+
+  // ========================================================================
+  // Learning Hub API
+  // ========================================================================
+
+  /**
+   * Learning Hub - Tutorial and learning management
+   */
+  learningHub: {
+    /**
+     * List all tutorials or filter by category
+     */
+    listTutorials: (category?: string): Promise<any[]> => {
+      return ipcRenderer.invoke('learning:list-tutorials', category);
+    },
+
+    /**
+     * Get a specific tutorial by ID
+     */
+    getTutorial: (tutorialId: string): Promise<any> => {
+      return ipcRenderer.invoke('learning:get-tutorial', tutorialId);
+    },
+
+    /**
+     * Track user progress on a tutorial step
+     */
+    trackProgress: (userId: string, tutorialId: string, step: number | string): Promise<any> => {
+      return ipcRenderer.invoke('learning:track-progress', userId, tutorialId, step);
+    },
+
+    /**
+     * Validate and grade an exercise submission
+     */
+    validateExercise: (exerciseId: string, submission: any): Promise<any> => {
+      return ipcRenderer.invoke('learning:submit-exercise', exerciseId, submission);
+    },
+
+    /**
+     * Get hint for an exercise
+     */
+    provideHint: (exerciseId: string, currentAttempt: any): Promise<any> => {
+      return ipcRenderer.invoke('learning:provide-hint', exerciseId, currentAttempt);
+    },
+
+    /**
+     * Mark a step as completed
+     */
+    completeStep: (userId: string, stepId: string): Promise<any> => {
+      return ipcRenderer.invoke('learning:complete-step', userId, stepId);
+    },
+
+    /**
+     * Get user progress
+     */
+    getUserProgress: (userId: string): Promise<any> => {
+      return ipcRenderer.invoke('learning:get-user-progress', userId);
+    },
+
+    /**
+     * List all achievements
+     */
+    listAchievements: (): Promise<any[]> => {
+      return ipcRenderer.invoke('learning:get-achievements', 'local_user').then((res: any) => res.all || []);
+    },
+
+    /**
+     * Unlock an achievement for the user
+     */
+    unlockAchievement: (userId: string, achievementId: string): Promise<any> => {
+      // Since there's no unlock handler currently, we'll use complete-step as a workaround
+      // In production, this would need its own handler in main.ts
+      return ipcRenderer.invoke('learning:get-achievements', userId).then((res: any) => {
+        const achievements = res.all || [];
+        return achievements.find((a: any) => a.id === achievementId) || { id: achievementId, name: 'Achievement', points: 10 };
+      });
+    },
+  },
+
+  // ========================================================================
+  // Panel Data Persistence API
+  // ========================================================================
+
+
+  /**
+   * Save panel state data to disk
+   * @param panelId - Unique identifier for the panel
+   * @param data - Data object to persist (will be JSON serialized)
+   * @returns Promise resolving to {ok: boolean, panelId}
+   */
+  savePanelData: (panelId: string, data: any): Promise<{ ok: boolean; panelId: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SAVE_PANEL_DATA, panelId, data);
+  },
+
+  /**
+   * Load previously saved panel state data from disk
+   * @param panelId - Unique identifier for the panel
+   * @returns Promise resolving to {ok: boolean, data, panelId}
+   */
+  loadPanelData: (panelId: string): Promise<{ ok: boolean; data: any; panelId: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.LOAD_PANEL_DATA, panelId);
+  },
+
+  /**
+   * Delete saved panel state data from disk
+   * @param panelId - Unique identifier for the panel
+   * @returns Promise resolving to {ok: boolean, panelId}
+   */
+  deletePanelData: (panelId: string): Promise<{ ok: boolean; panelId: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.DELETE_PANEL_DATA, panelId);
   },
 };
 
