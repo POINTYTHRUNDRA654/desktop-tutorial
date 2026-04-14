@@ -41,7 +41,28 @@ jobs:
       - name: Run prepackage steps
         run: npm run prepackage
 
-      - name: Package and publish to GitHub Releases
-        run: npx electron-builder --win --publish always
+      - name: Delete existing draft releases (if any)
+        continue-on-error: true
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          Write-Host "Checking for existing v$version releases..."
+          
+          $releases = gh release list --json tagName,name,isDraft | ConvertFrom-Json
+          foreach ($release in $releases) {
+            if ($release.tagName -eq "v$version" -or $release.name -like "*$version*") {
+              Write-Host "Found release: $($release.tagName) (Draft: $($release.isDraft))"
+              if ($release.isDraft) {
+                Write-Host "Deleting draft release: $($release.tagName)"
+                gh release delete $release.tagName --yes
+              }
+            }
+          }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package and publish to GitHub Releases
+        run: npx electron-builder --win --publish always
+        timeout-minutes: 30
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
