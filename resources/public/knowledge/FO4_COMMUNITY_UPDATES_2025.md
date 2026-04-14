@@ -11,17 +11,19 @@
 |---|---|---|
 | April 25, 2024 | **NG Update (1.10.980 → 1.10.984)** | Broke all F4SE DLL mods; BA2 V7/V8 introduced |
 | Late 2024 | **F4SE 0.7.x stabilises for NG** | Most F4SE mods updated; Address Library AiO required |
-| March 2025 | **Buffout 4 NG v1.37.0** | Unified DLL for OG + NG; PDB support |
-| Mid 2025 | **X-Cell rebranded → Addictol** | Replaces several older stability shims |
-| November 10, 2025 | **v1.11.169 "Creations Menu" patch** | F4SE broken again; new Creations Menu + Verified Creator Program |
+| March 2025 | **Buffout 4 NG v1.37.0** | Unified DLL for OG + NG; PDB support (now superseded by Addictol) |
+| Mid 2025 | **X-Cell evolved → Addictol** | All-in-one engine patch; supersedes Buffout 4 (all variants), X-Cell, BakaMaxPapyrusOps, Faster Workshop, and more |
+| November 10, 2025 | **v1.11.x "Anniversary Edition" update** | Bethesda's official "Anniversary Edition" branding; F4SE broken again; Creations Menu + Verified Creator Program; 150+ bundled CC items |
 | December 2025 | **F4SE 0.7.7 for runtime 1.11.191** | Restores F4SE compatibility with latest game executable |
 | March 2026 | **PRP 81.3 / 81.5** | Latest stable Previsibines Repair Pack releases |
 
 ---
 
-## Version 4: v1.11.x — The "Creations Menu" Update (November 2025)
+## Version 4: v1.11.x — The "Anniversary Edition" Update (November 2025)
 
-**Game version:** 1.11.169 → 1.11.191 (and later patches)
+> **⚠️ AE Naming Disambiguation**: Bethesda officially branded the November 2025 / 1.11.x update as **"Fallout 4: Anniversary Edition"**. However, in community usage (Nexus, Reddit, Discord) "AE" has historically referred to the April 2024 NG update with the 76 bundled free CC items (EXE 1.10.984). When someone says "AE" always clarify which they mean — **community AE = NG + 76 CC items (1.10.984)**, **official Bethesda AE = 1.11.x (November 2025)**. This guide uses "1.11.x" to refer to the official Anniversary Edition to avoid confusion.
+
+**Game version:** 1.11.137 (November 10, 2025) → 1.11.191 (December 2025, current)
 
 Bethesda released this update on **November 10, 2025**. It is the largest change since the April 2024 NG patch and has significant modding implications.
 
@@ -49,12 +51,11 @@ Bethesda released this update on **November 10, 2025**. It is the largest change
 |---|---|---|
 | F4SE | **0.7.7** | For runtime 1.11.191; download from f4se.silverlock.org |
 | Address Library | **1.11.191** | "All In One (Anniversary Edition)" build; Nexus #47327 |
-| Buffout 4 NG | **1.37.0+** | Crash logger only — memory management removed in NG version |
-| X-Cell / Addictol | **Latest** | **PRIMARY stability tool** — memory, stutter, FaceGen fix |
+| Addictol | **Latest** | **ALL-IN-ONE stability tool** — supersedes Buffout 4 (all variants). Do NOT also install Buffout 4. |
 | High FPS Physics Fix | **0.8.13+** | Nexus #44798 |
 | PRP | **81.5** | Nexus #46403; March 2026 release |
 | UFO4P | Latest | Always use latest |
-| xEdit / FO4Edit | **4.0.3+** | Supports NG + 1.11.x records |
+| xEdit / FO4Edit | **4.0.4+** | Supports NG + 1.11.x records |
 | LOOT | **0.21+** | Understands NG/AE masters |
 | MCM Framework (MCM NG) | NG build required | Check mod page for 1.11.x note |
 
@@ -72,36 +73,28 @@ Bethesda released this update on **November 10, 2025**. It is the largest change
 ### Address Library for F4SE Plugins
 - **Nexus mod ID: 47327**
 - Install the **"All In One (Anniversary Edition)"** option for all NG/1.11.x versions.
-- Required by Buffout 4 NG, Addictol, High FPS Physics Fix, MCM NG, and almost every `.dll` mod.
+- Required by Addictol, High FPS Physics Fix, MCM NG, and almost every `.dll` mod.
 - Latest version: **1.11.191** (matches the runtime).
 
 ### xEdit / FO4Edit
-- **Version: 4.0.3+** (check TES5Edit GitHub for latest)
+- **Version: 4.0.4+** (check TES5Edit GitHub for latest)
 - Now supports all NG and 1.11.x records.
-- Use **4.0.3+** for all cleaning and conflict resolution — older guides referencing 3.x cleaning procedures are no longer valid with xEdit 4.x.
+- Use **4.0.4+** for all cleaning and conflict resolution.
 - Required for navmesh repair workflows (see `NAVMESH_FIX_GUIDE.md`).
 
-### X-Cell / Addictol — PRIMARY Stability Tool
-- **Nexus mod ID: 84214** | Rebranded from X-Cell to Addictol in mid-2025
-- **X-Cell is the new Buffout for memory.** Buffout 4 NG lost its memory management features in the NG update — X-Cell fills that entire gap.
-- Handles: memory allocation and fragmentation, micro-stutter (especially in NPC-heavy/scripted scenes), FaceGen (missing head) bugs in modded setups.
-- **Replaces** (do not use alongside X-Cell): Baka ScrapHeap, Fallout Priority, Private Profile Redirector.
-- **CRITICAL TOML config** when using Buffout 4 NG + X-Cell together — disable these in `Buffout4.toml`:
-  ```
-  MemoryManager = false
-  HavokMemorySystem = false
-  BSTextureStreamerLocalHeap = false
-  ```
-- Community TOML configs: nexusmods.com/fallout4/articles/5976
-- Great for Fallout: London, Sim Settlements 2, and any overhaul with large settlement builds — community reports X-Cell eliminated crashes where Buffout 4 NG alone did not.
+### Addictol — ALL-IN-ONE Stability Tool (supersedes Buffout 4)
+- **Nexus mod ID: 84214** | Evolved from X-Cell; now a complete engine-patch suite
+- **Addictol supersedes and includes Buffout 4 (OG / NG / AE).** Do NOT install any flavour of Buffout 4 alongside Addictol — they will conflict.
+- **What it handles**: memory manager (vmm allocator), small-block/scaleform allocators, FaceGen bugs, micro-stutter, BakaMaxPapyrusOps, Interior NavCut Fix, Faster Workshop, Long Save Bug Fix, Disk Cache Enabler, Drop 7FFF Fix, Escape Freeze fix, and many engine crash fixes. See the full `[Patches]` / `[Fixes]` / `[Additional]` config for the complete list.
+- **Do NOT install alongside Addictol** (superseded/included): Buffout 4 (all variants), X-Cell, Mentats, Baka ScrapHeap, Fallout Priority, Private Profile Redirector, Escape Freeze, BakaMaxPapyrusOps, Interior NavCut Fix, Persistent Volume Sliders, Long Save Bug Fix, Disk Cache Enabler, Drop 7FFF Fix, Faster Workshop.
+- Great for Fallout: London, Sim Settlements 2, and any overhaul with large settlement builds.
+- Required: F4SE + Address Library AiO (Nexus #47327).
 
-### Buffout 4 NG — Crash Logger
+### Buffout 4 NG — ⚠️ Superseded by Addictol
 - **Nexus mod ID: 64880** | **GitHub: alandtse/Buffout4**
-- Version **1.37.0** (March 2025) — unified DLL for OG + NG, PDB support for readable crash logs.
-- **Role**: Crash logging and engine bugfixes ONLY — memory management was removed from the NG version. X-Cell handles memory.
-- Requires: Address Library, F4SE, Microsoft Visual C++ Redistributables (2022 x64).
-- Crash logs written to `%LOCALAPPDATA%\Fallout4\F4SE\` — share logs in the Collective Modding Discord for help.
-- **Pair with CLASSIC** for automated crash log scanning.
+- **⚠️ If you are using Addictol, do NOT install Buffout 4 (any variant: OG / NG / AE).** Addictol includes all of Buffout 4's functionality. Installing both will cause conflicts.
+- Buffout 4 NG remains relevant **only** if you specifically need it without Addictol (uncommon), or for historical reference in older guides.
+- **Pair with CLASSIC** for crash log scanning if not using Addictol.
 
 ### High FPS Physics Fix
 - **Nexus mod ID: 44798**
@@ -126,6 +119,12 @@ Bethesda released this update on **November 10, 2025**. It is the largest change
 ---
 
 ## New Must-Have Mods (2024–2026 Era)
+
+### Sim Settlements 2
+- **Current version: 3.5.3** (March 2026) — covers Chapters 1, 2, and 3.
+- Compatible with 1.10.163 (OG) through 1.11.x; built and tested against OG but forward-compatible.
+- **Warning**: Avoid using the in-game Creations menu if you rely on SS2 — enabling/disabling mods through the in-game menu can cause instability with large mods. Always manage your load order through MO2 or Vortex.
+- SS2 and Fallout: London are not officially compatible — both are massive overhauls; expect conflicts without a dedicated patch.
 
 ### CLASSIC — Crash Log Auto Scanner & Setup Integrity Checker
 - **Nexus mod ID: 56255** | **GitHub: GuidanceOfGrace/CLASSIC-Fallout4**
@@ -169,7 +168,7 @@ Bethesda released this update on **November 10, 2025**. It is the largest change
 ### The Midnight Ride
 - Community modding guide at **themidnightride.moddinglinked.com**.
 - Considered the authoritative NG modding setup guide.
-- Covers Addictol, Buffout 4 NG, High FPS Physics Fix, FallUI, MCM NG, and full load order guidance.
+- Covers Addictol, High FPS Physics Fix, FallUI, MCM NG, and full load order guidance.
 - Changelog kept up to date with every new Bethesda patch.
 
 ### Wabbajack NG-Ready Lists
@@ -226,14 +225,9 @@ Bethesda released this update on **November 10, 2025**. It is the largest change
 - If a mod requires AWKCR, check for an updated "AWKCR-free" version on its Nexus page.
 - New mods should **not** depend on AWKCR — use standalone keywords or ECO instead.
 
-### Baka ScrapHeap / Fallout Priority / Private Profile Redirector
-- **All three are superseded by X-Cell / Addictol** — do NOT install them alongside X-Cell.
-- If you have any of these installed, remove them before adding X-Cell.
-
-### Old Buffout 4 (pre-NG)
-- The original Buffout 4 (pre-alandtse fork) is **not fully compatible with NG or 1.11.x**.
-- Always use **Buffout 4 NG** (Nexus #64880) — this is the maintained fork.
-- Even Buffout 4 NG's memory manager is disabled when using X-Cell — X-Cell is the memory solution.
+### Buffout 4 (all variants) / X-Cell / BakaMaxPapyrusOps / Baka ScrapHeap / Fallout Priority / Private Profile Redirector
+- **All superseded by Addictol** — do NOT install any of them alongside Addictol.
+- If you have any installed, remove them before adding Addictol. This includes Buffout 4 OG, Buffout 4 NG, and X-Cell.
 
 ### Pre-2024 F4SE Plugins
 - Any `.dll` mod compiled for 1.10.163 will crash the game on NG or 1.11.x.
@@ -248,21 +242,17 @@ Install these in order for a stable foundation before adding any content mods:
 ```
 1. F4SE 0.7.7+ (from f4se.silverlock.org)
 2. Address Library for F4SE — All In One (Nexus #47327)
-3. Buffout 4 NG v1.37.0+ (Nexus #64880) — crash logger
-4. X-Cell / Addictol (Nexus #84214) — PRIMARY memory/stability tool
-   → After installing both: set MemoryManager=false, HavokMemorySystem=false,
-     BSTextureStreamerLocalHeap=false in Buffout4.toml
-5. High FPS Physics Fix 0.8.13+ (Nexus #44798)
-6. BakaMaxPapyrusOps (matching F4SE version)
-7. Unofficial Fallout 4 Patch (UFO4P) — latest
-8. PRP 81.5 (Nexus #46403)
-9. MCM NG (NG build)
-10. CLASSIC crash scanner (Nexus #56255)
-11. Canary Save Scummer
+3. Addictol (Nexus #84214) — ALL-IN-ONE stability tool (memory, crashes, script perf, workshop, and more)
+   ⚠️ Do NOT also install Buffout 4, X-Cell, BakaMaxPapyrusOps, Faster Workshop, or any other superseded mod (see Addictol mod page for full list)
+4. High FPS Physics Fix 0.8.13+ (Nexus #44798)
+5. Unofficial Fallout 4 Patch (UFO4P) — latest
+6. PRP 81.5 (Nexus #46403)
+7. MCM NG (NG build)
+8. CLASSIC crash scanner (Nexus #56255)
+9. Canary Save Scummer
 ```
 
-Load order for stability mods: **Buffout 4 NG → X-Cell** load via F4SE automatically; **PRP loads late** (after worldspace mods); **UFO4P loads after all DLC**.
-Community TOML reference: nexusmods.com/fallout4/articles/5976
+Load order for stability mods: **Addictol** loads via F4SE automatically; **PRP loads late** (after worldspace mods); **UFO4P loads after all DLC**.
 
 ---
 
@@ -285,4 +275,13 @@ Community TOML reference: nexusmods.com/fallout4/articles/5976
 
 ---
 
-*Last updated: March 2026. Game runtime history: 1.10.163 (OG) → 1.10.980/984 (NG, April 2024) → 1.11.169/191 (Creations Menu, November 2025).*
+## Platform Notes (2026)
+
+### Nintendo Switch 2
+- Fallout 4: Anniversary Edition launched on Switch 2 in 2026 with all 6 DLCs and 150+ curated CC items.
+- **PC modding is unaffected** — Switch 2 does not support open community modding (no F4SE, no Nexus, no MO2). Only curated Creations content via Bethesda's in-game menu is available.
+- If a user mentions "Switch 2", confirm they are asking about official CC content, not traditional PC mod workflows.
+
+---
+
+*Last updated: April 2026. Game runtime history: 1.10.163 (OG) → 1.10.980/984 (NG, April 2024) → 1.11.137/191 (Anniversary Edition, November–December 2025).*

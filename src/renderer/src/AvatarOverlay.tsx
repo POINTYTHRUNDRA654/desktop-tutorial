@@ -1,4 +1,5 @@
 import React from 'react';
+import toast from 'react-hot-toast';
 import AvatarCore from './AvatarCore';
 import { useLive } from './LiveContext';
 
@@ -27,7 +28,7 @@ const AvatarOverlay: React.FC = () => {
     try {
       if (!connect || !disconnect) {
         console.error('[AvatarOverlay] Connect or disconnect functions not available');
-        alert('Voice chat functions not available. Please refresh the app.');
+        toast.error('Voice chat functions not available. Please refresh the app.');
         return;
       }
       
@@ -42,7 +43,7 @@ const AvatarOverlay: React.FC = () => {
     } catch (err: any) {
       console.error('[AvatarOverlay] Click handler error:', err);
       console.error('[AvatarOverlay] Error stack:', err?.stack);
-      alert(`Voice chat error: ${err?.message || 'Unknown error'}`);
+      toast.error(`Voice chat error: ${err?.message || 'Unknown error'}`);
     } finally {
       // Small delay to prevent rapid clicking
       setTimeout(() => setIsProcessing(false), 500);
@@ -58,11 +59,11 @@ const AvatarOverlay: React.FC = () => {
       onClick={handleClick}
       style={{
         position: 'fixed',
-        top: 88,
-        right: 24,
+        bottom: 110,
+        left: 8,
         zIndex: 1000,
-        width: 80,
-        height: 80,
+        width: 52,
+        height: 52,
         borderRadius: '50%',
         background: 'rgba(15,23,42,0.95)',
         border: `2px solid ${borderColor}`,

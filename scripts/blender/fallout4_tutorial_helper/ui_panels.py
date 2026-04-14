@@ -6,6 +6,14 @@ All bpy.types.Panel subclasses for the FO4 pipeline sidebar.
 import bpy
 from bpy.types import Panel
 
+# Mossy link — available after register() runs
+try:
+    from . import mossy_link as _mossy
+    _MOSSY_AVAILABLE = True
+except ImportError:
+    _mossy = None  # type: ignore[assignment]
+    _MOSSY_AVAILABLE = False
+
 
 class FO4_PT_pipeline(Panel):
     bl_label = "FO4 Asset Pipeline"
@@ -16,6 +24,24 @@ class FO4_PT_pipeline(Panel):
 
     def draw(self, context):
         layout = self.layout
+
+        # — Mossy AI Link ————————————————————————————————
+        box = layout.box()
+        box.label(text="Mossy AI Link", icon='NETWORK_DRIVE')
+        if _MOSSY_AVAILABLE and _mossy:
+            status = _mossy.get_status()
+            if status.get('running'):
+                row = box.row()
+                row.label(
+                    text=f"Connected  v{status.get('version', '?')}",
+                    icon='CHECKMARK',
+                )
+            else:
+                box.label(text="Not connected — open Mossy", icon='ERROR')
+        else:
+            box.label(text="mossy_link unavailable", icon='QUESTION')
+        box.operator("fo4.sync_from_mossy", icon='FILE_REFRESH',
+                     text="Sync Settings & PyTorch from Mossy")
 
         # — Scene Setup ——————————————————————————————————
         box = layout.box()

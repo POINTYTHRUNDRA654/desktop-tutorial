@@ -1,11 +1,19 @@
 {
   "name": "mossy-desktop",
   "private": true,
-  "version": "5.4.24",
-  "description": "Mossy v5.4.24 - Production-ready Fallout 4 modding assistant with AI, comprehensive quality audit, real system metrics, and professional asset optimization",
+  "version": "5.4.27",
+  "description": "Mossy v5.4.27 - Professional Fallout 4 modding assistant with AI, full OG/NG/AE/Creations Menu version awareness, and professional asset optimization",
   "main": "dist-electron/electron/main.js",
   "author": "POINTYTHRUNDRA654",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git"
+  },
+  "homepage": "https://github.com/POINTYTHRUNDRA654/desktop-tutorial#readme",
+  "bugs": {
+    "url": "https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues"
+  },
   "overrides": {
     "tar": "^7.5.10",
     "basic-ftp": "^5.2.0",
@@ -29,12 +37,14 @@
     "dev:electron": "node -e \"const path=require('path'); const { spawn }=require('child_process'); const port=Number(process.env.VITE_DEV_SERVER_PORT||5174); const url='http://127.0.0.1:'+port; const electronBin=process.platform==='win32'?path.join(process.cwd(),'node_modules','.bin','electron.cmd'):'electron'; console.log('[dev:electron] Delaying Electron launch for Vite...'); setTimeout(()=>{ const env={...process.env, ELECTRON_START_URL:url}; const child=spawn(electronBin,['.'],{ stdio:'inherit', env, shell:true, windowsHide:true }); child.on('exit',(code)=>process.exit(code||0)); child.on('error',(err)=>{ console.error('[dev:electron] spawn error:', err?.message||err); process.exit(1); }); }, 2000);\"",
     "build": "npm run validate-version && npm run build:vite && npm run build:electron",
     "build:vite": "vite build",
-    "prebuild:vite": "node scripts/copy-knowledge.mjs",
+    "prebuild:vite": "node scripts/fetch-community-knowledge.mjs && node scripts/copy-knowledge.mjs",
     "build:electron": "tsc -p tsconfig.electron.json",
     "start": "cross-env NODE_ENV=production electron .",
-    "prepackage": "npm run validate-version && node scripts/verify-build.mjs && node scripts/package-blender-addons.mjs",
+    "prepackage": "npm run validate-version && node scripts/verify-build.mjs && node scripts/package-blender-addons.mjs && node scripts/fetch-python-embedded.mjs",
     "package": "npm run build && electron-builder",
     "package:win": "npm run build && electron-builder --win",
+    "package:win:universal": "npm run build && electron-builder --win",
+    "package:win:nvidia": "npm run build && electron-builder --win --config.productName=\"Mossy NVIDIA\" --config.appId=\"com.volttech.desktop-nvidia\" --config.win.artifactName=\"Mossy NVIDIA ${version}.${ext}\"",
     "setup-keys": "node scripts/setup-keys.mjs",
     "check-comms": "node scripts/check-comms.mjs",
     "test-web-search": "node scripts/test-web-search.mjs",
@@ -52,12 +62,14 @@
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:headed": "playwright test --headed",
     "capture-screenshots": "node scripts/capture-screenshots.mjs",
-    "smoke": "npm run lint && npm run test",
+    "smoke": "npm run check-conflicts && npm run lint && npm run test",
     "verify": "npm run smoke && npm run build",
     "backend:dev": "tsx watch src/backend/index.ts",
     "backend:build": "tsc -p tsconfig.backend.json",
     "backend:start": "node dist-backend/index.js",
-    "token-server": "ts-node backend/token-server.ts"
+    "token-server": "ts-node backend/token-server.ts",
+    "check-conflicts": "node scripts/check-no-conflict-markers.js",
+    "extract-translations": "node scripts/extract-translations.mjs"
   },
   "dependencies": {
     "@emnapi/runtime": "1.8.1",
@@ -142,7 +154,7 @@
     "tsx": "4.21.0",
     "typescript": "5.3.3",
     "vite": "^7.3.1",
-    "vitest": "^4.0.18",
+    "vitest": "4.1.1",
     "wait-on": "^7.2.0"
   },
   "build": {
@@ -156,7 +168,10 @@
       "dist-electron/**/*",
       "external/volttech-dist/**/*",
       "public/**/*",
-      ".env.encrypted"
+      ".env.encrypted",
+      "CREDITS.md",
+      "LICENSE",
+      "LICENSE.electron.txt"
     ],
     "extraResources": [
       {
@@ -172,13 +187,34 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "resources/python-embedded",
+        "to": "python-embedded",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "CREDITS.md",
+        "to": ".",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "LICENSE",
+        "to": ".",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "publish": {
       "provider": "github",
       "owner": "POINTYTHRUNDRA654",
       "repo": "desktop-tutorial",
-      "releaseType": "release"
+      "releaseType": "prerelease"
     },
     "mac": {
       "target": "dmg",
@@ -187,23 +223,14 @@
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "portable",
           "arch": [
-            "x64",
-            "ia32"
+            "x64"
           ]
         }
       ],
-      "icon": "build/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Mossy",
-      "differentialPackage": true
+      "icon": "build/icon.ico",
+      "artifactName": "${productName} ${version}.${ext}"
     },
     "linux": {
       "target": "AppImage",

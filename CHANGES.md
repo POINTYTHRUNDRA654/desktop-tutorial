@@ -27,6 +27,96 @@ All changes in this PR live on this branch. The branch name reflects its origin 
 
 ## Done ✅  (DO NOT redo, revert, or override these)
 
+### 37. Fix: Resolve unmerged commits from prior session — README version sync ✅
+
+**Request:** "The last session closed with unmerged commitments. We need to fix that."
+
+**Background:** The prior session (branch `copilot/create-package-for-release`, PR #104) made a
+single commit that updated README.md version references from 5.4.24 → 5.4.26 to match `package.json`.
+That commit was applied to master via a direct branch merge (commit `750dc56`) but the PR was closed
+as a draft without going through GitHub's merge button, and no CHANGES.md entry was created.
+
+This session confirmed the commit is present in master (HEAD = origin/master = `750dc56`), the
+working tree is clean, and no work was lost. The fix here is to document the prior session's change
+and confirm the state is healthy.
+
+**Changes applied in the prior session (already in master):**
+- `README.md` — replaced all v5.4.24 references with v5.4.26: header tagline, section heading,
+  version badge, download link, installer example path, packaging note. Replaced the "New in v5.4.24"
+  release notes block with a proper v5.4.26 entry (Anniversary Edition awareness), demoted the old
+  v5.4.24 content to a historical entry alongside v5.4.25.
+
+Files changed:
+- `CHANGES.md` — this entry (documents the prior-session fix)
+
+---
+
+### 36. Enhancement: Add Anniversary Edition (AE) to version awareness (v5.4.26) ✅
+
+**Request:** "What about the anniversary edition? I don't notice that in here."
+
+**Changes made:**
+- Added **AE / Anniversary Edition** bullet to `getFullSystemInstruction` GAME VERSION AWARENESS block. Key points taught to Mossy: AE is NOT a separate executable (same NG EXE, 1.10.984); it is NG + 76 bundled free CC items; mods often have AE patches; PRP 81+ required for AE cells; CC items are `.esl` masters that can conflict; unlike Skyrim AE it was **free**; if user says "I have AE" without a runtime number, assume NG (1.10.984).
+- Updated count from "three distinct runtime states" to "four distinct version states."
+- Added AE line to `MASTER_TECHNICAL_GUIDE` version snapshot (sent on every request).
+- Bumped version to **5.4.26**.
+
+Files changed:
+- `src/renderer/src/MossyBrain.ts` — AE bullet + snapshot update
+- `package.json` — version 5.4.25 → 5.4.26
+- `CHANGES.md` — this entry
+
+---
+
+### 35. Enhancement: Deep scan — updated Fallout 4 modding knowledge & version awareness (v5.4.25) ✅
+
+**Request:** Nine-month deep scan to make sure Mossy is professional, up-to-date, and has the most advanced knowledge for Fallout 4 modding assistance.
+
+**Changes made:**
+- Added **GAME VERSION AWARENESS** block to `getFullSystemInstruction` system prompt: Mossy now always asks which FO4 version (OG 1.10.163 / NG 1.10.984 / Creations Menu 1.11.191) the user is on before giving version-sensitive advice. Includes downgrader note (Nexus #81463).
+- Added **2024–2026 stability tools reference** to system prompt: Addictol/X-Cell #84214 (primary stability), Buffout 4 NG #64880 (crash logger), CLASSIC #56255 (crash auto-scanner), Address Library AiO #47327, High FPS Physics Fix #44798, MCM NG build, UFO4P.
+- Updated **CK→Blender workflow prerequisites**: Updated PyNifly reference to mention latest version + BA2 V7/V8 note for NG users.
+- Updated **MASTER_TECHNICAL_GUIDE preamble**: Added a version snapshot table (OG/NG/1.11.x) at the top — this section IS sent to the AI on every request (first 3000 chars), so Mossy now always has current version context.
+- Updated **F4SE Plugin Development section**: Clarified OG vs NG header/lib/runtime-version differences; added Address Library as the recommended modern approach for NG plugins; added commentary to the code example distinguishing OG vs NG runtime checks.
+- Updated **Load Order Best Practices**: Added version-sensitive note, updated structure to include Address Library/Addictol/Buffout 4 in proper position, added LOOT 0.21+ note.
+- Updated **Fallout-Specific Diagnostics**: Updated Buffout 4 to mention NG fork (alandtse/Buffout4, v1.37.0+); added Addictol, CLASSIC, PRP 81.5.
+- Bumped version to **5.4.25** in `package.json`.
+
+Files changed:
+- `src/renderer/src/MossyBrain.ts` — all system prompt + knowledge guide updates
+- `package.json` — version 5.4.24 → 5.4.25
+- `CHANGES.md` — this entry
+
+---
+
+### 34. Fix: Mossy keeps asking to redo the scan after an app rebuild ✅
+
+**Request:** "She's wanting me to redo the scan, which she should already remember. Because the scans already been ran. And this for some reason we've completely rebuilt her without Remembering that this is just an update."
+
+**Root cause:**
+After an app rebuild or update that clears renderer localStorage, Mossy's context shows missing scan data. Four places in the codebase were explicitly telling Mossy to request a new scan whenever scan data was absent:
+
+1. `LocalAIEngine.ts` — `[SYSTEM SCAN STATUS]: NOT PERFORMED. (Please run scan_hardware first)` 
+2. `toolPermissions.ts` — "ask them to run a system scan" when no tools are saved
+3. `MossyBrain.ts` rule 630 — allowed scan requests "when scan history is missing/unknown"
+4. `MossyBrain.ts` rule 12 (×2) — "ask the user to…run a new scan" for missing paths
+5. `MossyBrain.ts` `scan_hardware` tool description — "Only run this if the [SYSTEM SCAN STATUS] is NOT PERFORMED"
+
+**Fix:**
+- Changed `LocalAIEngine.ts` status message to: "Hardware profile not loaded in this session. The scan may have been run previously. Do NOT ask the user to redo the scan — they can refresh scan data from Settings > System Monitor if needed."
+- Changed `toolPermissions.ts` no-tools message to: "Do NOT ask the user to redo the scan. If they want to update their tool list, they can go to Settings > System Monitor."
+- Updated `MossyBrain.ts` rule 630 to: "Do NOT request a new scan — even if scan history is missing or unknown…Only run scan_hardware if the user explicitly asks you to."
+- Updated both instances of rule 12 in `MossyBrain.ts`: replaced "or run a new scan" with "Do NOT ask the user to run a new scan — the scan may have already been completed."
+- Updated `scan_hardware` tool description: "Only run this tool if the user EXPLICITLY asks you to run a scan or re-scan. Never run this automatically just because scan data is missing from context."
+
+**Files changed:**
+- `src/renderer/src/LocalAIEngine.ts`
+- `src/renderer/src/toolPermissions.ts`
+- `src/renderer/src/MossyBrain.ts`
+- `CHANGES.md`
+
+
+
 ### 33. Feature: Internet Access Test — live diagnostic tool ✅
 
 **Request:** "Is it possible for you to ask her to access the Internet? And see what response you get."

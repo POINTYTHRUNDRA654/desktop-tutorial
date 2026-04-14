@@ -43,8 +43,10 @@ export interface LiveContextType {
   disconnectLive: (manual?: boolean) => void;
   /** Send text input to Mossy (alternative to voice) */
   sendTextMessage: (text: string) => Promise<void>;
+  /** Last response spoken by Mossy — shown as text for users without speakers */
+  lastResponse: string;
   // test-only helper
-  __test_handleTranscription?: (text: string, sessionId?: number) => Promise<void>;
+  __test_handleTranscription?: (text: string, sessionId?: number, isTextInput?: boolean) => Promise<void>;
   __test_setLastSpeakEnd?: (ts: number) => void;
 }
 
@@ -63,6 +65,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [volume, setVolume] = useState(1);
   const [mode, setMode] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [transcription, setTranscription] = useState('');
+  const [lastResponse, setLastResponse] = useState('');
   const [micLevel, setMicLevel] = useState(0);
   const isFreshlyConnectedRef = useRef(false);
   const currentSessionRef = useRef(0);
@@ -85,6 +88,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // and therefore closes over a stale isMuted state) sees the live value.
   const isMutedRef = useRef(false);
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+  // Ref-backed mode flag for the same reason: mode state is stale inside the
+  // handleTranscription callback registered at connect() time.
+  const modeRef = useRef<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
+  useEffect(() => { modeRef.current = mode; }, [mode]);
 
   // Flag to prevent disconnect during active AI processing
   const isProcessingResponseRef = useRef(false);
@@ -190,7 +197,6 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const config: VoiceServiceConfig = {
       sttProvider: 'backend', // Use backend STT if available, fallback to browser
       ttsProvider: 'browser',
-      elevenlabsKey: undefined, // API keys accessed through main process
     };
 
     voiceServiceRef.current = new VoiceService(config);
@@ -354,8 +360,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const handleTranscription = async (text: string, sessionId?: number) => {
-    console.log(`[LiveContext] Received transcription: "${text}" (session: ${sessionId}, current: ${currentSessionRef.current})`);
+  const handleTranscription = async (text: string, sessionId?: number, isTextInput: boolean = false) => {
+    console.log(`[LiveContext] Received transcription: "${text}" (session: ${sessionId}, current: ${currentSessionRef.current}, isTextInput: ${isTextInput})`);
 
     // Validate session ID to prevent old transcriptions from interfering
     if (sessionId !== undefined && sessionId !== currentSessionRef.current) {
@@ -371,8 +377,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     // ignore any transcription that arrives too soon after Mossy finished speaking
+    // ONLY for voice input (prevents audio feedback), NOT for text input
     const now = Date.now();
-    if (lastSpeakEndRef.current && now - lastSpeakEndRef.current < 600) {
+    if (!isTextInput && lastSpeakEndRef.current && now - lastSpeakEndRef.current < 600) {
       console.log('[LiveContext] Ignoring transcription - within grace period after speaking');
       return;
     }
@@ -391,14 +398,16 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    // Check if we're disconnecting (user manually ended the session)
-    if (isDisconnecting) {
+    // Check if we're disconnecting (user manually ended the session).
+    // Use the ref so the stale closure always sees the current value.
+    if (isDisconnectingRef.current) {
       console.log('[LiveContext] Ignoring transcription - voice session is disconnecting');
       return;
     }
 
-    // Prevent audio feedback - don't transcribe while TTS is active
-    if (mode === 'speaking') {
+    // Prevent audio feedback - don't transcribe while TTS is active.
+    // Use modeRef so the stale closure always sees the current mode value.
+    if (modeRef.current === 'speaking') {
       console.log('[LiveContext] Ignoring transcription - currently speaking (audio feedback prevention)');
       return;
     }
@@ -421,11 +430,14 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       pushLiveHistory({ role: 'user', content: text });
 
       // Send to LocalAIEngine for response (with web search injection and full system context)
-      console.log('[LiveContext] Calling LocalAIEngine.generateResponse for voice');
+      const aiStartTime = Date.now();
+      console.log('[LiveContext] 🎯 Calling LocalAIEngine.generateResponse for voice');
       const systemContext = await generateSystemContextFromStorage(text);
       const systemInstruction = getFullSystemInstruction(systemContext);
       const priorHistory = conversationHistoryRef.current.slice(-30);
       const aiResult = await LocalAIEngine.generateResponse(text, systemInstruction, priorHistory);
+      const aiDuration = Date.now() - aiStartTime;
+      console.log('[LiveContext] ✅ AI response received - duration:', aiDuration, 'ms');
       const response = aiResult.content || 'Sorry, I encountered an error processing your request.';
 
       // Check if session ID changed (user disconnected, or session ended for another reason)
@@ -441,11 +453,17 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       updateVoiceWorkingMemory();
       console.log('[LiveContext] AI response received, about to speak:', response.substring(0, 100) + (response.length > 100 ? '...' : ''));
 
+      // Store the response text so the UI can display it for users without speakers
+      setLastResponse(response);
+
       // Speak the response
       if (voiceServiceRef.current) {
-        console.log('[LiveContext] Calling voiceService.speak()');
+        const speakStartTime = Date.now();
+        console.log('[LiveContext] 🔊 Starting TTS playback - response length:', response.length, 'chars');
+        setMode('speaking'); // Prevent transcriptions from capturing TTS audio
         await voiceServiceRef.current.speak(response);
-        console.log('[LiveContext] voiceService.speak() completed');
+        const speakDuration = Date.now() - speakStartTime;
+        console.log('[LiveContext] 🔊 TTS playback complete - duration:', speakDuration, 'ms');
         lastSpeakEndRef.current = Date.now(); // mark when speaking finished
       } else {
         console.error('[LiveContext] voiceServiceRef.current is null, cannot speak');
@@ -462,16 +480,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const msg = error instanceof Error ? error.message : 'Unknown error';
       setStatus(`Error: ${msg}`);
       setMode('idle');
-      // notify user more visibly
-      try {
-        const api = (window as any).electron?.api || (window as any).electronAPI;
-        if (api?.showNotification) {
-          api.showNotification(`Voice session error: ${msg}`);
-        }
-      } catch (e) {
-        // best effort notification; ignore if it fails
-        console.warn('[LiveContext] notification attempt failed', e);
-      }
+      // notify user more visibly via console; showNotification is not available in preload
+      console.warn('[LiveContext] Voice session error:', msg);
       // if the backend appears hung, restart the voice link
       // Only restart if it's a TIMEOUT error, not general AI errors
       if (/timeout/i.test(msg)) {
@@ -489,6 +499,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // count consecutive backend failures so we can fall back automatically
   const [sttErrors, setSttErrors] = useState(0);
+  const sttErrorsRef = useRef(0);
 
   const handleVoiceError = (error: string) => {
     setStatus(`Voice Error: ${error}`);
@@ -496,33 +507,26 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // detect backend/transcription related errors
     if (/backend|Deepgram|transcribe|network/i.test(error)) {
-      setSttErrors((e) => e + 1);
+      sttErrorsRef.current += 1;
+      setSttErrors(sttErrorsRef.current);
     }
 
     // if we've seen two failures in a row, switch to browser STT for stability
-    if (sttErrors >= 1) {
+    if (sttErrorsRef.current >= 1) {
       console.warn('[LiveContext] falling back to browser STT due to repeated errors');
       if (voiceServiceRef.current) {
         // stop current listening session and restart with new provider
         setStatus('Switching to browser STT...');
         voiceServiceRef.current.stopListening();
-        voiceServiceRef.current.config.sttProvider = 'browser';
+        voiceServiceRef.current.setSttProvider('browser');
         voiceServiceRef.current.startListening(
           (t, sid) => handleTranscription(t, sid),
           handleVoiceError,
           handleModeChange
         );
       }
+      sttErrorsRef.current = 0;
       setSttErrors(0);
-      try {
-        const api = (window as any).electron?.api || (window as any).electronAPI;
-        if (api?.showNotification) {
-          api.showNotification('Mossy switched to browser STT due to backend issues');
-        }
-      } catch (e) {
-        // best-effort notification; ignore any failure
-        console.warn('[LiveContext] showNotification failed', e);
-      }
     }
   };
 
@@ -553,15 +557,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       timer = setTimeout(() => {
         if (Date.now() - processingStartRef.current > 25000) {
           setStatus('Processing taking too long, restarting link...');
-          try {
-            const api = (window as any).electron?.api || (window as any).electronAPI;
-            if (api?.showNotification) {
-              api.showNotification('Voice AI seemed stuck; reconnecting');
-            }
-          } catch (e) {
-            // ignore notification failure
-            console.warn('[LiveContext] showNotification failed during switch', e);
-          }
+          console.warn('[LiveContext] Voice AI stuck; reconnecting');
           disconnect();
           setTimeout(() => connect().catch(() => { }), 1000);
         }
@@ -773,9 +769,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     // Process the text message the same way as voice transcription
+    // but flag it as text input so the audio feedback grace period is skipped
     const currentSessionId = currentSessionRef.current;
     try {
-      await handleTranscription(text, currentSessionId);
+      await handleTranscription(text, currentSessionId, true); // true = isTextInput
     } catch (err) {
       console.error('[LiveContext] Text message processing failed:', err);
       throw err;
@@ -813,6 +810,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         toggleLiveMute: toggleMute,
         disconnectLive: disconnect,
         sendTextMessage,
+        lastResponse,
         ...(process.env.NODE_ENV === 'test' ? { __test_handleTranscription: handleTranscription, __test_setLastSpeakEnd: (ts: number) => { lastSpeakEndRef.current = ts; } } : {}),
       }}
     >

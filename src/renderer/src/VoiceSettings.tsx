@@ -1,6 +1,9 @@
 // Global error overlay for fatal errors outside React
 function showGlobalFatalErrorOverlay(message: string) {
   if (document.getElementById('fatal-error-overlay')) return;
+  // Escape HTML so that error messages containing < > & never break the overlay markup.
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const overlay = document.createElement('div');
   overlay.id = 'fatal-error-overlay';
   overlay.style.position = 'fixed';
@@ -16,7 +19,7 @@ function showGlobalFatalErrorOverlay(message: string) {
   overlay.style.justifyContent = 'center';
   overlay.style.alignItems = 'center';
   overlay.style.fontSize = '1.2rem';
-  overlay.innerHTML = `<div style="max-width:600px;text-align:center;"><h2 style="color:#ffb4b4;">Fatal Error</h2><div style="margin:1em 0;white-space:pre-wrap;">${message}</div><button id="fatal-error-reload" style="margin-top:2em;padding:0.7em 2em;font-size:1rem;background:#222;color:#fff;border-radius:8px;border:none;cursor:pointer;">Reload</button></div>`;
+  overlay.innerHTML = `<div style="max-width:600px;text-align:center;"><h2 style="color:#ffb4b4;">Fatal Error</h2><div style="margin:1em 0;white-space:pre-wrap;">${escapeHtml(message)}</div><button id="fatal-error-reload" style="margin-top:2em;padding:0.7em 2em;font-size:1rem;background:#222;color:#fff;border-radius:8px;border:none;cursor:pointer;">Reload</button></div>`;
   document.body.appendChild(overlay);
   document.getElementById('fatal-error-reload')?.addEventListener('click', () => window.location.reload());
 }
@@ -43,10 +46,13 @@ import ErrorBoundary from './ErrorBoundary';
 import { VoiceService, VoiceServiceConfig } from './voice-service';
 import {
   BROWSER_TTS_STORAGE_KEY,
+  FEMALE_VOICE_KEYWORDS,
   getBrowserTtsVoices,
   loadBrowserTtsSettings,
+  pickBrowserTtsVoice,
   saveBrowserTtsSettings,
   speakBrowserTts,
+  uiLangToBcp47,
   type BrowserTtsSettings,
 } from './browserTts';
 
@@ -66,6 +72,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
   const [isTestingMic, setIsTestingMic] = useState(false);
   const [micTestResult, setMicTestResult] = useState('');
   const [micError, setMicError] = useState('');
+  const [uiLanguage, setUiLanguageState] = useState<string>('');
 
 
 
@@ -107,6 +114,33 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
+  // Load uiLanguage from electron settings so the auto-selected voice preview
+  // matches the actual TTS voice that will be used at runtime.
+  useEffect(() => {
+    const api = getElectronApi();
+    if (!api?.getSettings) return;
+    let disposed = false;
+    const load = async () => {
+      try {
+        const s = await api.getSettings();
+        if (disposed) return;
+        const raw = String(s?.uiLanguage || '').trim();
+        if (raw && raw !== 'auto') setUiLanguageState(raw);
+      } catch { /* ignore */ }
+    };
+    void load();
+    if (typeof api.onSettingsUpdated === 'function') {
+      try {
+        api.onSettingsUpdated((s: any) => {
+          if (disposed) return;
+          const raw = String(s?.uiLanguage || '').trim();
+          setUiLanguageState(raw && raw !== 'auto' ? raw : '');
+        });
+      } catch { /* ignore */ }
+    }
+    return () => { disposed = true; };
+  }, []);
+
   const sortedVoices = useMemo(() => {
     const copy = [...voices];
     copy.sort((a, b) => (a.lang || '').localeCompare(b.lang || '') || (a.name || '').localeCompare(b.name || ''));
@@ -146,6 +180,19 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
     console.log('[VoiceSettings] onTest clicked');
     // Save current UI state first so speakBrowserTts reads the latest settings.
     saveBrowserTtsSettings(settings);
+
+    // Debug: log current language setting
+    try {
+      const api = getElectronApi();
+      if (api?.getSettings) {
+        const currentSettings = await api.getSettings();
+        console.log('[VoiceSettings] Current electron settings - uiLanguage:', currentSettings?.uiLanguage);
+        console.log('[VoiceSettings] Browser TTS settings - preferredVoiceName:', settings.preferredVoiceName);
+      }
+    } catch (e) {
+      console.log('[VoiceSettings] Could not log settings:', e);
+    }
+
     await speakBrowserTts(testText, { cancelExisting: true });
   };
 
@@ -154,18 +201,17 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
     setIsTestingMic(true);
     setMicTestResult('');
     setMicError('');
-    
+
     try {
       // Create voice service for testing (same config as LiveContext)
       const config: VoiceServiceConfig = {
         sttProvider: 'backend', // Use backend first, fallback to browser
         ttsProvider: 'browser',
-        elevenlabsKey: undefined,
       };
-      
+
       const voiceService = new VoiceService(config);
       await voiceService.initialize();
-      
+
       // Set up transcription handler
       const handleTranscription = (text: string) => {
         console.log('[VoiceSettings] Transcribed:', text);
@@ -173,21 +219,21 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
         setIsTestingMic(false);
         voiceService.stopListening();
       };
-      
+
       const handleError = (error: string) => {
         console.error('[VoiceSettings] Voice service error:', error);
         setMicError(`Test failed: ${error}`);
         setIsTestingMic(false);
       };
-      
+
       const handleModeChange = (mode: string) => {
         console.log('[VoiceSettings] Mode changed to:', mode);
       };
-      
+
       // Start listening
       voiceService.startListening(handleTranscription, handleError, handleModeChange);
       setMicTestResult('Listening... (speak now)');
-      
+
       // Stop after 5 seconds if no result
       setTimeout(() => {
         if (isTestingMic) {
@@ -196,7 +242,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
           setIsTestingMic(false);
         }
       }, 5000);
-      
+
     } catch (error: any) {
       console.error('[VoiceSettings] Mic test error:', error);
       setMicError(`Test failed: ${error.message || 'Unknown error'}`);
@@ -207,238 +253,282 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
 
 
 
-    const containerClass = embedded
-      ? 'bg-slate-900/60 border border-slate-700 rounded-lg'
-      : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col';
+  const containerClass = embedded
+    ? 'bg-slate-900/60 border border-slate-700 rounded-lg'
+    : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col';
 
-    const headerClass = embedded
-      ? 'p-4 border-b border-slate-700 bg-slate-800/50'
-      : 'p-6 border-b border-slate-700 bg-slate-800/50';
+  const headerClass = embedded
+    ? 'p-4 border-b border-slate-700 bg-slate-800/50'
+    : 'p-6 border-b border-slate-700 bg-slate-800/50';
 
-    const contentClass = embedded
-      ? 'p-4 space-y-6'
-      : 'flex-1 overflow-y-auto p-6 space-y-6';
+  const contentClass = embedded
+    ? 'p-4 space-y-6'
+    : 'flex-1 overflow-y-auto p-6 space-y-6';
 
-    return (
-      <ErrorBoundary>
-        <div className={containerClass}>
-      <div className={headerClass}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Volume2 className="w-7 h-7 text-emerald-400" />
-            <div>
-              <h1 className="text-2xl font-bold text-white">Voice Settings</h1>
-              <p className="text-sm text-slate-400">Choose the browser TTS voice for Mossy responses. Changes save automatically.</p>
+  return (
+    <ErrorBoundary>
+      <div className={containerClass}>
+        <div className={headerClass}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Volume2 className="w-7 h-7 text-emerald-400" />
+              <div>
+                <h1 className="text-2xl font-bold text-white">Voice Settings</h1>
+                <p className="text-sm text-slate-400">Choose the browser TTS voice for Mossy responses. Changes save automatically.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!embedded && (
+                <Link
+                  to="/reference"
+                  className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
+                  title="Open help"
+                >
+                  Help
+                </Link>
+              )}
+              <button
+                onClick={onSave}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
+                title="Save voice settings"
+              >
+                <Save className="w-4 h-4" />
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className={contentClass}>
+          {/* Development notice */}
+          <div className="bg-black/40 border border-amber-500/40 rounded-xl p-5 mb-4">
+            <div className="text-xs font-black text-amber-300 uppercase tracking-widest">⚠️ Multi-Language In Development</div>
+            <div className="text-[11px] text-amber-200 mt-2">
+              Language voice support depends on what's installed on your Windows system. Only languages marked with <span className="text-emerald-400">✓</span> will work for text-to-speech. Install more voices in Windows Settings → Speech → Add voices.
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {!embedded && (
-              <Link
-                to="/reference"
-                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
-                title="Open help"
-              >
-                Help
-              </Link>
-            )}
-            <button
-              onClick={onSave}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
-              title="Save voice settings"
-            >
-              <Save className="w-4 h-4" />
-              Save
-            </button>
-          </div>
-        </div>
-      </div>
+          {/* Browser TTS settings only. All cloud TTS and context menu code removed. */}
+          {'speechSynthesis' in window && (
+            <div className="bg-black/40 border border-white/10 rounded-xl p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-xs font-black text-white uppercase tracking-widest">Detected Voices</div>
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    {voices.length} voice{voices.length === 1 ? '' : 's'} available to this app.
+                  </div>
+                </div>
 
-      <div className={contentClass}>
-        {/* Browser TTS settings only. All cloud TTS and context menu code removed. */}
-        {'speechSynthesis' in window && (
+                {typeof (window as any)?.electron?.api?.openExternal === 'function' && (
+                  <button
+                    onClick={openWindowsSpeechSettings}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold rounded-lg flex items-center gap-2 transition-colors"
+                    title="Open Windows Speech settings"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Speech Settings
+                  </button>
+                )}
+              </div>
+
+              {voices.length <= 1 && (
+                <div className="mt-4 p-4 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200 text-sm">
+                  <div className="font-black uppercase tracking-widest text-[11px]">Why it sounds the same everywhere</div>
+                  <div className="mt-2 text-[12px] text-amber-200/90">
+                    This app uses your system’s built-in voices. If Windows only has 1 voice installed, every feature that speaks will sound identical.
+                    To get a more natural voice or different accent, install additional Windows voices (then restart the app).
+                  </div>
+                  <div className="mt-2 text-[12px] text-amber-200/90">
+                    Windows: Settings → Time & language → Speech → Manage voices / Add voices.
+                  </div>
+                </div>
+              )}
+              {/* Show which languages have voices */}
+              <div className="mt-4 p-4 rounded-lg bg-slate-800/40 border border-slate-700">
+                <div className="text-xs font-black text-white uppercase tracking-widest mb-2">Language Voice Support</div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  {['en', 'es', 'fr', 'de', 'ru', 'zh'].map(langCode => {
+                    const hasVoices = voices.some(v => v.lang?.toLowerCase().startsWith(langCode));
+                    const icon = hasVoices ? '✓' : '✗';
+                    const color = hasVoices ? 'text-emerald-400' : 'text-red-400';
+                    const langName = { en: 'English', es: 'Spanish', fr: 'French', de: 'German', ru: 'Russian', zh: 'Chinese' }[langCode] || langCode;
+                    return (
+                      <div key={langCode} className={`${color} font-mono`}>
+                        {icon} {langName}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="text-[10px] text-slate-400 mt-2">
+                  ✗ = Install from Windows Settings → Speech → Add voices
+                </div>
+              </div>            </div>
+          )}
+
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-xs font-black text-white uppercase tracking-widest">Detected Voices</div>
+                <div className="text-xs font-black text-white uppercase tracking-widest">Enable TTS</div>
                 <div className="text-[11px] text-slate-400 mt-1">
-                  {voices.length} voice{voices.length === 1 ? '' : 's'} available to this app.
+                  If Mossy sounds robotic, try selecting a different voice (often “Aria”, “Zira”, “Natural”, or “Online”).
                 </div>
               </div>
 
-              {typeof (window as any)?.electron?.api?.openExternal === 'function' && (
-                <button
-                  onClick={openWindowsSpeechSettings}
-                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold rounded-lg flex items-center gap-2 transition-colors"
-                  title="Open Windows Speech settings"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Speech Settings
-                </button>
-              )}
+              <label className="flex items-center gap-2 text-sm text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={settings.enabled}
+                  onChange={(e) => updateSettings(s => ({ ...s, enabled: e.target.checked }))}
+                  className="w-4 h-4 rounded"
+                />
+                Enabled
+              </label>
             </div>
+          </div>
 
-            {voices.length <= 1 && (
-              <div className="mt-4 p-4 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200 text-sm">
-                <div className="font-black uppercase tracking-widest text-[11px]">Why it sounds the same everywhere</div>
-                <div className="mt-2 text-[12px] text-amber-200/90">
-                  This app uses your system’s built-in voices. If Windows only has 1 voice installed, every feature that speaks will sound identical.
-                  To get a more natural voice or different accent, install additional Windows voices (then restart the app).
+
+          {/* Cloud TTS: browser TTS only */}
+
+          <div className="bg-black/40 border border-white/10 rounded-xl p-5">
+            <div className="text-xs font-black text-white uppercase tracking-widest mb-3">Preferred Voice</div>
+
+            {!('speechSynthesis' in window) ? (
+              <div className="text-sm text-amber-300">Your environment doesn’t expose browser TTS (speechSynthesis).</div>
+            ) : (
+              <>
+                <select
+                  value={settings.preferredVoiceName ?? ''}
+                  onChange={(e) => updateSettings(s => ({ ...s, preferredVoiceName: e.target.value || undefined }))}
+                  className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"
+                >
+                  <option value="">(Auto)</option>
+                  {sortedVoices.map((v) => {
+                    const n = (v.name || '').toLowerCase();
+                    const isFemale = (FEMALE_VOICE_KEYWORDS as readonly string[]).some(k => n.includes(k));
+                    return (
+                      <option key={`${v.name}-${v.lang}-${String((v as any).voiceURI ?? '')}`} value={v.name}>
+                        {v.name} {v.lang ? `(${v.lang})` : ''}{isFemale ? ' ♀' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {!settings.preferredVoiceName && (() => {
+                  const langBase = uiLanguage ? uiLanguage.split('-')[0].toLowerCase() : undefined;
+                  const autoVoice = pickBrowserTtsVoice(voices, undefined, langBase);
+                  return autoVoice ? (
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      Auto-selecting: <span className="text-slate-200 font-mono">{autoVoice.name}</span>
+                      {(FEMALE_VOICE_KEYWORDS as readonly string[]).some(k => (autoVoice.name || '').toLowerCase().includes(k)) && (
+                        <span className="ml-1 text-emerald-400">♀</span>
+                      )}
+                    </div>
+                  ) : null;
+                })()}
+
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <label className="text-xs text-slate-300">
+                    Rate
+                    <input
+                      type="range"
+                      min={0.5}
+                      max={2.0}
+                      step={0.05}
+                      value={settings.rate}
+                      onChange={(e) => updateSettings(s => ({ ...s, rate: Number(e.target.value) }))}
+                      className="w-full"
+                    />
+                    <div className="text-[10px] text-slate-500">{settings.rate.toFixed(2)}</div>
+                  </label>
+
+                  <label className="text-xs text-slate-300">
+                    Pitch
+                    <input
+                      type="range"
+                      min={0.0}
+                      max={2.0}
+                      step={0.05}
+                      value={settings.pitch}
+                      onChange={(e) => updateSettings(s => ({ ...s, pitch: Number(e.target.value) }))}
+                      className="w-full"
+                    />
+                    <div className="text-[10px] text-slate-500">{settings.pitch.toFixed(2)}</div>
+                  </label>
+
+                  <label className="text-xs text-slate-300">
+                    Volume
+                    <input
+                      type="range"
+                      min={0.0}
+                      max={1.0}
+                      step={0.05}
+                      value={settings.volume}
+                      onChange={(e) => updateSettings(s => ({ ...s, volume: Number(e.target.value) }))}
+                      className="w-full"
+                    />
+                    <div className="text-[10px] text-slate-500">{settings.volume.toFixed(2)}</div>
+                  </label>
                 </div>
-                <div className="mt-2 text-[12px] text-amber-200/90">
-                  Windows: Settings → Time & language → Speech → Manage voices / Add voices.
+
+                <div className="mt-4">
+                  <div className="text-xs font-black text-white uppercase tracking-widest mb-2">Test</div>
+                  <div className="flex gap-3">
+                    <input
+                      value={testText}
+                      onChange={(e) => setTestText(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"
+                    />
+                    <button
+                      onClick={onTest}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold rounded-lg flex items-center gap-2 transition-colors"
+                      title="Play test phrase"
+                    >
+                      <Play className="w-4 h-4" />
+                      Play
+                    </button>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-2">
+                    Tip: If voices list is empty, wait a second and reopen this page.
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
-        )}
 
-        <div className="bg-black/40 border border-white/10 rounded-xl p-5">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-xs font-black text-white uppercase tracking-widest">Enable TTS</div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                If Mossy sounds robotic, try selecting a different voice (often “Aria”, “Zira”, “Natural”, or “Online”).
-              </div>
-            </div>
+          {/* Microphone Test Section */}
+          <div className="bg-black/40 border border-white/10 rounded-xl p-5">
+            <div className="text-xs font-black text-white uppercase tracking-widest mb-3">Microphone Test</div>
 
-            <label className="flex items-center gap-2 text-sm text-slate-200">
-              <input
-                type="checkbox"
-                checked={settings.enabled}
-                onChange={(e) => updateSettings(s => ({ ...s, enabled: e.target.checked }))}
-                className="w-4 h-4 rounded"
-              />
-              Enabled
-            </label>
-          </div>
-        </div>
-
-
-        {/* Cloud TTS and ElevenLabs UI removed: browser TTS only */}
-
-        <div className="bg-black/40 border border-white/10 rounded-xl p-5">
-          <div className="text-xs font-black text-white uppercase tracking-widest mb-3">Preferred Voice</div>
-
-          {!('speechSynthesis' in window) ? (
-            <div className="text-sm text-amber-300">Your environment doesn’t expose browser TTS (speechSynthesis).</div>
-          ) : (
-            <>
-              <select
-                value={settings.preferredVoiceName ?? ''}
-                onChange={(e) => updateSettings(s => ({ ...s, preferredVoiceName: e.target.value || undefined }))}
-                className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"
+            <div className="flex gap-3 mb-3">
+              <button
+                onClick={onTestMic}
+                disabled={isTestingMic}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-600 text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
+                title="Test microphone input"
               >
-                <option value="">(Auto)</option>
-                {sortedVoices.map((v) => (
-                  <option key={`${v.name}-${v.lang}-${String((v as any).voiceURI ?? '')}`} value={v.name}>
-                    {v.name} {v.lang ? `(${v.lang})` : ''}
-                  </option>
-                ))}
-              </select>
-
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <label className="text-xs text-slate-300">
-                  Rate
-                  <input
-                    type="range"
-                    min={0.5}
-                    max={2.0}
-                    step={0.05}
-                    value={settings.rate}
-                    onChange={(e) => updateSettings(s => ({ ...s, rate: Number(e.target.value) }))}
-                    className="w-full"
-                  />
-                  <div className="text-[10px] text-slate-500">{settings.rate.toFixed(2)}</div>
-                </label>
-
-                <label className="text-xs text-slate-300">
-                  Pitch
-                  <input
-                    type="range"
-                    min={0.0}
-                    max={2.0}
-                    step={0.05}
-                    value={settings.pitch}
-                    onChange={(e) => updateSettings(s => ({ ...s, pitch: Number(e.target.value) }))}
-                    className="w-full"
-                  />
-                  <div className="text-[10px] text-slate-500">{settings.pitch.toFixed(2)}</div>
-                </label>
-
-                <label className="text-xs text-slate-300">
-                  Volume
-                  <input
-                    type="range"
-                    min={0.0}
-                    max={1.0}
-                    step={0.05}
-                    value={settings.volume}
-                    onChange={(e) => updateSettings(s => ({ ...s, volume: Number(e.target.value) }))}
-                    className="w-full"
-                  />
-                  <div className="text-[10px] text-slate-500">{settings.volume.toFixed(2)}</div>
-                </label>
-              </div>
-
-              <div className="mt-4">
-                <div className="text-xs font-black text-white uppercase tracking-widest mb-2">Test</div>
-                <div className="flex gap-3">
-                  <input
-                    value={testText}
-                    onChange={(e) => setTestText(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"
-                  />
-                  <button
-                    onClick={onTest}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 font-bold rounded-lg flex items-center gap-2 transition-colors"
-                    title="Play test phrase"
-                  >
-                    <Play className="w-4 h-4" />
-                    Play
-                  </button>
-                </div>
-                <div className="text-[11px] text-slate-500 mt-2">
-                  Tip: If voices list is empty, wait a second and reopen this page.
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Microphone Test Section */}
-        <div className="bg-black/40 border border-white/10 rounded-xl p-5">
-          <div className="text-xs font-black text-white uppercase tracking-widest mb-3">Microphone Test</div>
-          
-          <div className="flex gap-3 mb-3">
-            <button
-              onClick={onTestMic}
-              disabled={isTestingMic}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-600 text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
-              title="Test microphone input"
-            >
-              {isTestingMic ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-              {isTestingMic ? 'Testing...' : 'Test Mic'}
-            </button>
-          </div>
-
-          {micTestResult && (
-            <div className="text-sm text-green-300 mb-2">
-              {micTestResult}
+                {isTestingMic ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                {isTestingMic ? 'Testing...' : 'Test Mic'}
+              </button>
             </div>
-          )}
 
-          {micError && (
-            <div className="text-sm text-red-300 mb-2">
-              {micError}
+            {micTestResult && (
+              <div className="text-sm text-green-300 mb-2">
+                {micTestResult}
+              </div>
+            )}
+
+            {micError && (
+              <div className="text-sm text-red-300 mb-2">
+                {micError}
+              </div>
+            )}
+
+            <div className="text-[11px] text-slate-500">
+              Click "Test Mic" and speak. The app should detect and transcribe your speech.
             </div>
-          )}
-
-          <div className="text-[11px] text-slate-500">
-            Click "Test Mic" and speak. The app should detect and transcribe your speech.
           </div>
         </div>
-      </div>
       </div>
     </ErrorBoundary>
   );

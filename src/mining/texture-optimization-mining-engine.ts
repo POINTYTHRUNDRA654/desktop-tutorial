@@ -34,7 +34,7 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
           optimizations.push({
             texturePath: ddsFile.path,
             currentFormat: analysis.format,
-            recommendedFormat: recommendations[0].recommendedFormat,
+            recommendedFormat: recommendations[0].recommendedFormat ?? '',
             compressionRatio: this.calculateCompressionRatio(analysis.format as any, recommendations[0].recommendedFormat as any),
             qualityImpact: recommendations[0].qualityLoss,
             performanceGain: recommendations[0].performanceGain,
@@ -46,7 +46,7 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
       }
     }
 
-    return optimizations.sort((a, b) => b.expectedSavings - a.expectedSavings);
+    return optimizations.sort((a, b) => (b.expectedSavings ?? 0) - (a.expectedSavings ?? 0));
   }
 
   async batchOptimize(textures: DDSFile[]): Promise<BatchOptimizationResult> {
@@ -66,8 +66,8 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
     return {
       totalTextures: textures.length,
       optimizedTextures: recommendations.length,
-      totalMemorySavings: recommendations.reduce((sum, rec) => sum + rec.expectedSavings, 0),
-      averageQualityLoss: recommendations.reduce((sum, rec) => sum + rec.qualityLoss, 0) / recommendations.length,
+      totalMemorySavings: recommendations.reduce((sum, rec) => sum + (rec.expectedSavings ?? 0), 0),
+      averageQualityLoss: recommendations.reduce((sum, rec) => sum + (rec.qualityLoss ?? 0), 0) / recommendations.length,
       processingTime: Date.now(), // Placeholder
       recommendations: recommendations.map(rec => ({
         texturePath: rec.texturePath || '',
@@ -102,7 +102,7 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
       }
     }
 
-    return recommendations.sort((a, b) => b.performanceGain - a.performanceGain);
+    return recommendations.sort((a, b) => (b.performanceGain ?? 0) - (a.performanceGain ?? 0));
   }
 
   private async analyzeTexture(ddsFile: DDSFile): Promise<any> {
@@ -350,7 +350,7 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
   }
 
   private calculateExpectedSavings(recommendations: CompressionRecommendation[]): number {
-    return recommendations.reduce((total, rec) => total + rec.performanceGain, 0);
+    return recommendations.reduce((total, rec) => total + (rec.performanceGain ?? 0), 0);
   }
 
   private async calculateCompatibilityScore(recommendations: CompressionRecommendation[]): Promise<number> {

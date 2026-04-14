@@ -436,3 +436,70 @@ export const buildCreationKitResourcesContext = (opts?: {
 
   return context;
 };
+
+// ---------------------------------------------------------------------------
+// File-backed persistence helpers
+// These ensure that knowledge the user feeds to Mossy is not lost when
+// localStorage gets cleared or when the app is reinstalled.
+// The file is stored at userData/knowledge-vault.json (persists across
+// app updates and localStorage clears).
+// ---------------------------------------------------------------------------
+
+const getElectronBridge = (): any =>
+  typeof window !== 'undefined'
+    ? (window as any).electron?.api || (window as any).electronAPI
+    : null;
+
+/**
+ * Validate that a value looks like a KnowledgeVaultItem before accepting it
+ * from untrusted IPC / file data. Accepts any object with at least an id string;
+ * unknown extra fields are preserved.
+ */
+const isValidVaultItem = (v: unknown): v is KnowledgeVaultItem =>
+  v !== null &&
+  typeof v === 'object' &&
+  typeof (v as Record<string, unknown>).id === 'string';
+
+/**
+ * Save the full Knowledge Vault array to the userData file via IPC.
+ * Silently succeeds if not running in Electron (e.g., browser preview).
+ */
+export const saveKnowledgeVaultToFile = async (items: unknown[]): Promise<void> => {
+  try {
+    const bridge = getElectronBridge();
+    if (!bridge?.saveKnowledgeVault) return;
+    const result = await bridge.saveKnowledgeVault(items);
+    if (!result?.ok) {
+      console.warn('[KnowledgeVault] File save failed:', result?.error);
+    }
+  } catch (e) {
+    console.warn('[KnowledgeVault] saveKnowledgeVaultToFile error:', e);
+  }
+};
+
+/**
+ * Load the Knowledge Vault from the userData file via IPC.
+ * Returns [] if the file doesn't exist or isn't in Electron.
+ * Validates each item before accepting it to guard against corrupted file data.
+ * Also writes the validated items back to localStorage for the in-memory layer.
+ */
+export const restoreKnowledgeVaultFromFile = async (): Promise<KnowledgeVaultItem[]> => {
+  try {
+    const bridge = getElectronBridge();
+    if (!bridge?.loadKnowledgeVaultFromFile) return [];
+    const raw = await bridge.loadKnowledgeVaultFromFile();
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+    // Validate every item so corrupted or malicious file data can't inject
+    // unexpected objects into the application state.
+    const items = (raw as unknown[]).filter(isValidVaultItem);
+    if (items.length === 0) return [];
+    // Write back to localStorage so all existing callers that read localStorage still work
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    }
+    return items;
+  } catch (e) {
+    console.warn('[KnowledgeVault] restoreKnowledgeVaultFromFile error:', e);
+    return [];
+  }
+};

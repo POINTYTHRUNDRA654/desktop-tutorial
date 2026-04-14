@@ -7,7 +7,7 @@
 
 ## The Four Versions at a Glance
 
-| Feature | OG (Old Gen / Legacy) | NG (Next Gen) | AE (Anniversary Edition) | v1.11.x (Creations Menu) |
+| Feature | OG (Old Gen / Legacy) | NG (Next Gen) | AE (community label: NG + 76 CC items) | v1.11.x (official "Anniversary Edition", Nov 2025) |
 |---|---|---|---|---|
 | **Game EXE version** | 1.10.163.0 (and earlier) | 1.10.980.0 – 1.10.984.0+ | Same EXE as NG (1.10.980+) | 1.11.169 – 1.11.191+ |
 | **Release date** | Nov 2015 → before Apr 2024 | April 25, 2024 | April 25, 2024 (bundled with NG) | November 10, 2025 |
@@ -60,20 +60,19 @@ Released **April 25, 2024** as a free update to all owners via Steam/Xbox. It up
 - Any mod that ships a `.dll` (F4SE plugin / Engine Fixes / MCM Framework, etc.) needs a NG build.
 - AWKCR, ECO, and similar framework mods needed updates — check their Nexus pages for NG compatibility tags.
 - **Most ESP/ESM mods with no DLL component still work** on NG without changes. If a mod is pure scripts + meshes + textures, it generally doesn't care about game version.
-- **Load order tools**: LOOT 0.21+ supports NG. xEdit 4.1.5f+ supports NG.
+- **Load order tools**: LOOT 0.21+ supports NG. xEdit 4.0.4+ supports NG and 1.11.x.
 
 ### NG Tools versions
 | Tool | Minimum version for NG | Notes |
 |---|---|---|
 | F4SE | 0.7.2+ | Download from f4se.silverlock.org — use the NG build |
-| xEdit / FO4Edit | 4.0.3+ | Required for all BA2 work on NG |
+| xEdit / FO4Edit | 4.0.4+ | Required for all BA2 work on NG |
 | CKPE | 0.5+ | Use latest from GitHub, not Nexus |
 | PRP | 81+ | 81 is the minimum; 81.5 (March 2026) is current stable |
 | UFO4P | 2.1.5+ | Latest always preferred |
 | LOOT | 0.21+ | Earlier versions don't understand NG masters |
 | MCM NG | Must be NG build | Use "MCM NG" — legacy MCM Framework does not work on NG |
-| Buffout 4 NG | 1.37.0+ (Nexus #64880) | Use the NG fork (alandtse/Buffout4) — not the original |
-| Addictol (X-Cell) | Latest | Engine fixes companion to Buffout 4 NG; see The Midnight Ride |
+| Addictol | Latest | **ALL-IN-ONE stability tool** — supersedes Buffout 4 (all variants). Do NOT also install Buffout 4. Nexus #84214 |
 | High FPS Physics Fix | 0.8.13+ (Nexus #44798) | Critical for play above 60 FPS |
 | Address Library | AiO Anniversary build | Nexus #47327 — required by all DLL mods on NG |
 | CLASSIC | Latest (Nexus #56255) | Crash log auto-scanner; run after every CTD |
@@ -85,7 +84,9 @@ Users sometimes downgrade to run mod lists that haven't been updated for NG.
 
 ---
 
-## Version 4: v1.11.x — The "Creations Menu" Update (November 2025)
+## Version 4: v1.11.x — The Official "Anniversary Edition" Update (November 2025)
+
+> **⚠️ AE Naming Disambiguation**: Bethesda officially branded the November 2025 / 1.11.x release as **"Fallout 4: Anniversary Edition"** (the same name used for the Switch 2 port). However, the Fallout 4 modding community has long used "AE" informally to mean the April 2024 NG update + the 76 bundled CC items (EXE 1.10.984). When a user says "AE", always confirm: **community AE = NG + 76 CC items (1.10.984)** vs **official Bethesda AE = 1.11.x (November 2025)**. This guide uses "1.11.x" for the November 2025 release to minimise confusion.
 
 **Game version:** 1.11.169 → 1.11.191 (and later patches). Released **November 10, 2025**.
 
@@ -106,11 +107,10 @@ Users sometimes downgrade to run mod lists that haven't been updated for NG.
 |---|---|---|
 | F4SE | **0.7.7** | For runtime 1.11.191; from f4se.silverlock.org |
 | Address Library | **1.11.191 build** | AiO Anniversary option; Nexus #47327 |
-| Buffout 4 NG | **1.37.0+** | Nexus #64880; GitHub alandtse/Buffout4 |
-| Addictol (X-Cell) | Latest | See The Midnight Ride for install order |
+| Addictol | **Latest** | Nexus #84214; ALL-IN-ONE stability tool; supersedes Buffout 4 (all variants) — do NOT also install Buffout 4 |
 | High FPS Physics Fix | **0.8.13+** | Nexus #44798 |
 | PRP | **81.5** | Nexus #46403; March 2026 release |
-| xEdit / FO4Edit | **4.0.3+** | Supports 1.11.x records |
+| xEdit / FO4Edit | **4.0.4+** | Supports 1.11.x records |
 | MCM NG | NG/1.11.x build | Check mod page for 1.11.x note |
 - This restores EXE 1.10.163.0.
 - After downgrading: also downgrade the CK (if you use it), and run CMT to convert any V7/V8 BA2 files back to V1.
@@ -118,9 +118,9 @@ Users sometimes downgrade to run mod lists that haven't been updated for NG.
 
 ---
 
-## Version 3: AE (Anniversary Edition)
+## Version 3: AE (Community Label — NG + 76 CC Items)
 
-**"AE" in the Fallout 4 community specifically means**: the NG update package that included **76 free Creation Club (CC) items** bundled in for all owners. This is the "Anniversary" content.
+**"AE" in the Fallout 4 community specifically means**: the NG update package that included **76 free Creation Club (CC) items** bundled in for all owners. This is the "Anniversary" content. Note: Bethesda later officially named the November 2025 / 1.11.x release "Anniversary Edition" — see the Version 4 disambiguation box above.
 
 > **Important:** Unlike Skyrim AE (which is a paid upgrade), Fallout 4's AE content was given free to all owners with the NG update. If you have NG, you have AE content.
 
@@ -276,10 +276,10 @@ If a user gets an error opening a BA2, check:
 → If built for OG (pre-April 2024), many mods need NG updates. If built for NG (pre-November 2025), DLL mods may need 1.11.x updates. Check the list curator's page.
 
 ### "Which version should I mod for?"
-→ **Mod for 1.11.x if starting fresh in 2026.** The community has moved to NG/1.11.x. Use NG CK, F4SE 0.7.7, PRP 81.5, Buffout 4 NG, and Addictol. AE content patches are optional unless you want to cover the CC items.
+→ **Mod for 1.11.x if starting fresh in 2026.** The community has moved to NG/1.11.x. Use NG CK, F4SE 0.7.7, PRP 81.5, and Addictol. AE content patches are optional unless you want to cover the CC items.
 
 ### "How do I check if my mods are NG/1.11.x-compatible?"
-→ Load your full list in xEdit 4.0.3+. For any mod with F4SE plugins — check the `.dll` file version. Run **CLASSIC** (Nexus #56255) on Buffout 4 crash logs: it identifies exactly which DLLs need updating.
+→ Load your full list in xEdit 4.0.4+. For any mod with F4SE plugins — check the `.dll` file version. Run **CLASSIC** (Nexus #56255) after any CTD to identify which DLLs need updating.
 
 ---
 
@@ -302,8 +302,7 @@ Never assume OG, NG, or 1.11.x — always confirm. The same symptom can have com
 |---|---|---|---|
 | F4SE | silverlock.org (0.6.23) | silverlock.org (0.7.x) | silverlock.org (0.7.7) |
 | Address Library | Nexus #47327 (OG) | Nexus #47327 (AiO Anniversary) | Nexus #47327 (1.11.191 build) |
-| Buffout 4 NG | Nexus #64880 | Nexus #64880 (NG build) | Nexus #64880 (latest) |
-| Addictol (X-Cell) | N/A | The Midnight Ride guide | The Midnight Ride guide |
+| Addictol | N/A | Nexus #84214 (ALL-IN-ONE; supersedes Buffout 4) | Nexus #84214 |
 | PRP | Nexus #46403 (≤74) | Nexus #46403 (81+) | Nexus #46403 (81.5) |
 | Downgrade Patcher | N/A | Nexus #81463 (to OG) | Nexus #81463 (to 1.10.984) |
 | MCM NG | Nexus #21497 | Nexus #21497 (NG variant) | Nexus #21497 (1.11.x build) |
@@ -314,4 +313,4 @@ Never assume OG, NG, or 1.11.x — always confirm. The same symptom can have com
 
 ---
 
-*Last updated: March 2026. Fallout 4 version history: 1.10.163 (OG final) → 1.10.980/984 (NG, April 2024) → 1.11.169/191 (Creations Menu, November 2025).*
+*Last updated: April 2026. Fallout 4 version history: 1.10.163 (OG final) → 1.10.980/984 (NG, April 2024) → 1.11.137/191 (official Anniversary Edition, November–December 2025).*

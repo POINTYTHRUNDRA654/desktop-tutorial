@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import {
   Layers, Wand2, Sparkles, Image as ImageIcon, Download, Upload,
   Settings, Grid3x3, Zap, Eye, RefreshCw, Check, X, Info,
@@ -64,7 +65,7 @@ interface ToolOperation {
 
 export const TextureGenerator: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('material');
-  
+
   // Material Generator State
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [materialStyle, setMaterialStyle] = useState<MaterialStyle>('game-ready');
@@ -113,19 +114,33 @@ export const TextureGenerator: React.FC = () => {
   const handleImageUpload = async () => {
     try {
       const result = await (window.electron.api as any).ddsPickFiles();
-      if (result.success && result.paths && result.paths.length > 0) {
-        setSourceImage(result.paths[0]);
-        setGeneratedMaterial(null);
+
+      if (!result) {
+        toast.error('No files selected');
+        return;
       }
+
+      if (!result.success) {
+        toast.error(result.error || 'Failed to pick file');
+        return;
+      }
+
+      if (!result.paths || result.paths.length === 0) {
+        toast.error('No files selected');
+        return;
+      }
+
+      setSourceImage(result.paths[0]);
+      setGeneratedMaterial(null);
     } catch (error) {
       console.error('Image upload error:', error);
-      alert('Failed to upload image');
+      toast.error('Failed to open file picker: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
   const handleGenerateMaterial = async () => {
     if (!sourceImage) {
-      alert('Please upload a source image first');
+      toast.error('Please upload a source image first');
       return;
     }
 
@@ -135,29 +150,31 @@ export const TextureGenerator: React.FC = () => {
     try {
       const input = {
         name: `material_${Date.now()}`,
+        sourceImage: sourceImage,
         basePath: sourceImage,
         outputDir: sourceImage.substring(0, sourceImage.lastIndexOf('\\')),
         resolution: 1024,
+        style: materialStyle,
         generateMaps: selectedMaps,
         seamless: false,
         upscale: undefined
       };
 
       const result = await (window.electron.api as any).textureGenerateMaterialSet(input);
-      
+
       if (result.success) {
         setGeneratedMaterial({
           name: result.name,
           maps: result.maps,
           timestamp: Date.now()
         });
-        alert(`Material generation complete!\nTotal size: ${(result.totalSize / 1024 / 1024).toFixed(2)} MB\nTime: ${(result.totalProcessingTime / 1000).toFixed(2)}s`);
+        toast.success(`Material generation complete!. Total size: ${(result.totalSize / 1024 / 1024).toFixed(2)} MB. Time: ${(result.totalProcessingTime / 1000).toFixed(2)}s`);
       } else {
-        alert(`Material generation failed: ${result.error}`);
+        toast.error(`Material generation failed: ${result.error}`);
       }
     } catch (error: any) {
       console.error('Material generation error:', error);
-      alert(`Failed to generate material: ${error.message}`);
+      toast.error(`Failed to generate material: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -165,22 +182,22 @@ export const TextureGenerator: React.FC = () => {
 
   const handleDownloadMap = async (map: GeneratedMap) => {
     if (map.success && map.path) {
-      alert(`Map saved to: ${map.path}`);
+      toast.success(`Map saved to: ${map.path}`);
     }
   };
 
   const handleDownloadAllMaps = () => {
     if (!generatedMaterial) return;
-    
+
     const successfulMaps = Object.values(generatedMaterial.maps).filter(m => m?.success);
-    alert(`All ${successfulMaps.length} maps have been saved to the output directory`);
+    toast.success(`All ${successfulMaps.length} maps have been saved to the output directory`);
   };
 
   const handleSaveMaterial = () => {
     if (!generatedMaterial) return;
-    
+
     setSavedMaterials(prev => [...prev, generatedMaterial]);
-    alert('Material saved to gallery!');
+    toast.success('Material saved to gallery!');
   };
 
   // ============================================================================
@@ -202,16 +219,16 @@ export const TextureGenerator: React.FC = () => {
       };
 
       const result = await (window.electron.api as any).textureGenerateProcedural(proceduralType, settings);
-      
+
       if (result.success) {
         setProceduralPreview(result.outputPath);
-        alert(`Procedural texture generated!\nSize: ${result.width}x${result.height}\nFile: ${(result.fileSize / 1024).toFixed(2)} KB`);
+        toast.success(`Procedural texture generated!. Size: ${result.width}x${result.height}. File: ${(result.fileSize / 1024).toFixed(2)} KB`);
       } else {
-        alert(`Procedural generation failed: ${result.error}`);
+        toast.error(`Procedural generation failed: ${result.error}`);
       }
     } catch (error: any) {
       console.error('Procedural generation error:', error);
-      alert(`Failed to generate procedural texture: ${error.message}`);
+      toast.error(`Failed to generate procedural texture: ${error.message}`);
     } finally {
       setIsGeneratingProcedural(false);
     }
@@ -228,17 +245,32 @@ export const TextureGenerator: React.FC = () => {
   const handleToolFileSelect = async () => {
     try {
       const result = await (window.electron.api as any).ddsPickFiles();
-      if (result.success && result.paths && result.paths.length > 0) {
-        setToolInputFile(result.paths[0]);
+
+      if (!result) {
+        toast.error('No files selected');
+        return;
       }
+
+      if (!result.success) {
+        toast.error(result.error || 'Failed to pick file');
+        return;
+      }
+
+      if (!result.paths || result.paths.length === 0) {
+        toast.error('No files selected');
+        return;
+      }
+
+      setToolInputFile(result.paths[0]);
     } catch (error) {
       console.error('File selection error:', error);
+      toast.error('Failed to open file picker: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
   const handleMakeSeamless = async () => {
     if (!toolInputFile) {
-      alert('Please select an image first');
+      toast.error('Please select an image first');
       return;
     }
 
@@ -246,38 +278,38 @@ export const TextureGenerator: React.FC = () => {
 
     try {
       const result = await (window.electron.api as any).textureMakeSeamless(toolInputFile, seamlessRadius);
-      
+
       if (result.success) {
-        setToolOperation({ 
-          type: 'seamless', 
-          status: 'complete', 
-          progress: 100, 
-          result 
+        setToolOperation({
+          type: 'seamless',
+          status: 'complete',
+          progress: 100,
+          result
         });
-        alert(`Seamless texture created!\nSaved to: ${result.outputPath}\nProcessing time: ${result.processingTime}ms`);
+        toast.success(`Seamless texture created!. Saved to: ${result.outputPath}. Processing time: ${result.processingTime}ms`);
       } else {
-        setToolOperation({ 
-          type: 'seamless', 
-          status: 'error', 
-          progress: 0, 
-          error: result.error 
+        setToolOperation({
+          type: 'seamless',
+          status: 'error',
+          progress: 0,
+          error: result.error
         });
-        alert(`Failed to make seamless: ${result.error}`);
+        toast.error(`Failed to make seamless: ${result.error}`);
       }
     } catch (error: any) {
-      setToolOperation({ 
-        type: 'seamless', 
-        status: 'error', 
-        progress: 0, 
-        error: error.message 
+      setToolOperation({
+        type: 'seamless',
+        status: 'error',
+        progress: 0,
+        error: error.message
       });
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     }
   };
 
   const handleUpscale = async () => {
     if (!toolInputFile) {
-      alert('Please select an image first');
+      toast.error('Please select an image first');
       return;
     }
 
@@ -285,32 +317,32 @@ export const TextureGenerator: React.FC = () => {
 
     try {
       const result = await (window.electron.api as any).textureUpscale(toolInputFile, upscaleFactor);
-      
+
       if (result.success) {
-        setToolOperation({ 
-          type: 'upscale', 
-          status: 'complete', 
-          progress: 100, 
-          result 
+        setToolOperation({
+          type: 'upscale',
+          status: 'complete',
+          progress: 100,
+          result
         });
-        alert(`Upscale complete!\nOriginal: ${result.originalWidth}x${result.originalHeight}\nUpscaled: ${result.upscaledWidth}x${result.upscaledHeight}\nSaved to: ${result.outputPath}`);
+        toast.success(`Upscale complete!. Original: ${result.originalWidth}x${result.originalHeight}. Upscaled: ${result.upscaledWidth}x${result.upscaledHeight}. Saved to: ${result.outputPath}`);
       } else {
-        setToolOperation({ 
-          type: 'upscale', 
-          status: 'error', 
-          progress: 0, 
-          error: result.error 
+        setToolOperation({
+          type: 'upscale',
+          status: 'error',
+          progress: 0,
+          error: result.error
         });
-        alert(`Upscale failed: ${result.error}`);
+        toast.error(`Upscale failed: ${result.error}`);
       }
     } catch (error: any) {
-      setToolOperation({ 
-        type: 'upscale', 
-        status: 'error', 
-        progress: 0, 
-        error: error.message 
+      setToolOperation({
+        type: 'upscale',
+        status: 'error',
+        progress: 0,
+        error: error.message
       });
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     }
   };
 
@@ -335,44 +367,40 @@ export const TextureGenerator: React.FC = () => {
       <div className="bg-slate-800 rounded-lg p-1 grid grid-cols-4 gap-1">
         <button
           onClick={() => setActiveTab('material')}
-          className={`py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'material'
-              ? 'bg-indigo-600 text-white'
-              : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
-          }`}
+          className={`py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'material'
+            ? 'bg-indigo-600 text-white'
+            : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
+            }`}
         >
           <Layers size={18} />
           Material Generator
         </button>
         <button
           onClick={() => setActiveTab('procedural')}
-          className={`py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'procedural'
-              ? 'bg-indigo-600 text-white'
-              : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
-          }`}
+          className={`py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'procedural'
+            ? 'bg-indigo-600 text-white'
+            : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
+            }`}
         >
           <Grid3x3 size={18} />
           Procedural
         </button>
         <button
           onClick={() => setActiveTab('tools')}
-          className={`py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'tools'
-              ? 'bg-indigo-600 text-white'
-              : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
-          }`}
+          className={`py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'tools'
+            ? 'bg-indigo-600 text-white'
+            : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
+            }`}
         >
           <Sparkles size={18} />
           Tools
         </button>
         <button
           onClick={() => setActiveTab('gallery')}
-          className={`py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'gallery'
-              ? 'bg-indigo-600 text-white'
-              : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
-          }`}
+          className={`py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'gallery'
+            ? 'bg-indigo-600 text-white'
+            : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
+            }`}
         >
           <FolderOpen size={18} />
           Gallery
@@ -446,11 +474,10 @@ export const TextureGenerator: React.FC = () => {
                     <button
                       key={style}
                       onClick={() => setMaterialStyle(style)}
-                      className={`py-2 px-4 rounded capitalize ${
-                        materialStyle === style
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
-                      }`}
+                      className={`py-2 px-4 rounded capitalize ${materialStyle === style
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                        }`}
                     >
                       {style.replace('-', ' ')}
                     </button>
@@ -472,11 +499,10 @@ export const TextureGenerator: React.FC = () => {
                           setSelectedMaps(prev => [...prev, mapType]);
                         }
                       }}
-                      className={`py-2 px-3 rounded text-sm capitalize flex items-center justify-center gap-2 ${
-                        selectedMaps.includes(mapType)
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
-                      }`}
+                      className={`py-2 px-3 rounded text-sm capitalize flex items-center justify-center gap-2 ${selectedMaps.includes(mapType)
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                        }`}
                     >
                       {selectedMaps.includes(mapType) && <Check size={14} />}
                       {mapType}
@@ -664,11 +690,10 @@ export const TextureGenerator: React.FC = () => {
               <button
                 key={type}
                 onClick={() => setProceduralType(type)}
-                className={`py-4 px-4 rounded-lg capitalize font-medium transition-all ${
-                  proceduralType === type
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
-                }`}
+                className={`py-4 px-4 rounded-lg capitalize font-medium transition-all ${proceduralType === type
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                  }`}
               >
                 {type}
               </button>
@@ -810,7 +835,7 @@ export const TextureGenerator: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-400">{proceduralPreview.split('\\').pop()}</span>
                 <button
-                  onClick={() => alert(`Saved to: ${proceduralPreview}`)}
+                  onClick={() => toast.success(`Saved to: ${proceduralPreview}`)}
                   className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 rounded text-sm flex items-center gap-2"
                 >
                   <Download size={14} />
@@ -926,21 +951,19 @@ export const TextureGenerator: React.FC = () => {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setUpscaleFactor(2)}
-                  className={`py-2 px-4 rounded ${
-                    upscaleFactor === 2
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
-                  }`}
+                  className={`py-2 px-4 rounded ${upscaleFactor === 2
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                    }`}
                 >
                   2x Upscale
                 </button>
                 <button
                   onClick={() => setUpscaleFactor(4)}
-                  className={`py-2 px-4 rounded ${
-                    upscaleFactor === 4
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
-                  }`}
+                  className={`py-2 px-4 rounded ${upscaleFactor === 4
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                    }`}
                 >
                   4x Upscale
                 </button>

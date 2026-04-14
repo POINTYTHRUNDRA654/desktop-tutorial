@@ -1,0 +1,182 @@
+{
+  "nav": {
+    "home": "Mossy.Space",
+    "chat": "AI 채팅",
+    "aiModAssistant": "AI Mod 도우미",
+    "firstSuccess": "첫 번째 성공",
+    "roadmap": "모딩 로드맵",
+    "whatsNew": "새로운 소식",
+    "modProjects": "Mod 프로젝트",
+    "modBrowser": "Mod 브라우저",
+    "quickReference": "빠른 참조",
+    "knowledgeSearch": "지식 검색",
+    "installWizard": "설치 마법사",
+    "platforms": "플랫폼",
+    "wizards": "마법사",
+    "crashTriage": "충돌 분류",
+    "ckCrashPrevention": "CK 안전",
+    "ddsConverter": "DDS 변환기",
+    "textureGenerator": "텍스처 생성기",
+    "packagingRelease": "패키징 및 릴리스",
+    "ckQuestDialogue": "CK 퀘스트 및 대화",
+    "animationGuide": "애니메이션 가이드",
+    "skeletonReference": "스켈레톤 참조",
+    "riggingMistakes": "리깅 실수",
+    "questModAuthoring": "퀘스트 Mod 작성",
+    "precombinePrpGuide": "Precombine 및 PRP 가이드",
+    "prpPatchBuilder": "PRP 패치 빌더",
+    "leveledListInjection": "레벨 목록 주입",
+    "lorekeeper": "로어키퍼",
+    "tools": "도구",
+    "cosmosWorkflow": "Cosmos 워크플로",
+    "devtools": "개발 도구",
+    "templateGenerator": "템플릿 생성기",
+    "scriptAnalyzer": "스크립트 분석기",
+    "assembler": "어셈블러",
+    "workshop": "워크숍",
+    "blueprint": "블루프린트",
+    "riggingChecklist": "리깅 체크리스트",
+    "exportSettingsHelper": "내보내기 설정 도우미",
+    "animationValidator": "애니메이션 검증기",
+    "precombineChecker": "Precombine 검사기",
+    "auditor": "감사관",
+    "securityScanner": "보안 스캐너",
+    "miningDashboard": "마이닝 대시보드",
+    "advancedAnalysis": "고급 분석",
+    "scribe": "서기",
+    "systemMonitor": "시스템 모니터",
+    "orchestrator": "오케스트레이터",
+    "workflowRunner": "워크플로 러너",
+    "holodeck": "홀로덱",
+    "vault": "볼트",
+    "ba2Manager": "BA2 관리자",
+    "localCapabilities": "로컬 기능",
+    "memoryVault": "메모리 볼트",
+    "neuralLink": "Neural Link",
+    "imageStudio": "이미지 스튜디오",
+    "audioStudio": "오디오 스튜디오",
+    "liveSynapse": "Live Synapse",
+    "desktopBridge": "Desktop Bridge",
+    "mo2Extension": "MO2 확장",
+    "xeditTools": "xEdit 도구",
+    "ckExtension": "CK 확장",
+    "prpPatchTools": "PRP 패치 도구",
+    "comfyuiExtension": "ComfyUI 확장",
+    "upscaylExtension": "Upscayl 확장",
+    "duplicateFinder": "중복 찾기",
+    "communityLearning": "커뮤니티 학습",
+    "toolVerify": "도구 확인",
+    "settings": "설정",
+    "privacySettings": "개인정보 설정",
+    "voiceSettings": "음성 설정",
+    "languageSettings": "언어 설정",
+    "diagnosticTools": "진단 도구",
+    "supportMossy": "Mossy 지원"
+  },
+  "settings": {
+    "language": {
+      "title": "언어 설정",
+      "subtitle": "Mossy 인터페이스에서 사용할 언어를 선택하세요.",
+      "uiLanguageLabel": "앱 언어",
+      "uiLanguageHelp": "레이블, 버튼 및 UI 텍스트에 영향을 줍니다(번역된 경우).",
+      "requestTitle": "언어 요청",
+      "requestHelp": "사용하는 언어가 없나요? 다음에 추가할 언어를 알려주세요.",
+      "requestCta": "언어 요청",
+      "requestCtaTitle": "언어 요청 양식 열기",
+      "auto": "자동(시스템)",
+      "current": "현재",
+      "save": "저장"
+    }
+  },
+  "onboarding": {
+    "language": {
+      "label": "언어",
+      "help": "인터페이스 언어를 선택하세요. 나중에 설정에서 변경할 수 있습니다.",
+      "auto": "자동(시스템)"
+    }
+  },
+  "installWizard": {
+    "tagline": "Mossy Tutor • 설치 마법사",
+    "topics": "주제",
+    "modManager": "Mod 관리자",
+    "shortcuts": {
+      "title": "단축키",
+      "externalTools": "외부 도구 설정",
+      "precombinePrp": "Precombine 및 PRP 가이드",
+      "simSettlements": "Sim Settlements 가이드"
+    },
+    "topicSelector": {
+      "xedit": "xEdit / FO4Edit",
+      "ss2": "SS2 플롯 건설",
+      "prp": "PRP (Previs/Precombine)",
+      "patching": "패치 빌드"
+    },
+    "actions": {
+      "askMossy": "Mossy에게 물어보기",
+      "askMossyTitle": "채팅에서 Mossy에게 물어보기",
+      "sendToChat": "채팅으로 보내기",
+      "sendToChatTitle": "이 주제의 체크리스트를 채팅으로 보내기",
+      "reset": "재설정",
+      "resetTitle": "마법사 진행 상황 재설정"
+    },
+    "section": {
+      "prereqs": "사전 요구 사항",
+      "download": "다운로드",
+      "installConfigure": "설치 / 구성",
+      "buildPatch": "패치 빌드",
+      "verify": "확인",
+      "troubleshoot": "문제 해결"
+    },
+    "step": {
+      "markIncomplete": "단계를 미완료로 표시",
+      "markComplete": "단계를 완료로 표시",
+      "completed": "완료됨",
+      "notCompleted": "완료되지 않음"
+    },
+    "topic": {
+      "xedit": {
+        "title": "xEdit / FO4Edit 설정",
+        "subtitle": "안전하게 패치할 수 있도록 xEdit를 설치, 구성 및 확인합니다."
+      },
+      "ss2": {
+        "title": "Sim Settlements 2 설정",
+        "subtitle": "플롯 건설을 위한 종속성 + 설치 + 기본 확인."
+      },
+      "prp": {
+        "title": "PRP 설정",
+        "subtitle": "충돌 인식 확인을 통한 Precombines/previs 설치."
+      },
+      "patching": {
+        "title": "패치 빌드",
+        "subtitle": "호환성 패치를 빌드하기 위한 안전하고 반복 가능한 워크플로."
+      }
+    },
+    "verifyPanel": {
+      "description": "이 마법사는 누락된 사전 요구 사항을 방지하도록 설계되었습니다. 공식 소스 또는 안정적인 검색 페이지에 연결하고 최소한의 확인 루프를 제공합니다.",
+      "verify": {
+        "0": "주제를 선택하고 체크리스트가 렌더링되고 새로고침 후 체크박스가 유지되는지 확인하세요.",
+        "1": "\"신뢰할 수 있는 링크\"에서 최소한 하나의 링크를 열고 openExternal/window.open을 통해 열리는지 확인하세요.",
+        "2": "\"채팅으로 보내기\"를 사용하고 체크리스트가 복사되어 채팅에 미리 채워지는지 확인하세요."
+      },
+      "firstTestLoop": {
+        "0": "\"xEdit / FO4Edit\"로 시작하여 먼저 깨끗한 실행 하나를 얻으세요.",
+        "1": "Mod 관리자 선택을 구성한 다음 확장하기 전에 최소한의 \"확인\" 단계만 완료하세요."
+      },
+      "troubleshooting": {
+        "0": "링크가 열리지 않으면 진단을 확인하고 openExternal을 사용할 수 있는지 확인하거나(데스크톱 앱) 팝업을 허용하세요.",
+        "1": "체크박스 상태가 유지되지 않으면 localStorage를 사용할 수 있는지 확인하세요(진단 참조)."
+      }
+    },
+    "downloadsSources": "다운로드 및 소스",
+    "downloadsSourcesHelp": "신뢰할 수 있는 소스와 로컬 지식 볼트 내에서 찾은 직접 URL을 표시합니다.",
+    "refresh": "새로고침",
+    "refreshTitle": "링크 새로고침",
+    "fromVault": "지식 볼트에서",
+    "openVault": "메모리 볼트 열기",
+    "searchNexus": "Nexus 검색",
+    "vaultLink": "볼트 링크",
+    "tutorTip": "튜터 팁",
+    "openLastLocation": "마지막 위치 열기",
+    "openLastLocationTitle": "(선택 사항) 사용 가능한 경우 마지막으로 저장된 위치 열기"
+  }
+}

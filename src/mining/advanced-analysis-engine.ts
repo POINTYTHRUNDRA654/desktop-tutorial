@@ -222,7 +222,7 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
     }
 
     // Generate optimization recommendations
-    const improvements = [];
+    const improvements: { type: string; description: string; gain: number }[] = [];
 
     // Load order improvements
     if (currentBottlenecks.optimizationOpportunities.some(opp => opp.type === 'load_order')) {
@@ -231,7 +231,7 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
         improvements.push({
           type: 'load_order',
           description: loadOrderOpp.description,
-          gain: loadOrderOpp.potentialGain
+          gain: loadOrderOpp.potentialGain as unknown as number
         });
       }
     }
@@ -255,7 +255,7 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
       improvements.push({
         type: 'memory',
         description: rec.description,
-        gain: rec.potentialSavings
+        gain: rec.potentialSavings as number
       });
     }
 

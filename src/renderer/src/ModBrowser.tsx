@@ -1,14 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Search, Download, Star, Users, ExternalLink, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ModListing, ModDetails, SearchFilters, Review, Collection } from '../../shared/types';
 
 // prefer preload API when available, otherwise fall back to in-memory engine for dev
 let bridge: any = (window as any).electron?.api || (window as any).electronAPI;
 try {
-  if (!bridge || !bridge.modBrowser) {
+  if (!bridge?.modBrowser) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const local = require('../../mining/modBrowser');
-    bridge = bridge || { modBrowser: local.modBrowser || local.default };
+    // Spread the existing bridge so preload methods (detectPrograms, openExternal, etc.) are
+    // preserved. Previously `bridge || { modBrowser: local }` would silently discard all preload
+    // methods when bridge was truthy but lacked modBrowser, causing TypeErrors in mod search.
+    bridge = { ...(bridge || {}), modBrowser: local.modBrowser || local.default };
   }
 } catch (err) {
   // ignore; UI will still render but actions will fail gracefully
@@ -26,6 +30,7 @@ const ModBrowser: React.FC = () => {
   const [newReview, setNewReview] = useState('');
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collectionName, setCollectionName] = useState('');
+  const [downloadDest, setDownloadDest] = useState('C:/Temp');
   const [nexusKey, setNexusKey] = useState('');
   const [nexusStatus, setNexusStatus] = useState<string | null>(null);
   const [installGuideOpen, setInstallGuideOpen] = useState(false);
@@ -58,21 +63,25 @@ const ModBrowser: React.FC = () => {
   };
 
   const handleDownload = async (id: string) => {
+    if (!downloadDest.trim()) {
+      toast.error('Set a download destination path first.');
+      return;
+    }
     try {
-      const dest = window.prompt('Download destination (local path)', 'C:/Temp');
-      if (!dest) return;
-      const res = await bridge.modBrowser.downloadMod(id, dest);
+      const res = await bridge.modBrowser.downloadMod(id, downloadDest.trim());
       if (res.success) {
-        alert(`Downloaded to ${res.filePath} (${(res.size/1024|0)} KB) in ${res.duration} ms`);
+        toast.success(`Downloaded to ${res.filePath} (${(res.size / 1024) | 0} KB) in ${res.duration} ms`);
         try {
           window.dispatchEvent(new CustomEvent('security:auto-scan-download', { detail: { filePath: res.filePath } }));
         } catch (dispatchErr) {
           console.debug('Auto-scan event dispatch failed', dispatchErr);
         }
-      } else alert('Download failed');
+      } else {
+        toast.error('Download failed');
+      }
     } catch (err) {
       console.error(err);
-      alert('Download error');
+      toast.error('Download error');
     }
   };
 
@@ -85,19 +94,20 @@ const ModBrowser: React.FC = () => {
       setNewReview('');
     } catch (err) {
       console.error(err);
-      alert('Failed to submit review');
+      toast.error('Failed to submit review');
     }
   };
 
   const createCollection = async () => {
-    if (!collectionName) return alert('Provide a collection name');
+    if (!collectionName) { toast.error('Provide a collection name'); return; }
     try {
       const col = await bridge.modBrowser.createCollection(collectionName, selected ? [selected.id] : [], 'Created from ModBrowser');
       setCollections((c: any) => [col, ...c]);
       setCollectionName('');
-      alert(`Collection created: ${col.shareUrl}`);
+      toast.success(`Collection created: ${col.shareUrl}`);
     } catch (err) {
       console.error(err);
+      toast.error('Failed to create collection');
     }
   };
 
@@ -192,7 +202,7 @@ const ModBrowser: React.FC = () => {
           )}
         </div>
 
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center bg-[#0f1313] border border-slate-800 rounded px-3 py-2 flex-1">
             <Search className="w-4 h-4 text-slate-400 mr-3" />
             <input className="bg-transparent outline-none flex-1 text-sm" placeholder="Search mods, authors, tags..." value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()} />
@@ -213,6 +223,18 @@ const ModBrowser: React.FC = () => {
               <option value="tools">Tools</option>
             </select>
           </div>
+        </div>
+
+        {/* Download destination */}
+        <div className="flex items-center gap-2 mb-6">
+          <label className="text-xs text-slate-400 whitespace-nowrap">Download to:</label>
+          <input
+            className="flex-1 bg-[#0f1313] border border-slate-800 rounded px-3 py-1.5 text-sm"
+            value={downloadDest}
+            onChange={e => setDownloadDest(e.target.value)}
+            placeholder="C:/Temp"
+            aria-label="Download destination path"
+          />
         </div>
 
         <div className="grid grid-cols-4 gap-6">

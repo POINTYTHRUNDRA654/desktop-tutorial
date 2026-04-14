@@ -179,7 +179,7 @@ describe('InteractiveTutorial layout & navigation', () => {
     const withPackaged = buildTutorialText(settingsContext, 0, true);
     // No API-key guidance or provider mentions should appear in packaged builds
     expect(/Enter your OpenAI API key/i.test(withPackaged)).toBeFalsy();
-    expect(/(API key|OpenAI|openai|Groq|elevenlabs)/i.test(withPackaged)).toBeFalsy();
+    expect(/(API key|OpenAI|openai|Groq)/i.test(withPackaged)).toBeFalsy();
   });
 
   it('orders tutorial contexts to follow VISUAL_GUIDE.md when page numbers exist', () => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Network, Play, RefreshCw, AlertTriangle, CheckCircle2, Image, Zap, Grid3x3, Sparkles, FolderOpen, Download, Settings } from 'lucide-react';
 
 interface ComfyWorkflow {
@@ -64,6 +64,7 @@ const WORKFLOWS: ComfyWorkflow[] = [
 ];
 
 export const ComfyUIExtension: React.FC = () => {
+  const navigate = useNavigate();
   const [isConnected, setIsConnected] = useState(false);
   const [selectedWorkflow, setSelectedWorkflow] = useState<ComfyWorkflow | null>(null);
   const [prompt, setPrompt] = useState('');
@@ -77,6 +78,7 @@ export const ComfyUIExtension: React.FC = () => {
     'anything-v5-PrtRE.safetensors',
   ]);
   const [selectedModel, setSelectedModel] = useState(availableModels[0]);
+  const [statusMsg, setStatusMsg] = useState<string>('');
 
   // Check if ComfyUI is running via Neural Link
   useEffect(() => {
@@ -155,6 +157,59 @@ export const ComfyUIExtension: React.FC = () => {
   const queuedCount = queue.filter(j => j.status === 'queued').length;
   const generatingCount = queue.filter(j => j.status === 'generating').length;
   const completedCount = queue.filter(j => j.status === 'complete').length;
+
+  const openOutputFolder = async () => {
+    const bridge: any = (window as any).electron?.api;
+    if (bridge?.assetScanner?.browseFolder) {
+      await bridge.assetScanner.browseFolder();
+    } else if (bridge?.browseFolder) {
+      await bridge.browseFolder();
+    } else {
+      setStatusMsg('Navigate to your ComfyUI output folder (default: ComfyUI/output).');
+    }
+  };
+
+  const refreshModels = () => {
+    // Refresh the available models list from localStorage (populated by the ComfyUI connection layer)
+    // or fall back to the built-in defaults already loaded in state.
+    const saved = localStorage.getItem('comfyui_models');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as string[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAvailableModels(parsed);
+          setStatusMsg(`Refreshed: ${parsed.length} model(s) loaded.`);
+          return;
+        }
+      } catch { /* ignore malformed data */ }
+    }
+    setStatusMsg('Models list refreshed.');
+  };
+
+  const exportJobs = async () => {
+    const bridge: any = (window as any).electron?.api;
+    const completed = queue.filter(j => j.status === 'complete');
+    if (completed.length === 0) {
+      setStatusMsg('No completed generations to export.');
+      return;
+    }
+    if (!bridge?.saveFile) {
+      setStatusMsg('Export is not available in this environment.');
+      return;
+    }
+    const lines = [
+      `# ComfyUI Generation Log – ${new Date().toLocaleString()}`,
+      '',
+      ...completed.map(j => `[${j.startTime?.toLocaleTimeString() ?? '?'}] ${j.prompt}`),
+    ];
+    try {
+      const savedTo = await bridge.saveFile(lines.join('\n'), 'comfyui-generation-log.txt');
+      if (savedTo) setStatusMsg(`Exported ${completed.length} job(s) to: ${savedTo}`);
+    } catch {
+      setStatusMsg('Export failed.');
+    }
+  };
+
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -384,20 +439,33 @@ export const ComfyUIExtension: React.FC = () => {
           {isConnected && (
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
               <h3 className="text-lg font-bold text-white mb-4">Quick Actions</h3>
+              {statusMsg && (
+                <div className="mb-4 px-4 py-2 bg-slate-900/70 border border-slate-600/50 rounded-lg text-sm text-slate-300">
+                  {statusMsg}
+                </div>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <button className="px-4 py-3 bg-purple-900/20 border border-purple-500/30 text-purple-300 rounded-lg hover:bg-purple-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={openOutputFolder}
+                  className="px-4 py-3 bg-purple-900/20 border border-purple-500/30 text-purple-300 rounded-lg hover:bg-purple-900/30 transition-colors flex items-center gap-2 justify-center">
                   <FolderOpen className="w-4 h-4" />
                   Open Output
                 </button>
-                <button className="px-4 py-3 bg-blue-900/20 border border-blue-500/30 text-blue-300 rounded-lg hover:bg-blue-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={refreshModels}
+                  className="px-4 py-3 bg-blue-900/20 border border-blue-500/30 text-blue-300 rounded-lg hover:bg-blue-900/30 transition-colors flex items-center gap-2 justify-center">
                   <RefreshCw className="w-4 h-4" />
                   Refresh Models
                 </button>
-                <button className="px-4 py-3 bg-cyan-900/20 border border-cyan-500/30 text-cyan-300 rounded-lg hover:bg-cyan-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={exportJobs}
+                  className="px-4 py-3 bg-cyan-900/20 border border-cyan-500/30 text-cyan-300 rounded-lg hover:bg-cyan-900/30 transition-colors flex items-center gap-2 justify-center">
                   <Download className="w-4 h-4" />
                   Batch Export
                 </button>
-                <button className="px-4 py-3 bg-pink-900/20 border border-pink-500/30 text-pink-300 rounded-lg hover:bg-pink-900/30 transition-colors flex items-center gap-2 justify-center">
+                <button
+                  onClick={() => navigate('/settings')}
+                  className="px-4 py-3 bg-pink-900/20 border border-pink-500/30 text-pink-300 rounded-lg hover:bg-pink-900/30 transition-colors flex items-center gap-2 justify-center">
                   <Settings className="w-4 h-4" />
                   Settings
                 </button>

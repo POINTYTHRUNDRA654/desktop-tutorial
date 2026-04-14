@@ -1,30 +1,48 @@
 name: Auto-merge non-master branches into master
 
+# Auto-merge is DISABLED — trigger manually after all CI checks pass.
+# To run: Actions → "Auto-merge non-master branches into master" → Run workflow.
 on:
-  push:
-    # run on pushes to any branch except master
-    branches-ignore:
-      - 'master'
-  create:
-    # run when a new branch is created (master filtered in job condition)
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to merge into master'
+        required: true
+        type: string
 
 permissions:
   contents: write
   pull-requests: write
+  statuses: read
 
 jobs:
   auto-merge:
     if: github.ref_name != 'master'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.x
+
+      - name: Check for unresolved conflict markers
+        run: node scripts/check-no-conflict-markers.js
+
       - name: Attempt merge branch → master (and delete branch when merged)
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // Determine branch name (works for push & create events)
-            const ref = context.ref || '';
-            const branch = ref.startsWith('refs/heads/') ? ref.replace('refs/heads/', '') : (process.env.GITHUB_HEAD_REF || '');
+            // When triggered manually, use the workflow_dispatch input; otherwise fall back to ref.
+            const branch = context.payload.inputs?.branch
+              || (context.ref?.startsWith('refs/heads/') ? context.ref.replace('refs/heads/', '') : '')
+              || process.env.GITHUB_HEAD_REF
+              || '';
             if (!branch) {
               console.log('No branch detected; nothing to do.');
               return;

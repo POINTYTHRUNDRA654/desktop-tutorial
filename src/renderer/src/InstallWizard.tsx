@@ -630,7 +630,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'stability',
               title: 'Confirm stability — run CLASSIC if you get a CTD',
-              details: <>If the game crashes after installing your patch, open the Buffout 4 NG crash log at <code>%LOCALAPPDATA%\Fallout4\F4SE\</code> and run <b>CLASSIC</b> (Nexus #56255) on it. CLASSIC covers 250+ crash scenarios and will pinpoint missing masters, DLL version mismatches, or navmesh issues.</>,
+              details: <>If the game crashes after installing your patch, open the crash log at <code>%LOCALAPPDATA%\Fallout4\F4SE\</code> (written by Addictol, Nexus #84214) and run <b>CLASSIC</b> (Nexus #56255) on it. CLASSIC covers 250+ crash scenarios and will pinpoint missing masters, DLL version mismatches, or navmesh issues.</>,
             },
           ],
         },
@@ -653,7 +653,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
         },
       ];
     }
-  }, [state.modManager, state.topic, t]);
+  }, [state.modManager, state.topic, t]) ?? [];
 
   const topicMeta = {
     xedit: {

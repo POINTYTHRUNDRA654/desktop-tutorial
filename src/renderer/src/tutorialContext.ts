@@ -189,6 +189,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Chat history with memory',
       'Send-to-Chat handoff from other pages (prefills/transfer)',
       'Saved file links in responses with "Open folder"',
+      '👍 / 👎 rating buttons on every assistant message — builds a personal training dataset in Unsloth ShareGPT format exportable from Settings',
     ],
     controls: [
       {
@@ -209,11 +210,18 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         description: 'Transfers selected text or code to the chat input',
         whenToUse: 'When you want to ask about a specific code snippet or text',
       },
+      {
+        name: '👍 / 👎 Rate Response',
+        type: 'button',
+        description: 'Thumbs-up/down buttons on each assistant message; pairs that response with the preceding user turn and saves it to userData/training-dataset.jsonl',
+        whenToUse: 'Any time a response is notably good or bad — helps improve future fine-tuning',
+      },
     ],
     commonMistakes: [
       'Not clearing history when switching topics',
       'Forgetting to reset memory when AI responses become irrelevant',
       'Not using Send-to-Chat for quick context transfer',
+      'Ignoring the 👍/👎 buttons — rating responses builds a free training dataset you can use to fine-tune Mossy later',
     ],
     guides: [
       {
@@ -232,10 +240,20 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
           'Review the prefilled input and press Enter',
         ],
       },
+      {
+        title: 'Building a training dataset',
+        steps: [
+          'Chat normally and click 👍 on responses you want to keep',
+          'Click 👎 on responses that were wrong or unhelpful',
+          'Open Settings → Local AI → Export Training Data to download the JSONL file',
+          'Use the JSONL with Unsloth to fine-tune your own local model',
+        ],
+      },
     ],
     tutorialSections: [
       'Getting Started with AI Chat',
       'Advanced Chat Features',
+      'Training Data Pipeline',
       'Troubleshooting AI Responses',
     ],
     suggestedQuestions: [
@@ -243,6 +261,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'What does Reset Memory do?',
       'How do I use Send-to-Chat?',
       'Why is the AI giving irrelevant answers?',
+      'How do I export my training data from the chat ratings?',
     ],
   },
 
@@ -326,7 +345,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Mic level meter and visual status indicators (listening / speaking / processing)',
       'Central Connect / Disconnect action with connection ring animation',
       'ENCRYPTED BEAM active indicator when link is established',
-      'Multiple STT and TTS provider support (browser, Whisper, Deepgram, OpenAI, ElevenLabs)',
+      'Multiple STT and TTS provider support (browser, Whisper, Deepgram, OpenAI)',
       'Embedded Audio Studio and Memory Vault panels for TTS and saved notes',
       'Neural Link monitoring so Mossy adapts to active tools',
     ],
@@ -1213,7 +1232,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'System health & telemetry checks (bridge, storage, permissions)',
       'Tool path & version detection (detectPrograms test)',
       'Microphone & TTS voice availability checks',
-      'Secret status check for backend/OpenAI/Groq/ElevenLabs',
+      'Secret status check for backend/OpenAI/Groq',
       'Exportable diagnostic report (text) and snapshot (JSON)',
       'Crash triage wizard and timeline snapshots',
       'Guided remediation and Tools Install / Verify guidance',
@@ -1838,6 +1857,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Group previews with estimated disk‑savings',
       'Select-by-rule (keep-first) and batch Recycle‑Bin removal (reversible)',
       'Cancelable scans with progress reporting (Desktop Bridge required)',
+      'Background scan persistence — scan continues even if you navigate to other panels, and resumes automatically on return',
+      'Install Recovery panel — shows any tool installs that were skipped mid-scan so they can be completed later',
     ],
     controls: [
       {
@@ -1894,6 +1915,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Assuming Recycle Bin = permanent delete (use it to recover)',
       'Not configuring extensions/min-size, producing noisy groups',
       'Removing files without inspecting groups (same name ≠ same bytes)',
+      'Navigating away and thinking the scan stopped — it continues in the background and resumes state when you return',
     ],
     guides: [
       {
@@ -1912,18 +1934,30 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
           'Restrict the scan to specific plugin or Data subfolders',
           'Exclude rarely used extensions to speed hashing',
           'Use progress messages to estimate remaining time and cancel if necessary',
+          'Switch to other panels freely — the scan runs in the background and state is auto-saved',
+        ],
+      },
+      {
+        title: 'Recover skipped tool installs',
+        steps: [
+          'After a scan completes, scroll down to the Install Recovery panel',
+          'Any tool installs that were pending when you navigated away are listed there',
+          'Click the install button next to each item to complete the installation',
         ],
       },
     ],
     tutorialSections: [
       'Duplicate Finder - File Management',
       'Cleaning Mod Folders',
+      'Background Scan & Install Recovery',
     ],
     suggestedQuestions: [
       'What does "Select duplicates (keep first)" do?',
       'Can I recover files after Move to Recycle Bin?',
       'How long will a full game asset scan take?',
       'Why two files with the same name may not be duplicates?',
+      'Will switching panels stop my scan?',
+      'What is the Install Recovery panel?',
     ],
   },
 
@@ -3114,6 +3148,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Tool verification steps',
       'Knowledge index setup',
       'Memory Vault note prompts',
+      'Spriggit plugin digest (optional) — converts .esp/.esm/.esl to YAML and ingests into Knowledge Vault',
       'First-question example prompt',
     ],
     controls: [
@@ -3140,6 +3175,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Skipping the system scan before asking for help',
       'Leaving tool paths unverified',
       'Asking a broad question without indexing guides',
+      'Skipping the Spriggit digest when you have plugins — it gives Mossy direct knowledge of your specific mods',
     ],
     guides: [
       {
@@ -3149,6 +3185,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
           'Verify detected tools in Tool Verify',
           'Index built-in guides in Knowledge Search',
           'Add at least one note to the Memory Vault',
+          '(Optional) Run the Spriggit plugin digest: select Spriggit.CLI.exe and your Fallout 4 Data folder — Mossy will serialize and ingest your plugins',
           'Ask a narrow first question using the example prompt',
         ],
       },
@@ -3156,11 +3193,14 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     tutorialSections: [
       'First Success Wizard',
       'Onboarding Checklist',
+      'Spriggit Plugin Digest',
     ],
     suggestedQuestions: [
       'Where do I run the system scan?',
       'How do I verify tool paths?',
       'What should I ask for my first question?',
+      'How do I run the Spriggit plugin digest?',
+      'Can I re-run the Spriggit digest later from the Memory Vault?',
     ],
   },
 
@@ -3226,15 +3266,31 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
           'Use Quick Action tiles to try updated features in a test project',
         ],
       },
+      {
+        title: 'April 2026 highlights',
+        steps: [
+          'Spriggit Plugin Digest — after first-run setup, convert your .esp/.esm/.esl files to YAML and feed them into Mossy\'s Knowledge Vault',
+          'Training Data Pipeline — 👍/👎 buttons on every chat response save pairs to userData/training-dataset.jsonl (Unsloth ShareGPT format); export from Settings',
+          'Background Scan Persistence in Asset Duplicator — scans now survive panel navigation; Install Recovery panel shows any pending installs',
+          'Knowledge Vault dual-persistence — items are now saved to both localStorage and userData/knowledge-vault.json so they survive reinstalls',
+          'Blender Token Auth — auto-generated 32-char token secures the Mossy ↔ Blender TCP connection; copy or regenerate from Desktop Bridge',
+          'Panel Data Persistence — 50+ interactive panels save and restore their state automatically',
+          'Horizontal scroll support throughout the app — use Shift+Wheel to scroll horizontally',
+        ],
+      },
     ],
     tutorialSections: [
       'Release Notes & Updates',
       'Migration Guidance',
+      'April 2026 Feature Highlights',
     ],
     suggestedQuestions: [
       'Are there any breaking changes I need to know about?',
       'How do I migrate my project after this update?',
       'Which new features should I try first?',
+      'How do I run the Spriggit plugin digest?',
+      'How do I export my training data?',
+      'Where is the Blender token shown?',
     ],
   },
 
@@ -3701,7 +3757,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'precombine-generator': {
     pageId: 'precombine-generator',
-    pageName: 'PRP Patch Tools',
+    pageName: 'Precombine Generator',
     visualGuidePage: 55,
     route: '/tools/precombine-generator',
     purpose: 'Two-in-one PRP toolset: (1) scan your full MO2 load order and generate a one-click PRP-compatible combined patch for everything; (2) rebuild precombines for a single mod you just built and generate a standalone PRP companion patch for it.',

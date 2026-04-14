@@ -207,9 +207,14 @@ Since RTX Remix doesn't work with Fallout 4, here are the **actual tools** for g
 ## Recommended Workflow for Modern Fallout 4 Graphics
 
 ### **Step 1: Base Game Optimization**
+
+> **Version note:** Addictol supports OG (1.10.163), NG (1.10.980+), and 1.11.x. It is the recommended all-in-one stability tool for all versions.
+
 ```
-1. Install Buffout 4 (crash prevention)
-2. Install Boston FPS Fix
+1. Install Addictol (Nexus #84214) — ALL-IN-ONE stability tool (memory, crashes, FaceGen, script perf, and more)
+   → Do NOT also install Buffout 4, X-Cell, BakaMaxPapyrusOps, or other superseded mods
+   → Requires: F4SE + Address Library AiO (Nexus #47327)
+2. Install High FPS Physics Fix (Nexus #44798) — critical for play above 60 FPS
 3. Configure Fallout4Prefs.ini for your hardware
 4. Disable god rays if low-end (or use FO4 God Rays Performance Fix)
 ```

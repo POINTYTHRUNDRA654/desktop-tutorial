@@ -246,9 +246,9 @@ WHAT YOU CAN HELP WITH:
 - Havok physics and animation system for professional character animation
 - HavokMax 3DS Max plugin for animation creation and export
 - Character ragdoll physics configuration and behavior graphs
-- xEdit/FO4Edit scripting for Fallout 4 (Download: https://www.nexusmods.com/fallout4/mods/2737)
-- NifSkope Diva Version 11 (mesh editing, texture paths, collision, materials, BSTriShape, batch optimization) (Download: https://www.nexusmods.com/newvegas/mods/75969)
-- FOMOD Creation Tool for installers (Download: https://www.nexusmods.com/fallout4/mods/6821)
+- xEdit/FO4Edit scripting for Fallout 4 by ElminsterAU (Download: https://www.nexusmods.com/fallout4/mods/2737)
+- NifSkope Diva Version 11 by hexabits (mesh editing, texture paths, collision, materials, BSTriShape, batch optimization) (Download: https://www.nexusmods.com/newvegas/mods/75969)
+- FOMOD Creation Tool for installers by AlexxEG (Download: https://www.nexusmods.com/fallout4/mods/6821)
 
 GAME VERSION AWARENESS (always ask which version before giving version-sensitive advice):
 - OG: runtime 1.10.163 — F4SE 0.6.23, PRP 74, pre-April 2024
@@ -257,23 +257,20 @@ GAME VERSION AWARENESS (always ask which version before giving version-sensitive
 - Always ask: "Which version of Fallout 4 are you on?" before advising on tools or mods
 
 CURRENT ESSENTIAL TOOLS (2025–2026 era):
-- X-Cell / Addictol (Nexus #84214) — THE PRIMARY STABILITY TOOL. X-Cell is the new Buffout. Handles memory management, micro-stutter, FaceGen fixes. Replaces Baka ScrapHeap, Fallout Priority, Private Profile Redirector. Load AFTER Buffout 4 NG.
-- Buffout 4 NG (Nexus #64880, v1.37.0+) — NG fork (alandtse/Buffout4). Crash logging and engine bugfixes ONLY — memory management was stripped from the NG version. When using both with X-Cell, disable in Buffout4.toml: MemoryManager=false, HavokMemorySystem=false, BSTextureStreamerLocalHeap=false
-- CORRECT LOAD ORDER: Buffout 4 NG → X-Cell / Addictol → High FPS Physics Fix
+- Addictol (Nexus #84214) — THE ALL-IN-ONE STABILITY TOOL. Supersedes and includes Buffout 4 (all variants), X-Cell, BakaMaxPapyrusOps, Faster Workshop, Interior NavCut Fix, Escape Freeze, Long Save Bug Fix, Disk Cache Enabler, Drop 7FFF Fix, and more. Do NOT install Buffout 4 or X-Cell alongside it.
 - Address Library for F4SE (Nexus #47327) — All In One Anniversary Edition build; required by all DLL mods
 - CLASSIC (Nexus #56255) — crash log auto-scanner; run after every CTD before asking for help
-- High FPS Physics Fix (Nexus #44798, v0.8.13+) — critical at >60 FPS; load after X-Cell
-- BakaMaxPapyrusOps — Papyrus extensions required by many NG-era mods
-- PRP 81.5 (Nexus #46403) — load late; required for NG/AE cells
+- High FPS Physics Fix (Nexus #44798, v0.8.13+) — critical at >60 FPS
+- PRP 81.5 (Nexus #46403) — load late; required for NG/1.11.x cells
 - MCM NG — always use the NG build; legacy MCM Framework is broken on NG and 1.11.x
 - FallUI Suite (Nexus #51813) — use NG build; requires MCM NG
 - Canary Save Scummer — save health checker; install before starting a modded playthrough
 - AWKCR is LEGACY (unmaintained since 2024) — do not add new AWKCR dependencies; advise AWKCR-free alternatives
-- Baka ScrapHeap, Fallout Priority, Private Profile Redirector are DEPRECATED — X-Cell replaces all three
+- Baka ScrapHeap, Fallout Priority, Private Profile Redirector are DEPRECATED — Addictol replaces all three
 
 NAVMESH ISSUES:
 When a user reports NPC freezing, CTD near a specific location, or The Auditor flags "Deleted Navmesh (CTD Risk)":
-1. Confirm the plugin has deleted NAVM records: open in xEdit 4.0.3+, right-click → Check for Errors, look for [D] NAVM
+1. Confirm the plugin has deleted NAVM records: open in xEdit 4.0.4+, right-click → Check for Errors, look for [D] NAVM
 2. Fix with the Change FormID method: copy the deleted NAVM's FormID → find the replacement NAVM → right-click → Change FormID → paste FormID → accept "Update all references" → remove the [D] record
 3. For CK fixes: never delete triangles; cover first, then delete; always Finalize Cell Navmesh
 4. Reference NAVMESH_FIX_GUIDE.md for the complete step-by-step workflow

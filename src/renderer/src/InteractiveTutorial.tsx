@@ -34,11 +34,10 @@ import { speakMossy } from './mossyTts';
 
 // Map a tutorial pageId to its visual guide image asset with alias fallbacks for legacy ids
 const resolveImageUrl = (filename: string): string => {
-  try {
-    return new URL(`./visual-guide-images/${filename}`, window.location.href).toString();
-  } catch {
-    return `visual-guide-images/${filename}`;
-  }
+  // In Vite/Electron, images in public/ are served from dist root in production
+  // Use relative path with ./ to work with file:// protocol in packaged Electron app
+  // In development, both absolute and relative paths work, but relative is safer
+  return `./visual-guide-images/${filename}`;
 };
 
 const getImageForPage = (pageId: keyof typeof imageMap | string): string | undefined => {
@@ -53,12 +52,30 @@ const getImageForPage = (pageId: keyof typeof imageMap | string): string | undef
     'learning-hub': 'quick-reference',
     'roadmap-panel': 'modding-roadmaps',
     'mining-dashboard': 'mining-and-analysis-hub',
+    'mining-panel': 'mining-and-analysis-hub',
+    'advanced-analysis-panel': 'mining-and-analysis-hub',
+    'advanced-analysis': 'mining-and-analysis-hub',
     'image-suite': 'image-studio',
     packaging: 'packaging-release',
     diagnostics: 'diagnostic-tools',
     support: 'support-mossy',
     'fallout4-wiki': 'fallout-4-wiki',
     'pip-boy-mode': 'pip-boy-on-off',
+    monitor: 'system-monitor',
+    orchestrator: 'the-orchestrator',
+    holodeck: 'the-holodeck',
+    'project-hub': 'mod-projects',
+    scribe: 'the-scribe',
+    'blender-animation-guide': 'animation-guide',
+    'quest-authoring-guide': 'quest-mod-authorizing',
+    'animation-suite': 'animation-guide',
+    'upscayl-extension': 'upscale-extension',
+    // Pages without specific images - use generic fallbacks
+    'load-order': 'the-workshop',
+    'bodyslide-guide': 'tools',
+    'sim-settlements-guide': 'tools',
+    'paperscript-guide': 'tools',
+    'formid-remapper': 'the-workshop',
   };
 
   // Explicit fallbacks for images that exist on disk but were omitted from the auto-generated map
@@ -100,7 +117,7 @@ export function buildTutorialText(context: TutorialPageContext, pageIndex: numbe
   }
 
   if (hasPreconfiguredApiKeys) {
-    detailedText = detailedText.replace(/[^.?!]*(?:API key|api key|OpenAI|openai|Groq|groq|ElevenLabs|elevenlabs|api-key|api_key)[^.?!]*[.?!]?/gi, '');
+    detailedText = detailedText.replace(/[^.?!]*(?:API key|api key|OpenAI|openai|Groq|groq|api-key|api_key)[^.?!]*[.?!]?/gi, '');
     detailedText = detailedText.replace(/\s{2,}/g, ' ').replace(/^[.?!\s]+|[.?!\s]+$/g, '').trim();
   }
 
@@ -131,6 +148,9 @@ export function getOrderedTutorialContexts(allContexts: Record<string, TutorialP
     'learning-hub': 'quick-reference',
     'roadmap-panel': 'modding-roadmaps',
     'mining-dashboard': 'mining-and-analysis-hub',
+    'mining-panel': 'mining-and-analysis-hub',
+    'advanced-analysis-panel': 'mining-and-analysis-hub',
+    'advanced-analysis': 'mining-and-analysis-hub',
     'image-suite': 'image-studio',
     packaging: 'packaging-release',
     diagnostics: 'diagnostic-tools',
@@ -138,6 +158,19 @@ export function getOrderedTutorialContexts(allContexts: Record<string, TutorialP
     'fallout4-wiki': 'fallout-4-wiki',
     'pip-boy-mode': 'pip-boy-on-off',
     monitor: 'system-monitor',
+    orchestrator: 'the-orchestrator',
+    holodeck: 'the-holodeck',
+    'project-hub': 'mod-projects',
+    scribe: 'the-scribe',
+    'blender-animation-guide': 'animation-guide',
+    'quest-authoring-guide': 'quest-mod-authorizing',
+    'animation-suite': 'animation-guide',
+    'upscayl-extension': 'upscale-extension',
+    'load-order': 'the-workshop',
+    'bodyslide-guide': 'tools',
+    'sim-settlements-guide': 'tools',
+    'paperscript-guide': 'tools',
+    'formid-remapper': 'the-workshop',
   };
 
   const imageToContext: Record<string, string> = Object.fromEntries(
@@ -287,10 +320,11 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       id: 'welcome',
       title: 'Welcome to Mossy! Your Fallout 4 Modding Companion',
       mossyText:
-        `Hey! I'm Mossy, your Fallout 4 modding companion. This tour covers ${totalPages} pages — each one is a different tool or module in the app. I'll walk you through what each page does, point out the key controls, and give you some tips so you don't have to learn the hard way. You'll see actual screenshots alongside the explanations. The whole thing takes around 15–20 minutes, and you can pause or come back to it any time. Your progress is saved, so no pressure. Ready? Let's start with The Nexus — your home dashboard.`,
+        `Hey! I'm Mossy, your Fallout 4 modding companion. This tour covers ${totalPages} pages — each one is a different tool or module in the app. I'll walk you through what each page does, point out the key controls, and give you some tips — I will help make it easier for you to learn. You'll see actual screenshots alongside the explanations. The whole thing takes around 15–20 minutes, and you can pause or come back to it any time. Your progress is saved, so no pressure.\n\nA quick note before we start: **Mossy is not affiliated with, endorsed by, or officially connected to any third-party tools or add-ons** referenced in this app — including xEdit, Mod Organizer 2, Vortex, LOOT, Spriggit, Blender, BodySlide, NifSkope, or any other listed tool. Those are all independent, community-made software projects. Mossy simply helps you use them — always download tools directly from their official sources.\n\nReady? Let's start with The Nexus — your home dashboard.`,
       route: '/',
       action: 'Get familiar with The Nexus dashboard — your home base',
       icon: <Home className="w-8 h-8" />,
+      image: getImageForPage('mossy-space'),
     },
     // Dynamically generate steps from tutorial contexts
     ...orderedContexts.map((context, index) => {
@@ -309,10 +343,11 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       id: 'complete',
       title: "🎉 You're All Set!",
       mossyText:
-        "That's the full tour — nice work making it through! You've seen every tool and module this app has to offer. From here, I'd suggest starting with something simple like a texture swap to get your hands dirty. When you have questions, just open the Chat — I'm always here. The Learning Hub is great for going deeper on specific topics like scripting or quest design. And the Project Hub helps you stay organized as things get more complex. Don't worry about remembering everything at once. Just dive in, experiment, and ask when you get stuck. That's how every good modder gets started. Happy modding!",
+        "That's the full tour — nice work making it through! You've seen every tool and module this app has to offer.\n\n**What's new since the last major release:**\n• **Spriggit Plugin Digest** — after first-run setup you can convert your .esp/.esm/.esl files to YAML and feed them directly into my brain so I know your exact plugin data from day one.\n• **Training Data Pipeline** — use the 👍 / 👎 buttons on any of my chat responses to build a personal training dataset that can be exported in Unsloth ShareGPT format.\n• **Background Scan Persistence** — the Asset Duplicator now keeps scanning even if you switch panels, and has an Install Recovery panel so no pending tool installs get lost.\n• **Knowledge Vault** is now dual-persisted: localStorage for speed plus a file backup in userData that survives reinstalls.\n• **Blender Token Auth** — the Mossy Link addon and Desktop Bridge now authenticate via auto-generated 32-char tokens so your Blender connection is secure.\n\nFrom here, I'd suggest starting with something simple like a texture swap to get your hands dirty. When you have questions, just open the Chat — I'm always here. The Learning Hub is great for going deeper on specific topics like scripting or quest design. And the Project Hub helps you stay organized as things get more complex.\n\nRemember: I'm not affiliated with any third-party tools — always get them from their official sources. Don't worry about remembering everything at once. Just dive in, experiment, and ask when you get stuck. That's how every good modder gets started. Happy modding!",
       route: '/',
       action: 'Start exploring — try the Chat or Learning Hub first!',
       icon: <CheckCircle2 className="w-8 h-8" />,
+      image: getImageForPage('mossy-space'),
     },
   ];
 

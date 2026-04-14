@@ -33,7 +33,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
   const loadAnalyticsData = useCallback(async () => {
     setLoading(true);
     try {
-      const metricsData = await window.electronAPI.getAnalyticsMetrics(timeRange);
+      const metricsData = await window.electronAPI.getAnalyticsMetrics();
       setMetrics(metricsData);
       // For now, mock the other data structures until the full API is implemented
       setBuildStats({
@@ -95,7 +95,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
 
   const exportReport = async (format: 'json' | 'csv' | 'html') => {
     try {
-      const report = await window.electronAPI.exportAnalyticsReport(format);
+      const report = await window.electronAPI.exportAnalyticsReport?.(format);
       const blob = new Blob([report], {
         type: format === 'html' ? 'text/html' : format === 'csv' ? 'text/csv' : 'application/json'
       });

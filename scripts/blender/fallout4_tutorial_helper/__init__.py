@@ -19,16 +19,17 @@ Installation (legacy Add-on, Blender ≤4.1):
 bl_info = {
     "name": "Fallout 4 Tutorial Helper",
     "author": "Mossy AI Assistant",
-    "version": (1, 3, 0),
+    "version": (1, 4, 0),
     "blender": (4, 4, 0),
     "location": "View3D > Sidebar > FO4 Pipeline",
-    "description": "Complete Fallout 4 asset pipeline — FO4 setup, PyNifly 25+ NIF export, CK cell ↔ Blender roundtrip, collision & UV checks",
+    "description": "Complete Fallout 4 asset pipeline — FO4 setup, PyNifly 25+ NIF export, CK cell ↔ Blender roundtrip, collision & UV checks. Connects to Mossy for AI, paths, PyTorch and live logging.",
     "warning": "Requires PyNifly 25+ (Nexus #52319) installed as a Blender Extension",
     "category": "Import-Export",
 }
 
 import bpy
 
+from . import mossy_link
 from . import ui_panels
 from . import operators
 from . import preferences
@@ -38,9 +39,15 @@ def register():
     preferences.register()
     operators.register()
     ui_panels.register()
+    mossy_link.register()
+    # Inject the Mossy-configured PyTorch path into sys.path at add-on load
+    # time so that any Blender operator can do `import torch` directly.
+    # This is a no-op if Mossy is not running or no path is configured.
+    mossy_link.setup_pytorch()
 
 
 def unregister():
     ui_panels.unregister()
     operators.unregister()
     preferences.unregister()
+    mossy_link.unregister()

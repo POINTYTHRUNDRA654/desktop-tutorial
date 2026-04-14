@@ -1,0 +1,182 @@
+{
+  "nav": {
+    "home": "Mossy.Space",
+    "chat": "Chat IA",
+    "aiModAssistant": "Assistente IA per Mod",
+    "firstSuccess": "Primo Successo",
+    "roadmap": "Roadmap di Modding",
+    "whatsNew": "Novità",
+    "modProjects": "Progetti Mod",
+    "modBrowser": "Browser Mod",
+    "quickReference": "Riferimento Rapido",
+    "knowledgeSearch": "Ricerca Conoscenze",
+    "installWizard": "Procedura Guidata Installazione",
+    "platforms": "Piattaforme",
+    "wizards": "Procedure Guidate",
+    "crashTriage": "Triage Crash",
+    "ckCrashPrevention": "Sicurezza CK",
+    "ddsConverter": "Convertitore DDS",
+    "textureGenerator": "Generatore di Texture",
+    "packagingRelease": "Pacchettizzazione e Rilascio",
+    "ckQuestDialogue": "CK Quest e Dialoghi",
+    "animationGuide": "Guida Animazioni",
+    "skeletonReference": "Riferimento Scheletro",
+    "riggingMistakes": "Errori di Rigging",
+    "questModAuthoring": "Creazione Mod Quest",
+    "precombinePrpGuide": "Guida Precombine e PRP",
+    "prpPatchBuilder": "Builder Patch PRP",
+    "leveledListInjection": "Iniezione Lista Livellata",
+    "lorekeeper": "Il Custode del Sapere",
+    "tools": "Strumenti",
+    "cosmosWorkflow": "Flusso di Lavoro Cosmos",
+    "devtools": "Strumenti Sviluppatore",
+    "templateGenerator": "Generatore di Template",
+    "scriptAnalyzer": "Analizzatore Script",
+    "assembler": "L'Assemblatore",
+    "workshop": "L'Officina",
+    "blueprint": "Il Progetto",
+    "riggingChecklist": "Lista Controllo Rigging",
+    "exportSettingsHelper": "Assistente Impostazioni Esportazione",
+    "animationValidator": "Validatore Animazioni",
+    "precombineChecker": "Verificatore Precombine",
+    "auditor": "L'Auditor",
+    "securityScanner": "Scanner di Sicurezza",
+    "miningDashboard": "Dashboard Mining",
+    "advancedAnalysis": "Analisi Avanzata",
+    "scribe": "Lo Scriba",
+    "systemMonitor": "Monitor di Sistema",
+    "orchestrator": "L'Orchestratore",
+    "workflowRunner": "Esecutore Flussi di Lavoro",
+    "holodeck": "L'Holodeck",
+    "vault": "Il Vault",
+    "ba2Manager": "Gestore BA2",
+    "localCapabilities": "Capacità Locali",
+    "memoryVault": "Vault Memoria",
+    "neuralLink": "Neural Link",
+    "imageStudio": "Studio Immagini",
+    "audioStudio": "Studio Audio",
+    "liveSynapse": "Live Synapse",
+    "desktopBridge": "Desktop Bridge",
+    "mo2Extension": "Estensione MO2",
+    "xeditTools": "Strumenti xEdit",
+    "ckExtension": "Estensione CK",
+    "prpPatchTools": "Strumenti Patch PRP",
+    "comfyuiExtension": "Estensione ComfyUI",
+    "upscaylExtension": "Estensione Upscayl",
+    "duplicateFinder": "Trova Duplicati",
+    "communityLearning": "Apprendimento Comunitario",
+    "toolVerify": "Verifica Strumenti",
+    "settings": "Impostazioni",
+    "privacySettings": "Impostazioni Privacy",
+    "voiceSettings": "Impostazioni Voce",
+    "languageSettings": "Impostazioni Lingua",
+    "diagnosticTools": "Strumenti Diagnostici",
+    "supportMossy": "Supporta Mossy"
+  },
+  "settings": {
+    "language": {
+      "title": "Impostazioni Lingua",
+      "subtitle": "Scegli la lingua utilizzata nell'interfaccia di Mossy.",
+      "uiLanguageLabel": "Lingua dell'applicazione",
+      "uiLanguageHelp": "Influisce su etichette, pulsanti e testo dell'interfaccia (dove tradotto).",
+      "requestTitle": "Richiedi una lingua",
+      "requestHelp": "Manca la tua lingua? Dicci quale aggiungere.",
+      "requestCta": "Richiedi una lingua",
+      "requestCtaTitle": "Apri il modulo di richiesta lingua",
+      "auto": "Automatica (sistema)",
+      "current": "Attuale",
+      "save": "Salva"
+    }
+  },
+  "onboarding": {
+    "language": {
+      "label": "Lingua",
+      "help": "Scegli la lingua dell'interfaccia. Puoi modificarla in seguito nelle Impostazioni.",
+      "auto": "Automatica (sistema)"
+    }
+  },
+  "installWizard": {
+    "tagline": "Mossy Tutor • Procedura Guidata Installazione",
+    "topics": "Argomenti",
+    "modManager": "Gestore Mod",
+    "shortcuts": {
+      "title": "Scorciatoie",
+      "externalTools": "Impostazioni Strumenti Esterni",
+      "precombinePrp": "Guida Precombine e PRP",
+      "simSettlements": "Guida Sim Settlements"
+    },
+    "topicSelector": {
+      "xedit": "xEdit / FO4Edit",
+      "ss2": "Costruzione Lotti SS2",
+      "prp": "PRP (Previs/Precombine)",
+      "patching": "Costruisci Patch"
+    },
+    "actions": {
+      "askMossy": "Chiedi a Mossy",
+      "askMossyTitle": "Chiedi a Mossy nella chat",
+      "sendToChat": "Invia alla Chat",
+      "sendToChatTitle": "Invia la lista di controllo di questo argomento alla Chat",
+      "reset": "Ripristina",
+      "resetTitle": "Ripristina il progresso della procedura guidata"
+    },
+    "section": {
+      "prereqs": "Prerequisiti",
+      "download": "Download",
+      "installConfigure": "Installa / Configura",
+      "buildPatch": "Costruisci la patch",
+      "verify": "Verifica",
+      "troubleshoot": "Risoluzione problemi"
+    },
+    "step": {
+      "markIncomplete": "Segna passaggio come incompleto",
+      "markComplete": "Segna passaggio come completato",
+      "completed": "Completato",
+      "notCompleted": "Non completato"
+    },
+    "topic": {
+      "xedit": {
+        "title": "Configurazione xEdit / FO4Edit",
+        "subtitle": "Installa, configura e verifica xEdit in modo da poter creare patch in sicurezza."
+      },
+      "ss2": {
+        "title": "Configurazione Sim Settlements 2",
+        "subtitle": "Dipendenze + installazione + verifica di base per la costruzione di lotti."
+      },
+      "prp": {
+        "title": "Configurazione PRP",
+        "subtitle": "Installazione precombines/previs con verifica consapevole dei conflitti."
+      },
+      "patching": {
+        "title": "Costruzione Patch",
+        "subtitle": "Un flusso di lavoro sicuro e ripetibile per costruire patch di compatibilità."
+      }
+    },
+    "verifyPanel": {
+      "description": "Questa procedura guidata è progettata per evitare prerequisiti mancanti: collega a fonti ufficiali o pagine di ricerca stabili e fornisce un loop di verifica minimo.",
+      "verify": {
+        "0": "Scegli un argomento e conferma che la lista di controllo viene visualizzata e le caselle di controllo persistono dopo l'aggiornamento.",
+        "1": "Apri almeno un collegamento da \"Collegamenti attendibili\" e conferma che si apre tramite openExternal/window.open.",
+        "2": "Usa \"Invia alla Chat\" e conferma che la lista di controllo viene copiata e precompilata nella Chat."
+      },
+      "firstTestLoop": {
+        "0": "Inizia con \"xEdit / FO4Edit\" e ottieni prima un avvio pulito.",
+        "1": "Configura la tua scelta del gestore mod, quindi completa solo i passaggi minimi di \"verifica\" prima di espandere."
+      },
+      "troubleshooting": {
+        "0": "Se i collegamenti non si aprono, controlla Diagnostica e conferma che openExternal è disponibile (app desktop) o consenti i popup.",
+        "1": "Se lo stato della casella di controllo non persiste, verifica che localStorage sia disponibile (vedi Diagnostica)."
+      }
+    },
+    "downloadsSources": "Download e Fonti",
+    "downloadsSourcesHelp": "Mostra fonti attendibili e qualsiasi URL diretto trovato nel tuo Vault di Conoscenza locale.",
+    "refresh": "Aggiorna",
+    "refreshTitle": "Aggiorna collegamenti",
+    "fromVault": "Dal tuo Vault di Conoscenza",
+    "openVault": "Apri Vault Memoria",
+    "searchNexus": "Cerca su Nexus",
+    "vaultLink": "Collegamento vault",
+    "tutorTip": "Suggerimento Tutor",
+    "openLastLocation": "Apri ultima posizione",
+    "openLastLocationTitle": "(Facoltativo) Apri l'ultima posizione salvata se disponibile"
+  }
+}

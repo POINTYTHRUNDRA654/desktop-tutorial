@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import type { ModInfo, StructureValidation, ArchiveSettings, ArchiveResult, NexusPrep } from '../../shared/types';
+import type { ArchiveSettings, NexusPrep } from '../../shared/types';
 import {
   Box,
   Stepper,
@@ -98,10 +98,12 @@ interface PackagingDraft {
   generatedReadme: string;
   changelogEntries: string[];
   archiveFormat: '7z' | 'zip' | 'fomod';
-  compressionLevel: 0 | 1 | 3 | 5 | 7 | 9;
+  compressionLevel: number;
   createFomod: boolean;
   currentStep: number;
 }
+
+interface ArchiveResult { success: boolean; archivePath?: string; archiveSize?: number; size?: number; fileCount?: number; compressionRatio?: number; buildTime?: number; error?: string }
 
 interface ModInfo {
   name: string;
@@ -333,10 +335,7 @@ export default function ModPackagingWizard() {
     setLoading(true);
     setError('');
     try {
-      const path = await window.electron.api.pickDirectory({
-        title: 'Select Mod Folder',
-        properties: ['openDirectory'],
-      });
+      const path = await window.electron.api.pickDirectory('Select Mod Folder');
 
       if (path) {
         setModPath(path);
@@ -382,12 +381,14 @@ export default function ModPackagingWizard() {
     setLoading(true);
     setBuildProgress(0);
     try {
-      const settings: ArchiveSettings = {
+      const settings = {
         format: archiveFormat,
         compressionLevel,
         createFomod,
         excludePatterns,
-      };
+        includeReadme: !!generatedReadme,
+        includeScreenshots: false,
+      } satisfies ArchiveSettings & { createFomod: boolean; excludePatterns: string[] };
 
       const result = await window.electron.api.modPackagingCreateArchive(
         modPath!,
@@ -637,7 +638,7 @@ export default function ModPackagingWizard() {
         label="Requirements (comma-separated)"
         value={modInfo.requirements.join(', ')}
         onChange={(e: any) =>
-          setModInfo({ ...modInfo, requirements: e.target.value.split(',').map((s) => s.trim()) })
+          setModInfo({ ...modInfo, requirements: e.target.value.split(',').map((s: string) => s.trim()) })
         }
         sx={{ mb: 2 }}
       />
@@ -647,7 +648,7 @@ export default function ModPackagingWizard() {
         label="Tags (comma-separated)"
         value={modInfo.tags.join(', ')}
         onChange={(e: any) =>
-          setModInfo({ ...modInfo, tags: e.target.value.split(',').map((s) => s.trim()) })
+          setModInfo({ ...modInfo, tags: e.target.value.split(',').map((s: string) => s.trim()) })
         }
         sx={{ mb: 2 }}
       />
@@ -938,11 +939,11 @@ export default function ModPackagingWizard() {
           <br />
           <strong>Path:</strong> {buildResult.archivePath}
           <br />
-          <strong>Size:</strong> {(buildResult.archiveSize / 1024 / 1024).toFixed(2)} MB
+          <strong>Size:</strong> {((buildResult.archiveSize ?? 0) / 1024 / 1024).toFixed(2)} MB
           <br />
           <strong>Compression:</strong> {buildResult.compressionRatio?.toFixed(1)}%
           <br />
-          <strong>Build Time:</strong> {(buildResult.buildTime / 1000).toFixed(2)}s
+          <strong>Build Time:</strong> {(( buildResult.buildTime ?? 0) / 1000).toFixed(2)}s
         </Alert>
       )}
     </Box>
@@ -974,7 +975,7 @@ export default function ModPackagingWizard() {
             <ListItem>
               <ListItemText
                 primary="File Size"
-                secondary={`${(buildResult.archiveSize / 1024 / 1024).toFixed(2)} MB`}
+                secondary={`${((buildResult.archiveSize ?? 0) / 1024 / 1024).toFixed(2)} MB`}
               />
             </ListItem>
             <ListItem>
@@ -1021,7 +1022,7 @@ export default function ModPackagingWizard() {
           <List dense>
             <ListItem>
               <ListItemIcon>
-                {nexusPrep.checks.hasReadme ? (
+                {nexusPrep.checks?.hasReadme ? (
                   <CheckCircle color="success" />
                 ) : (
                   <ErrorIcon color="error" />
@@ -1031,7 +1032,7 @@ export default function ModPackagingWizard() {
             </ListItem>
             <ListItem>
               <ListItemIcon>
-                {nexusPrep.checks.hasChangelog ? (
+                {nexusPrep.checks?.hasChangelog ? (
                   <CheckCircle color="success" />
                 ) : (
                   <ErrorIcon color="error" />
@@ -1041,7 +1042,7 @@ export default function ModPackagingWizard() {
             </ListItem>
             <ListItem>
               <ListItemIcon>
-                {nexusPrep.checks.hasProperStructure ? (
+                {nexusPrep.checks?.hasProperStructure ? (
                   <CheckCircle color="success" />
                 ) : (
                   <ErrorIcon color="error" />
@@ -1051,14 +1052,14 @@ export default function ModPackagingWizard() {
             </ListItem>
           </List>
 
-          {nexusPrep.recommendations.length > 0 && (
+          {(nexusPrep.recommendations?.length ?? 0) > 0 && (
             <>
               <Divider sx={{ my: 2 }} />
               <Typography variant="subtitle2" gutterBottom>
                 Recommendations:
               </Typography>
               <List dense>
-                {nexusPrep.recommendations.map((rec: string, idx: number) => (
+                {(nexusPrep.recommendations ?? []).map((rec: string, idx: number) => (
                   <ListItem key={idx}>
                     <ListItemIcon>
                       <Info color="info" />
@@ -1323,7 +1324,7 @@ export default function ModPackagingWizard() {
                 {buildResult.archivePath?.split('\\').pop()}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Size: {(buildResult.archiveSize / 1024 / 1024).toFixed(2)} MB
+                Size: {((buildResult.archiveSize ?? 0) / 1024 / 1024).toFixed(2)} MB
               </Typography>
             </Paper>
           )}

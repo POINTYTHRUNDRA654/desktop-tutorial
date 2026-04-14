@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files, Download, Share2, Github, Bell, PackageOpen, RefreshCw, Box } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 import { openExternal } from './utils/openExternal';
+import { saveKnowledgeVaultToFile, restoreKnowledgeVaultFromFile } from './knowledgeRetrieval';
 
 interface MemoryItem {
     id: string;
@@ -59,79 +61,63 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
     const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
 
     useEffect(() => {
-        const stored = localStorage.getItem('mossy_knowledge_vault');
-        if (stored) {
-            const parsed = JSON.parse(stored) as MemoryItem[];
-            const normalized = Array.isArray(parsed)
-                ? parsed.map((m) => ({
-                    ...m,
-                    trustLevel: m.trustLevel || 'personal',
-                }))
-                : [];
-            setMemories(normalized);
-        }
-        
-        // Auto-import bundled knowledge on first run
-        const hasImportedBundled = localStorage.getItem('mossy_bundled_imported');
-        if (!hasImportedBundled) {
-            importBundledKnowledge().catch(console.error);
-        }
-        
-        // Check for new community knowledge
-        checkGitHubForNewKnowledge().catch(console.error);
+        const initVault = async () => {
+            // 1. Load vault from localStorage, or restore from durable file backup if empty
+            //    (covers reinstalls, localStorage clears, and first launches).
+            // 2. After the vault is populated, run bundled knowledge import so it never
+            //    races against the restore path and accidentally overwrites user items.
+            const stored = localStorage.getItem('mossy_knowledge_vault');
+            if (stored) {
+                const parsed = JSON.parse(stored) as MemoryItem[];
+                const normalized = Array.isArray(parsed)
+                    ? parsed.map((m) => ({
+                        ...m,
+                        trustLevel: m.trustLevel || 'personal',
+                    }))
+                    : [];
+                setMemories(normalized);
+            } else {
+                // localStorage is empty — try to restore from the file backup so user data
+                // fed to Mossy is never lost after a reinstall or a storage clear.
+                const restored = await restoreKnowledgeVaultFromFile();
+                if (restored.length > 0) {
+                    // restoreKnowledgeVaultFromFile already validates each item has an id;
+                    // normalise the remaining optional fields to safe defaults.
+                    const normalized: MemoryItem[] = restored.map((m) => ({
+                        id: m.id ?? String(Date.now() + Math.random()),
+                        title: m.title ?? 'Untitled',
+                        content: m.content ?? '',
+                        source: m.source ?? '',
+                        creditName: m.creditName,
+                        creditUrl: m.creditUrl,
+                        trustLevel: m.trustLevel ?? 'personal',
+                        date: m.date ?? new Date().toISOString(),
+                        tags: Array.isArray(m.tags) ? m.tags : [],
+                        status: (m.status as MemoryItem['status']) ?? 'learned',
+                    }));
+                    setMemories(normalized);
+                }
+            }
+
+            // 2. AFTER vault is loaded, run bundled knowledge import so it reads
+            //    the correct localStorage state (including any just-restored data)
+            //    and does not accidentally overwrite restored items.
+            await importBundledKnowledge().catch(console.error);
+        };
+        initVault().catch(console.error);
+
+        // Count unimported local knowledge packs for the badge
+        checkLocalKnowledgePacks().catch(console.error);
     }, []);
 
     useEffect(() => {
         localStorage.setItem('mossy_knowledge_vault', JSON.stringify(memories));
+        // Also persist to a file in userData so the data survives localStorage clears
+        // and app reinstalls. Fire-and-forget — failures are logged but not surfaced.
+        saveKnowledgeVaultToFile(memories).catch(console.error);
         // Broadcast to other components if needed
         window.dispatchEvent(new Event('mossy-knowledge-updated'));
     }, [memories]);
-
-    // Auto-import bundled knowledge on first run
-    useEffect(() => {
-        const importBundledKnowledge = async () => {
-            const imported = localStorage.getItem('mossy_bundled_knowledge_imported');
-            if (imported) return; // Already imported
-
-            try {
-                const response = await fetch('/bundled-knowledge/manifest.json');
-                if (!response.ok) return;
-                
-                const manifest = await response.json();
-                const autoImportPacks = manifest.packs.filter((p: any) => p.autoImport);
-                
-                for (const pack of autoImportPacks) {
-                    try {
-                        const packResponse = await fetch(`/bundled-knowledge/${pack.file}`);
-                        if (!packResponse.ok) continue;
-                        
-                        const packData = await packResponse.json();
-                        if (!packData.items || !Array.isArray(packData.items)) continue;
-                        
-                        const imported = packData.items.map((item: any) => ({
-                            ...item,
-                            id: `bundled-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                            trustLevel: item.trustLevel || 'official',
-                            status: 'learned',
-                            date: new Date().toLocaleDateString(),
-                            shareWithCommunity: false
-                        }));
-                        
-                        setMemories(prev => [...imported, ...prev]);
-                    } catch (err) {
-                        console.error('Failed to import pack:', pack.name, err);
-                    }
-                }
-                
-                localStorage.setItem('mossy_bundled_knowledge_imported', 'true');
-                localStorage.setItem('mossy_bundled_knowledge_version', manifest.version);
-            } catch (error) {
-                console.error('Failed to import bundled knowledge:', error);
-            }
-        };
-
-        importBundledKnowledge();
-    }, []);
 
     // Check for new knowledge from GitHub (every 6 hours)
     useEffect(() => {
@@ -216,11 +202,11 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             // Check if it's an auth error or missing local whisper
             const errorMsg = error.message || '';
             if (errorMsg.includes('401') || errorMsg.includes('Incorrect API key')) {
-                alert(`❌ Video transcription failed\n\n🔑 Your OpenAI API key has an issue (401 error)\n\n💡 Solutions:\n\n1. LOCAL (Recommended):\n   • Download whisper.cpp.exe from: https://github.com/ggerganov/whisper.cpp/releases\n   • Download ggml-base.en.bin from: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin\n   • Place both in: external/whisper/\n   • Try uploading the video again (no API key needed!)\n\n2. CLOUD:\n   • Get a fresh API key from: https://platform.openai.com/api-keys\n   • Make sure billing is set up\n   • Update key in Privacy Settings`);
+                toast.error(`Video transcription failed. Your OpenAI API key has an issue (401 error). Solutions: 1. LOCAL (Recommended): Download whisper.cpp.exe and ggml-base.en.bin, place both in: external/whisper/, try uploading the video again (no API key needed!). 2. CLOUD: Get a fresh API key from platform.openai.com/api-keys, make sure billing is set up, update key in Privacy Settings`);
             } else if (errorMsg.includes('whisper') || errorMsg.includes('not found')) {
-                alert(`❌ Video transcription failed\n\n📁 Missing local transcription files\n\nTo transcribe videos offline:\n1. Download whisper.cpp.exe from: https://github.com/ggerganov/whisper.cpp/releases\n2. Download ggml-base.en.bin (~150MB) from: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin\n3. Create folder: external/whisper/\n4. Place both files there\n5. Try again!\n\nOr add an OpenAI API key in Privacy Settings for cloud transcription.`);
+                toast.error(`Video transcription failed. Missing local transcription files. To transcribe videos offline: 1. Download whisper.cpp.exe. 2. Download ggml-base.en.bin (~150MB). 3. Create folder: external/whisper/. 4. Place both files there. 5. Try again! Or add an OpenAI API key in Privacy Settings for cloud transcription.`);
             } else {
-                alert(`❌ Transcription failed: ${errorMsg}\n\nPlease check:\n1. Video file is not corrupted\n2. Internet connection (for cloud transcription)\n3. Whisper files in external/whisper/ (for offline)`);
+                toast.error(`Transcription failed: ${errorMsg}. Please check: 1. Video file is not corrupted. 2. Internet connection (for cloud transcription). 3. Whisper files in external/whisper/ (for offline)`);
             }
         }
     };
@@ -285,7 +271,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                 setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
                 setShowUploadModal(true);
                 setTimeout(() => {
-                    alert(`❌ Auto-extraction failed.\n\nPlease describe the PSD tutorial content:\n1. What the tutorial covers\n2. Key steps or techniques\n3. Important layers or settings`);
+                    toast.error(`Auto-extraction failed. Please describe the PSD tutorial content: 1. What the tutorial covers. 2. Key steps or techniques. 3. Important layers or settings`);
                 }, 100);
             }
             return;
@@ -329,7 +315,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                 setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
                 setShowUploadModal(true);
                 setTimeout(() => {
-                    alert(`❌ Auto-extraction failed.\n\nPlease describe the brush set:\n1. What brushes are included\n2. Best use cases (texturing, painting, etc.)\n3. Recommended settings`);
+                    toast.error(`Auto-extraction failed. Please describe the brush set: 1. What brushes are included. 2. Best use cases (texturing, painting, etc.). 3. Recommended settings`);
                 }, 100);
             }
             return;
@@ -372,7 +358,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                 setNewSource((prev) => (prev ? prev : `File: ${file.name}`));
                 setShowUploadModal(true);
                 setTimeout(() => {
-                    alert(`❌ Auto-extraction failed.\n\nPlease:\n1. Open "${file.name}"\n2. Select all (Ctrl+A) & copy (Ctrl+C)\n3. Paste (Ctrl+V) below`);
+                    toast.error(`Auto-extraction failed. Please: 1. Open "${file.name}". 2. Select all (Ctrl+A) & copy (Ctrl+C). 3. Paste (Ctrl+V) below`);
                 }, 100);
             }
             return;
@@ -395,7 +381,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             
             reader.readAsText(file);
         } else {
-            alert(`❌ Unsupported file type: ${file.name}\n\nSupported: .psd, .abr, .pdf, .txt, .md, .json, .bat, .cmd, .xml, .ini, .cfg, .ps1, .sh, .py, .js, .ts, .html, .css, .scss, .sass, .yaml, .yml, .mp4, .webm, .mov, .avi, .mkv, .flv, .wmv, .m4v, .3gp, .mp3, .wav, .flac, .aac, .ogg, .m4a, .wma`);
+            toast.error(`Unsupported file type: ${file.name}. Supported: .psd, .abr, .pdf, .txt, .md, .json, .bat, .cmd, .xml, .ini, .cfg, .ps1, .sh, .py, .js, .ts, .html, .css, .scss, .sass, .yaml, .yml, .mp4, .webm, .mov, .avi, .mkv, .flv, .wmv, .m4v, .3gp, .mp3, .wav, .flac, .aac, .ogg, .m4a, .wma`);
         }
     };
 
@@ -411,108 +397,129 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         }
     };
 
-    // Import bundled knowledge on first run
+    // Import bundled knowledge — skips packs already imported at the same version
+    // so new packs added in app updates reach existing users without duplicates.
     const importBundledKnowledge = async () => {
         try {
             const manifestRes = await fetch('/bundled-knowledge/manifest.json');
             if (!manifestRes.ok) return;
             
             const manifest = await manifestRes.json();
-            const currentMemories = JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]');
-            let newItems: MemoryItem[] = [];
-            
-            for (const pack of manifest.packs) {
-                if (pack['auto-import']) {
-                    const packRes = await fetch(`/bundled-knowledge/${pack.file}`);
-                    if (packRes.ok) {
-                        const packData = await packRes.json();
-                        newItems = newItems.concat(packData.items);
+
+            // Per-pack import tracking: { [packId]: importedVersion }
+            // Migration: if the old single-flag is set, seed the tracking object so
+            // existing users don't re-import packs they already have.
+            const rawPacks = localStorage.getItem('mossy_imported_pack_ids');
+            let importedPacks: Record<string, string> | null = rawPacks ? JSON.parse(rawPacks) : null;
+            if (importedPacks === null) {
+                const oldFlag = localStorage.getItem('mossy_bundled_imported');
+                if (oldFlag) {
+                    // Treat all current packs as already imported at their current version.
+                    importedPacks = {};
+                    for (const pack of manifest.packs) {
+                        importedPacks[pack.id] = pack.version ?? '1.0.0';
                     }
+                    localStorage.setItem('mossy_imported_pack_ids', JSON.stringify(importedPacks));
+                    return; // Nothing new to import for existing users
+                }
+                importedPacks = {};
+            }
+
+            const currentMemories: MemoryItem[] = JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]');
+            let updatedMemories = [...currentMemories];
+            let didImport = false;
+
+            for (const pack of manifest.packs) {
+                const packId: string = pack.id;
+                const packVersion: string = pack.version ?? '1.0.0';
+                const alreadyImported = importedPacks[packId] === packVersion;
+                const shouldAutoImport = pack.autoImport || pack['auto-import'];
+
+                if (!shouldAutoImport || alreadyImported) continue;
+
+                try {
+                    const packRes = await fetch(`/bundled-knowledge/${pack.file}`);
+                    if (!packRes.ok) continue;
+                    const packData = await packRes.json();
+                    if (!Array.isArray(packData.items)) continue;
+
+                    // Remove any stale items from a previous version of this pack
+                    const packPrefix = `bundled-${packId}-`;
+                    updatedMemories = updatedMemories.filter(m => !m.id?.startsWith(packPrefix));
+
+                    const newItems: MemoryItem[] = packData.items.map((item: any) => ({
+                        ...item,
+                        id: `${packPrefix}${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 9)}`,
+                        trustLevel: item.trustLevel || 'official',
+                        status: 'learned',
+                        date: new Date().toLocaleDateString(),
+                        shareWithCommunity: false,
+                    }));
+
+                    updatedMemories = [...newItems, ...updatedMemories];
+                    importedPacks[packId] = packVersion;
+                    didImport = true;
+                } catch (err) {
+                    console.error('Failed to import pack:', pack.name, err);
                 }
             }
-            
-            if (newItems.length > 0) {
-                const combinedMemories = [...newItems, ...currentMemories];
-                setMemories(combinedMemories);
-                localStorage.setItem('mossy_knowledge_vault', JSON.stringify(combinedMemories));
-                localStorage.setItem('mossy_bundled_imported', 'true');
+
+            if (didImport) {
+                setMemories(updatedMemories);
+                localStorage.setItem('mossy_knowledge_vault', JSON.stringify(updatedMemories));
             }
+            // Always persist the tracking object so future runs skip already-imported packs
+            localStorage.setItem('mossy_imported_pack_ids', JSON.stringify(importedPacks));
         } catch (error) {
             console.error('Failed to import bundled knowledge:', error);
         }
     };
 
-    // Check GitHub for new community knowledge
-    const checkGitHubForNewKnowledge = async () => {
+    // Count unimported packs from the local bundled manifest (no internet needed)
+    const checkLocalKnowledgePacks = async () => {
         try {
-            const lastCheck = localStorage.getItem('mossy_last_github_check');
-            const sixHours = 6 * 60 * 60 * 1000;
-            
-            if (lastCheck && Date.now() - parseInt(lastCheck) < sixHours) {
-                return; // Don't check yet
-            }
-            
-            const repoUrl = 'https://api.github.com/repos/POINTYTHRUNDRA654/mossy-knowledge/contents/community-knowledge';
-            const response = await fetch(repoUrl);
-            
-            if (!response.ok) return;
-            
-            const files = await response.json();
-            const importedVersions = JSON.parse(localStorage.getItem('mossy_imported_knowledge_versions') || '{}');
-            
+            const manifestRes = await fetch('/bundled-knowledge/manifest.json');
+            if (!manifestRes.ok) return;
+            const manifest = await manifestRes.json();
+            const importedPacks: Record<string, string> = JSON.parse(localStorage.getItem('mossy_imported_pack_ids') || '{}');
             let newCount = 0;
-            for (const file of files) {
-                if (file.name.endsWith('.json')) {
-                    const packId = file.name.replace('.json', '');
-                    if (!importedVersions[packId]) {
-                        newCount++;
-                    }
+            for (const pack of manifest.packs ?? []) {
+                if (!(pack.id in importedPacks)) {
+                    newCount++;
                 }
             }
-            
             setNewKnowledgeCount(newCount);
-            localStorage.setItem('mossy_last_github_check', Date.now().toString());
         } catch (error) {
-            console.error('Failed to check GitHub for new knowledge:', error);
+            console.error('Failed to check local knowledge packs:', error);
         }
     };
 
-    // Fetch community knowledge from GitHub
+    // Load community knowledge packs from local bundled files (no internet needed)
     const fetchCommunityKnowledge = async () => {
         setIsLoadingLibrary(true);
         try {
-            const repoUrl = 'https://api.github.com/repos/POINTYTHRUNDRA654/mossy-knowledge/contents/community-knowledge';
-            const response = await fetch(repoUrl);
-            
-            if (!response.ok) {
-                throw new Error('Failed to fetch community knowledge');
+            const manifestRes = await fetch('/bundled-knowledge/manifest.json');
+            if (!manifestRes.ok) {
+                setCommunityPacks([]);
+                return;
             }
-            
-            const files = await response.json();
+            const manifest = await manifestRes.json();
+            const importedPacks: Record<string, string> = JSON.parse(localStorage.getItem('mossy_imported_pack_ids') || '{}');
             const packs = [];
-            const importedVersions = JSON.parse(localStorage.getItem('mossy_imported_knowledge_versions') || '{}');
-            
-            for (const file of files) {
-                if (file.name.endsWith('.json')) {
-                    try {
-                        const packRes = await fetch(file.download_url);
-                        const packData = await packRes.json();
-                        const isImported = !!importedVersions[packData.packId];
-                        packs.push({
-                            ...packData,
-                            downloadUrl: file.download_url,
-                            isImported
-                        });
-                    } catch (e) {
-                        console.error(`Failed to load pack ${file.name}:`, e);
-                    }
+            for (const entry of manifest.packs ?? []) {
+                try {
+                    const packRes = await fetch(`/bundled-knowledge/${entry.file}`);
+                    if (!packRes.ok) continue;
+                    const packData = await packRes.json();
+                    const isImported = entry.id in importedPacks;
+                    packs.push({ ...packData, isImported });
+                } catch (e) {
+                    console.error(`Failed to load pack ${entry.file}:`, e);
                 }
             }
-            
             setCommunityPacks(packs);
         } catch (error) {
-            console.error('Failed to fetch community knowledge:', error);
-            alert('Failed to load community knowledge. Please check your internet connection.');
+            console.error('Failed to load local knowledge packs:', error);
         } finally {
             setIsLoadingLibrary(false);
         }
@@ -531,10 +538,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             setMemories(combinedMemories);
             localStorage.setItem('mossy_knowledge_vault', JSON.stringify(combinedMemories));
             
-            // Mark as imported
-            const importedVersions = JSON.parse(localStorage.getItem('mossy_imported_knowledge_versions') || '{}');
-            importedVersions[pack.packId] = true;
-            localStorage.setItem('mossy_imported_knowledge_versions', JSON.stringify(importedVersions));
+            // Mark as imported using the same key as the bundled import system
+            const importedPacks: Record<string, string> = JSON.parse(localStorage.getItem('mossy_imported_pack_ids') || '{}');
+            importedPacks[pack.packId] = pack.packVersion ?? '1.0.0';
+            localStorage.setItem('mossy_imported_pack_ids', JSON.stringify(importedPacks));
             
             // Update pack list
             const updatedPacks = communityPacks.map(p => 
@@ -545,10 +552,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             // Update badge count
             setNewKnowledgeCount(prev => Math.max(0, prev - 1));
             
-            alert(`✅ Imported "${pack.packName}" (${pack.items.length} items)`);
+            toast.success(`Imported "${pack.packName}" (${pack.items.length} items)`);
         } catch (error) {
             console.error('Failed to import pack:', error);
-            alert('Failed to import knowledge pack. Please try again.');
+            toast.error('Failed to import knowledge pack. Please try again.');
         }
     };
 
@@ -557,7 +564,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         const selectedItems = memories.filter(m => m.trustLevel === 'community' || m.trustLevel === 'official');
         
         if (selectedItems.length === 0) {
-            alert('No community or official knowledge to export. Mark items as "Community" trust level to share them.');
+            toast.error('No community or official knowledge to export. Mark items as "Community" trust level to share them.');
             return;
         }
         
@@ -703,10 +710,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            alert(`✅ Exported ${sharedItems.length} shared knowledge item(s)!\n\nNext steps to share with community:\n1. Upload the downloaded JSON to your GitHub repo\n2. Share the link with other Mossy users\n3. They can import it via "Import Community Knowledge"`);
+            toast.success(`Exported ${sharedItems.length} shared knowledge item(s)! Next steps to share with community: 1. Upload the downloaded JSON to your GitHub repo. 2. Share the link with other Mossy users. 3. They can import it via "Import Community Knowledge"`);
         } catch (error) {
             console.error('Community sync error:', error);
-            alert('❌ Failed to export community knowledge. Please try again.');
+            toast.error('Failed to export community knowledge. Please try again.');
         }
     };
 
@@ -735,10 +742,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                 }));
 
                 setMemories([...imported, ...memories]);
-                alert(`✅ Imported ${imported.length} community knowledge item(s)!`);
+                toast.success(`Imported ${imported.length} community knowledge item(s)!`);
             } catch (error) {
                 console.error('Import error:', error);
-                alert('❌ Failed to import community knowledge. Please check the file format.');
+                toast.error('Failed to import community knowledge. Please check the file format.');
             }
         };
         input.click();
@@ -747,7 +754,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
     const handleExportSharedOnly = () => {
         const sharedItems = memories.filter(m => m.shareWithCommunity);
         if (sharedItems.length === 0) {
-            alert('No shared items to export. Mark items as "Share with Community" first.');
+            toast.error('No shared items to export. Mark items as "Share with Community" first.');
             return;
         }
         handleSyncCommunityKnowledge(sharedItems);
@@ -802,7 +809,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             const data = await response.json();
             
             if (!data.items || !Array.isArray(data.items)) {
-                alert('Invalid knowledge pack format');
+                toast.error('Invalid knowledge pack format');
                 return;
             }
             
@@ -825,10 +832,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             // Decrease new knowledge count
             setNewKnowledgeCount(Math.max(0, newKnowledgeCount - 1));
             
-            alert(`✅ Imported ${imported.length} knowledge items from "${pack.packName}"!`);
+            toast.success(`Imported ${imported.length} knowledge items from "${pack.packName}"!`);
         } catch (error) {
             console.error('Import error:', error);
-            alert('❌ Failed to import knowledge pack. Please try again.');
+            toast.error('Failed to import knowledge pack. Please try again.');
         }
     };
 
@@ -1231,7 +1238,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             {/* Content Area */}
             <div 
                 ref={contentScrollRef}
-                className="flex-1 min-h-0 overflow-y-auto p-6 pb-24 space-y-4"
+                className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-6 pb-24 space-y-4"
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
@@ -1297,7 +1304,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                                             {mem.creditUrl && (
                                                 <button
                                                     className="text-cyan-400 hover:text-cyan-300 transition-colors"
-                                                    onClick={() => void openExternal(mem.creditUrl)}
+                                                    onClick={() => void openExternal(mem.creditUrl!)}
                                                     title="Open credit source"
                                                 >
                                                     Source
@@ -1444,7 +1451,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                                     <select
                                         className="w-full bg-[#0f120f] border border-emerald-900/40 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
                                         value={newTrustLevel}
-                                        onChange={(e) => setNewTrustLevel(e.target.value as MemoryItem['trustLevel'])}
+                                        onChange={(e) => setNewTrustLevel(e.target.value as 'personal' | 'community' | 'official')}
                                         disabled={isUploading}
                                     >
                                         <option value="personal">Personal</option>
@@ -1666,11 +1673,8 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
 
                         <div className="p-6 bg-[#1a1f1a] border-t border-blue-900/30">
                             <div className="text-xs text-slate-400 space-y-1">
-                                <p>💡 <strong>Tip:</strong> Knowledge packs are checked every 6 hours for updates</p>
-                                <p>📤 <strong>Share your knowledge:</strong> Export knowledge with "Export Shared" and contribute to the community!</p>
-                                <p className="text-slate-500 text-[10px] mt-2">
-                                    Last checked: {new Date(parseInt(localStorage.getItem('mossy_last_github_check') || Date.now().toString())).toLocaleString()}
-                                </p>
+                                <p>💡 <strong>Tip:</strong> Knowledge packs are bundled with the app and available offline</p>
+                                <p>📤 <strong>Share your knowledge:</strong> Export knowledge with "Export Shared" to contribute to the community!</p>
                             </div>
                         </div>
                     </div>

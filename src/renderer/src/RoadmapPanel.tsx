@@ -47,7 +47,6 @@ const RoadmapPanel: React.FC = () => {
   const loadRoadmaps = async () => {
     try {
       setLoading(true);
-      // @ts-expect-error: Dynamic IPC invoke for roadmap
       const result = await window.electron.api.invoke('roadmap-get-all');
       setRoadmaps(result || []);
       if (result && result.length > 0) {
@@ -65,7 +64,6 @@ const RoadmapPanel: React.FC = () => {
     
     try {
       setGenerating(true);
-      // @ts-expect-error: Dynamic IPC invoke for roadmap AI
       const result = await window.electron.api.invoke('roadmap-generate-ai', { 
         prompt: newGoal,
         projectId: 'default' // For demo
@@ -85,7 +83,6 @@ const RoadmapPanel: React.FC = () => {
 
   const updateStepStatus = async (roadmapId: string, stepId: string, status: string) => {
     try {
-      // @ts-expect-error: Dynamic IPC invoke for roadmap step update
       const result = await window.electron.api.invoke('roadmap-update-step', { 
         roadmapId, 
         stepId, 

@@ -12,6 +12,14 @@ import math
 from bpy.props import StringProperty, BoolProperty, FloatProperty
 from bpy.types import Operator
 
+# Mossy bridge — bundled with the add-on; gracefully absent if unavailable.
+try:
+    from . import mossy_link as _mossy
+    _MOSSY_AVAILABLE = True
+except ImportError:
+    _mossy = None  # type: ignore[assignment]
+    _MOSSY_AVAILABLE = False
+
 
 # ---------------------------------------------------------------------------
 # FO4 Scene Setup
@@ -86,8 +94,16 @@ class FO4_OT_check_nif_ready(Operator):
             for issue in issues:
                 self.report({'WARNING'}, issue)
             self.report({'ERROR'}, f"{len(issues)} issue(s) found — fix before exporting NIF")
+            if _MOSSY_AVAILABLE and _mossy:
+                for issue in issues:
+                    _mossy.log_to_mossy('warning', issue, {'operator': 'check_nif_ready'})
         else:
             self.report({'INFO'}, "All selected objects pass NIF export checks ✓")
+            if _MOSSY_AVAILABLE and _mossy:
+                _mossy.log_to_mossy('info', 'NIF export check passed ✓', {
+                    'operator': 'check_nif_ready',
+                    'object_count': len([o for o in context.selected_objects if o.type == 'MESH']),
+                })
         return {'FINISHED'}
 
 
@@ -120,6 +136,8 @@ class FO4_OT_generate_collision(Operator):
         # Move to collision layer / collection
         coll_obj.display_type = 'WIRE'
         self.report({'INFO'}, f"Collision mesh created: {coll_obj.name} (apply Decimate before export)")
+        if _MOSSY_AVAILABLE and _mossy:
+            _mossy.send_event('collision_generated', {'source': obj.name, 'collision': coll_obj.name})
         return {'FINISHED'}
 
 
@@ -181,6 +199,12 @@ class FO4_OT_import_cell_refs(Operator):
     )
 
     def invoke(self, context, event):
+        # Auto-populate assets_root from Mossy settings when not already set
+        if not self.assets_root:
+            prefs_addon = context.preferences.addons.get(__package__)
+            saved_root = prefs_addon.preferences.assets_root if prefs_addon else ''
+            if not saved_root and _MOSSY_AVAILABLE and _mossy:
+                self.assets_root = _mossy.get_tool_path('fallout4Path') or ''
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -256,6 +280,12 @@ class FO4_OT_import_cell_refs(Operator):
 
         self.report({'INFO'},
             f"Cell import complete: {imported} objects placed, {skipped} skipped (missing NIF or error)")
+        if _MOSSY_AVAILABLE and _mossy:
+            _mossy.send_event('cell_imported', {
+                'json_file': self.filepath,
+                'imported': imported,
+                'skipped': skipped,
+            })
         return {'FINISHED'}
 
 
@@ -319,10 +349,63 @@ class FO4_OT_export_cell_refs(Operator):
             with open(self.filepath, 'w', encoding='utf-8') as f:
                 json.dump(refs, f, indent=2)
             self.report({'INFO'}, f"Exported {len(refs)} references to {self.filepath}")
+            if _MOSSY_AVAILABLE and _mossy:
+                _mossy.send_event('cell_exported', {
+                    'json_file': self.filepath,
+                    'ref_count': len(refs),
+                })
         except Exception as e:
             self.report({'ERROR'}, f"Export failed: {e}")
+            if _MOSSY_AVAILABLE and _mossy:
+                _mossy.log_to_mossy('error', f"Cell export failed: {e}", {'operator': 'export_cell_refs'})
             return {'CANCELLED'}
 
+        return {'FINISHED'}
+
+
+# ---------------------------------------------------------------------------
+# Mossy Sync — pulls all tool/game paths from Mossy into add-on preferences
+# ---------------------------------------------------------------------------
+
+class FO4_OT_sync_from_mossy(Operator):
+    """Sync add-on settings from the Mossy desktop app (assets root, PyTorch path, etc.)"""
+    bl_idname = "fo4.sync_from_mossy"
+    bl_label = "Sync from Mossy"
+
+    def execute(self, context):
+        if not _MOSSY_AVAILABLE or not _mossy:
+            self.report({'ERROR'}, "mossy_link module not available in this add-on")
+            return {'CANCELLED'}
+
+        status = _mossy.get_status()
+        if not status.get('running'):
+            self.report({'WARNING'}, "Mossy is not running — open the Mossy desktop app first")
+            return {'CANCELLED'}
+
+        prefs_addon = context.preferences.addons.get(__package__)
+        if not prefs_addon:
+            self.report({'WARNING'}, "Add-on preferences not found")
+            return {'CANCELLED'}
+
+        paths = _mossy.get_tool_paths()
+        synced = []
+
+        # Sync assets_root from fallout4Path if preferences field is empty
+        if not prefs_addon.preferences.assets_root and paths.get('fallout4Path'):
+            prefs_addon.preferences.assets_root = paths['fallout4Path']
+            synced.append(f"Assets root → {paths['fallout4Path']}")
+
+        # Inject PyTorch into sys.path
+        if _mossy.setup_pytorch():
+            synced.append("PyTorch path injected into sys.path")
+
+        if synced:
+            msg = "Synced from Mossy: " + "; ".join(synced)
+        else:
+            msg = f"Connected to Mossy v{status.get('version', '?')} — no new settings to sync"
+
+        self.report({'INFO'}, msg)
+        _mossy.log_to_mossy('info', msg, {'operator': 'sync_from_mossy'})
         return {'FINISHED'}
 
 
@@ -338,6 +421,7 @@ classes = (
     FO4_OT_validate_uvs,
     FO4_OT_import_cell_refs,
     FO4_OT_export_cell_refs,
+    FO4_OT_sync_from_mossy,
 )
 
 

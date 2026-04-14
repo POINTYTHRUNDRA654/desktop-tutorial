@@ -11,7 +11,7 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <div className="pipboy-bezel">
         {/* The "Casing" background effects */}
         <div className="pipboy-bezel-texture"></div>
-        
+
         {/* Screen Content Wrapper */}
         <div className="pipboy-screen-area">
           {/* Actual App Content */}
@@ -19,14 +19,14 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             {children}
           </div>
         </div>
-        
+
         {/* Decorative Hardware Pieces (Screws, Dials - simulated with CSS) */}
         <div className="pipboy-hardware-screw top-left"></div>
         <div className="pipboy-hardware-screw top-right"></div>
         <div className="pipboy-hardware-screw bottom-left"></div>
         <div className="pipboy-hardware-screw bottom-right"></div>
-        
-        <div className="pipboy-label-top">ROBCO INDUSTRIES</div>
+
+        <div className="pipboy-label-top">MOSSY INDUSTRIES</div>
         <div className="pipboy-label-bottom">PIP-BOY 3000 MK IV</div>
       </div>
 

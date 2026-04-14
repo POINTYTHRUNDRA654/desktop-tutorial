@@ -1,5 +1,28 @@
 const STORAGE_KEY = 'mossy_browser_tts_settings_v1';
 
+export const FEMALE_VOICE_KEYWORDS = [
+  'zira', 'aria', 'jenny', 'salli', 'eva', 'joanna', 'samantha', 'susan', 'hazel',
+  'helen', 'heera', 'haruka', 'kyoko', 'sinji', 'female', 'woman', 'natural', 'online',
+] as const;
+
+const MALE_VOICE_KEYWORDS = [
+  'david', 'mark', 'george', 'james', 'richard', 'fred', 'alex', 'daniel', 'guy',
+  'brian', 'thomas', 'paul', 'oliver', 'luca',
+];
+
+/** Map a uiLanguage code (e.g. "es", "zh-Hans") to a BCP-47 tag for SpeechSynthesisUtterance.lang. */
+export function uiLangToBcp47(lang: string): string {
+  const base = (lang || '').split('-')[0].toLowerCase();
+  switch (base) {
+    case 'es': return 'es-ES';
+    case 'fr': return 'fr-FR';
+    case 'de': return 'de-DE';
+    case 'ru': return 'ru-RU';
+    case 'zh': return 'zh-CN';
+    default:   return 'en-US';
+  }
+}
+
 export type BrowserTtsSettings = {
   enabled: boolean;
   /** Prefer a specific voice by name (substring match, case-insensitive). */
@@ -92,9 +115,22 @@ export function getBrowserTtsVoices(): SpeechSynthesisVoice[] {
   }
 }
 
+/**
+ * Pick the best TTS voice.
+ *
+ * Priority:
+ *  1. Explicit preferredVoiceName match (substring, case-insensitive).
+ *  2. Female-sounding voice whose lang matches langHint (e.g. "es" → es-* voices).
+ *  3. Any non-male voice whose lang matches langHint.
+ *  4. Female-sounding voice from the full voice list (no lang filter).
+ *  5. Any non-male voice from the full voice list.
+ *  6. voices[0] as last resort.
+ */
 export function pickBrowserTtsVoice(
   voices: SpeechSynthesisVoice[],
-  preferredVoiceName?: string
+  preferredVoiceName?: string,
+  /** Base language code to prefer (e.g. "es", "fr", "zh"). */
+  langHint?: string,
 ): SpeechSynthesisVoice | undefined {
   if (!voices.length) return undefined;
 
@@ -106,11 +142,35 @@ export function pickBrowserTtsVoice(
     if (found) return found.v;
   }
 
-  // Heuristic: pick a "nicer" voice first if available.
-  for (const keyword of ['zira', 'aria', 'jenny', 'salli', 'eva', 'joanna', 'female', 'woman', 'natural', 'online']) {
+  const femaleKeywords: readonly string[] = FEMALE_VOICE_KEYWORDS;
+
+  // Filter to voices whose lang starts with the requested language base.
+  const langBase = langHint ? langHint.split('-')[0].toLowerCase() : '';
+  const langMatched = langBase
+    ? voiceIndex.filter(({ v }) => (v.lang || '').toLowerCase().startsWith(langBase))
+    : voiceIndex;
+
+  // Prefer female within the language-matched set.
+  for (const keyword of femaleKeywords) {
+    const found = langMatched.find(({ n }) => n.includes(keyword));
+    if (found) return found.v;
+  }
+
+  // Non-male within the language-matched set.
+  if (langMatched.length > 0) {
+    const nonMale = langMatched.find(({ n }) => !MALE_VOICE_KEYWORDS.some(m => n.includes(m)));
+    if (nonMale) return nonMale.v;
+    return langMatched[0].v;
+  }
+
+  // No lang-matched voices — fall back to full voice list (no lang filter).
+  for (const keyword of femaleKeywords) {
     const found = voiceIndex.find(({ n }) => n.includes(keyword));
     if (found) return found.v;
   }
+
+  const nonMale = voiceIndex.find(({ n }) => !MALE_VOICE_KEYWORDS.some(m => n.includes(m)));
+  if (nonMale) return nonMale.v;
 
   return voices[0];
 }
@@ -161,13 +221,31 @@ export async function speakBrowserTts(
     }
   }
 
+  // Resolve TTS language from electron settings so the utterance is spoken
+  // in the user's selected language and voices are filtered accordingly.
+  let ttsLangBase = '';
+  let ttsBcp47 = 'en-US';
+  try {
+    const api = (window as any)?.electron?.api ?? (window as any)?.electronAPI;
+    if (api?.getSettings) {
+      const s = await api.getSettings();
+      const raw = String(s?.uiLanguage || '').trim();
+      if (raw && raw !== 'auto') {
+        ttsLangBase = raw.split('-')[0].toLowerCase();
+        ttsBcp47 = uiLangToBcp47(raw);
+      }
+    }
+  } catch {
+    // ignore — keep defaults
+  }
+
   // Voices can load lazily; try to wait briefly for them.
   const pickVoiceFromCurrent = () => {
     const voices = getBrowserTtsVoices();
     console.log('[TTS] Available voices:', voices.map(v => `${v.name} (${v.lang})`));
     const preferred = (opts?.preferredVoiceName ?? settings.preferredVoiceName);
     console.log('[TTS] Preferred voice name:', preferred);
-    const selectedVoice = pickBrowserTtsVoice(voices, preferred);
+    const selectedVoice = pickBrowserTtsVoice(voices, preferred, ttsLangBase || undefined);
     console.log('[TTS] Selected voice:', selectedVoice ? `${selectedVoice.name} (${selectedVoice.lang})` : 'none');
     return selectedVoice;
   };
@@ -180,7 +258,8 @@ export async function speakBrowserTts(
         utter.pitch = settings.pitch;
         utter.volume = settings.volume;
         if (voice) utter.voice = voice;
-        console.log('[TTS] Attempting to speak with voice:', voice ? voice.name : 'default');
+        utter.lang = ttsBcp47;
+        console.log('[TTS] Attempting to speak with voice:', voice ? voice.name : 'default', 'lang:', ttsBcp47);
         utter.onstart = () => {
           console.log('[TTS] Speech started successfully');
           resolve();

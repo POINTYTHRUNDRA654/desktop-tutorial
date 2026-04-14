@@ -1,0 +1,80 @@
+
+> mossy-desktop@5.4.24 predev
+> node scripts/package-blender-addons.mjs
+
+Packaging Blender add-ons...
+Γ£ô Created D:\Projects\desktop-tutorial\desktop-tutorial\public\mossy-blender-addons.zip (20.6 KB, 6 files)
+
+> mossy-desktop@5.4.24 dev
+> npm run predev && concurrently "npm run dev:vite" "npm run dev:tsc" "npm run dev:electron"
+
+
+> mossy-desktop@5.4.24 predev
+> node scripts/package-blender-addons.mjs
+
+Packaging Blender add-ons...
+Γ£ô Created D:\Projects\desktop-tutorial\desktop-tutorial\public\mossy-blender-addons.zip (20.6 KB, 6 files)
+(node:39572) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[0] 
+[0] > mossy-desktop@5.4.24 dev:vite
+[0] > vite --strictPort
+[0] 
+[1] 
+[1] > mossy-desktop@5.4.24 dev:tsc
+[1] > tsc -p tsconfig.electron.json -w
+[1] 
+[2] 
+[2] > mossy-desktop@5.4.24 dev:electron
+[2] > node -e "const path=require('path'); const { spawn }=require('child_process'); const port=Number(process.env.VITE_DEV_SERVER_PORT||5174); const url='http://127.0.0.1:'+port; const electronBin=process.platform==='win32'?path.join(process.cwd(),'node_modules','.bin','electron.cmd'):'electron'; console.log('[dev:electron] Delaying Electron launch for Vite...'); setTimeout(()=>{ const env={...process.env, ELECTRON_START_URL:url}; const child=spawn(electronBin,['.'],{ stdio:'inherit', env, shell:true, windowsHide:true }); child.on('exit',(code)=>process.exit(code||0)); child.on('error',(err)=>{ console.error('[dev:electron] spawn error:', err?.message||err); process.exit(1); }); }, 2000);"
+[2] 
+[2] [dev:electron] Delaying Electron launch for Vite...
+[1] c10:08:33 AM - Starting compilation in watch mode...
+[1] 
+[2] (node:3952) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+[2] (Use `node --trace-deprecation ...` to show where the warning was created)
+[2] 
+[0] 
+[0]   [32m[1mVITE[22m v7.3.1[39m  [2mready in [0m[1m2611[22m[2m[0m ms[22m
+[0] 
+[0]   [32mΓ₧£[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5174[22m/[39m
+[2] [AutoUpdater] Running in dev mode - auto-updater disabled
+[2] [Main] Loading .env from: D:\Projects\desktop-tutorial\desktop-tutorial\.env.local
+[2] [Main] File exists: true
+[2] [Main] Current working directory: D:\Projects\desktop-tutorial\desktop-tutorial
+[2] [Main] __dirname: D:\Projects\desktop-tutorial\desktop-tutorial\dist-electron\electron
+[2] [Main] app.getAppPath(): D:\Projects\desktop-tutorial\desktop-tutorial
+[2] [Main] path.dirname(process.execPath): D:\Projects\desktop-tutorial\desktop-tutorial\node_modules\electron\dist
+[2] [Main] dotenv result: {
+[2]   parsed: {
+[2]     VITE_DEV_SERVER_PORT: '5174',
+[2]     OPENAI_API_KEY: '',
+[2]     GROQ_API_KEY: '',
+[2]     DEEPGRAM_API_KEY: '',
+[2]     ELEVENLABS_API_KEY: '',
+[2]     VITE_TTS_PROVIDER: 'browser',
+[2]     VITE_BROWSER_TTS_VOICE: 'Zira',
+[2]     MOSSY_BRIDGE_TOKEN: 'change_this_to_a_long_random_string_in_production',
+[2]     VITE_SILENCE_WAIT_MS: '350',
+[2]     VITE_MIN_SPEECH_MS: '250',
+[2]     VITE_AMP_THRESHOLD: '0.015',
+[2]     VITE_ENABLE_ACTIVITY_MONITOR: 'false',
+[2]     VITE_LEARNING_LOG_RETENTION_DAYS: '30',
+[2]     VITE_AUTO_SUGGESTION_THRESHOLD: '0.75'
+[2]   }
+[2] }
+[2] [Main] OPENAI_API_KEY loaded: false
+[2] [Main] GROQ_API_KEY loaded: false
+[2] [Main] MOSSY_BACKEND_URL: https://mossy.onrender.com
+[2] [Main] Environment file loaded from: D:\Projects\desktop-tutorial\desktop-tutorial\.env.local
+[2] [Main] Is packaged build: false
+[2] [Main] Another instance is running - quitting
+[2] [MOSSY] Shutting down Neural Bridge...
+[2] npm run dev:electron exited with code 0
+[1] 
+[1] 10:08:40 AM - Found 0 errors. Watching for file changes.
+[0] npm run dev:vite exited with code 1
+[1] c5:10:45 PM - File change detected. Starting incremental compilation...
+[1] 
+[1] 
+[1] 5:10:50 PM - Found 0 errors. Watching for file changes.

@@ -40,6 +40,7 @@ export class CloudSyncEngine {
   private syncStatuses: Map<string, SyncStatus> = new Map();
   private collaborationSessions: Map<string, CollaborationSession> = new Map();
   private initialized: boolean = false;
+  private endingSessionIds: Set<string> = new Set();
 
   constructor(config?: Partial<CloudSyncConfig>) {
     this.config = {
@@ -614,12 +615,32 @@ export class CloudSyncEngine {
       return;
     }
 
+    // Guard: prevent concurrent/re-entrant closing of the same session so the
+    // closing step is never reached before the previous run's operations finish.
+    if (this.endingSessionIds.has(sessionId)) {
+      console.log(`[CloudSync] Session ${sessionId} is already being ended, concurrent call in progress`);
+      return;
+    }
+    this.endingSessionIds.add(sessionId);
+
     try {
       console.log(`[CloudSync] Ending collaboration session ${sessionId}...`);
 
-      // Step 1: Final sync of all changes
+      // Step 1: Final sync of all changes — must complete before the session is closed.
       console.log(`[CloudSync] Performing final sync for project ${session.projectId}...`);
       const syncResult = await this.syncProject(session.projectId, 'bidirectional');
+
+      // Ensure every other process (sync + conflict resolution) has finished
+      // successfully before we allow the closing step to proceed.
+      if (!syncResult.success) {
+        throw new Error(`Cannot end session: final sync failed - ${syncResult.error ?? 'unknown error'}`);
+      }
+      if (syncResult.conflictsDetected > syncResult.conflictsResolved) {
+        throw new Error(
+          `Cannot end session: ${syncResult.conflictsDetected - syncResult.conflictsResolved} conflict(s) remain unresolved`
+        );
+      }
+
       console.log(
         `[CloudSync] Final sync: ${syncResult.filesSync} files, ${syncResult.conflictsResolved} conflicts resolved`
       );
@@ -650,13 +671,17 @@ export class CloudSyncEngine {
         this.unsubscribeFromChanges(subId);
       }
 
-      // Step 5: Remove session from active sessions
+      // Step 5: Remove session from active sessions — this is intentionally last so
+      // the session is only closed after all other processes have completed.
       this.collaborationSessions.delete(session.projectId);
 
       console.log(`[CloudSync] Collaboration session ${sessionId} ended successfully`);
     } catch (error) {
       console.error(`[CloudSync] Error ending collaboration session:`, error);
       throw new Error(`Failed to end collaboration session: ${error}`);
+    } finally {
+      // Always release the guard, whether the operation succeeded or failed.
+      this.endingSessionIds.delete(sessionId);
     }
   }
 
