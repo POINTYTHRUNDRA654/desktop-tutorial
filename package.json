@@ -44,7 +44,7 @@
     "package": "npm run build && electron-builder",
     "package:win": "npm run build && electron-builder --win",
     "package:win:universal": "npm run build && electron-builder --win",
-    "package:win:nvidia": "npm run build && electron-builder --win --config.productName=\"Mossy NVIDIA\" --config.appId=\"com.volttech.desktop-nvidia\" --config.nsis.shortcutName=\"Mossy NVIDIA\" --config.nsis.include=\"build/installer-include-nvidia.nsh\" --config.win.artifactName=\"Mossy NVIDIA ${version}.${ext}\"",
+    "package:win:nvidia": "npm run build && electron-builder --win --config.productName=\"Mossy NVIDIA\" --config.appId=\"com.volttech.desktop-nvidia\" --config.win.artifactName=\"Mossy NVIDIA ${version}.${ext}\"",
     "setup-keys": "node scripts/setup-keys.mjs",
     "check-comms": "node scripts/check-comms.mjs",
     "test-web-search": "node scripts/test-web-search.mjs",
@@ -223,7 +223,7 @@
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "portable",
           "arch": [
             "x64"
           ]
@@ -231,13 +231,6 @@
       ],
       "icon": "build/icon.ico",
       "artifactName": "${productName} ${version}.${ext}"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": "always",
-      "shortcutName": "Mossy",
-      "include": "build/installer-include.nsh"
     },
     "linux": {
       "target": "AppImage",
