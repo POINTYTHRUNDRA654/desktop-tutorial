@@ -62,6 +62,7 @@
 
 **Onboarding:**
 - **📚 Documentation Guide:** See [DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md) - Navigation guide for all documentation
+- **📦 Archived Docs:** See [docs/archive/ARCHIVE_INDEX.md](docs/archive/ARCHIVE_INDEX.md) - Historical session documentation (81 archived files)
 - **Getting Started:** See [GETTING_STARTED.md](GETTING_STARTED.md) for quick-start information
 - **Visual Guide:** See [VISUAL_GUIDE.md](VISUAL_GUIDE.md) for page-by-page screenshots and explanations (55+ pages)
 - **Comprehensive Tutorial:** See [MOSSY_COMPREHENSIVE_TUTORIAL.md](MOSSY_COMPREHENSIVE_TUTORIAL.md) for detailed feature documentation
