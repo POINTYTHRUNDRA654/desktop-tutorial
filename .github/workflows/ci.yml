@@ -30,9 +30,6 @@ jobs:
     name: Verify (reproducible)
     needs: check-conflicts
     runs-on: windows-latest
-    env:
-      ELECTRON_CACHE: ${{ runner.temp }}\electron-cache
-      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\electron-builder-cache
 
     steps:
       - name: Checkout code

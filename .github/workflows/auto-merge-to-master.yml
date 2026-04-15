@@ -34,7 +34,7 @@ jobs:
         run: node scripts/check-no-conflict-markers.js
 
       - name: Attempt merge branch → master (and delete branch when merged)
-        uses: actions/github-script@v4
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
