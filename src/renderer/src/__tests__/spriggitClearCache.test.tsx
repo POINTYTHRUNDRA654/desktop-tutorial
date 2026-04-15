@@ -156,12 +156,15 @@ describe('FirstRunOnboarding — spriggit-digest 0xFFFFFFFF error recovery', () 
   });
 
   /**
-   * Navigate through edition → welcome → version → (scan) → recommendations
-   * → downloads → spriggit-digest.
+   * Navigate through edition → welcome → version → (scan) → credits → lists
+   * → recommendations → downloads → spriggit-digest.
    *
    * Uses the "Start System Scan" button on the version step so the startScan()
    * function is called directly without the 500 ms setTimeout that the version-
    * picker buttons use.  This keeps tests fast and avoids fake-timer concerns.
+   *
+   * Each inter-step CTA is located via a stable data-testid so copy/i18n
+   * changes cannot break navigation.
    */
   async function navigateToSpriggitDigest(): Promise<void> {
     const user = userEvent.setup();
@@ -175,19 +178,28 @@ describe('FirstRunOnboarding — spriggit-digest 0xFFFFFFFF error recovery', () 
     // version → scanning (startScan fires immediately, no setTimeout)
     await user.click(screen.getByRole('button', { name: /start system scan/i }));
 
-    // scan async ops (mocked) complete; wait for recommendations step
+    // scan async ops (mocked) complete; wait for credits step
     await waitFor(
-      () =>
-        expect(
-          screen.getByRole('button', { name: /download recommended tools/i })
-        ).toBeInTheDocument(),
+      () => expect(screen.getByTestId('onboarding-credits-cta')).toBeInTheDocument(),
       { timeout: 10_000 }
     );
 
-    // recommendations → downloads
-    await user.click(
-      screen.getByRole('button', { name: /download recommended tools/i })
+    // credits → lists
+    await user.click(screen.getByTestId('onboarding-credits-cta'));
+
+    // lists → recommendations
+    await waitFor(
+      () => expect(screen.getByTestId('onboarding-lists-cta')).toBeInTheDocument(),
+      { timeout: 5_000 }
     );
+    await user.click(screen.getByTestId('onboarding-lists-cta'));
+
+    // recommendations → downloads
+    await waitFor(
+      () => expect(screen.getByTestId('onboarding-recommendations-cta')).toBeInTheDocument(),
+      { timeout: 5_000 }
+    );
+    await user.click(screen.getByTestId('onboarding-recommendations-cta'));
 
     // downloads → spriggit-digest via "Finish Setup"
     await user.click(screen.getByRole('button', { name: /finish setup/i }));
