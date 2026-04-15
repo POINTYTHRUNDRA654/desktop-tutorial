@@ -251,7 +251,7 @@ const DOTNET_STILL_NOT_DETECTED_MSG = '⚠️ Still not detected — try restart
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
-    const [step, setStep] = useState<'edition' | 'welcome' | 'version' | 'scanning' | 'recommendations' | 'downloads' | 'spriggit-digest' | 'complete'>('edition');
+    const [step, setStep] = useState<'edition' | 'welcome' | 'version' | 'scanning' | 'credits' | 'lists' | 'recommendations' | 'downloads' | 'spriggit-digest' | 'complete'>('edition');
     const [fo4Version, setFo4Version] = useState<string>(() => {
         try { return localStorage.getItem('mossy_fo4_version') || ''; } catch { return ''; }
     });
@@ -843,7 +843,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setRecommendations(recs);
             setFilteredRecommendations(recs);
             setScanRetryCount(0); // Reset retry count on success
-            setStep('recommendations');
+            setStep('credits');
 
         } catch (error) {
             console.error('[FirstRunOnboarding] Scan failed:', error);
@@ -1489,7 +1489,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 type="button"
                                                 onClick={() => {
                                                     console.log('[FirstRunOnboarding] User chose to skip scan after error');
-                                                    setStep('downloads');
+                                                    setStep('credits');
                                                 }}
                                                 className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-semibold transition-colors"
                                             >
@@ -1531,6 +1531,145 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 description="Quick orientation while your system scan runs."
                                 className="lg:mt-2"
                             />
+                        </div>
+                    </div>
+                )}
+
+                {step === 'credits' && (
+                    <div className="animate-fade-in">
+                        <div className="text-center mb-8">
+                            <Sparkles className="w-16 h-16 mx-auto mb-4 text-amber-400" />
+                            <h2 className="text-3xl font-bold text-white mb-3">Credits &amp; Acknowledgments</h2>
+                            <p className="text-slate-400 text-sm max-w-lg mx-auto">
+                                Mossy is built on the shoulders of giants. Here are the key projects and communities that make it possible.
+                            </p>
+                        </div>
+
+                        <div className="max-w-2xl mx-auto space-y-3 mb-8">
+                            {[
+                                { label: 'Core', color: 'amber', items: ['Electron v35', 'React v18', 'TypeScript v5', 'Vite v7'] },
+                                { label: 'AI', color: 'emerald', items: ['OpenAI SDK', 'Groq SDK', 'Anthropic Claude', 'PyTorch (CPU & CUDA)'] },
+                                { label: 'Modding Tools', color: 'blue', items: ['xEdit / FO4Edit by ElminsterAU', 'Creation Kit by Bethesda', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42'] },
+                                { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope by hexabits', 'BodySlide & Outfit Studio by ousnius', 'B.A.E. by jonwd7'] },
+                                { label: 'Community', color: 'rose', items: ['Nexus Mods community', 'Fallout 4 modding community', 'GitHub contributors', 'Everyone who tests &amp; supports Mossy'] },
+                            ].map(({ label, color, items }) => (
+                                <div key={label} className={`bg-slate-800/60 border border-${color}-500/30 rounded-xl p-4`}>
+                                    <div className={`text-xs font-bold text-${color}-400 uppercase tracking-wide mb-2`}>{label}</div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {items.map((item) => (
+                                            <span key={item} className="text-xs text-slate-300 bg-slate-700/60 px-2 py-1 rounded-md"
+                                                dangerouslySetInnerHTML={{ __html: item }} />
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <p className="text-center text-xs text-slate-500 mb-6">
+                            Full credits and license information: <strong className="text-slate-400">CREDITS.md</strong> in the Mossy installation folder.
+                        </p>
+
+                        <div className="flex flex-col items-center gap-3">
+                            <button
+                                onClick={() => setStep('lists')}
+                                className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 transition-colors"
+                            >
+                                Next <ArrowRight className="w-5 h-5" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setStep('scanning')}
+                                className="text-sm text-slate-400 hover:text-slate-200 underline"
+                            >
+                                ← Back
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {step === 'lists' && (
+                    <div className="animate-fade-in">
+                        <div className="text-center mb-8">
+                            <Brain className="w-16 h-16 mx-auto mb-4 text-emerald-400" />
+                            <h2 className="text-3xl font-bold text-white mb-3">Whitelist &amp; Blacklist</h2>
+                            <p className="text-slate-400 text-sm max-w-lg mx-auto">
+                                Mossy has two built-in content control systems you can configure any time in <strong className="text-slate-300">Settings → Privacy</strong>.
+                            </p>
+                        </div>
+
+                        <div className="max-w-2xl mx-auto space-y-5 mb-8">
+                            {/* Whitelist */}
+                            <div className="bg-slate-800/60 border border-amber-500/40 rounded-xl p-5">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center">
+                                        <Check className="w-4 h-4 text-amber-400" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-amber-300">Mod Content Whitelist</h3>
+                                </div>
+                                <p className="text-sm text-slate-300 leading-relaxed mb-3">
+                                    The whitelist is a <strong className="text-white">privacy protection</strong> tool — primarily for mod authors. Any mod you add here will be <strong className="text-amber-200">completely invisible to Mossy</strong>: she will never mention it, recommend it, reference it, or interact with it in any way, no matter what.
+                                </p>
+                                <ul className="text-xs text-slate-400 space-y-1 pl-4 list-disc">
+                                    <li>Use it to keep your unreleased or private mods out of Mossy's responses</li>
+                                    <li>Stored entirely on your local machine — nothing is sent anywhere</li>
+                                    <li>Takes effect immediately on your next message to Mossy</li>
+                                </ul>
+                            </div>
+
+                            {/* Mod Blacklist */}
+                            <div className="bg-slate-800/60 border border-orange-500/40 rounded-xl p-5">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-7 h-7 rounded-full bg-orange-500/20 flex items-center justify-center">
+                                        <X className="w-4 h-4 text-orange-400" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-orange-300">Mod Blacklist</h3>
+                                </div>
+                                <p className="text-sm text-slate-300 leading-relaxed mb-3">
+                                    The mod blacklist is a <strong className="text-white">safety warning</strong> system. Add mods you know are problematic, broken, or incompatible. When anyone asks Mossy about a blacklisted mod, she will warn about the known issues and suggest safer alternatives.
+                                </p>
+                                <ul className="text-xs text-slate-400 space-y-1 pl-4 list-disc">
+                                    <li>Great for flagging mods that cause crashes, conflicts, or save corruption</li>
+                                    <li>Mossy will still respect the user's choice if they insist — but she'll document her warning</li>
+                                    <li>Separate from the Program Blacklist (which covers outdated tools and utilities)</li>
+                                </ul>
+                            </div>
+
+                            {/* Program Blacklist */}
+                            <div className="bg-slate-800/60 border border-red-500/40 rounded-xl p-5">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-7 h-7 rounded-full bg-red-500/20 flex items-center justify-center">
+                                        <X className="w-4 h-4 text-red-400" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-red-300">Program Blacklist</h3>
+                                </div>
+                                <p className="text-sm text-slate-300 leading-relaxed mb-3">
+                                    The program blacklist works like the mod blacklist, but for <strong className="text-white">tools and utilities</strong>. Add programs you know are outdated, incompatible, or harmful — Mossy will actively steer users away from them and recommend better alternatives.
+                                </p>
+                                <ul className="text-xs text-slate-400 space-y-1 pl-4 list-disc">
+                                    <li>Useful for flagging superseded tools (e.g. old script extenders, broken managers)</li>
+                                    <li>Configured in Settings → Privacy alongside the mod blacklist</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <p className="text-center text-xs text-slate-500 mb-6">
+                            You don't need to set anything up now — you can manage all three lists at any time in <strong className="text-slate-400">Settings → Privacy</strong>.
+                        </p>
+
+                        <div className="flex flex-col items-center gap-3">
+                            <button
+                                onClick={() => setStep('recommendations')}
+                                className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 transition-colors"
+                            >
+                                Next: See Discovered Tools <ArrowRight className="w-5 h-5" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setStep('credits')}
+                                className="text-sm text-slate-400 hover:text-slate-200 underline"
+                            >
+                                ← Back to Credits
+                            </button>
                         </div>
                     </div>
                 )}
