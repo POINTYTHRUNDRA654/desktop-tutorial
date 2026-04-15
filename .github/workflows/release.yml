@@ -66,35 +66,38 @@ jobs:
           if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then
             PRERELEASE_FLAG="--prerelease"
           fi
+          cat > /tmp/release-notes.md << EOF
+          # Mossy Desktop v${VERSION}
+
+          ## What's New
+          - Professional Fallout 4 modding assistant with AI
+          - Full OG/NG/AE/Creations Menu version awareness
+          - Professional asset optimization tools
+          - Neural Link integration for real-time tool monitoring
+          - Comprehensive modding workflow automation
+
+          ## Installation
+          1. Download the installer for your system
+          2. Run the installer
+          3. Follow the first-run setup wizard
+
+          ## Editions
+          - **Universal**: CPU-based PyTorch, works on all systems
+          - **NVIDIA**: CUDA-accelerated with fine-tuning capabilities (requires NVIDIA GPU)
+
+          ## System Requirements
+          - Windows 10/11 (64-bit)
+          - 8GB RAM minimum (16GB recommended)
+          - 5GB free disk space
+          - .NET Runtime 8.0+
+          - Visual C++ Redistributables
+
+          ## Documentation
+          See the [README](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/README.md) for full documentation.
+          EOF
           gh release create "v${VERSION}" \
             --title "Mossy v${VERSION}" \
-            --notes "# Mossy Desktop v${VERSION}
-
-## What's New
-- Professional Fallout 4 modding assistant with AI
-- Full OG/NG/AE/Creations Menu version awareness
-- Professional asset optimization tools
-- Neural Link integration for real-time tool monitoring
-- Comprehensive modding workflow automation
-
-## Installation
-1. Download the installer for your system
-2. Run the installer
-3. Follow the first-run setup wizard
-
-## Editions
-- **Universal**: CPU-based PyTorch, works on all systems
-- **NVIDIA**: CUDA-accelerated with fine-tuning capabilities (requires NVIDIA GPU)
-
-## System Requirements
-- Windows 10/11 (64-bit)
-- 8GB RAM minimum (16GB recommended)
-- 5GB free disk space
-- .NET Runtime 8.0+
-- Visual C++ Redistributables
-
-## Documentation
-See the [README](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/README.md) for full documentation." \
+            --notes-file /tmp/release-notes.md \
             $DRAFT_FLAG $PRERELEASE_FLAG
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
