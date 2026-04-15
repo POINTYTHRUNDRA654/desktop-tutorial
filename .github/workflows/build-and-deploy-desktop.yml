@@ -67,18 +67,16 @@ jobs:
 
       - name: Package Universal Edition
         if: matrix.edition == 'universal'
-        run: npx electron-builder --win --publish always
+        run: npx electron-builder --win
         timeout-minutes: 30
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
 
       - name: Package NVIDIA Edition
         if: matrix.edition == 'nvidia'
-        run: npm run package:win:nvidia -- --publish always
+        run: npm run package:win:nvidia
         timeout-minutes: 30
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
 
       - name: Upload artifacts (backup)
