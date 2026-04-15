@@ -37,8 +37,6 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      release_id: ${{ steps.create_release.outputs.id }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
       - name: Checkout code
@@ -57,57 +55,49 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Building version: $VERSION"
 
-      - name: Generate changelog
-        id: changelog
+      - name: Create Release
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          CHANGELOG=$(cat <<EOF
-          # Mossy Desktop v${VERSION}
+          DRAFT_FLAG=""
+          PRERELEASE_FLAG=""
+          if [ "${{ github.event.inputs.draft }}" != "false" ]; then
+            DRAFT_FLAG="--draft"
+          fi
+          if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "v${VERSION}" \
+            --title "Mossy v${VERSION}" \
+            --notes "# Mossy Desktop v${VERSION}
 
-          ## What's New
-          - Professional Fallout 4 modding assistant with AI
-          - Full OG/NG/AE/Creations Menu version awareness
-          - Professional asset optimization tools
-          - Neural Link integration for real-time tool monitoring
-          - Comprehensive modding workflow automation
+## What's New
+- Professional Fallout 4 modding assistant with AI
+- Full OG/NG/AE/Creations Menu version awareness
+- Professional asset optimization tools
+- Neural Link integration for real-time tool monitoring
+- Comprehensive modding workflow automation
 
-          ## Installation
-          1. Download the installer for your system
-          2. Run the installer
-          3. Follow the first-run setup wizard
+## Installation
+1. Download the installer for your system
+2. Run the installer
+3. Follow the first-run setup wizard
 
-          ## Editions
-          - **Universal**: CPU-based PyTorch, works on all systems
-          - **NVIDIA**: CUDA-accelerated with fine-tuning capabilities (requires NVIDIA GPU)
+## Editions
+- **Universal**: CPU-based PyTorch, works on all systems
+- **NVIDIA**: CUDA-accelerated with fine-tuning capabilities (requires NVIDIA GPU)
 
-          ## System Requirements
-          - Windows 10/11 (64-bit)
-          - 8GB RAM minimum (16GB recommended)
-          - 5GB free disk space
-          - .NET Runtime 8.0+
-          - Visual C++ Redistributables
+## System Requirements
+- Windows 10/11 (64-bit)
+- 8GB RAM minimum (16GB recommended)
+- 5GB free disk space
+- .NET Runtime 8.0+
+- Visual C++ Redistributables
 
-          ## Documentation
-          See the [README](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/README.md) for full documentation.
-          EOF
-          )
-          {
-            echo "changelog<<EOF"
-            echo "$CHANGELOG"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+## Documentation
+See the [README](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/README.md) for full documentation." \
+            $DRAFT_FLAG $PRERELEASE_FLAG
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ steps.get_version.outputs.version }}
-          release_name: Mossy v${{ steps.get_version.outputs.version }}
-          body: ${{ steps.changelog.outputs.changelog }}
-          draft: ${{ github.event.inputs.draft || true }}
-          prerelease: ${{ github.event.inputs.prerelease || false }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-universal:
     name: Build Universal Edition
@@ -157,26 +147,13 @@ jobs:
             Write-Host "  $($_.Name) - $sizeMB MB"
           }
 
-      - name: Upload NSIS Installer
-        uses: actions/upload-release-asset@v1
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: release/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./release/Mossy ${{ needs.create-release.outputs.version }}.exe
-          asset_name: Mossy-${{ needs.create-release.outputs.version }}-Setup.exe
-          asset_content_type: application/x-msdownload
-
-      - name: Upload Portable Edition
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./release/Mossy ${{ needs.create-release.outputs.version }}.exe
-          asset_name: Mossy-${{ needs.create-release.outputs.version }}-Portable.exe
-          asset_content_type: application/x-msdownload
-        continue-on-error: true
 
       - name: Upload artifacts (backup)
         uses: actions/upload-artifact@v4
@@ -233,15 +210,13 @@ jobs:
             Write-Host "  $($_.Name) - $sizeMB MB"
           }
 
-      - name: Upload NVIDIA Installer
-        uses: actions/upload-release-asset@v1
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: release/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./release/Mossy NVIDIA ${{ needs.create-release.outputs.version }}.exe
-          asset_name: Mossy-NVIDIA-${{ needs.create-release.outputs.version }}-Setup.exe
-          asset_content_type: application/x-msdownload
 
       - name: Upload artifacts (backup)
         uses: actions/upload-artifact@v4
