@@ -25,7 +25,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        edition: ${{ github.event.inputs.edition == 'both' && fromJSON('["universal", "nvidia"]') || fromJSON(format('["{0}"]', github.event.inputs.edition || 'universal')) }}
+        edition: ${{ github.event.inputs.edition == 'nvidia' && fromJSON('["nvidia"]') || github.event.inputs.edition == 'universal' && fromJSON('["universal"]') || fromJSON('["universal", "nvidia"]') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
