@@ -1571,6 +1571,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                         <div className="flex flex-col items-center gap-3">
                             <button
+                                data-testid="onboarding-credits-cta"
                                 onClick={() => setStep('lists')}
                                 className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 transition-colors"
                             >
@@ -1658,6 +1659,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
                         <div className="flex flex-col items-center gap-3">
                             <button
+                                data-testid="onboarding-lists-cta"
                                 onClick={() => setStep('recommendations')}
                                 className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 transition-colors"
                             >
@@ -1788,6 +1790,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         )}
 
                         <button
+                            data-testid="onboarding-recommendations-cta"
                             onClick={() => setStep('downloads')}
                             className="w-full px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
                         >
