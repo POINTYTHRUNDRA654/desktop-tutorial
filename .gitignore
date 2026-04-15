@@ -139,7 +139,5 @@ resources/python-embedded/*
 !resources/python-embedded/.gitkeep
 release/
 
-# Encrypted API key bundle — encryption key is in source (encrypt-keys.js),
-# so this file must NOT be committed to a public repository.
-.env.encrypted
+# Encrypted API key bundle backup (auto-generated, not needed in repo)
 .env.encrypted.backup
