@@ -141,3 +141,4 @@ release/
 
 # Encrypted API key bundle backup (auto-generated, not needed in repo)
 .env.encrypted.backup
+actionlint*
