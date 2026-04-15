@@ -32,7 +32,7 @@ jobs:
         edition: ${{ github.event.inputs.edition == 'nvidia' && fromJSON('["nvidia"]') || github.event.inputs.edition == 'universal' && fromJSON('["universal"]') || fromJSON('["universal", "nvidia"]') }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: false
 
