@@ -65,20 +65,20 @@ jobs:
           echo "TAG_NAME=v$version" >> $env:GITHUB_OUTPUT
           Write-Host "Building version: $version"
 
-      # Note: Using --publish never due to repository rulesets blocking tag creation
-      # Builds are distributed via GitHub Actions artifacts instead of releases
       - name: Package Universal Edition
         if: matrix.edition == 'universal'
-        run: npx electron-builder --win --publish never
+        run: npx electron-builder --win --publish always
         timeout-minutes: 30
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
 
       - name: Package NVIDIA Edition
         if: matrix.edition == 'nvidia'
-        run: npm run package:win:nvidia -- --publish never
+        run: npm run package:win:nvidia -- --publish always
         timeout-minutes: 30
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
 
       - name: Upload artifacts (backup)
