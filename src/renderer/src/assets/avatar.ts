@@ -1,4 +1,5 @@
-import mossyAvatarSvgUrl from './mossy-avatar.svg?url';
+import mossyAvatarPngUrl from './mossy-avatar.png?url';
 
 // Bundle the avatar so it resolves correctly in packaged `file://` builds.
-export const mossyAvatarUrl = mossyAvatarSvgUrl;
+// Using PNG instead of SVG to reduce bundle size (26MB SVG -> 2.6MB PNG)
+export const mossyAvatarUrl = mossyAvatarPngUrl;
