@@ -65,41 +65,6 @@ jobs:
           echo "TAG_NAME=v$version" >> $env:GITHUB_OUTPUT
           Write-Host "Building version: $version"
 
-      - name: Delete existing releases (if any)
-        continue-on-error: false
-        run: |
-          $version = "${{ steps.version.outputs.VERSION }}"
-          Write-Host "Checking for existing v$version releases..."
-          Write-Host "⚠️  WARNING: Any existing release with version v$version will be deleted and replaced." -ForegroundColor Yellow
-          
-          $releases = gh release list --json tagName,name,isDraft | ConvertFrom-Json
-          $deletedCount = 0
-          
-          foreach ($release in $releases) {
-            if ($release.tagName -eq "v$version" -or $release.name -like "*$version*") {
-              Write-Host "Found release: $($release.tagName) (Draft: $($release.isDraft), Name: $($release.name))"
-              Write-Host "  → Deleting release: $($release.tagName)" -ForegroundColor Yellow
-              
-              try {
-                gh release delete $release.tagName --yes --cleanup-tag
-                $deletedCount++
-                Write-Host "  ✓ Successfully deleted release: $($release.tagName)" -ForegroundColor Green
-              } catch {
-                Write-Host "  ✗ Failed to delete release: $($release.tagName)" -ForegroundColor Red
-                Write-Host "  Error: $_" -ForegroundColor Red
-                throw
-              }
-            }
-          }
-          
-          if ($deletedCount -eq 0) {
-            Write-Host "✓ No existing releases found for v$version. Proceeding with fresh release." -ForegroundColor Green
-          } else {
-            Write-Host "✓ Successfully deleted $deletedCount release(s). Ready to create new release." -ForegroundColor Green
-          }
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Package Universal Edition
         if: matrix.edition == 'universal'
         run: npx electron-builder --win --publish always
