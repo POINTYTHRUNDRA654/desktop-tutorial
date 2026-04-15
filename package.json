@@ -214,7 +214,11 @@
       "provider": "github",
       "owner": "POINTYTHRUNDRA654",
       "repo": "desktop-tutorial",
-      "releaseType": "prerelease"
+      "releaseType": "prerelease",
+      "timeout": 600000,
+      "requestHeaders": {
+        "User-Agent": "electron-builder"
+      }
     },
     "mac": {
       "target": "dmg",
@@ -222,6 +226,12 @@
     },
     "win": {
       "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
         {
           "target": "portable",
           "arch": [
