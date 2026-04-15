@@ -28,12 +28,12 @@ jobs:
         edition: ${{ github.event.inputs.edition == 'both' && fromJSON('["universal", "nvidia"]') || fromJSON(format('["{0}"]', github.event.inputs.edition || 'universal')) }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           submodules: false
 
       - name: Setup Node.js 20.x
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 20.x
           cache: 'npm'
