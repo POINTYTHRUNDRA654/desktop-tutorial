@@ -5,6 +5,7 @@ on:
     branches: [ master ]
     tags:
       - 'v*'
+      - '[0-9]*'
   workflow_dispatch:
     inputs:
       edition:
@@ -67,19 +68,17 @@ jobs:
 
       - name: Package Universal Edition
         if: matrix.edition == 'universal'
-        run: npx electron-builder --win
+        run: npx electron-builder --win --publish never
         timeout-minutes: 30
         env:
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Package NVIDIA Edition
         if: matrix.edition == 'nvidia'
-        run: npm run package:win:nvidia
+        run: npm run package:win:nvidia -- --publish never
         timeout-minutes: 30
         env:
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts (backup)
         if: always()
@@ -100,3 +99,16 @@ jobs:
             $sizeMB = [math]::Round($_.Length / 1MB, 2)
             Write-Host "  $($_.Name) - $sizeMB MB"
           }
+
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Mossy v${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: release/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
