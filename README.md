@@ -164,6 +164,27 @@ The installer **replaces**:
 
 Prefer to build from source? See the [Development Setup](#-quick-start-development-setup) section below.
 
+### 🤖 Automated Releases with GitHub Actions
+
+**New!** Mossy now uses GitHub Actions to build and release automatically from GitHub's infrastructure. This bypasses local network bottlenecks and provides fast, reliable releases.
+
+**Quick Start:**
+1. Go to [Actions tab](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/actions)
+2. Select **"Release Build and Upload"**
+3. Click **"Run workflow"** → Enter version → Wait 20 minutes
+4. Download from [Releases tab](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases)
+
+**Benefits:**
+- ✅ No local bandwidth used for uploads
+- ✅ Builds on GitHub's fast servers
+- ✅ Parallel builds (Universal + NVIDIA)
+- ✅ Automatic release creation
+- ✅ 30-day artifact backup
+
+**Learn More:**
+- 📖 [Quick Release Guide](QUICK_RELEASE_GUIDE.md) - 3-step process
+- 📚 [Full GitHub Actions Guide](GITHUB_ACTIONS_RELEASE_GUIDE.md) - Complete documentation
+
 ---
 
 ## 💖 Support This Project
