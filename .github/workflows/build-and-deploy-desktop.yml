@@ -71,6 +71,7 @@ jobs:
         timeout-minutes: 30
         env:
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Package NVIDIA Edition
         if: matrix.edition == 'nvidia'
@@ -78,6 +79,7 @@ jobs:
         timeout-minutes: 30
         env:
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts (backup)
         if: always()
