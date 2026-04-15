@@ -52,17 +52,17 @@ jobs:
           elif [[ $GITHUB_REF == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
           else
-            VERSION=$(cat package.json | jq -r '.version')
+            VERSION=$(jq -r '.version' < package.json)
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Building version: $VERSION"
 
       - name: Generate changelog
         id: changelog
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          CHANGELOG=$(cat <<'EOF'
-          # Mossy Desktop v$VERSION
+          CHANGELOG=$(cat <<EOF
+          # Mossy Desktop v${VERSION}
 
           ## What's New
           - Professional Fallout 4 modding assistant with AI
@@ -91,9 +91,11 @@ jobs:
           See the [README](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/README.md) for full documentation.
           EOF
           )
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          {
+            echo "changelog<<EOF"
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create Release
         id: create_release
