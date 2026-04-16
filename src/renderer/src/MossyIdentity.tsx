@@ -1,6 +1,7 @@
 import React from 'react';
 import { Shield, Cpu, Code2 } from 'lucide-react';
 import AvatarCore from './AvatarCore';
+import packageJson from '../../../package.json';
 
 interface MossyIdentityProps {
   mode?: 'compact' | 'full';
@@ -39,7 +40,7 @@ const MossyIdentity: React.FC<MossyIdentityProps> = ({ mode = 'full', className 
       <div className="mb-4 space-y-2 text-xs font-mono">
         <div className="flex justify-between">
           <span className="text-slate-500">Version:</span>
-          <span className="text-blue-300">5.4.2.1</span>
+          <span className="text-blue-300">{packageJson.version}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-slate-500">Status:</span>

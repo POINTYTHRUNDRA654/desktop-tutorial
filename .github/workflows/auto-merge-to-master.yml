@@ -15,26 +15,29 @@ permissions:
   pull-requests: write
   statuses: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   auto-merge:
     if: github.ref_name != 'master'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v5
         with:
           submodules: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 20.x
+          node-version: 24.x
 
       - name: Check for unresolved conflict markers
         run: node scripts/check-no-conflict-markers.js
 
       - name: Attempt merge branch → master (and delete branch when merged)
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |

@@ -1,4 +1,5 @@
 import React, { useEffect, Suspense, useState } from 'react';
+import packageJson from '../../../package.json';
 import { HashRouter, MemoryRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MossyObserver from './MossyObserver';
@@ -1163,7 +1164,7 @@ const App: React.FC = () => {
               >
                 <Radio className="w-3.5 h-3.5" />
               </button>
-              <span className="text-xs text-green-600 font-mono">v5.4.2.1</span>
+              <span className="text-xs text-green-600 font-mono">v{packageJson.version}</span>
             </div>
           </header>
 
