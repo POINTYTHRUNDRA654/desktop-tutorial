@@ -1,0 +1,43 @@
+name: Sync version in README
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'package.json'
+
+jobs:
+  sync-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Read version from package.json
+        id: pkg
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Update README version references
+        env:
+          VERSION: ${{ steps.pkg.outputs.version }}
+        run: |
+          sed -i \
+            -e "s/\*\*Mossy v[0-9]\+\.[0-9]\+\.[0-9]\+\*\*/\*\*Mossy v${VERSION}\*\*/g" \
+            -e "s/Onboarding & Installer Notes (v[0-9]\+\.[0-9]\+\.[0-9]\+)/Onboarding \& Installer Notes (v${VERSION})/g" \
+            -e "s/\*\*New in v[0-9]\+\.[0-9]\+\.[0-9]\+ (Latest):\*\*/\*\*New in v${VERSION} (Latest):\*\*/g" \
+            -e "s/currently [0-9]\+\.[0-9]\+\.[0-9]\+)/currently ${VERSION})/g" \
+            -e "s/Download Mossy v[0-9]\+\.[0-9]\+\.[0-9]\+ from/Download Mossy v${VERSION} from/g" \
+            -e "s/Mossy Setup [0-9]\+\.[0-9]\+\.[0-9]\+\.exe/Mossy Setup ${VERSION}.exe/g" \
+            README.md
+
+      - name: Commit if README changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet README.md || \
+            (git add README.md && \
+             git commit -m "chore: sync README version to v${{ steps.pkg.outputs.version }} [skip ci]" && \
+             git push)

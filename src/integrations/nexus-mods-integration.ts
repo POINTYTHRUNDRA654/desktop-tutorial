@@ -16,9 +16,7 @@
 
 import React from 'react';
 import type { IntegrationConfig } from './README';
-
-/** Application version sent in Nexus Mods API headers (keep in sync with package.json). */
-const APP_VERSION = '5.4.33';
+import { version as APP_VERSION } from '../../package.json';
 interface NexusMod {
   mod_id: number;
   name: string;

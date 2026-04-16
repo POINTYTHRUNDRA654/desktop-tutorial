@@ -75,7 +75,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
-![Version](https://img.shields.io/badge/version-5.4.33-blue.svg)
+![Version](https://img.shields.io/github/package-json/v/POINTYTHRUNDRA654/desktop-tutorial?label=version&color=blue)
 
 ---
 
