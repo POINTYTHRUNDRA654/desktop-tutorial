@@ -228,16 +228,17 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "${productName} ${version}.${ext}"
+      "artifactName": "${productName} ${version} Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mossy"
     },
     "linux": {
       "target": "AppImage",

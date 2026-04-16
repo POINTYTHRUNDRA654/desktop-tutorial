@@ -266,6 +266,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const hasSpokenIntro = useRef(false);
     const hasSpokenVersion = useRef(false);
     const hasSpokenEdition = useRef(false);
+    const hasSpokenLists = useRef(false);
     const [voiceTestPlaying, setVoiceTestPlaying] = useState(false);
     const scanTutorialStartedRef = useRef(false);
     const [languageReady, setLanguageReady] = useState(false);
@@ -485,15 +486,15 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         const hasScanData =
             !!localStorage.getItem('mossy_scan_summary') &&
             !!localStorage.getItem('mossy_all_detected_apps');
-        if (hasScanData) {
+        if (hasScanData && !forceOnboarding) {
             console.log('[FirstRunOnboarding] Scan data already exists from previous install. Preserving and completing onboarding.');
             localStorage.setItem('mossy_onboarding_complete', 'true');
             localStorage.setItem('mossy_onboarding_completed', 'true');
             onComplete();
             return;
         }
-        
-        console.log('[FirstRunOnboarding] No existing scan data. Starting fresh onboarding wizard.');
+
+        console.log('[FirstRunOnboarding] Starting fresh onboarding wizard.');
     }, [onComplete]);
 
     // Speak greeting on the edition picker (very first screen).
@@ -540,6 +541,25 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
         const speakSequence = async () => {
             await speakMossy('Which Fallout 4 version do you have? Pick the one that matches your install, then press Start System Scan.');
+        };
+
+        void speakSequence();
+    }, [step]);
+
+    // Speak an explanation of whitelist and blacklist when arriving at the lists step.
+    useEffect(() => {
+        if (step !== 'lists') return;
+        if (hasSpokenLists.current) return;
+        hasSpokenLists.current = true;
+
+        // Ensure voice is enabled for this explanation
+        enableVoice();
+
+        const speakSequence = async () => {
+            await speakMossy('I have two content control systems to protect your privacy and safety.');
+            await speakMossy('The Mod Content Whitelist is a privacy tool. Any mods you add here will be completely invisible to me—I will never mention them, recommend them, or interact with them in any way.');
+            await speakMossy('The Mod Blacklist is a safety warning system. Add mods you know are problematic or broken, and I will warn about them and suggest safer alternatives.');
+            await speakMossy('You can manage both lists anytime in Settings under Privacy. You do not need to set anything up now.');
         };
 
         void speakSequence();
@@ -849,7 +869,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             console.error('[FirstRunOnboarding] Scan failed:', error);
             const errorMessage = error instanceof Error ? error.message : String(error);
             setScanError(errorMessage);
-            
+
             // Log detailed error information for debugging
             console.error('[FirstRunOnboarding] Detailed error:', {
                 error,
@@ -971,7 +991,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             if (typeof result.spriggitVersionTooOld === 'boolean') {
                 setSpriggitVersionTooOld(result.spriggitVersionTooOld as boolean);
             }
-            
+
             // PRE-FLIGHT VERSION MISMATCH CHECK (Phase 3)
             // Show blocking modal if FO4 1.11.x + Spriggit < 0.34.0 and user hasn't acknowledged
             if (result.spriggitVersionTooOld && !versionMismatchAcknowledged) {
@@ -980,7 +1000,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 setShowVersionMismatchModal(true);
                 return { failed0xFFFF: false };
             }
-            
+
             if (!result.ok || !result.files?.length) {
                 const errText = result.error || 'No YAML files were produced.';
                 // Cap display length to avoid rendering a massive wall of text.
@@ -1006,7 +1026,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         setShowVersionMismatchModal(true);
                         return { failed0xFFFF: true };
                     }
-                    
+
                     try {
                         const freshCheck = await api.checkDotnet!();
                         applyDotnetResult(freshCheck);
@@ -1834,11 +1854,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 <p className="text-xs text-slate-400 leading-relaxed">{dl.description}</p>
                                                 {/* Dynamic version-aware note for Spriggit */}
                                                 {dl.name === 'Spriggit' && fo4Version && fo4Version !== 'unknown' && (
-                                                    <div className={`mt-2 p-2 rounded-md border text-xs leading-relaxed ${
-                                                        fo4Version === 'ae'
-                                                            ? 'bg-red-900/30 border-red-600/50 text-red-200'
-                                                            : 'bg-blue-900/20 border-blue-600/40 text-blue-200'
-                                                    }`}>
+                                                    <div className={`mt-2 p-2 rounded-md border text-xs leading-relaxed ${fo4Version === 'ae'
+                                                        ? 'bg-red-900/30 border-red-600/50 text-red-200'
+                                                        : 'bg-blue-900/20 border-blue-600/40 text-blue-200'
+                                                        }`}>
                                                         {fo4Version === 'ae' ? (
                                                             <>
                                                                 <strong className="text-blue-100">💡 FO4 1.11.x (AE) Detected:</strong> Download <code className="bg-blue-900/40 px-1 rounded">SpriggitCLI.zip</code> from the latest release (v0.34.0+ required).
