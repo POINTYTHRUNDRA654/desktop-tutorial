@@ -117,7 +117,7 @@ jobs:
 
       - name: Download Universal artifact
         if: github.event.inputs.edition != 'nvidia'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: mossy-universal-${{ github.event.inputs.version }}
           path: ./artifacts/universal
@@ -126,7 +126,7 @@ jobs:
 
       - name: Download NVIDIA artifact
         if: github.event.inputs.edition == 'nvidia' || github.event.inputs.edition == 'both'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: mossy-nvidia-${{ github.event.inputs.version }}
           path: ./artifacts/nvidia
