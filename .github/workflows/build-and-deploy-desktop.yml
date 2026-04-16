@@ -37,7 +37,7 @@ jobs:
           submodules: false
 
       - name: Setup Node.js 24.x
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.x
           cache: 'npm'
@@ -85,7 +85,7 @@ jobs:
 
       - name: Upload artifacts (backup)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: mossy-${{ matrix.edition }}-${{ steps.version.outputs.VERSION }}
           path: release/*.exe
@@ -105,7 +105,7 @@ jobs:
 
       - name: Publish to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: Mossy v${{ steps.version.outputs.VERSION }}
