@@ -9,15 +9,6 @@ on:
       version:
         description: 'Version to release (e.g., 5.4.27)'
         required: true
-      edition:
-        description: 'Build edition'
-        required: true
-        default: 'both'
-        type: choice
-        options:
-          - universal
-          - nvidia
-          - both
       draft:
         description: 'Create as draft release'
         required: false
@@ -108,7 +99,6 @@ jobs:
   build-universal:
     name: Build Universal Edition
     needs: create-release
-    if: github.event.inputs.edition != 'nvidia'
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -171,7 +161,6 @@ jobs:
   build-nvidia:
     name: Build NVIDIA Edition
     needs: create-release
-    if: github.event.inputs.edition == 'nvidia' || github.event.inputs.edition == 'both'
     runs-on: windows-latest
     steps:
       - name: Checkout code
