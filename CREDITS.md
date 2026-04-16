@@ -386,6 +386,18 @@ Mossy integrates with and respects the licenses of the following tools. All are 
   - Licensed under MIT
   - Copyright (c) 2013 TJ Holowaychuk
 
+## Community Contributors & Knowledge Donors
+
+Special thanks to the following community members who have generously donated knowledge, data, and resources to Mossy's knowledge base:
+
+- **4estGimp** - https://www.nexusmods.com/fallout4/users/30343500
+  - Prolific Fallout 4 mod author and patch creator
+  - Donated their comprehensive Fallout 4 patch and compatibility database to Mossy
+  - Creator of 100+ patches covering armors, weapons, factions, and locations including tweaks for Raider Overhaul, ECO (Equipment and Crafting Overhaul), Munitions, Diamond City Outskirts, The Fens Empire, and many more
+  - Database available at: https://sheet.zoho.com/sheet/open/4gagib312c97873654347b49206d40f80afce
+  - Primary support hub: Tortured Minds Discord
+  - Thank you for your generous gift to the Mossy community! 🙏
+
 ## Community & Support
 
 - **Modding Community** - The vibrant Fallout 4 modding community on Nexus Mods, Reddit, Discord, and forums
