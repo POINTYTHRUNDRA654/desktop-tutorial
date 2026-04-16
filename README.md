@@ -62,6 +62,7 @@
 
 **Onboarding:**
 - **📚 Documentation Guide:** See [DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md) - Navigation guide for all documentation
+- **📦 Archived Docs:** See [docs/archive/ARCHIVE_INDEX.md](docs/archive/ARCHIVE_INDEX.md) - Historical session documentation (81 archived files)
 - **Getting Started:** See [GETTING_STARTED.md](GETTING_STARTED.md) for quick-start information
 - **Visual Guide:** See [VISUAL_GUIDE.md](VISUAL_GUIDE.md) for page-by-page screenshots and explanations (55+ pages)
 - **Comprehensive Tutorial:** See [MOSSY_COMPREHENSIVE_TUTORIAL.md](MOSSY_COMPREHENSIVE_TUTORIAL.md) for detailed feature documentation
@@ -162,6 +163,27 @@ The installer **replaces**:
 ### Building from Source
 
 Prefer to build from source? See the [Development Setup](#-quick-start-development-setup) section below.
+
+### 🤖 Automated Releases with GitHub Actions
+
+**New!** Mossy now uses GitHub Actions to build and release automatically from GitHub's infrastructure. This bypasses local network bottlenecks and provides fast, reliable releases.
+
+**Quick Start:**
+1. Go to [Actions tab](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/actions)
+2. Select **"Release Build and Upload"**
+3. Click **"Run workflow"** → Enter version → Wait 20 minutes
+4. Download from [Releases tab](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases)
+
+**Benefits:**
+- ✅ No local bandwidth used for uploads
+- ✅ Builds on GitHub's fast servers
+- ✅ Parallel builds (Universal + NVIDIA)
+- ✅ Automatic release creation
+- ✅ 30-day artifact backup
+
+**Learn More:**
+- 📖 [Quick Release Guide](QUICK_RELEASE_GUIDE.md) - 3-step process
+- 📚 [Full GitHub Actions Guide](GITHUB_ACTIONS_RELEASE_GUIDE.md) - Complete documentation
 
 ---
 
