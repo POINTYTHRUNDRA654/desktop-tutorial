@@ -41,8 +41,8 @@ If you need an exception or a temporary branch for an experimental workflow, con
 ### Local Setup
 
 ```bash
-git clone https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git
-cd desktop-tutorial
+git clone https://github.com/POINTYTHRUNDRA654/mossy-ai.git
+cd mossy-ai
 npm install
 cp .env.example .env.local   # fill in your API keys
 npm run dev
@@ -88,7 +88,7 @@ npm run package:win  # Build Windows NSIS installer
 
 ## Reporting Bugs
 
-Open a [GitHub Issue](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues) with:
+Open a [GitHub Issue](https://github.com/POINTYTHRUNDRA654/mossy-ai/issues) with:
 
 - Mossy version (shown in Settings)
 - OS / Windows version

@@ -1,7 +1,7 @@
 # Test Report - Mossy Desktop Application
 
 **Date:** February 11, 2026  
-**Repository:** POINTYTHRUNDRA654/desktop-tutorial  
+**Repository:** POINTYTHRUNDRA654/mossy-ai  
 **Branch:** copilot/run-app-tests  
 
 ## Executive Summary

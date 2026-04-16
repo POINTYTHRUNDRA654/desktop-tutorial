@@ -44,7 +44,7 @@ npm run package:win
    ```
 
 3. **Create GitHub Release:**
-   - Go to: https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases
+   - Go to: https://github.com/POINTYTHRUNDRA654/mossy-ai/releases
    - Click "Create a new release"
    - Tag: `v5.4.22`
    - Upload: `release/Mossy Setup 5.4.22.exe`

@@ -24,7 +24,7 @@ you just need to clear out the old local references so GitHub Desktop stops tryi
 
 1. In GitHub Desktop: **File → Remove Repository…** *(this does NOT delete your files)*
 2. Delete the repository folder from your computer
-3. In GitHub Desktop: **File → Clone Repository…** → choose `POINTYTHRUNDRA654/desktop-tutorial`
+3. In GitHub Desktop: **File → Clone Repository…** → choose `POINTYTHRUNDRA654/mossy-ai`
 4. Done — the fresh clone has no stale submodule state
 
 ### ✅ Fix without re-cloning — Git Bash / Command Prompt
@@ -110,7 +110,7 @@ You have the Mossy repository cloned on your computer (via GitHub Desktop or git
 2. **Delete your local repository folder**
 3. **Re-clone from GitHub Desktop:**
    - File → Clone Repository
-   - Choose `POINTYTHRUNDRA654/desktop-tutorial`
+   - Choose `POINTYTHRUNDRA654/mossy-ai`
    - Select location
    - Clone!
 
@@ -290,7 +290,7 @@ That's it! Your local repository will now have all the fixes we just made.
 **Need the command line approach?**
 ```bash
 # Navigate to your repository
-cd /path/to/desktop-tutorial
+cd /path/to/mossy-ai
 
 # Discard all local changes
 git reset --hard

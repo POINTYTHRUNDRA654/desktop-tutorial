@@ -5,10 +5,10 @@
 You're getting this error when trying to push to master:
 
 ```
-PS D:\Projects\desktop-tutorial> git push
-To https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git
+PS D:\Projects\mossy-ai> git push
+To https://github.com/POINTYTHRUNDRA654/mossy-ai.git
  ! [rejected]        master -> master (fetch first)
-error: failed to push some refs to 'https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git'
+error: failed to push some refs to 'https://github.com/POINTYTHRUNDRA654/mossy-ai.git'
 hint: Updates were rejected because the remote contains work that you do not
 hint: have locally. This is usually caused by another repository pushing to
 hint: the same ref. If you want to integrate the remote changes, use
@@ -28,7 +28,7 @@ The fastest way to fix this is to pull the remote changes first:
 
 ```powershell
 # Navigate to your repository
-cd D:\Projects\desktop-tutorial
+cd D:\Projects\mossy-ai
 
 # Pull and merge remote changes
 git pull origin master
@@ -256,7 +256,7 @@ Based on your repository structure:
 
 ### What You Have
 
-- **Local master branch** at `D:\Projects\desktop-tutorial`
+- **Local master branch** at `D:\Projects\mossy-ai`
   - Has your local commits
   - Needs to be synced with remote
 
@@ -272,7 +272,7 @@ Based on your repository structure:
 
 1. **For your local master branch:**
    ```powershell
-   cd D:\Projects\desktop-tutorial
+   cd D:\Projects\mossy-ai
    git checkout master
    git pull origin master
    git push origin master
@@ -474,7 +474,7 @@ Based on your error message, here's what to do **right now** on your local machi
 
 ```powershell
 # 1. Navigate to your repo
-cd D:\Projects\desktop-tutorial
+cd D:\Projects\mossy-ai
 
 # 2. Make sure you're on master
 git checkout master

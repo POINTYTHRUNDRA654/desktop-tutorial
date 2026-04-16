@@ -110,7 +110,7 @@ Latest Version:  3.1.0 (stable)
 - Check your internet connection
 - The GitHub releases page should open in your browser
 - If it doesn't work, you can manually visit: 
-  `https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases`
+  `https://github.com/POINTYTHRUNDRA654/mossy-ai/releases`
 
 ## For Developers
 

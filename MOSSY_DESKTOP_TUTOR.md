@@ -132,7 +132,7 @@ This creates:
 ## Directory Structure
 
 ```
-desktop-tutorial/
+mossy-ai/
 ├── src/
 │   ├── electron/              # NEW: Electron wrapper
 │   │   ├── main.ts           # Main process

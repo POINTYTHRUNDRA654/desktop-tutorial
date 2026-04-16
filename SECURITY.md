@@ -7,7 +7,7 @@
 | 5.4.x (latest) | ✅ Yes |
 | < 5.4.0 | ❌ No |
 
-Always use the [latest release](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest) for the most recent security fixes.
+Always use the [latest release](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest) for the most recent security fixes.
 
 ---
 
@@ -18,7 +18,7 @@ Always use the [latest release](https://github.com/POINTYTHRUNDRA654/desktop-tut
 Report security issues privately using one of these methods:
 
 1. **GitHub Security Advisories (preferred):**  
-   Use [Security → Report a vulnerability](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/security/advisories/new) to submit a private report. We respond within **72 hours**.
+   Use [Security → Report a vulnerability](https://github.com/POINTYTHRUNDRA654/mossy-ai/security/advisories/new) to submit a private report. We respond within **72 hours**.
 
 2. **GitHub profile:**  
    Contact the maintainer at [POINTYTHRUNDRA654](https://github.com/POINTYTHRUNDRA654) via GitHub's DM/contact feature.

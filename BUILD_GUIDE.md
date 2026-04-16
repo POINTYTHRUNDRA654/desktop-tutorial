@@ -166,7 +166,7 @@ Update configuration in `package.json`:
     "publish": {
       "provider": "github",
       "owner": "POINTYTHRUNDRA654",
-      "repo": "desktop-tutorial",
+      "repo": "mossy-ai",
       "releaseType": "release"
     }
   }

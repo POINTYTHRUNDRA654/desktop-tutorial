@@ -14,7 +14,7 @@ export interface GitHubRelease {
   html_url: string;
 }
 
-const GITHUB_REPO = 'POINTYTHRUNDRA654/desktop-tutorial';
+const GITHUB_REPO = 'POINTYTHRUNDRA654/mossy-ai';
 const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}`;
 
 /**

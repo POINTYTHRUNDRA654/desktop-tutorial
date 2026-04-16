@@ -115,7 +115,7 @@ npm run dev
 ## File Structure
 
 ```
-desktop-tutorial/
+mossy-ai/
 ├── scripts/
 │   ├── mock-nemotron-service.mjs    ← New: Mock HTTP service
 │   ├── dev-launcher.mjs              ← New: Orchestration script
