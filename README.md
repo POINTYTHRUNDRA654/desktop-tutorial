@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v5.4.27** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v5.4.33** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 > 🔄 **For Contributors:** If you have this repository cloned and want to update your local copy with recent bug fixes, see [GIT_UPDATE_GUIDE.md](GIT_UPDATE_GUIDE.md)
 > 
@@ -8,9 +8,9 @@
 
 ---
 
-## 🚀 Onboarding & Installer Notes (v5.4.27)
+## 🚀 Onboarding & Installer Notes (v5.4.33)
 
-**New in v5.4.27 (Latest):**
+**New in v5.4.33 (Latest):**
 - ✅ **Multi-Language Support** - Mossy now supports 12 languages! Choose your preferred language in Settings → Language Settings
   - Languages: English, Spanish, French, German, Russian, Chinese (Simplified), Portuguese (BR), Japanese, Korean, Italian, Polish, Turkish
   - See [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md) to help translate
@@ -56,7 +56,7 @@
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 5.4.27)
+- Version is auto-set from `package.json` (currently 5.4.33)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 - Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
@@ -76,7 +76,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
-![Version](https://img.shields.io/badge/version-5.4.27-blue.svg)
+![Version](https://img.shields.io/github/package-json/v/POINTYTHRUNDRA654/mossy-ai?label=version&color=blue)
 
 ---
 
@@ -86,7 +86,7 @@
 
 **Ready to use Mossy?** Download the latest installer:
 
-👉 **[Download Mossy v5.4.27 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**
+👉 **[Download Mossy v5.4.33 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)**
 
 ### System Requirements
 
@@ -97,7 +97,7 @@
 
 ### First-Time Installation
 
-1. **Download** the installer from the [Releases page](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)
+1. **Download** the installer from the [Releases page](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)
 2. **Run** the `.exe` installer (Windows) or `.dmg` (macOS)
 3. **Follow** the installation wizard
 4. **Launch** Mossy from your desktop or start menu
@@ -113,7 +113,7 @@
 
 #### ✅ Safe Upgrade Process (Recommended)
 
-1. **Download** the new version installer from [GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)
+1. **Download** the new version installer from [GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)
 2. **Close** Mossy completely (check system tray if it's running in background)
 3. **Run** the new installer
    - The installer will detect your existing installation
@@ -158,7 +158,7 @@ The installer **replaces**:
 
 - **Back up your Memory Vault**: Settings → Memory Vault → Export before major upgrades
 - **Note your API keys**: Settings are preserved, but it's good to have backups
-- **Check release notes**: Review changes at [Releases page](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases)
+- **Check release notes**: Review changes at [Releases page](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases)
 
 ### Building from Source
 
@@ -391,8 +391,8 @@ Want to build from source or contribute? Follow these steps:
 ### Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git
-   cd desktop-tutorial
+   git clone https://github.com/POINTYTHRUNDRA654/mossy-ai.git
+   cd mossy-ai
    ```
 2. Install Node.js dependencies:
    ```bash
@@ -497,8 +497,8 @@ Outputs to `release/` directory:
 
 ```bash
 # Clone repository
-git clone https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git
-cd desktop-tutorial
+git clone https://github.com/POINTYTHRUNDRA654/mossy-ai.git
+cd mossy-ai
 
 # Install dependencies
 npm install
@@ -525,7 +525,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 5.4.27.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 5.4.33.exe`).
 
 ---
 
@@ -707,14 +707,14 @@ For issues, questions, or suggestions:
    - Example (PowerShell):
       - Move X by One: `./scripts/blender/run_blender_ops.ps1 -BlendFile "C:\Path\To\scene.blend" -Operator move_x -EnableAutoExec`
       - Cursor Array: `./scripts/blender/run_blender_ops.ps1 -BlendFile "C:\Path\To\scene.blend" -Operator cursor_array -Total 8 -EnableAutoExec`
-- Script execution controls: [BLENDER_SCRIPT_EXECUTION_CHECKLIST.md](BLENDER_SCRIPT_EXECUTION_CHECKLIST.md)
-- Tutorial: [BLENDER_ADDON_TUTORIAL.md](BLENDER_ADDON_TUTORIAL.md)
-- About Blender: [BLENDER_ABOUT.md](BLENDER_ABOUT.md)
-- Blender History: [BLENDER_HISTORY.md](BLENDER_HISTORY.md)
-- GPL Overview: [BLENDER_GPL_OVERVIEW.md](BLENDER_GPL_OVERVIEW.md)
-- Blender Community: [BLENDER_COMMUNITY.md](BLENDER_COMMUNITY.md)
-- Installing Blender: [BLENDER_INSTALLING.md](BLENDER_INSTALLING.md)
-- Installing on Linux: [BLENDER_INSTALLING_LINUX.md](BLENDER_INSTALLING_LINUX.md)
+- Script execution controls: [BLENDER_SCRIPT_EXECUTION_CHECKLIST.md](resources/public/knowledge/BLENDER_SCRIPT_EXECUTION_CHECKLIST.md)
+- Tutorial: [BLENDER_ADDON_TUTORIAL.md](resources/public/knowledge/BLENDER_ADDON_TUTORIAL.md)
+- About Blender: [BLENDER_ABOUT.md](resources/public/knowledge/BLENDER_ABOUT.md)
+- Blender History: [BLENDER_HISTORY.md](resources/public/knowledge/BLENDER_HISTORY.md)
+- GPL Overview: [BLENDER_GPL_OVERVIEW.md](resources/public/knowledge/BLENDER_GPL_OVERVIEW.md)
+- Blender Community: [BLENDER_COMMUNITY.md](resources/public/knowledge/BLENDER_COMMUNITY.md)
+- Installing Blender: [BLENDER_INSTALLING.md](resources/public/knowledge/BLENDER_INSTALLING.md)
+- Installing on Linux: [BLENDER_INSTALLING_LINUX.md](resources/public/knowledge/BLENDER_INSTALLING_LINUX.md)
 
 ## 🐍 Python Code Assistant (Gradio)
 

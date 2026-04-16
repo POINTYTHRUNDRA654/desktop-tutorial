@@ -151,7 +151,7 @@ git log --all --grep="Visual" --oneline
 
 **Project:** Mossy v5.4.23 - Fallout 4 Modding Assistant  
 **Type:** Electron + React + TypeScript desktop app  
-**Repository:** https://github.com/POINTYTHRUNDRA654/desktop-tutorial
+**Repository:** https://github.com/POINTYTHRUNDRA654/mossy-ai
 
 ### Key Directories:
 - `src/` - Source code
@@ -257,7 +257,7 @@ git checkout master
 ## 📞 Need More Help?
 
 ### GitHub Web Interface
-1. Go to: https://github.com/POINTYTHRUNDRA654/desktop-tutorial
+1. Go to: https://github.com/POINTYTHRUNDRA654/mossy-ai
 2. Click "Branches" dropdown
 3. Select different branches to view
 4. Click "Code" → "Download ZIP" to download any branch
@@ -265,8 +265,8 @@ git checkout master
 ### Clone Fresh Copy
 ```bash
 cd /tmp
-git clone https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git
-cd desktop-tutorial
+git clone https://github.com/POINTYTHRUNDRA654/mossy-ai.git
+cd mossy-ai
 git checkout master
 ```
 
@@ -287,5 +287,5 @@ git checkout master
 ---
 
 *Created: February 11, 2026*  
-*For repository: POINTYTHRUNDRA654/desktop-tutorial*
+*For repository: POINTYTHRUNDRA654/mossy-ai*
 

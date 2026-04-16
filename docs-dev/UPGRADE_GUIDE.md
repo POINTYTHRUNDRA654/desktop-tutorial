@@ -17,7 +17,7 @@ Quick reference for upgrading your existing Mossy installation.
    - Check system tray to ensure it's not running in background
 
 2. **Download New Version**
-   - Get it from [GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)
+   - Get it from [GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)
 
 3. **Run the Installer**
    - Just run the new `.exe` file
@@ -110,7 +110,7 @@ You have options:
 
 1. **Export Memory Vault** (Settings → Memory Vault → Export)
 2. **Note your API keys** (backup in case)
-3. **Check release notes** at [Releases page](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases)
+3. **Check release notes** at [Releases page](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases)
 
 ### After Upgrading
 

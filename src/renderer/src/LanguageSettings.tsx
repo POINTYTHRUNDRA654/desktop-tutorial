@@ -10,7 +10,7 @@ function getElectronApi(): any {
 }
 
 const REQUEST_LANGUAGE_URL =
-  'https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues/new?labels=language-request&title=Language%20request%3A%20';
+  'https://github.com/POINTYTHRUNDRA654/mossy-ai/issues/new?labels=language-request&title=Language%20request%3A%20';
 
 type LanguageSettingsProps = {
   embedded?: boolean;

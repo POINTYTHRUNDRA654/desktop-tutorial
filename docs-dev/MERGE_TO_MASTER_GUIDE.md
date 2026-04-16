@@ -54,7 +54,7 @@ If the branch doesn't appear, it was successfully merged and deleted!
 If for some reason the auto-merge didn't work, you can merge manually:
 
 **Option 1: Via GitHub Web Interface**
-1. Go to: https://github.com/POINTYTHRUNDRA654/desktop-tutorial
+1. Go to: https://github.com/POINTYTHRUNDRA654/mossy-ai
 2. Click "Pull requests" → "New pull request"
 3. Base: `master`, Compare: `copilot/validate-version-consistency`
 4. Create and merge the PR
