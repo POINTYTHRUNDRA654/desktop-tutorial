@@ -17,7 +17,7 @@
 - ✅ **Anniversary Edition Awareness** - Mossy now understands all four FO4 version states: OG, NG, AE, and Creations Menu
 - ✅ **AE Knowledge** - AE = same NG executable (1.10.984) + 76 bundled free CC items; mods often need AE patches; PRP 81+ required for AE cells
 - ✅ **Improved Version Guidance** - AI correctly identifies your runtime and gives version-accurate advice
-- 📄 See [CHANGES.md](CHANGES.md) for full change history
+- 📄 See [CHANGELOG.md](CHANGELOG.md) for the full version history
 
 **From v5.4.25:**
 - Deep scan of all Fallout 4 modding knowledge — updated tool recommendations, version compatibility, and community best practices
