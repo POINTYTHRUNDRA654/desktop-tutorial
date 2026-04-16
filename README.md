@@ -685,14 +685,14 @@ For issues, questions, or suggestions:
    - Example (PowerShell):
       - Move X by One: `./scripts/blender/run_blender_ops.ps1 -BlendFile "C:\Path\To\scene.blend" -Operator move_x -EnableAutoExec`
       - Cursor Array: `./scripts/blender/run_blender_ops.ps1 -BlendFile "C:\Path\To\scene.blend" -Operator cursor_array -Total 8 -EnableAutoExec`
-- Script execution controls: [BLENDER_SCRIPT_EXECUTION_CHECKLIST.md](BLENDER_SCRIPT_EXECUTION_CHECKLIST.md)
-- Tutorial: [BLENDER_ADDON_TUTORIAL.md](BLENDER_ADDON_TUTORIAL.md)
-- About Blender: [BLENDER_ABOUT.md](BLENDER_ABOUT.md)
-- Blender History: [BLENDER_HISTORY.md](BLENDER_HISTORY.md)
-- GPL Overview: [BLENDER_GPL_OVERVIEW.md](BLENDER_GPL_OVERVIEW.md)
-- Blender Community: [BLENDER_COMMUNITY.md](BLENDER_COMMUNITY.md)
-- Installing Blender: [BLENDER_INSTALLING.md](BLENDER_INSTALLING.md)
-- Installing on Linux: [BLENDER_INSTALLING_LINUX.md](BLENDER_INSTALLING_LINUX.md)
+- Script execution controls: [BLENDER_SCRIPT_EXECUTION_CHECKLIST.md](resources/public/knowledge/BLENDER_SCRIPT_EXECUTION_CHECKLIST.md)
+- Tutorial: [BLENDER_ADDON_TUTORIAL.md](resources/public/knowledge/BLENDER_ADDON_TUTORIAL.md)
+- About Blender: [BLENDER_ABOUT.md](resources/public/knowledge/BLENDER_ABOUT.md)
+- Blender History: [BLENDER_HISTORY.md](resources/public/knowledge/BLENDER_HISTORY.md)
+- GPL Overview: [BLENDER_GPL_OVERVIEW.md](resources/public/knowledge/BLENDER_GPL_OVERVIEW.md)
+- Blender Community: [BLENDER_COMMUNITY.md](resources/public/knowledge/BLENDER_COMMUNITY.md)
+- Installing Blender: [BLENDER_INSTALLING.md](resources/public/knowledge/BLENDER_INSTALLING.md)
+- Installing on Linux: [BLENDER_INSTALLING_LINUX.md](resources/public/knowledge/BLENDER_INSTALLING_LINUX.md)
 
 ## 🐍 Python Code Assistant (Gradio)
 
