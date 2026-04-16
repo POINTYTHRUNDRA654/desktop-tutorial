@@ -1,5 +1,5 @@
 {
-  "name": "mossy-desktop",
+  "name": "mossy-ai",
   "private": true,
   "version": "5.4.33",
   "description": "Mossy v5.4.33 - Professional Fallout 4 modding assistant with AI, full OG/NG/AE/Creations Menu version awareness, and professional asset optimization",
@@ -8,11 +8,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git"
+    "url": "https://github.com/POINTYTHRUNDRA654/mossy-ai.git"
   },
-  "homepage": "https://github.com/POINTYTHRUNDRA654/desktop-tutorial#readme",
+  "homepage": "https://github.com/POINTYTHRUNDRA654/mossy-ai#readme",
   "bugs": {
-    "url": "https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues"
+    "url": "https://github.com/POINTYTHRUNDRA654/mossy-ai/issues"
   },
   "overrides": {
     "tar": "^7.5.10",
@@ -213,7 +213,7 @@
     "publish": {
       "provider": "github",
       "owner": "POINTYTHRUNDRA654",
-      "repo": "desktop-tutorial",
+      "repo": "mossy-ai",
       "releaseType": "prerelease"
     },
     "mac": {

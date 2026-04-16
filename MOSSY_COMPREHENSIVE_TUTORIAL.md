@@ -1376,7 +1376,7 @@ SOFTWARE.
 
 **End of Tutorial**
 
-For updates and more information, visit the [GitHub repository](https://github.com/POINTYTHRUNDRA654/desktop-tutorial).
+For updates and more information, visit the [GitHub repository](https://github.com/POINTYTHRUNDRA654/mossy-ai).
 
 Happy Modding! 🎮
 

@@ -41,7 +41,7 @@ The Update Notification System automatically checks for new app versions and not
 ```
 UpdateNotifier (React Component)
     ├── Calls GitHub Release Checker
-    │   └── Fetches from: https://api.github.com/repos/POINTYTHRUNDRA654/desktop-tutorial/releases/latest
+    │   └── Fetches from: https://api.github.com/repos/POINTYTHRUNDRA654/mossy-ai/releases/latest
     ├── Uses Version Utils for comparison
     ├── Stores state in localStorage
     └── Displays modal with:
@@ -76,7 +76,7 @@ UpdateNotifier (React Component)
 ## Configuration
 
 ### Current Settings
-- **Repository**: `POINTYTHRUNDRA654/desktop-tutorial`
+- **Repository**: `POINTYTHRUNDRA654/mossy-ai`
 - **Check Interval**: 24 hours
 - **Skips**: Draft and pre-release versions (only stable releases trigger notifications)
 

@@ -58,7 +58,7 @@ As an AI assistant working in a sandboxed environment, I have specific limitatio
 ### Method 1: GitHub Web UI (Easiest)
 
 1. **Open Pull Request:**
-   - Go to: https://github.com/POINTYTHRUNDRA654/desktop-tutorial/pulls
+   - Go to: https://github.com/POINTYTHRUNDRA654/mossy-ai/pulls
    - Find PR: "Check installer functionality" (or similar)
 
 2. **Review Changes:**

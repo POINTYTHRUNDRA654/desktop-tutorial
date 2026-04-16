@@ -7,7 +7,7 @@ Consolidated quick-start and onboarding material.
 ### For End Users (Pre-built Installer)
 
 **Download the latest release:**
-👉 **[Download from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**
+👉 **[Download from GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)**
 
 **First-Time Installation:**
 1. Download the appropriate installer for your platform (Windows .exe, macOS .dmg, or Linux .AppImage)

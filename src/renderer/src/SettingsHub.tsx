@@ -107,7 +107,7 @@ const CredsSection: React.FC = () => {
         <p className="text-blue-300">
           Found a license issue?{' '}
           <a
-            href="https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues/new?title=License%20Compliance%20Issue"
+            href="https://github.com/POINTYTHRUNDRA654/mossy-ai/issues/new?title=License%20Compliance%20Issue"
             target="_blank"
             rel="noopener noreferrer"
             className="underline hover:text-blue-200"

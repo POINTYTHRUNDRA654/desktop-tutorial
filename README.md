@@ -75,7 +75,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg)
-![Version](https://img.shields.io/github/package-json/v/POINTYTHRUNDRA654/desktop-tutorial?label=version&color=blue)
+![Version](https://img.shields.io/github/package-json/v/POINTYTHRUNDRA654/mossy-ai?label=version&color=blue)
 
 ---
 
@@ -85,7 +85,7 @@
 
 **Ready to use Mossy?** Download the latest installer:
 
-👉 **[Download Mossy v5.4.33 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**
+👉 **[Download Mossy v5.4.33 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)**
 
 ### System Requirements
 
@@ -96,7 +96,7 @@
 
 ### First-Time Installation
 
-1. **Download** the installer from the [Releases page](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)
+1. **Download** the installer from the [Releases page](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)
 2. **Run** the `.exe` installer (Windows) or `.dmg` (macOS)
 3. **Follow** the installation wizard
 4. **Launch** Mossy from your desktop or start menu
@@ -112,7 +112,7 @@
 
 #### ✅ Safe Upgrade Process (Recommended)
 
-1. **Download** the new version installer from [GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)
+1. **Download** the new version installer from [GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)
 2. **Close** Mossy completely (check system tray if it's running in background)
 3. **Run** the new installer
    - The installer will detect your existing installation
@@ -157,7 +157,7 @@ The installer **replaces**:
 
 - **Back up your Memory Vault**: Settings → Memory Vault → Export before major upgrades
 - **Note your API keys**: Settings are preserved, but it's good to have backups
-- **Check release notes**: Review changes at [Releases page](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases)
+- **Check release notes**: Review changes at [Releases page](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases)
 
 ### Building from Source
 
@@ -369,8 +369,8 @@ Want to build from source or contribute? Follow these steps:
 ### Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git
-   cd desktop-tutorial
+   git clone https://github.com/POINTYTHRUNDRA654/mossy-ai.git
+   cd mossy-ai
    ```
 2. Install Node.js dependencies:
    ```bash
@@ -475,8 +475,8 @@ Outputs to `release/` directory:
 
 ```bash
 # Clone repository
-git clone https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git
-cd desktop-tutorial
+git clone https://github.com/POINTYTHRUNDRA654/mossy-ai.git
+cd mossy-ai
 
 # Install dependencies
 npm install
