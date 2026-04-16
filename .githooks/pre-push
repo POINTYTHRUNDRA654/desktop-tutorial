@@ -16,4 +16,71 @@ if ! node scripts/check-no-conflict-markers.js; then
   exit 1
 fi
 
+# Export Mossy's knowledge vault and brain data before pushing
+# This ensures the repository always has the latest version of Mossy's learned knowledge
+echo ""
+echo "[Mossy Knowledge Export] Exporting Mossy's brain data and knowledge vault..."
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+KNOWLEDGE_DIR="$REPO_ROOT/external/mossy-knowledge"
+BRAIN_DATA_DIR="$REPO_ROOT/external/mossy-brain-data"
+
+# Create directories if they don't exist
+mkdir -p "$KNOWLEDGE_DIR"
+mkdir -p "$BRAIN_DATA_DIR"
+
+# Determine the correct path based on OS
+if [ "$OS" = "Windows_NT" ]; then
+  # Windows (Git Bash)
+  USERDATA_DIR="$APPDATA/Mossy/userData"
+else
+  # Unix-like (macOS, Linux)
+  USERDATA_DIR="$HOME/.local/share/Mossy/userData"
+fi
+
+# Export knowledge vault from Electron userData
+KNOWLEDGE_VAULT_SRC="$USERDATA_DIR/knowledge-vault.json"
+if [ -f "$KNOWLEDGE_VAULT_SRC" ]; then
+  echo "✓ Found knowledge vault"
+  cp "$KNOWLEDGE_VAULT_SRC" "$KNOWLEDGE_DIR/knowledge-vault.json"
+  echo "✓ Exported knowledge vault"
+else
+  echo "ℹ Knowledge vault not found (normal if Mossy hasn't been run yet)"
+fi
+
+# Export MossyBrain instructions
+MOSSYBRAIN_SRC="$REPO_ROOT/src/renderer/src/MossyBrain.ts"
+if [ -f "$MOSSYBRAIN_SRC" ]; then
+  echo "✓ Found MossyBrain"
+  cp "$MOSSYBRAIN_SRC" "$BRAIN_DATA_DIR/MossyBrain.ts"
+  echo "✓ Exported MossyBrain"
+fi
+
+# Export training data if it exists
+TRAINING_DATA_SRC="$USERDATA_DIR/training-dataset.jsonl"
+if [ -f "$TRAINING_DATA_SRC" ]; then
+  echo "✓ Found training data"
+  cp "$TRAINING_DATA_SRC" "$BRAIN_DATA_DIR/training-dataset.jsonl"
+  echo "✓ Exported training data"
+fi
+
+# Create a timestamp record
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+cat > "$BRAIN_DATA_DIR/export-metadata.json" << EOF
+{
+  "exported_at": "$TIMESTAMP",
+  "source": "Mossy Desktop (pre-push hook)",
+  "note": "Latest version of Mossy's brain, knowledge vault, and training data"
+}
+EOF
+
+# Stage the exported files if anything changed
+if git status --porcelain "$KNOWLEDGE_DIR" "$BRAIN_DATA_DIR" 2>/dev/null | grep -q .; then
+  echo "✓ Staging Mossy knowledge updates..."
+  git add "$KNOWLEDGE_DIR" "$BRAIN_DATA_DIR" 2>/dev/null || true
+fi
+
+echo "[Mossy Knowledge Export] Knowledge export complete!"
+echo ""
+
 exit 0
