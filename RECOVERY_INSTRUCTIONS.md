@@ -120,7 +120,7 @@ git show master:path/to/file.txt > file.txt
 
 ### Repository Structure
 ```
-desktop-tutorial/
+mossy-ai/
 ├── src/                    # Source code
 │   ├── main/              # Electron main process
 │   ├── renderer/          # React UI
@@ -211,7 +211,7 @@ git log --all --grep="keyword" --oneline
 If your work was pushed to GitHub, it's safe. You can:
 - View all branches on GitHub web interface
 - Download specific branches as ZIP files
-- Clone the repository fresh: `git clone https://github.com/POINTYTHRUNDRA654/desktop-tutorial.git`
+- Clone the repository fresh: `git clone https://github.com/POINTYTHRUNDRA654/mossy-ai.git`
 
 ---
 
@@ -292,5 +292,5 @@ git checkout master && git pull origin master
 ---
 
 *Generated: February 11, 2026*
-*Repository: POINTYTHRUNDRA654/desktop-tutorial*
+*Repository: POINTYTHRUNDRA654/mossy-ai*
 

@@ -99,7 +99,7 @@ export class DiscordPresence {
       smallImageText: this.getActivityName(activity),
       instance: false,
       buttons: [
-        { label: 'Get Mossy', url: 'https://github.com/POINTYTHRUNDRA654/desktop-tutorial' }
+        { label: 'Get Mossy', url: 'https://github.com/POINTYTHRUNDRA654/mossy-ai' }
       ]
     };
 

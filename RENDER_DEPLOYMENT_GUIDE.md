@@ -64,7 +64,7 @@ The backend needs these API keys to communicate with AI services:
 #### B. Connect Repository
 1. Select "GitHub" as source
 2. Connect your GitHub account
-3. Select repository: `POINTYTHRUNDRA654/desktop-tutorial`
+3. Select repository: `POINTYTHRUNDRA654/mossy-ai`
 4. Click "Connect"
 
 #### C. Configure Service

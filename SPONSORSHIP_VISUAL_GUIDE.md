@@ -8,7 +8,7 @@ Once you push `.github/FUNDING.yml` to GitHub, a "Sponsor" button will appear ne
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ POINTYTHRUNDRA654 / desktop-tutorial                     │
+│ POINTYTHRUNDRA654 / mossy-ai                     │
 ├──────────────────────────────────────────────────────────┤
 │                                                           │
 │  [♥ Sponsor]  [★ Star]  [⑂ Fork]                       │

@@ -156,7 +156,7 @@ If you're having issues:
 ## 📝 Documentation Structure
 
 ```
-desktop-tutorial/
+mossy-ai/
 ├── README.md ................................ Main project overview
 ├── GETTING_STARTED.md ....................... Quick start guide
 ├── DOCUMENTATION_GUIDE.md ................... This file

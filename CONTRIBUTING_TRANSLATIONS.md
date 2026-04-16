@@ -122,7 +122,7 @@ Each file follows this structure:
 
 ### For New Languages
 
-1. **Request the language** by opening a [translation request issue](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues/new?template=translation-request.md)
+1. **Request the language** by opening a [translation request issue](https://github.com/POINTYTHRUNDRA654/mossy-ai/issues/new?template=translation-request.md)
 2. **Wait for approval** (we'll add the language to the system)
 3. **Create the translation file** based on `en.json`
 4. **Submit a pull request** with your completed translation
@@ -258,9 +258,9 @@ Test these areas of the app:
 
 ## 📞 Getting Help
 
-- **Questions?** Open an [issue](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues)
-- **Discussion?** Use [GitHub Discussions](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/discussions)
-- **Found a bug in existing translations?** Open a [translation request issue](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues/new?template=translation-request.md)
+- **Questions?** Open an [issue](https://github.com/POINTYTHRUNDRA654/mossy-ai/issues)
+- **Discussion?** Use [GitHub Discussions](https://github.com/POINTYTHRUNDRA654/mossy-ai/discussions)
+- **Found a bug in existing translations?** Open a [translation request issue](https://github.com/POINTYTHRUNDRA654/mossy-ai/issues/new?template=translation-request.md)
 
 ## 🙏 Thank You!
 
