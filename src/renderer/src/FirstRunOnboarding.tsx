@@ -508,7 +508,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         const speakSequence = async () => {
             await new Promise(resolve => setTimeout(resolve, 800));
             await speakMossy("Hello, I'm Mossy, your Fallout 4 modding assistant.");
-            await speakMossy('First, pick the version that fits your system: Universal works on any hardware, or NVIDIA if you have a compatible GPU.');
+            await speakMossy('Press Continue to begin setup.');
         };
         void speakSequence();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1145,71 +1145,43 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         <h1 className="text-4xl font-bold text-white mb-3">Welcome to Mossy v{packageJson.version}</h1>
                         <p className="text-lg text-slate-300 mb-2">Your AI-powered Fallout 4 modding assistant</p>
                         <p className="text-slate-400 mb-8">
-                            Pick the version that fits your system. <strong className="text-slate-300">Universal</strong> works on any hardware (CPU-only). <strong className="text-slate-300">NVIDIA</strong> unlocks GPU-accelerated AI and fine-tuning if you have an RTX/GTX card.
+                            Your AI-powered Fallout 4 modding assistant
                         </p>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
-                            {/* Universal Edition */}
-                            <button
-                                type="button"
-                                aria-pressed={mossyEdition === 'universal'}
-                                onClick={() => {
-                                    setMossyEdition('universal');
-                                    try { localStorage.setItem('mossy_edition_choice', 'universal'); } catch { /* ignore */ }
-                                    const api = getElectronApi();
-                                    if (api?.setSettings) void api.setSettings({ mossyEditionOverride: 'universal' }).catch(() => { });
-                                }}
-                                className={`relative text-left rounded-2xl border-2 p-6 transition-all ${mossyEdition === 'universal'
-                                    ? 'bg-blue-900/60 border-blue-400 shadow-lg shadow-blue-900/40'
-                                    : 'bg-slate-800/60 border-slate-600 hover:border-slate-400'
-                                    }`}
-                            >
-                                <Cpu className="w-10 h-10 text-blue-400 mb-3" />
-                                <div className="text-lg font-bold text-white mb-1">Universal Edition</div>
-                                <div className="text-xs text-slate-300 mb-3">CPU-based · Works on any hardware</div>
-                                <ul className="text-xs text-slate-400 space-y-1">
-                                    <li>✓ AI assistant &amp; mod tools</li>
-                                    <li>✓ Full modding workflow</li>
-                                    <li>✓ No GPU required</li>
-                                    <li className="text-slate-500">– Local AI fine-tuning not available</li>
-                                </ul>
-                                {mossyEdition === 'universal' && (
-                                    <span className="absolute top-3 right-3 flex items-center gap-1 text-xs font-bold text-blue-300 bg-blue-900/70 px-2 py-0.5 rounded-full border border-blue-500">
-                                        <Check className="w-3 h-3" /> Selected
-                                    </span>
-                                )}
-                            </button>
-
-                            {/* NVIDIA Edition */}
-                            <button
-                                type="button"
-                                aria-pressed={mossyEdition === 'nvidia'}
-                                onClick={() => {
-                                    setMossyEdition('nvidia');
-                                    try { localStorage.setItem('mossy_edition_choice', 'nvidia'); } catch { /* ignore */ }
-                                    const api = getElectronApi();
-                                    if (api?.setSettings) void api.setSettings({ mossyEditionOverride: 'nvidia' }).catch(() => { });
-                                }}
-                                className={`relative text-left rounded-2xl border-2 p-6 transition-all ${mossyEdition === 'nvidia'
-                                    ? 'bg-green-900/60 border-green-400 shadow-lg shadow-green-900/40'
-                                    : 'bg-slate-800/60 border-slate-600 hover:border-slate-400'
-                                    }`}
-                            >
-                                <Zap className="w-10 h-10 text-green-400 mb-3" />
-                                <div className="text-lg font-bold text-white mb-1">NVIDIA Edition</div>
-                                <div className="text-xs text-slate-300 mb-3">CUDA 12.4 · GPU-accelerated AI</div>
-                                <ul className="text-xs text-slate-400 space-y-1">
-                                    <li>✓ Everything in Universal</li>
-                                    <li>✓ Local AI fine-tuning (Unsloth)</li>
-                                    <li>✓ Faster local inference</li>
-                                    <li>⚠ Requires NVIDIA RTX / GTX GPU</li>
-                                </ul>
-                                {mossyEdition === 'nvidia' && (
+                        <div className="max-w-sm mx-auto mb-8">
+                            {/* Single edition display — determined by which build you installed */}
+                            {mossyEdition === 'nvidia' ? (
+                                <div className="relative text-left rounded-2xl border-2 p-6 bg-green-900/60 border-green-400 shadow-lg shadow-green-900/40">
+                                    <Zap className="w-10 h-10 text-green-400 mb-3" />
+                                    <div className="text-lg font-bold text-white mb-1">NVIDIA Edition</div>
+                                    <div className="text-xs text-slate-300 mb-3">CUDA 12.4 · GPU-accelerated AI</div>
+                                    <ul className="text-xs text-slate-400 space-y-1">
+                                        <li>✓ AI assistant &amp; mod tools</li>
+                                        <li>✓ Full modding workflow</li>
+                                        <li>✓ Local AI fine-tuning (Unsloth)</li>
+                                        <li>✓ Faster local inference</li>
+                                        <li>⚠ Requires NVIDIA RTX / GTX GPU</li>
+                                    </ul>
                                     <span className="absolute top-3 right-3 flex items-center gap-1 text-xs font-bold text-green-300 bg-green-900/70 px-2 py-0.5 rounded-full border border-green-500">
-                                        <Check className="w-3 h-3" /> Selected
+                                        <Check className="w-3 h-3" /> NVIDIA Edition
                                     </span>
-                                )}
-                            </button>
+                                </div>
+                            ) : (
+                                <div className="relative text-left rounded-2xl border-2 p-6 bg-blue-900/60 border-blue-400 shadow-lg shadow-blue-900/40">
+                                    <Cpu className="w-10 h-10 text-blue-400 mb-3" />
+                                    <div className="text-lg font-bold text-white mb-1">Universal Edition</div>
+                                    <div className="text-xs text-slate-300 mb-3">CPU-based · Works on any hardware</div>
+                                    <ul className="text-xs text-slate-400 space-y-1">
+                                        <li>✓ AI assistant &amp; mod tools</li>
+                                        <li>✓ Full modding workflow</li>
+                                        <li>✓ No GPU required</li>
+                                        <li className="text-slate-500">– Local AI fine-tuning not available</li>
+                                    </ul>
+                                    <span className="absolute top-3 right-3 flex items-center gap-1 text-xs font-bold text-blue-300 bg-blue-900/70 px-2 py-0.5 rounded-full border border-blue-500">
+                                        <Check className="w-3 h-3" /> Universal Edition
+                                    </span>
+                                </div>
+                            )}
                         </div>
 
                         {/* Voice test */}
@@ -1312,14 +1284,6 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 mx-auto transition-colors"
                         >
                             Next <ArrowRight className="w-5 h-5" />
-                        </button>
-                        <button
-                            type="button"
-                            aria-label="Go back to edition selection"
-                            onClick={() => setStep('edition')}
-                            className="mt-4 text-sm text-slate-400 hover:text-slate-200 underline block mx-auto"
-                        >
-                            ← Back to Edition
                         </button>
 
                         <div className="mt-6">
