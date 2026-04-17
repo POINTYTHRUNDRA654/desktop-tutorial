@@ -289,6 +289,52 @@ const IPC_CHANNELS = {
   SAVE_PANEL_DATA: 'panel-data-save',
   LOAD_PANEL_DATA: 'panel-data-load',
   DELETE_PANEL_DATA: 'panel-data-delete',
+
+  // Mossy Brain Feature 1: Persistent Memory Store
+  MEMORY_STORE_SAVE: 'memory-store-save',
+  MEMORY_STORE_LOAD: 'memory-store-load',
+  MEMORY_STORE_ADD_FACT: 'memory-store-add-fact',
+  MEMORY_STORE_QUERY: 'memory-store-query',
+  MEMORY_STORE_GET_ALL: 'memory-store-get-all',
+  MEMORY_STORE_DELETE: 'memory-store-delete',
+  MEMORY_STORE_UPDATE: 'memory-store-update',
+
+  // Mossy Brain Feature 2: Session Journal
+  SESSION_JOURNAL_START: 'session-journal-start',
+  SESSION_JOURNAL_END: 'session-journal-end',
+  SESSION_JOURNAL_APPEND: 'session-journal-append',
+  SESSION_JOURNAL_GET_ENTRIES: 'session-journal-get-entries',
+
+  // Mossy Brain Feature 3: Shared Context Bus
+  CONTEXT_BUS_SYNC: 'context-bus-sync',
+  CONTEXT_BUS_LOAD: 'context-bus-load',
+
+  // Mossy Brain Feature 4: Auto-Ingestion Pipeline
+  AUTO_INGEST_WATCH_START: 'auto-ingest-watch-start',
+  AUTO_INGEST_WATCH_STOP: 'auto-ingest-watch-stop',
+  AUTO_INGEST_PROCESS_FILE: 'auto-ingest-process-file',
+  AUTO_INGEST_FOLDER_CHANGE: 'auto-ingest-folder-change',
+
+  // Mossy Brain Feature 5: Unified Semantic Search
+  SEARCH_GLOBAL: 'search-global',
+  SEARCH_GLOBAL_INDEX: 'search-global-index',
+
+  // Mossy Brain Feature 6: Clipboard Intelligence
+  CLIPBOARD_WATCH_START: 'clipboard-watch-start',
+  CLIPBOARD_WATCH_STOP: 'clipboard-watch-stop',
+  CLIPBOARD_DETECTED: 'clipboard-detected',
+
+  // Mossy Brain Feature 7: Background Task Queue
+  TASK_ENQUEUE: 'task-enqueue',
+  TASK_LIST: 'task-list',
+  TASK_GET_STATUS: 'task-get-status',
+  TASK_CANCEL: 'task-cancel',
+  TASK_COMPLETION: 'task-completion',
+
+  // Mossy Brain Feature 8: Hardware Sensor Feed
+  SYSTEM_METRICS_POLL: 'system-metrics-poll',
+  SYSTEM_METRICS_GET: 'system-metrics-get',
+  SYSTEM_METRICS_SUBSCRIBE: 'system-metrics-subscribe',
 } as const;
 
 /**
@@ -2726,6 +2772,256 @@ const electronAPI = {
    */
   deletePanelData: (panelId: string): Promise<{ ok: boolean; panelId: string; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.DELETE_PANEL_DATA, panelId);
+  },
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 1: PERSISTENT MEMORY STORE
+  // ============================================================================
+
+  /**
+   * Save all facts to disk
+   */
+  memoryStoreSave: (facts: any[]): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.MEMORY_STORE_SAVE, facts);
+  },
+
+  /**
+   * Load all facts from disk
+   */
+  memoryStoreLoad: (): Promise<{ ok: boolean; facts?: any[]; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.MEMORY_STORE_LOAD);
+  },
+
+  /**
+   * Add a new fact to memory
+   */
+  memoryStoreAddFact: (req: { fact: string; context: string; tags?: string[] }): Promise<{ ok: boolean; factId?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.MEMORY_STORE_ADD_FACT, req);
+  },
+
+  /**
+   * Query facts by keyword (returns top-K ranked results)
+   */
+  memoryStoreQuery: (req: { query: string; topK?: number }): Promise<{ ok: boolean; facts?: any[]; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.MEMORY_STORE_QUERY, req);
+  },
+
+  /**
+   * Get all facts
+   */
+  memoryStoreGetAll: (): Promise<{ ok: boolean; facts?: any[]; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.MEMORY_STORE_GET_ALL);
+  },
+
+  /**
+   * Delete a fact by ID
+   */
+  memoryStoreDelete: (factId: string): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.MEMORY_STORE_DELETE, factId);
+  },
+
+  /**
+   * Update a fact by ID (partial updates)
+   */
+  memoryStoreUpdate: (factId: string, updates: any): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.MEMORY_STORE_UPDATE, factId, updates);
+  },
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 2: SESSION JOURNAL
+  // ============================================================================
+
+  /**
+   * Start a new session
+   */
+  sessionJournalStart: (): Promise<{ ok: boolean; sessionId?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SESSION_JOURNAL_START);
+  },
+
+  /**
+   * End current session and auto-summarize
+   */
+  sessionJournalEnd: (req: { chatMessages: any[]; startTime: number }): Promise<{ ok: boolean; entry?: any; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SESSION_JOURNAL_END, req);
+  },
+
+  /**
+   * Manually append a journal entry
+   */
+  sessionJournalAppend: (entry: any): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SESSION_JOURNAL_APPEND, entry);
+  },
+
+  /**
+   * Get recent journal entries
+   */
+  sessionJournalGetEntries: (limit?: number): Promise<{ ok: boolean; entries?: any[]; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SESSION_JOURNAL_GET_ENTRIES, limit);
+  },
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 3: SHARED CONTEXT BUS
+  // ============================================================================
+
+  /**
+   * Sync context bus state to disk
+   */
+  contextBusSync: (state: any): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_BUS_SYNC, state);
+  },
+
+  /**
+   * Load context bus state from disk
+   */
+  contextBusLoad: (): Promise<{ ok: boolean; state?: any; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_BUS_LOAD);
+  },
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 4: AUTO-INGESTION PIPELINE
+  // ============================================================================
+
+  /**
+   * Start watching a folder for new files
+   */
+  autoIngestWatchStart: (folderPath: string): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUTO_INGEST_WATCH_START, folderPath);
+  },
+
+  /**
+   * Stop watching for files
+   */
+  autoIngestWatchStop: (): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUTO_INGEST_WATCH_STOP);
+  },
+
+  /**
+   * Process a single file for ingestion
+   */
+  autoIngestProcessFile: (req: { filePath: string; autoSummarize?: boolean }): Promise<{ ok: boolean; ingested?: any; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUTO_INGEST_PROCESS_FILE, req);
+  },
+
+  /**
+   * Listen for folder changes during auto-ingest
+   */
+  onAutoIngestFolderChange: (callback: (folderPath: string) => void): (() => void) => {
+    const listener = (_event: any, folderPath: string) => callback(folderPath);
+    ipcRenderer.on(IPC_CHANNELS.AUTO_INGEST_FOLDER_CHANGE, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.AUTO_INGEST_FOLDER_CHANGE, listener);
+  },
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 5: UNIFIED SEMANTIC SEARCH
+  // ============================================================================
+
+  /**
+   * Global search across all knowledge sources
+   */
+  searchGlobal: (req: { query: string; topK?: number }): Promise<{ ok: boolean; results?: any[]; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SEARCH_GLOBAL, req);
+  },
+
+  /**
+   * Trigger global semantic index rebuild
+   */
+  searchGlobalIndex: (): Promise<{ ok: boolean; indexed?: number; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SEARCH_GLOBAL_INDEX);
+  },
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 6: CLIPBOARD INTELLIGENCE
+  // ============================================================================
+
+  /**
+   * Start monitoring clipboard for smart detection
+   */
+  clipboardWatchStart: (): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_WATCH_START);
+  },
+
+  /**
+   * Stop monitoring clipboard
+   */
+  clipboardWatchStop: (): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_WATCH_STOP);
+  },
+
+  /**
+   * Listen for clipboard detection events
+   */
+  onClipboardDetected: (callback: (detection: any) => void): (() => void) => {
+    const listener = (_event: any, detection: any) => callback(detection);
+    ipcRenderer.on(IPC_CHANNELS.CLIPBOARD_DETECTED, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CLIPBOARD_DETECTED, listener);
+  },
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 7: BACKGROUND TASK QUEUE
+  // ============================================================================
+
+  /**
+   * Enqueue a background task
+   */
+  taskEnqueue: (req: { type: string; priority?: number; payload?: any }): Promise<{ ok: boolean; taskId?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TASK_ENQUEUE, req);
+  },
+
+  /**
+   * List all tasks
+   */
+  taskList: (filter?: { status?: string }): Promise<{ ok: boolean; tasks?: any[]; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TASK_LIST, filter);
+  },
+
+  /**
+   * Get status of a single task
+   */
+  taskGetStatus: (taskId: string): Promise<{ ok: boolean; task?: any; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TASK_GET_STATUS, taskId);
+  },
+
+  /**
+   * Cancel a task
+   */
+  taskCancel: (taskId: string): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.TASK_CANCEL, taskId);
+  },
+
+  /**
+   * Listen for task completion events
+   */
+  onTaskCompletion: (callback: (task: any) => void): (() => void) => {
+    const listener = (_event: any, task: any) => callback(task);
+    ipcRenderer.on(IPC_CHANNELS.TASK_COMPLETION, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.TASK_COMPLETION, listener);
+  },
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 8: HARDWARE SENSOR FEED
+  // ============================================================================
+
+  /**
+   * Poll hardware metrics once
+   */
+  systemMetricsPoll: (): Promise<{ ok: boolean; metrics?: any; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_METRICS_POLL);
+  },
+
+  /**
+   * Get latest cached metrics
+   */
+  systemMetricsGet: (): Promise<{ ok: boolean; metrics?: any; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_METRICS_GET);
+  },
+
+  /**
+   * Subscribe to hardware metrics updates
+   */
+  onSystemMetricsUpdate: (callback: (metrics: any) => void): (() => void) => {
+    const listener = (_event: any, metrics: any) => callback(metrics);
+    ipcRenderer.on(IPC_CHANNELS.SYSTEM_METRICS_SUBSCRIBE, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.SYSTEM_METRICS_SUBSCRIBE, listener);
   },
 };
 

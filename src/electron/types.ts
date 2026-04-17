@@ -275,6 +275,56 @@ export const IPC_CHANNELS = {
   SAVE_PANEL_DATA: 'panel-data-save',
   LOAD_PANEL_DATA: 'panel-data-load',
   DELETE_PANEL_DATA: 'panel-data-delete',
+
+  // ============================================================================
+  // MOSSY BRAIN 8 FEATURES (April 2026)
+  // ============================================================================
+
+  // 1. Persistent Cross-Session Memory
+  MEMORY_STORE_SAVE: 'memory-store-save',
+  MEMORY_STORE_LOAD: 'memory-store-load',
+  MEMORY_STORE_ADD_FACT: 'memory-store-add-fact',
+  MEMORY_STORE_QUERY: 'memory-store-query',
+  MEMORY_STORE_GET_ALL: 'memory-store-get-all',
+  MEMORY_STORE_DELETE: 'memory-store-delete',
+  MEMORY_STORE_UPDATE: 'memory-store-update',
+
+  // 2. Automatic Session Journal
+  SESSION_JOURNAL_START: 'session-journal-start',
+  SESSION_JOURNAL_END: 'session-journal-end',
+  SESSION_JOURNAL_APPEND: 'session-journal-append',
+  SESSION_JOURNAL_GET_ENTRIES: 'session-journal-get-entries',
+
+  // 3. Shared Context Bus (Zustand sync to disk)
+  CONTEXT_BUS_SYNC: 'context-bus-sync',
+  CONTEXT_BUS_LOAD: 'context-bus-load',
+
+  // 4. Auto-Ingestion Pipeline
+  AUTO_INGEST_WATCH_START: 'auto-ingest-watch-start',
+  AUTO_INGEST_WATCH_STOP: 'auto-ingest-watch-stop',
+  AUTO_INGEST_PROCESS_FILE: 'auto-ingest-process-file',
+  AUTO_INGEST_FOLDER_CHANGE: 'auto-ingest-folder-change',
+
+  // 5. Unified Semantic Search
+  SEARCH_GLOBAL: 'search-global',
+  SEARCH_GLOBAL_INDEX: 'search-global-index',
+
+  // 6. Clipboard Intelligence
+  CLIPBOARD_WATCH_START: 'clipboard-watch-start',
+  CLIPBOARD_WATCH_STOP: 'clipboard-watch-stop',
+  CLIPBOARD_DETECTED: 'clipboard-detected',
+
+  // 7. Background Task Queue
+  TASK_ENQUEUE: 'task-enqueue',
+  TASK_LIST: 'task-list',
+  TASK_GET_STATUS: 'task-get-status',
+  TASK_CANCEL: 'task-cancel',
+  TASK_COMPLETION: 'task-completion',
+
+  // 8. Hardware Sensor Feed
+  SYSTEM_METRICS_POLL: 'system-metrics-poll',
+  SYSTEM_METRICS_GET: 'system-metrics-get',
+  SYSTEM_METRICS_SUBSCRIBE: 'system-metrics-subscribe',
 } as const;
 
 export type MlIndexBuildRequest = {
@@ -288,6 +338,184 @@ export type MlIndexBuildResponse =
 export type MlIndexStatusResponse =
   | { ok: true; indexPath: string; indexedChunks: number; indexedSources: number; model: string; createdAt: string }
   | { ok: false; indexPath: string; reason: string };
+
+// ============================================================================
+// MOSSY BRAIN FEATURE TYPES
+// ============================================================================
+
+// 1. Persistent Memory Store
+export interface MemoryFact {
+  id: string;
+  fact: string;
+  context: string;
+  createdAt: string;
+  lastUsed: string;
+  confidence: number; // 0-1
+  source?: string;
+  tags?: string[];
+}
+
+export type MemoryStoreAddFactRequest = {
+  fact: string;
+  context: string;
+  tags?: string[];
+};
+
+export type MemoryStoreQueryRequest = {
+  query: string;
+  topK?: number;
+};
+
+export type MemoryStoreQueryResponse = {
+  ok: boolean;
+  facts?: MemoryFact[];
+  error?: string;
+};
+
+// 2. Session Journal
+export interface JournalEntry {
+  id: string;
+  timestamp: string;
+  summary: string; // 3-bullet summary
+  messagesCount: number;
+  duration: number; // seconds
+  topics: string[];
+}
+
+export type SessionJournalEndRequest = {
+  chatMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  startTime: number;
+};
+
+export type SessionJournalEndResponse = {
+  ok: boolean;
+  entry?: JournalEntry;
+  error?: string;
+};
+
+// 3. Shared Context Bus
+export interface ContextBusState {
+  plans: any[];
+  notes: any[];
+  discoveredIssues: any[];
+  results: any[];
+  timestamp: number;
+}
+
+// 4. Auto-Ingestion Pipeline
+export interface IngestedFile {
+  id: string;
+  path: string;
+  type: 'papyrus' | 'xml' | 'json' | 'crash-log' | 'markdown' | 'script' | 'unknown';
+  summary: string;
+  facts: MemoryFact[];
+  indexedAt: string;
+}
+
+export type AutoIngestProcessFileRequest = {
+  filePath: string;
+  autoSummarize?: boolean;
+};
+
+export type AutoIngestProcessFileResponse = {
+  ok: boolean;
+  ingested?: IngestedFile;
+  error?: string;
+};
+
+// 5. Unified Semantic Search
+export interface SearchResult {
+  type: 'chat' | 'plan' | 'journal' | 'doc' | 'asset' | 'memory' | 'training-data';
+  id: string;
+  title: string;
+  preview: string;
+  score: number;
+  source: string;
+  timestamp?: string;
+}
+
+export type SearchGlobalRequest = {
+  query: string;
+  topK?: number;
+};
+
+export type SearchGlobalResponse = {
+  ok: boolean;
+  results?: SearchResult[];
+  error?: string;
+};
+
+// 6. Clipboard Intelligence
+export interface ClipboardDetection {
+  type: 'crash-log' | 'papyrus-script' | 'url' | 'mod-description' | 'asset-path' | 'unknown';
+  content: string;
+  confidence: number; // 0-1
+  suggestedActions: Array<{ action: string; label: string }>;
+}
+
+// 7. Background Task Queue
+export interface BackgroundTask {
+  id: string;
+  type: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
+  priority: number;
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  result?: any;
+  error?: string;
+  progress?: { current: number; total: number };
+}
+
+export type TaskEnqueueRequest = {
+  type: string;
+  priority?: number;
+  payload?: any;
+};
+
+export type TaskEnqueueResponse = {
+  ok: boolean;
+  taskId?: string;
+  error?: string;
+};
+
+export type TaskStatusResponse = {
+  ok: boolean;
+  task?: BackgroundTask;
+  error?: string;
+};
+
+// 8. Hardware Sensor Feed
+export interface SystemMetrics {
+  cpu: {
+    usage: number; // 0-100
+    cores: number;
+    temperature?: number; // Celsius
+  };
+  gpu?: {
+    usage: number; // 0-100
+    temperature?: number; // Celsius
+    vramUsed: number; // MB
+    vramTotal: number; // MB
+  };
+  memory: {
+    used: number; // MB
+    total: number; // MB
+    percentage: number; // 0-100
+  };
+  disk?: {
+    used: number; // GB
+    total: number; // GB
+    percentage: number; // 0-100
+  };
+  timestamp: number;
+}
+
+export type SystemMetricsResponse = {
+  ok: boolean;
+  metrics?: SystemMetrics;
+  error?: string;
+};
 
 export type MlIndexQueryRequest = {
   query: string;
@@ -706,6 +934,56 @@ export interface ElectronAPI {
     generalOk: boolean;
     summary: string;
   }>;
+
+  // ============================================================================
+  // MOSSY BRAIN 8 FEATURES API (April 2026)
+  // ============================================================================
+
+  // 1. Persistent Memory Store
+  memoryStoreSave: (facts: MemoryFact[]) => Promise<{ ok: boolean; error?: string }>;
+  memoryStoreLoad: () => Promise<{ ok: boolean; facts?: MemoryFact[]; error?: string }>;
+  memoryStoreAddFact: (req: MemoryStoreAddFactRequest) => Promise<{ ok: boolean; factId?: string; error?: string }>;
+  memoryStoreQuery: (req: MemoryStoreQueryRequest) => Promise<MemoryStoreQueryResponse>;
+  memoryStoreGetAll: () => Promise<{ ok: boolean; facts?: MemoryFact[]; error?: string }>;
+  memoryStoreDelete: (factId: string) => Promise<{ ok: boolean; error?: string }>;
+  memoryStoreUpdate: (factId: string, updates: Partial<MemoryFact>) => Promise<{ ok: boolean; error?: string }>;
+
+  // 2. Session Journal
+  sessionJournalStart: () => Promise<{ ok: boolean; sessionId?: string; error?: string }>;
+  sessionJournalEnd: (req: SessionJournalEndRequest) => Promise<SessionJournalEndResponse>;
+  sessionJournalAppend: (entry: JournalEntry) => Promise<{ ok: boolean; error?: string }>;
+  sessionJournalGetEntries: (limit?: number) => Promise<{ ok: boolean; entries?: JournalEntry[]; error?: string }>;
+
+  // 3. Shared Context Bus
+  contextBusSync: (state: ContextBusState) => Promise<{ ok: boolean; error?: string }>;
+  contextBusLoad: () => Promise<{ ok: boolean; state?: ContextBusState; error?: string }>;
+
+  // 4. Auto-Ingestion Pipeline
+  autoIngestWatchStart: (folderPath: string) => Promise<{ ok: boolean; error?: string }>;
+  autoIngestWatchStop: () => Promise<{ ok: boolean; error?: string }>;
+  autoIngestProcessFile: (req: AutoIngestProcessFileRequest) => Promise<AutoIngestProcessFileResponse>;
+  onAutoIngestFolderChange: (callback: (folderPath: string) => void) => (() => void);
+
+  // 5. Unified Semantic Search
+  searchGlobal: (req: SearchGlobalRequest) => Promise<SearchGlobalResponse>;
+  searchGlobalIndex: () => Promise<{ ok: boolean; indexed: number; error?: string }>;
+
+  // 6. Clipboard Intelligence
+  clipboardWatchStart: () => Promise<{ ok: boolean; error?: string }>;
+  clipboardWatchStop: () => Promise<{ ok: boolean; error?: string }>;
+  onClipboardDetected: (callback: (detection: ClipboardDetection) => void) => (() => void);
+
+  // 7. Background Task Queue
+  taskEnqueue: (req: TaskEnqueueRequest) => Promise<TaskEnqueueResponse>;
+  taskList: (filter?: { status?: string }) => Promise<{ ok: boolean; tasks?: BackgroundTask[]; error?: string }>;
+  taskGetStatus: (taskId: string) => Promise<TaskStatusResponse>;
+  taskCancel: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
+  onTaskCompletion: (callback: (task: BackgroundTask) => void) => (() => void);
+
+  // 8. Hardware Sensor Feed
+  systemMetricsPoll: () => Promise<SystemMetricsResponse>;
+  systemMetricsGet: () => Promise<SystemMetricsResponse>;
+  onSystemMetricsUpdate: (callback: (metrics: SystemMetrics) => void) => (() => void);
 }
 
 export interface VoiceChatPayload {
