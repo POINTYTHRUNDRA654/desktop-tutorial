@@ -41,6 +41,37 @@ import {
   deleteProject,
   saveToFile
 } from '../main/store';
+import {
+  getMemoryStore,
+  saveMemoryStore,
+  addMemoryFact,
+  queryMemoryFacts,
+  getAllMemoryFacts,
+  deleteMemoryFact,
+  updateMemoryFact,
+  getMemoryStoreStats,
+} from './memoryStore';
+import {
+  initMossyBrainFeatures,
+  sessionJournalStart,
+  sessionJournalEnd,
+  sessionJournalGetEntries,
+  contextBusSync,
+  contextBusLoad,
+  autoIngestWatchStart,
+  autoIngestWatchStop,
+  autoIngestProcessFile,
+  searchGlobal,
+  searchGlobalIndex,
+  clipboardWatchStart,
+  clipboardWatchStop,
+  taskEnqueue,
+  taskList,
+  taskGetStatus,
+  taskCancel,
+  systemMetricsPoll,
+  systemMetricsGet,
+} from './mossyBrainFeatures';
 import FormData from 'form-data';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
@@ -11411,9 +11442,169 @@ ${steps}
     }
   });
 
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 1: PERSISTENT MEMORY STORE
+  // ============================================================================
+
+  registerHandler(IPC_CHANNELS.MEMORY_STORE_SAVE, async (_event, facts: any[]) => {
+    try {
+      const store = getMemoryStore();
+      store.facts = facts;
+      const ok = saveMemoryStore();
+      return { ok };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.MEMORY_STORE_LOAD, async () => {
+    try {
+      const store = getMemoryStore();
+      return { ok: true, facts: store.facts };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.MEMORY_STORE_ADD_FACT, async (_event, req: any) => {
+    return addMemoryFact(req);
+  });
+
+  registerHandler(IPC_CHANNELS.MEMORY_STORE_QUERY, async (_event, req: any) => {
+    return queryMemoryFacts(req);
+  });
+
+  registerHandler(IPC_CHANNELS.MEMORY_STORE_GET_ALL, async () => {
+    return getAllMemoryFacts();
+  });
+
+  registerHandler(IPC_CHANNELS.MEMORY_STORE_DELETE, async (_event, factId: string) => {
+    return deleteMemoryFact(factId);
+  });
+
+  registerHandler(IPC_CHANNELS.MEMORY_STORE_UPDATE, async (_event, factId: string, updates: any) => {
+    return updateMemoryFact(factId, updates);
+  });
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 2: SESSION JOURNAL
+  // ============================================================================
+
+  registerHandler(IPC_CHANNELS.SESSION_JOURNAL_START, async () => {
+    return sessionJournalStart();
+  });
+
+  registerHandler(IPC_CHANNELS.SESSION_JOURNAL_END, async (_event, req: any) => {
+    return sessionJournalEnd(req);
+  });
+
+  registerHandler(IPC_CHANNELS.SESSION_JOURNAL_APPEND, async (_event, entry: any) => {
+    try {
+      // Stub: would write to journal file in production
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.SESSION_JOURNAL_GET_ENTRIES, async (_event, limit?: number) => {
+    return sessionJournalGetEntries(limit);
+  });
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 3: SHARED CONTEXT BUS
+  // ============================================================================
+
+  registerHandler(IPC_CHANNELS.CONTEXT_BUS_SYNC, async (_event, state: any) => {
+    return contextBusSync(state);
+  });
+
+  registerHandler(IPC_CHANNELS.CONTEXT_BUS_LOAD, async () => {
+    return contextBusLoad();
+  });
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 4: AUTO-INGESTION PIPELINE
+  // ============================================================================
+
+  registerHandler(IPC_CHANNELS.AUTO_INGEST_WATCH_START, async (_event, folderPath: string) => {
+    return autoIngestWatchStart(folderPath);
+  });
+
+  registerHandler(IPC_CHANNELS.AUTO_INGEST_WATCH_STOP, async () => {
+    return autoIngestWatchStop();
+  });
+
+  registerHandler(IPC_CHANNELS.AUTO_INGEST_PROCESS_FILE, async (_event, req: any) => {
+    return autoIngestProcessFile(req);
+  });
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 5: UNIFIED SEMANTIC SEARCH
+  // ============================================================================
+
+  registerHandler(IPC_CHANNELS.SEARCH_GLOBAL, async (_event, req: any) => {
+    return await searchGlobal(req);
+  });
+
+  registerHandler(IPC_CHANNELS.SEARCH_GLOBAL_INDEX, async () => {
+    return searchGlobalIndex();
+  });
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 6: CLIPBOARD INTELLIGENCE
+  // ============================================================================
+
+  registerHandler(IPC_CHANNELS.CLIPBOARD_WATCH_START, async () => {
+    return clipboardWatchStart();
+  });
+
+  registerHandler(IPC_CHANNELS.CLIPBOARD_WATCH_STOP, async () => {
+    return clipboardWatchStop();
+  });
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 7: BACKGROUND TASK QUEUE
+  // ============================================================================
+
+  registerHandler(IPC_CHANNELS.TASK_ENQUEUE, async (_event, req: any) => {
+    return taskEnqueue(req);
+  });
+
+  registerHandler(IPC_CHANNELS.TASK_LIST, async (_event, filter?: any) => {
+    return taskList(filter);
+  });
+
+  registerHandler(IPC_CHANNELS.TASK_GET_STATUS, async (_event, taskId: string) => {
+    return taskGetStatus(taskId);
+  });
+
+  registerHandler(IPC_CHANNELS.TASK_CANCEL, async (_event, taskId: string) => {
+    return taskCancel(taskId);
+  });
+
+  // ============================================================================
+  // MOSSY BRAIN FEATURE 8: HARDWARE SENSOR FEED
+  // ============================================================================
+
+  registerHandler(IPC_CHANNELS.SYSTEM_METRICS_POLL, async () => {
+    return systemMetricsPoll();
+  });
+
+  registerHandler(IPC_CHANNELS.SYSTEM_METRICS_GET, async () => {
+    return systemMetricsGet();
+  });
+
   // Mark handlers as registered
   (global as any).__ipcHandlersRegistered = true;
   console.log('[Main] IPC handlers registration complete');
+
+  // Initialize Mossy Brain features
+  try {
+    initMossyBrainFeatures();
+  } catch (err: any) {
+    console.warn('[Main] Failed to initialize Mossy Brain features:', err?.message || err);
+  }
 }
 
 /**
