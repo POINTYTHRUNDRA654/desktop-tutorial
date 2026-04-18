@@ -43,6 +43,14 @@ interface ESPValidationResult {
   recommendations: string[];
 }
 
+interface ForensicEvidence {
+  memoryAnalysis?: { fragmentation: string; leaks: string };
+  registryState?: { setting: string; value: string }[];
+  assetIntegrity?: { asset: string; status: string }[];
+  pluginLoadOrder?: { name: string; index: number }[];
+  systemMetrics?: { cpuUsage: number; memoryAvailable: number };
+}
+
 interface CrashDiagnosis {
   crashType: 'memory_overflow' | 'access_violation' | 'stack_overflow' |
   'navmesh_conflict' | 'precombine_mismatch' | 'unknown';
@@ -54,6 +62,13 @@ interface CrashDiagnosis {
   stackTrace: string[];
   memoryAddress: string;
   timestamp: string;
+
+  // Professional-grade additions
+  confidence?: number; // 0-100, how confident we are in this diagnosis
+  technicalAnalysis?: string; // Deep technical explanation (markdown)
+  relatedPatterns?: string[]; // Secondary patterns found
+  reproductionSteps?: string[]; // Steps to reproduce the crash
+  forensicEvidence?: ForensicEvidence; // Detailed forensic data
 }
 
 interface PreventionStep {
@@ -488,11 +503,11 @@ Format your response clearly with headers and bullet points.`;
           // Validate parsed data is an array with proper structure
           if (Array.isArray(parsed)) {
             // Additional validation: check if items have required properties
-            const isValid = parsed.every(item => 
-              item && 
-              typeof item === 'object' && 
-              'id' in item && 
-              'name' in item && 
+            const isValid = parsed.every(item =>
+              item &&
+              typeof item === 'object' &&
+              'id' in item &&
+              'name' in item &&
               'type' in item
             );
             if (isValid) {
@@ -514,7 +529,7 @@ Format your response clearly with headers and bullet points.`;
           console.error('Failed to remove corrupted audit data:', removeError);
         }
       }
-      
+
       // Check for auto-scan flag from Spriggit digest
       try {
         const autoScanFlag = localStorage.getItem('mossy_auditor_auto_scan');
@@ -546,7 +561,7 @@ Format your response clearly with headers and bullet points.`;
 
       if (auditFiles.length > 0) {
         // Validate auditFiles before saving
-        const isValid = Array.isArray(auditFiles) && auditFiles.every(f => 
+        const isValid = Array.isArray(auditFiles) && auditFiles.every(f =>
           f && typeof f === 'object' && f.id && f.name && f.type
         );
         if (isValid) {
@@ -1913,8 +1928,18 @@ Format your response clearly with headers and bullet points.`;
     setCrashDiagnosis(null);
 
     try {
-      const diagnosis: CrashDiagnosis = await (window.electron.api as any).ckAnalyzeCrash(pathToAnalyze);
-      setCrashDiagnosis(diagnosis);
+      const response = await (window.electron.api as any).ckAnalyzeCrash(pathToAnalyze);
+
+      // Handle response structure
+      if (response.success && response.diagnosis) {
+        setCrashDiagnosis(response.diagnosis);
+        toast.success('Crash analysis complete');
+      } else if (response.error) {
+        toast.error('Analysis failed: ' + response.error);
+      } else {
+        // Fallback: treat response as diagnosis directly if structure changed
+        setCrashDiagnosis(response);
+      }
     } catch (error) {
       console.error('Crash analysis error:', error);
       toast.error('Analysis failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -2286,63 +2311,172 @@ Format your response clearly with headers and bullet points.`;
       </div>
 
       {crashDiagnosis && (
-        <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <AlertCircle className={`w-5 h-5 ${getSeverityColor(crashDiagnosis.severity)}`} />
-            Crash Diagnosis
-          </h3>
-
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="bg-gray-900/50 rounded p-4">
-              <div className="text-sm text-gray-400 mb-1">Crash Type</div>
-              <div className="text-lg font-bold text-white">{crashDiagnosis.crashType}</div>
-            </div>
-            <div className="bg-gray-900/50 rounded p-4">
-              <div className="text-sm text-gray-400 mb-1">Severity</div>
-              <div className={`text-lg font-bold ${getSeverityColor(crashDiagnosis.severity)}`}>
-                {crashDiagnosis.severity.toUpperCase()}
+        <div className="space-y-6">
+          {/* Professional Confidence Score */}
+          {crashDiagnosis.confidence !== undefined && (
+            <div className={`rounded-lg p-6 border ${crashDiagnosis.confidence >= 85 ? 'bg-green-900/20 border-green-700/50' :
+                crashDiagnosis.confidence >= 70 ? 'bg-yellow-900/20 border-yellow-700/50' :
+                  'bg-blue-900/20 border-blue-700/50'
+              }`}>
+              <h4 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" />
+                Diagnostic Confidence
+              </h4>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-lg font-bold text-white">{crashDiagnosis.confidence}%</span>
+                  <span className={`text-sm font-medium ${crashDiagnosis.confidence >= 85 ? 'text-green-400' :
+                      crashDiagnosis.confidence >= 70 ? 'text-yellow-400' :
+                        'text-blue-400'
+                    }`}>
+                    {crashDiagnosis.confidence >= 85 ? 'High Confidence' :
+                      crashDiagnosis.confidence >= 70 ? 'Medium Confidence' :
+                        'Low Confidence'}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-2">
+                  <div
+                    className={`h-full rounded-full transition-all ${crashDiagnosis.confidence >= 85 ? 'bg-green-500' :
+                        crashDiagnosis.confidence >= 70 ? 'bg-yellow-500' :
+                          'bg-blue-500'
+                      }`}
+                    style={{ width: `${crashDiagnosis.confidence}%` }}
+                  />
+                </div>
               </div>
+            </div>
+          )}
+
+          {/* Main Diagnosis */}
+          <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <AlertCircle className={`w-5 h-5 ${getSeverityColor(crashDiagnosis.severity)}`} />
+              Crash Diagnosis
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="bg-gray-900/50 rounded p-4">
+                <div className="text-sm text-gray-400 mb-1">Crash Type</div>
+                <div className="text-lg font-bold text-white">{crashDiagnosis.crashType}</div>
+              </div>
+              <div className="bg-gray-900/50 rounded p-4">
+                <div className="text-sm text-gray-400 mb-1">Severity</div>
+                <div className={`text-lg font-bold ${getSeverityColor(crashDiagnosis.severity)}`}>
+                  {crashDiagnosis.severity.toUpperCase()}
+                </div>
+              </div>
+              <div className="bg-gray-900/50 rounded p-4">
+                <div className="text-sm text-gray-400 mb-1">Preventable</div>
+                <div className={crashDiagnosis.preventable ? 'text-green-400 text-lg font-bold' : 'text-red-400 text-lg font-bold'}>
+                  {crashDiagnosis.preventable ? '✓ Yes' : '✗ No'}
+                </div>
+              </div>
+              <div className="bg-gray-900/50 rounded p-4">
+                <div className="text-sm text-gray-400 mb-1">Timestamp</div>
+                <div className="text-sm font-mono text-cyan-400">{new Date(crashDiagnosis.timestamp).toLocaleString()}</div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-400 mb-2">Root Cause:</h4>
+                <p className="text-white bg-gray-900/50 p-3 rounded">{crashDiagnosis.rootCause}</p>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-semibold text-gray-400 mb-2">Likely Plugin:</h4>
+                <p className="text-cyan-400 font-mono bg-gray-900/50 p-3 rounded">{crashDiagnosis.likelyPlugin}</p>
+              </div>
+
+              {crashDiagnosis.memoryAddress && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-400 mb-2">Memory Address:</h4>
+                  <p className="text-orange-400 font-mono bg-gray-900/50 p-3 rounded">{crashDiagnosis.memoryAddress}</p>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <h4 className="text-sm font-semibold text-gray-400 mb-2">Root Cause:</h4>
-              <p className="text-white">{crashDiagnosis.rootCause}</p>
+          {/* Technical Analysis */}
+          {crashDiagnosis.technicalAnalysis && (
+            <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-6">
+              <h4 className="text-sm font-semibold text-blue-300 mb-3 flex items-center gap-2">
+                <Brain className="w-4 h-4" />
+                Technical Deep-Dive
+              </h4>
+              <div className="text-sm text-gray-300 space-y-2 whitespace-pre-wrap font-mono text-xs leading-relaxed">
+                {crashDiagnosis.technicalAnalysis}
+              </div>
             </div>
+          )}
 
-            <div>
-              <h4 className="text-sm font-semibold text-gray-400 mb-2">Likely Plugin:</h4>
-              <p className="text-cyan-400 font-mono">{crashDiagnosis.likelyPlugin}</p>
+          {/* Reproduction Steps */}
+          {crashDiagnosis.reproductionSteps && crashDiagnosis.reproductionSteps.length > 0 && (
+            <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-lg p-6">
+              <h4 className="text-sm font-semibold text-yellow-300 mb-3 flex items-center gap-2">
+                <Play className="w-4 h-4" />
+                How to Reproduce
+              </h4>
+              <ol className="space-y-2">
+                {crashDiagnosis.reproductionSteps.map((step, idx) => (
+                  <li key={idx} className="text-sm text-gray-300 flex gap-3">
+                    <span className="font-bold text-yellow-400 flex-shrink-0">{idx + 1}.</span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
             </div>
+          )}
 
-            <div>
-              <h4 className="text-sm font-semibold text-gray-400 mb-2 flex items-center gap-2">
-                <Lightbulb className="w-4 h-4 text-yellow-400" />
-                Recommendations:
+          {/* Related Patterns */}
+          {crashDiagnosis.relatedPatterns && crashDiagnosis.relatedPatterns.length > 0 && (
+            <div className="bg-purple-900/20 border border-purple-700/50 rounded-lg p-6">
+              <h4 className="text-sm font-semibold text-purple-300 mb-3 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Related Patterns Detected
               </h4>
               <div className="space-y-2">
-                {crashDiagnosis.recommendations.map((rec, idx) => (
-                  <div key={idx} className="text-sm text-gray-300 pl-6">
-                    • {rec}
+                {crashDiagnosis.relatedPatterns.map((pattern, idx) => (
+                  <div key={idx} className="bg-purple-900/40 rounded p-3 text-sm text-gray-300">
+                    • {pattern}
                   </div>
                 ))}
               </div>
             </div>
+          )}
 
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-400">Preventable:</span>
-              {crashDiagnosis.preventable ? (
-                <span className="text-green-400 flex items-center gap-1">
-                  <CheckCircle className="w-4 h-4" /> Yes
-                </span>
-              ) : (
-                <span className="text-red-400 flex items-center gap-1">
-                  <XCircle className="w-4 h-4" /> No
-                </span>
-              )}
+          {/* Recommendations */}
+          <div className="bg-green-900/20 border border-green-700/50 rounded-lg p-6">
+            <h4 className="text-sm font-semibold text-green-300 mb-3 flex items-center gap-2">
+              <Lightbulb className="w-4 h-4" />
+              Recommendations
+            </h4>
+            <div className="space-y-2">
+              {crashDiagnosis.recommendations.map((rec, idx) => (
+                <div key={idx} className="text-sm text-gray-300 pl-6 flex gap-2">
+                  <span className="text-green-400 flex-shrink-0">→</span>
+                  <span>{rec}</span>
+                </div>
+              ))}
             </div>
           </div>
+
+          {/* Stack Trace (if available) */}
+          {crashDiagnosis.stackTrace && crashDiagnosis.stackTrace.length > 0 && (
+            <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-6">
+              <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                <FileCode className="w-4 h-4" />
+                Stack Trace
+              </h4>
+              <div className="bg-gray-950 p-3 rounded font-mono text-xs text-gray-400 max-h-64 overflow-y-auto space-y-1">
+                {crashDiagnosis.stackTrace.map((frame, idx) => (
+                  <div key={idx} className="text-gray-500">
+                    {frame}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
