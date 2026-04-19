@@ -82,7 +82,11 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
   // Stop monitor on unmount
   useEffect(() => {
     return () => {
-      if (monitorRef.current) clearInterval(monitorRef.current);
+      if (monitorRef.current) {
+        clearInterval(monitorRef.current);
+        monitorRef.current = null;
+      }
+      setMonitoring(false);
     };
   }, []);
 
@@ -181,15 +185,16 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
     if (!a?.getRunningProcesses) return;
     try {
       const procs: any[] = await a.getRunningProcesses();
-      const ck = (procs || []).filter((p: any) =>
-        String(p?.name || p?.processName || '').toLowerCase().includes('creationkit') ||
-        String(p?.name || p?.processName || '').toLowerCase().includes('ck.exe')
-      );
+      const ck = (procs || []).filter((p: any) => {
+        const name = String(p?.name || p?.processName || '').toLowerCase();
+        return name.includes('creationkit') || name.includes('ck.exe');
+      });
       setCkProcesses(ck);
     } catch (e) { /* silent poll failure */ }
   };
 
   const startMonitoring = async () => {
+    if (monitoring) return; // already running
     const a = api();
     if (!a?.getRunningProcesses) { toast.error('Process monitor API not available'); return; }
     setActiveTab('monitoring');
@@ -554,8 +559,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
             <Shield className="h-4 w-4" /> Validate
           </button>
           <button
-            onClick={monitoring ? stopMonitoring : startMonitoring}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-500"
+            onClick={monitoring ? stopMonitoring : startMonitoring}            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-500"
           >
             <Activity className="h-4 w-4" /> {monitoring ? 'Stop Monitor' : 'Monitor'}
           </button>
