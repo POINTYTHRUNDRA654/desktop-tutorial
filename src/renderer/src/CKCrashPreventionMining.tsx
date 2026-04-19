@@ -1570,7 +1570,13 @@ Format your response clearly with headers and bullet points.`;
                     <span>SCANNING SECTOR 7G...</span><span>{scanProgress}%</span>
                   </div>
                   <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 transition-all duration-100" role="progressbar" aria-label="Scan progress" aria-valuenow={Math.round(scanProgress)} aria-valuemin={0} aria-valuemax={100} style={{ width: `${scanProgress}%` }} />
+                    {/* @stylistic/no-restricted-style-properties */}
+                    <div
+                      className="h-full bg-emerald-500 transition-all duration-100"
+                      role="progressbar"
+                      aria-label="Scan progress"
+                      style={{ width: `${scanProgress}%` }}
+                    />
                   </div>
                 </div>
               )}
@@ -1800,24 +1806,19 @@ Format your response clearly with headers and bullet points.`;
   };
   const handlePickESP = async () => {
     try {
-      const result = await window.electron.api.openDialog({
-        title: 'Select ESP/ESM File',
-        filters: [
-          { name: 'Plugin Files', extensions: ['esp', 'esm', 'esl'] },
-          { name: 'All Files', extensions: ['*'] }
-        ],
-        properties: ['openFile']
-      });
+      const api = (window as any).electron?.api || (window as any).electronAPI;
+      if (!api?.ckPickPlugin) {
+        toast.error('File picker not available - try pasting the path directly');
+        return;
+      }
 
-      if (result && result.length > 0) {
-        setEspPath(result[0]);
-        setValidationStatus('idle');
-        setValidationResult(null);
-        setPreventionPlan(null);
+      const result = await api.ckPickPlugin();
+      if (result.success && result.path) {
+        setEspPath(result.path);
       }
     } catch (error) {
       console.error('File picker error:', error);
-      toast.error('Failed to open file picker');
+      toast.error('File picker error - you can paste the path directly into the field');
     }
   };
 
@@ -1832,14 +1833,33 @@ Format your response clearly with headers and bullet points.`;
     setPreventionPlan(null);
 
     try {
-      // Call mining engine via IPC
-      const result: ESPValidationResult = await (window.electron.api as any).ckValidate(espPath);
+      // Call mining engine via IPC - pass the espPath directly
+      const api = (window as any).electron?.api || (window as any).electronAPI;
+      if (!api?.ckValidate) {
+        throw new Error('Validation service not available');
+      }
+
+      const result = await api.ckValidate(espPath);
+
+      if (!result) {
+        throw new Error('No validation result returned');
+      }
+
       setValidationResult(result);
-      setValidationStatus(result.valid ? 'valid' : 'invalid');
+      setValidationStatus(result.isValid ? 'valid' : 'invalid');
+
+      if (result.isValid) {
+        toast.success('Plugin validation passed!');
+      } else {
+        toast.error(`Validation found ${result.issues?.length || 0} issues`);
+      }
 
       // Generate prevention plan
-      const plan: PreventionPlan = await (window.electron.api as any).ckGeneratePreventionPlan(result);
-      setPreventionPlan(plan);
+      const planResponse = await api.ckGeneratePreventionPlan(result);
+      const plan = planResponse.plan || planResponse;
+      if (plan) {
+        setPreventionPlan(plan);
+      }
     } catch (error) {
       console.error('Validation error:', error);
       toast.error('Validation failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -1928,18 +1948,19 @@ Format your response clearly with headers and bullet points.`;
     setCrashDiagnosis(null);
 
     try {
-      const response = await (window.electron.api as any).ckAnalyzeCrash(pathToAnalyze);
-
-      // Handle response structure
-      if (response.success && response.diagnosis) {
-        setCrashDiagnosis(response.diagnosis);
-        toast.success('Crash analysis complete');
-      } else if (response.error) {
-        toast.error('Analysis failed: ' + response.error);
-      } else {
-        // Fallback: treat response as diagnosis directly if structure changed
-        setCrashDiagnosis(response);
+      const api = (window as any).electron?.api || (window as any).electronAPI;
+      if (!api?.ckAnalyzeCrash) {
+        throw new Error('Analysis service not available');
       }
+
+      const diagnosis = await api.ckAnalyzeCrash(pathToAnalyze);
+
+      if (!diagnosis) {
+        throw new Error('No diagnosis returned');
+      }
+
+      setCrashDiagnosis(diagnosis);
+      toast.success('Crash analysis complete');
     } catch (error) {
       console.error('Crash analysis error:', error);
       toast.error('Analysis failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -2045,19 +2066,25 @@ Format your response clearly with headers and bullet points.`;
             type="text"
             value={espPath}
             onChange={(e) => setEspPath(e.target.value)}
-            placeholder="Path to ESP/ESM file..."
-            className="flex-1 px-4 py-2 bg-gray-900 border border-gray-700 rounded text-white"
+            onPaste={(e) => {
+              // Allow paste - browser handles this automatically
+              e.preventDefault();
+              const text = e.clipboardData?.getData('text') || '';
+              setEspPath(text);
+            }}
+            placeholder="Drag & drop, paste path, or click Browse..."
+            className="flex-1 px-4 py-2 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
           />
           <button
             onClick={handlePickESP}
-            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition-colors"
+            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition-colors font-semibold"
           >
             Browse
           </button>
           <button
             onClick={handleValidate}
             disabled={!espPath || validationStatus === 'validating'}
-            className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors flex items-center gap-2"
+            className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors flex items-center gap-2 font-semibold"
           >
             <Shield className="w-4 h-4" />
             {validationStatus === 'validating' ? 'Validating...' : 'Validate'}
@@ -2315,8 +2342,8 @@ Format your response clearly with headers and bullet points.`;
           {/* Professional Confidence Score */}
           {crashDiagnosis.confidence !== undefined && (
             <div className={`rounded-lg p-6 border ${crashDiagnosis.confidence >= 85 ? 'bg-green-900/20 border-green-700/50' :
-                crashDiagnosis.confidence >= 70 ? 'bg-yellow-900/20 border-yellow-700/50' :
-                  'bg-blue-900/20 border-blue-700/50'
+              crashDiagnosis.confidence >= 70 ? 'bg-yellow-900/20 border-yellow-700/50' :
+                'bg-blue-900/20 border-blue-700/50'
               }`}>
               <h4 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4" />
@@ -2326,8 +2353,8 @@ Format your response clearly with headers and bullet points.`;
                 <div className="flex items-center justify-between">
                   <span className="text-lg font-bold text-white">{crashDiagnosis.confidence}%</span>
                   <span className={`text-sm font-medium ${crashDiagnosis.confidence >= 85 ? 'text-green-400' :
-                      crashDiagnosis.confidence >= 70 ? 'text-yellow-400' :
-                        'text-blue-400'
+                    crashDiagnosis.confidence >= 70 ? 'text-yellow-400' :
+                      'text-blue-400'
                     }`}>
                     {crashDiagnosis.confidence >= 85 ? 'High Confidence' :
                       crashDiagnosis.confidence >= 70 ? 'Medium Confidence' :
@@ -2335,10 +2362,11 @@ Format your response clearly with headers and bullet points.`;
                   </span>
                 </div>
                 <div className="w-full bg-gray-700 rounded-full h-2">
+                  {/* eslint-disable-next-line react/style-prop-object */}
                   <div
                     className={`h-full rounded-full transition-all ${crashDiagnosis.confidence >= 85 ? 'bg-green-500' :
-                        crashDiagnosis.confidence >= 70 ? 'bg-yellow-500' :
-                          'bg-blue-500'
+                      crashDiagnosis.confidence >= 70 ? 'bg-yellow-500' :
+                        'bg-blue-500'
                       }`}
                     style={{ width: `${crashDiagnosis.confidence}%` }}
                   />

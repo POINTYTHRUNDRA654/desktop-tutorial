@@ -43,9 +43,11 @@ export default function AutomationManager() {
 
   const loadSettings = async () => {
     try {
-      const settings = await window.automationAPI?.automation.getSettings();
-      setIsEnabled(settings.enabled);
-      setRules(settings.rules);
+      const settings = await (window.electron.api as any).automation?.getSettings();
+      if (settings) {
+        setIsEnabled(settings.enabled);
+        setRules(settings.rules);
+      }
     } catch (error) {
       console.error('Failed to load automation settings:', error);
     }
@@ -53,8 +55,10 @@ export default function AutomationManager() {
 
   const loadStatistics = async () => {
     try {
-      const statistics = await window.automationAPI?.automation.getStatistics();
-      setStats(statistics);
+      const statistics = await (window.electron.api as any).automation?.getStatistics();
+      if (statistics) {
+        setStats(statistics);
+      }
     } catch (error) {
       console.error('Failed to load statistics:', error);
     }
@@ -63,10 +67,10 @@ export default function AutomationManager() {
   const toggleEngine = async () => {
     try {
       if (stats?.isRunning) {
-        await window.automationAPI?.automation.stop();
+        await (window.electron.api as any).automation?.stop();
         showMessage('Automation engine stopped');
       } else {
-        await window.automationAPI?.automation.start();
+        await (window.electron.api as any).automation?.start();
         showMessage('Automation engine started');
       }
       await loadStatistics();
@@ -77,7 +81,7 @@ export default function AutomationManager() {
 
   const toggleRule = async (ruleId: string, enabled: boolean) => {
     try {
-      await window.automationAPI?.automation.toggleRule(ruleId, enabled);
+      await (window.electron.api as any).automation?.toggleRule(ruleId, enabled);
       await loadSettings();
       showMessage(`Rule ${enabled ? 'enabled' : 'disabled'}`);
     } catch (error) {
@@ -87,7 +91,7 @@ export default function AutomationManager() {
 
   const triggerRule = async (ruleId: string) => {
     try {
-      await window.automationAPI?.automation.triggerRule(ruleId);
+      await (window.electron.api as any).automation?.triggerRule(ruleId);
       showMessage('Rule triggered manually');
       await loadStatistics();
     } catch (error) {
@@ -97,7 +101,7 @@ export default function AutomationManager() {
 
   const resetStatistics = async () => {
     try {
-      await window.automationAPI?.automation.resetStatistics();
+      await (window.electron.api as any).automation?.resetStatistics();
       await loadStatistics();
       showMessage('Statistics reset');
     } catch (error) {
@@ -147,15 +151,14 @@ export default function AutomationManager() {
             Automatic background processes for Fallout 4 modding
           </p>
         </div>
-        
+
         <div className="flex gap-2">
           <button
             onClick={toggleEngine}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition ${
-              stats?.isRunning
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition ${stats?.isRunning
                 ? 'bg-red-600 hover:bg-red-700 text-white'
                 : 'bg-green-600 hover:bg-green-700 text-white'
-            }`}
+              }`}
           >
             {stats?.isRunning ? (
               <>
@@ -246,7 +249,7 @@ export default function AutomationManager() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4 flex-1">
                     <div className="text-2xl">{getTriggerIcon(rule.trigger)}</div>
-                    
+
                     <div className="flex-1">
                       <h3 className="font-semibold text-slate-100 mb-1">{rule.name}</h3>
                       <div className="flex gap-4 text-sm text-slate-400">
@@ -266,14 +269,13 @@ export default function AutomationManager() {
                     >
                       Trigger Now
                     </button>
-                    
+
                     <button
                       onClick={() => toggleRule(rule.id, !rule.enabled)}
-                      className={`px-3 py-1 text-sm rounded transition ${
-                        rule.enabled
+                      className={`px-3 py-1 text-sm rounded transition ${rule.enabled
                           ? 'bg-green-600 hover:bg-green-700 text-white'
                           : 'bg-slate-600 hover:bg-slate-500 text-slate-200'
-                      }`}
+                        }`}
                     >
                       {rule.enabled ? 'Enabled' : 'Disabled'}
                     </button>

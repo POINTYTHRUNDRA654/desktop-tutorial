@@ -152,17 +152,17 @@ export const DDSConverter: React.FC = () => {
 
       // Generate preview using image info API
       try {
-        const imageInfo = await (window.electronAPI as any).getImageInfo(filePath);
-        if (imageInfo && (imageInfo as any).data) {
-          // Set preview as base64 data URL
+        const imageInfo = await (window.electron.api as any).getImageInfo(filePath);
+        if (imageInfo) {
+          // imageInfo is the data object directly, not wrapped
           setSingleFile(prev => prev ? {
             ...prev,
-            preview: `data:image/${imageInfo.format || 'png'};base64,${(imageInfo as any).data}`
+            format: (imageInfo as any).format
           } : null);
         }
       } catch (previewError) {
-        console.warn('Failed to generate preview:', previewError);
-        // Preview is optional, don't fail the whole operation
+        console.warn('Failed to load image info:', previewError);
+        // Image info is optional, don't fail the whole operation
       }
 
       setSingleResult(null);
@@ -338,8 +338,8 @@ export const DDSConverter: React.FC = () => {
         <button
           onClick={() => setActiveSection('single')}
           className={`flex-1 py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeSection === 'single'
-              ? 'bg-purple-600 text-white'
-              : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
+            ? 'bg-purple-600 text-white'
+            : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
             }`}
         >
           <FileImage size={18} />
@@ -348,8 +348,8 @@ export const DDSConverter: React.FC = () => {
         <button
           onClick={() => setActiveSection('batch')}
           className={`flex-1 py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeSection === 'batch'
-              ? 'bg-purple-600 text-white'
-              : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
+            ? 'bg-purple-600 text-white'
+            : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
             }`}
         >
           <Layers size={18} />
@@ -358,8 +358,8 @@ export const DDSConverter: React.FC = () => {
         <button
           onClick={() => setActiveSection('guide')}
           className={`flex-1 py-3 px-4 rounded-md font-medium transition-all flex items-center justify-center gap-2 ${activeSection === 'guide'
-              ? 'bg-purple-600 text-white'
-              : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
+            ? 'bg-purple-600 text-white'
+            : 'bg-transparent text-gray-400 hover:text-white hover:bg-slate-700'
             }`}
         >
           <HelpCircle size={18} />

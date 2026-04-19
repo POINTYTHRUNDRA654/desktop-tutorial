@@ -4990,6 +4990,175 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // --- DDS Converter: Pick files for conversion ---
+  registerHandler('dds-converter:pick-files', async () => {
+    try {
+      const result = await dialog.showOpenDialog(mainWindow!, {
+        title: 'Select DDS/Texture Files to Convert',
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+          { name: 'Texture Files', extensions: ['dds', 'png', 'tga', 'bmp', 'jpg', 'jpeg'] },
+          { name: 'DDS Files', extensions: ['dds'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      });
+
+      if (result.canceled || !result.filePaths?.length) {
+        return { success: false, paths: [], error: 'No files selected' };
+      }
+
+      console.log(`[DDS Converter] Selected ${result.filePaths.length} file(s) for conversion`);
+      return {
+        success: true,
+        paths: result.filePaths
+      };
+    } catch (e: any) {
+      console.error('[DDS Converter] File picker error:', e);
+      return { success: false, paths: [], error: e?.message || 'File picker failed' };
+    }
+  });
+
+  // --- DDS Converter: Get all conversion presets ---
+  registerHandler('dds-converter:get-all-presets', async () => {
+    try {
+      // Standard DDS/texture conversion presets for Fallout 4 modding
+      const presets = [
+        {
+          id: 'fo4-diffuse-2k',
+          name: 'Fallout 4 Diffuse (2K)',
+          format: 'DDS',
+          compression: 'BC1/DXT1',
+          width: 2048,
+          height: 2048,
+          mipmaps: true,
+          colorSpace: 'sRGB',
+          description: 'Standard 2K diffuse/albedo texture for Fallout 4'
+        },
+        {
+          id: 'fo4-diffuse-4k',
+          name: 'Fallout 4 Diffuse (4K)',
+          format: 'DDS',
+          compression: 'BC1/DXT1',
+          width: 4096,
+          height: 4096,
+          mipmaps: true,
+          colorSpace: 'sRGB',
+          description: 'High-quality 4K diffuse/albedo texture for Fallout 4'
+        },
+        {
+          id: 'fo4-normal-2k',
+          name: 'Fallout 4 Normal Map (2K)',
+          format: 'DDS',
+          compression: 'BC5/DXT5',
+          width: 2048,
+          height: 2048,
+          mipmaps: true,
+          colorSpace: 'Linear',
+          description: 'Standard 2K normal map for Fallout 4'
+        },
+        {
+          id: 'fo4-normal-4k',
+          name: 'Fallout 4 Normal Map (4K)',
+          format: 'DDS',
+          compression: 'BC5/DXT5',
+          width: 4096,
+          height: 4096,
+          mipmaps: true,
+          colorSpace: 'Linear',
+          description: 'High-quality 4K normal map for Fallout 4'
+        },
+        {
+          id: 'fo4-roughness-2k',
+          name: 'Fallout 4 Roughness (2K)',
+          format: 'DDS',
+          compression: 'BC4',
+          width: 2048,
+          height: 2048,
+          mipmaps: true,
+          colorSpace: 'Linear',
+          description: 'Standard 2K roughness map for Fallout 4'
+        },
+        {
+          id: 'fo4-roughness-4k',
+          name: 'Fallout 4 Roughness (4K)',
+          format: 'DDS',
+          compression: 'BC4',
+          width: 4096,
+          height: 4096,
+          mipmaps: true,
+          colorSpace: 'Linear',
+          description: 'High-quality 4K roughness map for Fallout 4'
+        },
+        {
+          id: 'generic-png',
+          name: 'Generic PNG',
+          format: 'PNG',
+          compression: 'None',
+          width: 2048,
+          height: 2048,
+          mipmaps: false,
+          colorSpace: 'sRGB',
+          description: 'Standard PNG texture (no compression)'
+        },
+        {
+          id: 'generic-tga',
+          name: 'Generic TGA',
+          format: 'TGA',
+          compression: 'None',
+          width: 2048,
+          height: 2048,
+          mipmaps: false,
+          colorSpace: 'sRGB',
+          description: 'Standard TGA texture (no compression)'
+        }
+      ];
+
+      console.log('[DDS Converter] Returning', presets.length, 'conversion presets');
+      return {
+        success: true,
+        presets,
+        count: presets.length
+      };
+    } catch (e: any) {
+      console.error('[DDS Converter] Get presets error:', e);
+      return { success: false, presets: [], error: e?.message || 'Failed to get presets' };
+    }
+  });
+
+  // --- Image Info: Get image metadata ---
+  registerHandler('image-get-info', async (_event, filePath: string) => {
+    try {
+      if (!filePath || typeof filePath !== 'string') {
+        return null;
+      }
+
+      if (!fs.existsSync(filePath)) {
+        console.warn('[Image Info] File not found:', filePath);
+        return null;
+      }
+
+      const ext = path.extname(filePath).toLowerCase();
+      const stat = fs.statSync(filePath);
+
+      // For now, return basic file information
+      // In production, we would use a library like 'jimp' or 'sharp' to read actual image dimensions
+      const info = {
+        width: 2048, // placeholder
+        height: 2048, // placeholder
+        format: ext.substring(1).toUpperCase(),
+        colorSpace: 'sRGB',
+        fileSize: stat.size,
+        fileName: path.basename(filePath)
+      };
+
+      console.log(`[Image Info] Retrieved metadata for ${path.basename(filePath)}`);
+      return info;
+    } catch (e: any) {
+      console.error('[Image Info] Error:', e);
+      return null;
+    }
+  });
+
   // --- Texture Generator: Generate complete PBR material set ---
   registerHandler('texture-generator:generate-material-set', async (_event, input: any) => {
     try {
@@ -5296,10 +5465,10 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
       const engine = new CKCrashPreventionEngine();
       const result = await engine.validateESP(espPath);
-      return { success: true, result };
+      return result; // Return the validation result directly
     } catch (error: any) {
       console.error('CK validation error:', error);
-      return { success: false, error: error.message };
+      throw error; // Let IPC error handling catch it
     }
   });
 
@@ -5308,10 +5477,10 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
       const engine = new CKCrashPreventionEngine();
       const diagnosis = await engine.analyzeCrashLog(logPath);
-      return { success: true, diagnosis };
+      return diagnosis; // Return the diagnosis directly
     } catch (error: any) {
       console.error('Crash analysis error:', error);
-      return { success: false, error: error.message };
+      throw error; // Let IPC error handling catch it
     }
   });
 
@@ -5320,10 +5489,10 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
       const engine = new CKCrashPreventionEngine();
       const plan = engine.generatePreventionPlan(validation);
-      return { success: true, plan };
+      return plan; // Return the plan directly
     } catch (error: any) {
       console.error('Plan generation error:', error);
-      return { success: false, error: error.message };
+      throw error; // Let IPC error handling catch it
     }
   });
 
@@ -5336,6 +5505,23 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         { name: 'All Files', extensions: ['*'] }
       ],
       title: 'Select CK Crash Log'
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { success: true, path: result.filePaths[0] };
+    }
+    return { success: false };
+  });
+
+  // Pick ESP/ESM/ELS plugin file
+  registerHandler('ck-crash-prevention:pick-plugin', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: 'Plugin Files', extensions: ['esp', 'esm', 'esl'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      title: 'Select ESP/ESM/ELS Plugin File'
     });
 
     if (!result.canceled && result.filePaths.length > 0) {
