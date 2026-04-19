@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Book, Code, Keyboard, Hash, ChevronDown, ChevronUp, Zap, FileCode, Terminal, Palette } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Book, Code, Keyboard, Hash, ChevronDown, ChevronUp, Zap, FileCode, Terminal, Palette, Copy, Check } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface ReferenceSection {
@@ -24,6 +25,7 @@ type QuickReferenceProps = {
 export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false }) => {
   const [expandedSections, setExpandedSections] = useState<string[]>(['papyrus']);
   const [searchQuery, setSearchQuery] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections(prev =>
@@ -31,6 +33,23 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
         ? prev.filter(id => id !== sectionId)
         : [...prev, sectionId]
     );
+  };
+
+  const copyToClipboard = (text: string, itemKey: string) => {
+    const doWrite = (t: string) =>
+      navigator.clipboard
+        ? navigator.clipboard.writeText(t)
+        : Promise.reject(new Error('Clipboard API unavailable'));
+
+    doWrite(text)
+      .then(() => {
+        setCopiedId(itemKey);
+        toast.success('Copied to clipboard!');
+        setTimeout(() => setCopiedId(prev => (prev === itemKey ? null : prev)), 1500);
+      })
+      .catch(() => {
+        toast.error('Copy failed — please select and copy manually.');
+      });
   };
 
   const references: ReferenceSection[] = [
@@ -228,10 +247,10 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
           </div>
           {!embedded && (
             <Link
-              to="/reference"
+              to="/knowledge"
               className="px-3 py-2 border border-emerald-500/30 text-[10px] font-black uppercase tracking-widest text-emerald-200 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
             >
-              Help
+              Knowledge Base
             </Link>
           )}
         </div>
@@ -319,13 +338,14 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
                           )}
                         </div>
                         <button
-                          onClick={() => navigator.clipboard.writeText(item.example || item.name)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-emerald-400"
+                          onClick={() => copyToClipboard(item.example || item.name, `${section.id}-${index}`)}
+                          className="shrink-0 text-slate-500 hover:text-emerald-400 transition-colors"
                           title="Copy to clipboard"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
+                          {copiedId === `${section.id}-${index}`
+                            ? <Check className="w-4 h-4 text-emerald-400" />
+                            : <Copy className="w-4 h-4" />
+                          }
                         </button>
                       </div>
                     </div>
