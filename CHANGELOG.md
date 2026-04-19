@@ -4,7 +4,14 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.33] — Latest
+## [5.4.34] — Latest
+
+### Added
+- **Tutorial reordered** — the Guided Tour welcome sequence now matches the updated sidebar lineup, with Mod Projects and Modding Roadmaps steps inserted after the First Success Wizard
+
+---
+
+## [5.4.33]
 
 ### Added
 - **Multi-Language Support** — Mossy now supports 12 languages. Choose your preferred language in Settings → Language Settings.
