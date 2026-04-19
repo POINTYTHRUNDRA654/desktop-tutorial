@@ -4269,6 +4269,12 @@ export interface ElectronAPI {
   assetValidateBatch?: (files: string[], progressCallback?: (progress: number) => void) => Promise<{ success: boolean; results?: any[]; error?: string }>;
   assetValidationAutoFix?: (issues: any[]) => Promise<{ success: boolean; fixed?: any[]; error?: string }>;
 
+  /** Apply an automatic fix to a plugin file.
+   *  fixType: 'set_esl_flag' | 'generate_udr_script' | 'generate_itm_script'
+   *  Creates a .bak backup before any in-place modification.
+   */
+  applyEspFix?: (filePath: string, fixType: string) => Promise<{ success: boolean; message?: string; backedUpTo?: string | null; scriptPath?: string; scriptContent?: string; error?: string }>;
+
   // Asset Validator (alternative namespace)
   assetValidatorValidateFile?: (filePath: string, type: string) => Promise<any>;
   assetValidatorValidateMod?: (modPath: string, depth?: 'quick' | 'standard' | 'deep') => Promise<any>;
