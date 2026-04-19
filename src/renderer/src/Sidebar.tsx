@@ -74,9 +74,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/chat', icon: MessageSquare, label: t('nav.chat', 'AI Chat') },
     { to: '/ai-mod-assistant', icon: Code, label: t('nav.aiModAssistant', 'AI Mod Assistant') },
     { to: '/first-success', icon: CheckCircle2, label: t('nav.firstSuccess', 'First Success') },
+    { to: '/project', icon: Sparkles, label: t('nav.modProjects', 'Mod Projects') },
     { to: '/roadmap', icon: Target, label: t('nav.roadmap', 'Modding Roadmaps') },
     { to: '/whats-new', icon: Star, label: t('nav.whatsNew', "What's New") },
-    { to: '/project', icon: Sparkles, label: t('nav.modProjects', 'Mod Projects') },
     { to: '/mods', icon: Download, label: t('nav.modBrowser', 'Mod Browser') },
 
     // === CORE LEARNING: GUIDES & REFERENCES ===
