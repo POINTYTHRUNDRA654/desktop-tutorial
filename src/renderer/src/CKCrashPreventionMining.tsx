@@ -21,7 +21,6 @@ import ProjectWizard from './components/ProjectWizard';
 import GameLogMonitor from './GameLogMonitor';
 import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
 import { workerManager } from './WorkerManager';
-import { cacheManager } from './CacheManager';
 import { openExternal } from './utils/openExternal';
 
 // Types from mining engine
@@ -835,28 +834,17 @@ Format your response clearly with headers and bullet points.`;
 
       if (f.name.endsWith('.esp') || f.name.endsWith('.esm') || f.name.endsWith('.esl')) {
         try {
-          const cached = await cacheManager.getCachedAnalysisResult(f.name);
-          if (cached) {
-            fileSize = fmtMB(cached);
-            if (cached.issues && cached.issues.length > 0) {
-              newIssues.push(...mapESPIssues(cached.issues, 'esp-cached'));
-              status = statusFromIssues(cached.issues);
-            } else if (cached.warnings && cached.warnings.length > 0) {
-              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `esp-cached-${i}`, severity: 'warning' as const, message: 'Plugin Warning', technicalDetails: w })));
-              status = 'warning';
-            } else {
-              status = 'clean';
-            }
+          // Always re-read and re-analyze the file on each scan (bypassCache: true).
+          // Keying the cache only by filename means a backup or updated file with the
+          // same name would otherwise silently return stale results from a previous scan.
+          const fileBuffer = await auditReadFileAsArrayBuffer(f.path);
+          const analysis = await workerManager.analyzeAsset('esp', fileBuffer, f.name, undefined, true);
+          fileSize = fmtMB(analysis);
+          if (analysis.issues && analysis.issues.length > 0) {
+            newIssues.push(...mapESPIssues(analysis.issues, 'esp-issue'));
+            status = statusFromIssues(analysis.issues);
           } else {
-            const fileBuffer = await auditReadFileAsArrayBuffer(f.path);
-            const analysis = await workerManager.analyzeAsset('esp', fileBuffer, f.name);
-            fileSize = fmtMB(analysis);
-            if (analysis.issues && analysis.issues.length > 0) {
-              newIssues.push(...mapESPIssues(analysis.issues, 'esp-issue'));
-              status = statusFromIssues(analysis.issues);
-            } else {
-              status = 'clean';
-            }
+            status = 'clean';
           }
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -866,44 +854,28 @@ Format your response clearly with headers and bullet points.`;
         }
       } else if (f.name.endsWith('.nif')) {
         try {
-          const cached = await cacheManager.getCachedAnalysisResult(f.name);
-          if (cached) {
-            fileSize = `${(cached.fileSize / 1024).toFixed(2)} KB`;
-            if (cached.warnings && cached.warnings.length > 0) {
-              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `nif-warning-${i}`, severity: (w.includes('absolute path') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('High') ? 'Performance Issue' : w.includes('absolute') ? 'Path Issue' : 'Warning', technicalDetails: w })));
-              status = cached.warnings.some((w: string) => w.includes('absolute path')) ? 'error' : 'warning';
-            } else { status = 'clean'; }
-          } else {
-            const fileBuffer = await auditReadFileAsArrayBuffer(f.path);
-            const analysis = await workerManager.analyzeAsset('nif', fileBuffer, f.name);
-            fileSize = `${(analysis.fileSize / 1024).toFixed(2)} KB`;
-            if (analysis.warnings && analysis.warnings.length > 0) {
-              newIssues.push(...analysis.warnings.map((w: string, i: number) => ({ id: `nif-warning-${i}`, severity: (w.includes('absolute path') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('High') ? 'Performance Issue' : w.includes('absolute') ? 'Path Issue' : 'Warning', technicalDetails: w })));
-              status = analysis.warnings.some((w: string) => w.includes('absolute path')) ? 'error' : 'warning';
-            } else { status = 'clean'; }
-          }
+          // Always re-analyze on each scan — do not serve stale cache by filename.
+          const fileBuffer = await auditReadFileAsArrayBuffer(f.path);
+          const analysis = await workerManager.analyzeAsset('nif', fileBuffer, f.name, undefined, true);
+          fileSize = `${(analysis.fileSize / 1024).toFixed(2)} KB`;
+          if (analysis.warnings && analysis.warnings.length > 0) {
+            newIssues.push(...analysis.warnings.map((w: string, i: number) => ({ id: `nif-warning-${i}`, severity: (w.includes('absolute path') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('High') ? 'Performance Issue' : w.includes('absolute') ? 'Path Issue' : 'Warning', technicalDetails: w })));
+            status = analysis.warnings.some((w: string) => w.includes('absolute path')) ? 'error' : 'warning';
+          } else { status = 'clean'; }
         } catch (error) {
           newIssues.push({ id: 'nif-error', severity: 'warning', message: 'NIF analysis unavailable', technicalDetails: `Could not read NIF file: ${error instanceof Error ? error.message : 'Unknown error'}` });
           status = 'warning';
         }
       } else if (f.name.endsWith('.dds')) {
         try {
-          const cached = await cacheManager.getCachedAnalysisResult(f.name);
-          if (cached) {
-            fileSize = `${(cached.fileSize / 1024).toFixed(2)} KB`;
-            if (cached.warnings && cached.warnings.length > 0) {
-              newIssues.push(...cached.warnings.map((w: string, i: number) => ({ id: `dds-warning-${i}`, severity: (w.includes('Uncompressed') || w.includes('Non-Power-of-Two') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('Uncompressed') ? 'Compression Issue' : w.includes('4K') ? 'Resolution Issue' : w.includes('Non-Power-of-Two') ? 'Dimension Issue' : 'Warning', technicalDetails: w })));
-              status = cached.warnings.some((w: string) => w.includes('Uncompressed') || w.includes('Non-Power-of-Two')) ? 'error' : 'warning';
-            } else { status = 'clean'; }
-          } else {
-            const fileBuffer = await auditReadFileAsArrayBuffer(f.path);
-            const analysis = await workerManager.analyzeAsset('dds', fileBuffer, f.name);
-            fileSize = `${(analysis.fileSize / 1024).toFixed(2)} KB`;
-            if (analysis.warnings && analysis.warnings.length > 0) {
-              newIssues.push(...analysis.warnings.map((w: string, i: number) => ({ id: `dds-warning-${i}`, severity: (w.includes('Uncompressed') || w.includes('Non-Power-of-Two') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('Uncompressed') ? 'Compression Issue' : w.includes('4K') ? 'Resolution Issue' : w.includes('Non-Power-of-Two') ? 'Dimension Issue' : 'Warning', technicalDetails: w })));
-              status = analysis.warnings.some((w: string) => w.includes('Uncompressed') || w.includes('Non-Power-of-Two')) ? 'error' : 'warning';
-            } else { status = 'clean'; }
-          }
+          // Always re-analyze on each scan — do not serve stale cache by filename.
+          const fileBuffer = await auditReadFileAsArrayBuffer(f.path);
+          const analysis = await workerManager.analyzeAsset('dds', fileBuffer, f.name, undefined, true);
+          fileSize = `${(analysis.fileSize / 1024).toFixed(2)} KB`;
+          if (analysis.warnings && analysis.warnings.length > 0) {
+            newIssues.push(...analysis.warnings.map((w: string, i: number) => ({ id: `dds-warning-${i}`, severity: (w.includes('Uncompressed') || w.includes('Non-Power-of-Two') ? 'error' : 'warning') as 'error' | 'warning', message: w.includes('Uncompressed') ? 'Compression Issue' : w.includes('4K') ? 'Resolution Issue' : w.includes('Non-Power-of-Two') ? 'Dimension Issue' : 'Warning', technicalDetails: w })));
+            status = analysis.warnings.some((w: string) => w.includes('Uncompressed') || w.includes('Non-Power-of-Two')) ? 'error' : 'warning';
+          } else { status = 'clean'; }
         } catch (error) {
           newIssues.push({ id: 'dds-error', severity: 'warning', message: 'DDS analysis unavailable', technicalDetails: `Could not read DDS file: ${error instanceof Error ? error.message : 'Unknown error'}` });
           status = 'warning';
@@ -978,7 +950,7 @@ Format your response clearly with headers and bullet points.`;
       const navmeshContext = isNavmeshIssue
         ? '\nThis is a NAVMESH issue. Explain the xEdit "Change FormID" fix: load plugin in xEdit 4.0.3+, find [D] NAVM records, copy the deleted FormID, find the replacement NAVM the mod added, right-click → Change FormID → paste the copied FormID → accept "Update all references", then remove the original deleted record.'
         : '';
-      const prompt = `Act as an expert Fallout 4 Modder AI assistant named Mossy.\nThe user has a file with the following error:\nError: ${issue.message}\nDetails: ${issue.technicalDetails}\n${navmeshContext}\nExplain clearly why this is a problem for Fallout 4 stability and give the user exact manual steps to fix it. Be concise and friendly.`;
+      const prompt = `Act as an expert Fallout 4 Modder AI assistant named Mossy.\nThe user has a file with the following error:\nError: ${issue.message}\nDetails: ${issue.technicalDetails}\n${navmeshContext}\nIMPORTANT: You cannot modify any files directly — you can only provide instructions. Do NOT say you have fixed, applied, or resolved anything. Give the user exact manual steps they must perform themselves (using xEdit, Creation Kit, or other tools) to fix this issue. Be concise and friendly.`;
       const api = (window as any).electronAPI ?? (window as any).electron?.api;
       if (!api?.aiChatGroq && !api?.aiChatOpenAI) { setAuditAdvice('⚠️ AI advice is unavailable in this build.'); return; }
       const res = api.aiChatGroq
