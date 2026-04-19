@@ -146,7 +146,7 @@ const MOD_TEMPLATES: ModTemplate[] = [
 
 const TheBlueprint: React.FC = () => {
     const [selectedTemplate, setSelectedTemplate] = useState<ModTemplate>(MOD_TEMPLATES[0]);
-    const [expandedStructure, setExpandedStructure] = useState<string | null>(null);
+    const [expandedStructure, setExpandedStructure] = useState<string>('structure');
     const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
     const detailsScrollRef = useRef<HTMLDivElement | null>(null);
@@ -287,7 +287,7 @@ const TheBlueprint: React.FC = () => {
                     {/* Content Area */}
                     <div ref={detailsScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-4">
                         {/* FOLDER STRUCTURE TAB */}
-                        {expandedStructure !== 'components' && expandedStructure !== 'dependencies' && (
+                        {expandedStructure === 'structure' && (
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="font-semibold text-slate-200">Folder & File Structure</h3>
@@ -303,7 +303,12 @@ const TheBlueprint: React.FC = () => {
                                     </button>
                                 </div>
                                 {selectedTemplate.structure.map((item, idx) => (
-                                    <div key={idx} className="bg-[#252526] border border-slate-700 rounded p-3 hover:border-slate-600 transition-colors">
+                                    <div
+                                        key={idx}
+                                        onClick={() => handleCopyPath(item.path)}
+                                        className="bg-[#252526] border border-slate-700 rounded p-3 hover:border-amber-500/60 hover:bg-[#2d2d30] transition-colors cursor-pointer"
+                                        title="Click to copy path"
+                                    >
                                         <div className="flex items-start justify-between mb-1">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-amber-400 font-mono text-sm">
@@ -311,16 +316,13 @@ const TheBlueprint: React.FC = () => {
                                                 </span>
                                                 <code className="text-slate-300 font-mono text-xs">{item.path}</code>
                                             </div>
-                                            <button
-                                                onClick={() => handleCopyPath(item.path)}
-                                                className="p-1 hover:bg-slate-600 rounded transition-colors"
-                                            >
+                                            <span className="p-1 shrink-0">
                                                 {copiedPath === item.path ? (
                                                     <CheckCircle2 className="w-3 h-3 text-green-400" />
                                                 ) : (
                                                     <Copy className="w-3 h-3 text-slate-500" />
                                                 )}
-                                            </button>
+                                            </span>
                                         </div>
                                         <p className="text-[10px] text-slate-500 pl-6">{item.description}</p>
                                     </div>
