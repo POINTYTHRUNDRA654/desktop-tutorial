@@ -3040,6 +3040,30 @@ const electronAPI = {
     ipcRenderer.on(IPC_CHANNELS.SYSTEM_METRICS_SUBSCRIBE, listener);
     return () => ipcRenderer.off(IPC_CHANNELS.SYSTEM_METRICS_SUBSCRIBE, listener);
   },
+
+  // Mod Browser
+  modBrowser: {
+    searchMods: (query: string, filters?: any): Promise<any[]> =>
+      ipcRenderer.invoke('mod-browser:search', query, filters),
+    getModDetails: (modId: string): Promise<any> =>
+      ipcRenderer.invoke('mod-browser:get-details', modId),
+    downloadMod: (modId: string, destination: string): Promise<any> =>
+      ipcRenderer.invoke('mod-browser:download', modId, destination),
+    rateMod: (modId: string, rating: number, review: string): Promise<void> =>
+      ipcRenderer.invoke('mod-browser:rate', modId, rating, review),
+    authenticateNexus: (apiKey: string): Promise<any> =>
+      ipcRenderer.invoke('mod-browser:authenticate-nexus', apiKey),
+    getModReviews: (modId: string): Promise<any[]> =>
+      ipcRenderer.invoke('mod-browser:get-reviews', modId),
+    createCollection: (name: string, mods: string[], description?: string): Promise<any> =>
+      ipcRenderer.invoke('mod-browser:create-collection', name, mods, description),
+    shareCollection: (collectionId: string): Promise<any> =>
+      ipcRenderer.invoke('mod-browser:share-collection', collectionId),
+    endorseMod: (modId: string): Promise<void> =>
+      ipcRenderer.invoke('mod-browser:endorse-mod', modId),
+    getTrendingMods: (timeframe?: string): Promise<any[]> =>
+      ipcRenderer.invoke('mod-browser:trending', timeframe),
+  },
 };
 
 /**
