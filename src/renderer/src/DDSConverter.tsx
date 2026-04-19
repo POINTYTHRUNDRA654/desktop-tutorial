@@ -194,7 +194,8 @@ export const DDSConverter: React.FC = () => {
       setSingleResult(result);
 
       if (result.success) {
-        toast.success(`Conversion successful! Saved to: ${result.outputPath}. Compression: ${result.compressionRatio.toFixed(2)}x`);
+        const ratio = result.compressionRatio != null ? ` Compression: ${Number(result.compressionRatio).toFixed(2)}x` : '';
+        toast.success(`Conversion successful! Saved to: ${result.outputPath || result.output}.${ratio}`);
       } else {
         toast.error(`Conversion failed: ${result.error}`);
       }
@@ -301,7 +302,8 @@ export const DDSConverter: React.FC = () => {
         error: result.results[index]?.error
       })));
 
-      toast.success(`Batch conversion complete! Success: ${result.successCount}/${result.totalFiles}. Total time: ${(result.totalProcessingTime / 1000).toFixed(2)}s`);
+      const timeStr = result.totalProcessingTime != null ? ` Total time: ${(result.totalProcessingTime / 1000).toFixed(2)}s` : '';
+      toast.success(`Batch conversion complete! Success: ${result.successCount}/${result.totalFiles}.${timeStr}`);
     } catch (error: any) {
       console.error('Batch conversion error:', error);
       toast.error(`Batch conversion failed: ${error.message}`);

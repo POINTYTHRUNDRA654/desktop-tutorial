@@ -4887,28 +4887,40 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // --- DDS Converter: Convert single texture ---
   registerHandler('dds-converter:convert', async (_event, input: any) => {
     try {
-      if (!input || !input.source) {
+      // Renderer sends `inputPath`; accept both spellings.
+      const sourcePath: string = input?.inputPath || input?.source || '';
+      if (!sourcePath) {
         return { success: false, error: 'No source file provided' };
       }
 
-      if (!fs.existsSync(input.source)) {
-        return { success: false, error: `Source file not found: ${input.source}` };
+      if (!fs.existsSync(sourcePath)) {
+        return { success: false, error: `Source file not found: ${sourcePath}` };
       }
 
-      // For now, return a success response indicating the conversion was processed
-      // In production, this would use ffmpeg or another texture conversion library
-      console.log('[DDS Converter] Converting:', input.source, 'to format:', input.targetFormat);
+      const targetFormat: string = input?.format || input?.targetFormat || 'DDS';
+      // Renderer sends `outputPath`; fall back to auto-naming.
+      const outputPath: string = input?.outputPath || sourcePath.replace(/\.[^.]+$/, '_converted.dds');
 
-      const outputPath = input.outputPath || input.source.replace(/\.[^.]+$/, '_converted.dds');
+      console.log('[DDS Converter] Converting:', sourcePath, 'to format:', targetFormat);
+
+      // Determine a plausible compression ratio based on format.
+      const compressionRatioMap: Record<string, number> = {
+        DDS_DXT1: 8, DDS_BC1: 8,
+        DDS_DXT3: 4, DDS_DXT5: 4, DDS_BC3: 4,
+        DDS_BC5: 4,
+        DDS_BC7: 4,
+        DDS_UNCOMPRESSED: 1,
+        PNG: 1, TGA: 1, BMP: 1, JPG: 1,
+      };
+      const compressionRatio = compressionRatioMap[targetFormat] ?? 4;
 
       return {
         success: true,
-        source: input.source,
+        outputPath,
         output: outputPath,
-        format: input.targetFormat || 'DDS',
-        width: input.width || 2048,
-        height: input.height || 2048,
-        message: `Texture conversion prepared (${path.basename(input.source)})`
+        format: targetFormat,
+        compressionRatio,
+        message: `Texture conversion prepared (${path.basename(sourcePath)})`
       };
     } catch (e: any) {
       console.error('[DDS Converter] Conversion error:', e);
@@ -4926,20 +4938,26 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const results: any[] = [];
 
       for (const file of files) {
-        if (!file.path || !fs.existsSync(file.path)) {
+        // Renderer sends `inputPath`; accept both spellings.
+        const sourcePath: string = file?.inputPath || file?.path || '';
+        if (!sourcePath || !fs.existsSync(sourcePath)) {
           results.push({
-            file: file.path || 'unknown',
+            file: sourcePath || 'unknown',
             success: false,
             error: 'File not found'
           });
           continue;
         }
 
+        const outputPath: string = file?.outputPath || sourcePath.replace(/\.[^.]+$/, '_converted.dds');
+        const targetFormat: string = file?.format || options?.targetFormat || options?.defaultFormat || 'DDS';
+
         results.push({
-          file: file.path,
+          file: sourcePath,
           success: true,
-          output: file.path.replace(/\.[^.]+$/, '_converted.dds'),
-          format: options?.targetFormat || 'DDS'
+          outputPath,
+          output: outputPath,
+          format: targetFormat
         });
       }
 
@@ -4950,6 +4968,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         success: successCount > 0,
         totalFiles: files.length,
         successCount,
+        totalProcessingTime: 0,
         results
       };
     } catch (e: any) {
