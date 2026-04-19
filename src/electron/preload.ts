@@ -145,6 +145,9 @@ const IPC_CHANNELS = {
   // Edition detection
   GET_MOSSY_EDITION: 'get-mossy-edition',
 
+  // BA2 Archive Manager
+  PICK_BA2_FILE: 'pick-ba2-file',
+
   // GGUF / Unsloth model import
   GGUF_PICK_FILE: 'gguf-pick-file',
   GGUF_IMPORT_TO_OLLAMA: 'gguf-import-to-ollama',
@@ -1874,6 +1877,14 @@ const electronAPI = {
    */
   mlLlmGenerate: (req: { provider: 'ollama' | 'openai_compat' | 'cosmos'; model: string; prompt: string; baseUrl?: string }): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.ML_LLM_GENERATE, req);
+  },
+
+  /**
+   * BA2 Archive Manager: Open native file picker restricted to .ba2 archives.
+   * Returns the selected path or '' if cancelled.
+   */
+  pickBa2File: (): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PICK_BA2_FILE);
   },
 
   /**
