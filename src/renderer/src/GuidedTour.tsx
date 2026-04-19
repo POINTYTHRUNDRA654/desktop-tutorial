@@ -392,6 +392,46 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
             disableBeacon: true,
             content: (
               <div>
+                <h4 className="font-bold text-white mb-2">Mod Projects</h4>
+                <p className="text-slate-300 text-sm">
+                  Track and manage all of your active mod projects in one place. Create a project, set goals, and follow your progress from idea to release.
+                </p>
+                {renderGuideImage('page-7-mod-projects.png', 'Mod Projects')}
+              </div>
+            ),
+            data: {
+              stepId: 'page-mod-projects',
+              route: '/project',
+              narration: 'Mod Projects is your project manager — create a project, set goals, and track progress from first idea all the way to release.'
+            } satisfies TourStepData,
+          },
+
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
+                <h4 className="font-bold text-white mb-2">Modding Roadmaps</h4>
+                <p className="text-slate-300 text-sm">
+                  Follow curated learning paths for Fallout 4 modding. Whether you are just starting out or tackling advanced topics, roadmaps keep you on track.
+                </p>
+                {renderGuideImage('page-5-modding-roadmaps.png', 'Modding Roadmaps')}
+              </div>
+            ),
+            data: {
+              stepId: 'page-roadmap',
+              route: '/roadmap',
+              narration: 'Modding Roadmaps give you curated step-by-step learning paths — from beginner basics to advanced topics — so you always know what to do next.'
+            } satisfies TourStepData,
+          },
+
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            content: (
+              <div>
                 <h4 className="font-bold text-white mb-2">Live Voice</h4>
                 <p className="text-slate-300 text-sm">
                   Talk to Mossy with real-time voice input and spoken responses.
