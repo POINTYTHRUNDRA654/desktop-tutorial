@@ -1,8 +1,9 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { Activity, Wrench, Book, Brain, MessageSquare, CheckCircle2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Activity, Wrench, Book, Brain, MessageSquare, CheckCircle2, ArrowRight } from 'lucide-react';
 
 const FirstSuccessWizard: React.FC = () => {
+    const navigate = useNavigate();
     const exampleQuestion = 'How do I build a simple quest in the Creation Kit?';
 
     return (
@@ -85,6 +86,12 @@ const FirstSuccessWizard: React.FC = () => {
                     <div className="text-xs text-slate-400">
                         Done with the basics? Explore advanced modules when you are ready using the sidebar.
                     </div>
+                    <button
+                        onClick={() => navigate('/chat')}
+                        className="mt-3 flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 transition-colors text-white text-xs font-bold rounded-lg"
+                    >
+                        Start Chatting <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                 </div>
             </div>
         </div>
