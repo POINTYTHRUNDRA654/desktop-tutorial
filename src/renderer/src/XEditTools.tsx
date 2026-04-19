@@ -6,10 +6,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LocalAIEngine } from './LocalAIEngine';
-import { 
-  Database, Play, RefreshCw, AlertTriangle, CheckCircle2, 
-  Code, Zap, FileText, Terminal, Search, Download, Save, 
-  CheckCircle, AlertCircle, Loader, Settings 
+import {
+  Database, Play, RefreshCw, AlertTriangle, CheckCircle2,
+  Code, Zap, FileText, Terminal, Search, Download, Save,
+  CheckCircle, AlertCircle, Loader, Settings
 } from 'lucide-react';
 
 interface XEditScript {
@@ -150,10 +150,10 @@ export const XEditTools: React.FC = () => {
   const navigate = useNavigate();
   // Tab state
   const [activeTab, setActiveTab] = useState<'scripts' | 'settings'>('scripts');
-  
+
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
-  
+
   // Script execution state
   const [skillLevel, setSkillLevel] = useState<'beginner' | 'intermediate' | 'advanced'>('intermediate');
   const [xEditPath, setXEditPath] = useState('');
@@ -165,7 +165,7 @@ export const XEditTools: React.FC = () => {
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
   const [message, setMessage] = useState('');
   const [availablePlugins, setAvailablePlugins] = useState<string[]>([]);
-  
+
   // Filter state
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -180,8 +180,8 @@ export const XEditTools: React.FC = () => {
         const activeTools = localStorage.getItem('mossy_active_tools');
         if (activeTools) {
           const data = JSON.parse(activeTools);
-          const xEditRunning = data.tools?.some((t: any) => 
-            t.name.toLowerCase().includes('fo4edit') || 
+          const xEditRunning = data.tools?.some((t: any) =>
+            t.name.toLowerCase().includes('fo4edit') ||
             t.name.toLowerCase().includes('xedit') ||
             t.name.toLowerCase().includes('sse') ||
             t.name.toLowerCase().includes('tes5')
@@ -228,8 +228,8 @@ export const XEditTools: React.FC = () => {
 
   const browseForXEdit = async () => {
     try {
-      if (api?.xEditScriptExecutor?.browseForXEdit) {
-        const path = await api.xEditScriptExecutor.browseForXEdit();
+      if (api?.xEditScriptExecutor?.browseXEdit) {
+        const path = await api.xEditScriptExecutor.browseXEdit();
         if (path) {
           setXEditPath(path);
           setMessage('xEdit path updated successfully');
@@ -243,8 +243,8 @@ export const XEditTools: React.FC = () => {
 
   const browseForPlugin = async () => {
     try {
-      if (api?.xEditScriptExecutor?.browseForPlugin) {
-        const plugin = await api.xEditScriptExecutor.browseForPlugin();
+      if (api?.xEditScriptExecutor?.browsePlugin) {
+        const plugin = await api.xEditScriptExecutor.browsePlugin();
         if (plugin) {
           setSelectedPlugin(plugin);
         }
@@ -300,8 +300,8 @@ export const XEditTools: React.FC = () => {
           plugin: selectedPlugin,
           success: result.success,
           duration: result.duration,
-        }).catch(() => {/* non-critical */});
-        
+        }).catch(() => {/* non-critical */ });
+
         if (result.success) {
           setMessage(`Script executed successfully in ${result.duration}s`);
         } else {
@@ -340,10 +340,10 @@ export const XEditTools: React.FC = () => {
 
   const filteredScripts = XEDIT_SCRIPTS.filter(script => {
     const matchesCategory = filterCategory === 'all' || script.category === filterCategory;
-    const matchesSearch = !searchQuery || 
+    const matchesSearch = !searchQuery ||
       script.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       script.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSkill = !script.difficulty || 
+    const matchesSkill = !script.difficulty ||
       script.difficulty === 'beginner' ||
       (skillLevel === 'intermediate' && script.difficulty !== 'advanced') ||
       skillLevel === 'advanced';
@@ -366,9 +366,8 @@ export const XEditTools: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-4">
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${
-                isConnected ? 'bg-green-900/30 text-green-400' : 'bg-slate-800 text-slate-500'
-              }`}>
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${isConnected ? 'bg-green-900/30 text-green-400' : 'bg-slate-800 text-slate-500'
+                }`}>
                 <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-slate-500'}`} />
                 {isConnected ? 'xEdit Connected' : 'xEdit Not Running'}
               </div>
@@ -379,22 +378,20 @@ export const XEditTools: React.FC = () => {
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab('scripts')}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
-                activeTab === 'scripts'
+              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'scripts'
                   ? 'bg-green-600 text-white'
                   : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-              }`}
+                }`}
             >
               <Code className="w-4 h-4 inline mr-2" />
               Scripts
             </button>
             <button
               onClick={() => setActiveTab('settings')}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
-                activeTab === 'settings'
+              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'settings'
                   ? 'bg-green-600 text-white'
                   : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-              }`}
+                }`}
             >
               <Settings className="w-4 h-4 inline mr-2" />
               Settings
@@ -426,11 +423,10 @@ export const XEditTools: React.FC = () => {
                     <button
                       key={level}
                       onClick={() => setSkillLevel(level)}
-                      className={`px-4 py-2 rounded text-sm font-bold ${
-                        skillLevel === level
+                      className={`px-4 py-2 rounded text-sm font-bold ${skillLevel === level
                           ? 'bg-green-600 text-white'
                           : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                      }`}
+                        }`}
                     >
                       {level.charAt(0).toUpperCase() + level.slice(1)}
                     </button>
@@ -492,21 +488,19 @@ export const XEditTools: React.FC = () => {
                 {filteredScripts.map(script => {
                   const Icon = script.icon;
                   const isSelected = selectedScript?.id === script.id;
-                  
+
                   return (
                     <button
                       key={script.id}
                       onClick={() => setSelectedScript(script)}
-                      className={`text-left p-4 rounded-lg border transition-all ${
-                        isSelected
+                      className={`text-left p-4 rounded-lg border transition-all ${isSelected
                           ? 'bg-green-900/30 border-green-600'
                           : 'bg-slate-900 border-slate-700 hover:border-slate-600'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-start gap-3">
-                        <Icon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
-                          isSelected ? 'text-green-400' : 'text-slate-400'
-                        }`} />
+                        <Icon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isSelected ? 'text-green-400' : 'text-slate-400'
+                          }`} />
                         <div className="flex-1 min-w-0">
                           <h3 className="font-bold text-white text-sm mb-1">{script.name}</h3>
                           <p className="text-xs text-slate-400 mb-2">{script.description}</p>
@@ -515,11 +509,10 @@ export const XEditTools: React.FC = () => {
                               {script.category}
                             </span>
                             {script.difficulty && (
-                              <span className={`px-2 py-0.5 rounded ${
-                                script.difficulty === 'beginner' ? 'bg-green-900/30 text-green-400' :
-                                script.difficulty === 'intermediate' ? 'bg-yellow-900/30 text-yellow-400' :
-                                'bg-red-900/30 text-red-400'
-                              }`}>
+                              <span className={`px-2 py-0.5 rounded ${script.difficulty === 'beginner' ? 'bg-green-900/30 text-green-400' :
+                                  script.difficulty === 'intermediate' ? 'bg-yellow-900/30 text-yellow-400' :
+                                    'bg-red-900/30 text-red-400'
+                                }`}>
                                 {script.difficulty}
                               </span>
                             )}
@@ -574,11 +567,10 @@ export const XEditTools: React.FC = () => {
 
                   {/* Execution Result */}
                   {executionResult && (
-                    <div className={`mt-4 p-4 rounded-lg border ${
-                      executionResult.success
+                    <div className={`mt-4 p-4 rounded-lg border ${executionResult.success
                         ? 'bg-green-900/20 border-green-700'
                         : 'bg-red-900/20 border-red-700'
-                    }`}>
+                      }`}>
                       <div className="flex items-center gap-2 mb-2">
                         {executionResult.success ? (
                           <CheckCircle className="w-5 h-5 text-green-400" />
@@ -589,13 +581,13 @@ export const XEditTools: React.FC = () => {
                           {executionResult.success ? 'Success' : 'Failed'}
                         </span>
                       </div>
-                      
+
                       {executionResult.output && (
                         <pre className="text-xs bg-black/30 p-3 rounded overflow-x-auto">
                           {executionResult.output}
                         </pre>
                       )}
-                      
+
                       {executionResult.errors.length > 0 && (
                         <div className="mt-2">
                           <div className="text-sm font-bold text-red-400 mb-1">Errors:</div>
@@ -606,7 +598,7 @@ export const XEditTools: React.FC = () => {
                           </ul>
                         </div>
                       )}
-                      
+
                       {executionResult.warnings.length > 0 && (
                         <div className="mt-2">
                           <div className="text-sm font-bold text-yellow-400 mb-1">Warnings:</div>

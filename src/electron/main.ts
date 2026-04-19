@@ -9474,8 +9474,12 @@ end.
   // Browse for log file
   registerHandler(IPC_CHANNELS.GAME_LOG_MONITOR_BROWSE_LOG, async () => {
     const result = await dialog.showOpenDialog({
+      title: 'Select Game Log File',
       properties: ['openFile'],
-      filters: [{ name: 'Log Files', extensions: ['log', 'txt'] }]
+      filters: [
+        { name: 'Log Files', extensions: ['log', 'txt'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
     });
     return result.canceled ? null : result.filePaths[0];
   });
@@ -9602,8 +9606,11 @@ end.
   // Browse for xEdit executable
   registerHandler(IPC_CHANNELS.XEDIT_SCRIPT_BROWSE_XEDIT, async () => {
     const result = await dialog.showOpenDialog({
-      properties: ['openFile'],
-      filters: [{ name: 'Executables', extensions: ['exe'] }]
+      title: 'Select xEdit/FO4Edit Executable',
+      properties: ['openFile', 'showHiddenFiles'],
+      filters: [
+        { name: 'All Files', extensions: ['*'] }
+      ]
     });
     return result.canceled ? null : result.filePaths[0];
   });
@@ -9611,8 +9618,8 @@ end.
   // Browse for plugin
   registerHandler(IPC_CHANNELS.XEDIT_SCRIPT_BROWSE_PLUGIN, async () => {
     const result = await dialog.showOpenDialog({
-      properties: ['openFile'],
-      filters: [{ name: 'Plugins', extensions: ['esp', 'esm', 'esl'] }]
+      title: 'Select Plugin File (.esp, .esm, .esl)',
+      properties: ['openFile', 'showHiddenFiles']
     });
     return result.canceled ? null : result.filePaths[0];
   });
