@@ -1019,6 +1019,13 @@ const electronAPI = {
   },
 
   /**
+   * CK Crash Prevention: Pick plugin file (ESP/ESM/ELS)
+   */
+  ckPickPlugin: (): Promise<{ success: boolean; path?: string; error?: string }> => {
+    return ipcRenderer.invoke('ck-crash-prevention:pick-plugin');
+  },
+
+  /**
    * DDS Converter: Convert single texture file
    */
   ddsConvert: (input: any): Promise<any> => {

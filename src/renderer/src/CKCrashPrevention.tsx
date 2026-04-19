@@ -12,6 +12,49 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
   const [spriggitCliPath, setSpriggitCliPath] = useState('');
   const [spriggitDataPath, setSpriggitDataPath] = useState('');
 
+  // File picker handlers
+  const pickSpriggitCli = async () => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (!api?.ckPickPlugin) {
+      alert('File picker not available');
+      return;
+    }
+    try {
+      const result = await api.ckPickPlugin();
+      if (result.success && result.path) setSpriggitCliPath(result.path);
+    } catch (error) {
+      console.error('File picker error:', error);
+    }
+  };
+
+  const pickSpriggitDataFolder = async () => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (!api?.pickDirectory) {
+      alert('Folder picker not available');
+      return;
+    }
+    try {
+      const result = await api.pickDirectory('Select Fallout 4 Data Folder');
+      if (result) setSpriggitDataPath(result);
+    } catch (error) {
+      console.error('Folder picker error:', error);
+    }
+  };
+
+  const pickPlugin = async () => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (!api?.ckPickPlugin) {
+      alert('File picker not available');
+      return;
+    }
+    try {
+      const result = await api.ckPickPlugin();
+      if (result.success && result.path) setSelectedPlugin(result.path);
+    } catch (error) {
+      console.error('File picker error:', error);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-mossy-darker text-mossy-text">
       {/* Header */}
@@ -43,11 +86,10 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`rounded border px-4 py-2 transition-colors ${
-                activeTab === tab
-                  ? 'border-mossy-accent bg-mossy-accent/10 text-white'
-                  : 'border-mossy-border text-mossy-text-muted hover:text-mossy-text'
-              }`}
+              className={`rounded border px-4 py-2 transition-colors ${activeTab === tab
+                ? 'border-mossy-accent bg-mossy-accent/10 text-white'
+                : 'border-mossy-border text-mossy-text-muted hover:text-mossy-text'
+                }`}
             >
               {tab === 'preflight' && 'Pre-flight Checks'}
               {tab === 'monitoring' && 'Live Monitor'}
@@ -63,13 +105,22 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
           <div className="space-y-4">
             <div className="space-y-3 rounded border border-mossy-border bg-mossy-bg p-4">
               <h2 className="font-semibold text-white">Select Plugin to Validate</h2>
-              <input
-                type="text"
-                value={selectedPlugin}
-                onChange={(e) => setSelectedPlugin(e.target.value)}
-                placeholder="Plugin path..."
-                className="w-full rounded border border-mossy-border bg-mossy-darker px-3 py-2 text-mossy-text placeholder-mossy-text-muted"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={selectedPlugin}
+                  onChange={(e) => setSelectedPlugin(e.target.value)}
+                  placeholder="Plugin path (drag & drop or paste)..."
+                  className="flex-1 rounded border border-mossy-border bg-mossy-darker px-3 py-2 text-mossy-text placeholder-mossy-text-muted focus:outline-none focus:ring-2 focus:ring-mossy-accent"
+                />
+                <button
+                  onClick={pickPlugin}
+                  title="Browse for plugin file"
+                  className="rounded border border-mossy-border bg-mossy-accent px-3 py-2 text-black font-semibold hover:bg-mossy-accent-hover transition-colors flex items-center gap-1"
+                >
+                  <FolderOpen className="w-4 h-4" /> Load
+                </button>
+              </div>
               <button className="w-full rounded bg-emerald-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-emerald-500">
                 Validate Plugin
               </button>
@@ -109,16 +160,18 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
                       </label>
                       <div className="flex gap-2">
                         <input
-                          readOnly
+                          type="text"
                           value={spriggitCliPath}
-                          placeholder="Not selected"
-                          className="flex-1 rounded border border-mossy-border bg-mossy-darker px-2 py-1.5 text-xs text-mossy-text placeholder-mossy-text-muted"
+                          onChange={(e) => setSpriggitCliPath(e.target.value)}
+                          placeholder="Paste path or use Load button..."
+                          className="flex-1 rounded border border-mossy-border bg-mossy-darker px-2 py-1.5 text-xs text-mossy-text placeholder-mossy-text-muted focus:outline-none focus:ring-2 focus:ring-mossy-accent"
                         />
                         <button
+                          onClick={pickSpriggitCli}
                           title="Browse for Spriggit.CLI.exe"
-                          className="rounded border border-mossy-border bg-mossy-accent px-2 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-mossy-accent-hover"
+                          className="rounded border border-mossy-border bg-mossy-accent px-2 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-mossy-accent-hover flex items-center gap-1"
                         >
-                          <FolderOpen className="h-3.5 w-3.5" />
+                          <FolderOpen className="h-3.5 w-3.5" /> Load
                         </button>
                       </div>
                     </div>
@@ -129,16 +182,18 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
                       </label>
                       <div className="flex gap-2">
                         <input
-                          readOnly
+                          type="text"
                           value={spriggitDataPath}
-                          placeholder="Not selected"
-                          className="flex-1 rounded border border-mossy-border bg-mossy-darker px-2 py-1.5 text-xs text-mossy-text placeholder-mossy-text-muted"
+                          onChange={(e) => setSpriggitDataPath(e.target.value)}
+                          placeholder="Paste path or use Load button..."
+                          className="flex-1 rounded border border-mossy-border bg-mossy-darker px-2 py-1.5 text-xs text-mossy-text placeholder-mossy-text-muted focus:outline-none focus:ring-2 focus:ring-mossy-accent"
                         />
                         <button
+                          onClick={pickSpriggitDataFolder}
                           title="Browse for Fallout 4 Data folder"
-                          className="rounded border border-mossy-border bg-mossy-accent px-2 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-mossy-accent-hover"
+                          className="rounded border border-mossy-border bg-mossy-accent px-2 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-mossy-accent-hover flex items-center gap-1"
                         >
-                          <FolderOpen className="h-3.5 w-3.5" />
+                          <FolderOpen className="h-3.5 w-3.5" /> Load
                         </button>
                       </div>
                     </div>
