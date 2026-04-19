@@ -77,6 +77,7 @@ export const IPC_CHANNELS = {
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
   AUDITOR_SCAN_MOD_DIRECTORY: 'auditor-scan-mod-directory',
   AUDITOR_SCAN_MOD_DIRECTORY_PATH: 'auditor-scan-mod-directory-path',
+  AUDITOR_APPLY_ESP_FIX: 'auditor-apply-esp-fix',
 
   // DDS Converter & Texture Generator
   DDS_CONVERTER_PICK_FILES: 'dds-converter:pick-files',
