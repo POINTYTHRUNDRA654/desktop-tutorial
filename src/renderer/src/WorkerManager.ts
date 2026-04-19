@@ -121,12 +121,15 @@ export class WorkerManager {
     assetType: 'dds' | 'nif' | 'esp',
     fileData: ArrayBuffer,
     fileName: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    bypassCache?: boolean
   ): Promise<any> {
-    // Check cache first
-    const cached = await cacheManager.getCachedAnalysisResult(fileName);
-    if (cached) {
-      return cached;
+    // Check cache first, unless explicitly bypassed (e.g. when the user triggers a fresh scan)
+    if (!bypassCache) {
+      const cached = await cacheManager.getCachedAnalysisResult(fileName);
+      if (cached) {
+        return cached;
+      }
     }
 
     return new Promise((resolve, reject) => {

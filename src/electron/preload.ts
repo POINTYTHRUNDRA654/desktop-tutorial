@@ -94,6 +94,7 @@ const IPC_CHANNELS = {
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
   AUDITOR_SCAN_MOD_DIRECTORY: 'auditor-scan-mod-directory',
   AUDITOR_SCAN_MOD_DIRECTORY_PATH: 'auditor-scan-mod-directory-path',
+  AUDITOR_APPLY_ESP_FIX: 'auditor-apply-esp-fix',
 
   // Knowledge Vault file persistence
   SAVE_KNOWLEDGE_VAULT: 'save-knowledge-vault',
@@ -597,6 +598,15 @@ const electronAPI = {
    */
   readBinaryFile: (filePath: string): Promise<{ success: boolean; data?: string; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_READ_BINARY_FILE, filePath);
+  },
+
+  /**
+   * Auditor: Apply an auto-fix to an ESP/ESM/ESL plugin.
+   * fixType: 'set_esl_flag' | 'generate_udr_script' | 'generate_itm_script'
+   * Always creates a .bak backup before any in-place modification.
+   */
+  applyEspFix: (filePath: string, fixType: string): Promise<{ success: boolean; message?: string; backedUpTo?: string | null; scriptPath?: string; scriptContent?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_APPLY_ESP_FIX, filePath, fixType);
   },
 
   /**

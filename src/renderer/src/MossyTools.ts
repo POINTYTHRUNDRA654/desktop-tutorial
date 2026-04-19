@@ -1682,6 +1682,113 @@ Check your Downloads folder or the location where files are saved.`;
         } catch (e) {
             result = `❌ Error setting current mod: ${e}`;
         }
+    } else if (name === 'scan_plugin') {
+        // ── scan_plugin ───────────────────────────────────────────────────────────
+        // Read the plugin binary via IPC (main process), pass it through the
+        // asset-analyzer web worker, and return a human-readable diagnostic report.
+        try {
+            const filePath = String(args.filePath || '').trim();
+            if (!filePath) {
+                result = '❌ **scan_plugin**: No file path provided. Please give me the full path to the ESP/ESM/ESL file.';
+            } else if (!api?.readBinaryFile) {
+                result = '❌ **scan_plugin**: readBinaryFile API unavailable. Please restart the app.';
+            } else {
+                const readRes: any = await api.readBinaryFile(filePath);
+                if (!readRes?.success || !readRes?.data) {
+                    result = `❌ **scan_plugin**: Could not read file at "${filePath}": ${readRes?.error || 'Unknown error'}. Make sure the file exists and is not locked by another program.`;
+                } else {
+                    // Decode base64 → ArrayBuffer
+                    const binary = atob(readRes.data);
+                    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+                    const buffer = bytes.buffer;
+
+                    // Spin up the asset-analyzer worker inline via importScripts-compatible URL
+                    // Instead, use the already-initialised WorkerManager singleton if available,
+                    // otherwise fall back to the analyzeEsp IPC which does a lighter header scan.
+                    // We must import WorkerManager dynamically to avoid circular deps.
+                    let analysis: any = null;
+                    try {
+                        const { workerManager } = await import('./WorkerManager');
+                        const pluginName = filePath.replace(/\\/g, '/').split('/').pop() || 'plugin.esp';
+                        analysis = await workerManager.analyzeAsset('esp', buffer, pluginName, undefined, true);
+                    } catch (workerErr) {
+                        // Worker unavailable in this context — fall back to the IPC-level analysis
+                        if (api?.analyzeEsp) {
+                            const ipcRes: any = await api.analyzeEsp(filePath);
+                            if (ipcRes?.success) {
+                                analysis = { issues: ipcRes.issues || [], recordCounts: {}, masters: [], fileSize: ipcRes.fileSize, fileSizeMB: (ipcRes.fileSize || 0) / (1024 * 1024) };
+                            }
+                        }
+                    }
+
+                    if (!analysis) {
+                        result = `❌ **scan_plugin**: Analysis engine unavailable. Use The Auditor to scan "${filePath}".`;
+                    } else {
+                        const issues: any[] = analysis.issues || [];
+                        const masters: string[] = analysis.masters || [];
+                        const sizeMB = (analysis.fileSizeMB || (analysis.fileSize || 0) / (1024 * 1024)).toFixed(2);
+                        const pluginName = filePath.replace(/\\/g, '/').split('/').pop() || 'plugin';
+                        const flags = analysis.flags || {};
+
+                        let report = `## 🔍 Plugin Scan: ${pluginName}\n\n`;
+                        report += `**File size:** ${sizeMB} MB  |  **Masters:** ${masters.length > 0 ? masters.join(', ') : 'none declared'}  |  **Flags:** ${[flags.isESM && 'ESM', flags.isESL && 'ESL', flags.isLocalized && 'Localized'].filter(Boolean).join(', ') || 'standard ESP'}\n\n`;
+
+                        if (issues.length === 0) {
+                            report += `✅ **No issues detected.** This plugin looks clean — no deleted navmesh, UDRs, broken precombines, absolute paths, or missing masters found.\n`;
+                        } else {
+                            const errors   = issues.filter((i: any) => i.severity === 'error');
+                            const warnings = issues.filter((i: any) => i.severity === 'warning');
+                            const info     = issues.filter((i: any) => i.severity === 'info');
+                            report += `**Found ${issues.length} issue(s):** ${errors.length} error(s), ${warnings.length} warning(s), ${info.length} info\n\n`;
+                            report += `---\n\n`;
+
+                            for (const issue of issues) {
+                                const icon = issue.severity === 'error' ? '🔴' : issue.severity === 'warning' ? '🟡' : 'ℹ️';
+                                report += `${icon} **[${issue.category}] ${issue.message}**\n`;
+                                report += `${issue.details}\n\n`;
+                                report += `💡 **Fix:** ${issue.fix}\n\n`;
+                                report += `---\n\n`;
+                            }
+                        }
+
+                        // Surface auto-fixable hints
+                        const hasUDR = issues.some((i: any) => i.category === 'Deleted References');
+                        const hasESL = issues.some((i: any) => i.category === 'Optimization' && i.message.includes('ESL'));
+                        if (hasUDR || hasESL) {
+                            report += `\n**⚡ Auto-fix available:**`;
+                            if (hasUDR) report += `\n• I can generate a ready-to-run xEdit UDR script for this plugin — just say "apply UDR fix to this plugin".`;
+                            if (hasESL) report += `\n• I can apply the ESL flag directly to this plugin (with backup) — just say "apply ESL flag to this plugin".`;
+                        }
+
+                        result = report;
+                    }
+                }
+            }
+        } catch (e: any) {
+            result = `❌ **scan_plugin error:** ${e?.message || String(e)}`;
+        }
+    } else if (name === 'apply_esp_fix') {
+        // ── apply_esp_fix ─────────────────────────────────────────────────────────
+        // Delegate to the main-process IPC handler which does the actual binary
+        // patching or script generation with a .bak backup.
+        try {
+            const filePath = String(args.filePath || '').trim();
+            const fixType  = String(args.fixType  || '').trim();
+            if (!filePath || !fixType) {
+                result = '❌ **apply_esp_fix**: Both filePath and fixType are required.';
+            } else if (!api?.applyEspFix) {
+                result = '❌ **apply_esp_fix**: applyEspFix API unavailable. Please restart the app to get the latest build.';
+            } else {
+                const res: any = await api.applyEspFix(filePath, fixType);
+                if (res?.success) {
+                    result = res.message || '✅ Fix applied successfully.';
+                } else {
+                    result = `❌ **apply_esp_fix failed:** ${res?.error || 'Unknown error'}`;
+                }
+            }
+        } catch (e: any) {
+            result = `❌ **apply_esp_fix error:** ${e?.message || String(e)}`;
+        }
     }
 
     return { result };

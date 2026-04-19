@@ -448,6 +448,29 @@ CRITICAL: When user says "open xEdit", use toolId: "xedit". When user says "laun
          },
          required: ['topic']
       }
+   },
+   {
+      name: 'scan_plugin',
+      description: 'Scan an ESP/ESM/ESL plugin file at a given path and return a full structured diagnostic report: issues found (deleted navmesh, UDRs, broken precombines, absolute mesh paths, Papyrus scripts, missing masters, ESL eligibility, file size), their severity, and exact fix instructions for each issue. Use this whenever the user gives you a plugin file path and asks you to scan, check, analyze, or diagnose it.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            filePath: { type: Type.STRING, description: 'Absolute path to the ESP/ESM/ESL file, e.g. C:\\Games\\Fallout4\\Data\\MyMod.esp' }
+         },
+         required: ['filePath']
+      }
+   },
+   {
+      name: 'apply_esp_fix',
+      description: 'Apply a specific automatic fix to a plugin file. Use this ONLY after scanning the plugin and confirming the relevant issue exists. Always explain to the user what the fix does before calling this tool. Supported fix types:\n- "set_esl_flag": Applies the ESL (light plugin) flag directly in the plugin header (safe 4-byte patch; creates a .bak backup automatically). Only call this if the scan showed the plugin is ESL-eligible.\n- "generate_udr_script": Generates and saves a ready-to-run xEdit Pascal script that applies Undelete and Disable References to this specific plugin. Use when deleted REFR/ACHR records are detected.\n- "generate_itm_script": Generates and saves a ready-to-run xEdit Pascal script that removes Identical to Master records from this plugin.',
+      parameters: {
+         type: Type.OBJECT,
+         properties: {
+            filePath: { type: Type.STRING, description: 'Absolute path to the ESP/ESM/ESL file.' },
+            fixType: { type: Type.STRING, description: 'One of: "set_esl_flag", "generate_udr_script", "generate_itm_script".' }
+         },
+         required: ['filePath', 'fixType']
+      }
    }
 ];
 
@@ -1277,6 +1300,21 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  **After scanning, I can see all issues in context.** When the user asks "what did you find?", I will list every issue from the scan results and walk through each fix.' +
       '\n  **One-click tool launch:** The Auditor has "Open in xEdit", "Open in CK", "Open in NifSkope", and "Open in Blender" buttons on every scanned file. These launch the appropriate tool with the file loaded. I can tell users to click these buttons to fix what I found.' +
       '\n  **Use control_interface to navigate:** You can use the control_interface tool with target="/auditor" to navigate directly to The Auditor if needed.' +
+      '\n\n**🔧 WHAT MOSSY CAN AUTO-FIX vs. WHAT REQUIRES MANUAL STEPS:**' +
+      '\n  I have two tools for applying fixes to plugin files: `scan_plugin` (read-only analysis) and `apply_esp_fix` (applies a fix).' +
+      '\n  I CAN APPLY THESE FIXES AUTOMATICALLY:' +
+      '\n  • **ESL flag (set_esl_flag)**: I can directly flip the ESL (light plugin) bit in the TES4 header — safe 4-byte patch, creates a .bak backup. Call `apply_esp_fix(filePath, "set_esl_flag")`. Only do this if `scan_plugin` confirmed ESL eligibility.' +
+      '\n  • **UDR xEdit script (generate_udr_script)**: I generate a ready-to-run Pascal xEdit script targeting this specific plugin and save it to xEdit\'s Edit Scripts folder (or Downloads). The user then runs it in xEdit in ~2 clicks.' +
+      '\n  • **ITM cleanup xEdit script (generate_itm_script)**: Same approach — I generate the script and save it directly.' +
+      '\n  THESE REQUIRE MANUAL USER ACTION (I provide step-by-step instructions):' +
+      '\n  • **Deleted navmesh (NAVM)** — Must use xEdit "Change FormID" on specific [D] records.' +
+      '\n  • **Broken precombines** — Must rebuild in CK or install PRP.' +
+      '\n  • **Absolute mesh paths** — Must edit MODEL subrecords in xEdit to remove drive-letter prefix.' +
+      '\n  • **Missing masters** — Must add master via xEdit plugin header.' +
+      '\n  • **DDS texture compression** — Must re-export in GIMP/Photopea with correct DXT format.' +
+      '\n  • **NIF mesh issues** — Must edit in NifSkope or Blender.' +
+      '\n  NEVER claim to have fixed something unless I actually called `apply_esp_fix` and it returned success. For everything else, provide exact manual instructions.' +
+      '\n  WORKFLOW: scan_plugin → explain each issue → for auto-fixable ones ask user permission → call apply_esp_fix → confirm result to user.' +
       '\n- **Advanced App Integration (Phase 4)**: ' +
       '\n  1) **The Scribe**: Features a "Technical Inspector" sidebar with real-time function references and Wiki indexing.' +
       '\n  2) **The Hive**: Features a "Live Build Console" that tracks the output of Papyrus/xEdit/Blender build pipelines in real-time.' +
