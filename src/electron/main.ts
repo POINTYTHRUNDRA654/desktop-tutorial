@@ -7399,6 +7399,28 @@ end.
   // ── GGUF / Unsloth model import ────────────────────────────────────────────
 
   /**
+   * Handler: pick-ba2-file
+   * Opens a native file-picker dialog restricted to .ba2 archive files.
+   * Returns the selected path as a string, or '' if cancelled.
+   */
+  registerHandler(IPC_CHANNELS.PICK_BA2_FILE, async () => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow;
+    const options = {
+      title: 'Select BA2 Archive',
+      properties: ['openFile'] as Array<'openFile'>,
+      filters: [
+        { name: 'BA2 Archives', extensions: ['ba2'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    };
+    const result = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options);
+    if (result.canceled || !result.filePaths?.length) return '';
+    return result.filePaths[0];
+  });
+
+  /**
    * Handler: gguf-pick-file
    * Opens a native file-picker dialog restricted to .gguf model files.
    * Returns the selected path as a string, or '' if cancelled.

@@ -4423,6 +4423,7 @@ export interface ElectronAPI {
   miningPatternRecognitionResults: () => Promise<any>;
 
   // BA2 Archive Management
+  pickBa2File: () => Promise<string>;
   mergeBA2: (inputArchives: string[], outputArchive: string, archiveType: 'general' | 'texture') => Promise<any>;
 
   // Collaboration Features

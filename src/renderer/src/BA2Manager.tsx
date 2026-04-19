@@ -357,29 +357,43 @@ export const BA2Manager: React.FC = () => {
         </div>
 
         {/* File Input */}
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={archivePath}
-            onChange={(e) => setArchivePath(e.target.value)}
-            placeholder="Path to .ba2 file or folder to pack..."
-            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:outline-none"
-          />
-          <button
-            onClick={listBA2Contents}
-            disabled={!archivePath || loading}
-            className="px-6 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
-          >
-            <FileArchive className="w-4 h-4" />
-            List Contents
-          </button>
-          <button
-            onClick={() => setShowMergeDialog(true)}
-            className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
-          >
-            <Merge className="w-4 h-4" />
-            Merge Archives
-          </button>
+        <div className="flex gap-3 flex-wrap">
+          <div className="flex flex-1 min-w-0 gap-2">
+            <input
+              type="text"
+              value={archivePath}
+              onChange={(e) => setArchivePath(e.target.value)}
+              placeholder="Path to .ba2 file or folder to pack..."
+              className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+            />
+            <button
+              onClick={async () => {
+                const picked = await window.electronAPI.pickBa2File();
+                if (picked) setArchivePath(picked);
+              }}
+              title="Browse for a .ba2 file"
+              className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg border border-slate-600 flex items-center gap-1 shrink-0 transition-colors"
+            >
+              <FolderOpen className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex gap-3 shrink-0">
+            <button
+              onClick={listBA2Contents}
+              disabled={!archivePath || loading}
+              className="px-6 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
+            >
+              <FileArchive className="w-4 h-4" />
+              List Contents
+            </button>
+            <button
+              onClick={() => setShowMergeDialog(true)}
+              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-2 transition-colors"
+            >
+              <Merge className="w-4 h-4" />
+              Merge Archives
+            </button>
+          </div>
         </div>
 
         {/* Bridge Info */}
@@ -387,7 +401,17 @@ export const BA2Manager: React.FC = () => {
           <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-slate-300">
             <span className="font-bold text-blue-300">Requires Desktop Bridge:</span> This feature uses the Python server with ba2toolkit library. 
-            Install via: <code className="bg-slate-800 px-1 py-0.5 rounded">pip install ba2toolkit</code>
+            Install via:{' '}
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText('pip install ba2toolkit');
+                toast.success('Copied: pip install ba2toolkit');
+              }}
+              title="Click to copy install command"
+              className="bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-amber-500 text-amber-200 px-1.5 py-0.5 rounded font-mono cursor-pointer transition-colors"
+            >
+              pip install ba2toolkit
+            </button>
           </p>
         </div>
       </div>
