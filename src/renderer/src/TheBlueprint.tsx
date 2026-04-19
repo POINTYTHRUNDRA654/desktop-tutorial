@@ -303,20 +303,20 @@ const TheBlueprint: React.FC = () => {
                                     </button>
                                 </div>
                                 {selectedTemplate.structure.map((item, idx) => (
-                                    <div
+                                    <button
                                         key={idx}
                                         onClick={() => handleCopyPath(item.path)}
-                                        className="bg-[#252526] border border-slate-700 rounded p-3 hover:border-amber-500/60 hover:bg-[#2d2d30] transition-colors cursor-pointer"
+                                        className="w-full text-left bg-[#252526] border border-slate-700 rounded p-3 hover:border-amber-500/60 hover:bg-[#2d2d30] transition-colors cursor-pointer"
                                         title="Click to copy path"
                                     >
                                         <div className="flex items-start justify-between mb-1">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-amber-400 font-mono text-sm">
+                                                <span className="text-amber-400 font-mono text-sm" aria-hidden="true">
                                                     {item.type === 'folder' ? '📁' : '📄'}
                                                 </span>
                                                 <code className="text-slate-300 font-mono text-xs">{item.path}</code>
                                             </div>
-                                            <span className="p-1 shrink-0">
+                                            <span className="p-1 shrink-0" aria-hidden="true">
                                                 {copiedPath === item.path ? (
                                                     <CheckCircle2 className="w-3 h-3 text-green-400" />
                                                 ) : (
@@ -325,7 +325,7 @@ const TheBlueprint: React.FC = () => {
                                             </span>
                                         </div>
                                         <p className="text-[10px] text-slate-500 pl-6">{item.description}</p>
-                                    </div>
+                                    </button>
                                 ))}
                             </div>
                         )}
