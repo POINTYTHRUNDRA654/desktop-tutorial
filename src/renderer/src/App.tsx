@@ -113,6 +113,7 @@ const PluginManager = React.lazy(() => import('./PluginManager').then(module => 
 const RoadmapPanel = React.lazy(() => import('./RoadmapPanel'));
 const DiagnosticsHub = React.lazy(() => import('./DiagnosticsHub'));
 const PackagingHub = React.lazy(() => import('./PackagingHub'));
+const TheAssembler = React.lazy(() => import('./TheAssembler'));
 const WizardsHub = React.lazy(() => import('./WizardsHub'));
 
 // Archive Management
@@ -1262,7 +1263,7 @@ const App: React.FC = () => {
                   <Route path="/tools/security" element={<ErrorBoundary><SecurityValidator /></ErrorBoundary>} />
                   <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
                   <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
-                  <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
+                  <Route path="/tools/assembler" element={<Navigate to="/assembler" replace />} />
                   <Route path="/tools/blueprint" element={<ErrorBoundary><TheBlueprint /></ErrorBoundary>} />
                   <Route path="/tools/scribe" element={<ErrorBoundary><TheScribe /></ErrorBoundary>} />
                   <Route path="/tools/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
@@ -1390,7 +1391,7 @@ const App: React.FC = () => {
                   {/* Legacy Routes - Redirect to new structure */}
                   <Route path="/monitor" element={<Navigate to="/diagnostics" replace />} />
                   <Route path="/load-order" element={<Navigate to="/dev/load-order" replace />} />
-                  <Route path="/assembler" element={<Navigate to="/packaging-release" replace />} />
+                  <Route path="/assembler" element={<ErrorBoundary><TheAssembler /></ErrorBoundary>} />
                   <Route path="/auditor" element={<Navigate to="/ck-crash-prevention?tab=audit" replace />} />
                   <Route path="/blueprint" element={<Navigate to="/tools/blueprint" replace />} />
                   <Route path="/scribe" element={<Navigate to="/tools/scribe" replace />} />
