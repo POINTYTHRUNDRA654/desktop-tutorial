@@ -372,6 +372,7 @@ export const BA2Manager: React.FC = () => {
                 if (picked) setArchivePath(picked);
               }}
               title="Browse for a .ba2 file"
+              aria-label="Browse for BA2 archive file"
               className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg border border-slate-600 flex items-center gap-1 shrink-0 transition-colors"
             >
               <FolderOpen className="w-4 h-4" />
@@ -404,8 +405,10 @@ export const BA2Manager: React.FC = () => {
             Install via:{' '}
             <button
               onClick={() => {
-                navigator.clipboard.writeText('pip install ba2toolkit');
-                toast.success('Copied: pip install ba2toolkit');
+                navigator.clipboard.writeText('pip install ba2toolkit').then(
+                  () => toast.success('Copied: pip install ba2toolkit'),
+                  () => toast.error('Could not copy to clipboard')
+                );
               }}
               title="Click to copy install command"
               className="bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-amber-500 text-amber-200 px-1.5 py-0.5 rounded font-mono cursor-pointer transition-colors"
