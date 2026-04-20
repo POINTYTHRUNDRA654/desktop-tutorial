@@ -4,6 +4,16 @@
  */
 
 /**
+ * An entry in a mod or program blacklist.
+ * `name` is required; `reason` is the optional human-readable explanation
+ * that Mossy will cite when warning the user about this item.
+ */
+export interface BlacklistEntry {
+  name: string;
+  reason?: string;
+}
+
+/**
  * Project management types for multi-project support
  */
 export interface ModProject {
@@ -612,8 +622,8 @@ export interface Settings {
     modContentWhitelist: string[];
 
     // Mod/Program Blacklist — mods and programs that are problematic and should be warned against
-    modContentBlacklist: string[];
-    programBlacklist: string[];
+    modContentBlacklist: BlacklistEntry[];
+    programBlacklist: BlacklistEntry[];
   };
 
   // Security Settings
