@@ -1339,8 +1339,17 @@ const App: React.FC = () => {
                 <Route path="/havok" element={<Navigate to="/guides/blender/animation" replace />} />
                 <Route path="/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
                 <Route path="/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
-                {/* Catch-all: content panels are rendered by KeepAlivePanel below */}
-                <Route path="*" element={null} />
+                {/* Catch-all: content panels are rendered by KeepAlivePanel below.
+                    Show a simple Not Found message for truly unknown routes. */}
+                <Route
+                  path="*"
+                  element={
+                    <div className="flex flex-col items-center justify-center h-64 gap-3 text-slate-400">
+                      <div className="text-5xl">404</div>
+                      <div className="text-sm font-mono">Page not found</div>
+                    </div>
+                  }
+                />
               </Routes>
 
               {/*
