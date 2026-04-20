@@ -14,6 +14,11 @@ const PanelLoader = () => <SkeletonLoader type="module" />;
  * Inactive panels are hidden with CSS (display:none) so background operations
  * — scans, downloads, monitoring sessions, etc. — continue running even when
  * the user navigates to a different panel.
+ *
+ * Exact pathname matching is intentional: each route (e.g. "/tools" and
+ * "/tools/asset-deduplicator") has its own dedicated KeepAlivePanel entry in
+ * App.tsx, so a child path being active should correctly hide the parent hub
+ * panel and show only the child panel.
  */
 const KeepAlivePanel: React.FC<KeepAlivePanelProps> = ({ path, children }) => {
   const location = useLocation();
