@@ -216,13 +216,14 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
   const pickAndAnalyzeLog = async () => {
     const a = api();
     if (!a?.ckPickLogFile) { toast.error('Log file picker not available'); return; }
-    setActiveTab('postcrash');
     setAnalysisError('');
     setCrashDiagnosis(null);
     try {
+      toast('Select a CK crash log (.log or .txt) — not your ESP.', { icon: '📄' });
       const picked = await a.ckPickLogFile();
       if (!picked?.success || !picked.path) return;
       setSelectedLogPath(picked.path);
+      setActiveTab('postcrash');
       await analyzeLog(picked.path);
     } catch (e: any) { toast.error(String(e?.message || e)); }
   };
@@ -567,8 +568,9 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
             onClick={pickAndAnalyzeLog}
             disabled={analyzing}
             className="flex items-center gap-2 rounded-lg bg-red-500/20 px-4 py-3 font-semibold text-red-400 transition-colors hover:bg-red-500/30 disabled:opacity-60"
+            title="Load a CK crash log (.log / .txt) for AI-powered diagnosis"
           >
-            <AlertTriangle className="h-4 w-4" /> Analyze
+            <AlertTriangle className="h-4 w-4" /> Analyze Crash Log
           </button>
         </div>
       </div>
