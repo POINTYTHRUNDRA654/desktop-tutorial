@@ -69,6 +69,17 @@ jobs:
           echo "TAG_NAME=v$version" >> $env:GITHUB_OUTPUT
           Write-Host "Building version: $version"
 
+      - name: Verify tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          $pkgVersion = (Get-Content package.json | ConvertFrom-Json).version
+          $tagVersion = "${{ github.ref_name }}" -replace '^v', ''
+          if ($pkgVersion -ne $tagVersion) {
+            Write-Error "Version mismatch: Git tag '${{ github.ref_name }}' is v$tagVersion but package.json has v$pkgVersion. Update package.json to match the tag before releasing."
+            exit 1
+          }
+          Write-Host "✅ Tag v$tagVersion matches package.json version $pkgVersion"
+
       - name: Package Universal Edition
         if: matrix.edition == 'universal'
         run: npx electron-builder --win --publish never
