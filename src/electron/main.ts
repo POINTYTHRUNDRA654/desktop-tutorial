@@ -7421,6 +7421,9 @@ end.
     if (result.canceled || !result.filePaths?.length) return '';
     return result.filePaths[0];
   });
+
+  /**
+   * Handler: gguf-pick-file
    * Opens a native file-picker dialog restricted to .gguf model files.
    * Returns the selected path as a string, or '' if cancelled.
    */
