@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MessageSquare, X } from 'lucide-react';
 import { useLive } from './LiveContext';
+import { recordActivity, type ActivityEvent } from './panelActivity';
 
 const QUIPS: Record<string, string[]> = {
     '/': [
@@ -556,7 +557,62 @@ const MossyObserver: React.FC = () => {
         return undefined;
     }, []);
 
-    if (!message && !visible) return null;
+    // ── Bridge Activity (IPC: Desktop Bridge, Blender Bridge, MO2 Bridge, future plugins) ──
+    // Main process sends 'bridge-activity' when an external bridge/plugin registers
+    // something the user is doing.  We forward it into the activity store so Mossy's
+    // system context stays current, and surface a brief observation bubble.
+    useEffect(() => {
+        const api = window.electron?.api;
+        if (!api?.on) return undefined;
+
+        const unsubscribe = api.on('bridge-activity', (payload: ActivityEvent) => {
+            const { source, eventType, detail, panel } = payload || {};
+            if (!source || !eventType) return;
+
+            // Persist into the shared activity store.
+            recordActivity(source, eventType, detail, panel);
+
+            // Surface a brief "I see you…" observation.
+            const sourceLabel: Record<string, string> = {
+                'blender-bridge': 'Blender',
+                'desktop-bridge': 'Desktop Bridge',
+                'mo2-bridge': 'Mod Organizer 2',
+            };
+            const label = sourceLabel[source] ?? source;
+            const detailSuffix = detail ? `: ${detail}` : '';
+            setIsAlert(false);
+            setMessage(`[${label}] ${eventType}${detailSuffix}`);
+            setVisible(true);
+            setTimeout(() => setVisible(false), 4000);
+        });
+
+        return () => {
+            if (typeof unsubscribe === 'function') unsubscribe();
+        };
+    }, []);
+
+    // ── In-App Panel Activity (DOM event from KeepAlivePanel / any panel component) ──
+    // Any panel can call recordActivity() which also fires this custom event.
+    // MossyObserver listens here to show a brief "watching" indicator.
+    useEffect(() => {
+        const handleActivity = (e: Event) => {
+            const event = (e as CustomEvent<ActivityEvent>).detail;
+            if (!event) return;
+
+            // Only show a bubble for non-trivial events (skip bare panel entry quips
+            // since the route-based QUIPS effect already handles those).
+            if (event.eventType === 'entered') return;
+
+            const detailSuffix = event.detail ? `: ${event.detail}` : '';
+            setIsAlert(false);
+            setMessage(`Observing${event.panel ? ` [${event.panel}]` : ''} — ${event.eventType}${detailSuffix}`);
+            setVisible(true);
+            setTimeout(() => setVisible(false), 3500);
+        };
+
+        window.addEventListener('mossy-activity-event', handleActivity);
+        return () => window.removeEventListener('mossy-activity-event', handleActivity);
+    }, []);
 
     return (
         <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-30 transition-all duration-500 transform ${visible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'}`}>
