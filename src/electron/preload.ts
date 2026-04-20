@@ -180,6 +180,11 @@ const IPC_CHANNELS = {
   OBSERVER_NOTIFY: 'observer-notify',
   OBSERVER_SET_ACTIVE_FOLDER: 'observer-set-active-folder',
 
+  // Bridge & Plugin Activity — sent from Main to Renderer whenever an external
+  // bridge (Desktop Bridge, Blender Bridge, MO2 Bridge, future plugins) records
+  // user activity.  Payload: ActivityEvent (source, eventType, detail?, panel?).
+  BRIDGE_ACTIVITY: 'bridge-activity',
+
   // Multi-Project Support
   PROJECT_LIST: 'project-list',
   PROJECT_CREATE: 'project-create',
@@ -442,6 +447,24 @@ const electronAPI = {
    */
   invokeBlenderTokenRegen: (): Promise<string | null> => {
     return ipcRenderer.invoke('invoke-blender-token-regen');
+  },
+
+  /**
+   * Report activity from an external bridge or plugin to the main process.
+   * The main process broadcasts a 'bridge-activity' IPC event back to the renderer,
+   * where MossyObserver picks it up and feeds it into panelActivity.ts.
+   *
+   * Usage from any bridge plugin:
+   *   window.electron.api.reportBridgeActivity('mo2-bridge', 'profile-changed', 'Default Profile')
+   *   window.electron.api.reportBridgeActivity('blender-bridge', 'script-executed', 'NIF Export')
+   *
+   * @param source  - Bridge/plugin identifier (e.g. 'mo2-bridge', 'blender-bridge', 'desktop-bridge')
+   * @param eventType - What happened (e.g. 'session-started', 'file-loaded', 'error')
+   * @param detail  - Optional human-readable detail string
+   * @param panel   - Optional panel route if relevant
+   */
+  reportBridgeActivity: (source: string, eventType: string, detail?: string, panel?: string): void => {
+    ipcRenderer.send(IPC_CHANNELS.BRIDGE_ACTIVITY, { source, eventType, detail, panel, at: Date.now() });
   },
 
   /**

@@ -1,6 +1,7 @@
-import React, { useRef, Suspense } from 'react';
+import React, { useEffect, useRef, Suspense } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SkeletonLoader } from './SkeletonLoader';
+import { recordPanelEntry } from './panelActivity';
 
 interface KeepAlivePanelProps {
   path: string;
@@ -28,6 +29,14 @@ const KeepAlivePanel: React.FC<KeepAlivePanelProps> = ({ path, children }) => {
 
   // Mark as mounted on first visit; never reset so the component stays alive.
   if (isActive) mountedRef.current = true;
+
+  // Notify Mossy's activity store whenever this panel becomes active.
+  useEffect(() => {
+    if (isActive) {
+      recordPanelEntry(path);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive]);
 
   // Don't render anything until the user first navigates to this panel.
   if (!mountedRef.current) return null;

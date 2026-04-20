@@ -23,6 +23,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { autoSaveManager } from './AutoSaveManager';
 import { useAnalytics } from './utils/analytics';
 import { openExternal } from './utils/openExternal';
+import { getPanelActivityContext } from './panelActivity';
 
 
 type OnboardingState = 'init' | 'scanning' | 'integrating' | 'ready' | 'project_setup';
@@ -1566,6 +1567,7 @@ export const ChatInterface: React.FC = () => {
       ${scanContext}
     ${scanHistoryCtx}
     ${liveToolCtx}
+    ${getPanelActivityContext()}
       ${learnedCtx}
             ${communityLearningCtx}
       `;

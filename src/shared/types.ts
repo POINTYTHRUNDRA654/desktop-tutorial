@@ -1021,6 +1021,11 @@ export const IPC_CHANNELS = {
   OBSERVER_NOTIFY: 'observer-notify', // Sent from Main to Renderer
   OBSERVER_SET_ACTIVE_FOLDER: 'observer-set-active-folder',
 
+  // Bridge & Plugin Activity — sent from Main to Renderer whenever an external
+  // bridge (Desktop Bridge, Blender Bridge, MO2 Bridge, future plugins) records
+  // user activity.  Payload shape: ActivityEvent (see panelActivity.ts).
+  BRIDGE_ACTIVITY: 'bridge-activity',
+
   // Collaboration Features
   COLLABORATION_JOIN_SESSION: 'collaboration-join-session',
   COLLABORATION_LEAVE_SESSION: 'collaboration-leave-session',
