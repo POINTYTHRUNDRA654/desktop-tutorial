@@ -45,6 +45,7 @@ import { getWorkflowAutomationService } from './WorkflowAutomationService';
 import { getPluginSystemService } from './PluginSystemService';
 import { WorkflowAutomationService } from './WorkflowAutomationService';
 import { PluginSystemService } from './PluginSystemService';
+import './bridges'; // registers all bridges on startup
 
 // --- LAZY LOAD MODULES ---
 // This prevents the app from loading ALL code at startup.

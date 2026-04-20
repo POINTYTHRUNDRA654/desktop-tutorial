@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock, Database, Share2, Shield, Settings as SettingsIcon, AlertCircle, CheckCircle2, Clock, Network, Key, Trash2, ArrowDownToLine, RefreshCw, Plus, X, Ban } from 'lucide-react';
-import { DEFAULT_SETTINGS, Settings } from '../../shared/types';
+import { DEFAULT_SETTINGS, Settings, BlacklistEntry } from '../../shared/types';
 
 function getElectronApi(): any {
   return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
@@ -215,65 +215,69 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   };
 
   // Mod Blacklist handlers
-  const currentModBlacklist = (): string[] => {
-    return settings?.privacySettings?.modContentBlacklist ?? [];
+  const currentModBlacklist = (): BlacklistEntry[] => {
+    return (settings?.privacySettings?.modContentBlacklist ?? []).map((e: any) =>
+      typeof e === 'string' ? { name: e } : e
+    );
   };
 
   const handleAddToModBlacklist = () => {
     const trimmed = modBlacklistInput.trim();
     if (!trimmed || !settings) return;
     const existing = currentModBlacklist();
-    if (existing.includes(trimmed)) {
+    if (existing.some(e => e.name.toLowerCase() === trimmed.toLowerCase())) {
       setModBlacklistInput('');
       return;
     }
     saveSettings({
       privacySettings: {
         ...settings.privacySettings,
-        modContentBlacklist: [...existing, trimmed],
+        modContentBlacklist: [...existing, { name: trimmed }],
       },
     });
     setModBlacklistInput('');
   };
 
-  const handleRemoveFromModBlacklist = (entry: string) => {
+  const handleRemoveFromModBlacklist = (name: string) => {
     if (!settings) return;
     saveSettings({
       privacySettings: {
         ...settings.privacySettings,
-        modContentBlacklist: currentModBlacklist().filter((e) => e !== entry),
+        modContentBlacklist: currentModBlacklist().filter((e) => e.name !== name),
       },
     });
   };
 
   // Program Blacklist handlers
-  const currentProgramBlacklist = (): string[] => {
-    return settings?.privacySettings?.programBlacklist ?? [];
+  const currentProgramBlacklist = (): BlacklistEntry[] => {
+    return (settings?.privacySettings?.programBlacklist ?? []).map((e: any) =>
+      typeof e === 'string' ? { name: e } : e
+    );
   };
 
   const handleAddToProgramBlacklist = () => {
     const trimmed = programBlacklistInput.trim();
     if (!trimmed || !settings) return;
     const existing = currentProgramBlacklist();
-    if (existing.includes(trimmed)) {
+    if (existing.some(e => e.name.toLowerCase() === trimmed.toLowerCase())) {
       setProgramBlacklistInput('');
       return;
     }
     saveSettings({
       privacySettings: {
         ...settings.privacySettings,
-        programBlacklist: [...existing, trimmed],
+        programBlacklist: [...existing, { name: trimmed }],
       },
     });
     setProgramBlacklistInput('');
   };
 
-  const handleRemoveFromProgramBlacklist = (entry: string) => {
+  const handleRemoveFromProgramBlacklist = (name: string) => {
     if (!settings) return;
     saveSettings({
       privacySettings: {
         ...settings.privacySettings,
-        programBlacklist: currentProgramBlacklist().filter((e) => e !== entry),
+        programBlacklist: currentProgramBlacklist().filter((e) => e.name !== name),
       },
     });
   };
@@ -790,13 +794,16 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
               <ul className="space-y-2">
                 {currentModBlacklist().map((entry) => (
                   <li
-                    key={entry}
+                    key={entry.name}
                     className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-700/40 rounded-md border border-orange-600/50"
                   >
-                    <span className="text-slate-200 text-sm font-mono truncate">{entry}</span>
+                    <div className="min-w-0">
+                      <span className="text-slate-200 text-sm font-mono truncate block">{entry.name}</span>
+                      {entry.reason && <span className="text-xs text-slate-400 truncate block">{entry.reason}</span>}
+                    </div>
                     <button
                       type="button"
-                      onClick={() => handleRemoveFromModBlacklist(entry)}
+                      onClick={() => handleRemoveFromModBlacklist(entry.name)}
                       className="shrink-0 p-1 rounded text-slate-400 hover:text-orange-400 hover:bg-orange-900/20 transition-colors"
                       title="Remove from blacklist"
                     >
@@ -862,13 +869,16 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
               <ul className="space-y-2">
                 {currentProgramBlacklist().map((entry) => (
                   <li
-                    key={entry}
+                    key={entry.name}
                     className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-700/40 rounded-md border border-orange-600/50"
                   >
-                    <span className="text-slate-200 text-sm font-mono truncate">{entry}</span>
+                    <div className="min-w-0">
+                      <span className="text-slate-200 text-sm font-mono truncate block">{entry.name}</span>
+                      {entry.reason && <span className="text-xs text-slate-400 truncate block">{entry.reason}</span>}
+                    </div>
                     <button
                       type="button"
-                      onClick={() => handleRemoveFromProgramBlacklist(entry)}
+                      onClick={() => handleRemoveFromProgramBlacklist(entry.name)}
                       className="shrink-0 p-1 rounded text-slate-400 hover:text-orange-400 hover:bg-orange-900/20 transition-colors"
                       title="Remove from blacklist"
                     >
