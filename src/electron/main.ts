@@ -9358,6 +9358,23 @@ end.
     }
   });
 
+  ipcMain.handle('security:pick-file', async () => {
+    try {
+      const result = await dialog.showOpenDialog(mainWindow!, {
+        title: 'Select file or folder to scan',
+        properties: ['openFile', 'openDirectory'],
+        filters: [
+          { name: 'Mod Files', extensions: ['esp', 'esm', 'esl', 'bsa', 'ba2', 'psc', 'dll', 'exe', 'zip', '7z', 'rar'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      });
+      return result.canceled ? null : result.filePaths[0];
+    } catch (error: any) {
+      console.error('[Main] security:pick-file error:', error);
+      return null;
+    }
+  });
+
   // Testing suite IPC handlers (renderer -> main)
   const { testingSuite: testingEngine } = require('../mining/testingSuite');
 
