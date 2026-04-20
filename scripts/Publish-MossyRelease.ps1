@@ -118,6 +118,16 @@ try {
 
     Write-Status "Using executable: $([System.IO.Path]::GetFileName($exePath))" "INFO"
 
+    # Verify version matches package.json
+    $pkgJsonPath = Join-Path $PSScriptRoot ".." "package.json"
+    if (Test-Path $pkgJsonPath) {
+        $pkgVersion = (Get-Content $pkgJsonPath -Raw | ConvertFrom-Json).version
+        if ($Version -and $Version -ne $pkgVersion) {
+            throw "Version mismatch: provided version '$Version' does not match package.json version '$pkgVersion'. Update package.json first, then rebuild before publishing."
+        }
+        Write-Status "✅ Version $Version matches package.json version $pkgVersion" "SUCCESS"
+    }
+
     # Prepare the release tag
     $tag = "v$Version"
 
