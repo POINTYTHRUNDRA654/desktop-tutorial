@@ -1,263 +1,111 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
 
-// prefer preload API when available, otherwise fall back to in-memory engine for dev
-let bridge: any = (window as any).electron?.api || (window as any).electronAPI;
-try {
-  if (!bridge || !bridge.security) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const local = require('../../mining/securityValidator');
-    bridge = bridge || { security: local.securityValidator || local.default };
-  }
-} catch (err) {
-  // ignore; UI will still render but actions will fail gracefully
-}
-
-const LOCAL_QUARANTINE_KEY = 'security:quarantine';
 const LOCAL_WHITELIST_KEY = 'security:whitelist';
+
+interface WhitelistEntry {
+  modName: string;
+  author: string;
+}
 
 function readLocal(key: string, fallback: any) {
   try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
 }
 
 const SecurityValidator: React.FC = () => {
-  const navigate = useNavigate();
-  const [path, setPath] = useState('');
-  const [code, setCode] = useState('Event OnUpdate()\nEndEvent');
-  const [progress, setProgress] = useState(0);
-  const [scanning, setScanning] = useState(false);
-  const [lastReport, setLastReport] = useState<any>(null);
-  const [pathError, setPathError] = useState<string | null>(null);
-  const [quarantine, setQuarantine] = useState<string[]>(() => readLocal(LOCAL_QUARANTINE_KEY, []));
-  const [whitelist, setWhitelist] = useState<string[]>(() => readLocal(LOCAL_WHITELIST_KEY, []));
-  const [autoScanOnDownload, setAutoScanOnDownload] = useState(false);
-  const progressRef = useRef<number>(0);
-  const progressTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    const onAutoScan = (e: any) => {
-      if (!autoScanOnDownload) return;
-      const file = e?.detail?.filePath;
-      if (file) doScanFile(file);
-    };
-    window.addEventListener('security:auto-scan-download', onAutoScan as any);
-    return () => window.removeEventListener('security:auto-scan-download', onAutoScan as any);
-  }, [autoScanOnDownload]);
-
-  useEffect(() => {
-    localStorage.setItem(LOCAL_QUARANTINE_KEY, JSON.stringify(quarantine));
-  }, [quarantine]);
+  const [modName, setModName] = useState('');
+  const [author, setAuthor] = useState('');
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [whitelist, setWhitelist] = useState<WhitelistEntry[]>(() => readLocal(LOCAL_WHITELIST_KEY, []));
 
   useEffect(() => {
     localStorage.setItem(LOCAL_WHITELIST_KEY, JSON.stringify(whitelist));
   }, [whitelist]);
 
-  const startProgress = () => {
-    setProgress(5);
-    progressRef.current = 5;
-    if (progressTimer.current) window.clearInterval(progressTimer.current);
-    progressTimer.current = window.setInterval(() => {
-      progressRef.current = Math.min(98, progressRef.current + Math.random() * 8);
-      setProgress(Math.floor(progressRef.current));
-    }, 250) as unknown as number;
+  const addEntry = () => {
+    if (!modName.trim()) { setNameError('Mod name is required'); return; }
+    setNameError(null);
+    const entry: WhitelistEntry = { modName: modName.trim(), author: author.trim() };
+    const alreadyExists = whitelist.some(
+      w => w.modName.toLowerCase() === entry.modName.toLowerCase() && w.author.toLowerCase() === entry.author.toLowerCase()
+    );
+    if (alreadyExists) { toast.error('This mod is already on the whitelist'); return; }
+    setWhitelist(s => [entry, ...s]);
+    setModName('');
+    setAuthor('');
+    toast.success(`"${entry.modName}" added to Mossy's do-not-touch list`);
   };
 
-  const stopProgress = () => {
-    if (progressTimer.current) { window.clearInterval(progressTimer.current); progressTimer.current = null; }
-    setProgress(100);
-    setTimeout(() => setProgress(0), 400);
+  const removeEntry = (index: number) => {
+    setWhitelist(s => s.filter((_, i) => i !== index));
   };
-
-  const doScanFile = async (p?: string) => {
-    const target = p || path;
-    if (!target) { setPathError('Provide a file path'); return; }
-    setPathError(null);
-    if (whitelist.includes(target)) return setLastReport({ info: 'Whitelisted — skipped' });
-
-    setScanning(true);
-    startProgress();
-    try {
-      const res = await bridge.security.scanFile(target);
-      setLastReport({ type: 'file', path: target, result: res });
-    } catch (err) {
-      setLastReport({ error: String(err) });
-    }
-    stopProgress();
-    setScanning(false);
-  };
-
-  const doScanArchive = async () => {
-    if (!path) { setPathError('Provide archive path'); return; }
-    setPathError(null);
-    setScanning(true); startProgress();
-    try {
-      const res = await bridge.security.scanArchive(path);
-      setLastReport({ type: 'archive', path, result: res });
-    } catch (err) { setLastReport({ error: String(err) }); }
-    stopProgress(); setScanning(false);
-  };
-
-  const doScanScript = async () => {
-    if (!path) { setPathError('Provide script path'); return; }
-    setPathError(null);
-    setScanning(true); startProgress();
-    try {
-      const res = await bridge.security.scanScript(path);
-      setLastReport({ type: 'script', path, result: res });
-    } catch (err) { setLastReport({ error: String(err) }); }
-    stopProgress(); setScanning(false);
-  };
-
-  const analyzeCode = async () => {
-    setScanning(true); startProgress();
-    try {
-      const res = await bridge.security.analyzePapyrusScript(code);
-      setLastReport({ type: 'analysis', result: res });
-    } catch (err) { setLastReport({ error: String(err) }); }
-    stopProgress(); setScanning(false);
-  };
-
-  const generateReportFile = async () => {
-    if (!lastReport) { toast.error('No report to export'); return; }
-    const filename = `security-report-${Date.now()}.json`;
-    try {
-      await bridge.saveFile(JSON.stringify(lastReport, null, 2), filename);
-      toast.success(`Report saved: ${filename}`);
-    } catch (err) { toast.error('Failed to save report'); }
-  };
-
-  const quarantineItem = (p: string) => {
-    if (!quarantine.includes(p)) setQuarantine(s => [p, ...s]);
-  };
-  const restoreItem = (p: string) => setQuarantine(s => s.filter(x => x !== p));
-  const addWhitelist = (p: string) => { if (!whitelist.includes(p)) setWhitelist(s => [p, ...s]); };
-  const removeWhitelist = (p: string) => setWhitelist(s => s.filter(x => x !== p));
-
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const files = Array.from(e.dataTransfer.files || []);
-    if (!files.length) return;
-    const first = files[0].path || (files[0] as any).name;
-    setPath(first);
-    doScanFile(first);
-  };
-
-  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); };
 
   return (
     <div className="p-6 min-h-full bg-[#07100a] text-slate-100">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Whitelist Validator</h1>
-          <div className="flex items-center gap-4">
-            <label className="text-xs text-slate-400 flex items-center gap-2"><input type="checkbox" checked={autoScanOnDownload} onChange={e=>setAutoScanOnDownload(e.target.checked)} /> Auto-scan on download</label>
-            <button className="px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={() => { bridge.security.updateThreatDatabase?.(); toast.success('Threat DB update requested'); }}>Update DB</button>
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-2xl font-bold mb-2">Whitelist Validator</h1>
+        <p className="text-sm text-slate-400 mb-6">
+          Add mods to Mossy's do-not-touch list. Mossy will not access or modify any information for whitelisted mods.
+        </p>
+
+        <div className="p-4 bg-[#08120c] border border-slate-800 rounded space-y-4">
+          <div>
+            <label className="text-sm text-slate-300">Mod Name <span className="text-rose-400">*</span></label>
+            <input
+              className="w-full mt-1 p-2 bg-black/10 border border-slate-800 rounded text-sm"
+              value={modName}
+              onChange={e => { setModName(e.target.value); setNameError(null); }}
+              placeholder="e.g. Sim Settlements 2"
+              onKeyDown={e => e.key === 'Enter' && addEntry()}
+            />
+            {nameError && <p className="mt-1 text-xs text-rose-400">{nameError}</p>}
           </div>
+
+          <div>
+            <label className="text-sm text-slate-300">Author</label>
+            <input
+              className="w-full mt-1 p-2 bg-black/10 border border-slate-800 rounded text-sm"
+              value={author}
+              onChange={e => setAuthor(e.target.value)}
+              placeholder="e.g. kinggath"
+              onKeyDown={e => e.key === 'Enter' && addEntry()}
+            />
+          </div>
+
+          <button
+            className="px-4 py-2 bg-emerald-700/30 hover:bg-emerald-700/50 border border-emerald-700/50 rounded text-sm text-emerald-300 transition-colors"
+            onClick={addEntry}
+          >
+            Add to Whitelist
+          </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-6">
-          <div className="p-4 bg-[#08120c] border border-slate-800 rounded" onDrop={onDrop} onDragOver={onDragOver}>
-            <label className="text-sm text-slate-300">File / Folder / Script (drag & drop supported)</label>
-            <div className="flex gap-2 mt-2">
-              <input className="flex-1 p-2 bg-black/10 border border-slate-800 rounded text-sm" value={path} onChange={e => { setPath(e.target.value); setPathError(null); }} placeholder="C:/path/to/file or folder" />
-              <button
-                className="px-3 py-2 bg-slate-700/30 hover:bg-slate-600/40 border border-slate-700 rounded text-sm whitespace-nowrap"
-                onClick={async () => {
-                  const picked = await bridge?.security?.pickFile?.();
-                  if (picked) { setPath(picked); setPathError(null); }
-                }}
-                title="Browse for a file or folder"
-              >Browse…</button>
-            </div>
-            {pathError && <p className="mt-1 text-xs text-rose-400">{pathError}</p>}
-
-            <div className="mt-4 flex gap-2">
-              <button className="px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={() => doScanFile()} disabled={scanning}>Scan File</button>
-              <button className="px-3 py-2 bg-purple-700/10 rounded text-sm" onClick={doScanArchive} disabled={scanning}>Scan Archive</button>
-              <button className="px-3 py-2 bg-amber-700/10 rounded text-sm" onClick={doScanScript} disabled={scanning}>Scan Script</button>
-            </div>
-
-            <div className="mt-4">
-              <div className="h-2 bg-slate-800 rounded overflow-hidden">
-                <div style={{ width: `${progress}%` }} className="h-2 bg-emerald-500 transition-all" />
-              </div>
-              <div className="mt-2 text-xs text-slate-500">{scanning ? `Scanning (${progress}%)` : 'Idle'}</div>
-            </div>
-
-            <div className="mt-6">
-              <button className="px-3 py-2 bg-sky-700/10 rounded text-sm" onClick={generateReportFile} disabled={!lastReport}>Export Report</button>
-            </div>
+        <div className="mt-6 p-4 bg-[#06100a] border border-slate-800 rounded">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-semibold">Mossy's Do-Not-Touch List</div>
+            <div className="text-xs text-slate-500">{whitelist.length} {whitelist.length === 1 ? 'entry' : 'entries'}</div>
           </div>
 
-          <div className="p-4 bg-[#08120c] border border-slate-800 rounded">
-            <label className="text-sm text-slate-300">Papyrus / Script Analyzer</label>
-            <textarea className="w-full mt-2 p-2 bg-black/10 border border-slate-800 rounded text-sm h-40" value={code} onChange={e => setCode(e.target.value)} />
-            <div className="mt-4 flex gap-2">
-              <button className="px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={analyzeCode} disabled={scanning}>Analyze</button>
-              <button className="px-3 py-2 bg-slate-700/10 rounded text-sm" onClick={() => setCode('')}>Clear</button>
-            </div>
-
-            <div className="mt-6 text-xs text-slate-400">Drag a file onto the left pane to quickly scan. Quarantine or whitelist results below.</div>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-3 gap-6">
-          <div className="p-4 bg-[#06100a] border border-slate-800 rounded">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold">Latest Result</div>
-            </div>
-            <pre className="text-xs text-slate-300 max-h-56 overflow-auto whitespace-pre-wrap">{lastReport ? JSON.stringify(lastReport, null, 2) : 'No result yet'}</pre>
-            {lastReport?.result?.threats?.length > 0 && (
-              <div className="mt-3">
-                <button className="px-3 py-2 bg-rose-700/10 rounded text-sm" onClick={() => quarantineItem(lastReport.path)}>Quarantine</button>
-                <button className="ml-2 px-3 py-2 bg-slate-700/10 rounded text-sm" onClick={() => addWhitelist(lastReport.path)}>Whitelist</button>
-              </div>
-            )}
-            {lastReport && (
-              <button
-                onClick={() => navigate('/chat', { state: { prefill: `I just ran a security scan and got the following result:\n\n${JSON.stringify(lastReport, null, 2)}\n\nCan you help me interpret this and advise on any threats?` } })}
-                className="mt-3 w-full py-2 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
-                title="Open full chat with this report as context"
-              >
-                Ask Mossy about this
-              </button>
-            )}
-          </div>
-
-          <div className="p-4 bg-[#06100a] border border-slate-800 rounded">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold">Quarantine</div>
-              <div className="text-xs text-slate-500">{quarantine.length} items</div>
-            </div>
-            {quarantine.length === 0 ? <div className="text-xs text-slate-500">No quarantined items</div> : quarantine.map((q, i) => (
-              <div key={i} className="flex items-center justify-between text-sm mb-2">
-                <div className="truncate">{q}</div>
-                <div className="flex gap-2">
-                  <button className="px-2 py-1 bg-slate-700/10 rounded text-xs" onClick={() => restoreItem(q)}>Restore</button>
+          {whitelist.length === 0 ? (
+            <div className="text-xs text-slate-500">No whitelisted mods yet. Add one above.</div>
+          ) : (
+            <div className="space-y-2">
+              {whitelist.map((entry, i) => (
+                <div key={i} className="flex items-center justify-between p-2 bg-black/20 rounded border border-slate-800/60">
+                  <div className="min-w-0">
+                    <div className="text-sm truncate">{entry.modName}</div>
+                    {entry.author && <div className="text-xs text-slate-500 truncate">by {entry.author}</div>}
+                  </div>
+                  <button
+                    className="ml-4 px-2 py-1 bg-rose-700/10 hover:bg-rose-700/30 rounded text-xs text-rose-400 transition-colors shrink-0"
+                    onClick={() => removeEntry(i)}
+                  >
+                    Remove
+                  </button>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="p-4 bg-[#06100a] border border-slate-800 rounded">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold">Whitelist</div>
-              <div className="text-xs text-slate-500">{whitelist.length} items</div>
+              ))}
             </div>
-            <div className="mb-3 flex gap-2">
-              <input className="flex-1 p-2 bg-black/10 border border-slate-800 rounded text-sm" placeholder="Add path or hash" id="wl-input" />
-              <button className="px-3 py-2 bg-purple-700/10 rounded text-sm" onClick={() => { const v = (document.getElementById('wl-input') as HTMLInputElement).value; if (v) addWhitelist(v); (document.getElementById('wl-input') as HTMLInputElement).value=''; }}>Add</button>
-            </div>
-            {whitelist.length === 0 ? <div className="text-xs text-slate-500">No whitelist entries</div> : whitelist.map((w, i) => (
-              <div key={i} className="flex items-center justify-between text-sm mb-2">
-                <div className="truncate">{w}</div>
-                <div className="flex gap-2">
-                  <button className="px-2 py-1 bg-rose-700/10 rounded text-xs" onClick={() => removeWhitelist(w)}>Remove</button>
-                </div>
-              </div>
-            ))}
-          </div>
+          )}
         </div>
       </div>
     </div>
