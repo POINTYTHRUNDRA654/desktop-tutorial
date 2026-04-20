@@ -395,12 +395,12 @@ const ImageSuite: React.FC = () => {
               <div className="mb-4">
                 <label className="block text-sm font-medium text-slate-400 mb-2">Source Image</label>
                 <div className="border-2 border-dashed border-slate-600 rounded-lg p-4 text-center hover:border-forge-accent cursor-pointer transition-colors relative h-32 flex items-center justify-center">
+                  {/* Accept standard web images plus .dds (DirectX Surface format
+                      widely used for Fallout 4 / Bethesda game textures). */}
                   <input 
                     ref={fileInputRef}
                     type="file" 
                     className="absolute inset-0 opacity-0 cursor-pointer"
-                    {/* Accept standard web images plus .dds (DirectX Surface format
-                        widely used for Fallout 4 / Bethesda game textures). */}
                     accept="image/*,.dds"
                     onChange={(e) => e.target.files && setSourceImage(e.target.files[0])}
                   />
