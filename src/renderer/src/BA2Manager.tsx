@@ -368,8 +368,12 @@ export const BA2Manager: React.FC = () => {
             />
             <button
               onClick={async () => {
-                const picked = await window.electronAPI.pickBa2File();
-                if (picked) setArchivePath(picked);
+                try {
+                  const picked = await window.electronAPI.pickBa2File();
+                  if (picked) setArchivePath(picked);
+                } catch {
+                  toast.error('Failed to open file picker. Please check Desktop Bridge is running.');
+                }
               }}
               title="Browse for a .ba2 file"
               aria-label="Browse for BA2 archive file"
