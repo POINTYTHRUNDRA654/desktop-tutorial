@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
-import { Image as ImageIcon, ScanSearch, ArrowDownToLine, Layers, Upload, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Image as ImageIcon, ScanSearch, ArrowDownToLine, Layers, Upload, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { workerManager } from './WorkerManager';
@@ -21,6 +21,17 @@ const ImageSuite: React.FC = () => {
   
   // Global Context for Avatar
   const { setAvatarFromUrl } = useLive();
+
+  // Ref for the file input so we can reset its value when clearing
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Clear source image + generated maps
+  const clearSource = () => {
+    setSourceImage(null);
+    setPbrMaps({ normal: null, roughness: null, height: null, metallic: null, ao: null });
+    setFallbackWarning(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   // PBR State
   const [pbrMaps, setPbrMaps] = useState<{
@@ -385,16 +396,30 @@ const ImageSuite: React.FC = () => {
                 <label className="block text-sm font-medium text-slate-400 mb-2">Source Image</label>
                 <div className="border-2 border-dashed border-slate-600 rounded-lg p-4 text-center hover:border-forge-accent cursor-pointer transition-colors relative h-32 flex items-center justify-center">
                   <input 
+                    ref={fileInputRef}
                     type="file" 
                     className="absolute inset-0 opacity-0 cursor-pointer"
-                    accept="image/*"
+                    accept="image/*,.dds"
                     onChange={(e) => e.target.files && setSourceImage(e.target.files[0])}
                   />
                   {sourceImage ? (
-                    <div className="relative z-10">
-                      <div className="text-forge-accent font-medium truncate max-w-[200px]">{sourceImage.name}</div>
-                      <div className="text-xs text-slate-500 mt-1">{(sourceImage.size / 1024).toFixed(0)} KB</div>
-                    </div>
+                    <>
+                      {/* pointer-events-none lets clicks pass through to the file input for re-selection */}
+                      <div className="relative z-10 pointer-events-none text-center">
+                        <div className="text-forge-accent font-medium truncate max-w-[200px]">{sourceImage.name}</div>
+                        <div className="text-xs text-slate-500 mt-1">{(sourceImage.size / 1024).toFixed(0)} KB</div>
+                        <div className="text-xs text-slate-600 mt-1">Click to replace</div>
+                      </div>
+                      {/* X button — pointer-events-auto so it's independently clickable */}
+                      <button
+                        type="button"
+                        aria-label="Remove source image"
+                        onClick={(e) => { e.stopPropagation(); clearSource(); }}
+                        className="absolute top-1.5 right-1.5 z-20 pointer-events-auto p-1 rounded-full bg-slate-700 hover:bg-red-600 text-slate-300 hover:text-white transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </>
                   ) : (
                     <div className="text-slate-500 flex flex-col items-center">
                       <Upload className="w-8 h-8 mb-2 opacity-50" />
