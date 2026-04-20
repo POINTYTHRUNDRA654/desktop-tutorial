@@ -955,6 +955,7 @@ export const IPC_CHANNELS = {
   SAVE_FILE: 'save-file',
   PICK_JSON_FILE: 'pick-json-file',
   PICK_DIRECTORY: 'pick-directory',
+  PICK_BA2_FILE: 'pick-ba2-file',
 
   // Local ML
   ML_INDEX_BUILD: 'ml-index-build',
@@ -4423,6 +4424,7 @@ export interface ElectronAPI {
   miningPatternRecognitionResults: () => Promise<any>;
 
   // BA2 Archive Management
+  pickBa2File: () => Promise<string>;
   mergeBA2: (inputArchives: string[], outputArchive: string, archiveType: 'general' | 'texture') => Promise<any>;
 
   // Collaboration Features
