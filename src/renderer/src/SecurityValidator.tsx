@@ -149,7 +149,7 @@ const SecurityValidator: React.FC = () => {
     <div className="p-6 min-h-full bg-[#07100a] text-slate-100">
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Security Validator</h1>
+          <h1 className="text-2xl font-bold">Whitelist Validator</h1>
           <div className="flex items-center gap-4">
             <label className="text-xs text-slate-400 flex items-center gap-2"><input type="checkbox" checked={autoScanOnDownload} onChange={e=>setAutoScanOnDownload(e.target.checked)} /> Auto-scan on download</label>
             <button className="px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={() => { bridge.security.updateThreatDatabase?.(); toast.success('Threat DB update requested'); }}>Update DB</button>
