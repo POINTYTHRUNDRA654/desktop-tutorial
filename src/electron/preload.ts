@@ -3075,6 +3075,27 @@ const electronAPI = {
     getTrendingMods: (timeframe?: string): Promise<any[]> =>
       ipcRenderer.invoke('mod-browser:trending', timeframe),
   },
+
+  security: {
+    pickFile: (): Promise<string | null> =>
+      ipcRenderer.invoke('security:pick-file'),
+    scanFile: (path: string): Promise<any> =>
+      ipcRenderer.invoke('security:scan-file', path),
+    scanArchive: (path: string): Promise<any> =>
+      ipcRenderer.invoke('security:scan-archive', path),
+    scanScript: (path: string): Promise<any> =>
+      ipcRenderer.invoke('security:scan-script', path),
+    analyzePapyrusScript: (code: string): Promise<any> =>
+      ipcRenderer.invoke('security:analyze-papyrus', code),
+    generateChecksum: (path: string, algorithm: 'md5' | 'sha256' = 'sha256'): Promise<any> =>
+      ipcRenderer.invoke('security:generate-checksum', path, algorithm),
+    verifyChecksum: (path: string, expectedHash: string): Promise<any> =>
+      ipcRenderer.invoke('security:verify-checksum', path, expectedHash),
+    updateThreatDatabase: (): Promise<any> =>
+      ipcRenderer.invoke('security:update-db'),
+    checkAgainstDatabase: (hash: string): Promise<any> =>
+      ipcRenderer.invoke('security:check-db', hash),
+  },
 };
 
 /**

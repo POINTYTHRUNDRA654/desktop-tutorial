@@ -159,7 +159,17 @@ const SecurityValidator: React.FC = () => {
         <div className="grid grid-cols-2 gap-6">
           <div className="p-4 bg-[#08120c] border border-slate-800 rounded" onDrop={onDrop} onDragOver={onDragOver}>
             <label className="text-sm text-slate-300">File / Folder / Script (drag & drop supported)</label>
-            <input className="w-full mt-2 p-2 bg-black/10 border border-slate-800 rounded text-sm" value={path} onChange={e => { setPath(e.target.value); setPathError(null); }} placeholder="C:/path/to/file or folder" />
+            <div className="flex gap-2 mt-2">
+              <input className="flex-1 p-2 bg-black/10 border border-slate-800 rounded text-sm" value={path} onChange={e => { setPath(e.target.value); setPathError(null); }} placeholder="C:/path/to/file or folder" />
+              <button
+                className="px-3 py-2 bg-slate-700/30 hover:bg-slate-600/40 border border-slate-700 rounded text-sm whitespace-nowrap"
+                onClick={async () => {
+                  const picked = await bridge?.security?.pickFile?.();
+                  if (picked) { setPath(picked); setPathError(null); }
+                }}
+                title="Browse for a file or folder"
+              >Browse…</button>
+            </div>
             {pathError && <p className="mt-1 text-xs text-rose-400">{pathError}</p>}
 
             <div className="mt-4 flex gap-2">
