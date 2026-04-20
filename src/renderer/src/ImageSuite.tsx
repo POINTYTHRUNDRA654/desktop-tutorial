@@ -399,6 +399,8 @@ const ImageSuite: React.FC = () => {
                     ref={fileInputRef}
                     type="file" 
                     className="absolute inset-0 opacity-0 cursor-pointer"
+                    {/* Accept standard web images plus .dds (DirectX Surface format
+                        widely used for Fallout 4 / Bethesda game textures). */}
                     accept="image/*,.dds"
                     onChange={(e) => e.target.files && setSourceImage(e.target.files[0])}
                   />

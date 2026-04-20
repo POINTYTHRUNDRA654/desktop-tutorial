@@ -146,7 +146,7 @@ const MOD_TEMPLATES: ModTemplate[] = [
 
 const TheBlueprint: React.FC = () => {
     const [selectedTemplate, setSelectedTemplate] = useState<ModTemplate>(MOD_TEMPLATES[0]);
-    const [expandedStructure, setExpandedStructure] = useState<string>('structure');
+    const [activeTab, setActiveTab] = useState<string>('structure');
     const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
     const detailsScrollRef = useRef<HTMLDivElement | null>(null);
@@ -253,9 +253,9 @@ const TheBlueprint: React.FC = () => {
                     {/* Template Tabs */}
                     <div className="flex border-b border-black bg-[#252526]">
                         <button
-                            onClick={() => setExpandedStructure('structure')}
+                            onClick={() => setActiveTab('structure')}
                             className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
-                                expandedStructure === 'structure'
+                                activeTab === 'structure'
                                     ? 'border-amber-400 text-amber-300'
                                     : 'border-transparent text-slate-400 hover:text-slate-300'
                             }`}
@@ -263,9 +263,9 @@ const TheBlueprint: React.FC = () => {
                             Folder Structure
                         </button>
                         <button
-                            onClick={() => setExpandedStructure('components')}
+                            onClick={() => setActiveTab('components')}
                             className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
-                                expandedStructure === 'components'
+                                activeTab === 'components'
                                     ? 'border-amber-400 text-amber-300'
                                     : 'border-transparent text-slate-400 hover:text-slate-300'
                             }`}
@@ -273,9 +273,9 @@ const TheBlueprint: React.FC = () => {
                             Required Components
                         </button>
                         <button
-                            onClick={() => setExpandedStructure('dependencies')}
+                            onClick={() => setActiveTab('dependencies')}
                             className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
-                                expandedStructure === 'dependencies'
+                                activeTab === 'dependencies'
                                     ? 'border-amber-400 text-amber-300'
                                     : 'border-transparent text-slate-400 hover:text-slate-300'
                             }`}
@@ -287,7 +287,7 @@ const TheBlueprint: React.FC = () => {
                     {/* Content Area */}
                     <div ref={detailsScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-4">
                         {/* FOLDER STRUCTURE TAB */}
-                        {expandedStructure === 'structure' && (
+                        {activeTab === 'structure' && (
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="font-semibold text-slate-200">Folder & File Structure</h3>
@@ -331,7 +331,7 @@ const TheBlueprint: React.FC = () => {
                         )}
 
                         {/* COMPONENTS TAB */}
-                        {expandedStructure === 'components' && (
+                        {activeTab === 'components' && (
                             <div className="space-y-3">
                                 <h3 className="font-semibold text-slate-200 mb-4">Required & Optional Components</h3>
                                 {selectedTemplate.components.map((comp, idx) => (
@@ -356,7 +356,7 @@ const TheBlueprint: React.FC = () => {
                         )}
 
                         {/* DEPENDENCIES TAB */}
-                        {expandedStructure === 'dependencies' && (
+                        {activeTab === 'dependencies' && (
                             <div className="space-y-3">
                                 <h3 className="font-semibold text-slate-200 mb-4">Master Files & Dependencies</h3>
                                 {selectedTemplate.dependencies.length > 0 ? (

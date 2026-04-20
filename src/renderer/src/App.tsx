@@ -187,6 +187,48 @@ const NeuralController: React.FC = () => {
   return null;
 };
 
+/**
+ * Set of all paths that are served by KeepAlivePanel entries. The Routes catch-all
+ * uses this to distinguish "panel not yet visible" from "truly unknown route".
+ */
+const KEEP_ALIVE_PATHS = new Set([
+  '/', '/chat', '/ai-assistant', '/ai-mod-assistant', '/cloud-sync', '/first-success',
+  '/roadmap', '/live', '/tools', '/tools/ini-config', '/tools/asset-deduplicator',
+  '/tools/log-monitor', '/tools/xedit', '/tools/ck-extension', '/tools/project-templates',
+  '/tools/formid-remapper', '/tools/precombine-generator', '/tools/voice-commands',
+  '/tools/automation', '/tools/ck-crash-prevention', '/tools/security', '/tools/mining',
+  '/tools/advanced-analysis', '/tools/blueprint', '/tools/scribe', '/tools/vault',
+  '/tools/ba2-manager', '/tools/cosmos', '/dev', '/dev/workshop', '/mods',
+  '/dev/orchestrator', '/dev/workflow-runner', '/dev/workflow-recorder',
+  '/dev/plugin-manager', '/dev/load-order', '/media', '/media/images', '/test',
+  '/test/holo', '/test/notification-test', '/test/bridge', '/learn', '/reference',
+  '/knowledge', '/lore', '/memory-vault', '/ck-crash-prevention', '/dds-converter',
+  '/texture-generator', '/guides', '/guides/blender', '/guides/blender/animation',
+  '/guides/creation-kit', '/guides/creation-kit/quest-authoring', '/guides/papyrus/guide',
+  '/guides/physics', '/guides/mods', '/guides/mods/bodyslide', '/guides/mods/sim-settlements',
+  '/wizards', '/devtools', '/settings', '/project', '/support', '/assembler', '/diagnostics',
+  '/community', '/capabilities', '/packaging-release', '/extensions/mo2',
+  '/extensions/comfyui', '/extensions/upscayl',
+  // Special routes rendered directly inside <Routes>
+  '/tutorial', '/whats-new',
+]);
+
+/**
+ * Shown by the Routes catch-all only for paths that are not handled by either a
+ * redirect route or a KeepAlivePanel. Valid panel paths should never hit this.
+ */
+const RouteNotFound: React.FC = () => {
+  const location = useLocation();
+  // Content-panel routes are rendered by KeepAlivePanel outside <Routes>.
+  // Return null here so they're not blocked by the catch-all.
+  if (KEEP_ALIVE_PATHS.has(location.pathname)) return null;
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-slate-400">
+      <div className="text-5xl font-mono">404</div>
+      <div className="text-sm font-mono">Page not found — <code>{location.pathname}</code></div>
+    </div>
+  );
+};
 
 const WhatsNewRedirect: React.FC<{ enabled: boolean }> = ({ enabled }) => {
   const navigate = useNavigate();
@@ -1340,16 +1382,8 @@ const App: React.FC = () => {
                 <Route path="/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
                 <Route path="/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
                 {/* Catch-all: content panels are rendered by KeepAlivePanel below.
-                    Show a simple Not Found message for truly unknown routes. */}
-                <Route
-                  path="*"
-                  element={
-                    <div className="flex flex-col items-center justify-center h-64 gap-3 text-slate-400">
-                      <div className="text-5xl">404</div>
-                      <div className="text-sm font-mono">Page not found</div>
-                    </div>
-                  }
-                />
+                    RouteNotFound returns null for known panel paths and a 404 for unknown routes. */}
+                <Route path="*" element={<RouteNotFound />} />
               </Routes>
 
               {/*

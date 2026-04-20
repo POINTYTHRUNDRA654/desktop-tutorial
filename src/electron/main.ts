@@ -7413,15 +7413,14 @@ end.
         { name: 'All Files', extensions: ['*'] },
       ],
     };
+    // Attach the dialog to the focused window when available so it behaves as a
+    // proper modal. Falls back to a detached (global) dialog if no window is focused.
     const result = win
       ? await dialog.showOpenDialog(win, options)
       : await dialog.showOpenDialog(options);
     if (result.canceled || !result.filePaths?.length) return '';
     return result.filePaths[0];
   });
-
-  /**
-   * Handler: gguf-pick-file
    * Opens a native file-picker dialog restricted to .gguf model files.
    * Returns the selected path as a string, or '' if cancelled.
    */
