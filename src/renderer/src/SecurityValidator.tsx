@@ -1,416 +1,257 @@
-import React, { useEffect, useState } from 'react';
-import { Shield, Ban, AlertTriangle, Plus, X, Cpu } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { DEFAULT_SETTINGS, BlacklistEntry, Settings } from '../../shared/types';
+import { useNavigate } from 'react-router-dom';
 
-// ── helpers ─────────────────────────────────────────────────────────────────
-
-function getApi(): any {
-  return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
-}
-
-async function loadSettings(): Promise<Settings> {
-  const api = getApi();
-  if (api?.getSettings) {
-    try {
-      const s = await api.getSettings();
-      return {
-        ...DEFAULT_SETTINGS,
-        ...(s || {}),
-        privacySettings: {
-          ...DEFAULT_SETTINGS.privacySettings,
-          ...(s?.privacySettings || {}),
-        },
-      } as Settings;
-    } catch { /* fall through */ }
+// prefer preload API when available, otherwise fall back to in-memory engine for dev
+let bridge: any = (window as any).electron?.api || (window as any).electronAPI;
+try {
+  if (!bridge || !bridge.security) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const local = require('../../mining/securityValidator');
+    bridge = bridge || { security: local.securityValidator || local.default };
   }
-  return { ...DEFAULT_SETTINGS };
+} catch (err) {
+  // ignore; UI will still render but actions will fail gracefully
 }
 
-async function savePrivacy(
-  current: Settings,
-  patch: Partial<Settings['privacySettings']>
-): Promise<Settings> {
-  const api = getApi();
-  const next: Settings = {
-    ...current,
-    privacySettings: { ...current.privacySettings, ...patch },
-  };
-  if (api?.setSettings) await api.setSettings(next);
-  return next;
+const LOCAL_QUARANTINE_KEY = 'security:quarantine';
+const LOCAL_WHITELIST_KEY = 'security:whitelist';
+
+function readLocal(key: string, fallback: any) {
+  try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
 }
 
-// ── whitelist (do-not-touch list) stored separately via localStorage ─────────
-const WL_KEY = 'security:whitelist';
-interface WLEntry { modName: string; author: string }
-function readWL(): WLEntry[] {
-  try { return JSON.parse(localStorage.getItem(WL_KEY) || '[]') ?? []; } catch { return []; }
-}
-function writeWL(list: WLEntry[]) {
-  localStorage.setItem(WL_KEY, JSON.stringify(list));
-}
-
-// ── tab type ─────────────────────────────────────────────────────────────────
-type Tab = 'whitelist' | 'mod-blacklist' | 'program-blacklist';
-
-// ── component ────────────────────────────────────────────────────────────────
 const SecurityValidator: React.FC = () => {
-  const [tab, setTab] = useState<Tab>('mod-blacklist');
-
-  // settings-backed blacklists
-  const [settings, setSettings] = useState<Settings | null>(null);
-
-  // whitelist (localStorage)
-  const [whitelist, setWhitelist] = useState<WLEntry[]>(readWL);
-  const [wlName, setWlName] = useState('');
-  const [wlAuthor, setWlAuthor] = useState('');
-  const [wlError, setWlError] = useState<string | null>(null);
-
-  // mod blacklist fields
-  const [mbName, setMbName] = useState('');
-  const [mbReason, setMbReason] = useState('');
-
-  // program blacklist fields
-  const [pbName, setPbName] = useState('');
-  const [pbReason, setPbReason] = useState('');
+  const navigate = useNavigate();
+  const [path, setPath] = useState('');
+  const [code, setCode] = useState('Event OnUpdate()\nEndEvent');
+  const [progress, setProgress] = useState(0);
+  const [scanning, setScanning] = useState(false);
+  const [lastReport, setLastReport] = useState<any>(null);
+  const [pathError, setPathError] = useState<string | null>(null);
+  const [quarantine, setQuarantine] = useState<string[]>(() => readLocal(LOCAL_QUARANTINE_KEY, []));
+  const [whitelist, setWhitelist] = useState<string[]>(() => readLocal(LOCAL_WHITELIST_KEY, []));
+  const [autoScanOnDownload, setAutoScanOnDownload] = useState(false);
+  const progressRef = useRef<number>(0);
+  const progressTimer = useRef<number | null>(null);
 
   useEffect(() => {
-    loadSettings().then(setSettings);
-  }, []);
+    const onAutoScan = (e: any) => {
+      if (!autoScanOnDownload) return;
+      const file = e?.detail?.filePath;
+      if (file) doScanFile(file);
+    };
+    window.addEventListener('security:auto-scan-download', onAutoScan as any);
+    return () => window.removeEventListener('security:auto-scan-download', onAutoScan as any);
+  }, [autoScanOnDownload]);
 
-  // ── persist whitelist ────────────────────────────────────────────────────
-  useEffect(() => { writeWL(whitelist); }, [whitelist]);
+  useEffect(() => {
+    localStorage.setItem(LOCAL_QUARANTINE_KEY, JSON.stringify(quarantine));
+  }, [quarantine]);
 
-  const modBlacklist: BlacklistEntry[] = (settings?.privacySettings?.modContentBlacklist ?? []).map(
-    (e: any) => (typeof e === 'string' ? { name: e } : e)
-  );
-  const programBlacklist: BlacklistEntry[] = (settings?.privacySettings?.programBlacklist ?? []).map(
-    (e: any) => (typeof e === 'string' ? { name: e } : e)
-  );
+  useEffect(() => {
+    localStorage.setItem(LOCAL_WHITELIST_KEY, JSON.stringify(whitelist));
+  }, [whitelist]);
 
-  // ── whitelist actions ───────────────────────────────────────────────────
-  const addToWhitelist = () => {
-    if (!wlName.trim()) { setWlError('Mod name is required'); return; }
-    setWlError(null);
-    const entry: WLEntry = { modName: wlName.trim(), author: wlAuthor.trim() };
-    if (whitelist.some(w => w.modName.toLowerCase() === entry.modName.toLowerCase())) {
-      toast.error('Already on the do-not-touch list');
-      return;
+  const startProgress = () => {
+    setProgress(5);
+    progressRef.current = 5;
+    if (progressTimer.current) window.clearInterval(progressTimer.current);
+    progressTimer.current = window.setInterval(() => {
+      progressRef.current = Math.min(98, progressRef.current + Math.random() * 8);
+      setProgress(Math.floor(progressRef.current));
+    }, 250) as unknown as number;
+  };
+
+  const stopProgress = () => {
+    if (progressTimer.current) { window.clearInterval(progressTimer.current); progressTimer.current = null; }
+    setProgress(100);
+    setTimeout(() => setProgress(0), 400);
+  };
+
+  const doScanFile = async (p?: string) => {
+    const target = p || path;
+    if (!target) { setPathError('Provide a file path'); return; }
+    setPathError(null);
+    if (whitelist.includes(target)) return setLastReport({ info: 'Whitelisted — skipped' });
+
+    setScanning(true);
+    startProgress();
+    try {
+      const res = await bridge.security.scanFile(target);
+      setLastReport({ type: 'file', path: target, result: res });
+    } catch (err) {
+      setLastReport({ error: String(err) });
     }
-    setWhitelist(s => [entry, ...s]);
-    setWlName(''); setWlAuthor('');
-    toast.success(`"${entry.modName}" added to do-not-touch list`);
+    stopProgress();
+    setScanning(false);
   };
 
-  // ── mod blacklist actions ───────────────────────────────────────────────
-  const addToModBlacklist = async () => {
-    if (!mbName.trim() || !settings) return;
-    const entry: BlacklistEntry = { name: mbName.trim(), reason: mbReason.trim() || undefined };
-    if (modBlacklist.some(e => e.name.toLowerCase() === entry.name.toLowerCase())) {
-      toast.error('Already on the mod blacklist'); return;
-    }
-    const next = await savePrivacy(settings, { modContentBlacklist: [...modBlacklist, entry] });
-    setSettings(next);
-    setMbName(''); setMbReason('');
-    toast.success(`"${entry.name}" added to mod blacklist`);
+  const doScanArchive = async () => {
+    if (!path) { setPathError('Provide archive path'); return; }
+    setPathError(null);
+    setScanning(true); startProgress();
+    try {
+      const res = await bridge.security.scanArchive(path);
+      setLastReport({ type: 'archive', path, result: res });
+    } catch (err) { setLastReport({ error: String(err) }); }
+    stopProgress(); setScanning(false);
   };
 
-  const removeFromModBlacklist = async (name: string) => {
-    if (!settings) return;
-    const next = await savePrivacy(settings, {
-      modContentBlacklist: modBlacklist.filter(e => e.name !== name),
-    });
-    setSettings(next);
+  const doScanScript = async () => {
+    if (!path) { setPathError('Provide script path'); return; }
+    setPathError(null);
+    setScanning(true); startProgress();
+    try {
+      const res = await bridge.security.scanScript(path);
+      setLastReport({ type: 'script', path, result: res });
+    } catch (err) { setLastReport({ error: String(err) }); }
+    stopProgress(); setScanning(false);
   };
 
-  // ── program blacklist actions ───────────────────────────────────────────
-  const addToProgramBlacklist = async () => {
-    if (!pbName.trim() || !settings) return;
-    const entry: BlacklistEntry = { name: pbName.trim(), reason: pbReason.trim() || undefined };
-    if (programBlacklist.some(e => e.name.toLowerCase() === entry.name.toLowerCase())) {
-      toast.error('Already on the program blacklist'); return;
-    }
-    const next = await savePrivacy(settings, { programBlacklist: [...programBlacklist, entry] });
-    setSettings(next);
-    setPbName(''); setPbReason('');
-    toast.success(`"${entry.name}" added to program blacklist`);
+  const analyzeCode = async () => {
+    setScanning(true); startProgress();
+    try {
+      const res = await bridge.security.analyzePapyrusScript(code);
+      setLastReport({ type: 'analysis', result: res });
+    } catch (err) { setLastReport({ error: String(err) }); }
+    stopProgress(); setScanning(false);
   };
 
-  const removeFromProgramBlacklist = async (name: string) => {
-    if (!settings) return;
-    const next = await savePrivacy(settings, {
-      programBlacklist: programBlacklist.filter(e => e.name !== name),
-    });
-    setSettings(next);
+  const generateReportFile = async () => {
+    if (!lastReport) { toast.error('No report to export'); return; }
+    const filename = `security-report-${Date.now()}.json`;
+    try {
+      await bridge.saveFile(JSON.stringify(lastReport, null, 2), filename);
+      toast.success(`Report saved: ${filename}`);
+    } catch (err) { toast.error('Failed to save report'); }
   };
 
-  // ── shared styles ───────────────────────────────────────────────────────
-  const inputCls = 'w-full p-2 bg-slate-900 border border-slate-700 rounded text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
-  const addBtnCls = (color: string) =>
-    `flex items-center gap-1.5 px-3 py-2 rounded text-sm font-semibold transition-colors ${color}`;
+  const quarantineItem = (p: string) => {
+    if (!quarantine.includes(p)) setQuarantine(s => [p, ...s]);
+  };
+  const restoreItem = (p: string) => setQuarantine(s => s.filter(x => x !== p));
+  const addWhitelist = (p: string) => { if (!whitelist.includes(p)) setWhitelist(s => [p, ...s]); };
+  const removeWhitelist = (p: string) => setWhitelist(s => s.filter(x => x !== p));
 
-  const EntryList = ({
-    entries,
-    onRemove,
-    emptyMsg,
-    accent,
-  }: {
-    entries: BlacklistEntry[];
-    onRemove: (name: string) => void;
-    emptyMsg: string;
-    accent: string;
-  }) => (
-    entries.length === 0
-      ? <p className="text-xs text-slate-500 italic">{emptyMsg}</p>
-      : <ul className="space-y-2">
-          {entries.map(e => (
-            <li key={e.name} className={`flex items-start justify-between gap-3 p-2.5 bg-slate-900/60 rounded border ${accent}`}>
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-slate-200 truncate">{e.name}</div>
-                {e.reason && <div className="text-xs text-slate-400 mt-0.5 truncate">{e.reason}</div>}
-              </div>
-              <button
-                onClick={() => onRemove(e.name)}
-                className="shrink-0 p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-900/20 transition-colors"
-                title="Remove"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </li>
-          ))}
-        </ul>
-  );
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files || []);
+    if (!files.length) return;
+    const first = files[0].path || (files[0] as any).name;
+    setPath(first);
+    doScanFile(first);
+  };
 
-  // ── render ──────────────────────────────────────────────────────────────
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); };
+
   return (
     <div className="p-6 min-h-full bg-[#07100a] text-slate-100">
-      <div className="max-w-2xl mx-auto">
-
-        {/* header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-1">Blacklist Manager</h1>
-          <p className="text-sm text-slate-400">
-            Tell Mossy which mods and programs are known to cause issues with Fallout 4.
-            She will warn users about them — but always respect the user's final choice.
-            The do-not-touch list tells Mossy to never reference or recommend specific mods at all.
-          </p>
+      <div className="max-w-5xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">Security Validator</h1>
+          <div className="flex items-center gap-4">
+            <label className="text-xs text-slate-400 flex items-center gap-2"><input type="checkbox" checked={autoScanOnDownload} onChange={e=>setAutoScanOnDownload(e.target.checked)} /> Auto-scan on download</label>
+            <button className="px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={() => { bridge.security.updateThreatDatabase?.(); toast.success('Threat DB update requested'); }}>Update DB</button>
+          </div>
         </div>
 
-        {/* tabs */}
-        <div className="flex gap-1 mb-6 border-b border-slate-800">
-          {([
-            { id: 'mod-blacklist', label: 'Mod Blacklist', icon: Ban, count: modBlacklist.length },
-            { id: 'program-blacklist', label: 'Program Blacklist', icon: Cpu, count: programBlacklist.length },
-            { id: 'whitelist', label: 'Do-Not-Touch', icon: Shield, count: whitelist.length },
-          ] as const).map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id as Tab)}
-              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
-                tab === t.id
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              <t.icon className="w-4 h-4" />
-              {t.label}
-              {t.count > 0 && (
-                <span className="text-xs bg-slate-700 text-slate-300 rounded-full px-1.5 py-0.5 leading-none">{t.count}</span>
-              )}
-            </button>
-          ))}
+        <div className="grid grid-cols-2 gap-6">
+          <div className="p-4 bg-[#08120c] border border-slate-800 rounded" onDrop={onDrop} onDragOver={onDragOver}>
+            <label className="text-sm text-slate-300">File / Folder / Script (drag & drop supported)</label>
+            <input className="w-full mt-2 p-2 bg-black/10 border border-slate-800 rounded text-sm" value={path} onChange={e => { setPath(e.target.value); setPathError(null); }} placeholder="C:/path/to/file or folder" />
+            {pathError && <p className="mt-1 text-xs text-rose-400">{pathError}</p>}
+
+            <div className="mt-4 flex gap-2">
+              <button className="px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={() => doScanFile()} disabled={scanning}>Scan File</button>
+              <button className="px-3 py-2 bg-purple-700/10 rounded text-sm" onClick={doScanArchive} disabled={scanning}>Scan Archive</button>
+              <button className="px-3 py-2 bg-amber-700/10 rounded text-sm" onClick={doScanScript} disabled={scanning}>Scan Script</button>
+            </div>
+
+            <div className="mt-4">
+              <div className="h-2 bg-slate-800 rounded overflow-hidden">
+                <div style={{ width: `${progress}%` }} className="h-2 bg-emerald-500 transition-all" />
+              </div>
+              <div className="mt-2 text-xs text-slate-500">{scanning ? `Scanning (${progress}%)` : 'Idle'}</div>
+            </div>
+
+            <div className="mt-6">
+              <button className="px-3 py-2 bg-sky-700/10 rounded text-sm" onClick={generateReportFile} disabled={!lastReport}>Export Report</button>
+            </div>
+          </div>
+
+          <div className="p-4 bg-[#08120c] border border-slate-800 rounded">
+            <label className="text-sm text-slate-300">Papyrus / Script Analyzer</label>
+            <textarea className="w-full mt-2 p-2 bg-black/10 border border-slate-800 rounded text-sm h-40" value={code} onChange={e => setCode(e.target.value)} />
+            <div className="mt-4 flex gap-2">
+              <button className="px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={analyzeCode} disabled={scanning}>Analyze</button>
+              <button className="px-3 py-2 bg-slate-700/10 rounded text-sm" onClick={() => setCode('')}>Clear</button>
+            </div>
+
+            <div className="mt-6 text-xs text-slate-400">Drag a file onto the left pane to quickly scan. Quarantine or whitelist results below.</div>
+          </div>
         </div>
 
-        {/* ── MOD BLACKLIST ─────────────────────────────────────────────── */}
-        {tab === 'mod-blacklist' && (
-          <div className="space-y-6">
-            <div className="flex items-start gap-2 p-3 bg-orange-900/20 border border-orange-700/40 rounded text-sm text-orange-200">
-              <AlertTriangle className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
-              <span>
-                Mods listed here are known to cause crashes, conflicts, or corruption.
-                Mossy will warn users whenever they ask about them and suggest safer alternatives.
-                If a user still wants to use one, Mossy will respect that choice.
-              </span>
+        <div className="mt-6 grid grid-cols-3 gap-6">
+          <div className="p-4 bg-[#06100a] border border-slate-800 rounded">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-semibold">Latest Result</div>
             </div>
-
-            <div className="space-y-3 p-4 bg-[#08120c] border border-slate-800 rounded">
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">Mod Name <span className="text-rose-400">*</span></label>
-                <input
-                  className={inputCls}
-                  value={mbName}
-                  onChange={e => setMbName(e.target.value)}
-                  placeholder="e.g. Unofficial Patch NIGHTMARE Edition"
-                  onKeyDown={e => e.key === 'Enter' && addToModBlacklist()}
-                />
+            <pre className="text-xs text-slate-300 max-h-56 overflow-auto whitespace-pre-wrap">{lastReport ? JSON.stringify(lastReport, null, 2) : 'No result yet'}</pre>
+            {lastReport?.result?.threats?.length > 0 && (
+              <div className="mt-3">
+                <button className="px-3 py-2 bg-rose-700/10 rounded text-sm" onClick={() => quarantineItem(lastReport.path)}>Quarantine</button>
+                <button className="ml-2 px-3 py-2 bg-slate-700/10 rounded text-sm" onClick={() => addWhitelist(lastReport.path)}>Whitelist</button>
               </div>
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">Reason <span className="text-slate-600">(optional — Mossy will cite this)</span></label>
-                <input
-                  className={inputCls}
-                  value={mbReason}
-                  onChange={e => setMbReason(e.target.value)}
-                  placeholder="e.g. Causes CTD on save, incompatible with Sim Settlements 2"
-                  onKeyDown={e => e.key === 'Enter' && addToModBlacklist()}
-                />
-              </div>
+            )}
+            {lastReport && (
               <button
-                className={addBtnCls('bg-orange-800/40 hover:bg-orange-700/50 border border-orange-700/50 text-orange-300')}
-                onClick={addToModBlacklist}
-                disabled={!mbName.trim()}
+                onClick={() => navigate('/chat', { state: { prefill: `I just ran a security scan and got the following result:\n\n${JSON.stringify(lastReport, null, 2)}\n\nCan you help me interpret this and advise on any threats?` } })}
+                className="mt-3 w-full py-2 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-xs transition-colors flex items-center justify-center gap-2"
+                title="Open full chat with this report as context"
               >
-                <Plus className="w-4 h-4" /> Add to Mod Blacklist
+                Ask Mossy about this
               </button>
-            </div>
-
-            <div className="p-4 bg-[#06100a] border border-slate-800 rounded">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-semibold">Blacklisted Mods</span>
-                <span className="text-xs text-slate-500">{modBlacklist.length} {modBlacklist.length === 1 ? 'entry' : 'entries'}</span>
-              </div>
-              <EntryList
-                entries={modBlacklist}
-                onRemove={removeFromModBlacklist}
-                emptyMsg="No mods blacklisted yet."
-                accent="border-orange-800/50"
-              />
-            </div>
+            )}
           </div>
-        )}
 
-        {/* ── PROGRAM BLACKLIST ─────────────────────────────────────────── */}
-        {tab === 'program-blacklist' && (
-          <div className="space-y-6">
-            <div className="flex items-start gap-2 p-3 bg-red-900/20 border border-red-700/40 rounded text-sm text-red-200">
-              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-              <span>
-                Programs listed here are known to be outdated, incompatible, or dangerous to modding workflows.
-                Mossy will actively discourage their use and recommend safer alternatives.
-                If a user still wants to proceed, Mossy will respect that choice.
-              </span>
+          <div className="p-4 bg-[#06100a] border border-slate-800 rounded">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-semibold">Quarantine</div>
+              <div className="text-xs text-slate-500">{quarantine.length} items</div>
             </div>
-
-            <div className="space-y-3 p-4 bg-[#08120c] border border-slate-800 rounded">
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">Program Name <span className="text-rose-400">*</span></label>
-                <input
-                  className={inputCls}
-                  value={pbName}
-                  onChange={e => setPbName(e.target.value)}
-                  placeholder="e.g. Wrye Bash (outdated version)"
-                  onKeyDown={e => e.key === 'Enter' && addToProgramBlacklist()}
-                />
+            {quarantine.length === 0 ? <div className="text-xs text-slate-500">No quarantined items</div> : quarantine.map((q, i) => (
+              <div key={i} className="flex items-center justify-between text-sm mb-2">
+                <div className="truncate">{q}</div>
+                <div className="flex gap-2">
+                  <button className="px-2 py-1 bg-slate-700/10 rounded text-xs" onClick={() => restoreItem(q)}>Restore</button>
+                </div>
               </div>
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">Reason <span className="text-slate-600">(optional — Mossy will cite this)</span></label>
-                <input
-                  className={inputCls}
-                  value={pbReason}
-                  onChange={e => setPbReason(e.target.value)}
-                  placeholder="e.g. Corrupts load order on FO4 1.10.984+"
-                  onKeyDown={e => e.key === 'Enter' && addToProgramBlacklist()}
-                />
-              </div>
-              <button
-                className={addBtnCls('bg-red-800/40 hover:bg-red-700/50 border border-red-700/50 text-red-300')}
-                onClick={addToProgramBlacklist}
-                disabled={!pbName.trim()}
-              >
-                <Plus className="w-4 h-4" /> Add to Program Blacklist
-              </button>
-            </div>
-
-            <div className="p-4 bg-[#06100a] border border-slate-800 rounded">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-semibold">Blacklisted Programs</span>
-                <span className="text-xs text-slate-500">{programBlacklist.length} {programBlacklist.length === 1 ? 'entry' : 'entries'}</span>
-              </div>
-              <EntryList
-                entries={programBlacklist}
-                onRemove={removeFromProgramBlacklist}
-                emptyMsg="No programs blacklisted yet."
-                accent="border-red-800/50"
-              />
-            </div>
+            ))}
           </div>
-        )}
 
-        {/* ── DO-NOT-TOUCH WHITELIST ────────────────────────────────────── */}
-        {tab === 'whitelist' && (
-          <div className="space-y-6">
-            <div className="flex items-start gap-2 p-3 bg-emerald-900/20 border border-emerald-700/40 rounded text-sm text-emerald-200">
-              <Shield className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span>
-                Mods listed here are completely off-limits for Mossy. She will never mention, recommend,
-                reference, or interact with them in any way — no matter what the user asks.
-              </span>
+          <div className="p-4 bg-[#06100a] border border-slate-800 rounded">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-semibold">Whitelist</div>
+              <div className="text-xs text-slate-500">{whitelist.length} items</div>
             </div>
-
-            <div className="space-y-3 p-4 bg-[#08120c] border border-slate-800 rounded">
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">Mod Name <span className="text-rose-400">*</span></label>
-                <input
-                  className={inputCls}
-                  value={wlName}
-                  onChange={e => { setWlName(e.target.value); setWlError(null); }}
-                  placeholder="e.g. Sim Settlements 2"
-                  onKeyDown={e => e.key === 'Enter' && addToWhitelist()}
-                />
-                {wlError && <p className="mt-1 text-xs text-rose-400">{wlError}</p>}
-              </div>
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">Author <span className="text-slate-600">(optional)</span></label>
-                <input
-                  className={inputCls}
-                  value={wlAuthor}
-                  onChange={e => setWlAuthor(e.target.value)}
-                  placeholder="e.g. kinggath"
-                  onKeyDown={e => e.key === 'Enter' && addToWhitelist()}
-                />
-              </div>
-              <button
-                className={addBtnCls('bg-emerald-800/40 hover:bg-emerald-700/50 border border-emerald-700/50 text-emerald-300')}
-                onClick={addToWhitelist}
-              >
-                <Plus className="w-4 h-4" /> Add to Do-Not-Touch List
-              </button>
+            <div className="mb-3 flex gap-2">
+              <input className="flex-1 p-2 bg-black/10 border border-slate-800 rounded text-sm" placeholder="Add path or hash" id="wl-input" />
+              <button className="px-3 py-2 bg-purple-700/10 rounded text-sm" onClick={() => { const v = (document.getElementById('wl-input') as HTMLInputElement).value; if (v) addWhitelist(v); (document.getElementById('wl-input') as HTMLInputElement).value=''; }}>Add</button>
             </div>
-
-            <div className="p-4 bg-[#06100a] border border-slate-800 rounded">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-semibold">Do-Not-Touch List</span>
-                <span className="text-xs text-slate-500">{whitelist.length} {whitelist.length === 1 ? 'entry' : 'entries'}</span>
+            {whitelist.length === 0 ? <div className="text-xs text-slate-500">No whitelist entries</div> : whitelist.map((w, i) => (
+              <div key={i} className="flex items-center justify-between text-sm mb-2">
+                <div className="truncate">{w}</div>
+                <div className="flex gap-2">
+                  <button className="px-2 py-1 bg-rose-700/10 rounded text-xs" onClick={() => removeWhitelist(w)}>Remove</button>
+                </div>
               </div>
-              {whitelist.length === 0
-                ? <p className="text-xs text-slate-500 italic">No mods protected yet.</p>
-                : (
-                  <ul className="space-y-2">
-                    {whitelist.map((e, i) => (
-                      <li key={i} className="flex items-center justify-between gap-3 p-2.5 bg-slate-900/60 rounded border border-emerald-800/50">
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium text-slate-200 truncate">{e.modName}</div>
-                          {e.author && <div className="text-xs text-slate-400 truncate">by {e.author}</div>}
-                        </div>
-                        <button
-                          onClick={() => setWhitelist(s => s.filter((_, j) => j !== i))}
-                          className="shrink-0 p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-900/20 transition-colors"
-                          title="Remove"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )
-              }
-            </div>
+            ))}
           </div>
-        )}
-
+        </div>
       </div>
     </div>
   );
 };
 
 export default SecurityValidator;
-

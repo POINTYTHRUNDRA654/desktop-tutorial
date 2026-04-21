@@ -23,7 +23,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { autoSaveManager } from './AutoSaveManager';
 import { useAnalytics } from './utils/analytics';
 import { openExternal } from './utils/openExternal';
-import { getPanelActivityContext } from './panelActivity';
 
 
 type OnboardingState = 'init' | 'scanning' | 'integrating' | 'ready' | 'project_setup';
@@ -1500,22 +1499,18 @@ export const ChatInterface: React.FC = () => {
                         `(The user has protected these mods. Never mention, recommend, discuss, use them as examples, reference, modify, or interact with them in any way under any circumstances.)`;
                 }
 
-                const modBlacklist: { name: string; reason?: string }[] = (s?.privacySettings?.modContentBlacklist ?? []).map((e: any) =>
-                    typeof e === 'string' ? { name: e } : e
-                );
+                const modBlacklist: string[] = s?.privacySettings?.modContentBlacklist ?? [];
                 if (modBlacklist.length > 0) {
                     settingsCtx += `\n**MOD CONTENT BLACKLIST (WARN AGAINST THESE MODS):**\n` +
-                        modBlacklist.map((e) => `- ${e.name}${e.reason ? ` — ${e.reason}` : ''}`).join('\n') + '\n' +
-                        `(These mods are known to be problematic, broken, or incompatible. If a user asks about them, warn them about potential issues (citing the reason above when provided) and suggest safer alternatives.)`;
+                        modBlacklist.map((m: string) => `- ${m}`).join('\n') + '\n' +
+                        `(These mods are known to be problematic, broken, or incompatible. If a user asks about them, warn them about potential issues and suggest safer alternatives.)`;
                 }
 
-                const programBlacklist: { name: string; reason?: string }[] = (s?.privacySettings?.programBlacklist ?? []).map((e: any) =>
-                    typeof e === 'string' ? { name: e } : e
-                );
+                const programBlacklist: string[] = s?.privacySettings?.programBlacklist ?? [];
                 if (programBlacklist.length > 0) {
                     settingsCtx += `\n**PROGRAM BLACKLIST (WARN AGAINST THESE PROGRAMS):**\n` +
-                        programBlacklist.map((e) => `- ${e.name}${e.reason ? ` — ${e.reason}` : ''}`).join('\n') + '\n' +
-                        `(These programs are known to cause issues, conflicts, or problems with modding workflows. Actively discourage their use, cite the reason above when provided, and recommend safer alternatives.)`;
+                        programBlacklist.map((p: string) => `- ${p}`).join('\n') + '\n' +
+                        `(These programs are known to cause issues, conflicts, or problems with modding workflows. Actively discourage their use and recommend safer alternatives.)`;
                 }
             }
 
@@ -1567,7 +1562,6 @@ export const ChatInterface: React.FC = () => {
       ${scanContext}
     ${scanHistoryCtx}
     ${liveToolCtx}
-    ${getPanelActivityContext()}
       ${learnedCtx}
             ${communityLearningCtx}
       `;

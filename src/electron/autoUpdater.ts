@@ -160,7 +160,7 @@ export class AutoUpdaterService {
     if (!this.mainWindow || this.mainWindow.isDestroyed() || !this.autoUpdater) return;
 
     const message = `A new version ${info.version} is available!\n\n` +
-      `Current version: ${this.autoUpdater.currentVersion.version}\n` +
+      `Current version: ${this.autoUpdater.currentVersion}\n` +
       `Would you like to download it now?`;
 
     dialog.showMessageBox(this.mainWindow, {
