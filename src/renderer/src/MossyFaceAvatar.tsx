@@ -65,8 +65,6 @@ const MossyFaceAvatar: React.FC<MossyFaceAvatarProps> = ({
     <div 
       className={`relative rounded-full overflow-hidden ${className} transition-all duration-700`}
       style={{
-        width: '100%',
-        height: '100%',
         maxWidth: maxPx,
         maxHeight: maxPx,
         overflow: 'hidden',
