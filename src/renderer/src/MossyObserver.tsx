@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MessageSquare, X } from 'lucide-react';
 import { useLive } from './LiveContext';
-import { recordActivity, type ActivityEvent } from './panelActivity';
-import { mossyAvatarUrl } from './assets/avatar';
 
 const QUIPS: Record<string, string[]> = {
     '/': [
@@ -558,62 +556,7 @@ const MossyObserver: React.FC = () => {
         return undefined;
     }, []);
 
-    // ── Bridge Activity (IPC: Desktop Bridge, Blender Bridge, MO2 Bridge, future plugins) ──
-    // Main process sends 'bridge-activity' when an external bridge/plugin registers
-    // something the user is doing.  We forward it into the activity store so Mossy's
-    // system context stays current, and surface a brief observation bubble.
-    useEffect(() => {
-        const api = window.electron?.api;
-        if (!api?.on) return undefined;
-
-        const unsubscribe = api.on('bridge-activity', (payload: ActivityEvent) => {
-            const { source, eventType, detail, panel } = payload || {};
-            if (!source || !eventType) return;
-
-            // Persist into the shared activity store.
-            recordActivity(source, eventType, detail, panel);
-
-            // Surface a brief "I see you…" observation.
-            const sourceLabel: Record<string, string> = {
-                'blender-bridge': 'Blender',
-                'desktop-bridge': 'Desktop Bridge',
-                'mo2-bridge': 'Mod Organizer 2',
-            };
-            const label = sourceLabel[source] ?? source;
-            const detailSuffix = detail ? `: ${detail}` : '';
-            setIsAlert(false);
-            setMessage(`[${label}] ${eventType}${detailSuffix}`);
-            setVisible(true);
-            setTimeout(() => setVisible(false), 4000);
-        });
-
-        return () => {
-            if (typeof unsubscribe === 'function') unsubscribe();
-        };
-    }, []);
-
-    // ── In-App Panel Activity (DOM event from KeepAlivePanel / any panel component) ──
-    // Any panel can call recordActivity() which also fires this custom event.
-    // MossyObserver listens here to show a brief "watching" indicator.
-    useEffect(() => {
-        const handleActivity = (e: Event) => {
-            const event = (e as CustomEvent<ActivityEvent>).detail;
-            if (!event) return;
-
-            // Only show a bubble for non-trivial events (skip bare panel entry quips
-            // since the route-based QUIPS effect already handles those).
-            if (event.eventType === 'entered') return;
-
-            const detailSuffix = event.detail ? `: ${event.detail}` : '';
-            setIsAlert(false);
-            setMessage(`Observing${event.panel ? ` [${event.panel}]` : ''} — ${event.eventType}${detailSuffix}`);
-            setVisible(true);
-            setTimeout(() => setVisible(false), 3500);
-        };
-
-        window.addEventListener('mossy-activity-event', handleActivity);
-        return () => window.removeEventListener('mossy-activity-event', handleActivity);
-    }, []);
+    if (!message && !visible) return null;
 
     return (
         <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-30 transition-all duration-500 transform ${visible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'}`}>
@@ -642,16 +585,28 @@ const MossyObserver: React.FC = () => {
                 
                 {/* Mini Avatar Bubble */}
                 <div className={`w-12 h-12 rounded-full bg-black border-2 flex items-center justify-center overflow-hidden relative shadow-lg ${isAlert ? 'border-emerald-400 shadow-[0_0_15px_#10b981]' : 'border-slate-800'}`}>
-                    <>
-                        <div className="absolute inset-0 bg-emerald-500/20 animate-pulse"></div>
-                        <img
-                            src={customAvatar || mossyAvatarUrl}
-                            alt="Mossy"
-                            className="w-full h-full object-cover opacity-90"
-                            style={{ objectPosition: 'top center', pointerEvents: 'none' }}
-                            draggable={false}
-                        />
-                    </>
+                    {customAvatar ? (
+                        <>
+                            <div className="absolute inset-0 bg-emerald-500/20 animate-pulse"></div>
+                            <img
+                                src={customAvatar}
+                                alt="Mossy"
+                                className="w-full h-full object-cover opacity-90"
+                                style={{ pointerEvents: 'none' }}
+                                draggable={false}
+                            />
+                        </>
+                    ) : (
+                        <>
+                            {/* Inner Glow */}
+                            <div className="absolute inset-0 bg-emerald-900/20"></div>
+                            {/* Core */}
+                            <div className="w-4 h-4 bg-emerald-400 rounded-full shadow-[0_0_15px_#10b981] animate-pulse"></div>
+                            {/* Rings */}
+                            <div className="absolute inset-1 border border-emerald-500/30 rounded-full animate-spin-slow"></div>
+                            <div className="absolute inset-2 border border-emerald-500/20 rounded-full animate-reverse-spin"></div>
+                        </>
+                    )}
                 </div>
             </div>
         </div>

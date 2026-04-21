@@ -3,26 +3,12 @@
 **Creator:** 4estGimp  
 **Nexus Mods Profile:** https://www.nexusmods.com/fallout4/users/30343500  
 **Resource Type:** Community Patch Database & Modding Reference  
-**Format:** Zoho Sheet (Community-Shared) + Donated PDF Files  
+**Format:** Zoho Sheet (Community-Shared)  
 **Access:** [4estGimp's Fallout 4 Database](https://sheet.zoho.com/sheet/open/4gagib312c97873654347b49206d40f80afce)  
 **Focus:** Fallout 4 patches, mod compatibility, and conflict resolution data  
 **Attribution:** All content courtesy of 4estGimp (Community Author & Patch Creator)  
 **Support:** Tortured Minds Discord (4estGimp's primary support hub)  
 **MRC Index:** https://resourcecatalogue.co.uk/4estgimp-user-files
-
----
-
-## ✅ Donated Files — Absorbed Into Mossy's Brain
-
-4estGimp personally donated the following files to Mossy's knowledge base:
-
-| File | Contents | Status |
-|------|----------|--------|
-| `4estGimp frist 400 sheets.pdf` | First 400 entries from the patch database — armor, weapons, settlements, NPCs, crafting, and load order data | ✅ Absorbed |
-
-These files have been fully processed and absorbed into Mossy's Memory Vault as a bundled knowledge pack. Mossy will automatically reference 4estGimp's patch knowledge when answering compatibility questions.
-
-**See also:** [4estGimp Donated PDF Files — Full Detail](./4ESTGIMP_DONATED_PDF_FILES.md)
 
 ---
 

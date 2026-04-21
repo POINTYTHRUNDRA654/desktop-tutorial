@@ -145,9 +145,6 @@ const IPC_CHANNELS = {
   // Edition detection
   GET_MOSSY_EDITION: 'get-mossy-edition',
 
-  // BA2 Archive Manager
-  PICK_BA2_FILE: 'pick-ba2-file',
-
   // GGUF / Unsloth model import
   GGUF_PICK_FILE: 'gguf-pick-file',
   GGUF_IMPORT_TO_OLLAMA: 'gguf-import-to-ollama',
@@ -179,11 +176,6 @@ const IPC_CHANNELS = {
   // Proactive Observer (Neural Link+)
   OBSERVER_NOTIFY: 'observer-notify',
   OBSERVER_SET_ACTIVE_FOLDER: 'observer-set-active-folder',
-
-  // Bridge & Plugin Activity — sent from Main to Renderer whenever an external
-  // bridge (Desktop Bridge, Blender Bridge, MO2 Bridge, future plugins) records
-  // user activity.  Payload: ActivityEvent (source, eventType, detail?, panel?).
-  BRIDGE_ACTIVITY: 'bridge-activity',
 
   // Multi-Project Support
   PROJECT_LIST: 'project-list',
@@ -447,24 +439,6 @@ const electronAPI = {
    */
   invokeBlenderTokenRegen: (): Promise<string | null> => {
     return ipcRenderer.invoke('invoke-blender-token-regen');
-  },
-
-  /**
-   * Report activity from an external bridge or plugin to the main process.
-   * The main process broadcasts a 'bridge-activity' IPC event back to the renderer,
-   * where MossyObserver picks it up and feeds it into panelActivity.ts.
-   *
-   * Usage from any bridge plugin:
-   *   window.electron.api.reportBridgeActivity('mo2-bridge', 'profile-changed', 'Default Profile')
-   *   window.electron.api.reportBridgeActivity('blender-bridge', 'script-executed', 'NIF Export')
-   *
-   * @param source  - Bridge/plugin identifier (e.g. 'mo2-bridge', 'blender-bridge', 'desktop-bridge')
-   * @param eventType - What happened (e.g. 'session-started', 'file-loaded', 'error')
-   * @param detail  - Optional human-readable detail string
-   * @param panel   - Optional panel route if relevant
-   */
-  reportBridgeActivity: (source: string, eventType: string, detail?: string, panel?: string): void => {
-    ipcRenderer.send(IPC_CHANNELS.BRIDGE_ACTIVITY, { source, eventType, detail, panel, at: Date.now() });
   },
 
   /**
@@ -1903,14 +1877,6 @@ const electronAPI = {
   },
 
   /**
-   * BA2 Archive Manager: Open native file picker restricted to .ba2 archives.
-   * Returns the selected path or '' if cancelled.
-   */
-  pickBa2File: (): Promise<string> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.PICK_BA2_FILE);
-  },
-
-  /**
    * GGUF / Unsloth: Open file picker for .gguf model files
    */
   ggufPickFile: (): Promise<string> => {
@@ -3073,51 +3039,6 @@ const electronAPI = {
     const listener = (_event: any, metrics: any) => callback(metrics);
     ipcRenderer.on(IPC_CHANNELS.SYSTEM_METRICS_SUBSCRIBE, listener);
     return () => ipcRenderer.off(IPC_CHANNELS.SYSTEM_METRICS_SUBSCRIBE, listener);
-  },
-
-  // Mod Browser
-  modBrowser: {
-    searchMods: (query: string, filters?: any): Promise<any[]> =>
-      ipcRenderer.invoke('mod-browser:search', query, filters),
-    getModDetails: (modId: string): Promise<any> =>
-      ipcRenderer.invoke('mod-browser:get-details', modId),
-    downloadMod: (modId: string, destination: string): Promise<any> =>
-      ipcRenderer.invoke('mod-browser:download', modId, destination),
-    rateMod: (modId: string, rating: number, review: string): Promise<void> =>
-      ipcRenderer.invoke('mod-browser:rate', modId, rating, review),
-    authenticateNexus: (apiKey: string): Promise<any> =>
-      ipcRenderer.invoke('mod-browser:authenticate-nexus', apiKey),
-    getModReviews: (modId: string): Promise<any[]> =>
-      ipcRenderer.invoke('mod-browser:get-reviews', modId),
-    createCollection: (name: string, mods: string[], description?: string): Promise<any> =>
-      ipcRenderer.invoke('mod-browser:create-collection', name, mods, description),
-    shareCollection: (collectionId: string): Promise<any> =>
-      ipcRenderer.invoke('mod-browser:share-collection', collectionId),
-    endorseMod: (modId: string): Promise<void> =>
-      ipcRenderer.invoke('mod-browser:endorse-mod', modId),
-    getTrendingMods: (timeframe?: string): Promise<any[]> =>
-      ipcRenderer.invoke('mod-browser:trending', timeframe),
-  },
-
-  security: {
-    pickFile: (): Promise<string | null> =>
-      ipcRenderer.invoke('security:pick-file'),
-    scanFile: (path: string): Promise<any> =>
-      ipcRenderer.invoke('security:scan-file', path),
-    scanArchive: (path: string): Promise<any> =>
-      ipcRenderer.invoke('security:scan-archive', path),
-    scanScript: (path: string): Promise<any> =>
-      ipcRenderer.invoke('security:scan-script', path),
-    analyzePapyrusScript: (code: string): Promise<any> =>
-      ipcRenderer.invoke('security:analyze-papyrus', code),
-    generateChecksum: (path: string, algorithm: 'md5' | 'sha256' = 'sha256'): Promise<any> =>
-      ipcRenderer.invoke('security:generate-checksum', path, algorithm),
-    verifyChecksum: (path: string, expectedHash: string): Promise<any> =>
-      ipcRenderer.invoke('security:verify-checksum', path, expectedHash),
-    updateThreatDatabase: (): Promise<any> =>
-      ipcRenderer.invoke('security:update-db'),
-    checkAgainstDatabase: (hash: string): Promise<any> =>
-      ipcRenderer.invoke('security:check-db', hash),
   },
 };
 

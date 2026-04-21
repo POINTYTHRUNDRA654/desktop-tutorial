@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Lock, Database, Share2, Shield, Settings as SettingsIcon, AlertCircle, CheckCircle2, Clock, Network, Key, Trash2, ArrowDownToLine, RefreshCw, Plus, X, Ban } from 'lucide-react';
-import { DEFAULT_SETTINGS, Settings, BlacklistEntry } from '../../shared/types';
+import { Lock, Database, Share2, Shield, Settings as SettingsIcon, AlertCircle, CheckCircle2, Eye, EyeOff, Clock, Network, Key, Trash2, ArrowDownToLine, RefreshCw, Plus, X, Ban } from 'lucide-react';
+import { DEFAULT_SETTINGS, Settings } from '../../shared/types';
 
 function getElectronApi(): any {
   return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
@@ -27,6 +27,15 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   });
   const [showDetails, setShowDetails] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  // API Key inputs
+  const [backendBaseUrlInput, setBackendBaseUrlInput] = useState<string>('');
+  const [backendTokenInput, setBackendTokenInput] = useState<string>('');
+  const [showBackendToken, setShowBackendToken] = useState(false);
+  const [whisperLocalUrlInput, setWhisperLocalUrlInput] = useState<string>('');
+
+  const [secrets, setSecrets] = useState<{ backendToken: boolean } | null>(null);
+  const [keySaveStatus, setKeySaveStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
 
   // Mod Content Whitelist
   const [whitelistInput, setWhitelistInput] = useState<string>('');
@@ -60,8 +69,22 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
           },
         };
         setSettings(mergedSettings);
+        setBackendBaseUrlInput(String(mergedSettings?.backendBaseUrl || '').trim());
+        setWhisperLocalUrlInput(String(mergedSettings?.whisperLocalUrl || '').trim());
       } catch (e) {
         console.error('Failed to load settings:', e);
+      }
+    }
+
+    // Load secret status
+    if (api?.getSecretStatus) {
+      try {
+        const st = await api.getSecretStatus();
+        if (st?.ok) {
+          setSecrets({ backendToken: !!st.backendToken });
+        }
+      } catch (e) {
+        console.warn('Failed to load secret status:', e);
       }
     }
   };
@@ -80,6 +103,52 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
     } catch (e) {
       console.error('Failed to save settings:', e);
       setSaveStatus('idle');
+    }
+  };
+
+  const saveBackendConfig = async (baseUrl: string, tokenOrEmpty?: string) => {
+    const api = getElectronApi();
+    if (!api?.setSettings || !api?.getSecretStatus) {
+      setKeySaveStatus((prev) => ({ ...prev, backend: 'error' }));
+      return;
+    }
+
+    setKeySaveStatus((prev) => ({ ...prev, backend: 'saving' }));
+    try {
+      const payload: any = { backendBaseUrl: String(baseUrl || '').trim() };
+      if (typeof tokenOrEmpty === 'string') {
+        payload.backendToken = tokenOrEmpty.trim();
+      }
+      await api.setSettings(payload);
+
+      // Clear token input so it doesn't linger in renderer memory.
+      if (typeof tokenOrEmpty === 'string' && tokenOrEmpty.trim()) {
+        setBackendTokenInput('');
+      }
+
+      const st = await api.getSecretStatus();
+      if (st?.ok) setSecrets({ backendToken: !!st.backendToken });
+
+      setKeySaveStatus((prev) => ({ ...prev, backend: 'saved' }));
+      setTimeout(() => setKeySaveStatus((prev) => ({ ...prev, backend: 'idle' })), 2500);
+    } catch {
+      setKeySaveStatus((prev) => ({ ...prev, backend: 'error' }));
+    }
+  };
+
+  const saveWhisperConfig = async (url: string) => {
+    const api = getElectronApi();
+    if (!api?.setSettings) {
+      setKeySaveStatus((prev) => ({ ...prev, whisper: 'error' }));
+      return;
+    }
+    setKeySaveStatus((prev) => ({ ...prev, whisper: 'saving' }));
+    try {
+      await api.setSettings({ whisperLocalUrl: String(url || '').trim() });
+      setKeySaveStatus((prev) => ({ ...prev, whisper: 'saved' }));
+      setTimeout(() => setKeySaveStatus((prev) => ({ ...prev, whisper: 'idle' })), 2500);
+    } catch {
+      setKeySaveStatus((prev) => ({ ...prev, whisper: 'error' }));
     }
   };
 
@@ -215,69 +284,65 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   };
 
   // Mod Blacklist handlers
-  const currentModBlacklist = (): BlacklistEntry[] => {
-    return (settings?.privacySettings?.modContentBlacklist ?? []).map((e: any) =>
-      typeof e === 'string' ? { name: e } : e
-    );
+  const currentModBlacklist = (): string[] => {
+    return settings?.privacySettings?.modContentBlacklist ?? [];
   };
 
   const handleAddToModBlacklist = () => {
     const trimmed = modBlacklistInput.trim();
     if (!trimmed || !settings) return;
     const existing = currentModBlacklist();
-    if (existing.some(e => e.name.toLowerCase() === trimmed.toLowerCase())) {
+    if (existing.includes(trimmed)) {
       setModBlacklistInput('');
       return;
     }
     saveSettings({
       privacySettings: {
         ...settings.privacySettings,
-        modContentBlacklist: [...existing, { name: trimmed }],
+        modContentBlacklist: [...existing, trimmed],
       },
     });
     setModBlacklistInput('');
   };
 
-  const handleRemoveFromModBlacklist = (name: string) => {
+  const handleRemoveFromModBlacklist = (entry: string) => {
     if (!settings) return;
     saveSettings({
       privacySettings: {
         ...settings.privacySettings,
-        modContentBlacklist: currentModBlacklist().filter((e) => e.name !== name),
+        modContentBlacklist: currentModBlacklist().filter((e) => e !== entry),
       },
     });
   };
 
   // Program Blacklist handlers
-  const currentProgramBlacklist = (): BlacklistEntry[] => {
-    return (settings?.privacySettings?.programBlacklist ?? []).map((e: any) =>
-      typeof e === 'string' ? { name: e } : e
-    );
+  const currentProgramBlacklist = (): string[] => {
+    return settings?.privacySettings?.programBlacklist ?? [];
   };
 
   const handleAddToProgramBlacklist = () => {
     const trimmed = programBlacklistInput.trim();
     if (!trimmed || !settings) return;
     const existing = currentProgramBlacklist();
-    if (existing.some(e => e.name.toLowerCase() === trimmed.toLowerCase())) {
+    if (existing.includes(trimmed)) {
       setProgramBlacklistInput('');
       return;
     }
     saveSettings({
       privacySettings: {
         ...settings.privacySettings,
-        programBlacklist: [...existing, { name: trimmed }],
+        programBlacklist: [...existing, trimmed],
       },
     });
     setProgramBlacklistInput('');
   };
 
-  const handleRemoveFromProgramBlacklist = (name: string) => {
+  const handleRemoveFromProgramBlacklist = (entry: string) => {
     if (!settings) return;
     saveSettings({
       privacySettings: {
         ...settings.privacySettings,
-        programBlacklist: currentProgramBlacklist().filter((e) => e.name !== name),
+        programBlacklist: currentProgramBlacklist().filter((e) => e !== entry),
       },
     });
   };
@@ -631,6 +696,143 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
           </div>
         </div>
 
+        {/* API Configuration - Backend Only */}
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold text-slate-100 mb-6">API Configuration</h2>
+          <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50">
+            <div className="space-y-4">
+              <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5" />
+                  <div>
+                    <h4 className="text-blue-100 font-medium mb-1">Backend-Only Architecture</h4>
+                    <p className="text-blue-200 text-sm">
+                      Mossy uses a backend service for all AI features. Individual API keys are no longer supported.
+                      Configure your backend service below to enable chat, transcription, and other AI features.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Local Whisper STT Configuration */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-slate-100">🎤 Local Whisper (Free Speech-to-Text)</h4>
+                <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-4 text-sm text-emerald-200">
+                  <strong>Recommended:</strong> Run a local{' '}
+                  <code className="bg-slate-800 px-1 rounded text-emerald-300">faster-whisper</code> server on your machine for
+                  free, private, offline speech recognition. When this URL is set it will be tried <em>before</em> any cloud
+                  service.{' '}
+                  <span className="text-slate-400">
+                    (pip install faster-whisper-server &amp;&amp; uvicorn faster_whisper_server.app:app --port 8000)
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-100">Local Whisper Server URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={whisperLocalUrlInput}
+                      onChange={(e) => setWhisperLocalUrlInput(e.target.value)}
+                      placeholder="http://localhost:8000"
+                      className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                    <button
+                      onClick={() => saveWhisperConfig(whisperLocalUrlInput)}
+                      disabled={keySaveStatus.whisper === 'saving'}
+                      className="px-4 py-2 bg-emerald-700 text-white rounded-md hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {keySaveStatus.whisper === 'saving' ? 'Saving...' : 'Save'}
+                    </button>
+                    {whisperLocalUrlInput && (
+                      <button
+                        onClick={() => { setWhisperLocalUrlInput(''); saveWhisperConfig(''); }}
+                        className="px-4 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {keySaveStatus.whisper && keySaveStatus.whisper !== 'idle' && (
+                    <p className={`text-sm ${keySaveStatus.whisper === 'saved' ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {keySaveStatus.whisper === 'saved' ? '✓ Local Whisper URL saved' : keySaveStatus.whisper === 'saving' ? 'Saving...' : 'Failed to save'}
+                    </p>
+                  )}
+                  <p className="text-xs text-slate-500">
+                    Leave blank to skip local Whisper and use the cloud backend or OpenAI Whisper API instead.
+                  </p>
+                </div>
+              </div>
+
+              {/* Backend Configuration */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-slate-100">Backend Service Configuration</h4>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-100">Backend Base URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={backendBaseUrlInput}
+                      onChange={(e) => setBackendBaseUrlInput(e.target.value)}
+                      placeholder="https://your-backend.onrender.com"
+                      className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <button
+                      onClick={() => saveBackendConfig(backendBaseUrlInput)}
+                      disabled={keySaveStatus.backend === 'saving'}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {keySaveStatus.backend === 'saving' ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-100">Backend Token</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={showBackendToken ? 'text' : 'password'}
+                        value={backendTokenInput}
+                        onChange={(e) => setBackendTokenInput(e.target.value)}
+                        placeholder="Bearer token for backend authentication"
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <button
+                        onClick={() => setShowBackendToken(!showBackendToken)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-300"
+                      >
+                        {showBackendToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => saveBackendConfig(backendBaseUrlInput, backendTokenInput)}
+                      disabled={keySaveStatus.backend === 'saving'}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {keySaveStatus.backend === 'saving' ? 'Saving...' : 'Save'}
+                    </button>
+                    {secrets?.backendToken && (
+                      <button
+                        onClick={() => saveBackendConfig(backendBaseUrlInput, '')}
+                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {keySaveStatus.backend && keySaveStatus.backend !== 'idle' && (
+                    <p className={`text-sm ${keySaveStatus.backend === 'saved' ? 'text-green-400' : 'text-red-400'}`}>
+                      {keySaveStatus.backend === 'saved' ? '✓ Backend configuration saved' : keySaveStatus.backend === 'saving' ? 'Saving...' : 'Failed to save'}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Data Management */}
         <div className="mt-12">
           <h2 className="text-2xl font-bold text-slate-100 mb-6">Data Management</h2>
@@ -794,16 +996,13 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
               <ul className="space-y-2">
                 {currentModBlacklist().map((entry) => (
                   <li
-                    key={entry.name}
+                    key={entry}
                     className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-700/40 rounded-md border border-orange-600/50"
                   >
-                    <div className="min-w-0">
-                      <span className="text-slate-200 text-sm font-mono truncate block">{entry.name}</span>
-                      {entry.reason && <span className="text-xs text-slate-400 truncate block">{entry.reason}</span>}
-                    </div>
+                    <span className="text-slate-200 text-sm font-mono truncate">{entry}</span>
                     <button
                       type="button"
-                      onClick={() => handleRemoveFromModBlacklist(entry.name)}
+                      onClick={() => handleRemoveFromModBlacklist(entry)}
                       className="shrink-0 p-1 rounded text-slate-400 hover:text-orange-400 hover:bg-orange-900/20 transition-colors"
                       title="Remove from blacklist"
                     >
@@ -869,16 +1068,13 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
               <ul className="space-y-2">
                 {currentProgramBlacklist().map((entry) => (
                   <li
-                    key={entry.name}
+                    key={entry}
                     className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-700/40 rounded-md border border-orange-600/50"
                   >
-                    <div className="min-w-0">
-                      <span className="text-slate-200 text-sm font-mono truncate block">{entry.name}</span>
-                      {entry.reason && <span className="text-xs text-slate-400 truncate block">{entry.reason}</span>}
-                    </div>
+                    <span className="text-slate-200 text-sm font-mono truncate">{entry}</span>
                     <button
                       type="button"
-                      onClick={() => handleRemoveFromProgramBlacklist(entry.name)}
+                      onClick={() => handleRemoveFromProgramBlacklist(entry)}
                       className="shrink-0 p-1 rounded text-slate-400 hover:text-orange-400 hover:bg-orange-900/20 transition-colors"
                       title="Remove from blacklist"
                     >

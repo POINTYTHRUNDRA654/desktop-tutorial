@@ -2,12 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Link as RouterLink } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { Monitor, CheckCircle2, Wifi, Shield, Cpu, Terminal, Power, Layers, Box, Code, Image as ImageIcon, MessageSquare, Activity, RefreshCw, Lock, AlertOctagon, Link, Zap, Eye, Globe, Database, Wrench, FolderOpen, HardDrive, ArrowRightLeft, ArrowRight, Keyboard, ArrowDownToLine, Server, Clipboard, FileType, HelpCircle, AlertTriangle, Settings, Search, ExternalLink, Download, X, Plug } from 'lucide-react';
+import { Monitor, CheckCircle2, Wifi, Shield, Cpu, Terminal, Power, Layers, Box, Code, Image as ImageIcon, MessageSquare, Activity, RefreshCw, Lock, AlertOctagon, Link, Zap, Eye, Globe, Database, Wrench, FolderOpen, HardDrive, ArrowRightLeft, ArrowRight, Keyboard, ArrowDownToLine, Server, Clipboard, FileType, HelpCircle, AlertTriangle, Settings, Search, ExternalLink, Download, X } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 import { openExternal } from './utils/openExternal';
-import { BridgeRegistry } from './bridges/BridgeRegistry';
-import type { BridgeInfo } from './bridges/BridgeBase';
 
 interface Driver {
     id: string;
@@ -114,25 +112,11 @@ const DesktopBridge: React.FC = () => {
     const [clipboardText, setClipboardText] = useState('');
     const [filePath, setFilePath] = useState('C:\\');
     const [fileList, setFileList] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<'setup' | 'ck' | 'hardware' | 'vision' | 'clipboard' | 'files' | 'blender' | 'bridges'>('setup');
+    const [activeTab, setActiveTab] = useState<'setup' | 'ck' | 'hardware' | 'vision' | 'clipboard' | 'files' | 'blender'>('setup');
     const [blenderLinked, setBlenderLinked] = useState(localStorage.getItem('mossy_blender_active') === 'true');
     const [blenderLinkToken, setBlenderLinkToken] = useState<string>('');
     const [tokenCopyFeedback, setTokenCopyFeedback] = useState<string>('');
     const [showTokenModal, setShowTokenModal] = useState(false);
-
-    // Bridge registry state — re-renders when bridges register or change status
-    const [registeredBridges, setRegisteredBridges] = useState<BridgeInfo[]>(() =>
-        BridgeRegistry.getAll().map(b => b.getInfo())
-    );
-    useEffect(() => {
-        const refresh = () => setRegisteredBridges(BridgeRegistry.getAll().map(b => b.getInfo()));
-        window.addEventListener('mossy-bridge-registered', refresh);
-        window.addEventListener('mossy-bridge-status-changed', refresh);
-        return () => {
-            window.removeEventListener('mossy-bridge-registered', refresh);
-            window.removeEventListener('mossy-bridge-status-changed', refresh);
-        };
-    }, []);
 
     const [bridgeBaseUrl, setBridgeBaseUrl] = useState<string>(() => {
         try {
@@ -1694,8 +1678,7 @@ pause
                         { id: 'hardware', icon: Cpu, label: 'Hardware' },
                         { id: 'vision', icon: Eye, label: 'Vision' },
                         { id: 'clipboard', icon: Clipboard, label: 'Clipboard' },
-                        { id: 'files', icon: FolderOpen, label: 'Files' },
-                        { id: 'bridges', icon: Plug, label: `Bridges${registeredBridges.length > 0 ? ` (${registeredBridges.length})` : ''}` },
+                        { id: 'files', icon: FolderOpen, label: 'Files' }
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -3358,126 +3341,6 @@ pause
                                     >
                                         Close
                                     </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ── Bridges Tab ─────────────────────────────────────── */}
-                    {activeTab === 'bridges' && (
-                        <div className="max-w-4xl mx-auto space-y-6">
-                            {/* Header */}
-                            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
-                                <div className="flex items-start justify-between mb-4">
-                                    <div>
-                                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                            <Plug className="w-6 h-6 text-emerald-400" />
-                                            Mossy Bridges
-                                        </h3>
-                                        <p className="text-sm text-slate-400 mt-1">
-                                            Bridges connect external tools to Mossy so she can monitor your activity and provide context-aware help.
-                                            Each registered bridge appears here automatically.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Bridge list */}
-                                {registeredBridges.length === 0 ? (
-                                    <div className="text-center py-12 text-slate-500">
-                                        <Plug className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                                        <p className="font-medium">No bridges registered yet.</p>
-                                        <p className="text-sm mt-1">Add one in <code className="text-emerald-400">src/renderer/src/bridges/index.ts</code></p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {registeredBridges.map(bridge => {
-                                            const statusColor =
-                                                bridge.status === 'connected'    ? 'bg-emerald-500' :
-                                                bridge.status === 'connecting'   ? 'bg-yellow-500 animate-pulse' :
-                                                bridge.status === 'error'        ? 'bg-red-500' :
-                                                                                   'bg-slate-500';
-                                            const statusText =
-                                                bridge.status === 'connected'    ? 'Connected' :
-                                                bridge.status === 'connecting'   ? 'Connecting…' :
-                                                bridge.status === 'error'        ? 'Error' :
-                                                                                   'Disconnected';
-
-                                            return (
-                                                <div
-                                                    key={bridge.id}
-                                                    className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-lg p-4"
-                                                >
-                                                    <div className="flex items-center gap-3 min-w-0">
-                                                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${statusColor}`} />
-                                                        <div className="min-w-0">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-bold text-white text-sm">{bridge.name}</span>
-                                                                {bridge.version && (
-                                                                    <span className="text-xs font-mono text-slate-500">v{bridge.version}</span>
-                                                                )}
-                                                            </div>
-                                                            <p className="text-xs text-slate-400 truncate">{bridge.description}</p>
-                                                            {bridge.statusDetail && (
-                                                                <p className="text-xs text-slate-500 mt-0.5 truncate">{bridge.statusDetail}</p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-3 flex-shrink-0 ml-4">
-                                                        <span className={`text-xs font-bold uppercase tracking-wide ${
-                                                            bridge.status === 'connected'  ? 'text-emerald-400' :
-                                                            bridge.status === 'error'      ? 'text-red-400' :
-                                                            bridge.status === 'connecting' ? 'text-yellow-400' :
-                                                                                             'text-slate-500'
-                                                        }`}>
-                                                            {statusText}
-                                                        </span>
-                                                        {bridge.status === 'disconnected' || bridge.status === 'error' ? (
-                                                            <button
-                                                                onClick={() => { BridgeRegistry.get(bridge.id)?.connect(); }}
-                                                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
-                                                            >
-                                                                <Zap className="w-3 h-3" />
-                                                                Connect
-                                                            </button>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => { BridgeRegistry.get(bridge.id)?.disconnect(); }}
-                                                                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-bold rounded-lg transition-colors"
-                                                            >
-                                                                Disconnect
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Developer guide */}
-                            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
-                                <h4 className="font-bold text-white flex items-center gap-2 mb-3">
-                                    <Code className="w-5 h-5 text-blue-400" />
-                                    Adding a New Bridge
-                                </h4>
-                                <ol className="space-y-2 text-sm text-slate-300 list-decimal list-inside">
-                                    <li>
-                                        Create <code className="text-emerald-300 bg-slate-800 px-1 rounded">src/renderer/src/bridges/YourBridge.ts</code>
-                                        {' '}and extend <code className="text-emerald-300 bg-slate-800 px-1 rounded">MossyBridge</code>
-                                        {' '}(copy <code className="text-emerald-300 bg-slate-800 px-1 rounded">Mo2Bridge.ts</code> as a starter).
-                                    </li>
-                                    <li>
-                                        Open <code className="text-emerald-300 bg-slate-800 px-1 rounded">bridges/index.ts</code>
-                                        {' '}and add two lines:
-                                        <pre className="mt-1 bg-slate-800 p-3 rounded text-xs font-mono text-emerald-300 overflow-x-auto">{`import { YourBridge } from './YourBridge';
-BridgeRegistry.register(new YourBridge());`}</pre>
-                                    </li>
-                                    <li>Your bridge appears here and in Mossy's context immediately on next app start.</li>
-                                </ol>
-                                <div className="mt-4 p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg text-xs text-blue-300">
-                                    <strong>Activity reporting:</strong> Call <code className="text-blue-200">this.reportActivity('event-type', 'detail')</code> anywhere in your bridge to feed activity into Mossy's brain.
-                                    She will reference it when answering questions.
                                 </div>
                             </div>
                         </div>

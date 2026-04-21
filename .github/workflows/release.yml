@@ -49,17 +49,6 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Building version: $VERSION"
 
-      - name: Verify version matches package.json
-        run: |
-          PKG_VERSION=$(jq -r '.version' < package.json)
-          INPUT_VERSION="${{ steps.get_version.outputs.version }}"
-          if [ "$PKG_VERSION" != "$INPUT_VERSION" ]; then
-            echo "❌ Version mismatch: release version '$INPUT_VERSION' does not match package.json version '$PKG_VERSION'."
-            echo "Update package.json to version $INPUT_VERSION before creating this release."
-            exit 1
-          fi
-          echo "✅ Release version $INPUT_VERSION matches package.json version $PKG_VERSION"
-
       - name: Create Release
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"

@@ -146,7 +146,7 @@ const MOD_TEMPLATES: ModTemplate[] = [
 
 const TheBlueprint: React.FC = () => {
     const [selectedTemplate, setSelectedTemplate] = useState<ModTemplate>(MOD_TEMPLATES[0]);
-    const [activeTab, setActiveTab] = useState<string>('structure');
+    const [expandedStructure, setExpandedStructure] = useState<string | null>(null);
     const [copiedPath, setCopiedPath] = useState<string | null>(null);
 
     const detailsScrollRef = useRef<HTMLDivElement | null>(null);
@@ -253,9 +253,9 @@ const TheBlueprint: React.FC = () => {
                     {/* Template Tabs */}
                     <div className="flex border-b border-black bg-[#252526]">
                         <button
-                            onClick={() => setActiveTab('structure')}
+                            onClick={() => setExpandedStructure('structure')}
                             className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
-                                activeTab === 'structure'
+                                expandedStructure === 'structure'
                                     ? 'border-amber-400 text-amber-300'
                                     : 'border-transparent text-slate-400 hover:text-slate-300'
                             }`}
@@ -263,9 +263,9 @@ const TheBlueprint: React.FC = () => {
                             Folder Structure
                         </button>
                         <button
-                            onClick={() => setActiveTab('components')}
+                            onClick={() => setExpandedStructure('components')}
                             className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
-                                activeTab === 'components'
+                                expandedStructure === 'components'
                                     ? 'border-amber-400 text-amber-300'
                                     : 'border-transparent text-slate-400 hover:text-slate-300'
                             }`}
@@ -273,9 +273,9 @@ const TheBlueprint: React.FC = () => {
                             Required Components
                         </button>
                         <button
-                            onClick={() => setActiveTab('dependencies')}
+                            onClick={() => setExpandedStructure('dependencies')}
                             className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
-                                activeTab === 'dependencies'
+                                expandedStructure === 'dependencies'
                                     ? 'border-amber-400 text-amber-300'
                                     : 'border-transparent text-slate-400 hover:text-slate-300'
                             }`}
@@ -287,7 +287,7 @@ const TheBlueprint: React.FC = () => {
                     {/* Content Area */}
                     <div ref={detailsScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-4">
                         {/* FOLDER STRUCTURE TAB */}
-                        {activeTab === 'structure' && (
+                        {expandedStructure !== 'components' && expandedStructure !== 'dependencies' && (
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="font-semibold text-slate-200">Folder & File Structure</h3>
@@ -303,35 +303,33 @@ const TheBlueprint: React.FC = () => {
                                     </button>
                                 </div>
                                 {selectedTemplate.structure.map((item, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => handleCopyPath(item.path)}
-                                        className="w-full text-left bg-[#252526] border border-slate-700 rounded p-3 hover:border-amber-500/60 hover:bg-[#2d2d30] transition-colors cursor-pointer"
-                                        title="Click to copy path"
-                                    >
+                                    <div key={idx} className="bg-[#252526] border border-slate-700 rounded p-3 hover:border-slate-600 transition-colors">
                                         <div className="flex items-start justify-between mb-1">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-amber-400 font-mono text-sm" aria-hidden="true">
+                                                <span className="text-amber-400 font-mono text-sm">
                                                     {item.type === 'folder' ? '📁' : '📄'}
                                                 </span>
                                                 <code className="text-slate-300 font-mono text-xs">{item.path}</code>
                                             </div>
-                                            <span className="p-1 shrink-0" aria-hidden="true">
+                                            <button
+                                                onClick={() => handleCopyPath(item.path)}
+                                                className="p-1 hover:bg-slate-600 rounded transition-colors"
+                                            >
                                                 {copiedPath === item.path ? (
                                                     <CheckCircle2 className="w-3 h-3 text-green-400" />
                                                 ) : (
                                                     <Copy className="w-3 h-3 text-slate-500" />
                                                 )}
-                                            </span>
+                                            </button>
                                         </div>
                                         <p className="text-[10px] text-slate-500 pl-6">{item.description}</p>
-                                    </button>
+                                    </div>
                                 ))}
                             </div>
                         )}
 
                         {/* COMPONENTS TAB */}
-                        {activeTab === 'components' && (
+                        {expandedStructure === 'components' && (
                             <div className="space-y-3">
                                 <h3 className="font-semibold text-slate-200 mb-4">Required & Optional Components</h3>
                                 {selectedTemplate.components.map((comp, idx) => (
@@ -356,7 +354,7 @@ const TheBlueprint: React.FC = () => {
                         )}
 
                         {/* DEPENDENCIES TAB */}
-                        {activeTab === 'dependencies' && (
+                        {expandedStructure === 'dependencies' && (
                             <div className="space-y-3">
                                 <h3 className="font-semibold text-slate-200 mb-4">Master Files & Dependencies</h3>
                                 {selectedTemplate.dependencies.length > 0 ? (
