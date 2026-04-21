@@ -766,7 +766,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      // Resize to max 512px via canvas to keep localStorage size manageable
+      // Resize to max 512px and encode as JPEG to keep localStorage size manageable
       const resized = await new Promise<string>((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -777,7 +777,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           canvas.height = Math.round(img.height * scale);
           const ctx = canvas.getContext('2d')!;
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/png', 0.85));
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
         };
         img.src = dataUrl;
       });
@@ -789,6 +789,13 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
   const setAvatarFromUrl = async (url: string) => {
     try {
+      // Only accept https URLs or data URLs to prevent arbitrary content injection
+      const isDataUrl = url.startsWith('data:image/');
+      const isHttpsUrl = /^https:\/\/.+/i.test(url);
+      if (!isDataUrl && !isHttpsUrl) {
+        console.warn('[LiveContext] Rejected avatar URL: must be a data: image URL or https:// URL');
+        return;
+      }
       localStorage.setItem(AVATAR_STORAGE_KEY, url);
       setCustomAvatar(url);
     } catch (e) {
