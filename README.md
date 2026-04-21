@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v5.4.39** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v5.4.40** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 > 🔄 **For Contributors:** If you have this repository cloned and want to update your local copy with recent bug fixes, see [GIT_UPDATE_GUIDE.md](GIT_UPDATE_GUIDE.md)
 > 
@@ -8,9 +8,9 @@
 
 ---
 
-## 🚀 Onboarding & Installer Notes (v5.4.39)
+## 🚀 Onboarding & Installer Notes (v5.4.40)
 
-**New in v5.4.39 (Latest):**
+**New in v5.4.40 (Latest):**
 - ✅ **Multi-Language Support** - Mossy now supports 12 languages! Choose your preferred language in Settings → Language Settings
   - Languages: English, Spanish, French, German, Russian, Chinese (Simplified), Portuguese (BR), Japanese, Korean, Italian, Polish, Turkish
   - See [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md) to help translate
@@ -56,7 +56,7 @@
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 5.4.39)
+- Version is auto-set from `package.json` (currently 5.4.40)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 - Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
@@ -86,7 +86,7 @@
 
 **Ready to use Mossy?** Download the latest installer:
 
-👉 **[Download Mossy v5.4.39 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)**
+👉 **[Download Mossy v5.4.40 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)**
 
 ### System Requirements
 
@@ -525,7 +525,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 5.4.39.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 5.4.40.exe`).
 
 ---
 
