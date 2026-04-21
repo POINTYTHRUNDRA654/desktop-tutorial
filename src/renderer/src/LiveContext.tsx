@@ -71,7 +71,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const currentSessionRef = useRef(0);
   const [audioInputs, setAudioInputs] = useState<Array<{ deviceId: string; label: string }>>([]);
   const [selectedInputId, setSelectedInputId] = useState('');
-  const [customAvatar, setCustomAvatar] = useState<string | null>(null);
+  const AVATAR_STORAGE_KEY = 'mossy_custom_avatar';
+  const [customAvatar, setCustomAvatar] = useState<string | null>(() => {
+    try { return localStorage.getItem(AVATAR_STORAGE_KEY) || null; } catch { return null; }
+  });
   const [avatarLocked, setAvatarLocked] = useState(false);
   const [cortexMemory, setCortexMemory] = useState<any[]>([]);
   const [projectData, setProjectData] = useState<any | null>(null);
@@ -755,9 +758,54 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }, 100);
     }
   };
-  const updateAvatar = async (file: File) => { };
-  const setAvatarFromUrl = async (url: string) => { };
-  const clearAvatar = () => setCustomAvatar(null);
+  const updateAvatar = async (file: File) => {
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      // Resize to max 512px and encode as JPEG to keep localStorage size manageable
+      const resized = await new Promise<string>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX = 512;
+          const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext('2d')!;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.src = dataUrl;
+      });
+      localStorage.setItem(AVATAR_STORAGE_KEY, resized);
+      setCustomAvatar(resized);
+    } catch (e) {
+      console.warn('[LiveContext] Failed to update avatar:', e);
+    }
+  };
+  const setAvatarFromUrl = async (url: string) => {
+    try {
+      // Only accept https URLs or data URLs to prevent arbitrary content injection
+      const isDataUrl = url.startsWith('data:image/');
+      const isHttpsUrl = /^https:\/\/.+/i.test(url);
+      if (!isDataUrl && !isHttpsUrl) {
+        console.warn('[LiveContext] Rejected avatar URL: must be a data: image URL or https:// URL');
+        return;
+      }
+      localStorage.setItem(AVATAR_STORAGE_KEY, url);
+      setCustomAvatar(url);
+    } catch (e) {
+      console.warn('[LiveContext] Failed to set avatar from URL:', e);
+    }
+  };
+  const clearAvatar = () => {
+    try { localStorage.removeItem(AVATAR_STORAGE_KEY); } catch { /* ignore */ }
+    setCustomAvatar(null);
+  };
 
   // Text input handler for users without microphone
   const sendTextMessage = async (text: string) => {
