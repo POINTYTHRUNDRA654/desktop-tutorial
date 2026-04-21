@@ -574,7 +574,11 @@ const App: React.FC = () => {
     probeMainCenter: 'n/a',
   }));
   const [pipToggledAt, setPipToggledAt] = useState(() => '');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Sidebar open by default on desktop (width >= 768px)
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth >= 768;
+  });
 
   // Project management state
   const [currentProject, setCurrentProject] = useState<ModProject | null>(null);
@@ -982,6 +986,19 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [sidebarOpen]);
 
+  // Handle window resize - keep sidebar open on desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        // Desktop: ensure sidebar is open
+        setSidebarOpen(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Ensure API Key selection for paid features (Veo/Pro Image) if applicable
   useEffect(() => {
     const checkKey = async () => {
@@ -1242,17 +1259,6 @@ const App: React.FC = () => {
             role="main"
             aria-label="Main content"
           >
-            {!isTutorialRoute && !guidedTour.isOpen && (
-              <div
-                className="mossy-face-prop"
-                aria-hidden="true"
-                style={{
-                  display: (guidedTour.isOpen || isTutorialRoute) ? 'none' : undefined
-                }}
-              >
-                <AvatarCore className="w-44 h-44" showRings={false} />
-              </div>
-            )}
             <div className="relative z-10">
               <MossyObserver />
 
