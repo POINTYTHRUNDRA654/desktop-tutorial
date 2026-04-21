@@ -275,17 +275,6 @@ export const MO2Extension: React.FC = () => {
             </div>
           </div>
 
-          {/* Under Development Banner */}
-          <div className="flex items-center gap-3 bg-amber-950/60 border border-amber-500/50 rounded-xl px-5 py-4">
-            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
-            <div>
-              <span className="font-bold text-amber-300 uppercase tracking-wide text-sm">Under Development</span>
-              <p className="text-amber-200/80 text-xs mt-0.5">
-                The MO2 Extension is actively being built. Some features may be incomplete or non-functional.
-              </p>
-            </div>
-          </div>
-
           {/* Connection Status */}
           {!isConnected && (
             <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-6">

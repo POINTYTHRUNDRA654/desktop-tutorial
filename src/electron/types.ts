@@ -326,9 +326,6 @@ export const IPC_CHANNELS = {
   SYSTEM_METRICS_POLL: 'system-metrics-poll',
   SYSTEM_METRICS_GET: 'system-metrics-get',
   SYSTEM_METRICS_SUBSCRIBE: 'system-metrics-subscribe',
-
-  // BA2 archive file picker
-  PICK_BA2_FILE: 'pick-ba2-file',
 } as const;
 
 export type MlIndexBuildRequest = {
