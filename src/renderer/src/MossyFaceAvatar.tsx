@@ -65,6 +65,8 @@ const MossyFaceAvatar: React.FC<MossyFaceAvatarProps> = ({
     <div 
       className={`relative rounded-full overflow-hidden ${className} transition-all duration-700`}
       style={{
+        width: '100%',
+        height: '100%',
         maxWidth: maxPx,
         maxHeight: maxPx,
         overflow: 'hidden',
@@ -79,7 +81,7 @@ const MossyFaceAvatar: React.FC<MossyFaceAvatarProps> = ({
         src={imageSrc}
         alt="Mossy"
         className="w-full h-full object-cover select-none"
-        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', pointerEvents: 'none' }}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
         draggable={false}
         onError={() => {
           if (imageSrc !== DEFAULT_MOSSY_AVATAR_URL) setImageSrc(DEFAULT_MOSSY_AVATAR_URL);

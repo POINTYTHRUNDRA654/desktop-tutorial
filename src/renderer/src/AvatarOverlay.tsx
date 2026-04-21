@@ -5,10 +5,15 @@ import { useLive } from './LiveContext';
 
 // Floating overlay for persistent avatar presence
 const AvatarOverlay: React.FC = () => {
-  // Overlay disabled - avatar was overlapping sidebar navigation
-  // This feature will be re-enabled with proper positioning in a future update
-  return null;
-
+  // Hook must be called unconditionally at the top level
+  const liveContext = useLive();
+  const [isProcessing, setIsProcessing] = React.useState(false);
+  
+  if (!liveContext) {
+    console.warn('[AvatarOverlay] LiveContext not available');
+    return null;
+  }
+  
   const { mode, isActive, connect, disconnect } = liveContext;
 
   const handleClick = async () => {
@@ -16,17 +21,17 @@ const AvatarOverlay: React.FC = () => {
       console.log('[AvatarOverlay] Ignoring click - already processing');
       return;
     }
-
+    
     console.log('[AvatarOverlay] Avatar clicked, isActive:', isActive);
     setIsProcessing(true);
-
+    
     try {
       if (!connect || !disconnect) {
         console.error('[AvatarOverlay] Connect or disconnect functions not available');
         toast.error('Voice chat functions not available. Please refresh the app.');
         return;
       }
-
+      
       if (isActive) {
         console.log('[AvatarOverlay] Calling disconnect...');
         disconnect();

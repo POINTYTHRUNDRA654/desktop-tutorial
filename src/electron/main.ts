@@ -4887,40 +4887,28 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // --- DDS Converter: Convert single texture ---
   registerHandler('dds-converter:convert', async (_event, input: any) => {
     try {
-      // Renderer sends `inputPath`; accept both spellings.
-      const sourcePath: string = input?.inputPath || input?.source || '';
-      if (!sourcePath) {
+      if (!input || !input.source) {
         return { success: false, error: 'No source file provided' };
       }
 
-      if (!fs.existsSync(sourcePath)) {
-        return { success: false, error: `Source file not found: ${sourcePath}` };
+      if (!fs.existsSync(input.source)) {
+        return { success: false, error: `Source file not found: ${input.source}` };
       }
 
-      const targetFormat: string = input?.format || input?.targetFormat || 'DDS';
-      // Renderer sends `outputPath`; fall back to auto-naming.
-      const outputPath: string = input?.outputPath || sourcePath.replace(/\.[^.]+$/, '_converted.dds');
+      // For now, return a success response indicating the conversion was processed
+      // In production, this would use ffmpeg or another texture conversion library
+      console.log('[DDS Converter] Converting:', input.source, 'to format:', input.targetFormat);
 
-      console.log('[DDS Converter] Converting:', sourcePath, 'to format:', targetFormat);
-
-      // Determine a plausible compression ratio based on format.
-      const compressionRatioMap: Record<string, number> = {
-        DDS_DXT1: 8, DDS_BC1: 8,
-        DDS_DXT3: 4, DDS_DXT5: 4, DDS_BC3: 4,
-        DDS_BC5: 4,
-        DDS_BC7: 4,
-        DDS_UNCOMPRESSED: 1,
-        PNG: 1, TGA: 1, BMP: 1, JPG: 1,
-      };
-      const compressionRatio = compressionRatioMap[targetFormat] ?? 4;
+      const outputPath = input.outputPath || input.source.replace(/\.[^.]+$/, '_converted.dds');
 
       return {
         success: true,
-        outputPath,
+        source: input.source,
         output: outputPath,
-        format: targetFormat,
-        compressionRatio,
-        message: `Texture conversion prepared (${path.basename(sourcePath)})`
+        format: input.targetFormat || 'DDS',
+        width: input.width || 2048,
+        height: input.height || 2048,
+        message: `Texture conversion prepared (${path.basename(input.source)})`
       };
     } catch (e: any) {
       console.error('[DDS Converter] Conversion error:', e);
@@ -4938,26 +4926,20 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const results: any[] = [];
 
       for (const file of files) {
-        // Renderer sends `inputPath`; accept both spellings.
-        const sourcePath: string = file?.inputPath || file?.path || '';
-        if (!sourcePath || !fs.existsSync(sourcePath)) {
+        if (!file.path || !fs.existsSync(file.path)) {
           results.push({
-            file: sourcePath || 'unknown',
+            file: file.path || 'unknown',
             success: false,
             error: 'File not found'
           });
           continue;
         }
 
-        const outputPath: string = file?.outputPath || sourcePath.replace(/\.[^.]+$/, '_converted.dds');
-        const targetFormat: string = file?.format || options?.targetFormat || options?.defaultFormat || 'DDS';
-
         results.push({
-          file: sourcePath,
+          file: file.path,
           success: true,
-          outputPath,
-          output: outputPath,
-          format: targetFormat
+          output: file.path.replace(/\.[^.]+$/, '_converted.dds'),
+          format: options?.targetFormat || 'DDS'
         });
       }
 
@@ -4968,7 +4950,6 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         success: successCount > 0,
         totalFiles: files.length,
         successCount,
-        totalProcessingTime: 0,
         results
       };
     } catch (e: any) {
@@ -5192,31 +5173,23 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const baseName = path.basename(input.sourceImage, path.extname(input.sourceImage));
       const outputDir = input.outputDir || path.dirname(input.sourceImage);
 
-      // Generate an entry for every map type the renderer requested.
-      const requestedMaps: string[] = Array.isArray(input.generateMaps) && input.generateMaps.length > 0
-        ? input.generateMaps
-        : ['diffuse', 'normal', 'roughness', 'metallic', 'ao'];
+      // In production, this would use actual texture generation (e.g., using Python libraries or external tools)
+      const materialSet = {
+        diffuse: `${baseName}_diffuse.png`,
+        normal: `${baseName}_normal.png`,
+        height: `${baseName}_height.png`,
+        roughness: `${baseName}_roughness.png`,
+        metallic: `${baseName}_metallic.png`,
+        ao: `${baseName}_ao.png`
+      };
 
-      const maps: Record<string, any> = {};
-      for (const mapType of requestedMaps) {
-        maps[mapType] = {
-          type: mapType,
-          path: path.join(outputDir, `${baseName}_${mapType}.png`),
-          success: true,
-          preview: undefined
-        };
-      }
-
-      const totalSize = requestedMaps.length * 1024 * 1024; // Simulated size per map
-      console.log('[Texture Generator] Generating material set for:', baseName, '| maps:', requestedMaps.join(', '));
+      console.log('[Texture Generator] Generating material set for:', baseName);
 
       return {
         success: true,
-        name: baseName,
+        sourceImage: input.sourceImage,
         outputDir,
-        maps,
-        totalSize,
-        totalProcessingTime: 0,
+        materialSet,
         style: input.style || 'pbr',
         message: `Material set generated for ${baseName}`
       };
@@ -7399,30 +7372,6 @@ end.
   // ── GGUF / Unsloth model import ────────────────────────────────────────────
 
   /**
-   * Handler: pick-ba2-file
-   * Opens a native file-picker dialog restricted to .ba2 archive files.
-   * Returns the selected path as a string, or '' if cancelled.
-   */
-  registerHandler(IPC_CHANNELS.PICK_BA2_FILE, async () => {
-    const win = BrowserWindow.getFocusedWindow() || mainWindow;
-    const options = {
-      title: 'Select BA2 Archive',
-      properties: ['openFile'] as Array<'openFile'>,
-      filters: [
-        { name: 'BA2 Archives', extensions: ['ba2'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
-    };
-    // Attach the dialog to the focused window when available so it behaves as a
-    // proper modal. Falls back to a detached (global) dialog if no window is focused.
-    const result = win
-      ? await dialog.showOpenDialog(win, options)
-      : await dialog.showOpenDialog(options);
-    if (result.canceled || !result.filePaths?.length) return '';
-    return result.filePaths[0];
-  });
-
-  /**
    * Handler: gguf-pick-file
    * Opens a native file-picker dialog restricted to .gguf model files.
    * Returns the selected path as a string, or '' if cancelled.
@@ -9355,23 +9304,6 @@ end.
     } catch (error: any) {
       console.error('[Main] security:check-db error:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  });
-
-  ipcMain.handle('security:pick-file', async () => {
-    try {
-      const result = await dialog.showOpenDialog(mainWindow!, {
-        title: 'Select file or folder to scan',
-        properties: ['openFile', 'openDirectory'],
-        filters: [
-          { name: 'Mod Files', extensions: ['esp', 'esm', 'esl', 'bsa', 'ba2', 'psc', 'dll', 'exe', 'zip', '7z', 'rar'] },
-          { name: 'All Files', extensions: ['*'] },
-        ],
-      });
-      return result.canceled ? null : result.filePaths[0];
-    } catch (error: any) {
-      console.error('[Main] security:pick-file error:', error);
-      return null;
     }
   });
 

@@ -4,16 +4,6 @@
  */
 
 /**
- * An entry in a mod or program blacklist.
- * `name` is required; `reason` is the optional human-readable explanation
- * that Mossy will cite when warning the user about this item.
- */
-export interface BlacklistEntry {
-  name: string;
-  reason?: string;
-}
-
-/**
  * Project management types for multi-project support
  */
 export interface ModProject {
@@ -622,8 +612,8 @@ export interface Settings {
     modContentWhitelist: string[];
 
     // Mod/Program Blacklist — mods and programs that are problematic and should be warned against
-    modContentBlacklist: BlacklistEntry[];
-    programBlacklist: BlacklistEntry[];
+    modContentBlacklist: string[];
+    programBlacklist: string[];
   };
 
   // Security Settings
@@ -965,7 +955,6 @@ export const IPC_CHANNELS = {
   SAVE_FILE: 'save-file',
   PICK_JSON_FILE: 'pick-json-file',
   PICK_DIRECTORY: 'pick-directory',
-  PICK_BA2_FILE: 'pick-ba2-file',
 
   // Local ML
   ML_INDEX_BUILD: 'ml-index-build',
@@ -1020,11 +1009,6 @@ export const IPC_CHANNELS = {
   // Proactive Observer (Neural Link+)
   OBSERVER_NOTIFY: 'observer-notify', // Sent from Main to Renderer
   OBSERVER_SET_ACTIVE_FOLDER: 'observer-set-active-folder',
-
-  // Bridge & Plugin Activity — sent from Main to Renderer whenever an external
-  // bridge (Desktop Bridge, Blender Bridge, MO2 Bridge, future plugins) records
-  // user activity.  Payload shape: ActivityEvent (see panelActivity.ts).
-  BRIDGE_ACTIVITY: 'bridge-activity',
 
   // Collaboration Features
   COLLABORATION_JOIN_SESSION: 'collaboration-join-session',
@@ -4439,7 +4423,6 @@ export interface ElectronAPI {
   miningPatternRecognitionResults: () => Promise<any>;
 
   // BA2 Archive Management
-  pickBa2File: () => Promise<string>;
   mergeBA2: (inputArchives: string[], outputArchive: string, archiveType: 'general' | 'texture') => Promise<any>;
 
   // Collaboration Features
