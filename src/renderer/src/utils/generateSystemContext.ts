@@ -12,6 +12,8 @@ import {
 import { getCommunityLearningContextForModel } from '../communityLearningProfile';
 import { getToolPermissionsContextForModel } from '../toolPermissions';
 import { ModProjectStorage } from '../services/ModProjectStorage';
+import { getPanelActivityContext } from '../panelActivity';
+import { BridgeRegistry } from '../bridges/BridgeRegistry';
 
 export async function generateSystemContextFromStorage(query?: string): Promise<string> {
     try {
@@ -235,6 +237,8 @@ export async function generateSystemContextFromStorage(query?: string): Promise<
         });
 
         // === ASSEMBLE FINAL CONTEXT ===
+        const panelActivityCtx = getPanelActivityContext();
+        const bridgeRegistryCtx = BridgeRegistry.getContextSummary();
         return `
       **DYNAMIC SYSTEM CONTEXT:**
       **Desktop Bridge:** ${bridgeStatus}
@@ -253,6 +257,8 @@ export async function generateSystemContextFromStorage(query?: string): Promise<
       ${hardwareCtx}
     ${scanHistoryCtx}
     ${liveToolCtx}
+    ${bridgeRegistryCtx}
+    ${panelActivityCtx}
             ${communityLearningCtx}
       `;
     } catch (e) {

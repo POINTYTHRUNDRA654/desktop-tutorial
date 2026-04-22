@@ -4,6 +4,7 @@ import { MessageSquare, Radio, Image, Activity, Heart, Leaf, Monitor, Wifi, Wifi
 import { useLive } from './LiveContext';
 import { useI18n } from './i18n';
 import TourLauncher from './TourLauncher';
+import AvatarCore from './AvatarCore';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -104,7 +105,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     // === ENHANCEMENT: ADVANCED SPECIALIZATION ===
 
     // === QUALITY ASSURANCE: VALIDATE & VERIFY ===
-    { to: '/tools/security', icon: ShieldCheck, label: t('nav.securityScanner', 'Security Scanner') },
+    { to: '/tools/security', icon: ShieldCheck, label: t('nav.securityScanner', 'Blacklist Manager') },
     { to: '/tools/mining', icon: Binary, label: t('nav.miningDashboard', 'Mining Dashboard') },
     { to: '/tools/advanced-analysis', icon: Brain, label: t('nav.advancedAnalysis', 'Advanced Analysis') },
     { to: '/scribe', icon: Feather, label: t('nav.scribe', 'The Scribe') },
@@ -158,6 +159,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     >
       {/* Live Header with Persistent Avatar */}
       <div className="p-4 border-b border-slate-800 flex items-center gap-3">
+        <AvatarCore className="w-10 h-10 shrink-0" showRings={false} />
         <div className="overflow-hidden flex-1">
           <h1 className="text-lg font-black italic text-white tracking-tighter leading-none">
             MOSSY<span className={`transition-colors duration-500 ${moodColor}`}>.SPACE</span>
