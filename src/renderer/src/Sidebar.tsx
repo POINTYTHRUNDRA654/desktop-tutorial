@@ -159,7 +159,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     >
       {/* Live Header with Persistent Avatar */}
       <div className="p-4 border-b border-slate-800 flex items-center gap-3">
-        <AvatarCore className="w-10 h-10 shrink-0" showRings={false} />
+        {/* Inline style guarantees 40×40 regardless of Tailwind class application */}
+        <div style={{ width: 40, height: 40, minWidth: 40, flexShrink: 0, borderRadius: '9999px', overflow: 'hidden' }}>
+          <AvatarCore className="w-full h-full" showRings={false} />
+        </div>
         <div className="overflow-hidden flex-1">
           <h1 className="text-lg font-black italic text-white tracking-tighter leading-none">
             MOSSY<span className={`transition-colors duration-500 ${moodColor}`}>.SPACE</span>
