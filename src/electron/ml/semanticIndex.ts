@@ -331,32 +331,96 @@ export async function querySemanticIndex(query: string, opts?: { topK?: number }
   | {
       ok: true
       results: Array<{ score: number; sourcePath: string; title: string; content: string }>
+      keywordMode?: boolean
     }
   | { ok: false; error: string }
 > {
   const trimmed = query.trim()
   if (!trimmed) return { ok: true, results: [] }
 
+  const topK = Math.max(1, Math.min(25, opts?.topK ?? 8))
+
   const indexPath = getIndexFilePath()
   const index = await readJsonIfExists<SemanticIndex>(indexPath)
-  if (!index) return { ok: false, error: 'Index not built. Run build first.' }
 
-  const embedder = await getEmbedder(index.model)
-  const qVec = await embedder(trimmed)
+  // No AI index yet — fall back to fast keyword search over bundled knowledge files.
+  if (!index) {
+    return keywordFallbackSearch(trimmed, { topK })
+  }
 
-  const scored = index.chunks
-    .map((chunk) => {
-      const vec = decodeFloat32FromBase64(chunk.embeddingB64)
-      const score = dot(qVec, vec)
-      return {
-        score,
-        sourcePath: chunk.sourcePath,
-        title: chunk.title,
-        content: chunk.content,
-      }
-    })
-    .sort((a, b) => b.score - a.score)
+  try {
+    const embedder = await getEmbedder(index.model)
+    const qVec = await embedder(trimmed)
 
+    const scored = index.chunks
+      .map((chunk) => {
+        const vec = decodeFloat32FromBase64(chunk.embeddingB64)
+        const score = dot(qVec, vec)
+        return {
+          score,
+          sourcePath: chunk.sourcePath,
+          title: chunk.title,
+          content: chunk.content,
+        }
+      })
+      .sort((a, b) => b.score - a.score)
+
+    return { ok: true, results: scored.slice(0, topK) }
+  } catch (err: any) {
+    // AI embedder failed (model not downloaded, no internet, etc.) — fall back to keyword search.
+    const fallback = await keywordFallbackSearch(trimmed, { topK })
+    return { ...fallback, keywordMode: true }
+  }
+}
+
+async function keywordFallbackSearch(
+  query: string,
+  opts?: { topK?: number },
+): Promise<{
+  ok: true
+  results: Array<{ score: number; sourcePath: string; title: string; content: string }>
+  keywordMode: true
+}> {
   const topK = Math.max(1, Math.min(25, opts?.topK ?? 8))
-  return { ok: true, results: scored.slice(0, topK) }
+  const terms = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((t) => t.length > 1)
+
+  const roots = getBundledKnowledgeRoots()
+  const mdFiles: string[] = []
+  for (const root of roots) {
+    try {
+      const found = await walkForMarkdown(root)
+      mdFiles.push(...found)
+    } catch {
+      // skip unreadable roots
+    }
+  }
+
+  const results: Array<{ score: number; sourcePath: string; title: string; content: string }> = []
+
+  for (const filePath of Array.from(new Set(mdFiles))) {
+    try {
+      const md = await fs.readFile(filePath, 'utf-8')
+      const chunks = chunkMarkdown(filePath, md)
+
+      for (const chunk of chunks) {
+        const haystack = (chunk.title + ' ' + chunk.content).toLowerCase()
+        let score = 0
+        for (const term of terms) {
+          const matches = haystack.split(term).length - 1
+          score += matches
+        }
+        if (score > 0) {
+          results.push({ score, sourcePath: filePath, title: chunk.title, content: chunk.content })
+        }
+      }
+    } catch {
+      // skip unreadable files
+    }
+  }
+
+  results.sort((a, b) => b.score - a.score)
+  return { ok: true, results: results.slice(0, topK), keywordMode: true }
 }
