@@ -38,6 +38,10 @@ const IPC_CHANNELS = {
   WIZARD_GET_STATE: 'wizard-get-state',
   WIZARD_UPDATE_STEP: 'wizard-update-step',
   WIZARD_SUBMIT_ACTION: 'wizard-submit-action',
+
+  // Bridge & Plugin Activity — sent from Main to Renderer when external bridges
+  // (Desktop Bridge, Blender Bridge, MO2 Bridge, future plugins) report activity.
+  BRIDGE_ACTIVITY: 'bridge-activity',
 } as const;
 
 /**

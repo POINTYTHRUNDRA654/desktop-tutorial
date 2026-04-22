@@ -69,7 +69,7 @@ export const TextureGenerator: React.FC = () => {
   // Material Generator State
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [materialStyle, setMaterialStyle] = useState<MaterialStyle>('game-ready');
-  const [selectedMaps, setSelectedMaps] = useState<MapType[]>(['diffuse', 'normal', 'roughness', 'metallic', 'ao']);
+  const [selectedMaps, setSelectedMaps] = useState<MapType[]>(['diffuse', 'normal', 'specular']);
   const [mapSettings, setMapSettings] = useState<MapSettings>({
     normalStrength: 2.0,
     aoIntensity: 0.5,
@@ -164,11 +164,13 @@ export const TextureGenerator: React.FC = () => {
 
       if (result.success) {
         setGeneratedMaterial({
-          name: result.name,
-          maps: result.maps,
+          name: result.name || 'material',
+          maps: result.maps || {},
           timestamp: Date.now()
         });
-        toast.success(`Material generation complete!. Total size: ${(result.totalSize / 1024 / 1024).toFixed(2)} MB. Time: ${(result.totalProcessingTime / 1000).toFixed(2)}s`);
+        const sizeMB = ((result.totalSize ?? 0) / 1024 / 1024).toFixed(2);
+        const timeSec = ((result.totalProcessingTime ?? 0) / 1000).toFixed(2);
+        toast.success(`Material generation complete! Total size: ${sizeMB} MB. Time: ${timeSec}s`);
       } else {
         toast.error(`Material generation failed: ${result.error}`);
       }
@@ -640,7 +642,7 @@ export const TextureGenerator: React.FC = () => {
             {/* Map Grid */}
             <div className="grid grid-cols-4 gap-4">
               {selectedMaps.map(mapType => {
-                const map = generatedMaterial.maps[mapType];
+                const map = generatedMaterial.maps?.[mapType];
                 return (
                   <div key={mapType} className="bg-slate-700 rounded-lg p-3">
                     <div className="aspect-square bg-slate-600 rounded mb-2 flex items-center justify-center">
