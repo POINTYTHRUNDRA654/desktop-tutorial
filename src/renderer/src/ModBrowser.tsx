@@ -282,7 +282,7 @@ const ModBrowser: React.FC = () => {
                   <div className="mt-2 text-[12px] text-slate-300">{selected.description}</div>
                   <div className="mt-3 flex gap-2">
                     <button className="px-2 py-1 rounded bg-black/20 text-xs" onClick={() => selected && endorse(selected.id)}><Star className="w-3 h-3 mr-1"/>Endorse</button>
-                    <a className="px-2 py-1 rounded bg-black/20 text-xs flex items-center gap-2" href="#" onClick={(e) => { e.preventDefault(); window.open(selected.homepage || '', '_blank'); }}><ExternalLink className="w-3 h-3"/>Homepage</a>
+                    <button className="px-2 py-1 rounded bg-black/20 text-xs flex items-center gap-2" onClick={() => selected?.homepage && bridge.openExternal(selected.homepage)}><ExternalLink className="w-3 h-3"/>Homepage</button>
                   </div>
                 </>
               )}
