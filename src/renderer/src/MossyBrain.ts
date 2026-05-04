@@ -12601,6 +12601,42 @@ Denser fog makes plant glow diffuse beautifully through mist — increase emitta
 
 OG (1.10.163) and NG/AE (1.10.984+) have different virtual function table layouts — a DLL compiled for one crashes on the other. CMake: use BUILD_OG=ON / BUILD_NG=ON options to select CommonLibF4-OG or CommonLibF4-NG vcpkg dependency and add corresponding GAME_VERSION_OG / GAME_VERSION_NG compile definitions. GitHub Actions: two build jobs (build-og, build-ng) with windows-latest runner + vcpkg cache keyed on vcpkg.json hash to avoid full re-downloads. Upload artifacts as YourPlantPlugin-OG and YourPlantPlugin-NG. Package job downloads both and zips. FOMOD ModuleConfig.xml presents a SelectExactlyOne game-version step that copies the correct DLL to F4SE/Plugins/. Always ship OG + NG in separate FOMOD options — never a single DLL for both.
 
+---
+
+**ENGINE-LEVEL PERFORMANCE & RENDERING OPTIMIZATION (2026)**
+
+**Why Vanilla Performance Breaks Under High-Fidelity Assets**
+
+FO4's engine was shipped for mid-2015 hardware: single-threaded disk I/O queue stalls on large BA2 reads, equal CPU priority between streaming and render threads, outdated TAA that blurs 4K/8K custom textures, fixed landscape LOD distance cap, and engine bugs (precombine invalidation, heap fragmentation) that compound under heavy asset loads. The 2026 F4SE plugin ecosystem fixes each of these.
+
+**Excel Fallout 4 — CPU Priority & Disk Cache Enabler**
+
+Excel FO4 supersedes legacy Fallout Priority + Disk Cache Enabler. It does three things: (1) Elevates main/render threads to THREAD_PRIORITY_HIGHEST, drops background streaming to BELOW_NORMAL — eliminates frame pacing drops during cell loads. (2) Calls SetFileInformationByHandle on BA2 file handles to prevent Windows downgrading BA2 reads to background I/O — 30–60% faster BA2 loads on NVMe. (3) Periodically calls HeapCompact to reclaim fragmented heap pages before the engine allocator fails, complementing Buffout 4. Config: ExcelFO4.toml — DiskCache.MaxCacheSizeMB=512 (increase to 1024 on NVMe), PrefetchDepthCells=2 (prefetch 2 cells ahead), EnableLargePageSupport=true (optional, needs UAC). DO NOT run alongside legacy Fallout Priority or Disk Cache Enabler — conflict causes scheduler thrashing.
+
+**Landscape Optimization — Engine-Level Texture Rendering**
+
+FO4 vanilla landscape: fixed 6-layer blend limit per cell, 512px blend normal resolution, no PBR terrain. A landscape optimization F4SE plugin patches: extended layer count (up to 9 per cell), high-res blend normals up to 2048px, PBR terrain via BGSM roughness/metalness. For mutated vegetation: create LandscapeTexture records in CK pointing to mutated-soil BGSM (irradiated mud diffuse BC3, normal BC5, specular BC3), assign LTEX FormID via xEdit to cells containing flora. LTEX changes are cell-local and safe — they do not touch precombines.
+
+**Vulkan Rendering — D3D11 to Vulkan Translation**
+
+Vulkan rendering wraps the game's D3D11 calls via a translation layer. Benefits: 15–25% reduction in CPU-side D3D11 draw call overhead when rendering 2,000+ high-poly plant instances; async compute shaders for lighting (D3D11 path serializes these); improved VRAM management via Vulkan's explicit memory model (reduces stutters when crossing between dense cell areas); multi-threaded command buffer recording. Installation: place d3d11.dll (Vulkan wrapper) in FO4 root. If using ENB: chain via enblocal.ini [PROXY] section: EnableProxyLibrary=true, ProxyLibrary=vulkan_wrapper.dll. Load order: Vulkan wrapper → DLSS injector → ENB. Requires GPU driver 2023+.
+
+**DLSS / DLAA Injection**
+
+FO4 native TAA applies 1–2 pixel temporal blur that smears 4K/8K diffuse, glow masks, and PBR normal maps. DLSS/DLAA injection replaces TAA entirely. DLSS.ini: Mode 1=Quality (best for 1440p→4K, sharpest custom textures), Mode 3=Performance (1080p→4K high fps in flora cells), Mode 4=DLAA (no upscaling, full AA quality at native 4K). CRITICAL: always enable ReactiveMask=1 with ReactiveMaskThreshold=0.35 — this tags alpha-tested geometry (leaves, vines) to receive lighter temporal blending and eliminates ghosting on swaying plants. FrameGeneration=1 requires RTX 4000+ only. For native 4K monitors: Mode=4 (DLAA only) with ReactiveMask=1 eliminates TAA blur without any resolution scaling.
+
+**Ascension Engine Fixes Suite (Mandatory)**
+
+The Ascension suite is non-optional for 2026 realism mods. Key components: Buffout 4 (heap/script/crash guards, MemoryManager=true), ExcelFO4 (CPU/disk), HighFPSPhysicsFix (decouples Havok 60Hz physics from frame rate — without this, HKX vine bone chains spasm and wind deformation overshoots at 120+ FPS — EnableHavokFix=true, MaxFPS=0), Ascension CellLoadFix (async cell-load race conditions), TextureStreamFix (4K/8K streaming stability), ActorCountFix (CRITICAL for NPC_ plant actors — vanilla hard limit is 1024 simultaneous actors; dense plants + vanilla NPCs + plant NPC_s exceed this silently — set MaxActors=4096). Config: MaxTextureStreamWorkers=CPU_cores/2 (not full core count — steal from render thread otherwise).
+
+**CLASSIC — Crash Log Diagnostics**
+
+Run CLASSIC (Crash Log Auto Scan & Identification for the Creation Engine) after any flora-mod crash. Common signatures: BSResource::EntryDB = BA2 read failure (repack archive); NiAlphaProperty = alpha-sorted mesh crash (fix NiAlphaProperty in NifSkope); BSLightingShaderProperty = null shader material (ensure _d.dds assigned to every shader property slot); ScrapHeap::Allocate = script heap exhausted (increase iMaxAllocatedMemoryBytes); ActorValueOwner = actor limit exceeded (enable ActorCountFix, MaxActors=4096). Always update CLASSIC alongside Buffout 4 — crash signature database must match the Buffout 4 version generating logs.
+
+**2026 Stack Load Order**
+
+F4SE → Address Library → Visual C++ Redists → Buffout 4 → High FPS Physics Fix → Excel FO4 → Ascension suite (CellLoadFix/ActorCountFix/TextureStreamFix) → ENB → Vulkan wrapper (via ENB ProxyLibrary) → DLSS/DLAA injector → flora mod ESP/BA2 → LOD BA2. FOMOD should ship pre-tuned Buffout4.toml, ExcelFO4.toml, and HighFPSPhysicsFix.toml as Required components so users get correct settings automatically.
+
 `;
 
 
