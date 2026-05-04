@@ -12565,6 +12565,42 @@ High-density custom plants with per-instance scripts exhaust FO4's default 256 M
 
 Per-plant scripts multiply fast across dense worldspaces. Rules: (1) Always UnregisterForUpdate() in OnEndState() — never leave stale registrations. (2) Use one quest-level PlantEcosystemManager script to maintain a reference array; per-plant reference script only stores a lightweight int gState. (3) Papyrus polls at 1.0 s minimum — C++ handles sub-second proximity detection. (4) Check IsDead() at top of every OnUpdate; unregister immediately if true. (5) In OnDeath, call manager's UnregisterPlant(self) to compact the array.
 
+---
+
+**LARGE-SCALE FLORA OVERHAUL ARCHITECTURE**
+
+**Cell Loading Optimization**
+
+Large overhauls cause stuttering because each cell-load fires: NIF streaming + BA2 decompression, OnLoad Papyrus events on every enabled reference, precombine bounding-box recalculation if any precombined reference was touched, and AI package re-registration for plant NPC_ actors — all multiplied across hundreds of plant references.
+
+ADDICTOL (Nexus #66982, PJMail) pre-sorts plugin load order at runtime to minimize FormID lookup overhead. For 200+ new form records, add your ESP to ADDICTOL.ini [Priority] section. Precombines: never touch vanilla STAT records in ESP — use Base Object Swapper swap instead. Any STAT edit in a vanilla cell breaks that cell's previs, turning combined geometry into thousands of individual draw calls. NPC_ actor references are safe (excluded from previs). Use PRP (Previs Repair Pack) pipeline if edits are unavoidable.
+
+**Scalable Papyrus — Quest Manager + Regional Modules**
+
+Never put a full state-machine script on every plant reference. 2,000 plant references = 2,000 OnUpdate registrations = Papyrus VM collapse. Architecture: one persistent EcosystemQuest with PlantEcosystemManager.psc as global coordinator. Per-reference PlantInstanceRef.psc stores only: int gState, bool gRegistered, int regionID. Regional modules (MutatedFlora_Commonwealth.psc, MutatedFlora_FarHarbor.psc, MutatedFlora_NukaWorld.psc) each extend PlantRegionBase.psc and are activated/deactivated on OnPlayerLoadGame worldspace check. Only ONE region's update loops run at any time — activating all three simultaneously triples Papyrus load.
+
+Region detection: Game.GetPlayer().GetWorldSpace().GetFormID() == 0x0100C02E → Far Harbor (DLC02WorldSpace). 0x0200C2E0 → Nuka-World. Anything else → Commonwealth. Call regionX.OnRegionDeactivated() on the outgoing region (calls UnregisterForUpdate()), then regionY.OnRegionActivated() on the incoming one.
+
+**Workshop Framework Integration**
+
+Workshop Framework (kinggath) provides a thread-safe messaging system for global flora logic. Use WFLibrary.SendCustomEvent("PlantKilled", akPlant) from plant death events — this queues via WF's thread pool instead of stacking direct Papyrus calls, preventing VM starvation. Use WFThreadMgr.QueueTask(self, "DoSpawnPlant", akLocation, 5) to throttle to max 5 concurrent plant spawns per frame. Receiving scripts use WorkshopFramework event handlers rather than direct ObjectReference calls — direct ref calls to unloaded-cell objects cause null crashes.
+
+**Base Object Swapper — Dynamic Vanilla Plant Replacement**
+
+Use BOS (powerofthree, Nexus #64943) INI rules to swap vanilla plant forms for your hyper-detail versions at runtime: Form = 0x0003E00B~Fallout4.esm | 0x00001234~YourMod.esp. For worldspace-specific swaps add ws:0x0100C02E~DLC02.esm filter — only swaps in Far Harbor. This avoids any ESP STAT edits and maintains full compatibility. Advanced C++ approach: hook Cell::Load, iterate references via cell->ForEachReference, call ref->SetBaseObject(customBase) + ref->Update3D(). Caution: never call SetBaseObject on quest-aliased references — it breaks alias binding silently.
+
+**Unified PBR Pipeline Across DLCs**
+
+Lighting environments differ per region: Commonwealth = yellow-green irradiated, Far Harbor = blue-grey fog, Nuka-World = orange-red neon. Maintain one source SPP file with three texture-set outputs, differing only in emissive hue: Commonwealth HSL(120°,80%,50%) lime green; Far Harbor HSL(190°,70%,45%) teal-cyan; Nuka-World HSL(30°,85%,55%) amber. Three corresponding BGSM variants (MutatedVine_Commonwealth.bgsm, _FarHarbor.bgsm, _NukaWorld.bgsm) point to the same NIF geometry but different emittance channels. BOS worldspace filter selects correct BGSM per region. BGSM pitfall: emittance settings are ignored if no _g.dds is assigned to the NIF's glow map slot — always assign a glow texture even if all-white.
+
+**Far Harbor Fog System C++ Hook**
+
+Denser fog makes plant glow diffuse beautifully through mist — increase emittanceMult dynamically. Hook: read sky->currentWeather->data.fogNear at each weather tick. fogDepth = clamp(1.0 - fogNear/3000.0, 0, 1). emittanceMult = 1.5 + fogDepth * 2.5 (clear=1.5, deep fog=4.0). Teal-cyan glow color {0.15, 0.9, 0.75} for Far Harbor atmosphere. Register TESWeatherEvent sink to detect weather transitions and update all Far Harbor plant states. Register and unregister the sink with the regional OnRegionActivated/Deactivated calls so it only runs in Far Harbor.
+
+**CI/CD Build System — OG / NG / AE Targets**
+
+OG (1.10.163) and NG/AE (1.10.984+) have different virtual function table layouts — a DLL compiled for one crashes on the other. CMake: use BUILD_OG=ON / BUILD_NG=ON options to select CommonLibF4-OG or CommonLibF4-NG vcpkg dependency and add corresponding GAME_VERSION_OG / GAME_VERSION_NG compile definitions. GitHub Actions: two build jobs (build-og, build-ng) with windows-latest runner + vcpkg cache keyed on vcpkg.json hash to avoid full re-downloads. Upload artifacts as YourPlantPlugin-OG and YourPlantPlugin-NG. Package job downloads both and zips. FOMOD ModuleConfig.xml presents a SelectExactlyOne game-version step that copies the correct DLL to F4SE/Plugins/. Always ship OG + NG in separate FOMOD options — never a single DLL for both.
+
 `;
 
 
