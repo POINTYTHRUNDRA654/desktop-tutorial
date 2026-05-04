@@ -261,7 +261,41 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         ifMissing: 'Mods that ship BOS .ini swap rules will not apply their object replacements. Dynamic flora/fauna overhauls and weather-conditional mesh swaps will be inactive.',
         hasExecutable: false,
     },
+    // ── Papyrus extenders ────────────────────────────────────────────────────
+    {
+        name: 'Lighthouse Papyrus Extender (by GELUXRUM)',
+        description: 'F4SE plugin that adds 180+ new native Papyrus functions unavailable in vanilla F4SE. Functions are organized in Lighthouse2.psc (second file required due to engine script-size limits). Enables: GetFormByEditorID/GetFormEditorID lookups, improved AI destination queries, robust hostile-faction checks, array-format inventory functions, and PDB debug support for Buffout 4 NG stack traces. Required by many advanced environment and AI mods. ⚠️ Install via mod manager (MO2/Vortex). Requires F4SE and Address Library.',
+        detectKeywords: ['lighthouse papyrus extender', 'lighthouse papyrus'],
+        url: 'https://www.nexusmods.com/fallout4/mods/71420',
+        urlLabel: 'Nexus Mods #71420',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Mods that depend on Lighthouse Papyrus Extender functions (GetFormByEditorID, AI destination queries, etc.) will fail to compile or throw script errors at runtime.',
+        hasExecutable: false,
+    },
+    {
+        name: 'Garden of Eden Papyrus Script Extender (by LarannKiar)',
+        description: 'F4SE plugin adding 1,150+ new native Papyrus functions — the most comprehensive Papyrus expansion available for Fallout 4. Adds: per-item inventory manipulation, AI travel package injection from script, Havok physics queries (collision, velocity), raycasting and line-of-sight detection, quest/terminal data access, array sort/merge/filter, silent console command execution, and dialogue control from Papyrus. MIT licensed. ⚠️ Install via mod manager (MO2/Vortex). Requires F4SE and Address Library.',
+        detectKeywords: ['garden of eden papyrus', 'garden of eden script extender'],
+        url: 'https://www.nexusmods.com/fallout4/mods/74160',
+        urlLabel: 'Nexus Mods #74160',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Mods requiring raycasting, physics queries, advanced inventory manipulation, or silent console commands from Papyrus will fail. Complex environmental scripting (e.g. Glowing Sea mutation logic) will be limited.',
+        hasExecutable: false,
+    },
     // ── C++ / F4SE plugin development ─────────────────────────────────────────
+    {
+        name: 'F4SE Plugin Template (Ryan-rsm-McKenzie / Expired6978)',
+        description: 'Pre-configured CMake + vcpkg GitHub starter kit for building F4SE DLL plugins. Provides: F4SE_PLUGIN_VERSION boilerplate, F4SEPlugin_Load entry point, CommonLibF4 as a git submodule, spdlog file logging, vcpkg.json for dependency management, and a post-build copy step to deploy directly to Data\\F4SE\\Plugins\\. Clone with --recurse-submodules, run cmake + vcpkg, build Release. ⚠️ Development tool — not installed via mod manager. Requires Visual Studio 2022 + CMake + vcpkg.',
+        detectKeywords: ['f4se plugin template'],
+        url: 'https://github.com/Ryan-rsm-McKenzie/f4se_plugin_template',
+        urlLabel: 'GitHub (f4se_plugin_template)',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Starting a new F4SE DLL plugin project will require manually writing all CMake configuration, version boilerplate, and logging setup from scratch.',
+        hasExecutable: false,
+    },
     {
         name: 'CommonLibF4 + vcpkg (C++ plugin dev)',
         description: 'The community reverse-engineered C++ header library for Fallout 4 F4SE plugin development. Provides RE:: namespace class definitions (TESWeather, Actor, Sky, ActorValueOwner, etc.) for hooking engine functions. Paired with vcpkg for dependency management and CMake for build automation. Required if you are writing your own F4SE DLL plugins. ⚠️ Development tool — clone as a git submodule into your project. Not installed via mod manager.',
@@ -1602,8 +1636,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {[
                                 { label: 'Core', color: 'amber', items: ['Electron v35', 'React v18', 'TypeScript v5', 'Vite v7'] },
                                 { label: 'AI', color: 'emerald', items: ['OpenAI SDK', 'Groq SDK', 'Anthropic Claude', 'PyTorch (CPU & CUDA)'] },
-                                { label: 'Modding Tools', color: 'blue', items: ['xEdit / FO4Edit by ElminsterAU', 'Creation Kit by Bethesda', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321'] },
-                                { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope by hexabits', 'BodySlide & Outfit Studio by ousnius', 'B.A.E. by jonwd7', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'vcpkg by Microsoft'] },
+                                { label: 'Modding Tools', color: 'blue', items: ['xEdit / FO4Edit by ElminsterAU', 'Creation Kit by Bethesda', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar'] },
+                                { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope by hexabits', 'BodySlide & Outfit Studio by ousnius', 'B.A.E. by jonwd7', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'F4SE Plugin Template by Ryan-rsm-McKenzie', 'vcpkg by Microsoft'] },
                                 { label: 'Community', color: 'rose', items: ['Nexus Mods community', 'Fallout 4 modding community', 'GitHub contributors', 'Everyone who tests &amp; supports Mossy'] },
                             ].map(({ label, color, items }) => (
                                 <div key={label} className={`bg-slate-800/60 border border-${color}-500/30 rounded-xl p-4`}>
