@@ -12637,6 +12637,46 @@ Run CLASSIC (Crash Log Auto Scan & Identification for the Creation Engine) after
 
 F4SE → Address Library → Visual C++ Redists → Buffout 4 → High FPS Physics Fix → Excel FO4 → Ascension suite (CellLoadFix/ActorCountFix/TextureStreamFix) → ENB → Vulkan wrapper (via ENB ProxyLibrary) → DLSS/DLAA injector → flora mod ESP/BA2 → LOD BA2. FOMOD should ship pre-tuned Buffout4.toml, ExcelFO4.toml, and HighFPSPhysicsFix.toml as Required components so users get correct settings automatically.
 
+---
+
+**PBR PIPELINE FOR FALLOUT 4 (2026 HYBRID APPROACH)**
+
+**FO4's Rendering Model — Specular-Glossiness, Not Metal-Roughness**
+
+FO4 uses a specular-glossiness rendering model (sometimes called "Todd-Based Rendering / TBR"). There is no native metalness or roughness field in BSLightingShaderProperty or the standard BGSM format. _d.dds = albedo (diffuse + residual baked indirect), _s.dds = specular packed texture, _n.dds = DirectX convention normals, _g.dds = emissive glow mask. The engine does NOT natively read a metal-roughness workflow.
+
+**_s.dds Channel Packing (Spec-Gloss Pack)**
+
+R = specular intensity: 0.04 for dielectrics (most surfaces), 0.5–1.0 for metals, 0.04–0.06 for painted surfaces. G = glossiness = (1 - Roughness) — MUST invert roughness map from Substance; 0.0=fully rough/matte, 1.0=mirror. B = unused by vanilla engine; with Community Shaders EnableSpecBChannelAO=true, pack AO/cavity bake here. A = unused standard. When converting from Substance metal-roughness output: SpecR = lerp(0.04, AlbedoLuminance, Metallic); SpecG = 1 - Roughness; DiffuseRGB = Albedo × (1 - Metallic) for metals.
+
+**Community Shaders for FO4 (2026)**
+
+Originally Skyrim-only; 2026 updates added FO4 support. F4SE plugin that replaces compiled HLSL shaders at runtime. Key features: (1) Extended BGSM channel reads — reads _s.dds B channel as AO/cavity when EnableSpecBChannelAO=true in CommunityShaders.toml; (2) Script heap allocation monitoring — detects when PRP custom material loads approach Papyrus heap limit and pre-allocates buffer (HeapPreallocationMB=64) preventing ScrapHeap crashes; (3) GGX specular model (set SpecularModel=GGX — more physically accurate than Beckmann for rough bark/stone); (4) SSGI (screen-space global illumination) — bounced indirect light approximation, SSGIIntensity=0.4 for outdoor; (5) Screen-space shadows (SSS). IMPORTANT: do NOT run Community Shaders SSGI + ENB SSAO simultaneously — double-sampling causes 15–30% FPS drop.
+
+**ENB Extender**
+
+Enhances ENB Series for FO4: (1) Pre-weather shader variables — exposes WeatherTransition, FogNear, SunAngle, TimeOfDay as ENB shader constants, readable in enbeffect.fx for per-weather PBR lighting response (e.g. boost glossiness at golden hour); (2) External shader caching — caches compiled .fx binaries to disk, critical for large custom shader sets; (3) Extended constant buffers — unlocks additional float4 slots for advanced ENB presets passing PBR correction factors. Config: enbextender.ini: EnableWeatherVariables=1, EnableShaderCaching=1, EnableExtendedConstants=1.
+
+**EMV ENB Preset — ACES Tone Mapping**
+
+EMV implements physically correct bloom (multi-tap Kawase with luminance threshold gating: BloomThreshold=0.85, only pixels >85% exposure bloom) and ACES filmic tone mapping (ToneMappingCurve=ACES, Shoulder=0.22, Toe=0.015). Critical for physically-calibrated PBR assets: vanilla ENB was tuned for FO4's non-physically-calibrated vanilla textures and overexposes Substance PBR albedo (which targets 50–240 sRGB). Set ToneMappingExposure=1.0 when using Substance physically-calibrated output.
+
+**Substance Painter Export Template for FO4**
+
+Create a custom export template: Diffuse = $mesh_d.dds BC3 sRGB (R,G,B,A). Specular = $mesh_s.dds BC3 linear (R=SpecularLevel, G=GlossInverted=1-Roughness, B=zero or AO). Normal = $mesh_n.dds BC5 linear (RG only, Z reconstructed). Emissive = $mesh_g.dds BC3 linear. Height/Parallax = $mesh_h.dds BC4 linear (single channel). CRITICAL: Document Settings → Normal Map Format must be DirectX (NOT OpenGL) — OpenGL normals look reversed in FO4. MRAO (Metallic R, Roughness G, AO B) is a separate BC3 texture used only with Community Shaders extended BGSM mode (textureSet slot 8+).
+
+**POM — Parallax Occlusion Mapping Injection**
+
+POM gives flat textures apparent 3D depth by ray-marching the height map (_h.dds BC4) at runtime — adds perceived depth to landscape textures without geometry. Enable via ENB: enbseries.ini [PARALLAX] EnableParallax=true, ParallaxOcclusionMapping=true, ParallaxHeight=0.05–0.12, ParallaxMaxSamples=32. Enable via Community Shaders: [ParallaxOcclusionMapping] Enabled=true, HeightScale=0.07, MaxSamples=32, SelfShadow=true. BGSM: bParallaxOcclusion=true + sParallaxTexture path + set SF2_PARALLAX_OCCLUSION shader flag (bit 11, value 0x00000800). Height map convention: 1.0=extruded, 0.0=recessed.
+
+**DLSS/DLAA 4 for PBR Assets (PureDark)**
+
+Vanilla TAA blurs fine normal map detail (4K maps look like 512px in motion) and smears specular highlights from PBR-calibrated materials. PureDark DLSS 4 mod replaces TAA entirely. For PBR-heavy mods: Mode=1 (Quality) for best normal map sharpness; Mode=4 (DLAA) for native 4K monitors — no upscaling, full AA quality. Always set ReactiveMask=1 + ReactiveMaskThreshold=0.35 for vegetation/flora PBR assets — prevents specular highlight ghosting on bioluminescent/wet surfaces. SharpenStrength=0.25 to restore PBR normal map crispness. ENB compatibility: DLSS must load before ENB (DLSS → ENB → ReShade); enable EnableENBCompat=1 in DLSS.ini.
+
+**PBR Calibration Quick Reference**
+
+Dielectric surfaces (concrete, stone, wood, skin, plant): SpecR=0.04, SpecG=0.1–0.5 depending on roughness. Wet/slimy surfaces (mutant plant tissue, bioluminescent bark): SpecR=0.04–0.06, SpecG=0.5–0.7. Rusted metal (partial): SpecR=0.4–0.6, SpecG=0.2–0.35. Polished chrome: SpecR=0.9, SpecG=0.9. Always keep diffuse albedo in 50–240 sRGB range for dielectrics — values outside this range cause broken specular response under EMV/ACES tone mapping. Metals: Diffuse = near-black (Albedo × 0.0–0.05).
+
 `;
 
 
