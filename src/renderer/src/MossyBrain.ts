@@ -12357,6 +12357,93 @@ Rules:
 - CompatibleVersions in the F4SE plugin version data (C++ side) must list every game version the DLL supports or F4SE will refuse to load it
 - Wrong RVA for a version = crash on startup for that version only; other listed versions still work
 
+---
+
+**BSLIGHTINGSHADER INJECTION, PAPYRUS EXTENDERS & F4SE PLUGIN TEMPLATE**
+
+**BSLightingShaderProperty — Runtime Emittance Injection**
+
+RE::BSLightingShaderProperty is the primary shader class in Fallout 4's NIF scene graph. It holds a pointer to BSLightingShaderMaterial which contains emittanceColor (NiColorA, float 0–1 RGBA) and emittanceMult (float multiplier). These can be written at runtime from a C++ F4SE plugin to make any mesh pulse, flicker, or shift color based on game variables.
+
+Pattern — recursive scene graph walk:
+\`\`\`cpp
+void SetEmittanceRecursive(RE::NiAVObject* root, const RE::NiColorA& color, float mult) {
+    if (!root) return;
+    if (root->m_spEffect) {
+        auto* lsp = static_cast<RE::BSLightingShaderProperty*>(root->m_spEffect.get());
+        if (lsp && lsp->material) {
+            lsp->material->emittanceColor = color;
+            lsp->material->emittanceMult  = mult;
+        }
+    }
+    if (auto* node = root->As<RE::NiNode>())
+        for (auto& child : node->children)
+            SetEmittanceRecursive(child.get(), color, mult);
+}
+\`\`\`
+
+Radiation-driven pulse pattern: read ActorValue::kRadiationRads, normalize to 0–1, apply exponential curve above 50% rads, multiply by a sin() flicker factor, then call SetEmittanceRecursive on the actor's Get3D() root node each frame from a hooked update function.
+
+To hook per-frame material updates: use REL::Relocation + F4SE::GetTrampoline().write_call<5> on BSLightingShaderProperty::UpdateMaterial (find Address Library ID via IDA/RTTI). Call the original first, then overwrite emittanceColor/emittanceMult based on Sky::GetSingleton()->currentWeather->GetFormID().
+
+HLSL shader replacement: Fallout 4 stores compiled DXBC shaders in Data\Shaders\. Replace .fxp files via BA2 override with custom-compiled HLSL (fxc.exe /T ps_5_0). Write per-frame uniform data into the engine's D3D11 constant buffer from your F4SE plugin using device->UpdateSubresource after acquiring the D3D11 context.
+
+Thread safety rule: use std::atomic<float> for any value passed between the game thread (Papyrus/main) and the render thread hook — never use a mutex inside a render hook.
+
+**Papyrus → C++ Shader Pipeline**
+
+Pattern: Papyrus reads game state → calls a registered native function in your DLL → C++ stores value in atomic<float> → render thread hook reads atomic and updates BSLightingShaderMaterial each draw call.
+
+Register native function in F4SEPlugin_Load:
+\`\`\`cpp
+F4SE::GetPapyrusInterface()->Register([](RE::BSScript::IVirtualMachine* vm) {
+    vm->RegisterFunction("SetRadiationGlowLevel", "MutatedShaders",
+        [](RE::BSScript::IVirtualMachine*, RE::VMStackID, RE::StaticFunctionTag*, float level) {
+            ShaderInjection::gRadiationGlowLevel.store(level);
+        });
+    return true;
+});
+\`\`\`
+
+Papyrus side (runs on game thread every 0.1 in-game hours):
+\`\`\`papyrus
+float radRatio = Game.GetPlayer().GetValue(RadiationRads AV) / 1000.0
+float glowIntensity = radRatio
+if Weather.GetCurrentWeather().GetFormID() == 0x001CD35B  ; Glowing Sea rad storm
+    glowIntensity = Math.Min(1.0, glowIntensity * 1.8)
+endif
+MutatedShaders.SetRadiationGlowLevel(glowIntensity)
+\`\`\`
+
+**Lighthouse Papyrus Extender (by GELUXRUM)**
+
+Lighthouse Papyrus Extender (Nexus #71420, GitHub: github.com/GELUXRUM/LighthousePapyrusExtender) is an F4SE plugin adding 180+ new native Papyrus functions. Functions are in Lighthouse2.psc (second file needed due to engine script-size limit). Requires F4SE + Address Library.
+
+Key additions: GetFormByEditorID/GetFormEditorID (look up forms at runtime by editor string), GetCurrentAIProcessDestinationWorldSpace (query NPC destinations), GetActorsHostileToActor (improved), RemoveScriptAddedLeveledObjects, array-format inventory queries, sound/UI utilities, PDB debug support for Buffout 4 NG stack traces.
+
+Use for mutated-world scripting: look up mutated flora variants by EditorID without hardcoded FormIDs; query NPC AI destinations to decide if they are in the Glowing Sea; perform robust hostile-faction checks for radiation-driven AI behavior.
+
+**Garden of Eden Papyrus Script Extender (by LarannKiar)**
+
+Garden of Eden Papyrus Script Extender (Nexus #74160) adds 1,150+ new native Papyrus functions — the most comprehensive Papyrus expansion for Fallout 4. Requires F4SE + Address Library. MIT licensed.
+
+Key capabilities: per-item indexed inventory manipulation (find/copy/transfer/remove/equip individual items), AI travel package injection from script, Havok physics queries (collision boundaries, actor direction/velocity), raycasting + line-of-sight detection from Papyrus, quest/terminal data access, array sort/merge/filter, silent console command execution from script, dialogue start/pause/stop from script.
+
+Use for environmental mutation: raycasting to detect if player can see a glowing flora before triggering emittance burst; physics queries for radiation-burst fog displacement; silent console commands for rapid prototyping of region-level state changes.
+
+**F4SE Plugin Template (by Ryan-rsm-McKenzie / Expired6978)**
+
+The F4SE Plugin Template (github.com/Ryan-rsm-McKenzie/f4se_plugin_template) is a pre-configured CMake + vcpkg starter kit for building F4SE DLL plugins. Provides: F4SE_PLUGIN_VERSION boilerplate, F4SEPlugin_Load entry point, CommonLibF4 as git submodule, spdlog file logging, vcpkg.json for dependency management, post-build copy to Data\F4SE\Plugins\.
+
+Setup:
+\`\`\`cmd
+git clone --recurse-submodules https://github.com/Ryan-rsm-McKenzie/f4se_plugin_template.git MutatedSeaPlugin
+cmake -B build -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake"
+cmake --build build --config Release
+\`\`\`
+
+Add your hook source files with target_sources() in the existing CMakeLists.txt. Always build Release — debug DLLs are incompatible with the retail F4SE loader.
+
 `;
 
 
