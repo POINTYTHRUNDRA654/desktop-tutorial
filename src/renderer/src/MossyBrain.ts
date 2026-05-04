@@ -12250,6 +12250,113 @@ PapyrusCompiler.exe "Data\\Scripts\\Source\\User" -i="...Base;...User" -o="Data\
 - Compiled with -r -op; bEnableLogging=0 for end-user release
 - F4SE DLL is x64 Release, placed in Data/F4SE/Plugins/
 
+---
+
+**ENB SERIES, ROBCO PATCHER, SCOURGE, BCRS & F4SE TOML FILES**
+
+**ENB Series — Visual Realism**
+
+ENB Series (by Boris Vorontsov) is a DirectX 11 post-processing injector that is the single most impactful visual upgrade for Fallout 4. Install by copying d3d11.dll + d3dcompiler_46e.dll from the ENB binary ZIP (http://enbdev.com/download_mod_fallout4.htm) into the Fallout 4 root folder (next to Fallout4.exe), then add a preset from Nexus.
+
+Key effects: ambient occlusion (contact shadows), screen-space reflections, cinematic depth of field, physically-based bloom/god rays, subsurface scattering for skin, advanced tone mapping, color grading curves.
+
+Config files (all go in FO4 root folder):
+- enblocal.ini — hardware settings: VideoMemorySizeMb (your VRAM in MB), VSync, occlusion culling
+- enbseries.ini — visual effects: EnableBloom, EnableDepthOfField, EnableAmbientOcclusion, BloomAmount, etc.
+
+In-game hotkeys: Shift+Enter = ENB shader editor overlay (live tweaking), Shift+F12 = toggle ENB on/off.
+
+Popular presets: NAC X (Nuclear Autumn), Visceral ENB, Rudy ENB, PRC (Photo Realistic Commonwealth), Everlasting Fallout.
+
+Compatibility notes:
+- Must use the ENB binary version matching your game runtime (enbdev.com lists per-game releases)
+- Some presets require ENB Helper (Nexus #57574) for weather-adaptive effects
+- Disable AMD ReLive overlay — conflicts with ENB d3d11 hook
+- ENB and ReShade can coexist only if the preset is designed for it; never stack two mods doing the same effect (double AO, double bloom)
+
+**RobCo Patcher — Runtime Record Patching Without ESP**
+
+RobCo Patcher (Nexus #69798, by Zzyxzz) is an F4SE + CommonLibF4 plugin that applies record patches at runtime via .ini files placed in Data\RobCo Patcher\. It modifies weapons, NPCs, armor, ammo, and leveled lists without adding any plugin to the load order.
+
+Why it matters: zero plugin slots consumed, load-order-aware (targets records from any mod by FormID/EditorID/keyword/name), solves incompatibilities between mods that would otherwise require manual ESP merging.
+
+INI syntax:
+\`\`\`ini
+; Target a weapon by EditorID, add keyword, set damage
+[ModifyWeapon]
+Signature=WEAP
+EditorID=LaserGun
+AddKeyword=WeaponTypePlasma
+SetValue=Damage,60
+
+; Target NPCs by keyword filter
+[ModifyNpc]
+Signature=NPC_
+AllKeyword=ActorTypeEnemy;ActorTypeHuman  ; ALL must be present
+AnyKeyword=ActorTypeSynth;ActorTypeGhoul  ; at least ONE must match
+ExcludeKeyword=ActorTypeRobot
+SetValue=Health,300
+AddPerk=SneakAttack
+
+; Target by FormID
+[ModifyNpc]
+Signature=NPC_
+FormID=00012AB3
+SetValue=Health,500
+\`\`\`
+
+Common patch parameters: Signature, FormID, EditorID, Name, AllKeyword, AnyKeyword, ExcludeKeyword, Race, AddKeyword, RemoveKeyword, AddPerk, RemovePerk, SetValue, AddMod.
+
+**Scourge — NPC Stat Overhaul and Deleveling**
+
+Scourge (Nexus #60917, by Geluxrum) is an F4SE DLL plugin that replaces Bethesda's flat level-scalar stat system with Gaussian (bell-curve) distribution. This eliminates the bullet-sponge problem and makes every combat encounter feel different.
+
+Key changes: enemy stats distributed on a bell curve (same enemy type varies — some weak, some exceptional); many NPCs deleveled (Deathclaws can appear at level 5); MCM controls let you tune the mean and variance per enemy category live.
+
+Requires: F4SE, Address Library (All-in-One for NG/1.11.x), MCM NG. Has no ESP — zero load order slot. Community patch repo covers hundreds of creature mods.
+
+Works well alongside RobCo Patcher and Addictol. Does not conflict with precombine patches.
+
+**Bullet Counted Reload System (BCRS / BCR)**
+
+BCRS (Nexus #42676, by Shavkacagarikia) is an F4SE plugin that fixes a long-standing immersion break in Fallout 4: tube-fed and rotary weapons (lever-action rifles, pump shotguns, revolvers) always played a full reload regardless of how many rounds were fired. BCRS fixes this at the engine level.
+
+What it does: reads current ammo count, calculates rounds needed to fill the magazine, runs the insertion animation loop exactly N times (only loading what you actually fired), and adds an interrupt window so you can stop reloading mid-sequence to fire.
+
+Works in first-person and third-person. Weapon mod authors can add native BCRS support by including the documented animation events in their NIF behavior graph. Without a patch, custom weapons fall back to vanilla full-reload (no breakage, just no counted reload).
+
+Requires: F4SE, Address Library. Compatible with Addictol.
+
+**F4SE Plugin TOML Files — Address Library Configuration**
+
+.toml (Tom's Obvious Minimal Language) files accompany F4SE DLL plugins in Data\F4SE\Plugins\. They tell the Address Library how to resolve game function addresses across multiple Fallout 4 runtime versions, so a single DLL binary works with OG (1.10.163), NG (1.10.984), and Creations Menu (1.11.x) without separate builds.
+
+Structure:
+\`\`\`toml
+version = 1
+
+[plugin]
+name    = "MyPlugin"
+author  = "YourName"
+version = "1.0.0"
+
+[addresses]
+; Map custom Address Library ID to RVA per game version
+ProcessHitsFunc = { "1.10.163.0" = 0x1A2B3C, "1.10.984.0" = 0x1C3D4E, "1.11.191.0" = 0x1E5F60 }
+
+[signatures]
+; Alternative: byte-pattern scan (more resilient to small patches)
+; "F4:" prefix + hex bytes, ?? = wildcard byte
+MyDataPtr = "F4:48 8B 05 ?? ?? ?? ?? 48 8B 18"
+\`\`\`
+
+Rules:
+- version = 1 is mandatory — omitting it causes Address Library to silently skip the file
+- File must be UTF-8 encoded and placed in Data\F4SE\Plugins\
+- Functions already in the Address Library database need only REL::ID(n) in C++ — no TOML entry required
+- CompatibleVersions in the F4SE plugin version data (C++ side) must list every game version the DLL supports or F4SE will refuse to load it
+- Wrong RVA for a version = crash on startup for that version only; other listed versions still work
+
 `;
 
 
