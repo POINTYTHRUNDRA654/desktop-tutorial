@@ -12107,7 +12107,689 @@ def create_basic_collision(obj):
 4. Permissions tab on Nexus reflects your intent (reuse allowed? console allowed?)
 5. Screenshots use your assets or licensed ones only
 
+---
+
+**C++ / F4SE / PAPYRUS BRIDGE: MEMORY-WISE MOD ARCHITECTURE**
+
+**Why Offload to C++?**
+
+Papyrus is a single-threaded, interpreted VM designed to be intentionally limited. Heavy computation in Papyrus causes lag, stack overflows, and CTDs. Use C++ for:
+- Loops over large data sets (> ~100 iterations)
+- Sorting, searching, pathfinding, matrix math
+- String parsing / regex (unavailable in Papyrus)
+- File I/O and JSON config reading
+- Bulk form/record scanning
+
+Papyrus should only orchestrate actions and react to results. All data-heavy work belongs in a native F4SE DLL.
+
+**Project Setup (Visual Studio)**
+
+\`\`\`
+Platform:         x64  ← Fallout 4 is 64-bit; never compile F4SE plugins as x86
+Configuration:    Release  ← Debug builds are incompatible with live F4SE injection
+Runtime Library:  /MT (Multi-threaded) — avoids VCRUNTIME DLL dependency
+C++ Standard:     /std:c++17 or /std:c++20
+Unicode:          /DUNICODE /D_UNICODE
+\`\`\`
+
+Build system: CMake + vcpkg with CommonLibF4. Output: \`Data/F4SE/Plugins/MyPlugin.dll\`.
+
+**Registering Native Functions (C++ → Papyrus Bridge)**
+
+C++ side — bind native functions in RegisterPapyrusFunctions:
+\`\`\`cpp
+// Heavy sort+sum — runs entirely in C++, single Papyrus VM frame
+static std::int32_t SortAndSum(
+    RE::BSScript::IVirtualMachine*, RE::VMStackID,
+    RE::StaticFunctionTag*,
+    RE::BSTSmartPointer<RE::BSScript::Array> arr)
+{
+    std::vector<std::int32_t> data;
+    for (uint32_t i = 0; i < arr->size(); ++i)
+        data.push_back(arr->data()[i].GetSInt());
+    std::sort(data.begin(), data.end());
+    std::int32_t sum = 0;
+    for (auto v : data) sum += v;
+    return sum;
+}
+
+bool RegisterPapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
+    vm->BindNativeMethod("MyPlugin"sv, "SortAndSum"sv, SortAndSum, true);
+    return true;
+}
+\`\`\`
+
+Papyrus side — declare with Global Native:
+\`\`\`papyrus
+Scriptname MyPluginBridge extends Quest
+Int Function SortAndSum(Int[] akArray) Global Native
+
+Function RunTask()
+    Int[] data = new Int[10]
+    ; fill data ...
+    Int result = MyPluginBridge.SortAndSum(data)
+    Debug.Notification("Done: " + result)
+EndFunction
+\`\`\`
+
+**Async Pattern — C++ fires a mod event when work is done:**
+\`\`\`cpp
+void NotifyComplete(int32_t result) {
+    auto* vm = RE::GameVM::GetSingleton()->GetVM().get();
+    auto* args = RE::MakeFunctionArguments(result);
+    vm->SendModEvent("OnMyPluginTaskComplete"sv, args);
+    delete args;
+}
+\`\`\`
+\`\`\`papyrus
+Event OnMyPluginTaskComplete(Int aiResult)
+    Debug.Notification("C++ done: " + aiResult)
+EndEvent
+\`\`\`
+
+**Papyrus Stack Dumps — Still Happens Even With C++ Offloading**
+
+Even when C++ handles the heavy work, bad Papyrus patterns still crash the script engine:
+
+| Cause | Fix |
+|---|---|
+| Infinite loop / no exit condition | Always add a break; use RegisterForSingleUpdate instead |
+| Runaway OnUpdate (interval < 0.5s) | Use RegisterForSingleUpdate(1.0); prefer event-driven patterns |
+| Deep Papyrus recursion | Move recursion into C++ — single Papyrus stack frame |
+| None reference dereference | Guard every object ref: If myRef != None |
+| Latent function overload | Throttle concurrent Wait() calls; add timeouts |
+
+Stack dumps appear in: Documents\\My Games\\Fallout4\\Logs\\Script\\Papyrus.0.log
+Look for lines: RUNTIME ERROR followed by stack: call frames.
+Enable logging during dev: bEnableLogging=1, bEnableTrace=1 in Papyrus.ini.
+Disable for release: bEnableLogging=0 (logging slows the VM for end users).
+
+Safe OnUpdate pattern:
+\`\`\`papyrus
+; BAD — fires every millisecond, clogs the VM
+Event OnUpdate()
+    DoWork()
+    RegisterForUpdate(0.001)
+EndEvent
+
+; GOOD — completes work, waits a sensible interval, then re-arms
+Event OnUpdate()
+    DoWork()
+    RegisterForSingleUpdate(1.0)
+EndEvent
+\`\`\`
+
+**Compiler Settings: 32-bit vs 64-bit and CorFlags.exe**
+
+PapyrusCompiler.exe is a managed .NET executable. On modern 64-bit Windows it runs 64-bit by default. On older setups or legacy CI pipelines it may default to 32-bit mode, causing out-of-memory failures on large source trees.
+
+Check and fix with CorFlags.exe (Windows SDK):
+\`\`\`cmd
+REM Check current mode
+CorFlags.exe "Fallout 4\\Papyrus Compiler\\PapyrusCompiler.exe"
+REM Force 64-bit (remove 32-bit-required flag) -- recommended for large script sets
+CorFlags.exe "PapyrusCompiler.exe" /32BITREQ-
+REM Restore 32-bit if legacy environment requires it
+CorFlags.exe "PapyrusCompiler.exe" /32BITREQ+
+\`\`\`
+
+Recommended release compile flags:
+\`\`\`cmd
+PapyrusCompiler.exe "Data\\Scripts\\Source\\User" -i="...Base;...User" -o="Data\\Scripts" -f="Institute_Papyrus_Flags.flg" -all -r -op
+\`\`\`
+-r = release (strip debug calls), -op = optimize, -final = also strip betaOnly (use for shipping).
+
+**Pre-Ship Memory Safety Checklist**
+
+- All heavy loops (> ~100 iterations) moved to C++ DLL
+- No unbounded While loops in Papyrus
+- All OnUpdate uses RegisterForSingleUpdate with interval >= 0.5s
+- Every object reference guarded with != None before method calls
+- Papyrus.0.log reviewed; zero RUNTIME ERRORs before shipping
+- PapyrusCompiler confirmed 64-bit (CorFlags.exe or Task Manager)
+- Compiled with -r -op; bEnableLogging=0 for end-user release
+- F4SE DLL is x64 Release, placed in Data/F4SE/Plugins/
+
+---
+
+**ENB SERIES, ROBCO PATCHER, SCOURGE, BCRS & F4SE TOML FILES**
+
+**ENB Series — Visual Realism**
+
+ENB Series (by Boris Vorontsov) is a DirectX 11 post-processing injector that is the single most impactful visual upgrade for Fallout 4. Install by copying d3d11.dll + d3dcompiler_46e.dll from the ENB binary ZIP (http://enbdev.com/download_mod_fallout4.htm) into the Fallout 4 root folder (next to Fallout4.exe), then add a preset from Nexus.
+
+Key effects: ambient occlusion (contact shadows), screen-space reflections, cinematic depth of field, physically-based bloom/god rays, subsurface scattering for skin, advanced tone mapping, color grading curves.
+
+Config files (all go in FO4 root folder):
+- enblocal.ini — hardware settings: VideoMemorySizeMb (your VRAM in MB), VSync, occlusion culling
+- enbseries.ini — visual effects: EnableBloom, EnableDepthOfField, EnableAmbientOcclusion, BloomAmount, etc.
+
+In-game hotkeys: Shift+Enter = ENB shader editor overlay (live tweaking), Shift+F12 = toggle ENB on/off.
+
+Popular presets: NAC X (Nuclear Autumn), Visceral ENB, Rudy ENB, PRC (Photo Realistic Commonwealth), Everlasting Fallout.
+
+Compatibility notes:
+- Must use the ENB binary version matching your game runtime (enbdev.com lists per-game releases)
+- Some presets require ENB Helper (Nexus #57574) for weather-adaptive effects
+- Disable AMD ReLive overlay — conflicts with ENB d3d11 hook
+- ENB and ReShade can coexist only if the preset is designed for it; never stack two mods doing the same effect (double AO, double bloom)
+
+**RobCo Patcher — Runtime Record Patching Without ESP**
+
+RobCo Patcher (Nexus #69798, by Zzyxzz) is an F4SE + CommonLibF4 plugin that applies record patches at runtime via .ini files placed in Data\RobCo Patcher\. It modifies weapons, NPCs, armor, ammo, and leveled lists without adding any plugin to the load order.
+
+Why it matters: zero plugin slots consumed, load-order-aware (targets records from any mod by FormID/EditorID/keyword/name), solves incompatibilities between mods that would otherwise require manual ESP merging.
+
+INI syntax:
+\`\`\`ini
+; Target a weapon by EditorID, add keyword, set damage
+[ModifyWeapon]
+Signature=WEAP
+EditorID=LaserGun
+AddKeyword=WeaponTypePlasma
+SetValue=Damage,60
+
+; Target NPCs by keyword filter
+[ModifyNpc]
+Signature=NPC_
+AllKeyword=ActorTypeEnemy;ActorTypeHuman  ; ALL must be present
+AnyKeyword=ActorTypeSynth;ActorTypeGhoul  ; at least ONE must match
+ExcludeKeyword=ActorTypeRobot
+SetValue=Health,300
+AddPerk=SneakAttack
+
+; Target by FormID
+[ModifyNpc]
+Signature=NPC_
+FormID=00012AB3
+SetValue=Health,500
+\`\`\`
+
+Common patch parameters: Signature, FormID, EditorID, Name, AllKeyword, AnyKeyword, ExcludeKeyword, Race, AddKeyword, RemoveKeyword, AddPerk, RemovePerk, SetValue, AddMod.
+
+**Scourge — NPC Stat Overhaul and Deleveling**
+
+Scourge (Nexus #60917, by Geluxrum) is an F4SE DLL plugin that replaces Bethesda's flat level-scalar stat system with Gaussian (bell-curve) distribution. This eliminates the bullet-sponge problem and makes every combat encounter feel different.
+
+Key changes: enemy stats distributed on a bell curve (same enemy type varies — some weak, some exceptional); many NPCs deleveled (Deathclaws can appear at level 5); MCM controls let you tune the mean and variance per enemy category live.
+
+Requires: F4SE, Address Library (All-in-One for NG/1.11.x), MCM NG. Has no ESP — zero load order slot. Community patch repo covers hundreds of creature mods.
+
+Works well alongside RobCo Patcher and Addictol. Does not conflict with precombine patches.
+
+**Bullet Counted Reload System (BCRS / BCR)**
+
+BCRS (Nexus #42676, by Shavkacagarikia) is an F4SE plugin that fixes a long-standing immersion break in Fallout 4: tube-fed and rotary weapons (lever-action rifles, pump shotguns, revolvers) always played a full reload regardless of how many rounds were fired. BCRS fixes this at the engine level.
+
+What it does: reads current ammo count, calculates rounds needed to fill the magazine, runs the insertion animation loop exactly N times (only loading what you actually fired), and adds an interrupt window so you can stop reloading mid-sequence to fire.
+
+Works in first-person and third-person. Weapon mod authors can add native BCRS support by including the documented animation events in their NIF behavior graph. Without a patch, custom weapons fall back to vanilla full-reload (no breakage, just no counted reload).
+
+Requires: F4SE, Address Library. Compatible with Addictol.
+
+**F4SE Plugin TOML Files — Address Library Configuration**
+
+.toml (Tom's Obvious Minimal Language) files accompany F4SE DLL plugins in Data\F4SE\Plugins\. They tell the Address Library how to resolve game function addresses across multiple Fallout 4 runtime versions, so a single DLL binary works with OG (1.10.163), NG (1.10.984), and Creations Menu (1.11.x) without separate builds.
+
+Structure:
+\`\`\`toml
+version = 1
+
+[plugin]
+name    = "MyPlugin"
+author  = "YourName"
+version = "1.0.0"
+
+[addresses]
+; Map custom Address Library ID to RVA per game version
+ProcessHitsFunc = { "1.10.163.0" = 0x1A2B3C, "1.10.984.0" = 0x1C3D4E, "1.11.191.0" = 0x1E5F60 }
+
+[signatures]
+; Alternative: byte-pattern scan (more resilient to small patches)
+; "F4:" prefix + hex bytes, ?? = wildcard byte
+MyDataPtr = "F4:48 8B 05 ?? ?? ?? ?? 48 8B 18"
+\`\`\`
+
+Rules:
+- version = 1 is mandatory — omitting it causes Address Library to silently skip the file
+- File must be UTF-8 encoded and placed in Data\F4SE\Plugins\
+- Functions already in the Address Library database need only REL::ID(n) in C++ — no TOML entry required
+- CompatibleVersions in the F4SE plugin version data (C++ side) must list every game version the DLL supports or F4SE will refuse to load it
+- Wrong RVA for a version = crash on startup for that version only; other listed versions still work
+
+---
+
+**BSLIGHTINGSHADER INJECTION, PAPYRUS EXTENDERS & F4SE PLUGIN TEMPLATE**
+
+**BSLightingShaderProperty — Runtime Emittance Injection**
+
+RE::BSLightingShaderProperty is the primary shader class in Fallout 4's NIF scene graph. It holds a pointer to BSLightingShaderMaterial which contains emittanceColor (NiColorA, float 0–1 RGBA) and emittanceMult (float multiplier). These can be written at runtime from a C++ F4SE plugin to make any mesh pulse, flicker, or shift color based on game variables.
+
+Pattern — recursive scene graph walk:
+\`\`\`cpp
+void SetEmittanceRecursive(RE::NiAVObject* root, const RE::NiColorA& color, float mult) {
+    if (!root) return;
+    if (root->m_spEffect) {
+        auto* lsp = static_cast<RE::BSLightingShaderProperty*>(root->m_spEffect.get());
+        if (lsp && lsp->material) {
+            lsp->material->emittanceColor = color;
+            lsp->material->emittanceMult  = mult;
+        }
+    }
+    if (auto* node = root->As<RE::NiNode>())
+        for (auto& child : node->children)
+            SetEmittanceRecursive(child.get(), color, mult);
+}
+\`\`\`
+
+Radiation-driven pulse pattern: read ActorValue::kRadiationRads, normalize to 0–1, apply exponential curve above 50% rads, multiply by a sin() flicker factor, then call SetEmittanceRecursive on the actor's Get3D() root node each frame from a hooked update function.
+
+To hook per-frame material updates: use REL::Relocation + F4SE::GetTrampoline().write_call<5> on BSLightingShaderProperty::UpdateMaterial (find Address Library ID via IDA/RTTI). Call the original first, then overwrite emittanceColor/emittanceMult based on Sky::GetSingleton()->currentWeather->GetFormID().
+
+HLSL shader replacement: Fallout 4 stores compiled DXBC shaders in Data\Shaders\. Replace .fxp files via BA2 override with custom-compiled HLSL (fxc.exe /T ps_5_0). Write per-frame uniform data into the engine's D3D11 constant buffer from your F4SE plugin using device->UpdateSubresource after acquiring the D3D11 context.
+
+Thread safety rule: use std::atomic<float> for any value passed between the game thread (Papyrus/main) and the render thread hook — never use a mutex inside a render hook.
+
+**Papyrus → C++ Shader Pipeline**
+
+Pattern: Papyrus reads game state → calls a registered native function in your DLL → C++ stores value in atomic<float> → render thread hook reads atomic and updates BSLightingShaderMaterial each draw call.
+
+Register native function in F4SEPlugin_Load:
+\`\`\`cpp
+F4SE::GetPapyrusInterface()->Register([](RE::BSScript::IVirtualMachine* vm) {
+    vm->RegisterFunction("SetRadiationGlowLevel", "MutatedShaders",
+        [](RE::BSScript::IVirtualMachine*, RE::VMStackID, RE::StaticFunctionTag*, float level) {
+            ShaderInjection::gRadiationGlowLevel.store(level);
+        });
+    return true;
+});
+\`\`\`
+
+Papyrus side (runs on game thread every 0.1 in-game hours):
+\`\`\`papyrus
+float radRatio = Game.GetPlayer().GetValue(RadiationRads AV) / 1000.0
+float glowIntensity = radRatio
+if Weather.GetCurrentWeather().GetFormID() == 0x001CD35B  ; Glowing Sea rad storm
+    glowIntensity = Math.Min(1.0, glowIntensity * 1.8)
+endif
+MutatedShaders.SetRadiationGlowLevel(glowIntensity)
+\`\`\`
+
+**Lighthouse Papyrus Extender (by GELUXRUM)**
+
+Lighthouse Papyrus Extender (Nexus #71420, GitHub: github.com/GELUXRUM/LighthousePapyrusExtender) is an F4SE plugin adding 180+ new native Papyrus functions. Functions are in Lighthouse2.psc (second file needed due to engine script-size limit). Requires F4SE + Address Library.
+
+Key additions: GetFormByEditorID/GetFormEditorID (look up forms at runtime by editor string), GetCurrentAIProcessDestinationWorldSpace (query NPC destinations), GetActorsHostileToActor (improved), RemoveScriptAddedLeveledObjects, array-format inventory queries, sound/UI utilities, PDB debug support for Buffout 4 NG stack traces.
+
+Use for mutated-world scripting: look up mutated flora variants by EditorID without hardcoded FormIDs; query NPC AI destinations to decide if they are in the Glowing Sea; perform robust hostile-faction checks for radiation-driven AI behavior.
+
+**Garden of Eden Papyrus Script Extender (by LarannKiar)**
+
+Garden of Eden Papyrus Script Extender (Nexus #74160) adds 1,150+ new native Papyrus functions — the most comprehensive Papyrus expansion for Fallout 4. Requires F4SE + Address Library. MIT licensed.
+
+Key capabilities: per-item indexed inventory manipulation (find/copy/transfer/remove/equip individual items), AI travel package injection from script, Havok physics queries (collision boundaries, actor direction/velocity), raycasting + line-of-sight detection from Papyrus, quest/terminal data access, array sort/merge/filter, silent console command execution from script, dialogue start/pause/stop from script.
+
+Use for environmental mutation: raycasting to detect if player can see a glowing flora before triggering emittance burst; physics queries for radiation-burst fog displacement; silent console commands for rapid prototyping of region-level state changes.
+
+**F4SE Plugin Template (by Ryan-rsm-McKenzie / Expired6978)**
+
+The F4SE Plugin Template (github.com/Ryan-rsm-McKenzie/f4se_plugin_template) is a pre-configured CMake + vcpkg starter kit for building F4SE DLL plugins. Provides: F4SE_PLUGIN_VERSION boilerplate, F4SEPlugin_Load entry point, CommonLibF4 as git submodule, spdlog file logging, vcpkg.json for dependency management, post-build copy to Data\F4SE\Plugins\.
+
+Setup:
+\`\`\`cmd
+git clone --recurse-submodules https://github.com/Ryan-rsm-McKenzie/f4se_plugin_template.git MutatedSeaPlugin
+cmake -B build -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake"
+cmake --build build --config Release
+\`\`\`
+
+Add your hook source files with target_sources() in the existing CMakeLists.txt. Always build Release — debug DLLs are incompatible with the retail F4SE loader.
+
+---
+
+**SENTIENT / ATTACKING PLANT ARCHITECTURE**
+
+**Plant as an Actor (Not Static Flora)**
+
+Vanilla FLOR records are static — they cannot attack, track a target, or drop loot. To build an attacking plant, create an NPC_ actor with a custom non-humanoid RACE record. Disable all humanoid flags (head tracking, idle markers) on the race. Assign a melee creature combat style (e.g. csCreatureAttack) with zero retreat distance. Add the plant reference to a hostile faction (MutatedFloraFaction vs Player). This gives the plant a real AI, death event, and a loot container.
+
+**Custom Plant Skeleton (HKX Vine Bone Chain)**
+
+Static mesh → bone chain unlocks attack animations. Design a vine chain: Root [root_plant] → Stem [spine_01] → Mid [spine_02] → Vine_01 → Vine_02 → Vine_03 (attack tip). Rules: ≤30 bones per chain for performance. Root bone must be named exactly "Root" (capital R) or animations fail to load. Attach a WeaponNode or AttackPoint to the vine tip for melee hit detection. Build in Blender using the NIF Plugin. Skeleton goes in Data\Meshes\Actors\YourPlant\CharacterAssets\skeleton.nif. HKX behavior file goes in Data\Meshes\Actors\YourPlant\Behaviors\. Minimum animations: idle.hkx (dormant sway, loop), attack_01.hkx (lunge, one-shot), death.hkx (wilt, one-shot). Pack FBX animations to HKX using Havok Content Tools or HkxPack.
+
+**C++ Proximity Detection — Vibration Sensing**
+
+Plants sense the player via footfall vibration, not eyes. Hook the Actor::Update virtual (via REL::Relocation) to run proximity math each frame. Per-plant state uses std::atomic<bool> isAlert and std::atomic<float> threatLevel.
+
+Detection pattern:
+\`\`\`cpp
+float distSq      = CalcDistanceSq(plant->GetPosition(), player->GetPosition());
+float playerSpeed = player->GetActorValue(RE::ActorValue::kSpeedMult);
+float heavyFactor = player->GetActorValue(RE::ActorValue::kCarryWeight) > 200.0f ? 1.4f : 1.0f;
+float vibration   = playerSpeed * heavyFactor;  // heavy + sprinting = high vibration
+float rawThreat   = (1.0f - sqrtf(distSq) / detectRadius2x) * (vibration / VIBRATION_SPEED);
+state.threatLevel.store(std::clamp(rawThreat, 0.0f, 1.0f));
+if (distSq < radiusSq && rawThreat > 0.15f) state.isAlert.store(true);
+\`\`\`
+
+For instant touch detection use a Havok contact listener on the plant's bhkRigidBody. In the contact callback, check if either body is the player, then defer the attack trigger via SKSE::GetTaskInterface()->AddTask() — never block in the physics callback.
+
+**F4SE Animation Triggering from C++**
+
+Force attack animation when player is within range using NotifyAnimationGraph:
+\`\`\`cpp
+// Gate: only trigger when within exact attack range
+const float ATTACK_RANGE_SQ = 128.0f * 128.0f;  // ~1.8 m
+float dx = pp.x-qp.x, dy = pp.y-qp.y, dz = pp.z-qp.z;
+if (dx*dx + dy*dy + dz*dz <= ATTACK_RANGE_SQ)
+    plant->NotifyAnimationGraph("AttackStart");
+
+// Optional: set behavior variable to select attack clip
+RE::BSAnimationGraphManagerPtr graphManager;
+if (plant->GetAnimationGraphManager(graphManager))
+    graphManager->graphs[0]->SetVariableOnGraphsInt("iAttackType", 1);
+\`\`\`
+
+In the HKX behavior graph, wire AttackStart → animation clip playback → AttackHit event at vine-tip-contact frame → BackToIdle event at clip end. AttackHit triggers the damage call (plant->DamageActorValue or a Papyrus spell).
+
+**Glow Map Shader — Visual Threat Level**
+
+Wire the atomic threatLevel to emittanceColor and emittanceMult each frame from the BSLightingShaderProperty hook:
+- Dormant (threat=0): dull green {R=0.1, G=0.55, B=0.05}, mult=1.0, pulse at 2 Hz
+- Alert (threat=1): bright red {R=0.95, G=0.05, B=0.02}, mult=3.5, pulse at 12 Hz
+- Pulse formula: mult = (1.0 + threat * 2.5) * (0.7 + 0.3 * sin(time * pulseFq * 2π))
+- Color formula: R = 0.1 + threat * 0.85 (ramps sharply), G = 0.55 - threat * 0.50 (fades)
+
+Bioluminescent kill burst: at moment of attack damage, set emittanceMult=10.0 and color={0.05, 1.0, 0.6, 1.0} (acid-green) for ~80 ms, then reset. Use a frame counter (decrement each update, reset when zero) rather than a raw std::thread sleep.
+
+**Papyrus State Machine**
+
+Script SentientPlant.psc extends Actor. States: Dormant (poll 0.5 s) → Alert (poll 0.1 s) → Attacking (wait 3 s for anim) → Feeding (10 s) → Dormant. C++ handles sub-frame precision; Papyrus handles high-level state and ecosystem logic only.
+
+Native bridge: register SentientPlantNative.SetThreatState(akActor, aiState) in F4SEPlugin_Load so Papyrus GoToState calls push state changes into the C++ atomics immediately.
+
+**Death, Loot, Quest Linking**
+
+In OnDeath: call EcosystemQuest.SetCurrentStageID(100) to advance the quest. Enable a hidden linked container ObjectReference (GetLinkedRef()) and add plant loot items. Quest OnStageSet handles downstream unlocks: stage 100 = journal note, stage 200 = crafting perk (Bioluminescent Extract recipe), stage 300 = main quest beat (colony root discovered).
+
+**Key Pitfalls**
+- Root bone name must be exactly "Root" (capital R)
+- Havok contact callback must never block — use GetTaskInterface()->AddTask() for all game-state work
+- Always std::atomic<float> across game↔render threads; never mutex in render hook
+- Papyrus 0.5 s poll is too slow for real-time — C++ handles proximity; Papyrus handles state transitions only
+- Attack animation set LoopCount=0 in HKX clip or plant attacks forever
+- Emittance burst: frame counter approach > raw std::thread sleep in a game process
+
+---
+
+**MUTATED VEGETATION — ADVANCED ENGINE-LEVEL RENDERING**
+
+**Why Vanilla Flora Looks Like Plastic**
+
+Vanilla FO4 flora uses flat diffuse+specular textures with no depth, no light bleed-through, static vertices, 512–1024px maps, and single-color glow. Fixing this requires BSLightingShaderProperty injection (CommonLibF4), PBR-correct 4K/8K assets, engine wind vertex deformation, animated glow synchronization, and LOD + memory management.
+
+**Parallax Occlusion Mapping (POM)**
+
+POM makes a 2D texture appear to have real 3D depth via height-map ray-marching. Use on bark, thick vines, crystalline mutant scales. NifSkope: enable \`SF2_PARALLAX_OCCLUSION\` flag on BSLightingShaderProperty + assign \`_h.dds\` height map (BC4_UNORM, full mip chain, white=raised). C++ injection: traverse NiAVObject scenegraph geometry, netimmerse_cast to BSLightingShaderProperty, call shader->SetFlags(kParallaxOcclusion, true). Do not apply POM to thin leaf cards — use SSS + normals for leaves. 4K height maps (BC4_UNORM) give maximum depth detail.
+
+**Subsurface Scattering (SSS)**
+
+SSS simulates light bleeding through semi-translucent geometry — leaves, fungal caps, petals. Without SSS a leaf goes flat grey when backlit; with SSS it glows warm amber. NifSkope: set Shader Flags 1 → SLSF1_SUBSURFACE_LIGHTING (flag 21), set Subsurface Rolloff 0.3–0.5. The diffuse alpha channel acts as translucency mask (white=fully translucent). C++: SetFlags(kSubsurfaceLighting, true) on the material's BSLightingShaderMaterialBase.
+
+**Dynamic Wind Vertex Deformation**
+
+Vanilla scroll-shader wind keeps vertices fixed. Real wind requires vertex-shader deformation driven by vertex color channels. Blender workflow: vertex-paint the Red channel — 255 at leaf/vine tips, 0 at root/stem base. This encodes wind flexibility weighting. NifSkope: enable SLSF1_VERTEX_ALPHA + SF2_TREE_ANIM flags. The engine's tree-animation vertex shader automatically picks up vertex color red-channel weights and drives sway from TESWeather windSpeed. C++ weather hook: read sky->currentWeather->data.windSpeed, optionally multiply by 1.8× in the Glowing Sea, write to BSTreeNode windMagnitude via REL hook for weather-reactive sway amplitude. Pitfall: SF2_TREE_ANIM without vertex paint makes all vertices sway equally — looks wrong.
+
+**Hyper-Detailed PBR Asset Pipeline**
+
+Use photogrammetry (Meshroom / Reality Capture) to scan real bark or exotic plants. Clean in ZBrush, bake high-poly→low-poly in Substance Painter or Marmoset Toolbag. Texture set: Diffuse _d.dds (BC3, RGBA — alpha = translucency mask), Normal _n.dds (BC5, RG, DirectX Y-up — FLIP GREEN channel before export or normals point wrong way), Specular _s.dds (BC3, R=spec G=gloss B=metal A=glow mask), Glow _g.dds (BC3, emissive), Height _h.dds (BC4, greyscale POM). Always generate full mip chain — missing mips cause shimmering with POM/SSS.
+
+Material calibration: bark/wood = roughness 0.75–0.9 + metalness 0.0; slimy mutant growth = roughness 0.05–0.2 + high specular; crystalline protrusions = roughness 0.0 + metalness 0.6–0.9; bioluminescent veins = emissive 1.0 in _g.dds, lime-green or cyan, paint only vein paths (not whole leaf) for micro-detail glow.
+
+**Enhanced Glow Maps with Micro-Detail**
+
+Instead of a flat solid-color glow: in Substance Painter, paint white only along vein paths and nodules — not the whole leaf surface. Export as _g.dds (BC3, full mips). In NifSkope assign to Glow Map slot, set Emissive Color (e.g. lime: 0.3 1.0 0.2) and Emissive Multiple 1.5–2.0. This gives a biological network appearance rather than a plastic glow blob.
+
+**Glow Synchronization to Breathing Animation**
+
+Register a BSAnimationGraphEvent sink (C++) on the plant actor. Add annotation events in the HKX idle behavior graph: PlantBreatheIn at peak-inhale frame, PlantBreatheOut at peak-exhale frame. When PlantBreatheIn fires → SetEmittanceRecursive(root, glowColor, 2.5). When PlantBreatheOut fires → SetEmittanceRecursive(root, glowColor, 0.8). This syncs the emittance pulse frame-precisely to the visible chest-rise animation — static mods cannot achieve this. Unregister the event sink on actor death to avoid memory leaks.
+
+**LOD Generation**
+
+High-poly plants without LOD destroy frame rate. LOD ladder: LOD0 = full detail (0–512 units), LOD1 = 50% tris / 2K tex (512–2048), LOD2 = 10% tris / 1K (2048–8192), LOD3 = billboard card (>8192). File paths: PlantName.nif, PlantName_lod1.nif, PlantName_lod2.nif, PlantName_lod3.nif. Assign in STAT record LOD fields. Use xLODGen (xLODGen.exe -fo4 -lodgen) for automated worldspace LOD atlas generation. Add DynDOLOD rules in DynDOLOD_FO4.ini: Billboard=1, IsTree=1, LODLevel=3. Always pack LOD output into a BA2 — loose LOD files in Data folder conflict with MO2 mod order.
+
+**Memory Management — Buffout 4**
+
+High-density custom plants with per-instance scripts exhaust FO4's default 256 MB Papyrus heap fast, causing EXCEPTION_ACCESS_VIOLATION / script stack overflow crashes. Buffout 4 (Nexus #47359, by alandtse) patches engine memory with mimalloc and fixes multiple heap limits. Buffout4.toml: MemoryManager=true (critical), ScaleformAllocator=true, SmallBlockAllocator=true, BSTextureStreamerLocalHeap=true. Fallout4.ini Papyrus section: iMaxAllocatedMemoryBytes=536870912 (512 MB), iMaxArraySize=500000. Caveat: Buffout 4 MemoryManager conflicts with pre-2024 ENB — always use ENB 0.493+ alongside.
+
+**Papyrus Script Optimization for Flora**
+
+Per-plant scripts multiply fast across dense worldspaces. Rules: (1) Always UnregisterForUpdate() in OnEndState() — never leave stale registrations. (2) Use one quest-level PlantEcosystemManager script to maintain a reference array; per-plant reference script only stores a lightweight int gState. (3) Papyrus polls at 1.0 s minimum — C++ handles sub-second proximity detection. (4) Check IsDead() at top of every OnUpdate; unregister immediately if true. (5) In OnDeath, call manager's UnregisterPlant(self) to compact the array.
+
+---
+
+**LARGE-SCALE FLORA OVERHAUL ARCHITECTURE**
+
+**Cell Loading Optimization**
+
+Large overhauls cause stuttering because each cell-load fires: NIF streaming + BA2 decompression, OnLoad Papyrus events on every enabled reference, precombine bounding-box recalculation if any precombined reference was touched, and AI package re-registration for plant NPC_ actors — all multiplied across hundreds of plant references.
+
+ADDICTOL (Nexus #66982, PJMail) pre-sorts plugin load order at runtime to minimize FormID lookup overhead. For 200+ new form records, add your ESP to ADDICTOL.ini [Priority] section. Precombines: never touch vanilla STAT records in ESP — use Base Object Swapper swap instead. Any STAT edit in a vanilla cell breaks that cell's previs, turning combined geometry into thousands of individual draw calls. NPC_ actor references are safe (excluded from previs). Use PRP (Previs Repair Pack) pipeline if edits are unavoidable.
+
+**Scalable Papyrus — Quest Manager + Regional Modules**
+
+Never put a full state-machine script on every plant reference. 2,000 plant references = 2,000 OnUpdate registrations = Papyrus VM collapse. Architecture: one persistent EcosystemQuest with PlantEcosystemManager.psc as global coordinator. Per-reference PlantInstanceRef.psc stores only: int gState, bool gRegistered, int regionID. Regional modules (MutatedFlora_Commonwealth.psc, MutatedFlora_FarHarbor.psc, MutatedFlora_NukaWorld.psc) each extend PlantRegionBase.psc and are activated/deactivated on OnPlayerLoadGame worldspace check. Only ONE region's update loops run at any time — activating all three simultaneously triples Papyrus load.
+
+Region detection: Game.GetPlayer().GetWorldSpace().GetFormID() == 0x0100C02E → Far Harbor (DLC02WorldSpace). 0x0200C2E0 → Nuka-World. Anything else → Commonwealth. Call regionX.OnRegionDeactivated() on the outgoing region (calls UnregisterForUpdate()), then regionY.OnRegionActivated() on the incoming one.
+
+**Workshop Framework Integration**
+
+Workshop Framework (kinggath) provides a thread-safe messaging system for global flora logic. Use WFLibrary.SendCustomEvent("PlantKilled", akPlant) from plant death events — this queues via WF's thread pool instead of stacking direct Papyrus calls, preventing VM starvation. Use WFThreadMgr.QueueTask(self, "DoSpawnPlant", akLocation, 5) to throttle to max 5 concurrent plant spawns per frame. Receiving scripts use WorkshopFramework event handlers rather than direct ObjectReference calls — direct ref calls to unloaded-cell objects cause null crashes.
+
+**Base Object Swapper — Dynamic Vanilla Plant Replacement**
+
+Use BOS (powerofthree, Nexus #64943) INI rules to swap vanilla plant forms for your hyper-detail versions at runtime: Form = 0x0003E00B~Fallout4.esm | 0x00001234~YourMod.esp. For worldspace-specific swaps add ws:0x0100C02E~DLC02.esm filter — only swaps in Far Harbor. This avoids any ESP STAT edits and maintains full compatibility. Advanced C++ approach: hook Cell::Load, iterate references via cell->ForEachReference, call ref->SetBaseObject(customBase) + ref->Update3D(). Caution: never call SetBaseObject on quest-aliased references — it breaks alias binding silently.
+
+**Unified PBR Pipeline Across DLCs**
+
+Lighting environments differ per region: Commonwealth = yellow-green irradiated, Far Harbor = blue-grey fog, Nuka-World = orange-red neon. Maintain one source SPP file with three texture-set outputs, differing only in emissive hue: Commonwealth HSL(120°,80%,50%) lime green; Far Harbor HSL(190°,70%,45%) teal-cyan; Nuka-World HSL(30°,85%,55%) amber. Three corresponding BGSM variants (MutatedVine_Commonwealth.bgsm, _FarHarbor.bgsm, _NukaWorld.bgsm) point to the same NIF geometry but different emittance channels. BOS worldspace filter selects correct BGSM per region. BGSM pitfall: emittance settings are ignored if no _g.dds is assigned to the NIF's glow map slot — always assign a glow texture even if all-white.
+
+**Far Harbor Fog System C++ Hook**
+
+Denser fog makes plant glow diffuse beautifully through mist — increase emittanceMult dynamically. Hook: read sky->currentWeather->data.fogNear at each weather tick. fogDepth = clamp(1.0 - fogNear/3000.0, 0, 1). emittanceMult = 1.5 + fogDepth * 2.5 (clear=1.5, deep fog=4.0). Teal-cyan glow color {0.15, 0.9, 0.75} for Far Harbor atmosphere. Register TESWeatherEvent sink to detect weather transitions and update all Far Harbor plant states. Register and unregister the sink with the regional OnRegionActivated/Deactivated calls so it only runs in Far Harbor.
+
+**CI/CD Build System — OG / NG / AE Targets**
+
+OG (1.10.163) and NG/AE (1.10.984+) have different virtual function table layouts — a DLL compiled for one crashes on the other. CMake: use BUILD_OG=ON / BUILD_NG=ON options to select CommonLibF4-OG or CommonLibF4-NG vcpkg dependency and add corresponding GAME_VERSION_OG / GAME_VERSION_NG compile definitions. GitHub Actions: two build jobs (build-og, build-ng) with windows-latest runner + vcpkg cache keyed on vcpkg.json hash to avoid full re-downloads. Upload artifacts as YourPlantPlugin-OG and YourPlantPlugin-NG. Package job downloads both and zips. FOMOD ModuleConfig.xml presents a SelectExactlyOne game-version step that copies the correct DLL to F4SE/Plugins/. Always ship OG + NG in separate FOMOD options — never a single DLL for both.
+
+---
+
+**ENGINE-LEVEL PERFORMANCE & RENDERING OPTIMIZATION (2026)**
+
+**Why Vanilla Performance Breaks Under High-Fidelity Assets**
+
+FO4's engine was shipped for mid-2015 hardware: single-threaded disk I/O queue stalls on large BA2 reads, equal CPU priority between streaming and render threads, outdated TAA that blurs 4K/8K custom textures, fixed landscape LOD distance cap, and engine bugs (precombine invalidation, heap fragmentation) that compound under heavy asset loads. The 2026 F4SE plugin ecosystem fixes each of these.
+
+**Excel Fallout 4 — CPU Priority & Disk Cache Enabler**
+
+Excel FO4 supersedes legacy Fallout Priority + Disk Cache Enabler. It does three things: (1) Elevates main/render threads to THREAD_PRIORITY_HIGHEST, drops background streaming to BELOW_NORMAL — eliminates frame pacing drops during cell loads. (2) Calls SetFileInformationByHandle on BA2 file handles to prevent Windows downgrading BA2 reads to background I/O — 30–60% faster BA2 loads on NVMe. (3) Periodically calls HeapCompact to reclaim fragmented heap pages before the engine allocator fails, complementing Buffout 4. Config: ExcelFO4.toml — DiskCache.MaxCacheSizeMB=512 (increase to 1024 on NVMe), PrefetchDepthCells=2 (prefetch 2 cells ahead), EnableLargePageSupport=true (optional, needs UAC). DO NOT run alongside legacy Fallout Priority or Disk Cache Enabler — conflict causes scheduler thrashing.
+
+**Landscape Optimization — Engine-Level Texture Rendering**
+
+FO4 vanilla landscape: fixed 6-layer blend limit per cell, 512px blend normal resolution, no PBR terrain. A landscape optimization F4SE plugin patches: extended layer count (up to 9 per cell), high-res blend normals up to 2048px, PBR terrain via BGSM roughness/metalness. For mutated vegetation: create LandscapeTexture records in CK pointing to mutated-soil BGSM (irradiated mud diffuse BC3, normal BC5, specular BC3), assign LTEX FormID via xEdit to cells containing flora. LTEX changes are cell-local and safe — they do not touch precombines.
+
+**Vulkan Rendering — D3D11 to Vulkan Translation**
+
+Vulkan rendering wraps the game's D3D11 calls via a translation layer. Benefits: 15–25% reduction in CPU-side D3D11 draw call overhead when rendering 2,000+ high-poly plant instances; async compute shaders for lighting (D3D11 path serializes these); improved VRAM management via Vulkan's explicit memory model (reduces stutters when crossing between dense cell areas); multi-threaded command buffer recording. Installation: place d3d11.dll (Vulkan wrapper) in FO4 root. If using ENB: chain via enblocal.ini [PROXY] section: EnableProxyLibrary=true, ProxyLibrary=vulkan_wrapper.dll. Load order: Vulkan wrapper → DLSS injector → ENB. Requires GPU driver 2023+.
+
+**DLSS / DLAA Injection**
+
+FO4 native TAA applies 1–2 pixel temporal blur that smears 4K/8K diffuse, glow masks, and PBR normal maps. DLSS/DLAA injection replaces TAA entirely. DLSS.ini: Mode 1=Quality (best for 1440p→4K, sharpest custom textures), Mode 3=Performance (1080p→4K high fps in flora cells), Mode 4=DLAA (no upscaling, full AA quality at native 4K). CRITICAL: always enable ReactiveMask=1 with ReactiveMaskThreshold=0.35 — this tags alpha-tested geometry (leaves, vines) to receive lighter temporal blending and eliminates ghosting on swaying plants. FrameGeneration=1 requires RTX 4000+ only. For native 4K monitors: Mode=4 (DLAA only) with ReactiveMask=1 eliminates TAA blur without any resolution scaling.
+
+**Ascension Engine Fixes Suite (Mandatory)**
+
+The Ascension suite is non-optional for 2026 realism mods. Key components: Buffout 4 (heap/script/crash guards, MemoryManager=true), ExcelFO4 (CPU/disk), HighFPSPhysicsFix (decouples Havok 60Hz physics from frame rate — without this, HKX vine bone chains spasm and wind deformation overshoots at 120+ FPS — EnableHavokFix=true, MaxFPS=0), Ascension CellLoadFix (async cell-load race conditions), TextureStreamFix (4K/8K streaming stability), ActorCountFix (CRITICAL for NPC_ plant actors — vanilla hard limit is 1024 simultaneous actors; dense plants + vanilla NPCs + plant NPC_s exceed this silently — set MaxActors=4096). Config: MaxTextureStreamWorkers=CPU_cores/2 (not full core count — steal from render thread otherwise).
+
+**CLASSIC — Crash Log Diagnostics**
+
+Run CLASSIC (Crash Log Auto Scan & Identification for the Creation Engine) after any flora-mod crash. Common signatures: BSResource::EntryDB = BA2 read failure (repack archive); NiAlphaProperty = alpha-sorted mesh crash (fix NiAlphaProperty in NifSkope); BSLightingShaderProperty = null shader material (ensure _d.dds assigned to every shader property slot); ScrapHeap::Allocate = script heap exhausted (increase iMaxAllocatedMemoryBytes); ActorValueOwner = actor limit exceeded (enable ActorCountFix, MaxActors=4096). Always update CLASSIC alongside Buffout 4 — crash signature database must match the Buffout 4 version generating logs.
+
+**2026 Stack Load Order**
+
+F4SE → Address Library → Visual C++ Redists → Buffout 4 → High FPS Physics Fix → Excel FO4 → Ascension suite (CellLoadFix/ActorCountFix/TextureStreamFix) → ENB → Vulkan wrapper (via ENB ProxyLibrary) → DLSS/DLAA injector → flora mod ESP/BA2 → LOD BA2. FOMOD should ship pre-tuned Buffout4.toml, ExcelFO4.toml, and HighFPSPhysicsFix.toml as Required components so users get correct settings automatically.
+
+---
+
+**PBR PIPELINE FOR FALLOUT 4 (2026 HYBRID APPROACH)**
+
+**FO4's Rendering Model — Specular-Glossiness, Not Metal-Roughness**
+
+FO4 uses a specular-glossiness rendering model (sometimes called "Todd-Based Rendering / TBR"). There is no native metalness or roughness field in BSLightingShaderProperty or the standard BGSM format. _d.dds = albedo (diffuse + residual baked indirect), _s.dds = specular packed texture, _n.dds = DirectX convention normals, _g.dds = emissive glow mask. The engine does NOT natively read a metal-roughness workflow.
+
+**_s.dds Channel Packing (Spec-Gloss Pack)**
+
+R = specular intensity: 0.04 for dielectrics (most surfaces), 0.5–1.0 for metals, 0.04–0.06 for painted surfaces. G = glossiness = (1 - Roughness) — MUST invert roughness map from Substance; 0.0=fully rough/matte, 1.0=mirror. B = unused by vanilla engine; with Community Shaders EnableSpecBChannelAO=true, pack AO/cavity bake here. A = unused standard. When converting from Substance metal-roughness output: SpecR = lerp(0.04, AlbedoLuminance, Metallic); SpecG = 1 - Roughness; DiffuseRGB = Albedo × (1 - Metallic) for metals.
+
+**Community Shaders for FO4 (2026)**
+
+Originally Skyrim-only; 2026 updates added FO4 support. F4SE plugin that replaces compiled HLSL shaders at runtime. Key features: (1) Extended BGSM channel reads — reads _s.dds B channel as AO/cavity when EnableSpecBChannelAO=true in CommunityShaders.toml; (2) Script heap allocation monitoring — detects when PRP custom material loads approach Papyrus heap limit and pre-allocates buffer (HeapPreallocationMB=64) preventing ScrapHeap crashes; (3) GGX specular model (set SpecularModel=GGX — more physically accurate than Beckmann for rough bark/stone); (4) SSGI (screen-space global illumination) — bounced indirect light approximation, SSGIIntensity=0.4 for outdoor; (5) Screen-space shadows (SSS). IMPORTANT: do NOT run Community Shaders SSGI + ENB SSAO simultaneously — double-sampling causes 15–30% FPS drop.
+
+**ENB Extender**
+
+Enhances ENB Series for FO4: (1) Pre-weather shader variables — exposes WeatherTransition, FogNear, SunAngle, TimeOfDay as ENB shader constants, readable in enbeffect.fx for per-weather PBR lighting response (e.g. boost glossiness at golden hour); (2) External shader caching — caches compiled .fx binaries to disk, critical for large custom shader sets; (3) Extended constant buffers — unlocks additional float4 slots for advanced ENB presets passing PBR correction factors. Config: enbextender.ini: EnableWeatherVariables=1, EnableShaderCaching=1, EnableExtendedConstants=1.
+
+**EMV ENB Preset — ACES Tone Mapping**
+
+EMV implements physically correct bloom (multi-tap Kawase with luminance threshold gating: BloomThreshold=0.85, only pixels >85% exposure bloom) and ACES filmic tone mapping (ToneMappingCurve=ACES, Shoulder=0.22, Toe=0.015). Critical for physically-calibrated PBR assets: vanilla ENB was tuned for FO4's non-physically-calibrated vanilla textures and overexposes Substance PBR albedo (which targets 50–240 sRGB). Set ToneMappingExposure=1.0 when using Substance physically-calibrated output.
+
+**Substance Painter Export Template for FO4**
+
+Create a custom export template: Diffuse = $mesh_d.dds BC3 sRGB (R,G,B,A). Specular = $mesh_s.dds BC3 linear (R=SpecularLevel, G=GlossInverted=1-Roughness, B=zero or AO). Normal = $mesh_n.dds BC5 linear (RG only, Z reconstructed). Emissive = $mesh_g.dds BC3 linear. Height/Parallax = $mesh_h.dds BC4 linear (single channel). CRITICAL: Document Settings → Normal Map Format must be DirectX (NOT OpenGL) — OpenGL normals look reversed in FO4. MRAO (Metallic R, Roughness G, AO B) is a separate BC3 texture used only with Community Shaders extended BGSM mode (textureSet slot 8+).
+
+**POM — Parallax Occlusion Mapping Injection**
+
+POM gives flat textures apparent 3D depth by ray-marching the height map (_h.dds BC4) at runtime — adds perceived depth to landscape textures without geometry. Enable via ENB: enbseries.ini [PARALLAX] EnableParallax=true, ParallaxOcclusionMapping=true, ParallaxHeight=0.05–0.12, ParallaxMaxSamples=32. Enable via Community Shaders: [ParallaxOcclusionMapping] Enabled=true, HeightScale=0.07, MaxSamples=32, SelfShadow=true. BGSM: bParallaxOcclusion=true + sParallaxTexture path + set SF2_PARALLAX_OCCLUSION shader flag (bit 11, value 0x00000800). Height map convention: 1.0=extruded, 0.0=recessed.
+
+**DLSS/DLAA 4 for PBR Assets (PureDark)**
+
+Vanilla TAA blurs fine normal map detail (4K maps look like 512px in motion) and smears specular highlights from PBR-calibrated materials. PureDark DLSS 4 mod replaces TAA entirely. For PBR-heavy mods: Mode=1 (Quality) for best normal map sharpness; Mode=4 (DLAA) for native 4K monitors — no upscaling, full AA quality. Always set ReactiveMask=1 + ReactiveMaskThreshold=0.35 for vegetation/flora PBR assets — prevents specular highlight ghosting on bioluminescent/wet surfaces. SharpenStrength=0.25 to restore PBR normal map crispness. ENB compatibility: DLSS must load before ENB (DLSS → ENB → ReShade); enable EnableENBCompat=1 in DLSS.ini.
+
+**PBR Calibration Quick Reference**
+
+Dielectric surfaces (concrete, stone, wood, skin, plant): SpecR=0.04, SpecG=0.1–0.5 depending on roughness. Wet/slimy surfaces (mutant plant tissue, bioluminescent bark): SpecR=0.04–0.06, SpecG=0.5–0.7. Rusted metal (partial): SpecR=0.4–0.6, SpecG=0.2–0.35. Polished chrome: SpecR=0.9, SpecG=0.9. Always keep diffuse albedo in 50–240 sRGB range for dielectrics — values outside this range cause broken specular response under EMV/ACES tone mapping. Metals: Diffuse = near-black (Albedo × 0.0–0.05).
+
+
+
+
+---
+
+**OVERGROWTH DECAL ENGINEERING (C++ / F4SE)**
+
+Vanilla BSDecalNode uses a simplified shader path that skips SF2_PARALLAX_OCCLUSION even if the NIF flag is set — decals are always flat. To get volumetric moss/ivy decals the fix is a CommonLibF4 hook on BSDecalNode::SetupMaterial: cast BSShaderProperty to BSLightingShaderProperty, check geometry name prefix (OG_MOSS / OG_IVY / OG_VINE), then set kParallaxOcclusion + kAnisotropicLighting flags and write parallaxOcclusionScale=0.04 (deep moss) + parallaxOcclusionMaxPasses=16. Required headers: RE/B/BSLightingShaderProperty.h, RE/B/BSDecalNode.h, RE/B/BSShaderTextureSet.h from CommonLibF4. Hook with Detours or xbyak write_call<5> via F4SE trampoline; all REL::ID values must be verified against Fallout 4 Address Library (nikitalita, GitHub) for OG (1.10.163) and NG game versions. Height map texture setup: _h.dds BC4 (white=raised moss head, grey=mat surface, black=crevice) stored in BSShaderTextureSet slot 3 or packed into normal map B channel. Soft decal edges: patch fNormalTolerance in BSDecalNode struct offset 0x128 from 0.0 (strict) to 0.65 — decal wraps 65° around concrete edges/corners. ENB depth-based soft blending alternative (no C++): sample depth buffer in enbeffect.fx, compute |decalDepth - sceneDepth| per pixel, attenuate decal alpha at high depth-delta regions (edges); set fSoftDecalStrength=0.8 in preset. Procedural placement: Papyrus FindAllReferencesWithKeyword(OG_ConcreteMaterialKW, 2000.0) at cell attach → check surface angle for N-facing (surfAngle 135–225°) → PlaceAtMe moss dense at 60% frequency, lichen at 20% on S-facing; C++ bhkPickData raycast gives true geometry normal for accurate N/S detection — use normal.y < -0.4 threshold. Wind animation: hook TESWeather currentWeather.data.windSpeed + windDirection per-frame → write wind vector to decal NiFloatExtraData("WindX"); custom vertex shader: windOffset = sin(worldPos.x * freq + time) * windVec, multiplied by UV.y mask (v=0 = anchored base, v=1 = free-swinging tip). Decal memory pool: Fallout4.ini [Decals] iMaxDecals=4000 iMaxDecalsPerFrame=20 fDecalLifetime=0 fDecalLODFadeDistance=3000; C++ runtime MCM control via REL::ID patch to engine globals: Low=1000/10, Medium=2500/15, High=5000/25, Ultra=8000/40. Decal atlas: pack 16 variants into 4K BC3 atlas (4×4 grid, each cell 1K) → set fUVScaleU/V=0.25 + fUVOffsetU/V per variant = 1 texture bind for all 16 decal types (massive draw-call reduction). Precombine static decals in non-interactive cells. NIF naming: prefix all overgrowth decal geometry "OG_" for hook identification.
+
+
+
+---
+
+**F4SE C++ DEVELOPMENT ENVIRONMENT (Visual Studio 2022 + CommonLibF4)**
+
+To build F4SE engine-level plugins in 2026: install Visual Studio 2022 Community with "Desktop development with C++" workload (MSVC v143, Windows SDK 10.0.22621+, CMake tools). Install Git, CMake 3.26+, and vcpkg (\`git clone https://github.com/microsoft/vcpkg C:\vcpkg && .\bootstrap-vcpkg.bat && .\vcpkg integrate install\`; set VCPKG_ROOT env var). Clone CommonLibF4: \`git clone https://github.com/Ryan-rsm-McKenzie/CommonLibF4\` — this gives RE:: class headers for BSLightingShaderProperty, BSDecalNode, TESWeather, bhkWorld, etc. Start from the F4SE Plugin Template (Expired6978/F4SEPluginTemplate) which includes a working CMakeLists.txt, vcpkg.json manifest, F4SE entry point, and GitHub Actions CI for OG/NG/AE DLL builds (BUILD_OG=1.10.163, BUILD_NG=1.10.980–1.10.984, BUILD_AE=1.11.169+ using NG headers + AiO Address Library). CMake configure: generator "Visual Studio 17 2022", platform x64, toolchain C:\vcpkg\scripts\buildsystems\vcpkg.cmake, triplet x64-windows-static. Always build Release (not Debug) — Debug builds cause timing-related crashes in-game. Set post-build event to xcopy the compiled .dll to Data/F4SE/Plugins/. Runtime library must be /MT (static CRT). F4SE entry point is F4SE_InitPlugin(const F4SE::LoadInterface*) — register it with F4SE::Init(a_f4se), allocate trampoline (F4SE::AllocTrampoline(1<<10)), set up spdlog file sink to Documents\My Games\Fallout4\F4SE\MyPlugin.log. Verify hook loaded: check for your log line in that file after launching via f4se_loader.exe. Never hard-code hex offsets — use REL::ID with the Fallout 4 Address Library (nikitalita/address_library on GitHub) which maps function IDs to correct offsets for OG (1.10.163), NG (1.10.980–1.10.984), and AE (1.11.169+, official Anniversary Edition Nov 2025) versions. Ship three DLLs (OG/NG/AE) in FOMOD; AE uses the same CommonLibF4-NG headers but the AiO Anniversary Address Library build (Nexus #47327). FOMOD installer selects correct DLL per game version. Use xbyak or Detours (via vcpkg) for write_call<5> function hooks. Run CLASSIC crash log analyzer (Nexus #56255) to diagnose hook crashes. BSLightingShaderProperty.h and BSDecalNode.h live in CommonLibF4/include/RE/B/.
+
+
+---
+
+**WATER RENDERING**
+
+WATR record key fields: fWaveAmplitude (0.005 puddles → 0.20 ocean), fReflectivity (0.85–0.95 puddles, 0.65–0.75 rivers), fFresnelAmount, fScrollVelocityX/Y (normal map scroll speeds), fFogAmount + fFogNear/Far (underwater visibility), fShallowColor R/G/B/A + fDeepColor R/G/B/A + fBlendRadius (depth color gradient), SNAM = precipitation particle, fRainSimulatorStrength/Frequency/Damping (ripple sim during rain). WATR BGSM flags: bWater=true, bLandscape=false, three scrolling noise normal map paths (Texture0/1/2), fRoughness=0.05 (near-mirror), bFoamEnabled + fFoamStrength + fFoamDistance for shore foam. Reflection INI (Fallout4.ini [Water]): bReflectSky=1, bReflectLODObjects=1, bReflectObjects=1, bReflectActors=0 (disable for performance), iWaterReflectHeight/Width=512. ENB water: bWaterSSR=true (screen-space reflections for nearby objects), fWaterFresnelBias=0.02, fWaterFresnelPower=5.0, fWaterSpecularIntensity=1.2. Caustics: ENB enbeffect.fx raymarching with fCausticsScale=0.003, fCausticsSpeed=0.4, fCausticsStrength=0.35, fCausticsMaxDepth=200 — or use static projector mesh BGEM with bProjected=true. Flood cell setup: Cell Lighting tab → bHasWater=true + Water Type + Water Height (z-coord); navmesh triangles flagged as Water for NPC wading; ADIA acoustic space record for underwater ambience. Water type color presets: DefaultWater (shallow=0.4,0.6,0.5,0.9 deep=0,0.1,0.15,1.0), IrradWater (green-grey Glowing Sea), MurkyWater (swamp brown fReflectivity=0.3), ShallowPuddle (fReflectivity=0.95 fWaveAmplitude=0.01). Performance: each water plane = 1 full reflection render pass; merge overlapping planes; bReflectActors=0 saves 15–25% in combat areas.
+
+**LANDSCAPE & TERRAIN DETAIL**
+
+LTEX (Land Texture) record: TNAM = BGSM material path, HNAM = Havok material (footstep sound + impact particles), GNAM = grass list. 6-layer limit: max 6 unique LTEX per terrain quad — exceeding causes grey corruption. Terrain BGSM: bLandscape=true, sTextureDiffuse (BC3 1K–2K), sTextureNormal (BC5), sTextureSpec (BC3), sTextureHeight (BC4 for POM), fTexcoordScale controls UV tiling frequency. Vertex color channels: R=dirt/AO darkening, G=wetness mask (255=wet in rain), B=snow coverage (weather blend), A=grass density modifier (0=no grass here — use to strip grass from roads/rocks without touching global LTEX grass list). Grass INI: iMinGrassSize=40 (lower=denser), fGrassStartFadeDistance=6000 vanilla / 15000 with Extended Grass Distance mod; every 1000-unit increase costs 5–15 FPS. GRAS record: iDensity (20=normal, 40=lush), fMinSlope/fMaxSlope, fWaveSpeed (0.5=gentle, 2.0=stormy). Grass mesh: 2–4 crossed quads per cluster, alpha-test (not alpha-blend), AlphaThreshold=64, BGSM bGrass=true + bWind=true. xLODGen grass LOD: -fo4 -grassonly — required for custom worldspaces to prevent abrupt pop-out. Terrain micro-detail normals: sTextureMicroDetail BC5 512px, fMicroDetailScale=8.0 (tiles 8× faster), fMicroDetailBlend=0.5. Terrain POM: SF2_PARALLAX_OCCLUSION + height map BC4, fPOMScale=0.015, fPOMMinSamples=8, fPOMMaxSamples=32 — best on cracked asphalt/rock, not smooth surfaces. Rock scatter budget: dense exterior max 300–500 refs with all precombined; no precombines = 1 draw call per rock. Triplanar mapping: bTriplanar=true for rocks > 1m prevents UV stretching. xLODGen terrain: -lodlevel:4,8,16,32, -normalmap flag generates LOD normals (critical — without them distant terrain appears completely flat). Extended Landscape Textures mod removes 6-layer cap → iMaxLandTextureLayersPerQuad=8.
+
+**DECAL & IMPACT SYSTEM**
+
+IPDS (Impact Data Set) record: list of BGSMaterial keyword → IPCT (Impact) record mappings (BGSMaterialFlesh, Metal, Wood, Concrete, Glass, Stone, Dirt, Sand, Water, Bone, Plastic etc.). IPCT record: DODT data (fMinWidth/MaxWidth, fDepth, fShininess, fAlpha, eColor tint, bAngleDependentDecal=true for realistic hit angle), SNAM=impact sound, NAM1=EFSH particle effect spawned on impact, DOLD=BSDecalNode NIF. Assign IPDS to surface via STAT record → IPDS field in xEdit, or via BGSM sPhysicsMaterial keyword. BSDecalNode (NifSkope): BSDecalData fMinSize/MaxSize, fDepth, fLifetime (0=permanent, 60=timed), fAlphaDecay (> 0 for fade). Decal shader flags: SLSF1_DECAL | SLSF1_DYNAMIC_DECAL on BSLightingShaderProperty; SLSF2_ZBUFFER_WRITE=OFF (decals don't occlude each other). Bullet hole appearance by material: Metal = circular dent + cracks + raised rim normal; Wood = splintered oval + fiber-torn edge; Concrete = crater + dust + rough pitted normal; Glass = star-burst radial crack; Flesh = irregular circle + slight raised edge. Blood decal: fresh R=0.5 G=0.08 B=0.08 high-spec (wet), dried R=0.25 G=0.04 B=0.04 matte. Scorch from explosion: MinWidth=40, MaxWidth=80, fLifetime=0 (permanent), black center R=0.05 + orange-brown rim. Decal budget INI (Fallout4.ini [Decals]): iMaxDecals=500 (reduce to 250 in dense combat areas), iMaxDecalsPerFrame=5, fDecalLifetime=180, fDecalLODFadeDistance=2000. ENB: bDecalRenderIntoGBuffer=true for accurate deferred lighting on decals. EFSH particle calibration by material: Metal sparks = Additive blend, fInitialSpeedAlongNormal=120, lifetime=0.4s; Concrete dust = Alpha blend, slow speed, gravity=-0.3, lifetime=1.5s; Blood droplets = Alpha blend, gravity=9.8, speed=60, lifetime=0.8s. Footprint system: FSTS record links animation foot-plant event → footstep sound + footprint BSDecalNode; assign FSTS via BGSM sFootstepSet field.
+
+
+---
+
+**WEATHER, SKY & VOLUMETRIC LIGHTING**
+
+WTHR record key fields: NAM0–NAM9 = up to 10 cloud layer textures; DNAM = fWindSpeed, fTransDelta (transition speed), fSunGlare, fSunDamage, fPrecipitationBegin/End; FNAM/GNAM = fog Near/Far/Power day vs night; SNAM = precipitation particle system NIF; Color arrays = 17 color types × 8 time-of-day keys (SkyUpper, FogNear, Ambient, Sunlight, Sun, Stars, SkyLower, Horizon etc.). CLMT (Climate) record controls weather probability list + sunrise/sunset timing + moon phase. CK cell fog: Lighting tab → Fog Near/Far/Power — guidelines: clear exterior Near=0 Far=180000 Power=1.5; Glowing Sea Near=0 Far=30000 Power=2.5; vault interior Near=5000 Far=60000 Power=2.0. Cloud layers: use BC3 DDS seamless textures, 10 layers with different X/Y scroll speeds for parallax depth (Layer 0 = 0.01/0.005 slow base; Layer 2 = 0.05/0.03 high cirrus). Precipitation: rain splash decals via BSDecalNode fLifetime=0.8; particle gravity=9.8 + velocity 800–1200 u/s. Snow accumulation = texture blend via WeatherBlend BGSM parameter + ENB weather variable. xFOG mod: bEnabled=1, fScatterCoefficient=0.003, fAbsorptionCoefficient=0.001, fPhaseG=0.4 (Henyey-Greenstein), fHeightFalloff=0.0003, iVolumeSamples=64 (32=fast, 128=high quality), fMaxDistance=15000. ENB godrays: enbseries.ini [SUNRAYS] bSunRaysEnable=true, fSunRaysBrightness=1.2, fSunRaysIntensity=0.8. Per-weather godray intensity via ENB Extender WeatherSpecific INI: GodrayScale=0.1 (overcast) to 2.0 (storm-break beam). Aurora effects: sky static dome mesh + BSEffectShaderProperty SF1_EFFECT_LIGHTING + Papyrus time-of-day emittanceMult toggle (0.0 day / 3.5 night). Radiation storm WTHR: fSunDamage=10, Fog Power=3.5, ambient color R=120 G=135 B=80 (radioactive greenish-amber), precipitation=AshStorm.
+
+**CHARACTER FACE, SKIN & HAIR REALISM**
+
+Skin SSS: SLSF1_SUBSURFACE_LIGHTING flag on BSLightingShaderProperty, Shader Type=Skin Tint (type 5), fSubsurfaceRolloff=0.30–0.35 face (0.40 ears/translucent). bSubsurfaceLighting=true in BGSM. _s.dds skin channels with Community Shaders: R=specular intensity (0.04 dry, 0.08 oily), G=1-roughness (forehead/nose=0.7, cheeks=0.5), B=SSS mask (driven by cavity map — pores/creases get strongest SSS). FaceGen dark face bug: always File→Export FaceGen Data (NPC) after every face change; load ONLY your plugin in CK before export to bake correct overrides into the geometry NIF. High Poly Head: ~16K polygon replacement for vanilla ~2K head; assign HPH headparts in CK Face tab, re-export FaceGen after switching; rebake PBR skin textures to HPH UV space via Blender Data Transfer modifier. LooksMenu presets stored as Data\F4SE\Plugins\F4EE\Presets\[Name].json. Eye shader: two layers — Layer 1 iris (SLSF1_USE_FALLOFF, fSpecularPower=80), Layer 2 cornea wet overlay (SLSF1_VERTEX_ALPHA, fSpecularPower=15, fSpecularMult=3.5, fEnvironmentMapScale=0.35). Hair alpha: use alpha-test (SLSF1_ALPHA_TEST, AlphaThreshold=128) NOT alpha-blend — avoids Z-sorting artifacts. ENB [HAIR] bHairDitherEnable=true. Eyebrow/beard: SLSF2_ZBUFFER_WRITE=OFF prevents punching holes in hair geometry. HDT-SMP: F4SE plugin + SMP XML bone chain in NIF (SMP_Hair_01/02 etc.) with stiffness 0.8→0.5 decreasing down chain, damping 0.3–0.4, mass 0.04–0.05, maxAngle 35–45°; add capsule colliders for shoulder/chest to prevent clipping; MaxSimulatedActors=10 in hdtSMP.ini. Complexion overlays: LooksMenu Data\F4SE\Plugins\F4EE\Overlays\ or HDPT misc headpart with BSEffectShaderProperty additive blend + alpha-masked dirt/scar decal.
+
+**POST-PROCESSING, LUT & COLOR GRADING**
+
+ENB LUT: enbseries.ini [COLORGRADING] bColorGradingEnable=true, FileLUT=lut_yourgrade.png (place in Data\enbseries\), LUTSize=1024, LUTStrength=1.0. Create LUT in DaVinci Resolve (export .cube, 33-point) or Photoshop (grade the neutral LUT PNG). Per-weather LUT via ENB Extender WeatherSpecific INI: [ColorGrading] FileLUT= + LUTStrength per weather. Tone mapping: iToneMappingMode=3 (ACES — best for PBR realism); EMV preset values: fACESSlope=0.91, fACESToe=0.58, fExposure=0.95, fEyeAdaptationMinimum=0.15, fEyeAdaptationMaximum=3.5. ImageSpaceModifier (IMOD): vanilla color grading without ENB — fields: HDR (fEyeAdaptSpeed, fBloom, fBloomThreshold), Cinematic (fSaturation, fBrightness, fContrast, fTintR/G/B/A), DoF (fStrength, fDistance, fRange). Apply IMOD per-cell via Papyrus OnLocationChange; assign IMGS record in WTHR for weather-specific grading. ENB Bokeh DoF: fDoFBokehShape (0=circle, 1=hexagon), fDoFFocalLength=50, fDoFFStop=2.8 (portrait) / 5.6 (subtle gameplay), fDoFBlurStrength=0.15–0.4, bDoFDynamicFocus=true. Film grain: fFilmGrainAmount=0.05–0.10 gameplay, 0.12–0.18 horror/night; fFilmGrainBrightness=0.5 (mid-tonal grain). Chromatic aberration: fChromaticAberrationStrength=0.002–0.004 (subtle edges only), bChromaticAberrationRadial=true — disable in combat-heavy areas. Bloom: fBloomThreshold=0.85 (only genuinely bright emissives bloom; emittanceMult > 1.5 triggers naturally). Vignette: fVignetteStrength=0.35 default, 0.5 for claustrophobic interiors, 0.15–0.25 open world. ENB post-processing pipeline order: SSAO→SSGI→DoF→Bloom→ACES tone map→LUT→Film grain→CA→Vignette→Lens flare→DLSS output.
+
+
+---
+
+**PHYSICS MOVEMENT, AUDITORY REALISM & FPS OPTIMIZATION**
+
+**Realistic Weight-Based Movement / Inertia Overhaul**
+
+Vanilla FO4 accelerates to max run speed in 1–2 frames regardless of carry weight — the "skating" problem. Inertia Overhaul (F4SE plugin + MCM, 2026) replaces this with momentum-aware movement: loadFraction = clamp(currentWeight/maxCarryWeight, 0, 1). At full load: acceleration = baseAccel × 0.55, maxSpeed = baseSpeed × 0.80. Turn lean enabled (fTurnLeanMax=8.0°) — character mesh rotates proportional to angularVelocity × loadFraction × 0.5. Key config (InertiaOverhaul.ini): fBaseAcceleration=550, fBrakingDecelerationWalking=250, fCarryWeightRatio=0.65 (threshold where penalties begin), fHeavyLoadAccelMult=0.55, fHeavyLoadSpeedMult=0.80, bEnableTurnLean=true, fTurnLeanSmoothing=0.15, bDisableWithPowerArmor=true (PA has its own servo motor modifiers — conflict if enabled), bCompatHighFPSPhysicsFix=true. CRITICAL: HighFPSPhysicsFix must be installed — without Havok step decoupling, momentum doubles at 120+ FPS. CommonLibF4 pattern: hook PlayerCharacter movement virtual, read kCarryWeight actor value, call SetActorValue(kSpeedMult, 100 × lerp(1, 0.80, loadFraction)). Animation events fired: InertiaLeanLeft, InertiaLeanRight, InertiaHeavyStep (drive HKX layer blending).
+
+**Auditory Realism — Reverb and Abundance Overhaul (RAO)**
+
+Vanilla FO4 uses single reverb preset per generic cell type — no material-based reflection, no room-size echo. RAO (2026) replaces vanilla REVERBPARAMETERS records with ~40 physics-informed acoustic presets keyed to cell type and material. RAO preset categories + RT60: Vault (800–1200ms, long metal echo + HF shine), Underground subway/sewer (500–800ms), SmallRoom pre-war carpet (120–250ms, dry/dampened), LargeHall Diamond City (400–600ms, tile reflection), Outdoor open (50–100ms near-zero), Cave stone (600–1000ms drip echo), Industrial factory (350–550ms metal resonance). Key RAO.ini settings: fGlobalReverbMix=0.65, fIndoorWetMix=0.75, fOutdoorWetMix=0.18, bUseLowLatencyMode=1 (compute every 4 frames not every frame), iMaxSimultaneousReverbs=4. Material reflection coefficients: Metal=0.92 (vault walls), Concrete=0.68, Carpet=0.08, Wood=0.32, Rock=0.78. REVERBPARAMETERS xEdit fields: fDecayTime (0.1–20s room resonance), fHFDecayRatio (high freq decay — lower = more carpet absorption), fDiffusion (scatter 0–100), fPreDelay (0–300ms, larger = larger perceived room). CK workflow: cell Audio → assign REVERBPARAMETERS record → add RAO acoustic keyword (RAO_AcousticVault, RAO_AcousticCave, RAO_AcousticSmallRoom, etc.) to cell record in xEdit.
+
+**FPS Draw Call Reduction — Core Rules**
+
+Rule 1 — NEVER disable precombines without regenerating them. Disabling precombines in a dense exterior cell multiplies draw calls 10–30×. Use PRP (Previs Repair Pack) to regenerate precombines if you must change references. Rule 2 — LOD meshes are mandatory for custom assets. Every custom mesh visible at distance without an LOD uses full-detail geometry. Generate LODs: xLODGen for terrain+object LOD (\`-fo4 -lodlevel:4,8,16\`), DynDOLOD for dynamic/animated objects. LOD budget: 0–50m full (_0.nif), 50–150m 50% poly (_1.nif), 150–500m 10% (_2.nif), 500m+ billboard. Rule 3 — Textures must be in BA2 archives for VRAM streaming. Loose textures bypass the streaming system causing VRAM stalls. Pack with Archive2.exe. Always generate full mip chains. Resolution budget: character/player-visible close = 2K–4K; major architecture = 2K; environment props (barrels/crates) = 512–1K; ground tiles = 1K–2K; distant clutter = 256–512. Rule 4 — Material consolidation: each unique BGSM path = 1 draw call state change. Use texture atlasing to combine variants. Rule 5 — Shadow-casting lights are very expensive. Use baked ambient + 1–2 key shadow-casting lights per cell. Cap with iMaxShadowLights=4 in Fallout4.ini. Rule 6 — Particles: max 200 active particles per effect, use fParticleLODDistance fade-out at 30–50m, prefer bGPUParticles=1 for static emitters. Rule 7 — Script overhead: use RegisterForSingleUpdate not RegisterForUpdate for non-continuous checks; cache GetNearestActor() result; max update freq 3–5s for environmental effects; guard with IsInCombat() during combat.
+
+**Maximum Realism Checklist Summary**
+
+Rendering stack order: DLSS/DLAA 4 (TAA replacement) → ENB Series + ENB Extender (weather vars, shader cache) → EMV preset (ACES tone mapping, physical bloom) → Community Shaders (GGX specular, SSGI, extended BGSM). Lighting: 1 primary shadow key light + baked ambient per cell; emittanceMult 0.5–3.0 for practical light sources, 10+ for dramatic glow; weather transitions via TESWeatherEvent. Materials: diffuse 50–240 sRGB; _s.dds R=0.04 dielectric, G=1-roughness; DirectX normals (green=up); POM for landscape (SF2_PARALLAX_OCCLUSION + _h.dds BC4); SSS for thin organics (SLSF1_SUBSURFACE_LIGHTING). Environment: RAO reverb per cell; BGSMaterialObject footstep maps; vegetation wind SF2_TREE_ANIM + vertex-paint red channel; xLODGen terrain LOD + DynDOLOD object LOD. Performance vs realism trade-offs: SSGI OR ENB SSAO (not both — 15–30% FPS double-sample penalty); 4K textures only for player-visible surfaces; DLAA on 4K monitors (very low FPS cost vs huge image quality gain); precombines always regenerated (zero FPS cost at runtime). Diagnostic workflow: Buffout4 frame log → check cell precombine state in CK → count unique BGSM paths in xEdit → check CLASSIC logs for ScrapHeap::Allocate failures → verify textures in BA2.
+
+
+---
+
+**DYNDOLOD & XLODGEN LOD PIPELINE**
+
+Any mod adding outdoor objects or changing terrain MUST generate LOD. Two tools: xLODGen (terrain heightmaps + object LOD) and DynDOLOD (dynamic/animated/tree LOD). Run order: (1) xLODGen with -fo4 -terrain -normalmap -lodlevel:4,8,16,32 → generates terrain LOD meshes and CRITICAL normal maps (without -normalmap, distant terrain is completely flat); (2) TexGen (part of DynDOLOD suite) → bakes tree/plant billboard textures into LOD atlases at 512px per billboard BC3; (3) DynDOLOD → generates all object + tree LOD, dynamic state LOD, grass LOD. Install outputs as three separate mods in load order: xLODGen Output < TexGen Output < DynDOLOD Output (LAST). Four LOD tiers: LOD4 (0–50m full detail), LOD8 (50–150m ~50% poly), LOD16 (150–500m ~10% / billboard), LOD32 (500m+ terrain silhouette). Custom plant NIFs must provide _0/_1/_2/_3 LOD mesh variants using SLSF2_LOD_OBJECTS shader flag; or a flat billboard quad named <meshname>_lod.dds BC3. Grass LOD: xLODGen -grassonly run separately + bAllowCreateGrass=1 in INI. DynDOLOD rules for custom flora: add rule in DynDOLOD\Edit Scripts\DynDOLOD\Rules\ for your plant FormID range. Regenerate LOD after any landscape change, new object placement, or texture update. xLODGen terrain texture per chunk: 512 default (256=fast/1024=quality). DynDOLOD Ultra Trees = 3D LOD instead of billboards — expensive, optional.
+
+---
+
+**WEAPON MODDING PIPELINE**
+
+Core records: WEAP (weapon base — damage, fire rate, range, flags), OMOD (attachable modification — scope, barrel, stock, grip, magazine, suppressor), COBJ (crafting recipe), INNR (Instance Naming Rules — dynamic name from mods), KYWD (workbench + slot keywords). NIF node naming convention for mod attachment sockets: Scope:0/1/2, Barrel:0/1/2, Grip:0, Stock:0, Mag:0, Muzzle:0 — game hides non-active nodes in each group. OMOD DATA property list: kWeaponDamage (+flat damage), kWeaponRange, kWeaponFire (fire rate), kWeaponAccuracy, kWeaponNoise, kWeaponCritDmg, kKeyword Add/Remove (mutually exclusive mods). Assign WorkbenchWeapons keyword to WEAP KWDA to make it modifiable. Mod slot keywords: WeaponModBarrel, WeaponModScope, WeaponModMagazine, WeaponModSuppressor, WeaponModGrip, WeaponModStock — add slot marker keyword to WEAP KWDA to enable that slot. COBJ: CNAM=[components], BNAM=WorkbenchWeapons, YNAM=weapon item, condition perk gate via GetActorValue(GunNut)>=2. INNR rules: keyword condition → name fragment (IF WeaponModBarrelLong THEN "Rifle" replaces "Pistol"); assign INNR to WEAP INRD field. Leveled list injection: safe via xEdit LeveledList Injection script to VendorContainerWeapons + faction weapon lists. Sounds are animation-event-driven via HKX: weaponFire, WeaponCock, reloadComplete events → SNDR records. Shader type for metallic weapon parts: WeaponEnvMap (type 12).
+
+---
+
+**ARMOR & CLOTHING PIPELINE**
+
+Core records: ARMO (inventory item — biped slot bitmask, keywords, weight/value), ARMA (Armor Addon — actual NIF mesh per gender/race). One ARMO can reference multiple ARMAs. Biped slot matrix (30–61): 30=Head, 32=Body, 33=Left Hand, 34=Right Hand, 37=Back/Jetpack, 41=Left Leg, 42=Right Leg, 43=Left Thigh, 44=Right Thigh, 45=Pelvis, 48–61=custom mod slots. Slots 30–61 cannot overlap between equipped items. ARMO BOD2 field: bitmask of occupied slots. Essential ARMO keywords: ArmorTypeLight or ArmorTypeHeavy (perk routing), WorkbenchArmor (modifiable at armor bench). ARMA fields: BOD2 matches ARMO, MODL=male world NIF, MOD2=male 1st-person NIF, MOD3=female world NIF, MOD4=female 1st-person NIF, RNAM=HumanRace. NIF bone weights: mesh weighted to skeleton bones. Shader type: Default (type 1) + SLSF1_CAST_SHADOWS + SLSF2_ZBUFFER_WRITE. BodySlide integration: export base + high-weight morph NIFs, use Outfit Studio to create SliderSet .osp file + ShapeData/YourArmor/ folder; users run BodySlide to fit armor to custom body. COBJ crafting: BNAM=WorkbenchArmor, perk condition Armorer>=1. Armor OMODs: ArmorModLining (ballistic weave), ArmorModMaterial (leather/metal/shadowed), ArmorModMisc (pocketed/padded). Power Armor: uses PowerArmorRace, pa_BodyPart_Torso/LLeg/etc. slot keywords — completely separate from regular armor biped slots. Textures: diffuse BC3, normal BC5, specular BC3 — all in BA2.
+
+---
+
+**LOAD ORDER, ESL FLAGGING & PLUGIN MANAGEMENT**
+
+Three plugin types: ESM (full 16M FormIDs, always loads before ESPs, use for frameworks/DLC-scale content), ESP (full FormIDs, load-order-position-sorted, standard for most mods), ESL/ESL-flagged ESP (0x800–0xFFF = 2048 new FormIDs max, does NOT count toward 255-plugin limit). 255-plugin limit: when reached, game refuses to launch — ESL-flag small patches (0–few new FormIDs) to exempt them. FormID structure: high byte = plugin index (00–FE regular, FE = ESL), low 3 bytes = record ID. ESL safe when: < 2000 new records, pure edits to existing records, or small patches. NOT safe when: large mods, mods that may grow, framework masters. To ESL-flag: xEdit → plugin header → Record Flags → enable Light flag + run Compact FormIDs for ESL script first. LOOT sort order: always run LOOT after mod changes; sorts masters before dependents, applies community rules, flags dirty edits. Load order structure: DLC/Masters → UFO4P (early) → PRP (after UFO4P) → Frameworks → Overhauls → Content → Patches → DynDOLOD Output (last before Bashed Patch) → Bashed Patch (absolute last). Bashed Patch: Wrye Bash merges leveled lists from all plugins → resolves vendor/drop list conflicts without explicit patches; rebuild after every load order change. xEdit conflict detection: View → Filter for Conflicts; green=no conflict, yellow=override, red=conflict. OG/NG/AE plugin compatibility: ESP/ESM/ESL files are format-compatible across all three versions — DLL mods (F4SE plugins) need separate OG/NG/AE builds. Use Address Library AiO Anniversary (Nexus #47327) for all DLL mods.
+
+---
+
+**AMBIENT SOUND, ASPC & SNDR RECORDS**
+
+Sound hierarchy: SNCT (volume category) → SNDR (sound descriptor — links to .wav/.xwm files with pitch/distance/loop settings) → ASPC (acoustic space — reverb + ambient loop for cell) → Cell/REGN (activates ASPC). SNDR key fields: CNAM=sound category, SNAM=audio file paths (multiple for random variation), ONAM=output bus model (BGS_AmbienceOutputModel for loops, BGS_EffectOutputModel for triggered events), LNAM=loop flag, fMinDistance (200–500 full-volume range), fMaxDistance (2000–8000 falloff), fRandomFrequencyShift (random pitch). Audio formats: mono 44100Hz 16-bit .wav or .xwm (XMA compressed via xWMAEncode.exe) — MUST be mono for 3D spatialization. ASPC fields: BNAM=ambient loop SNDR, SNAM=reverb preset enum (0=None, 1=Room Small, 3=Room Large, 6=Vault, 9=Cave, 11=Sewer, 12=Outdoors), HNAM=is-interior flag. Assign ASPC to cell via XCAS field in xEdit / CK Cell Properties → Acoustic Space. REGN (Region) sound system for exterior worldspaces: RDSA sound entry array with SNDR FormID + chance% + loop/distance flags per geographic region; typical mix = base drone (100% loop) + bird calls (15%) + wind gust (25%) + rustling leaves (40%) + distant event (5%). Reverb guide: outdoor flora biome = Reverb 12 (Outdoors); fungal cave = Reverb 9 (Cave); abandoned greenhouse = Reverb 3 (Room Large); sewers = Reverb 11 (Sewer). Sentient plant audio: drive SNDR playback from Papyrus state machine via Sound.Play(SFX_PlantAlert, Self) on threat state changes. Ambient vs effect bus: ALWAYS use BGS_AmbienceOutputModel for looping ambient tracks or they route to wrong mix bus.
+
+---
+
+**WORLDSPACE & CELL DESIGN**
+
+Interior cells: use Room Bounds (RoomBounds markers — box volumes per logical room) + Portal Markers (rectangular planes in doorways) to enable visibility culling. Without room bounds, the entire interior cell renders at once. Portals: place flush with doorway opening, connect exactly two room bounds, never use for tiny windows — overhead not worth it. Exterior cells: 4096×4096 unit grid; precombined meshes reduce 50-object cells to 1–3 draw calls — NEVER disable precombines without regenerating (10–30× draw call penalty). Interior lighting: max 2 shadow-casting lights per room (iMaxShadowLights=4 cap); 1 key shadow light + baked ambient fill; shadow distance fShadowDistance=3500. Cell ambient colors: vault R=70 G=85 B=90, ruins R=80 G=75 B=70, overgrown/fungal R=60 G=90 B=65, cave R=30 G=30 B=40. Assign ImageSpaceModifier (IMOD/IMGS) to cell for per-cell color grading without ENB, or via Papyrus ApplyImageSpaceModifier on OnLocationChange. Cell flags: Is Interior Space, Has Water (+ water type + water height Z + navmesh Water triangles for NPC wading), Show Sky (greenhouse), No LOD Water. Lighting Template (LGTM): use one LGTM per zone type for consistent ambient across multiple cells. New worldspace: WRLD record + CELL (0,0) + LAND (heightmap per cell) + NAVM (navmesh per cell) + LCTN (location for quests/map). Load distance INI: fBlockLevel0Distance=20000, fBlockLevel1Distance=40000 (lower=faster/less detail). Occlusion planes: flat boxes behind large solid walls/hills to cull far geometry — only effective for large flat blockers. Shadow light budget: max 2 shadow casters per room; excess lights pop on/off as player moves.
+
+---
+
+**COLLISION & PHYSICS FOR CUSTOM MESHES**
+
+Havok collision is required for physics interaction, projectile hit detection, AI pathfinding, and bhkPickData raycasting. Shape type selection: bhkBoxShape (rectangular props, cheap), bhkCapsuleShape (pillars/barrels/tree trunks), bhkConvexVerticesShape (irregular rocks/tools — Blender [P]-prefixed proxy mesh → convex hull), bhkCompressedMeshShape/MOPP (terrain, complex concave static — NifSkope auto-generate via Block→Attach Havok→Compress Mesh or Havok Content Tools .fbx→.hkx). MOPP triangle budget: under 2000 triangles per shape; convex hull vertex budget: under 64 verts. BSXFlags root node: bHavokEnabled bit (decimal 2) MUST be set or engine ignores all collision. bhkRigidBody settings: motionType MO_SYS_FIXED (1) = static (mass=0); MO_SYS_SPHERE_INERTIA (4) or MO_SYS_BOX_INERTIA (5) = dynamic (mass 5–50). Havok layer (bhkRigidBody.layer): 1=STATIC (default world geometry), 12=TREES (tree trunks), 14=PROPS (physics props), 35=VEGETATION (soft grass/plants), 8=BIPED (characters), 9=PROJECTILE (bullets). Vegetation layer rules: trunk = layer 12 (TREES) capsule/convex; canopy/leaves = layer 35 (VEGETATION) or no collision; hanging vines = NO collision (performance). Trigger volumes: layer 0 + isTrigger flag → Papyrus OnTriggerEnter event for zone detection. Dynamic object limit: ~200 active simultaneous physics objects per cell before FPS degrades. NifSkope collision hierarchy: BSFadeNode → bhkCollisionObject → bhkRigidBody → [shape]. Incorrect layer assignment causes AI pathfinding failures and projectile pass-through bugs.
+
 `;
+
 
 
 
