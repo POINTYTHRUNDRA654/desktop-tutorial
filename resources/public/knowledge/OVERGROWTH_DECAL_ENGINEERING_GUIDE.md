@@ -503,8 +503,8 @@ fUVScaleV = 0.25    ; 1/4 atlas height per variant
 - [ ] Register MCM messaging callback for pool size control
 
 ### Address Library Lookups
-- [ ] Verify all REL::ID values against Address Library for your target FO4 version (1.10.163 / NG)
-- [ ] Build against both OG and NG address libraries if supporting both game versions
+- [ ] Verify all REL::ID values against Address Library for all three target versions (OG 1.10.163 / NG 1.10.984 / AE 1.11.x)
+- [ ] Build against OG, NG, and AE address libraries — ship three DLLs selected via FOMOD
 
 ### Papyrus / Placement
 - [ ] Write `OvergrowthDecalPlacer.psc` using `FindAllReferencesWithKeyword`
