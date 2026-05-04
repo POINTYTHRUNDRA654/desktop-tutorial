@@ -12107,6 +12107,149 @@ def create_basic_collision(obj):
 4. Permissions tab on Nexus reflects your intent (reuse allowed? console allowed?)
 5. Screenshots use your assets or licensed ones only
 
+---
+
+**C++ / F4SE / PAPYRUS BRIDGE: MEMORY-WISE MOD ARCHITECTURE**
+
+**Why Offload to C++?**
+
+Papyrus is a single-threaded, interpreted VM designed to be intentionally limited. Heavy computation in Papyrus causes lag, stack overflows, and CTDs. Use C++ for:
+- Loops over large data sets (> ~100 iterations)
+- Sorting, searching, pathfinding, matrix math
+- String parsing / regex (unavailable in Papyrus)
+- File I/O and JSON config reading
+- Bulk form/record scanning
+
+Papyrus should only orchestrate actions and react to results. All data-heavy work belongs in a native F4SE DLL.
+
+**Project Setup (Visual Studio)**
+
+\`\`\`
+Platform:         x64  ← Fallout 4 is 64-bit; never compile F4SE plugins as x86
+Configuration:    Release  ← Debug builds are incompatible with live F4SE injection
+Runtime Library:  /MT (Multi-threaded) — avoids VCRUNTIME DLL dependency
+C++ Standard:     /std:c++17 or /std:c++20
+Unicode:          /DUNICODE /D_UNICODE
+\`\`\`
+
+Build system: CMake + vcpkg with CommonLibF4. Output: \`Data/F4SE/Plugins/MyPlugin.dll\`.
+
+**Registering Native Functions (C++ → Papyrus Bridge)**
+
+C++ side — bind native functions in RegisterPapyrusFunctions:
+\`\`\`cpp
+// Heavy sort+sum — runs entirely in C++, single Papyrus VM frame
+static std::int32_t SortAndSum(
+    RE::BSScript::IVirtualMachine*, RE::VMStackID,
+    RE::StaticFunctionTag*,
+    RE::BSTSmartPointer<RE::BSScript::Array> arr)
+{
+    std::vector<std::int32_t> data;
+    for (uint32_t i = 0; i < arr->size(); ++i)
+        data.push_back(arr->data()[i].GetSInt());
+    std::sort(data.begin(), data.end());
+    std::int32_t sum = 0;
+    for (auto v : data) sum += v;
+    return sum;
+}
+
+bool RegisterPapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
+    vm->BindNativeMethod("MyPlugin"sv, "SortAndSum"sv, SortAndSum, true);
+    return true;
+}
+\`\`\`
+
+Papyrus side — declare with Global Native:
+\`\`\`papyrus
+Scriptname MyPluginBridge extends Quest
+Int Function SortAndSum(Int[] akArray) Global Native
+
+Function RunTask()
+    Int[] data = new Int[10]
+    ; fill data ...
+    Int result = MyPluginBridge.SortAndSum(data)
+    Debug.Notification("Done: " + result)
+EndFunction
+\`\`\`
+
+**Async Pattern — C++ fires a mod event when work is done:**
+\`\`\`cpp
+void NotifyComplete(int32_t result) {
+    auto* vm = RE::GameVM::GetSingleton()->GetVM().get();
+    auto* args = RE::MakeFunctionArguments(result);
+    vm->SendModEvent("OnMyPluginTaskComplete"sv, args);
+    delete args;
+}
+\`\`\`
+\`\`\`papyrus
+Event OnMyPluginTaskComplete(Int aiResult)
+    Debug.Notification("C++ done: " + aiResult)
+EndEvent
+\`\`\`
+
+**Papyrus Stack Dumps — Still Happens Even With C++ Offloading**
+
+Even when C++ handles the heavy work, bad Papyrus patterns still crash the script engine:
+
+| Cause | Fix |
+|---|---|
+| Infinite loop / no exit condition | Always add a break; use RegisterForSingleUpdate instead |
+| Runaway OnUpdate (interval < 0.5s) | Use RegisterForSingleUpdate(1.0); prefer event-driven patterns |
+| Deep Papyrus recursion | Move recursion into C++ — single Papyrus stack frame |
+| None reference dereference | Guard every object ref: If myRef != None |
+| Latent function overload | Throttle concurrent Wait() calls; add timeouts |
+
+Stack dumps appear in: Documents\\My Games\\Fallout4\\Logs\\Script\\Papyrus.0.log
+Look for lines: RUNTIME ERROR followed by stack: call frames.
+Enable logging during dev: bEnableLogging=1, bEnableTrace=1 in Papyrus.ini.
+Disable for release: bEnableLogging=0 (logging slows the VM for end users).
+
+Safe OnUpdate pattern:
+\`\`\`papyrus
+; BAD — fires every millisecond, clogs the VM
+Event OnUpdate()
+    DoWork()
+    RegisterForUpdate(0.001)
+EndEvent
+
+; GOOD — completes work, waits a sensible interval, then re-arms
+Event OnUpdate()
+    DoWork()
+    RegisterForSingleUpdate(1.0)
+EndEvent
+\`\`\`
+
+**Compiler Settings: 32-bit vs 64-bit and coreflags.exe**
+
+PapyrusCompiler.exe is a managed .NET executable. On modern 64-bit Windows it runs 64-bit by default. On older setups or legacy CI pipelines it may default to 32-bit mode, causing out-of-memory failures on large source trees.
+
+Check and fix with CorFlags.exe (Windows SDK):
+\`\`\`cmd
+; Check current mode
+corflags.exe "Fallout 4\\Papyrus Compiler\\PapyrusCompiler.exe"
+; Force 64-bit (remove 32-bit-required flag) — recommended for large script sets
+corflags.exe "PapyrusCompiler.exe" /32BITREQ-
+; Restore 32-bit if legacy environment requires it
+corflags.exe "PapyrusCompiler.exe" /32BITREQ+
+\`\`\`
+
+Recommended release compile flags:
+\`\`\`cmd
+PapyrusCompiler.exe "Data\\Scripts\\Source\\User" -i="...Base;...User" -o="Data\\Scripts" -f="Institute_Papyrus_Flags.flg" -all -r -op
+\`\`\`
+-r = release (strip debug calls), -op = optimize, -final = also strip betaOnly (use for shipping).
+
+**Pre-Ship Memory Safety Checklist**
+
+- All heavy loops (> ~100 iterations) moved to C++ DLL
+- No unbounded While loops in Papyrus
+- All OnUpdate uses RegisterForSingleUpdate with interval >= 0.5s
+- Every object reference guarded with != None before method calls
+- Papyrus.0.log reviewed; zero RUNTIME ERRORs before shipping
+- PapyrusCompiler confirmed 64-bit (corflags.exe or Task Manager)
+- Compiled with -r -op; bEnableLogging=0 for end-user release
+- F4SE DLL is x64 Release, placed in Data/F4SE/Plugins/
+
 `;
 
 
