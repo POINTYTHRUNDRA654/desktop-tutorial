@@ -12519,6 +12519,52 @@ In OnDeath: call EcosystemQuest.SetCurrentStageID(100) to advance the quest. Ena
 - Attack animation set LoopCount=0 in HKX clip or plant attacks forever
 - Emittance burst: frame counter approach > raw std::thread sleep in a game process
 
+---
+
+**MUTATED VEGETATION — ADVANCED ENGINE-LEVEL RENDERING**
+
+**Why Vanilla Flora Looks Like Plastic**
+
+Vanilla FO4 flora uses flat diffuse+specular textures with no depth, no light bleed-through, static vertices, 512–1024px maps, and single-color glow. Fixing this requires BSLightingShaderProperty injection (CommonLibF4), PBR-correct 4K/8K assets, engine wind vertex deformation, animated glow synchronization, and LOD + memory management.
+
+**Parallax Occlusion Mapping (POM)**
+
+POM makes a 2D texture appear to have real 3D depth via height-map ray-marching. Use on bark, thick vines, crystalline mutant scales. NifSkope: enable \`SF2_PARALLAX_OCCLUSION\` flag on BSLightingShaderProperty + assign \`_h.dds\` height map (BC4_UNORM, full mip chain, white=raised). C++ injection: traverse NiAVObject scenegraph geometry, netimmerse_cast to BSLightingShaderProperty, call shader->SetFlags(kParallaxOcclusion, true). Do not apply POM to thin leaf cards — use SSS + normals for leaves. 4K height maps (BC4_UNORM) give maximum depth detail.
+
+**Subsurface Scattering (SSS)**
+
+SSS simulates light bleeding through semi-translucent geometry — leaves, fungal caps, petals. Without SSS a leaf goes flat grey when backlit; with SSS it glows warm amber. NifSkope: set Shader Flags 1 → SLSF1_SUBSURFACE_LIGHTING (flag 21), set Subsurface Rolloff 0.3–0.5. The diffuse alpha channel acts as translucency mask (white=fully translucent). C++: SetFlags(kSubsurfaceLighting, true) on the material's BSLightingShaderMaterialBase.
+
+**Dynamic Wind Vertex Deformation**
+
+Vanilla scroll-shader wind keeps vertices fixed. Real wind requires vertex-shader deformation driven by vertex color channels. Blender workflow: vertex-paint the Red channel — 255 at leaf/vine tips, 0 at root/stem base. This encodes wind flexibility weighting. NifSkope: enable SLSF1_VERTEX_ALPHA + SF2_TREE_ANIM flags. The engine's tree-animation vertex shader automatically picks up vertex color red-channel weights and drives sway from TESWeather windSpeed. C++ weather hook: read sky->currentWeather->data.windSpeed, optionally multiply by 1.8× in the Glowing Sea, write to BSTreeNode windMagnitude via REL hook for weather-reactive sway amplitude. Pitfall: SF2_TREE_ANIM without vertex paint makes all vertices sway equally — looks wrong.
+
+**Hyper-Detailed PBR Asset Pipeline**
+
+Use photogrammetry (Meshroom / Reality Capture) to scan real bark or exotic plants. Clean in ZBrush, bake high-poly→low-poly in Substance Painter or Marmoset Toolbag. Texture set: Diffuse _d.dds (BC3, RGBA — alpha = translucency mask), Normal _n.dds (BC5, RG, DirectX Y-up — FLIP GREEN channel before export or normals point wrong way), Specular _s.dds (BC3, R=spec G=gloss B=metal A=glow mask), Glow _g.dds (BC3, emissive), Height _h.dds (BC4, greyscale POM). Always generate full mip chain — missing mips cause shimmering with POM/SSS.
+
+Material calibration: bark/wood = roughness 0.75–0.9 + metalness 0.0; slimy mutant growth = roughness 0.05–0.2 + high specular; crystalline protrusions = roughness 0.0 + metalness 0.6–0.9; bioluminescent veins = emissive 1.0 in _g.dds, lime-green or cyan, paint only vein paths (not whole leaf) for micro-detail glow.
+
+**Enhanced Glow Maps with Micro-Detail**
+
+Instead of a flat solid-color glow: in Substance Painter, paint white only along vein paths and nodules — not the whole leaf surface. Export as _g.dds (BC3, full mips). In NifSkope assign to Glow Map slot, set Emissive Color (e.g. lime: 0.3 1.0 0.2) and Emissive Multiple 1.5–2.0. This gives a biological network appearance rather than a plastic glow blob.
+
+**Glow Synchronization to Breathing Animation**
+
+Register a BSAnimationGraphEvent sink (C++) on the plant actor. Add annotation events in the HKX idle behavior graph: PlantBreatheIn at peak-inhale frame, PlantBreatheOut at peak-exhale frame. When PlantBreatheIn fires → SetEmittanceRecursive(root, glowColor, 2.5). When PlantBreatheOut fires → SetEmittanceRecursive(root, glowColor, 0.8). This syncs the emittance pulse frame-precisely to the visible chest-rise animation — static mods cannot achieve this. Unregister the event sink on actor death to avoid memory leaks.
+
+**LOD Generation**
+
+High-poly plants without LOD destroy frame rate. LOD ladder: LOD0 = full detail (0–512 units), LOD1 = 50% tris / 2K tex (512–2048), LOD2 = 10% tris / 1K (2048–8192), LOD3 = billboard card (>8192). File paths: PlantName.nif, PlantName_lod1.nif, PlantName_lod2.nif, PlantName_lod3.nif. Assign in STAT record LOD fields. Use xLODGen (xLODGen.exe -fo4 -lodgen) for automated worldspace LOD atlas generation. Add DynDOLOD rules in DynDOLOD_FO4.ini: Billboard=1, IsTree=1, LODLevel=3. Always pack LOD output into a BA2 — loose LOD files in Data folder conflict with MO2 mod order.
+
+**Memory Management — Buffout 4**
+
+High-density custom plants with per-instance scripts exhaust FO4's default 256 MB Papyrus heap fast, causing EXCEPTION_ACCESS_VIOLATION / script stack overflow crashes. Buffout 4 (Nexus #47359, by alandtse) patches engine memory with mimalloc and fixes multiple heap limits. Buffout4.toml: MemoryManager=true (critical), ScaleformAllocator=true, SmallBlockAllocator=true, BSTextureStreamerLocalHeap=true. Fallout4.ini Papyrus section: iMaxAllocatedMemoryBytes=536870912 (512 MB), iMaxArraySize=500000. Caveat: Buffout 4 MemoryManager conflicts with pre-2024 ENB — always use ENB 0.493+ alongside.
+
+**Papyrus Script Optimization for Flora**
+
+Per-plant scripts multiply fast across dense worldspaces. Rules: (1) Always UnregisterForUpdate() in OnEndState() — never leave stale registrations. (2) Use one quest-level PlantEcosystemManager script to maintain a reference array; per-plant reference script only stores a lightweight int gState. (3) Papyrus polls at 1.0 s minimum — C++ handles sub-second proximity detection. (4) Check IsDead() at top of every OnUpdate; unregister immediately if true. (5) In OnDeath, call manager's UnregisterPlant(self) to compact the array.
+
 `;
 
 
