@@ -12444,6 +12444,81 @@ cmake --build build --config Release
 
 Add your hook source files with target_sources() in the existing CMakeLists.txt. Always build Release — debug DLLs are incompatible with the retail F4SE loader.
 
+---
+
+**SENTIENT / ATTACKING PLANT ARCHITECTURE**
+
+**Plant as an Actor (Not Static Flora)**
+
+Vanilla FLOR records are static — they cannot attack, track a target, or drop loot. To build an attacking plant, create an NPC_ actor with a custom non-humanoid RACE record. Disable all humanoid flags (head tracking, idle markers) on the race. Assign a melee creature combat style (e.g. csCreatureAttack) with zero retreat distance. Add the plant reference to a hostile faction (MutatedFloraFaction vs Player). This gives the plant a real AI, death event, and a loot container.
+
+**Custom Plant Skeleton (HKX Vine Bone Chain)**
+
+Static mesh → bone chain unlocks attack animations. Design a vine chain: Root [root_plant] → Stem [spine_01] → Mid [spine_02] → Vine_01 → Vine_02 → Vine_03 (attack tip). Rules: ≤30 bones per chain for performance. Root bone must be named exactly "Root" (capital R) or animations fail to load. Attach a WeaponNode or AttackPoint to the vine tip for melee hit detection. Build in Blender using the NIF Plugin. Skeleton goes in Data\Meshes\Actors\YourPlant\CharacterAssets\skeleton.nif. HKX behavior file goes in Data\Meshes\Actors\YourPlant\Behaviors\. Minimum animations: idle.hkx (dormant sway, loop), attack_01.hkx (lunge, one-shot), death.hkx (wilt, one-shot). Pack FBX animations to HKX using Havok Content Tools or HkxPack.
+
+**C++ Proximity Detection — Vibration Sensing**
+
+Plants sense the player via footfall vibration, not eyes. Hook the Actor::Update virtual (via REL::Relocation) to run proximity math each frame. Per-plant state uses std::atomic<bool> isAlert and std::atomic<float> threatLevel.
+
+Detection pattern:
+\`\`\`cpp
+float distSq      = CalcDistanceSq(plant->GetPosition(), player->GetPosition());
+float playerSpeed = player->GetActorValue(RE::ActorValue::kSpeedMult);
+float heavyFactor = player->GetActorValue(RE::ActorValue::kCarryWeight) > 200.0f ? 1.4f : 1.0f;
+float vibration   = playerSpeed * heavyFactor;  // heavy + sprinting = high vibration
+float rawThreat   = (1.0f - sqrtf(distSq) / detectRadius2x) * (vibration / VIBRATION_SPEED);
+state.threatLevel.store(std::clamp(rawThreat, 0.0f, 1.0f));
+if (distSq < radiusSq && rawThreat > 0.15f) state.isAlert.store(true);
+\`\`\`
+
+For instant touch detection use a Havok contact listener on the plant's bhkRigidBody. In the contact callback, check if either body is the player, then defer the attack trigger via SKSE::GetTaskInterface()->AddTask() — never block in the physics callback.
+
+**F4SE Animation Triggering from C++**
+
+Force attack animation when player is within range using NotifyAnimationGraph:
+\`\`\`cpp
+// Gate: only trigger when within exact attack range
+const float ATTACK_RANGE_SQ = 128.0f * 128.0f;  // ~1.8 m
+float dx = pp.x-qp.x, dy = pp.y-qp.y, dz = pp.z-qp.z;
+if (dx*dx + dy*dy + dz*dz <= ATTACK_RANGE_SQ)
+    plant->NotifyAnimationGraph("AttackStart");
+
+// Optional: set behavior variable to select attack clip
+RE::BSAnimationGraphManagerPtr graphManager;
+if (plant->GetAnimationGraphManager(graphManager))
+    graphManager->graphs[0]->SetVariableOnGraphsInt("iAttackType", 1);
+\`\`\`
+
+In the HKX behavior graph, wire AttackStart → animation clip playback → AttackHit event at vine-tip-contact frame → BackToIdle event at clip end. AttackHit triggers the damage call (plant->DamageActorValue or a Papyrus spell).
+
+**Glow Map Shader — Visual Threat Level**
+
+Wire the atomic threatLevel to emittanceColor and emittanceMult each frame from the BSLightingShaderProperty hook:
+- Dormant (threat=0): dull green {R=0.1, G=0.55, B=0.05}, mult=1.0, pulse at 2 Hz
+- Alert (threat=1): bright red {R=0.95, G=0.05, B=0.02}, mult=3.5, pulse at 12 Hz
+- Pulse formula: mult = (1.0 + threat * 2.5) * (0.7 + 0.3 * sin(time * pulseFq * 2π))
+- Color formula: R = 0.1 + threat * 0.85 (ramps sharply), G = 0.55 - threat * 0.50 (fades)
+
+Bioluminescent kill burst: at moment of attack damage, set emittanceMult=10.0 and color={0.05, 1.0, 0.6, 1.0} (acid-green) for ~80 ms, then reset. Use a frame counter (decrement each update, reset when zero) rather than a raw std::thread sleep.
+
+**Papyrus State Machine**
+
+Script SentientPlant.psc extends Actor. States: Dormant (poll 0.5 s) → Alert (poll 0.1 s) → Attacking (wait 3 s for anim) → Feeding (10 s) → Dormant. C++ handles sub-frame precision; Papyrus handles high-level state and ecosystem logic only.
+
+Native bridge: register SentientPlantNative.SetThreatState(akActor, aiState) in F4SEPlugin_Load so Papyrus GoToState calls push state changes into the C++ atomics immediately.
+
+**Death, Loot, Quest Linking**
+
+In OnDeath: call EcosystemQuest.SetCurrentStageID(100) to advance the quest. Enable a hidden linked container ObjectReference (GetLinkedRef()) and add plant loot items. Quest OnStageSet handles downstream unlocks: stage 100 = journal note, stage 200 = crafting perk (Bioluminescent Extract recipe), stage 300 = main quest beat (colony root discovered).
+
+**Key Pitfalls**
+- Root bone name must be exactly "Root" (capital R)
+- Havok contact callback must never block — use GetTaskInterface()->AddTask() for all game-state work
+- Always std::atomic<float> across game↔render threads; never mutex in render hook
+- Papyrus 0.5 s poll is too slow for real-time — C++ handles proximity; Papyrus handles state transitions only
+- Attack animation set LoopCount=0 in HKX clip or plant attacks forever
+- Emittance burst: frame counter approach > raw std::thread sleep in a game process
+
 `;
 
 
