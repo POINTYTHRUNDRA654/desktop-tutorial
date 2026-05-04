@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers the recommended patterns for offloading heavy computation from Papyrus to native C++ via an F4SE DLL plugin, bridging results back to Papyrus scripts (.psc), monitoring for Papyrus stack dumps, and configuring the correct 32-bit / 64-bit compiler settings for Papyrus script compilation (including coreflags.exe for legacy setups).
+This guide covers the recommended patterns for offloading heavy computation from Papyrus to native C++ via an F4SE DLL plugin, bridging results back to Papyrus scripts (.psc), monitoring for Papyrus stack dumps, and configuring the correct 32-bit / 64-bit compiler settings for Papyrus script compilation (including CorFlags.exe for legacy setups).
 
 ---
 
@@ -57,7 +57,7 @@ target_link_libraries(MyHeavyPlugin PRIVATE CommonLibF4::CommonLibF4)
 target_include_directories(MyHeavyPlugin PRIVATE include)
 
 install(TARGETS MyHeavyPlugin
-  RUNTIME DESTINATION "SKSE/Plugins"   # adjust to F4SE/Plugins
+  RUNTIME DESTINATION "F4SE/Plugins"
 )
 ```
 
@@ -140,11 +140,11 @@ extern bool RegisterPapyrusFunctions(RE::BSScript::IVirtualMachine* vm);
 
 F4SE_PLUGIN_VERSION = []()
 {
-    SFSE::PluginVersionData ver{};
+    F4SE::PluginVersionData ver{};
     ver.PluginVersion({ 1, 0, 0 });
     ver.PluginName("MyHeavyPlugin");
     ver.AuthorName("YourName");
-    ver.CompatibleVersions({ SFSE::RUNTIME_LATEST });
+    ver.CompatibleVersions({ F4SE::RUNTIME_LATEST });
     return ver;
 }();
 
@@ -300,7 +300,7 @@ EndFunction
 
 ---
 
-## 6. Compiler Settings: 32-bit vs 64-bit and coreflags.exe
+## 6. Compiler Settings: 32-bit vs 64-bit and CorFlags.exe
 
 ### PapyrusCompiler.exe — Architecture
 
@@ -310,15 +310,15 @@ The Papyrus Compiler (`PapyrusCompiler.exe`) is a **managed .NET executable**. I
 |---|---|
 | Modern Windows 64-bit + .NET 4.x | Runs as 64-bit by default — no changes needed |
 | Older 32-bit Windows or WoW64 issues | May need LARGEADDRESSAWARE flag or bitness override |
-| Legacy CI pipelines with 32-bit .NET host | Use `coreflags.exe` to force 32-bit or 64-bit execution |
+| Legacy CI pipelines with 32-bit .NET host | Use `CorFlags.exe` to force 32-bit or 64-bit execution |
 
-### What is coreflags.exe?
+### What is CorFlags.exe?
 
 `CorFlags.exe` is a Windows SDK utility that reads and modifies the CLR header flags in a managed assembly. For `PapyrusCompiler.exe` it can be used to force a specific execution mode.
 
 **Check current flags:**
 ```cmd
-corflags.exe "C:\Steam\steamapps\common\Fallout 4\Papyrus Compiler\PapyrusCompiler.exe"
+CorFlags.exe "C:\Steam\steamapps\common\Fallout 4\Papyrus Compiler\PapyrusCompiler.exe"
 ```
 
 Sample output:
@@ -335,12 +335,12 @@ Signed    : 0
 
 **Force 32-bit execution (legacy fix):**
 ```cmd
-corflags.exe "PapyrusCompiler.exe" /32BITREQ+
+CorFlags.exe "PapyrusCompiler.exe" /32BITREQ+
 ```
 
 **Remove 32-bit requirement (restore 64-bit):**
 ```cmd
-corflags.exe "PapyrusCompiler.exe" /32BITREQ-
+CorFlags.exe "PapyrusCompiler.exe" /32BITREQ-
 ```
 
 **Why this matters:**
@@ -412,7 +412,7 @@ Compiled with `-r`, all `{DEBUG_ONLY}` blocks are removed.
 - [ ] All `OnUpdate` events use `RegisterForSingleUpdate` with interval ≥ 0.5s
 - [ ] All object references guarded with `!= None` before use
 - [ ] Stack dump log reviewed; no RUNTIME ERRORs in Papyrus.0.log
-- [ ] PapyrusCompiler built as 64-bit (verify with coreflags.exe or Task Manager)
+- [ ] PapyrusCompiler built as 64-bit (verify with CorFlags.exe or Task Manager)
 - [ ] Release compiled with `-r -op` flags
 - [ ] `bEnableLogging=0` set in Papyrus.ini for end-user release build
 - [ ] F4SE DLL compiled as Release x64, placed in `Data/F4SE/Plugins/`
@@ -429,5 +429,5 @@ Compiled with `-r`, all `{DEBUG_ONLY}` blocks are removed.
 | Scripts freeze / game hangs | Runaway `OnUpdate` or infinite loop | Use `RegisterForSingleUpdate`; check log |
 | Native function not found | Namespace mismatch | Match `BindNativeMethod` namespace to Papyrus `Global Native` declaration |
 | DLL not loading | Wrong bitness or runtime version | Confirm x64 Release, check `F4SE/Plugins/*.log` |
-| Compiler OOM / access violation | 32-bit compiler on large source tree | Use `corflags.exe /32BITREQ-` to force 64-bit |
+| Compiler OOM / access violation | 32-bit compiler on large source tree | Use `CorFlags.exe /32BITREQ-` to force 64-bit |
 | Scripts very slow but no crash | C++ not registered or Papyrus doing heavy work | Profile with `tps`; move bottleneck to C++ |
