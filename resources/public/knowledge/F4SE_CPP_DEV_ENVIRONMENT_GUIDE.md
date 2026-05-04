@@ -280,16 +280,20 @@ If you see your log line, the DLL loaded and F4SE called your entry point succes
 | Log file not created | DLL not in correct folder | Check `Data/F4SE/Plugins/MyOvergrowthPlugin.dll` exists |
 | Log file empty | F4SE_PLUGIN_DECL not firing | Verify DLL exports `F4SE_InitPlugin` — check with `dumpbin /exports MyOvergrowthPlugin.dll` |
 | Crash on load | Debug build in-game | Switch to Release build |
-| "Plugin rejected" in F4SE log | Wrong game version target | Build against matching Address Library version |
-| Missing vtable crash | Wrong CommonLibF4 fork | Ensure fork matches your target game version (OG/NG) |
+| "Plugin rejected" in F4SE log | Wrong game version target | Build against matching Address Library version (OG/NG/AE) |
+| Missing vtable crash | Wrong CommonLibF4 fork or version | Ensure fork matches your target game version (OG/NG/AE) |
+| Works on OG, crashes on AE | vtable layout changed in AE (1.11.x) | Re-verify REL::IDs against AE Address Library database; rebuild AE DLL |
 
 ---
 
-## 8. Targeting Multiple Game Versions (OG + NG)
+## 8. Targeting All Three Game Versions (OG + NG + AE)
 
-Fallout 4 has two active binary versions in 2026:
-- **OG** (1.10.163.0) — the pre-next-gen update version, used by most players
-- **NG** (1.10.980+) — the "next-gen" update released 2024, with reworked internals
+Fallout 4 has three active binary versions in 2026:
+- **OG** (1.10.163.0) — the pre-next-gen update version; used by players on GOG, downgraded setups, and legacy Wabbajack lists
+- **NG** (1.10.980.0 – 1.10.984.0) — the "next-gen" update released April 2024, with reworked 64-bit internals
+- **AE** (1.11.169.0+) — the official Anniversary Edition update released November 2025; ships the Creations Menu in-game and bundles all DLC; requires its own DLL build
+
+Each version has a different EXE layout. A DLL built for OG will crash on NG or AE; a DLL built for NG may crash on AE. **You must ship three separate DLLs and use a FOMOD installer to select the correct one.**
 
 ### Address Library Integration
 
@@ -301,23 +305,61 @@ Hard-coding hex offsets for engine functions will break between versions. Use Ad
 
 // Use version-independent ID lookup:
 static constexpr REL::ID kBSDecalNodeSetupMaterialID{ 42815 };  // ID in address_library database
-// Address Library maps this ID to the correct offset for whichever game version is running
+// Address Library maps this ID to the correct offset for whichever version is running at runtime
 
 REL::Relocation<SetupMaterial_t> target{ kBSDecalNodeSetupMaterialID };
 ```
 
 **Finding REL::ID values:**
-1. Search `address_library` repo on GitHub (nikitalita/address_library)
-2. Use IDA Pro / Ghidra with the FO4 binary and search for the function by name or signature
+1. Search `address_library` repo on GitHub (nikitalita/address_library) — separate database files for each version
+2. Use IDA Pro / Ghidra with the matching FO4 binary and search by function name or signature
 3. Search the `CommonLibF4` source — many functions are already mapped with REL::ID
 
-### Dual-Version Build
+**Address Library versions:**
+| Game version | Address Library build | Nexus / GitHub |
+|---|---|---|
+| OG (1.10.163) | Address Library v1 (OG) | Nexus #47327 — OG build |
+| NG (1.10.980–1.10.984) | Address Library v2 (NG) | Nexus #47327 — NG build |
+| AE (1.11.169+) | Address Library AiO Anniversary | Nexus #47327 — AiO build (covers all versions) |
 
-The F4SE Plugin Template (Expired6978) includes GitHub Actions CI that builds three DLLs:
+> **Tip:** Ship the *AiO Anniversary* build in your FOMOD — it supports OG, NG, and AE from a single file using runtime version detection.
+
+### Three-Version Build
+
+The F4SE Plugin Template (Expired6978) and its GitHub Actions CI produce three DLLs:
 - `MyOvergrowthPlugin.dll` — OG (1.10.163)
-- `MyOvergrowthPlugin_ng.dll` — NG (1.10.980+)
+- `MyOvergrowthPlugin_ng.dll` — NG (1.10.980–1.10.984)
+- `MyOvergrowthPlugin_ae.dll` — AE (1.11.169+)
 
-The FOMOD installer selects the correct one based on game version.
+The FOMOD installer selects the correct DLL based on the detected game version.
+
+### CMake Option for All Three Targets
+
+```cmake
+option(BUILD_OG "Build for OG (1.10.163)"    OFF)
+option(BUILD_NG "Build for NG (1.10.980+)"   OFF)
+option(BUILD_AE "Build for AE (1.11.169+)"   ON)
+
+if(BUILD_OG)
+    set(COMMONLIBF4_TARGET "CommonLibF4-OG")
+    add_compile_definitions(GAME_VERSION_OG)
+elseif(BUILD_NG)
+    set(COMMONLIBF4_TARGET "CommonLibF4-NG")
+    add_compile_definitions(GAME_VERSION_NG)
+elseif(BUILD_AE)
+    set(COMMONLIBF4_TARGET "CommonLibF4-NG")   # AE uses the NG headers + AE Address Library
+    add_compile_definitions(GAME_VERSION_AE)
+endif()
+```
+
+### Troubleshooting Version Mismatch
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Crash immediately on load | DLL compiled for wrong game version | Check game EXE version; use matching DLL |
+| "Plugin rejected" in F4SE log | F4SE version mismatch | Install F4SE matching your exact EXE version |
+| REL::ID lookup crash | Address Library not installed or wrong build | Install AiO Anniversary Address Library (Nexus #47327) |
+| Hooks work on OG, crash on AE | vtable offset changed in AE | Re-verify REL::ID in AE database; rebuild AE DLL |
 
 ---
 

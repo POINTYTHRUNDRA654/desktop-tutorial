@@ -446,10 +446,10 @@ public:
 | Game version | Address Library version | CommonLibF4 branch |
 |---|---|---|
 | OG (1.10.163) | v1 (pre-NG) | master / pre-NG |
-| NG (1.10.984) | v2 (NG) | ng / post-NG |
-| AE (1.10.984+) | v2 + AE extras | ng branch |
+| NG (1.10.980–1.10.984) | v2 (NG) | ng / post-NG |
+| AE (1.11.169+) | AiO Anniversary (all-in-one) | ng branch + AE Address Library |
 
-A DLL compiled for OG will crash on NG because virtual function table offsets differ. You must compile separate DLLs.
+A DLL compiled for OG will crash on NG or AE because virtual function table offsets differ. You must compile three separate DLLs and ship all three in your FOMOD.
 
 ### CMake Multi-Target Setup
 
@@ -458,8 +458,9 @@ A DLL compiled for OG will crash on NG because virtual function table offsets di
 cmake_minimum_required(VERSION 3.21)
 project(YourPlantPlugin VERSION 1.0.0)
 
-option(BUILD_OG "Build for OG (1.10.163)" OFF)
-option(BUILD_NG "Build for NG/AE (1.10.984)" ON)
+option(BUILD_OG "Build for OG (1.10.163)"    OFF)
+option(BUILD_NG "Build for NG (1.10.980+)"   OFF)
+option(BUILD_AE "Build for AE (1.11.169+)"   ON)
 
 if(BUILD_OG)
     set(COMMONLIBF4_TARGET "CommonLibF4-OG")
@@ -467,6 +468,9 @@ if(BUILD_OG)
 elseif(BUILD_NG)
     set(COMMONLIBF4_TARGET "CommonLibF4-NG")
     add_compile_definitions(GAME_VERSION_NG)
+elseif(BUILD_AE)
+    set(COMMONLIBF4_TARGET "CommonLibF4-NG")   # AE uses NG headers + AE Address Library
+    add_compile_definitions(GAME_VERSION_AE)
 endif()
 
 find_package(${COMMONLIBF4_TARGET} CONFIG REQUIRED)
@@ -506,7 +510,7 @@ jobs:
           path: build-og/Release/YourPlantPlugin.dll
 
   build-ng:
-    name: Build NG/AE (1.10.984+)
+    name: Build NG (1.10.980-1.10.984)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -525,9 +529,29 @@ jobs:
           name: YourPlantPlugin-NG
           path: build-ng/Release/YourPlantPlugin.dll
 
+  build-ae:
+    name: Build AE (1.11.169+)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/cache@v4
+        with:
+          path: vcpkg
+          key: vcpkg-ae-${{ hashFiles('vcpkg.json') }}
+      - name: Configure CMake (AE)
+        run: cmake -B build-ae -DBUILD_AE=ON -DCMAKE_BUILD_TYPE=Release
+      - name: Build (AE)
+        run: cmake --build build-ae --config Release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YourPlantPlugin-AE
+          path: build-ae/Release/YourPlantPlugin.dll
+
   package:
     name: Package Release
-    needs: [build-og, build-ng]
+    needs: [build-og, build-ng, build-ae]
     runs-on: windows-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -538,6 +562,10 @@ jobs:
         with:
           name: YourPlantPlugin-NG
           path: release/NG
+      - uses: actions/download-artifact@v4
+        with:
+          name: YourPlantPlugin-AE
+          path: release/AE
       - uses: actions/upload-artifact@v4
         with:
           name: YourPlantPlugin-Release
@@ -560,9 +588,15 @@ jobs:
                     destination="F4SE\Plugins\YourPlantPlugin.dll"/>
             </files>
           </plugin>
-          <plugin name="Next-Gen / Anniversary (1.10.984+)">
+          <plugin name="Next-Gen (1.10.980 – 1.10.984)">
             <files>
               <file source="NG\YourPlantPlugin.dll"
+                    destination="F4SE\Plugins\YourPlantPlugin.dll"/>
+            </files>
+          </plugin>
+          <plugin name="Anniversary Edition (1.11.169+)">
+            <files>
+              <file source="AE\YourPlantPlugin.dll"
                     destination="F4SE\Plugins\YourPlantPlugin.dll"/>
             </files>
           </plugin>
@@ -587,7 +621,7 @@ jobs:
 | Dynamic plant swap | BOS INI + C++ SetBaseObject | ws: filter for worldspace-specific swaps |
 | PBR cross-DLC | Three BGSM variants (one per region) | Same NIF, different emittance hue |
 | Far Harbor fog glow | C++ TESWeather fogNear hook | emittanceMult 1.5 (clear) → 4.0 (fog) |
-| OG/NG/AE builds | CMake BUILD_OG/BUILD_NG options | GitHub Actions matrix, FOMOD selector |
+| OG/NG/AE builds | CMake BUILD_OG/BUILD_NG/BUILD_AE options | GitHub Actions matrix (3 jobs), FOMOD selector |
 
 ---
 
@@ -596,7 +630,7 @@ jobs:
 - **Touching vanilla STAT records in ESP**: always use BOS swap — any STAT edit breaks previs in that cell
 - **Running all regional update loops simultaneously**: deactivate non-current region's loops on `OnPlayerLoadGame` — running all three at once triples Papyrus load
 - **Direct object reference calls in WF messaging**: always pass `Var[]` akArgs — direct ObjectReference parameters cause null crashes when the reference is in an unloaded cell
-- **Single DLL on both OG and NG**: virtual table layout differs — the DLL will crash immediately on the wrong version; always ship OG + NG separately in FOMOD
+- **Single DLL on OG, NG, and AE**: virtual table layout differs across all three — the DLL will crash immediately on the wrong version; always ship OG + NG + AE separately in FOMOD
 - **GitHub Actions vcpkg cache miss**: include `vcpkg.json` in the cache key hash or builds will redownload all packages every run
 - **BGSM emittance on mesh without glow slot assigned**: BGSM emittance settings are ignored if the NIF's BSLightingShaderProperty has no glow map texture assigned — always assign a `_g.dds` even if it's all white
 - **SetBaseObject on aliased reference**: quest alias bindings store the old base form pointer — calling SetBaseObject breaks alias fill conditions silently
