@@ -12219,18 +12219,18 @@ Event OnUpdate()
 EndEvent
 \`\`\`
 
-**Compiler Settings: 32-bit vs 64-bit and coreflags.exe**
+**Compiler Settings: 32-bit vs 64-bit and CorFlags.exe**
 
 PapyrusCompiler.exe is a managed .NET executable. On modern 64-bit Windows it runs 64-bit by default. On older setups or legacy CI pipelines it may default to 32-bit mode, causing out-of-memory failures on large source trees.
 
 Check and fix with CorFlags.exe (Windows SDK):
 \`\`\`cmd
-; Check current mode
-corflags.exe "Fallout 4\\Papyrus Compiler\\PapyrusCompiler.exe"
-; Force 64-bit (remove 32-bit-required flag) — recommended for large script sets
-corflags.exe "PapyrusCompiler.exe" /32BITREQ-
-; Restore 32-bit if legacy environment requires it
-corflags.exe "PapyrusCompiler.exe" /32BITREQ+
+REM Check current mode
+CorFlags.exe "Fallout 4\\Papyrus Compiler\\PapyrusCompiler.exe"
+REM Force 64-bit (remove 32-bit-required flag) -- recommended for large script sets
+CorFlags.exe "PapyrusCompiler.exe" /32BITREQ-
+REM Restore 32-bit if legacy environment requires it
+CorFlags.exe "PapyrusCompiler.exe" /32BITREQ+
 \`\`\`
 
 Recommended release compile flags:
@@ -12246,7 +12246,7 @@ PapyrusCompiler.exe "Data\\Scripts\\Source\\User" -i="...Base;...User" -o="Data\
 - All OnUpdate uses RegisterForSingleUpdate with interval >= 0.5s
 - Every object reference guarded with != None before method calls
 - Papyrus.0.log reviewed; zero RUNTIME ERRORs before shipping
-- PapyrusCompiler confirmed 64-bit (corflags.exe or Task Manager)
+- PapyrusCompiler confirmed 64-bit (CorFlags.exe or Task Manager)
 - Compiled with -r -op; bEnableLogging=0 for end-user release
 - F4SE DLL is x64 Release, placed in Data/F4SE/Plugins/
 
