@@ -12679,6 +12679,14 @@ Dielectric surfaces (concrete, stone, wood, skin, plant): SpecR=0.04, SpecG=0.1�
 
 
 
+
+---
+
+**OVERGROWTH DECAL ENGINEERING (C++ / F4SE)**
+
+Vanilla BSDecalNode uses a simplified shader path that skips SF2_PARALLAX_OCCLUSION even if the NIF flag is set — decals are always flat. To get volumetric moss/ivy decals the fix is a CommonLibF4 hook on BSDecalNode::SetupMaterial: cast BSShaderProperty to BSLightingShaderProperty, check geometry name prefix (OG_MOSS / OG_IVY / OG_VINE), then set kParallaxOcclusion + kAnisotropicLighting flags and write parallaxOcclusionScale=0.04 (deep moss) + parallaxOcclusionMaxPasses=16. Required headers: RE/B/BSLightingShaderProperty.h, RE/B/BSDecalNode.h, RE/B/BSShaderTextureSet.h from CommonLibF4. Hook with Detours or xbyak write_call<5> via F4SE trampoline; all REL::ID values must be verified against Fallout 4 Address Library (nikitalita, GitHub) for OG (1.10.163) and NG game versions. Height map texture setup: _h.dds BC4 (white=raised moss head, grey=mat surface, black=crevice) stored in BSShaderTextureSet slot 3 or packed into normal map B channel. Soft decal edges: patch fNormalTolerance in BSDecalNode struct offset 0x128 from 0.0 (strict) to 0.65 — decal wraps 65° around concrete edges/corners. ENB depth-based soft blending alternative (no C++): sample depth buffer in enbeffect.fx, compute |decalDepth - sceneDepth| per pixel, attenuate decal alpha at high depth-delta regions (edges); set fSoftDecalStrength=0.8 in preset. Procedural placement: Papyrus FindAllReferencesWithKeyword(OG_ConcreteMaterialKW, 2000.0) at cell attach → check surface angle for N-facing (surfAngle 135–225°) → PlaceAtMe moss dense at 60% frequency, lichen at 20% on S-facing; C++ bhkPickData raycast gives true geometry normal for accurate N/S detection — use normal.y < -0.4 threshold. Wind animation: hook TESWeather currentWeather.data.windSpeed + windDirection per-frame → write wind vector to decal NiFloatExtraData("WindX"); custom vertex shader: windOffset = sin(worldPos.x * freq + time) * windVec, multiplied by UV.y mask (v=0 = anchored base, v=1 = free-swinging tip). Decal memory pool: Fallout4.ini [Decals] iMaxDecals=4000 iMaxDecalsPerFrame=20 fDecalLifetime=0 fDecalLODFadeDistance=3000; C++ runtime MCM control via REL::ID patch to engine globals: Low=1000/10, Medium=2500/15, High=5000/25, Ultra=8000/40. Decal atlas: pack 16 variants into 4K BC3 atlas (4×4 grid, each cell 1K) → set fUVScaleU/V=0.25 + fUVOffsetU/V per variant = 1 texture bind for all 16 decal types (massive draw-call reduction). Precombine static decals in non-interactive cells. NIF naming: prefix all overgrowth decal geometry "OG_" for hook identification.
+
+
 ---
 
 **WATER RENDERING**
