@@ -33,6 +33,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sqlite3
 import time
 from datetime import datetime
@@ -55,7 +56,6 @@ DB_PATH        = BASE_DIR / "data" / "mossy_brain.db"
 GRAPH_PATH     = BASE_DIR / "data" / "knowledge_graph.json"
 LORA_PATH      = BASE_DIR / "models" / "mossy-lora"
 DATASET_PATH   = BASE_DIR / "data" / "training_dataset.jsonl"
-COHERE_API_KEY = ""  # Not used — RRF merging requires no external API
 PORT           = int(os.environ.get("MOSSY_PORT", 8765))
 MAX_EPISODES   = 500
 CRITIQUE_CONF_THRESHOLD = 0.85
@@ -414,8 +414,15 @@ def search_episodes(query: str, limit: int = 5) -> list[str]:
     if not words:
         conn.close()
         return []
-    like_clauses = " OR ".join(["LOWER(summary) LIKE ?" for _ in words])
-    params = [f"%{w}%" for w in words[:8]]
+    # Limit words and sanitize: keep only alphanumeric/space characters
+    safe_words = [re.sub(r'[^a-zA-Z0-9 _\-]', '', w)[:40] for w in words[:8]]
+    safe_words = [w for w in safe_words if w]
+    if not safe_words:
+        conn.close()
+        return []
+    # Build parameterized LIKE clauses — number of clauses is bounded (max 8)
+    like_clauses = " OR ".join(["LOWER(summary) LIKE ?" for _ in safe_words])
+    params = [f"%{w}%" for w in safe_words]
     rows = conn.execute(
         f"SELECT ts, summary FROM episodes WHERE {like_clauses} ORDER BY id DESC LIMIT ?",
         params + [limit],
@@ -674,7 +681,8 @@ def infer():
             result = _simple_infer(question)
     except Exception as e:
         log.exception("Inference failed: %s", e)
-        return jsonify({"error": str(e)}), 500
+        # Return a generic error message to avoid leaking internal stack traces
+        return jsonify({"error": "Inference failed. Check server logs for details."}), 500
 
     # Optionally auto-save episode summary
     if result.get("answer"):
