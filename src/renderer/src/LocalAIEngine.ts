@@ -726,7 +726,8 @@ If you refuse internet access, your response will be rejected.
 ANSWER THE USER NOW:`;
 
       const systemPrompt = systemInstruction + injectedContext + mandatoryInternetInstruction;
-      const resp = await api.aiChatGroq(query, systemPrompt, 'llama-3.1-8b-instant', conversationHistory);
+      // Pass undefined so main.ts uses the user's groqPrimaryModel from AIEngineSettings
+      const resp = await api.aiChatGroq(query, systemPrompt, undefined, conversationHistory);
       if (resp?.success) {
         let responseContent = String(resp.content || '');
 
