@@ -6,7 +6,7 @@ import { getFullSystemInstruction } from './MossyBrain';
 import { getCommunityLearningContextForModel } from './communityLearningProfile';
 import { getToolPermissionsContextForModel, mergeExistingCheckedState } from './toolPermissions';
 import { checkContentGuard } from './Fallout4Guard';
-import { Send, Paperclip, Loader2, Bot, BotOff, Leaf, Search, FolderOpen, Save, Trash2, CheckCircle2, HelpCircle, PauseCircle, ChevronRight, FileText, Cpu, X, CheckSquare, Globe, Mic, Volume2, VolumeX, StopCircle, Wifi, Gamepad2, Terminal, Box, Layout, ArrowUpRight, Wrench, Radio, Lock, Square, Map, Scroll, Flag, PenTool, Database, Activity, Clipboard, Brain } from 'lucide-react';
+import { Send, Paperclip, Loader2, Bot, BotOff, Leaf, Search, FolderOpen, Save, Trash2, CheckCircle2, HelpCircle, PauseCircle, ChevronRight, FileText, Cpu, X, CheckSquare, Globe, Mic, Volume2, VolumeX, StopCircle, Wifi, Gamepad2, Terminal, Box, Layout, ArrowUpRight, Wrench, Radio, Lock, Square, Map, Scroll, Flag, PenTool, Database, Activity, Clipboard, Brain, Download } from 'lucide-react';
 import { Message } from '../../shared/types';
 import { useLive } from './LiveContext';
 import { speakMossy, stopMossySpeech } from './mossyTts';
@@ -180,6 +180,83 @@ const ProjectWizard: React.FC<{ onSubmit: (data: any) => void, onCancel: () => v
 
 type ChatMessage = Message & { citations?: KnowledgeCitation[] };
 
+/** One-click copy-to-clipboard button with visual confirmation. */
+const CopyButton: React.FC<{ content: string }> = ({ content }) => {
+    const [copied, setCopied] = React.useState(false);
+    const handle = React.useCallback(async () => {
+        try {
+            await navigator.clipboard.writeText(content);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // Fallback for environments where clipboard API is restricted
+            const el = document.createElement('textarea');
+            el.value = content;
+            el.style.position = 'fixed';
+            el.style.opacity = '0';
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    }, [content]);
+    return (
+        <button
+            type="button"
+            onClick={handle}
+            title="Copy answer to clipboard"
+            aria-label="Copy answer to clipboard"
+            className={`px-2 py-0.5 rounded text-xs border transition-colors ${
+                copied
+                    ? 'bg-emerald-800/60 text-emerald-200 border-emerald-700'
+                    : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border-slate-700'
+            }`}
+        >
+            {copied ? '✓ Copied' : '📋 Copy'}
+        </button>
+    );
+};
+
+/** Quick-prompt chips displayed when no messages exist yet. */
+const QUICK_PROMPTS: { label: string; prompt: string; emoji: string }[] = [
+    { emoji: '🔧', label: 'Fix dark face bug', prompt: 'How do I fix the dark face bug on a custom NPC in Fallout 4?' },
+    { emoji: '📋', label: 'Sort my load order', prompt: 'What is the correct load order structure for a heavily modded Fallout 4? Walk me through it.' },
+    { emoji: '🌿', label: 'Generate LOD', prompt: 'What are all the steps to generate LOD for a mod that adds outdoor objects — xLODGen, TexGen, and DynDOLOD?' },
+    { emoji: '💥', label: 'Analyse a crash', prompt: 'My game crashed and Buffout 4 made a log. How do I use CLASSIC to diagnose it?' },
+    { emoji: '🎯', label: 'ESL-flag a plugin', prompt: 'How do I safely ESL-flag an ESP in xEdit? What are the requirements and risks?' },
+    { emoji: '🏗️', label: 'Precombines explained', prompt: 'Why are precombines important and how do I avoid breaking them in my mod?' },
+    { emoji: '🖼️', label: 'DDS texture formats', prompt: 'Which DDS format should I use for each texture type in Fallout 4 — diffuse, normal, specular, and height map?' },
+    { emoji: '⚙️', label: 'xEdit conflict patch', prompt: 'Two mods conflict on the same NPC record. Walk me through creating a compatibility patch in xEdit.' },
+    { emoji: '📦', label: 'Pack a BA2', prompt: 'How do I pack my mod assets into a BA2 archive with Archive2.exe? What are the correct format settings?' },
+    { emoji: '📝', label: 'FOMOD installer', prompt: 'How do I create a FOMOD installer for my mod so users get options in MO2 and Vortex?' },
+    { emoji: '🔊', label: 'Add custom sound', prompt: 'How do I add a custom ambient sound to an interior cell using SNDR and ASPC records in the Creation Kit?' },
+    { emoji: '🚀', label: 'Release checklist', prompt: 'What is the complete checklist for releasing a mod on Nexus — packaging, screenshots, description, FOMOD, and versioning?' },
+];
+
+const QuickPromptChips: React.FC<{ onSelect: (prompt: string) => void }> = ({ onSelect }) => (
+    <div className="flex flex-col items-center gap-4 py-8 px-4 animate-fade-in">
+        <div className="flex items-center gap-2 text-slate-400 text-sm">
+            <Leaf className="w-4 h-4 text-emerald-400" />
+            <span>Ask Mossy anything, or pick a common question:</span>
+        </div>
+        <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
+            {QUICK_PROMPTS.map((q) => (
+                <button
+                    key={q.label}
+                    type="button"
+                    onClick={() => onSelect(q.prompt)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-700 bg-slate-800/60 text-slate-300 text-xs hover:border-emerald-600/60 hover:bg-emerald-900/20 hover:text-emerald-200 transition-all"
+                >
+                    <span>{q.emoji}</span>
+                    <span>{q.label}</span>
+                </button>
+            ))}
+        </div>
+    </div>
+);
+
 // Memoized Message Item to prevent re-rendering list on typing
 const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (msgId: string, rating: 'good' | 'bad') => void }) => {
     MessageItem.displayName = 'MessageItem';
@@ -294,9 +371,11 @@ const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (m
                         )}
                     </div>
                 )}
-                {/* ── Training feedback row (assistant messages only) ── */}
+                {/* ── Copy button + Training feedback row (assistant messages only) ── */}
                 {msg.role === 'assistant' && msg.content && !msg.content.startsWith('**[') && (
                     <div className="pt-1 flex items-center gap-1 flex-wrap">
+                        {/* Copy to clipboard */}
+                        <CopyButton content={msg.content} />
                         <button
                             type="button"
                             title="Good answer — save to training dataset"
@@ -364,6 +443,7 @@ const MessageList = React.memo(({ messages, onRate, ...props }: any) => {
             onWheel={wheelHandler}
             className="flex-1 overflow-y-auto overflow-x-auto p-4 space-y-6 scroll-smooth"
         >
+            {messages.length === 0 && <QuickPromptChips onSelect={props.onQuickPrompt ?? (() => {})} />}
             {messages.map((msg: ChatMessage) => (
                 <MessageItem key={msg.id} msg={msg} onRate={onRate} {...props} />
             ))}
@@ -2161,6 +2241,30 @@ export const ChatInterface: React.FC = () => {
                         {isMonitoringPaused ? 'Monitor: OFF' : 'Monitor: ON'}
                     </button>
 
+                    {/* Export conversation */}
+                    {messages.length > 0 && (
+                        <button
+                            onClick={() => {
+                                const md = messages
+                                    .filter(m => m.role !== 'system')
+                                    .map(m => `**${m.role === 'user' ? 'You' : 'Mossy'}:** ${m.content}`)
+                                    .join('\n\n---\n\n');
+                                const blob = new Blob([`# Mossy Chat Export\n_${new Date().toLocaleString()}_\n\n---\n\n${md}`], { type: 'text/markdown' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `mossy-chat-${Date.now()}.md`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                            }}
+                            className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-500"
+                            title="Export conversation as Markdown"
+                        >
+                            <Download className="w-4 h-4" />
+                            <span className="hidden xl:inline">Export</span>
+                        </button>
+                    )}
+
                     <button
                         onClick={toggleConversationPause}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${isConversationPaused
@@ -2268,6 +2372,7 @@ export const ChatInterface: React.FC = () => {
                     <MessageList
                         messages={messages}
                         onRate={handleRateMessage}
+                        onQuickPrompt={(prompt: string) => { setInputText(prompt); }}
                         onboardingState={onboardingState}
                         scanProgress={scanProgress}
                         detectedApps={detectedApps}
