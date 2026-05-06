@@ -590,6 +590,12 @@ class MeshHelpers:
         collision_obj["fo4_collision"] = True
         collision_obj.fo4_collision_type = collision_type
 
+        # Stamp game target for PyNifly V25.14+.  PyNifly reads PYN_GAME to
+        # select the output format; without it it defaults to SKYRIM, which
+        # produces invalid NIF data for Fallout 4.
+        collision_obj["PYN_GAME"] = "FO4"
+        source_obj["PYN_GAME"] = "FO4"
+
         # copy sound / weight presets
         if sound is not None:
             collision_obj["fo4_collision_sound"] = sound

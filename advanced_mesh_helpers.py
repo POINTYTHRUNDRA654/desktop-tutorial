@@ -408,6 +408,9 @@ class AdvancedMeshHelpers:
             obj.fo4_mesh_type = 'LOD'
         except Exception:
             pass
+        # Also stamp PYN_GAME so PyNifly V25.14+ always exports in FO4 format
+        # when the user exports this object directly via PyNifly's own operator.
+        obj["PYN_GAME"] = "FO4"
 
         if lod_levels is None:
             lod_levels = [0.75, 0.5, 0.25, 0.1]
@@ -433,6 +436,13 @@ class AdvancedMeshHelpers:
                 lod_obj.fo4_mesh_type = 'LOD'
             except Exception:
                 pass
+
+            # ── PyNifly V25.14 game stamp ──────────────────────────────────────
+            # PyNifly reads the PYN_GAME custom property to determine which game
+            # format to use.  Without it, PyNifly defaults to SKYRIM, producing
+            # NIF data that is incompatible with Fallout 4's Creation Kit.
+            # Stamp it explicitly so a direct PyNifly export always uses FO4.
+            lod_obj["PYN_GAME"] = "FO4"
 
             # ── Apply transforms ───────────────────────────────────────────────
             # Unapplied scale/rotation causes geometry to arrive at the wrong

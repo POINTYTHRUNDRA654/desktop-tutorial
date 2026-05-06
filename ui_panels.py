@@ -967,6 +967,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             sub.scale_y = 0.75
             sub.label(text="FO4 uses LOD0 (close) → LOD4 (far) as separate NIFs", icon='INFO')
             sub.label(text="Source object = LOD0 · Generates LOD1–LOD4 copies", icon='INFO')
+            sub.label(text="Tip: 'Collision from Lowest LOD' uses LOD4 as collision base", icon='INFO')
             box.separator()
             row = box.row()
             row.enabled = has_mesh
@@ -975,6 +976,9 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             row = box.row()
             row.enabled = has_mesh
             row.operator("fo4.generate_lod_and_collision", text="Generate LOD + Collision", icon='SHADERFX')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.collision_from_lowest_lod", text="Collision from Lowest LOD", icon='MESH_ICOSPHERE')
             row = box.row()
             row.enabled = has_mesh
             row.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
@@ -1153,6 +1157,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             sub.scale_y = 0.75
             sub.label(text="FO4: LOD0 (close) → LOD4 (far), each a separate NIF", icon='INFO')
             sub.label(text="Source object = LOD0. LOD1–LOD4 copies are created.", icon='INFO')
+            sub.label(text="Tip: 'Collision from Lowest LOD' uses LOD4 as collision base", icon='INFO')
             lod_box.separator()
             row = lod_box.row()
             row.enabled = has_mesh
@@ -1161,6 +1166,9 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             row = lod_box.row()
             row.enabled = has_mesh
             row.operator("fo4.generate_lod_and_collision", text="Generate LOD + Collision", icon='SHADERFX')
+            row = lod_box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.collision_from_lowest_lod", text="Collision from Lowest LOD", icon='MESH_ICOSPHERE')
             row = lod_box.row()
             row.enabled = has_mesh
             row.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
@@ -2652,11 +2660,12 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         info_col.label(text="Scale correction: 1.0  (1 Blender unit = 1 NIF unit)", icon='INFO')
         if pynifly_ok:
             info_col.separator(factor=0.5)
-            info_col.label(text="PyNifly parameters used on export:", icon='SETTINGS')
+            info_col.label(text="PyNifly V25.14 parameters used on export:", icon='SETTINGS')
             info_col.label(text="  target_game=FO4  |  export_modifiers=True", icon='DOT')
-            info_col.label(text="  export_collision=True  |  export_colors=True", icon='DOT')
-            info_col.label(text="  blender_xf=False  |  rename_bones=True", icon='DOT')
-            info_col.label(text="Collision, animations, and bone renaming: auto-handled", icon='CHECKMARK')
+            info_col.label(text="  export_colors=True  |  export_animations=False", icon='DOT')
+            info_col.label(text="  write_bodytri=False  |  blender_xf=False", icon='DOT')
+            info_col.label(text="  rename_bones=True  |  use_selection=True", icon='DOT')
+            info_col.label(text="Collision: auto-detected from UCX_ rigid-body objects", icon='CHECKMARK')
 
         # Mesh optimisation toggles (affect the pre-export prep pass)
         opt_box = nif_box.box()

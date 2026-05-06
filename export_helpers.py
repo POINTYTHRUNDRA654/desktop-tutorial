@@ -241,13 +241,21 @@ class ExportHelpers:
     def _build_pynifly_export_kwargs(filepath):
         """Assemble kwargs for PyNifly (by BadDog) for Fallout 4 NIF export.
 
-        Based on the official PyNifly IMPORT_EXPORT_OPTIONS.md:
-          - ``target_game = "FO4"``    → Fallout 4 BSTriShape / BSSubIndexTriShape format
-          - ``export_modifiers``       → apply modifiers (renamed from apply_modifiers)
-          - ``export_collision``       → include collision meshes
-          - ``export_colors``          → write vertex colours (default True, explicit for CK)
-          - ``blender_xf = False``     → use NIF coordinates directly (correct for FO4)
-          - ``rename_bones = True``    → convert Blender .L/.R names back to NIF names
+        Verified against PyNifly V25.14 (latest as of 2026-04-10):
+          - ``target_game = "FO4"``       → Fallout 4 BSTriShape/BSSubIndexTriShape format
+          - ``export_modifiers = True``   → apply modifiers before export
+          - ``export_colors = True``      → write vertex colours (LOD & alpha blending in CK)
+          - ``blender_xf = False``        → use NIF-native coordinates (correct for FO4)
+          - ``rename_bones = True``       → convert Blender .L/.R names back to NIF names
+          - ``export_animations = False`` → skip animation data for static/LOD props
+                                            (V25.14 defaults to True; wrong for static meshes)
+          - ``write_bodytri = False``     → no BODYTRI extra data for non-character meshes
+                                            (V25.14 defaults to True; wrong for static meshes)
+
+        NOTE: ``export_collision`` does NOT exist in PyNifly V25.14.  Collision
+        is exported automatically when UCX_-named objects with a PASSIVE rigid body
+        are included in the selection passed to the operator.  Our caller handles
+        this by adding the UCX_ child to the selection before invoking.
 
         We introspect the operator's RNA properties at runtime so the code
         remains resilient to API differences across PyNifly releases.
@@ -270,7 +278,7 @@ class ExportHelpers:
                 kwargs["use_selection"] = True
 
             # ── Target game ──────────────────────────────────────────────────
-            # "target_game" is the current property name; older builds used "game".
+            # "target_game" is the V25.14 name; older builds used "game".
             # "FO4" selects Fallout 4 BSTriShape / BSSubIndexTriShape format.
             for game_key in ("target_game", "game"):
                 if game_key in prop_keys:
@@ -283,20 +291,14 @@ class ExportHelpers:
                     break
 
             # ── Apply modifiers ───────────────────────────────────────────────
-            # "export_modifiers" is the current name; older builds used "apply_modifiers".
+            # "export_modifiers" is the V25.14 name; older builds used "apply_modifiers".
             for mod_key in ("export_modifiers", "apply_modifiers"):
                 if mod_key in prop_keys:
                     kwargs[mod_key] = True
                     break
 
-            # ── Collision export ──────────────────────────────────────────────
-            # export_collision tells PyNifly to include bhkCollisionObject
-            # blocks, which are required for physics-enabled FO4 objects in CK.
-            if "export_collision" in prop_keys:
-                kwargs["export_collision"] = True
-
             # ── Vertex colours ────────────────────────────────────────────────
-            # export_colors is True by default, but be explicit so CK
+            # export_colors is True by default in V25.14 but be explicit so CK
             # gets the vertex-colour data it needs for LOD and alpha blending.
             if "export_colors" in prop_keys:
                 kwargs["export_colors"] = True
@@ -312,6 +314,20 @@ class ExportHelpers:
             # Must match the setting used during import.
             if "rename_bones" in prop_keys:
                 kwargs["rename_bones"] = True
+
+            # ── Animations ───────────────────────────────────────────────────
+            # V25.14 defaults export_animations to True, which is wrong for
+            # static props and LOD meshes.  Explicitly disable it so we do not
+            # embed empty animation data in the NIF.
+            if "export_animations" in prop_keys:
+                kwargs["export_animations"] = False
+
+            # ── BODYTRI extra data ────────────────────────────────────────────
+            # V25.14 defaults write_bodytri to True, which is only correct for
+            # character/body meshes that have BodySlide morphs.  Disable for all
+            # static prop / LOD exports so no stray BODYTRI node is written.
+            if "write_bodytri" in prop_keys:
+                kwargs["write_bodytri"] = False
 
             # ── Scale (legacy property, dropped in later builds) ──────────────
             # Set only if the property still exists for backwards compatibility.
