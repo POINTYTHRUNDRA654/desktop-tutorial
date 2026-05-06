@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw, Settings as SettingsIcon, Wifi, Wrench, Check } from 'lucide-react';
+import { ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw, Settings as SettingsIcon, Wifi, Wrench, Check, Brain } from 'lucide-react';
 import type { ElectronAPI } from '../../electron/types';
 import PrivacySettings from './PrivacySettings';
 import LanguageSettings from './LanguageSettings';
 import ExternalToolsSettings from './ExternalToolsSettings';
+import AIEngineSettings from './AIEngineSettings';
 import { SettingsImportExport } from './SettingsImportExport';
 import TutorialResetSettings from './TutorialResetSettings';
 import VersionInfo from './VersionInfo';
@@ -390,29 +391,36 @@ const SettingsHub: React.FC = () => {
       content: <LanguageSettings embedded />,
     },
     {
+      id: 'ai-engine',
+      title: 'Step 3: AI Engine',
+      description: 'Choose the Groq model, response length, and self-critique mode.',
+      icon: Brain,
+      content: <AIEngineSettings embedded />,
+    },
+    {
       id: 'external-tools',
-      title: 'Step 3: External Tools',
+      title: 'Step 4: External Tools',
       description: 'Point Mossy at your modding toolchain and verify paths.',
       icon: Wrench,
       content: <ExternalToolsSettings embedded />,
     },
     {
       id: 'import-export',
-      title: 'Step 4: Backup & Restore',
+      title: 'Step 5: Backup & Restore',
       description: 'Export or import settings snapshots for quick recovery.',
       icon: ArrowDownToLine,
       content: <SettingsImportExport embedded />,
     },
     {
       id: 'tutorial-reset',
-      title: 'Step 5: Tutorial & Onboarding',
+      title: 'Step 6: Tutorial & Onboarding',
       description: 'Replay the installation tutorial and onboarding experience.',
       icon: RotateCcw,
       content: <TutorialResetSettings embedded />,
     },
     {
       id: 'internet-test',
-      title: 'Step 6: Internet Access Test',
+      title: 'Step 7: Internet Access Test',
       description: 'Check that Mossy can reach search providers and go online.',
       icon: Wifi,
       content: <InternetTestPanel />,
@@ -445,6 +453,7 @@ const SettingsHub: React.FC = () => {
           <ol className="list-decimal list-inside mt-2 space-y-1 text-slate-300">
             <li>Lock down privacy and security basics</li>
             <li>Choose your preferred UI language</li>
+            <li>Configure the AI engine (model, response length, self-critique)</li>
             <li>Verify external tool paths and launches</li>
             <li>Export a clean backup snapshot</li>
             <li>Replay the installation tutorial if needed</li>
