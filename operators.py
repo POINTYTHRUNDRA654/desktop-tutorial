@@ -2892,10 +2892,12 @@ class FO4_OT_GenerateLODAndCollision(Operator):
     """Generate both a LOD chain and a collision mesh in one step.
 
     Treats the active object as LOD0 (full detail), creates LOD1–LOD4
-    simplified copies, and also creates a ``UCX_`` collision mesh using
-    the same FO4-correct pipeline as *Generate Collision Mesh*.  This is
-    the recommended one-click workflow for static props and vegetation that
-    need both distance rendering and physics collision in-game.
+    simplified copies, then builds the collision mesh from the lowest LOD
+    (LOD4 / the most simplified copy) rather than re-decimating the full
+    mesh.  This produces a tighter, more accurate collision shape and avoids
+    unnecessary polygon reduction passes.  The recommended one-click workflow
+    for static props and vegetation that need both distance rendering and
+    physics collision in-game.
     """
     bl_idname = "fo4.generate_lod_and_collision"
     bl_label = "Generate LOD Chain + Collision"
@@ -2930,15 +2932,28 @@ class FO4_OT_GenerateLODAndCollision(Operator):
         else:
             results.append(f"LOD failed: {message}")
 
-        # --- Collision mesh ---
+        # --- Collision mesh from the lowest LOD ---
+        # Using the most-simplified LOD as the collision base produces a
+        # tighter shape than re-decimating the full mesh, and avoids an
+        # extra polygon-reduction pass.
         obj.fo4_collision_type = self.collision_type
         if self.collision_type not in ('NONE', 'GRASS', 'MUSHROOM'):
             try:
-                collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
-                    obj, collision_type=self.collision_type
-                )
+                # Pick the lowest LOD object that was successfully generated.
+                lowest_lod = lod_objects[-1][0] if lod_objects else None
+                if lowest_lod:
+                    collision_obj = mesh_helpers.MeshHelpers.collision_from_lod_mesh(
+                        lowest_lod, obj, collision_type=self.collision_type
+                    )
+                    collision_source = lowest_lod.name
+                else:
+                    # Fallback: generate directly from source if no LOD was produced.
+                    collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
+                        obj, collision_type=self.collision_type
+                    )
+                    collision_source = obj.name
                 if collision_obj:
-                    results.append(f"Collision: {collision_obj.name} created")
+                    results.append(f"Collision: {collision_obj.name} built from {collision_source}")
                 else:
                     results.append("Collision: skipped (type has no collision)")
             except Exception as e:
@@ -2950,6 +2965,108 @@ class FO4_OT_GenerateLODAndCollision(Operator):
         self.report({'INFO'}, summary)
         notification_system.FO4_NotificationSystem.notify(summary, 'INFO')
         return {'FINISHED'}
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if obj and obj.type == 'MESH':
+            inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+                getattr(obj, 'fo4_collision_type', inferred), inferred)
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_CollisionFromLowestLOD(Operator):
+    """Convert the lowest LOD mesh into a collision mesh for the active object.
+
+    Finds the most-simplified LOD copy (e.g. ``{name}_LOD4``) for the
+    active object and builds a convex-hull collision mesh from it.  Because
+    the LOD mesh is already heavily decimated, no further polygon reduction
+    is needed — only a convex hull is built and the rigid body is configured
+    for FO4 Havok export.
+
+    The resulting ``UCX_{name}`` collision object is:
+      - Parented to the full-detail source mesh
+      - Named ``UCX_{name}`` (FO4 / FBX collision naming convention)
+      - Configured as a PASSIVE Rigid Body (bhkConvexVerticesShape)
+      - Stamped with ``PYN_GAME = "FO4"`` for direct PyNifly export
+
+    This is the recommended workflow when a LOD chain already exists.  If no
+    LOD meshes are found, it falls back to generating collision from the full
+    source mesh.
+    """
+    bl_idname = "fo4.collision_from_lowest_lod"
+    bl_label = "Collision from Lowest LOD"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    collision_type: EnumProperty(
+        name="Collision Type",
+        description="Category of physics collision to create",
+        items=_COLLISION_TYPES,
+        default='DEFAULT'
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object is not None and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        import re
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        if self.collision_type in ('NONE', 'GRASS', 'MUSHROOM'):
+            self.report({'INFO'}, f"Collision skipped for type '{self.collision_type}'")
+            return {'FINISHED'}
+
+        # Strip any existing _LOD* suffix to get the base name.
+        base_name = re.sub(r'_LOD\d+$', '', obj.name)
+
+        # Find the lowest LOD available (prefer LOD4 → LOD3 → LOD2 → LOD1).
+        scene_objects = {o.name: o for o in context.scene.objects if o.type == 'MESH'}
+        lowest_lod = None
+        lowest_level = 0
+        found_lod_level = 0
+        for i in range(4, 0, -1):
+            candidate = scene_objects.get(f"{base_name}_LOD{i}")
+            if candidate:
+                lowest_lod = candidate
+                found_lod_level = i
+                break
+
+        try:
+            if lowest_lod:
+                collision_obj = mesh_helpers.MeshHelpers.collision_from_lod_mesh(
+                    lowest_lod, obj, collision_type=self.collision_type
+                )
+                source_label = f"{lowest_lod.name} (LOD{found_lod_level})"
+            else:
+                # No LOD chain found — fall back to decimating the full source.
+                self.report({'WARNING'},
+                    f"No LOD meshes found for '{base_name}' — building collision from full mesh")
+                collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
+                    obj, collision_type=self.collision_type
+                )
+                source_label = obj.name
+
+            if collision_obj:
+                msg = f"Collision mesh '{collision_obj.name}' created from {source_label}"
+                self.report({'INFO'}, msg)
+                notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                print(f"\n{'='*70}\nCOLLISION FROM LOD\n{'='*70}")
+                print(f"Source: {source_label}")
+                print(f"Collision: {collision_obj.name} "
+                      f"({len(collision_obj.data.vertices)} verts, "
+                      f"type={self.collision_type})")
+                print(f"{'='*70}\n")
+                return {'FINISHED'}
+            else:
+                self.report({'ERROR'}, "Failed to create collision mesh")
+                return {'CANCELLED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Collision from LOD failed: {str(e)}")
+            return {'CANCELLED'}
 
     def invoke(self, context, event):
         obj = context.active_object
@@ -9171,6 +9288,7 @@ classes = (
     FO4_OT_SplitMeshPolyLimit,
     FO4_OT_GenerateLOD,
     FO4_OT_GenerateLODAndCollision,
+    FO4_OT_CollisionFromLowestLOD,
     FO4_OT_BatchGenerateLOD,
     FO4_OT_BatchGenerateCollision,
     FO4_OT_OptimizeUVs,
