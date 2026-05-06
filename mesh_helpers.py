@@ -514,6 +514,180 @@ class MeshHelpers:
         return collision_obj
 
     @staticmethod
+    def collision_from_lod_mesh(lod_obj, source_obj, collision_type: str = 'DEFAULT'):
+        """Convert an already-simplified LOD mesh into a Fallout 4 collision mesh.
+
+        This is the preferred way to create a collision mesh when a LOD chain
+        already exists.  Because the lowest LOD is already decimated to ~10 %
+        of the original polygon count, no further reduction is needed – only a
+        convex hull is built from the LOD geometry.  This produces a tighter,
+        more accurate collision shape than re-decimating the full-detail mesh.
+
+        The resulting collision object is:
+        - Named ``UCX_{source_obj.name}`` (FO4 / FBX collision naming convention)
+        - A convex hull built from *lod_obj*'s evaluated geometry
+        - Parented to *source_obj* so they travel together on export
+        - Stripped of materials and vertex groups (collision must be invisible)
+        - Configured as a static PASSIVE Rigid Body for Havok/NIF export
+        - Capped at 256 vertices (FO4 bhkConvexVerticesShape engine limit)
+
+        Parameters
+        ----------
+        lod_obj : bpy.types.Object
+            The lowest LOD mesh object to use as the collision source geometry.
+        source_obj : bpy.types.Object
+            The full-detail (LOD0) mesh that the collision will be paired with.
+        collision_type : str
+            Collision category from ``MeshHelpers.COLLISION_TYPES`` (default 'DEFAULT').
+
+        Returns
+        -------
+        bpy.types.Object or None
+            The new collision object, or ``None`` on failure.
+        """
+        if lod_obj is None or lod_obj.type != 'MESH':
+            return None
+        if source_obj is None or source_obj.type != 'MESH':
+            return None
+
+        # record presets on source object
+        source_obj.fo4_collision_type = collision_type
+        sound = MeshHelpers._SOUND_PRESETS.get(collision_type)
+        weight = MeshHelpers._WEIGHT_PRESETS.get(collision_type)
+        if sound is not None:
+            source_obj["fo4_collision_sound"] = sound
+        if weight is not None:
+            source_obj["fo4_collision_weight"] = weight
+
+        # skip types that shouldn't have collision
+        if collision_type in ('NONE', 'GRASS', 'MUSHROOM'):
+            return None
+
+        ucx_name = f"UCX_{source_obj.name}"
+        legacy_name = f"{source_obj.name}_COLLISION"
+
+        # remove any previously generated collision mesh for this object
+        for o in list(source_obj.children):
+            if o.get("fo4_collision") or o.name in (ucx_name, legacy_name):
+                bpy.data.objects.remove(o, do_unlink=True)
+        for scene in getattr(source_obj, 'users_scene', []):
+            for o in list(scene.objects):
+                if o is source_obj:
+                    continue
+                if o.name in (ucx_name, legacy_name):
+                    bpy.data.objects.remove(o, do_unlink=True)
+
+        # Duplicate the LOD mesh so we leave the original untouched.
+        bpy.ops.object.select_all(action='DESELECT')
+        lod_obj.select_set(True)
+        bpy.context.view_layer.objects.active = lod_obj
+        bpy.ops.object.duplicate()
+
+        collision_obj = bpy.context.active_object
+        collision_obj.name = ucx_name
+
+        # Mark so exporters can identify it as a collision/physics mesh.
+        collision_obj["fo4_collision"] = True
+        collision_obj.fo4_collision_type = collision_type
+
+        # copy sound / weight presets
+        if sound is not None:
+            collision_obj["fo4_collision_sound"] = sound
+        if weight is not None:
+            collision_obj["fo4_collision_weight"] = weight
+
+        # Strip materials and vertex groups – collision must be invisible.
+        collision_obj.data.materials.clear()
+        collision_obj.vertex_groups.clear()
+
+        # Apply scale and rotation so the convex hull reflects true world-space shape.
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+
+        # Build a clean convex hull with bmesh.  The LOD geometry is already
+        # low-poly so no pre-decimation is required; just build the hull directly.
+        bm = bmesh.new()
+        bm.from_mesh(collision_obj.data)
+
+        # Merge nearly-coincident vertices to heal seams.
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.001)
+        bm.verts.ensure_lookup_table()
+
+        # Build convex hull – always produces a closed, manifold surface.
+        result = bmesh.ops.convex_hull(bm, input=bm.verts)
+        geom_to_delete = result.get('geom_interior', []) + result.get('geom_unused', [])
+        verts_to_del = [g for g in geom_to_delete if isinstance(g, bmesh.types.BMVert)]
+        if verts_to_del:
+            bmesh.ops.delete(bm, geom=verts_to_del, context='VERTS')
+
+        # Triangulate – FO4 BSTriShape / NIF geometry requires triangles only.
+        bmesh.ops.triangulate(bm, faces=bm.faces[:])
+
+        # Recalculate face normals consistently outward.
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+        bm.normal_update()
+
+        bm.to_mesh(collision_obj.data)
+        bm.free()
+        collision_obj.data.update()
+
+        # Cap at 256 vertices (FO4 bhkConvexVerticesShape engine limit).
+        _FO4_CONVEX_VERT_LIMIT = 256
+        if len(collision_obj.data.vertices) > _FO4_CONVEX_VERT_LIMIT:
+            ratio = max(0.01, min(0.99, _FO4_CONVEX_VERT_LIMIT / len(collision_obj.data.vertices)))
+            trim_mod = collision_obj.modifiers.new(name="Decimate_Limit", type='DECIMATE')
+            trim_mod.ratio = ratio
+            bpy.ops.object.select_all(action='DESELECT')
+            collision_obj.select_set(True)
+            bpy.context.view_layer.objects.active = collision_obj
+            bpy.ops.object.modifier_apply(modifier="Decimate_Limit")
+            # Rebuild convex hull after decimation to restore a manifold surface.
+            bm2 = bmesh.new()
+            bm2.from_mesh(collision_obj.data)
+            bmesh.ops.remove_doubles(bm2, verts=bm2.verts, dist=0.001)
+            bm2.verts.ensure_lookup_table()
+            hull2 = bmesh.ops.convex_hull(bm2, input=bm2.verts)
+            del2 = hull2.get('geom_interior', []) + hull2.get('geom_unused', [])
+            v2 = [g for g in del2 if isinstance(g, bmesh.types.BMVert)]
+            if v2:
+                bmesh.ops.delete(bm2, geom=v2, context='VERTS')
+            bmesh.ops.triangulate(bm2, faces=bm2.faces[:])
+            bmesh.ops.recalc_face_normals(bm2, faces=bm2.faces[:])
+            bm2.normal_update()
+            bm2.to_mesh(collision_obj.data)
+            bm2.free()
+            collision_obj.data.update()
+
+        # Parent to source mesh so they are exported as a unit.
+        collision_obj.parent = source_obj
+        collision_obj.matrix_parent_inverse = source_obj.matrix_world.inverted()
+
+        # Configure as a static Rigid Body for NIF export.
+        try:
+            bpy.ops.object.select_all(action='DESELECT')
+            collision_obj.select_set(True)
+            bpy.context.view_layer.objects.active = collision_obj
+            bpy.ops.rigidbody.object_add()
+            collision_obj.rigid_body.type = 'PASSIVE'
+            collision_obj.rigid_body.mesh_source = 'FINAL'
+            collision_obj.rigid_body.collision_shape = 'CONVEX_HULL'
+            phys = MeshHelpers._TYPE_PHYSICS_PRESETS.get(
+                collision_type,
+                MeshHelpers._TYPE_PHYSICS_PRESETS['DEFAULT'],
+            )
+            collision_obj.rigid_body.mass        = 0.0
+            collision_obj.rigid_body.friction    = phys['friction']
+            collision_obj.rigid_body.restitution = phys['restitution']
+        except Exception:
+            pass
+
+        # Restore original object as active/selected.
+        bpy.context.view_layer.objects.active = source_obj
+        source_obj.select_set(True)
+        collision_obj.select_set(False)
+
+        return collision_obj
+
+    @staticmethod
     def split_mesh_at_poly_limit(obj, tri_limit: int = 65535):
         """Split *obj* into sub-meshes each under *tri_limit* triangulated faces.
 

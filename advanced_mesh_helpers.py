@@ -391,39 +391,86 @@ class AdvancedMeshHelpers:
           - LOD3: 25 % – aggressive reduction for far distances
           - LOD4: 10 % – extreme reduction for the farthest draw distance
 
+        Each generated LOD object is stamped with ``fo4_mesh_type = 'LOD'``
+        so the NIF export pipeline uses the correct BSFadeNode root and
+        LOD-specific shader flags automatically.  Scale/rotation transforms
+        are applied and a UV map is ensured so the mesh is ready for
+        export straight into Creation Kit without further manual work.
+
         Returns: (bool success, str message, list lod_objects)
         """
         if obj.type != 'MESH':
             return False, "Object is not a mesh", []
-        
+
+        # Stamp the source object as the full-detail (LOD0) mesh type so its
+        # NIF also uses the BSFadeNode root node required by FO4 LOD records.
+        try:
+            obj.fo4_mesh_type = 'LOD'
+        except Exception:
+            pass
+
         if lod_levels is None:
             lod_levels = [0.75, 0.5, 0.25, 0.1]
-        
+
         lod_objects = []
         original_poly_count = len(obj.data.polygons)
-        
+
         for i, ratio in enumerate(lod_levels):
             # Duplicate object
             bpy.ops.object.select_all(action='DESELECT')
             obj.select_set(True)
             bpy.context.view_layer.objects.active = obj
             bpy.ops.object.duplicate()
-            
+
             lod_obj = bpy.context.active_object
             # LOD levels are numbered starting at 1; the source object is LOD0.
             lod_obj.name = f"{obj.name}_LOD{i + 1}"
-            
-            # Apply decimation
+
+            # ── FO4 LOD mesh type ──────────────────────────────────────────────
+            # Tag the object so the NIF export pipeline selects the LOD root
+            # node (BSFadeNode) and the correct shader/BSX flags for this level.
+            try:
+                lod_obj.fo4_mesh_type = 'LOD'
+            except Exception:
+                pass
+
+            # ── Apply transforms ───────────────────────────────────────────────
+            # Unapplied scale/rotation causes geometry to arrive at the wrong
+            # size and orientation in FO4.  Apply before decimation so the
+            # modifier operates on world-space geometry.
+            try:
+                bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+            except Exception:
+                pass
+
+            # ── Ensure a UV map exists ─────────────────────────────────────────
+            # PyNifly and Niftools both require at least one UV layer on every
+            # exported mesh.  Smart UV Project is fast and produces a usable
+            # layout without manual seam placement.
+            if not lod_obj.data.uv_layers:
+                try:
+                    bpy.ops.object.mode_set(mode='EDIT')
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=0.02)
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                except Exception:
+                    try:
+                        bpy.ops.object.mode_set(mode='OBJECT')
+                    except Exception:
+                        pass
+                    lod_obj.data.uv_layers.new(name="UVMap")
+
+            # ── Apply decimation ───────────────────────────────────────────────
             success, msg, stats = AdvancedMeshHelpers.smart_decimate(lod_obj, ratio=ratio)
-            
+
             lod_objects.append((lod_obj, stats['new_poly_count']))
-        
+
         message = (
             f"Generated {len(lod_objects)} LOD levels from {original_poly_count:,} polygons. "
-            f"Source object = LOD0 (full detail). "
+            f"Source object = LOD0 (full detail, fo4_mesh_type=LOD). "
             f"Export each LOD as a separate NIF: {{name}}_LOD1.nif … {{name}}_LOD{len(lod_objects)}.nif"
         )
-        
+
         return True, message, lod_objects
     
     # ==================== UV Optimization ====================
