@@ -81,6 +81,56 @@ export const LocalAIEngine = {
   },
 
   /**
+   * Returns self-critique preference from persisted settings.
+   */
+  async getSelfCritiqueEnabled(): Promise<boolean> {
+    try {
+      if (window.electronAPI?.getSettings) {
+        const s = await window.electronAPI.getSettings();
+        return s?.groqSelfCritiqueEnabled === true;
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  },
+
+  /**
+   * Returns up to `maxSessions` past session summaries from localStorage,
+   * formatted as a context block to inject into the system prompt.
+   */
+  getSessionMemoryContext(maxSessions = 5): string {
+    try {
+      const raw = localStorage.getItem('mossy_session_memories');
+      if (!raw) return '';
+      const sessions: Array<{ ts: string; summary: string }> = JSON.parse(raw);
+      if (!Array.isArray(sessions) || sessions.length === 0) return '';
+      const recent = sessions.slice(-maxSessions);
+      const lines = recent.map((s) => `[${s.ts}] ${s.summary}`).join('\n');
+      return `\n### PAST SESSION MEMORIES (most recent ${recent.length}):\n${lines}\n`;
+    } catch {
+      return '';
+    }
+  },
+
+  /**
+   * Saves a session summary to the rolling localStorage store (capped at 100 entries).
+   */
+  saveSessionSummary(summary: string): void {
+    try {
+      const raw = localStorage.getItem('mossy_session_memories');
+      const sessions: Array<{ ts: string; summary: string }> = raw ? JSON.parse(raw) : [];
+      const ts = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      sessions.push({ ts, summary });
+      // Cap at 100 entries rolling window
+      const capped = sessions.slice(-100);
+      localStorage.setItem('mossy_session_memories', JSON.stringify(capped));
+    } catch {
+      // non-critical — ignore
+    }
+  },
+
+  /**
    * Checks whether a local AI provider is available.
    * Uses the Electron main process to avoid CORS and to support configurable ports.
    */
@@ -155,6 +205,12 @@ export const LocalAIEngine = {
     const learningInsights = selfImprovementEngine.getLearningInsights();
     if (learningInsights) {
       enhancedSystemInstruction += '\n\n### SELF-IMPROVEMENT INSIGHTS:\n' + learningInsights;
+    }
+
+    // --- SESSION MEMORY: Inject past session summaries for continuity ---
+    const sessionMemoryCtx = this.getSessionMemoryContext(5);
+    if (sessionMemoryCtx) {
+      enhancedSystemInstruction += sessionMemoryCtx;
     }
 
     // --- KNOWLEDGE & PROCESS INJECTION ---
@@ -750,6 +806,57 @@ ANSWER THE USER NOW:`;
         // Final sanitisation: strip any LLM self-identification + internet-refusal
         // sentences that slipped through the guard, so users never see them.
         responseContent = sanitizeFinalResponse(responseContent);
+
+        // --- SELF-CRITIQUE LOOP ---
+        // When enabled in settings, run a second Groq pass to critique and refine
+        // the answer. Only runs for substantive answers (>200 chars) to avoid
+        // wasting tokens on trivial one-liners. Hard-capped at 6 s total budget
+        // via the existing GROQ_SDK_TIMEOUT_MS path inside callGroqWithFallback.
+        if (responseContent.length > 200) {
+          try {
+            const critiqueEnabled = await this.getSelfCritiqueEnabled();
+            if (critiqueEnabled) {
+              const critiqueApi = (window.electron?.api || window.electronAPI) as any;
+              const critiquePrompt =
+                `You are a Fallout 4 modding expert reviewing an AI answer for accuracy.\n` +
+                `Question: ${query}\n\n` +
+                `Answer to review:\n${responseContent}\n\n` +
+                `Identify specific factual errors, missing critical steps, or important omissions in 2–4 bullet points. ` +
+                `Be concise. If the answer is already complete and accurate, reply with only: LGTM`;
+              const critiqueResp = await critiqueApi.aiChatGroq(
+                critiquePrompt,
+                'You are a Fallout 4 modding expert reviewer. Be brief and technical.',
+                'llama-3.1-8b-instant',
+                []
+              );
+              const critiqueText = critiqueResp?.success ? String(critiqueResp.content || '').trim() : '';
+              // Only refine if the critique found something meaningful
+              if (critiqueText && !critiqueText.toUpperCase().startsWith('LGTM') && critiqueText.length > 20) {
+                console.log('[LocalAIEngine] 🔍 Self-critique found issues — refining answer');
+                const refinePrompt =
+                  `Original question: ${query}\n\n` +
+                  `Your draft answer:\n${responseContent}\n\n` +
+                  `A reviewer noted these issues:\n${critiqueText}\n\n` +
+                  `Please provide an improved, corrected answer that addresses all the issues above. ` +
+                  `Keep the same helpful tone and formatting.`;
+                const refineResp = await critiqueApi.aiChatGroq(
+                  refinePrompt,
+                  enhancedSystemInstruction + injectedContext,
+                  undefined, // use user's preferred model for the refined answer
+                  conversationHistory
+                );
+                if (refineResp?.success && refineResp.content && String(refineResp.content).length > 100) {
+                  responseContent = sanitizeFinalResponse(String(refineResp.content));
+                  console.log('[LocalAIEngine] ✅ Self-critique refinement applied');
+                }
+              } else {
+                console.log('[LocalAIEngine] ✅ Self-critique: answer passed review (LGTM)');
+              }
+            }
+          } catch (critiqueErr) {
+            console.warn('[LocalAIEngine] Self-critique failed (non-critical):', critiqueErr);
+          }
+        }
 
         // Record interaction for self-improvement
         selfImprovementEngine.recordInteraction(query, responseContent, [], 'success');

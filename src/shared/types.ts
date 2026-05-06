@@ -485,6 +485,11 @@ export interface Settings {
   llmApiKey?: string;
   llmModel: string;
 
+  // Groq model selection & response tuning
+  groqPrimaryModel?: string;
+  groqMaxResponseTokens?: number;
+  groqSelfCritiqueEnabled?: boolean;
+
   // Local AI (optional)
   localAiPreferredProvider?: 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'off';
   ollamaBaseUrl?: string;

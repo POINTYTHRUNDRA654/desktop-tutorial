@@ -2011,6 +2011,18 @@ export const ChatInterface: React.FC = () => {
             const { selfImprovementEngine } = await import('./SelfImprovementEngine');
             selfImprovementEngine.recordInteraction(textToSend, aiResponseText, [], 'success');
 
+            // --- SESSION MEMORY: Save a compact turn summary every 5 exchanges ---
+            try {
+                const currentMsgCount = messages.length + 2; // +user +assistant
+                if (currentMsgCount % 10 === 0) {
+                    // Every 10 messages (5 turns) save a rolling one-liner summary
+                    const summary = `Topic: "${textToSend.slice(0, 80).trim()}" → ${aiResponseText.slice(0, 120).trim().replace(/\n/g, ' ')}…`;
+                    LocalAIEngine.saveSessionSummary(summary);
+                }
+            } catch {
+                // non-critical
+            }
+
             console.log('[ChatInterface] Response received, isVoiceEnabled:', isVoiceEnabled, 'isConversationPaused:', isConversationPaused);
             if (isVoiceEnabled && aiResponseText && !isConversationPaused) {
                 console.log('[ChatInterface] Speaking response (length:', aiResponseText.length, ')');
