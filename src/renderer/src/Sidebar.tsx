@@ -69,7 +69,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     }
   }, [location]);
 
-  const navItems = [
+  const navItems: Array<{ to: string; icon: React.ComponentType<{ className?: string }>; label: string; isExternal?: boolean }> = [
     // === FOUNDATION: HOME & PROJECTS ===
     { to: '/', icon: LayoutDashboard, label: t('nav.home', 'Mossy.Space') },
     { to: '/chat', icon: MessageSquare, label: t('nav.chat', 'AI Chat') },

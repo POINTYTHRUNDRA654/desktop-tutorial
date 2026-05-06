@@ -1130,7 +1130,7 @@ Format your response clearly with headers and bullet points.`;
                     </span>
                   )}
                   <button type="button"
-                    disabled={sdCacheClearInProgress || sdStatus === 'running' || sdAutoUnblockState === 'unblocking' || sdAutoUnblockState === 'retrying'}
+                    disabled={sdCacheClearInProgress || (sdStatus as string) === 'running' || sdAutoUnblockState === 'unblocking' || sdAutoUnblockState === 'retrying'}
                     onClick={async () => {
                       const api = getApi(); if (!api?.spriggitClearCache) return;
                       setSdCacheClearInProgress(true); setSdCacheClearResult(null); setSdAutoUnblockState('idle');

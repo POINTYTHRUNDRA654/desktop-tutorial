@@ -917,6 +917,7 @@ export interface ElectronAPI {
   modPackagingIncrementVersion: (version: any, type?: any) => Promise<any>;
   exportAnalyticsReport: (payload: any) => Promise<any>;
   getAppVersion: () => Promise<{ success: boolean; version?: string; error?: string }>;
+  getMossyEdition?: () => Promise<'nvidia' | 'universal'>;
   aiGenerateScript: (payload: any) => Promise<any>;
   aiPlanWorkflow: (payload: any) => Promise<any>;
   aiDiagnoseError: (payload: any) => Promise<any>;

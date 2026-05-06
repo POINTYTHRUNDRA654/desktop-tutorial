@@ -4570,6 +4570,7 @@ export interface ElectronAPI {
   voiceCommands?: (action: string, payload?: any) => Promise<any>;
   xEditScriptExecutor?: (action: string, payload?: any) => Promise<any>;
   getAppVersion?: () => Promise<string>;
+  getMossyEdition?: () => Promise<'nvidia' | 'universal'>;
   versionControlCreateBackup?: (payload?: any) => Promise<any>;
   versionControlDeleteBackup?: (payload?: any) => Promise<any>;
 

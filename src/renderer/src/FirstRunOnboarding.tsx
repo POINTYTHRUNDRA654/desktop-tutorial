@@ -432,7 +432,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [scanTutorialRequested, setScanTutorialRequested] = useState(false);
     const [scanTutorialOpenedAt, setScanTutorialOpenedAt] = useState<string | null>(null);
     /** Timer used to auto-dismiss the .NET recheck result badge. */
-    const dotnetRecheckTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+    const dotnetRecheckTimerRef = useRef<number | null>(null);
 
     const [uiLanguage, setUiLanguage] = useState<string>('auto');
 
@@ -2845,7 +2845,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         (never unblocked) → fail → repeat. */}
                                                         <button
                                                             type="button"
-                                                            disabled={cacheClearInProgress || spriggitStatus === 'running' || autoUnblockRetryState === 'unblocking' || autoUnblockRetryState === 'retrying'}
+                                                            disabled={cacheClearInProgress || (spriggitStatus as string) === 'running' || autoUnblockRetryState === 'unblocking' || autoUnblockRetryState === 'retrying'}
                                                             className="px-3 py-1 rounded bg-amber-800/60 hover:bg-amber-700/60 disabled:opacity-50 text-amber-100 text-xs font-semibold transition-colors"
                                                             onClick={async () => {
                                                                 const api = getElectronApi();
@@ -2912,7 +2912,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                         {autoUnblockRetryState === 'retrying' && (
                                                             <span className="text-xs text-emerald-300 font-semibold">🔄 Retrying with unblocked assemblies…</span>
                                                         )}
-                                                        {cacheClearResult === 'ok' && spriggitStatus !== 'error' && spriggitStatus !== 'running' && !isMismatch && autoUnblockRetryState === 'idle' && (
+                                                        {cacheClearResult === 'ok' && spriggitStatus !== 'error' && (spriggitStatus as string) !== 'running' && !isMismatch && autoUnblockRetryState === 'idle' && (
                                                             <span className="text-xs text-emerald-300 font-semibold">✅ Cache cleared — retrying…</span>
                                                         )}
                                                         {cacheClearResult === 'ok' && isMismatch && (
