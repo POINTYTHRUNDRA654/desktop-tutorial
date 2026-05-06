@@ -52,7 +52,7 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
         groqPrimaryModel,
         groqMaxResponseTokens,
         groqSelfCritiqueEnabled,
-      } as any);
+      } as Parameters<typeof window.electronAPI.setSettings>[0]);
       toast.success('AI Engine settings saved');
     } catch (e: any) {
       toast.error(e?.message || 'Failed to save settings');
