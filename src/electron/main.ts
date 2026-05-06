@@ -7875,7 +7875,14 @@ end.
       const systemPrompt = rawSystemPrompt.length > MAX_SYSTEM_PROMPT_CHARS
         ? rawSystemPrompt.slice(0, MAX_SYSTEM_PROMPT_CHARS)
         : rawSystemPrompt;
-      const model = payload.model || GROQ_PRIMARY_MODEL;
+
+      // Use per-user model preference from settings (falls back to hardcoded primary)
+      const s = loadSettings();
+      const userPreferredModel = (s?.groqPrimaryModel || '').trim();
+      const model = payload.model || (userPreferredModel || GROQ_PRIMARY_MODEL);
+      const maxTokens = (typeof s?.groqMaxResponseTokens === 'number' && s.groqMaxResponseTokens > 0)
+        ? s.groqMaxResponseTokens
+        : 1024;
 
       // Build messages array with conversation history for multi-turn context
       const rawHistory = Array.isArray(payload.conversationHistory) ? payload.conversationHistory : [];
@@ -7908,7 +7915,7 @@ end.
               'Content-Type': 'application/json',
               ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
             },
-            body: JSON.stringify({ provider: 'groq', model, messages, maxTokens: 1024 }),
+            body: JSON.stringify({ provider: 'groq', model, messages, maxTokens }),
             signal: controller.signal,
           });
 
@@ -7927,14 +7934,13 @@ end.
 
       // Fall back to direct Groq SDK when backend is unavailable or failed
       if (!content) {
-        const s = loadSettings();
         const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
         if (!apiKey) {
           return { success: false, error: 'No Groq API key configured. Add your key in Desktop Settings.' };
         }
         const { default: Groq } = await import('groq-sdk');
         const client = new Groq({ apiKey });
-        content = await callGroqWithFallback(client, model, messages);
+        content = await callGroqWithFallback(client, model, messages, maxTokens);
       }
 
       return { success: true, content };
