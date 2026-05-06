@@ -2945,13 +2945,15 @@ class FO4_OT_GenerateLODAndCollision(Operator):
                     collision_obj = mesh_helpers.MeshHelpers.collision_from_lod_mesh(
                         lowest_lod, obj, collision_type=self.collision_type
                     )
+                    collision_source = lowest_lod.name
                 else:
                     # Fallback: generate directly from source if no LOD was produced.
                     collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
                         obj, collision_type=self.collision_type
                     )
+                    collision_source = obj.name
                 if collision_obj:
-                    results.append(f"Collision: {collision_obj.name} built from {lowest_lod.name if lowest_lod else obj.name}")
+                    results.append(f"Collision: {collision_obj.name} built from {collision_source}")
                 else:
                     results.append("Collision: skipped (type has no collision)")
             except Exception as e:
@@ -3025,11 +3027,12 @@ class FO4_OT_CollisionFromLowestLOD(Operator):
         scene_objects = {o.name: o for o in context.scene.objects if o.type == 'MESH'}
         lowest_lod = None
         lowest_level = 0
+        found_lod_level = 0
         for i in range(4, 0, -1):
             candidate = scene_objects.get(f"{base_name}_LOD{i}")
             if candidate:
                 lowest_lod = candidate
-                lowest_level = i
+                found_lod_level = i
                 break
 
         try:
@@ -3037,7 +3040,7 @@ class FO4_OT_CollisionFromLowestLOD(Operator):
                 collision_obj = mesh_helpers.MeshHelpers.collision_from_lod_mesh(
                     lowest_lod, obj, collision_type=self.collision_type
                 )
-                source_label = f"{lowest_lod.name} (LOD{lowest_level})"
+                source_label = f"{lowest_lod.name} (LOD{found_lod_level})"
             else:
                 # No LOD chain found — fall back to decimating the full source.
                 self.report({'WARNING'},
