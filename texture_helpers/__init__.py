@@ -250,12 +250,28 @@ class TextureHelpers:
                 if img.size[0] == 0 or img.size[1] == 0:
                     issues.append(f"{tex_name} texture has invalid size")
                 
-                # FO4 requires power-of-2 dimensions for DDS textures
+                # FO4 requires power-of-2 dimensions for DDS textures.
+                # 512, 1024, 2048, 4096 and 8192 are all valid for 4K / 8K assets.
                 width, height = img.size[0], img.size[1]
                 if width and not (width & (width - 1) == 0):
-                    issues.append(f"{tex_name} width ({width}) is not power of 2 (use 512, 1024, or 2048)")
+                    issues.append(
+                        f"{tex_name} width ({width}) is not power of 2 "
+                        "(use 512, 1024, 2048, 4096, or 8192)"
+                    )
                 if height and not (height & (height - 1) == 0):
-                    issues.append(f"{tex_name} height ({height}) is not power of 2 (use 512, 1024, or 2048)")
+                    issues.append(
+                        f"{tex_name} height ({height}) is not power of 2 "
+                        "(use 512, 1024, 2048, 4096, or 8192)"
+                    )
+                # Warn if the texture is larger than 4096 – FO4 streaming can
+                # struggle with 8K+ textures on lower-memory GPUs.
+                if width > 4096 or height > 4096:
+                    issues.append(
+                        f"{tex_name} texture is {width}×{height} – "
+                        "textures larger than 4096×4096 may cause streaming "
+                        "issues or increased VRAM usage on lower-end GPUs. "
+                        "Use 4096×4096 (4K) as the practical maximum."
+                    )
 
         # Check colorspace for all non-colour texture nodes that are loaded
         for node_name in non_color_nodes:

@@ -1245,6 +1245,18 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
         row = box.row()
         row.enabled = has_mesh
         row.operator("fo4.setup_textures", text="Setup FO4 Materials", icon='MATERIAL')
+        # HD variant: full PBR with glow-map flags, 4K-compatible, BC7 guidance.
+        row_hd = box.row()
+        row_hd.enabled = has_mesh
+        row_hd.operator(
+            "fo4.setup_hd_material",
+            text="Setup HD Material (4K + Glow)",
+            icon='LIGHT_SUN',
+        )
+        hd_hint = box.column(align=True)
+        hd_hint.scale_y = 0.7
+        hd_hint.label(text="4K: use BC3/BC7 diffuse, BC5 normal, BC1 specular/glow.", icon='INFO')
+        hd_hint.label(text="Glow: install _g.dds, then raise Emission Strength.", icon='DOT')
 
         install_box = box.box()
         install_box.label(text="Install Texture", icon='FILE_IMAGE')
@@ -1716,19 +1728,38 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
         row = box.row()
         row.enabled = bool(obj and obj.type == 'ARMATURE')
         row.operator("fo4.create_idle_animation", text="Create Idle Animation", icon='ACTION')
-        row = box.row()
+
+        # ── One-click wind setup ──────────────────────────────────────────────
+        wind_box = layout.box()
+        wind_box.label(text="Wind Setup (Vegetation)", icon='FORCE_WIND')
+        hint_col = wind_box.column(align=True)
+        hint_col.scale_y = 0.75
+        hint_col.label(text="Click to auto-detect profile and apply wind settings.", icon='INFO')
+        hint_col.label(text="Grass: engine-side via GRAS record (no bones).", icon='DOT')
+        hint_col.label(text="Shrub/Tree: wind-weight group + armature animation.", icon='DOT')
+        smart_row = wind_box.row()
+        smart_row.enabled = has_mesh
+        smart_row.scale_y = 1.4
+        smart_row.operator(
+            "fo4.smart_prepare_wind_mesh",
+            text="Smart Wind + FO4 Export Prep",
+            icon='FORCE_WIND',
+        )
+        wind_box.separator(factor=0.4)
+        wind_box.label(text="Manual wind controls:", icon='PREFERENCES')
+        row = wind_box.row()
         row.enabled = has_mesh
         row.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='FORCE_WIND')
-        row = box.row()
+        row = wind_box.row()
         row.enabled = has_mesh
         row.operator("fo4.apply_wind_animation", text="Apply Wind Animation", icon='ANIM')
-        box.separator()
-        box.label(text="Batch Operations", icon='SEQ_SEQUENCER')
-        row = box.row()
+        wind_box.separator()
+        wind_box.label(text="Batch Operations", icon='SEQ_SEQUENCER')
+        row = wind_box.row()
         row.operator("fo4.batch_generate_wind_weights", text="Batch Wind Weights")
         row.operator("fo4.batch_apply_wind_animation", text="Batch Wind Anim")
-        box.operator("fo4.batch_auto_weight_paint", text="Batch Auto‑Weight")
-        box.operator("fo4.toggle_wind_preview", text="Toggle Wind Preview", icon='PLAY')
+        wind_box.operator("fo4.batch_auto_weight_paint", text="Batch Auto‑Weight")
+        wind_box.operator("fo4.toggle_wind_preview", text="Toggle Wind Preview", icon='PLAY')
 
         # Motion Generation section
         layout.separator()
@@ -2733,6 +2764,19 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         # ── Export actions ───────────────────────────────────────────────────
         act_box = layout.box()
         act_box.label(text="Export", icon='EXPORT')
+
+        # One-click prep button: auto-detects wind profile, fixes diagnostics,
+        # sets vegetation flags, and confirms the mesh is CK-ready.
+        prep_row = act_box.row(align=True)
+        prep_row.enabled = has_mesh
+        prep_row.scale_y = 1.2
+        prep_row.operator(
+            "fo4.smart_prepare_wind_mesh",
+            text="Smart Wind + Export Prep",
+            icon='FORCE_WIND',
+        )
+
+        act_box.separator(factor=0.4)
 
         row = act_box.row(align=True)
         row.enabled = has_mesh

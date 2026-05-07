@@ -8122,6 +8122,217 @@ class FO4_OT_ExportDiagnosticsReport(Operator):
 
 
 # ---------------------------------------------------------------------------
+# HD Material Setup Operator (4K textures + glow maps + PBR flags)
+# ---------------------------------------------------------------------------
+
+class FO4_OT_SetupHDMaterial(Operator):
+    """Configure a full HD PBR material on the active mesh for 4K export.
+
+    Creates (or replaces) the Blender material with all five FO4 texture slots,
+    wires the glow/emissive channel correctly so the BGSM exporter writes the
+    right shader flags, and sets PBR-accurate roughness / specular defaults.
+
+    Texture slots set up
+    --------------------
+    • **Diffuse** (_d.dds)  – BC3/DXT5 with alpha, or BC1/DXT1 for opaque
+    • **Normal**  (_n.dds)  – BC5/ATI2 (two-channel tangent-space)
+    • **Specular** (_s.dds) – BC1 (RGB glossiness/specular)
+    • **Glow**    (_g.dds)  – BC1 glow/emissive mask; auto-enables BGSM emit
+    • **EnvMap**  (_e.dds)  – BC1 cube-map reflection mask (optional)
+
+    4K / HD guidance
+    ----------------
+    FO4's BSLightingShaderProperty and DDS texture streaming support up to
+    4096×4096 (4K) per slot.  Use BC7 (``HIGH_QUAL`` in the NVTT converter)
+    for the diffuse when quality matters most – it offers better fidelity at
+    the same file size as BC3.  Keep normal maps at BC5 regardless of resolution.
+
+    Glow maps
+    ---------
+    The ``_g.dds`` texture is a greyscale or RGB mask where white = maximum
+    emissive brightness and black = no glow.  After clicking this button:
+    1. Install your ``_g.dds`` via the **Install Glow Mask** button in the
+       Texture panel.
+    2. Adjust ``Emission Strength`` on the Principled BSDF (1.0–5.0 for subtle;
+       10–30 for neon/screens).
+    3. Export the BGSM – ``emit_enabled``, ``glowmap``, and SF1_EMIT_ENABLED /
+       SF2_GLOW_MAP shader flags will be written automatically.
+
+    F4SE / Papyrus note
+    -------------------
+    The Fallout 4 engine does not expose BGSM material properties to Papyrus
+    or F4SE at runtime.  To vary glow intensity dynamically, author two
+    material variants (e.g. ``mesh_off.bgsm`` / ``mesh_on.bgsm``) and swap
+    the NIF's BSLightingShaderProperty path from a Papyrus script using
+    ObjectReference::SetTextureSet or a shader-swap workaround.
+    """
+    bl_idname  = "fo4.setup_hd_material"
+    bl_label   = "Setup HD Material (4K + Glow)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    emission_strength: bpy.props.FloatProperty(
+        name="Emission Strength",
+        description=(
+            "Default Principled BSDF Emission Strength for the glow channel. "
+            "0 = no glow preview (glow still exported if _g.dds is installed). "
+            "1–5 = subtle ambient. 10–30 = neon/tech glow."
+        ),
+        default=0.0,
+        min=0.0,
+        max=100.0,
+        soft_max=30.0,
+    )
+    roughness: bpy.props.FloatProperty(
+        name="Default Roughness",
+        description=(
+            "Sets the Principled BSDF Roughness default. "
+            "0.0 = mirror-smooth (metal/glass). "
+            "0.5 = mid-range (painted surface). "
+            "1.0 = fully rough (unpolished stone/wood)."
+        ),
+        default=0.5,
+        min=0.0,
+        max=1.0,
+    )
+    use_alpha_clip: bpy.props.BoolProperty(
+        name="Alpha Clip (vegetation / foliage)",
+        description=(
+            "Enable Alpha Clip blend mode and disable backface culling. "
+            "Required for grass, leaves, and any mesh with transparency cut-out."
+        ),
+        default=False,
+    )
+    replace_existing: bpy.props.BoolProperty(
+        name="Replace Existing Material",
+        description=(
+            "If the object already has a material, replace it with a fresh "
+            "HD material.  Disable to skip objects that already have a material."
+        ),
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=380)
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column(align=True)
+        col.scale_y = 0.8
+        col.label(text="4K Texture Format Recommendations:", icon='INFO')
+        col.label(text="  Diffuse (_d): BC3/DXT5 (with alpha) or BC1/DXT1 (opaque)")
+        col.label(text="  Normal  (_n): BC5/ATI2  ← always, regardless of resolution")
+        col.label(text="  Specular(_s): BC1/DXT1")
+        col.label(text="  Glow    (_g): BC1/DXT1")
+        col.label(text="  EnvMap  (_e): BC1/DXT1")
+        col.separator(factor=0.5)
+        col.label(text="For highest quality at 4K: use BC7 for diffuse (texconv).", icon='CHECKMARK')
+        layout.separator(factor=0.5)
+        layout.prop(self, "emission_strength")
+        layout.prop(self, "roughness")
+        layout.prop(self, "use_alpha_clip")
+        layout.prop(self, "replace_existing")
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        # Skip if the object already has a material and replace_existing is off.
+        if obj.data.materials and not self.replace_existing:
+            self.report({'INFO'},
+                f"'{obj.name}' already has a material – skipped "
+                "(enable 'Replace Existing Material' to override)"
+            )
+            return {'FINISHED'}
+
+        # Build the material.
+        if texture_helpers:
+            mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+        else:
+            # Minimal fallback – create a plain Principled BSDF material.
+            mat_name = f"{obj.name}_HD_Material"
+            mat = bpy.data.materials.new(name=mat_name)
+            mat.use_nodes = True
+            if obj.data.materials:
+                obj.data.materials[0] = mat
+            else:
+                obj.data.materials.append(mat)
+
+        if mat is None:
+            self.report({'ERROR'}, "Failed to create material")
+            return {'CANCELLED'}
+
+        # ── PBR defaults ──────────────────────────────────────────────────────
+        pbsdf = None
+        for node in mat.node_tree.nodes:
+            if node.type == 'BSDF_PRINCIPLED':
+                pbsdf = node
+                break
+
+        if pbsdf:
+            rough = pbsdf.inputs.get("Roughness")
+            if rough:
+                rough.default_value = self.roughness
+
+            # Emission strength (applied to the emission channel; the actual
+            # glow is only visible after installing a _g.dds image).
+            emit_str = pbsdf.inputs.get("Emission Strength")
+            if emit_str:
+                emit_str.default_value = self.emission_strength
+
+            # Metallic set to 0 by default (non-metallic PBR baseline).
+            metallic = pbsdf.inputs.get("Metallic")
+            if metallic:
+                metallic.default_value = 0.0
+
+        # ── Alpha settings for vegetation ────────────────────────────────────
+        if self.use_alpha_clip:
+            mat.blend_method = 'CLIP'
+            mat.alpha_threshold = 0.5
+            mat.use_backface_culling = False
+        else:
+            mat.blend_method = 'OPAQUE'
+            mat.use_backface_culling = True
+
+        # ── Tag material so BGSM exporter picks up the right shader hints ──
+        # "glowmap" hint ensures SF1_EMIT_ENABLED + SF2_GLOW_MAP are written
+        # even before the _g.dds image is loaded into the Glow node.
+        try:
+            mat["fo4_shader_type"] = "glowmap" if self.emission_strength > 0.0 else "default"
+        except Exception:
+            pass
+
+        # ── User-facing summary ───────────────────────────────────────────────
+        alpha_note = " • Alpha Clip enabled (vegetation/foliage)" if self.use_alpha_clip else ""
+        glow_note  = (
+            f" • Emission Strength = {self.emission_strength:.1f}"
+            " (install _g.dds to see glow in-game)"
+            if self.emission_strength > 0.0 else
+            " • Emission = 0 (install _g.dds then raise Emission Strength)"
+        )
+        msg = (
+            f"HD material created on '{obj.name}': "
+            f"Roughness={self.roughness:.2f}."
+            f"{alpha_note}"
+            f"{glow_note}"
+            "  Next: install textures via the Texture Helpers panel, "
+            "then Export BGSM."
+        )
+        self.report({'INFO'}, msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(
+                f"HD material applied to '{obj.name}' (4K-ready)", 'INFO'
+            )
+        return {'FINISHED'}
+
+
+# ---------------------------------------------------------------------------
 # Smart Wind + FO4 Export Prep Operator
 # ---------------------------------------------------------------------------
 
@@ -9842,6 +10053,8 @@ classes = (
     FO4_OT_ExportDiagnosticsReport,
     # Smart wind + export prep (one-click vegetation pipeline)
     FO4_OT_SmartPrepareWindMesh,
+    # HD material setup (4K textures + glow maps + PBR flags)
+    FO4_OT_SetupHDMaterial,
     # Scale reference operators
     FO4_OT_AddReferenceObject,
     FO4_OT_ClearReferenceObjects,

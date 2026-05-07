@@ -843,6 +843,17 @@ def blender_mat_to_bgsm(mat) -> BGSMData:
     data.greyscale_texture = _get_image_node_path(mat, "Glow")
     data.envmap_mask_texture = _get_image_node_path(mat, "EnvMap")
 
+    # When a Glow (_g) texture is assigned, auto-enable the emission / glow-map
+    # flags so the BGSM always exports with the correct shader settings.
+    # The greyscale_texture slot holds the _g.dds path; we also populate the
+    # dedicated glow_texture override slot so both fields reference the same map.
+    if data.greyscale_texture:
+        data.glow_texture = data.greyscale_texture
+        data.glowmap = True
+        data.emit_enabled = True
+        data.shader_flags1 |= SF1_EMIT_ENABLED
+        data.shader_flags2 |= SF2_GLOW_MAP
+
     # Two-sided flag
     two_sided = not mat.use_backface_culling
     if two_sided:
