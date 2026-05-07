@@ -1423,6 +1423,10 @@ class FO4_OT_ApplyWindAnimation(Operator):
             ('GRASS', 'Grass', 'Light, fast swaying'),
             ('SHRUB', 'Shrub', 'Medium amplitude/period'),
             ('TREE', 'Tree', 'Slow, heavy movement'),
+            ('SHRUB_SOFT', 'Shrub (Calm)', 'Subtle shrub sway for calm weather'),
+            ('SHRUB_STORM', 'Shrub (Storm)', 'Aggressive shrub sway for windy weather'),
+            ('TREE_CALM', 'Tree (Calm)', 'Subtle heavy-tree sway'),
+            ('TREE_STORM', 'Tree (Storm)', 'Stronger tree sway for storm scenes'),
         ],
         default='NONE',
     )
@@ -1459,6 +1463,14 @@ class FO4_OT_ApplyWindAnimation(Operator):
             self.amplitude = 0.15; self.period = 80.0
         elif self.preset == 'TREE':
             self.amplitude = 0.3; self.period = 120.0
+        elif self.preset == 'SHRUB_SOFT':
+            self.amplitude = 0.10; self.period = 95.0
+        elif self.preset == 'SHRUB_STORM':
+            self.amplitude = 0.24; self.period = 55.0
+        elif self.preset == 'TREE_CALM':
+            self.amplitude = 0.20; self.period = 150.0
+        elif self.preset == 'TREE_STORM':
+            self.amplitude = 0.42; self.period = 85.0
 
         mesh = context.active_object
         if not mesh or mesh.type != 'MESH':
@@ -1918,6 +1930,148 @@ class FO4_OT_ExportAll(Operator):
         
         return {'FINISHED'}
     
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+class FO4_OT_ExportCKAssetBundle(Operator):
+    """Export selected meshes and linked files to CK's Data folder layout."""
+    bl_idname = "fo4.export_ck_asset_bundle"
+    bl_label = "Export CK Asset Bundle"
+    bl_options = {'REGISTER'}
+
+    directory: StringProperty(
+        name="FO4 Data Folder",
+        description="Fallout 4 Data folder root (contains Meshes/Materials/Textures)",
+        subtype='DIR_PATH',
+    )
+    mod_subpath: StringProperty(
+        name="Mod Subpath",
+        description=r"Relative folder under Meshes/Materials/Textures (e.g. MyMod/Forest)",
+        default="MyMod",
+    )
+    selected_only: BoolProperty(
+        name="Selected Meshes Only",
+        description="Export only selected mesh objects",
+        default=True,
+    )
+    export_bgsm: BoolProperty(
+        name="Export BGSM",
+        description="Export BGSM file(s) for each mesh material",
+        default=True,
+    )
+    copy_textures: BoolProperty(
+        name="Copy Linked Textures",
+        description="Copy linked Diffuse/Normal/Specular/Glow/EnvMap textures",
+        default=True,
+    )
+
+    def _iter_target_meshes(self, context):
+        if self.selected_only:
+            return [o for o in context.selected_objects if o.type == 'MESH']
+        return [o for o in context.scene.objects if o.type == 'MESH']
+
+    @staticmethod
+    def _safe_name(name: str) -> str:
+        safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in (name or "Asset"))
+        return safe.strip("._") or "Asset"
+
+    @staticmethod
+    def _collect_material_texture_paths(mat) -> list[str]:
+        if mat is None or not getattr(mat, "use_nodes", False) or not mat.node_tree:
+            return []
+        wanted = {"Diffuse", "Normal", "Specular", "Glow", "EnvMap", "Environment"}
+        paths = []
+        for node in mat.node_tree.nodes:
+            if node.type != 'TEX_IMAGE':
+                continue
+            if node.name not in wanted and node.label not in wanted:
+                continue
+            img = getattr(node, "image", None)
+            if not img:
+                continue
+            p = getattr(img, "filepath", "") or ""
+            if p:
+                paths.append(bpy.path.abspath(p))
+        return paths
+
+    def execute(self, context):
+        if not self.directory:
+            self.report({'ERROR'}, "Select a FO4 Data folder")
+            return {'CANCELLED'}
+
+        objs = self._iter_target_meshes(context)
+        if not objs:
+            self.report({'ERROR'}, "No mesh objects to export")
+            return {'CANCELLED'}
+
+        import shutil
+        data_root = bpy.path.abspath(self.directory)
+        sub = (self.mod_subpath or "MyMod").strip().strip("/\\")
+        meshes_dir = _os.path.join(data_root, "Meshes", sub)
+        mats_dir = _os.path.join(data_root, "Materials", sub)
+        tex_dir = _os.path.join(data_root, "Textures", sub)
+        for d in (meshes_dir, mats_dir, tex_dir):
+            _os.makedirs(d, exist_ok=True)
+
+        n_mesh_ok = 0
+        n_bgsm_ok = 0
+        n_tex_ok = 0
+        warns = []
+        copied_src = set()
+
+        for obj in objs:
+            safe_obj = self._safe_name(obj.name)
+            mesh_path = _os.path.join(meshes_dir, f"{safe_obj}.nif")
+            ok, msg = export_helpers.ExportHelpers.export_mesh_to_nif(obj, mesh_path)
+            if ok:
+                n_mesh_ok += 1
+            else:
+                warns.append(f"{obj.name}: NIF export failed ({msg})")
+
+            if self.export_bgsm and bgsm_helpers and obj.data.materials:
+                try:
+                    results = bgsm_helpers.export_bgsm_for_object(obj, mats_dir, all_slots=False)
+                    n_bgsm_ok += sum(1 for r_ok, _ in results if r_ok)
+                    for r_ok, r_msg in results:
+                        if not r_ok:
+                            warns.append(f"{obj.name}: BGSM warning ({r_msg})")
+                except Exception as exc:
+                    warns.append(f"{obj.name}: BGSM export error ({exc})")
+
+            if self.copy_textures and obj.data.materials:
+                for mat in obj.data.materials:
+                    for src in self._collect_material_texture_paths(mat):
+                        src_norm = _os.path.normcase(_os.path.normpath(src))
+                        if src_norm in copied_src:
+                            continue
+                        if not _os.path.isfile(src):
+                            warns.append(f"{obj.name}: texture missing ({src})")
+                            continue
+                        try:
+                            dst = _os.path.join(tex_dir, _os.path.basename(src))
+                            shutil.copy2(src, dst)
+                            copied_src.add(src_norm)
+                            n_tex_ok += 1
+                        except Exception as exc:
+                            warns.append(f"{obj.name}: texture copy failed ({src} → {exc})")
+
+        summary = (
+            f"CK bundle export: {n_mesh_ok}/{len(objs)} mesh(es), "
+            f"{n_bgsm_ok} BGSM file(s), {n_tex_ok} texture(s)"
+        )
+        self.report({'INFO' if not warns else 'WARNING'}, summary)
+        if warns:
+            for w in warns[:10]:
+                self.report({'WARNING'}, w)
+            if len(warns) > 10:
+                self.report({'WARNING'}, f"... and {len(warns) - 10} more warning(s)")
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(
+                summary, 'INFO' if not warns else 'WARNING'
+            )
+        return {'FINISHED'}
+
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
@@ -2533,6 +2687,31 @@ class FO4_OT_ShowQuickReference(Operator):
         import sys
         print("\n" + "\n".join(REF) + "\n", file=sys.stdout)
         self.report({'INFO'}, "FO4 Quick Reference printed to System Console (Window > Toggle System Console)")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowFoliageLODChecklist(Operator):
+    """Show a concise LOD/export checklist for heavy foliage sets."""
+    bl_idname = "fo4.show_foliage_lod_checklist"
+    bl_label = "Show Foliage LOD Checklist"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        lines = [
+            "FO4 Foliage LOD + Export Checklist",
+            "1) Keep hero foliage selective at 4K; use 2K/1K for background sets.",
+            "2) Build LOD chain (LOD0-LOD3) and verify silhouette retention.",
+            "3) Use Alpha Clip + Two-Sided vegetation material with DDS textures.",
+            "4) Run Smart Wind + Export Prep and confirm diagnostics are export-ready.",
+            "5) Export NIF + BGSM + textures into Data/Meshes|Materials|Textures.",
+            "6) In CK: generate LOD and previs/precombine for dense worldspaces.",
+        ]
+        block = bpy.data.texts.get("FO4_Foliage_LOD_Checklist.txt")
+        if block is None:
+            block = bpy.data.texts.new("FO4_Foliage_LOD_Checklist.txt")
+        block.clear()
+        block.write("\n".join(lines))
+        self.report({'INFO'}, "Checklist written to Text Editor: FO4_Foliage_LOD_Checklist.txt")
         return {'FINISHED'}
 
 
@@ -7919,6 +8098,103 @@ class FO4_OT_SyncPostProcessingProps(Operator):
 # Material Browser Operators
 # ---------------------------------------------------------------------------
 
+class FO4_OT_ApplyCoreMaterialProfile(Operator):
+    """Apply quick FO4 core material profiles for foliage/wet/metal/skin."""
+    bl_idname = "fo4.apply_core_material_profile"
+    bl_label = "Apply Core Material Profile"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    profile: EnumProperty(
+        name="Profile",
+        items=[
+            ('FOLIAGE', "Foliage", "Alpha-clip/two-sided foliage setup"),
+            ('WET', "Wet Surface", "Lower roughness + envmap-ready setup"),
+            ('METAL', "Metal", "FO4 metal baseline preset"),
+            ('SKIN', "Skin", "FO4 skin baseline preset"),
+        ],
+        default='FOLIAGE',
+    )
+    apply_all_selected: BoolProperty(
+        name="Apply to All Selected",
+        default=True,
+    )
+
+    def _targets(self, context):
+        if self.apply_all_selected:
+            return [o for o in context.selected_objects if o.type == 'MESH']
+        obj = context.active_object
+        return [obj] if obj and obj.type == 'MESH' else []
+
+    @staticmethod
+    def _set_bsdf_defaults(mat, roughness=None, metallic=None, emission=None):
+        if not mat or not mat.use_nodes or not mat.node_tree:
+            return
+        pbsdf = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+        if not pbsdf:
+            return
+        if roughness is not None and pbsdf.inputs.get("Roughness"):
+            pbsdf.inputs["Roughness"].default_value = roughness
+        if metallic is not None and pbsdf.inputs.get("Metallic"):
+            pbsdf.inputs["Metallic"].default_value = metallic
+        if emission is not None:
+            emit = pbsdf.inputs.get("Emission Strength")
+            if emit:
+                emit.default_value = emission
+
+    def execute(self, context):
+        targets = self._targets(context)
+        if not targets:
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        applied = 0
+        errors = []
+        for obj in targets:
+            try:
+                mat = None
+                if self.profile == 'FOLIAGE':
+                    mat = texture_helpers.TextureHelpers.setup_vegetation_material(obj) if texture_helpers else None
+                elif self.profile == 'WET':
+                    ok, _ = fo4_material_browser.MaterialBrowser.apply_preset(obj, "CLEAN_METAL")
+                    if not ok:
+                        errors.append(f"{obj.name}: failed to apply wet profile base")
+                        continue
+                    mat = obj.data.materials[0] if obj.data.materials else None
+                    self._set_bsdf_defaults(mat, roughness=0.08, metallic=0.0, emission=0.0)
+                    if mat:
+                        mat["fo4_shader_type"] = "envmap"
+                elif self.profile == 'METAL':
+                    ok, _ = fo4_material_browser.MaterialBrowser.apply_preset(obj, "RUSTY_METAL")
+                    if not ok:
+                        errors.append(f"{obj.name}: failed to apply metal profile")
+                        continue
+                    mat = obj.data.materials[0] if obj.data.materials else None
+                else:  # SKIN
+                    ok, _ = fo4_material_browser.MaterialBrowser.apply_preset(obj, "HUMAN_SKIN")
+                    if not ok:
+                        errors.append(f"{obj.name}: failed to apply skin profile")
+                        continue
+                    mat = obj.data.materials[0] if obj.data.materials else None
+
+                if mat:
+                    mat["fo4_core_profile"] = self.profile.lower()
+                applied += 1
+            except Exception as exc:
+                errors.append(f"{obj.name}: {exc}")
+
+        msg = f"Applied {self.profile.title()} profile to {applied}/{len(targets)} mesh(es)"
+        if errors:
+            self.report({'WARNING'}, msg)
+            for err in errors[:6]:
+                self.report({'WARNING'}, err)
+            if len(errors) > 6:
+                self.report({'WARNING'}, f"... and {len(errors) - 6} more")
+            return {'FINISHED'}
+
+        self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+
 class FO4_OT_ApplyMaterialPreset(Operator):
     """Apply a Fallout 4 material preset to the selected mesh object(s).
 
@@ -8478,6 +8754,19 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
         ),
         default=True,
     )
+    wind_tuning: bpy.props.EnumProperty(
+        name="Shrub/Tree Wind Tuning",
+        description=(
+            "Fine-tune shrub/tree wind strength beyond the base profile presets"
+        ),
+        items=[
+            ('AUTO', "Auto (Balanced)", "Use default balanced values"),
+            ('CALM', "Calm", "Lower amplitude, longer period"),
+            ('BALANCED', "Balanced", "Moderate amplitude and period"),
+            ('STORM', "Storm", "Higher amplitude, shorter period"),
+        ],
+        default='AUTO',
+    )
 
     def invoke(self, context, event):
         obj = context.active_object
@@ -8502,6 +8791,7 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
         layout.prop(self, "profile_override")
         layout.prop(self, "apply_wind_armature")
         layout.prop(self, "add_vertex_colors")
+        layout.prop(self, "wind_tuning")
 
     # ------------------------------------------------------------------
     # Helpers
@@ -8668,13 +8958,25 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
             # Optional wind armature + animation action
             if self.apply_wind_armature and animation_helpers:
                 preset = profile  # 'SHRUB' or 'TREE'
-                amp = 0.15 if preset == 'SHRUB' else 0.3
-                period = 80.0 if preset == 'SHRUB' else 120.0
+                if self.wind_tuning == 'CALM':
+                    amp = 0.10 if preset == 'SHRUB' else 0.20
+                    period = 95.0 if preset == 'SHRUB' else 150.0
+                    tuning_label = "calm"
+                elif self.wind_tuning == 'STORM':
+                    amp = 0.24 if preset == 'SHRUB' else 0.42
+                    period = 55.0 if preset == 'SHRUB' else 85.0
+                    tuning_label = "storm"
+                else:
+                    amp = 0.15 if preset == 'SHRUB' else 0.3
+                    period = 80.0 if preset == 'SHRUB' else 120.0
+                    tuning_label = "balanced"
                 ok, msg = animation_helpers.AnimationHelpers.apply_wind_animation(
                     obj, amplitude=amp, period=period, axis='X'
                 )
                 if ok:
-                    applied.append(f"Wind armature + animation applied ({preset} preset)")
+                    applied.append(
+                        f"Wind armature + animation applied ({preset} / {tuning_label})"
+                    )
                 else:
                     blockers.append(f"Wind animation setup failed: {msg}")
 
@@ -9919,6 +10221,7 @@ classes = (
     FO4_OT_SetCollisionType,
     FO4_OT_ExportMeshWithCollision,
     FO4_OT_ExportAll,
+    FO4_OT_ExportCKAssetBundle,
     FO4_OT_ExportSceneAsNif,
     FO4_OT_ValidateExport,
     FO4_OT_ExportAnimationHavok2FBX,
@@ -10036,6 +10339,7 @@ classes = (
     # AI upscaler one-click installer
     # One-click installers for AI tools
     FO4_OT_ShowQuickReference,
+    FO4_OT_ShowFoliageLODChecklist,
     # Mossy AI UV/texture advisor and auto-fix
     FO4_OT_AskMossyForUVAdvice,
     FO4_OT_MossyAutoFix,
@@ -10046,6 +10350,7 @@ classes = (
     FO4_OT_ExportImageSpaceData,
     FO4_OT_SyncPostProcessingProps,
     # Material browser operators
+    FO4_OT_ApplyCoreMaterialProfile,
     FO4_OT_ApplyMaterialPreset,
     # Scene diagnostics operators
     FO4_OT_RunSceneDiagnostics,

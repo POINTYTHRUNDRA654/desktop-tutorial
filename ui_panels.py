@@ -2825,6 +2825,14 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         mod_row2.scale_y = 1.3
         mod_row2.operator("fo4.export_mod_folder", text="Export Mod Folder", icon='EXPORT')
 
+        mod_row3 = mod_box.row(align=True)
+        mod_row3.scale_y = 1.2
+        mod_row3.operator(
+            "fo4.export_ck_asset_bundle",
+            text="Export CK Asset Bundle",
+            icon='PACKAGE',
+        )
+
         # ── TRI Morph Export ─────────────────────────────────────────────────
         tri_box = layout.box()
         tri_box.label(text="TRI Morph Export (Head/Face Morphs)", icon='SHAPEKEY_DATA')

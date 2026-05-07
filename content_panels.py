@@ -165,6 +165,11 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         tips_box.label(text="4. Setup vegetation material (Alpha Clip)")
         tips_box.label(text="5. Export LOD Chain as NIF → meshes/ folder")
         tips_box.label(text="6. Open in Creation Kit as Static/Grass record")
+        tips_box.operator(
+            "fo4.show_foliage_lod_checklist",
+            text="Open LOD + Export Checklist",
+            icon='TEXT',
+        )
 
 
 class FO4_PT_QuestPanel(_FO4SubPanel):
@@ -515,6 +520,23 @@ class FO4_PT_MaterialBrowserPanel(_FO4SubPanel):
         op = sel_box.operator("fo4.apply_material_preset",
                               text="Apply to Selection", icon='CHECKMARK')
         op.preset      = getattr(scene, "fo4_mat_preset", "RUSTY_METAL")
+        op.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+
+        quick_box = layout.box()
+        quick_box.label(text="Core Profiles", icon='NODE_MATERIAL')
+        row = quick_box.row(align=True)
+        op = row.operator("fo4.apply_core_material_profile", text="Foliage")
+        op.profile = 'FOLIAGE'
+        op.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+        op = row.operator("fo4.apply_core_material_profile", text="Wet")
+        op.profile = 'WET'
+        op.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+        row = quick_box.row(align=True)
+        op = row.operator("fo4.apply_core_material_profile", text="Metal")
+        op.profile = 'METAL'
+        op.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
+        op = row.operator("fo4.apply_core_material_profile", text="Skin")
+        op.profile = 'SKIN'
         op.apply_all_selected = getattr(scene, "fo4_mat_apply_all", True)
 
         # ── Quick-apply buttons by category ─────────────────────────────────
