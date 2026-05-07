@@ -2722,7 +2722,7 @@ class FO4_OT_ShowFoliageLODChecklist(Operator):
             "5) Export NIF + BGSM + textures into Data/Meshes|Materials|Textures.",
             "6) In CK: generate LOD and previs/precombine for dense worldspaces.",
         ]
-        block_name = "FO4_Foliage_LOD_Checklist"
+        block_name = "FO4_FOLIAGE_LOD_CHECKLIST"
         block = bpy.data.texts.get(block_name)
         if block is None:
             block = bpy.data.texts.new(block_name)
@@ -8881,7 +8881,7 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
     # Main execute
     # ------------------------------------------------------------------
 
-    def execute(self, context):  # noqa: C901 – intentionally long
+    def execute(self, context):  # noqa: C901 - intentionally long
         obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
