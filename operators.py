@@ -2722,12 +2722,13 @@ class FO4_OT_ShowFoliageLODChecklist(Operator):
             "5) Export NIF + BGSM + textures into Data/Meshes|Materials|Textures.",
             "6) In CK: generate LOD and previs/precombine for dense worldspaces.",
         ]
-        block = bpy.data.texts.get("FO4_Foliage_LOD_Checklist.txt")
+        block_name = "FO4_Foliage_LOD_Checklist"
+        block = bpy.data.texts.get(block_name)
         if block is None:
-            block = bpy.data.texts.new("FO4_Foliage_LOD_Checklist.txt")
+            block = bpy.data.texts.new(block_name)
         block.clear()
         block.write("\n".join(lines))
-        self.report({'INFO'}, "Checklist written to Text Editor: FO4_Foliage_LOD_Checklist.txt")
+        self.report({'INFO'}, f"Checklist written to Text Editor: {block_name}")
         return {'FINISHED'}
 
 
