@@ -78,6 +78,31 @@ _REF_ENUM_ITEMS = (
     else [('NONE', 'None', 'No reference')]
 )
 
+_WIND_ANIM_PRESETS = {
+    'GRASS': (0.10, 40.0),
+    'SHRUB': (0.15, 80.0),
+    'TREE': (0.30, 120.0),
+    'SHRUB_SOFT': (0.10, 95.0),
+    'SHRUB_STORM': (0.24, 55.0),
+    'TREE_CALM': (0.20, 150.0),
+    'TREE_STORM': (0.42, 85.0),
+}
+
+_SMART_WIND_TUNING_PRESETS = {
+    'CALM': {
+        'SHRUB': (0.10, 95.0, "calm"),
+        'TREE':  (0.20, 150.0, "calm"),
+    },
+    'BALANCED': {
+        'SHRUB': (0.15, 80.0, "balanced"),
+        'TREE':  (0.30, 120.0, "balanced"),
+    },
+    'STORM': {
+        'SHRUB': (0.24, 55.0, "storm"),
+        'TREE':  (0.42, 85.0, "storm"),
+    },
+}
+
 # Optional / extended modules – imported safely so a missing or broken module
 # does NOT prevent the core operators from being registered.
 knowledge_helpers     = _safe_import("knowledge_helpers")
@@ -1457,20 +1482,8 @@ class FO4_OT_ApplyWindAnimation(Operator):
     
     def execute(self, context):
         # apply presets if selected
-        if self.preset == 'GRASS':
-            self.amplitude = 0.1; self.period = 40.0
-        elif self.preset == 'SHRUB':
-            self.amplitude = 0.15; self.period = 80.0
-        elif self.preset == 'TREE':
-            self.amplitude = 0.3; self.period = 120.0
-        elif self.preset == 'SHRUB_SOFT':
-            self.amplitude = 0.10; self.period = 95.0
-        elif self.preset == 'SHRUB_STORM':
-            self.amplitude = 0.24; self.period = 55.0
-        elif self.preset == 'TREE_CALM':
-            self.amplitude = 0.20; self.period = 150.0
-        elif self.preset == 'TREE_STORM':
-            self.amplitude = 0.42; self.period = 85.0
+        if self.preset in _WIND_ANIM_PRESETS:
+            self.amplitude, self.period = _WIND_ANIM_PRESETS[self.preset]
 
         mesh = context.active_object
         if not mesh or mesh.type != 'MESH':
@@ -2066,6 +2079,9 @@ class FO4_OT_ExportCKAssetBundle(Operator):
                 self.report({'WARNING'}, w)
             if len(warns) > 10:
                 self.report({'WARNING'}, f"... and {len(warns) - 10} more warning(s)")
+            print("CK ASSET BUNDLE WARNINGS:")
+            for w in warns:
+                print(f"  - {w}")
         if notification_system:
             notification_system.FO4_NotificationSystem.notify(
                 summary, 'INFO' if not warns else 'WARNING'
@@ -8958,18 +8974,10 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
             # Optional wind armature + animation action
             if self.apply_wind_armature and animation_helpers:
                 preset = profile  # 'SHRUB' or 'TREE'
-                if self.wind_tuning == 'CALM':
-                    amp = 0.10 if preset == 'SHRUB' else 0.20
-                    period = 95.0 if preset == 'SHRUB' else 150.0
-                    tuning_label = "calm"
-                elif self.wind_tuning == 'STORM':
-                    amp = 0.24 if preset == 'SHRUB' else 0.42
-                    period = 55.0 if preset == 'SHRUB' else 85.0
-                    tuning_label = "storm"
-                else:
-                    amp = 0.15 if preset == 'SHRUB' else 0.3
-                    period = 80.0 if preset == 'SHRUB' else 120.0
-                    tuning_label = "balanced"
+                tuning_key = self.wind_tuning if self.wind_tuning != 'AUTO' else 'BALANCED'
+                amp, period, tuning_label = _SMART_WIND_TUNING_PRESETS.get(
+                    tuning_key, _SMART_WIND_TUNING_PRESETS['BALANCED']
+                )[preset]
                 ok, msg = animation_helpers.AnimationHelpers.apply_wind_animation(
                     obj, amplitude=amp, period=period, axis='X'
                 )
