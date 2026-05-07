@@ -179,6 +179,121 @@ def _material_prop_key(pass_key: str, name: str) -> str:
     return f"fo4_{pass_key}_{name}"
 
 
+def _triangle_areas_3d_uv(mesh: bpy.types.Mesh, uv_layer_data, loop_indices):
+    if len(loop_indices) < 3:
+        return
+    first = loop_indices[0]
+    first_loop = mesh.loops[first]
+    v0 = mesh.vertices[first_loop.vertex_index].co
+    uv0 = uv_layer_data[first].uv
+    for i in range(1, len(loop_indices) - 1):
+        l1 = loop_indices[i]
+        l2 = loop_indices[i + 1]
+        loop1 = mesh.loops[l1]
+        loop2 = mesh.loops[l2]
+        v1 = mesh.vertices[loop1.vertex_index].co
+        v2 = mesh.vertices[loop2.vertex_index].co
+        uv1 = uv_layer_data[l1].uv
+        uv2 = uv_layer_data[l2].uv
+
+        area_3d = ((v1 - v0).cross(v2 - v0)).length * 0.5
+        area_uv = abs((uv1.x - uv0.x) * (uv2.y - uv0.y) - (uv1.y - uv0.y) * (uv2.x - uv0.x)) * 0.5
+        yield area_3d, area_uv
+
+
+def _estimate_uv_stretch(mesh_obj: bpy.types.Object):
+    mesh = getattr(mesh_obj, "data", None)
+    if not mesh or not mesh.uv_layers or not mesh.uv_layers.active:
+        return None
+
+    uv_layer_data = mesh.uv_layers.active.data
+    ratios = []
+    degenerate = 0
+
+    for poly in mesh.polygons:
+        for area_3d, area_uv in _triangle_areas_3d_uv(mesh, uv_layer_data, poly.loop_indices):
+            if area_3d <= 1.0e-10:
+                continue
+            if area_uv <= 1.0e-10:
+                degenerate += 1
+                continue
+            ratios.append(area_uv / area_3d)
+
+    if not ratios and degenerate == 0:
+        return {"triangles": 0, "stretched": 0, "degenerate": 0}
+
+    ratios.sort()
+    median = ratios[len(ratios) // 2] if ratios else 0.0
+    lower = median * 0.25
+    upper = median * 4.0
+    stretched = sum(1 for r in ratios if r < lower or r > upper) if median > 0.0 else 0
+    return {"triangles": len(ratios), "stretched": stretched, "degenerate": degenerate}
+
+
+def _auto_fix_uv_stretch(mesh_obj: bpy.types.Object) -> bool:
+    mesh = getattr(mesh_obj, "data", None)
+    if not mesh:
+        return False
+
+    if not mesh.uv_layers:
+        mesh.uv_layers.new(name="UVMap")
+    uv_layer = mesh.uv_layers.active
+    if not uv_layer:
+        return False
+
+    uv_data = uv_layer.data
+    changed = False
+
+    for poly in mesh.polygons:
+        if len(poly.loop_indices) < 3:
+            continue
+
+        poly_area_uv = 0.0
+        for area_3d, area_uv in _triangle_areas_3d_uv(mesh, uv_data, poly.loop_indices):
+            if area_3d > 1.0e-10:
+                poly_area_uv += area_uv
+
+        if poly.area <= 1.0e-10 or poly_area_uv > 1.0e-10:
+            continue
+
+        normal = poly.normal
+        ax = abs(float(normal.x))
+        ay = abs(float(normal.y))
+        az = abs(float(normal.z))
+        axis = "Z" if az >= ax and az >= ay else ("Y" if ay >= ax else "X")
+
+        projected = []
+        for li in poly.loop_indices:
+            v = mesh.vertices[mesh.loops[li].vertex_index].co
+            if axis == "Z":
+                projected.append((float(v.x), float(v.y)))
+            elif axis == "Y":
+                projected.append((float(v.x), float(v.z)))
+            else:
+                projected.append((float(v.y), float(v.z)))
+
+        min_u = min(p[0] for p in projected)
+        max_u = max(p[0] for p in projected)
+        min_v = min(p[1] for p in projected)
+        max_v = max(p[1] for p in projected)
+        span_u = max(1.0e-6, max_u - min_u)
+        span_v = max(1.0e-6, max_v - min_v)
+
+        for li, (u, v) in zip(poly.loop_indices, projected):
+            uv = uv_data[li].uv
+            uv.x = (u - min_u) / span_u
+            uv.y = (v - min_v) / span_v
+        changed = True
+
+    if not changed:
+        return False
+    try:
+        mesh.update()
+    except Exception:
+        pass
+    return True
+
+
 def _ensure_material_prop(material: bpy.types.Material, pass_key: str, name: str, value) -> str:
     key = _material_prop_key(pass_key, name)
     if key not in material:
@@ -998,6 +1113,7 @@ class FO4_OT_RunRealismQAScorecard(Operator):
             "roughness": 0,
             "normal_strength": 0,
             "uv": 0,
+            "uv_stretch": 0,
             "repetition": 0,
             "emissive": 0,
         }
@@ -1010,6 +1126,22 @@ class FO4_OT_RunRealismQAScorecard(Operator):
                 issues["scale"] += 1
             if not obj.data.uv_layers:
                 issues["uv"] += 1
+                if self.auto_fix:
+                    try:
+                        obj.data.uv_layers.new(name="UVMap")
+                        fixed += 1
+                    except Exception:
+                        pass
+            else:
+                stretch = _estimate_uv_stretch(obj)
+                if stretch:
+                    tri_count = max(1, int(stretch["triangles"]))
+                    severe_outliers = int(stretch["stretched"]) >= max(8, int(tri_count * 0.35))
+                    has_degenerate = int(stretch["degenerate"]) > 0
+                    if severe_outliers or has_degenerate:
+                        issues["uv_stretch"] += 1
+                        if self.auto_fix and _auto_fix_uv_stretch(obj):
+                            fixed += 1
 
             for slot in obj.material_slots:
                 mat = slot.material
@@ -1051,7 +1183,8 @@ class FO4_OT_RunRealismQAScorecard(Operator):
 
         summary = (
             f"Score:{score} ({grade}) | Scale:{issues['scale']} | Rough:{issues['roughness']} | "
-            f"Normal:{issues['normal_strength']} | UV:{issues['uv']} | Repeat:{issues['repetition']} | "
+            f"Normal:{issues['normal_strength']} | UV:{issues['uv']} | UVStretch:{issues['uv_stretch']} | "
+            f"Repeat:{issues['repetition']} | "
             f"Emissive:{issues['emissive']} | Fixed:{fixed}"
         )
         context.scene.fo4_realism_qa_status = summary
