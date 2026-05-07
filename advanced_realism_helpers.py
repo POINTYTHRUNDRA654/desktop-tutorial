@@ -194,10 +194,12 @@ class FO4_OT_RunMaterialIntelligence(Operator):
 
                     principled = _find_principled_bsdf(mat)
                     if principled:
-                        r = float(principled.inputs["Roughness"].default_value)
-                        m = float(principled.inputs["Metallic"].default_value)
-                        principled.inputs["Roughness"].default_value = min(0.92, max(0.2, r))
-                        principled.inputs["Metallic"].default_value = min(0.9 if metal_hint else 0.2, max(0.0, m))
+                        roughness = float(principled.inputs["Roughness"].default_value)
+                        metallic = float(principled.inputs["Metallic"].default_value)
+                        principled.inputs["Roughness"].default_value = min(0.92, max(0.2, roughness))
+                        principled.inputs["Metallic"].default_value = min(
+                            0.9 if metal_hint else 0.2, max(0.0, metallic)
+                        )
                         if has_glow:
                             principled.inputs["Emission Color"].default_value = (1.0, 1.0, 1.0, 1.0)
                             principled.inputs["Emission Strength"].default_value = max(
