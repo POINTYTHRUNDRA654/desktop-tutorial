@@ -134,7 +134,7 @@ beforeEach(() => {
     value: (callback: FrameRequestCallback) => {
       const frameCount = rafCallCountByCallback.get(callback) ?? 0;
       const rafId = ++rafIdCounter;
-      if (frameCount >= 3) return rafId;
+      if (frameCount >= 3) return -1;
       rafCallCountByCallback.set(callback, frameCount + 1);
       const timeout = setTimeout(() => {
         rafTimeoutById.delete(rafId);
