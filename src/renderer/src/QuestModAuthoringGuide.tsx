@@ -247,6 +247,41 @@ export const QuestModAuthoringGuide: React.FC = () => {
       )
     },
     {
+      id: 'visual-upgrade',
+      title: 'Photoreal Visual Upgrade (2026 Workflow)',
+      icon: Lightbulb,
+      content: (
+        <div className="space-y-4">
+          <div className="bg-slate-800 border border-slate-700 rounded p-4">
+            <h4 className="font-bold text-white mb-2">🎨 High-Fidelity Asset Pipeline</h4>
+            <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
+              <li>Author textures with a PBR workflow (Substance Painter / Quixel Mixer) and export Fallout-safe DDS sets</li>
+              <li>Build custom meshes in Blender, export clean NIFs, and avoid relying only on vanilla mesh fidelity</li>
+              <li>Use BGSM setup for believable response to light (wetness/specular control, organic translucency/SSS where appropriate)</li>
+            </ul>
+          </div>
+
+          <div className="bg-blue-900/20 border border-blue-700/30 rounded p-4">
+            <h4 className="font-bold text-blue-300 mb-2">🌤️ Worldspace Lighting & Distance Quality</h4>
+            <ul className="list-disc list-inside text-blue-200 text-xs space-y-1">
+              <li>Create custom climate/weather profiles for your quest worldspace (sun, fog, volumetric color mood)</li>
+              <li>Generate LOD for your custom landscape and flora so distant views stay coherent and crisp</li>
+              <li>If you changed exterior cells, regenerate previs/precombine data to keep visuals stable and performance sane</li>
+            </ul>
+          </div>
+
+          <div className="bg-green-900/20 border border-green-700/30 rounded p-4">
+            <h4 className="font-bold text-green-300 mb-2">🧩 Engine-Extended Layer</h4>
+            <ul className="list-disc list-inside text-green-200 text-xs space-y-1">
+              <li>Use F4SE-powered logic only for features vanilla CK cannot do cleanly (dynamic weather/camera/FX triggers)</li>
+              <li>Design lighting to be ENB/ReShade-aware, but keep a good non-ENB baseline so the quest still looks intentional</li>
+              <li>Validate each layer independently: vanilla baseline → high-fidelity assets → extender effects</li>
+            </ul>
+          </div>
+        </div>
+      )
+    },
+    {
       id: 'npcs',
       title: 'NPCs & Factions',
       icon: Users,
@@ -392,7 +427,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       id: 'world',
       title: 'World Integration',
       description: 'Place NPCs, objectives, rewards, and ensure lore-friendly placement.',
-      sectionIds: ['world', 'npcs', 'rewards'],
+      sectionIds: ['world', 'visual-upgrade', 'npcs', 'rewards'],
     },
     {
       id: 'leveled-lists',
