@@ -2723,12 +2723,12 @@ class FO4_OT_ShowFoliageLODChecklist(Operator):
             "6) In CK: generate LOD and previs/precombine for dense worldspaces.",
         ]
         block_name = "FO4 Foliage LOD Checklist"
-        block = bpy.data.texts.get(block_name)
-        if block is None:
-            block = bpy.data.texts.new(block_name)
-        block.clear()
-        block.write("\n".join(lines))
-        self.report({'INFO'}, f"Checklist written to Text Editor: {block_name}")
+        text_block = bpy.data.texts.get(block_name)
+        if text_block is None:
+            text_block = bpy.data.texts.new(block_name)
+        text_block.clear()
+        text_block.write("\n".join(lines))
+        self.report({'INFO'}, f"Checklist written to text block: {block_name}")
         return {'FINISHED'}
 
 

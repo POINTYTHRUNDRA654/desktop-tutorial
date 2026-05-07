@@ -28,6 +28,8 @@ from bpy.props import (
 from bpy.types import Operator, Panel
 
 _FO4_REALISM_TAG_KEY = "fo4_realism_tag"
+_DEFAULT_REFERENCE_LUMINANCE = 0.35
+_TEXTURE_REPETITION_THRESHOLD = 6
 
 
 def _iter_selected_mesh_objects(context) -> Iterable[bpy.types.Object]:
@@ -90,14 +92,14 @@ def _set_reference_in_image_editors(context, image: bpy.types.Image) -> int:
 
 def _average_image_luminance(image: bpy.types.Image) -> float:
     if not image:
-        return 0.35
+        return _DEFAULT_REFERENCE_LUMINANCE
     try:
         if not image.has_data:
             image.reload()
         pixels = image.pixels
         length = len(pixels)
         if length < 4:
-            return 0.35
+            return _DEFAULT_REFERENCE_LUMINANCE
         step = max(4, (length // 4 // 2048) * 4)
         total = 0.0
         count = 0
@@ -109,7 +111,7 @@ def _average_image_luminance(image: bpy.types.Image) -> float:
             count += 1
         return max(0.01, min(0.99, total / max(1, count)))
     except Exception:
-        return 0.35
+        return _DEFAULT_REFERENCE_LUMINANCE
 
 
 def _estimate_object_texel_density(obj: bpy.types.Object) -> float:
@@ -1184,7 +1186,9 @@ class FO4_OT_RunRealismQAScorecard(Operator):
                         name = node.image.name_full
                         image_usage[name] = image_usage.get(name, 0) + 1
 
-        issues["repetition"] = sum(1 for _, count in image_usage.items() if count >= 6)
+        issues["repetition"] = sum(
+            1 for _, count in image_usage.items() if count >= _TEXTURE_REPETITION_THRESHOLD
+        )
         total_issues = sum(issues.values())
         score = max(0, 100 - min(90, total_issues * 5))
         grade = "A" if score >= 90 else "B" if score >= 75 else "C" if score >= 60 else "D"
