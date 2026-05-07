@@ -255,8 +255,9 @@ class FO4_OT_EstimateScenePerformance(Operator):
         # 4 bytes/px * 1.33 mip-chain overhead approximation
         tex_bytes = 0
         for img in unique_images:
-            w = max(1, int(getattr(img, "size", [0, 0])[0] or 0))
-            h = max(1, int(getattr(img, "size", [0, 0])[1] or 0))
+            size = getattr(img, "size", [0, 0])
+            w = max(1, int(size[0] or 0))
+            h = max(1, int(size[1] or 0))
             tex_bytes += int(w * h * 4 * 1.33)
 
         tex_mb = tex_bytes / (1024 * 1024)
