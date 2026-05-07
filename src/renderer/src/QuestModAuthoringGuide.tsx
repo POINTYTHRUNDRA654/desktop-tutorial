@@ -240,7 +240,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
             <ul className="list-disc list-inside text-green-200 text-xs space-y-1">
               <li>Expose a narrow native function from your F4SE plugin, then call it from Papyrus events</li>
               <li>Example trigger shape: OnLoad or quest-stage events activate weather/FX logic for your area</li>
-              <li>Validate by layer: Papyrus event fires first, native function executes second, visual effect confirms third</li>
+              <li>Validate by layer: Papyrus event fires first, native function executes second, and the visual effect is observable in-game third</li>
             </ul>
           </div>
         </div>
