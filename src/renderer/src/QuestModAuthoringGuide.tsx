@@ -225,6 +225,24 @@ export const QuestModAuthoringGuide: React.FC = () => {
               <li>Debug with Papyrus logging and in-game testing</li>
             </ul>
           </div>
+
+          <div className="bg-blue-900/20 border border-blue-700/30 rounded p-4">
+            <h4 className="font-bold text-blue-300 mb-2">🧠 Engine Hooks with F4SE (C++)</h4>
+            <ul className="list-disc list-inside text-blue-200 text-xs space-y-1">
+              <li>Use Papyrus for quest-facing triggers, state changes, and object events inside CK</li>
+              <li>Use F4SE C++ plugins for engine-level behavior the base engine cannot expose cleanly</li>
+              <li>Treat C++ hooks as low-level systems and keep quest logic orchestration in Papyrus</li>
+            </ul>
+          </div>
+
+          <div className="bg-green-900/20 border border-green-700/30 rounded p-4">
+            <h4 className="font-bold text-green-300 mb-2">🔗 Papyrus → F4SE Bridge Pattern</h4>
+            <ul className="list-disc list-inside text-green-200 text-xs space-y-1">
+              <li>Expose a narrow native function from your F4SE plugin, then call it from Papyrus events</li>
+              <li>Example trigger shape: OnLoad or quest-stage events activate weather/FX logic for your area</li>
+              <li>Validate by layer: Papyrus event fires first, native function executes second, and the visual effect is observable in-game third</li>
+            </ul>
+          </div>
         </div>
       )
     },
@@ -241,6 +259,87 @@ export const QuestModAuthoringGuide: React.FC = () => {
               <li>Use map markers and fast travel points</li>
               <li>Integrate with existing world events and factions</li>
               <li>Test for conflicts with other mods</li>
+            </ul>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'visual-upgrade',
+      title: 'Photoreal Visual Upgrade (2026 Workflow)',
+      icon: Lightbulb,
+      content: (
+        <div className="space-y-4">
+          <div className="bg-slate-800 border border-slate-700 rounded p-4">
+            <h4 className="font-bold text-white mb-2">🎨 High-Fidelity Asset Pipeline</h4>
+            <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
+              <li>Author textures with a PBR workflow (Substance Painter / Quixel Mixer) and export Fallout-safe DDS sets</li>
+              <li>Build custom meshes in Blender, export clean NIFs, and avoid relying only on vanilla mesh fidelity</li>
+              <li>Use BGSM setup for believable response to light (wetness/specular control, organic translucency/SSS where appropriate)</li>
+            </ul>
+          </div>
+
+          <div className="bg-blue-900/20 border border-blue-700/30 rounded p-4">
+            <h4 className="font-bold text-blue-300 mb-2">🌤️ Worldspace Lighting & Distance Quality</h4>
+            <ul className="list-disc list-inside text-blue-200 text-xs space-y-1">
+              <li>Create custom climate/weather profiles for your quest worldspace (sun, fog, volumetric color mood)</li>
+              <li>Generate LOD for your custom landscape and flora so distant views stay coherent and crisp</li>
+              <li>If you changed exterior cells, regenerate previs/precombine data to keep visuals stable and performance sane</li>
+            </ul>
+          </div>
+
+          <div className="bg-green-900/20 border border-green-700/30 rounded p-4">
+            <h4 className="font-bold text-green-300 mb-2">🧩 Engine-Extended Layer</h4>
+            <ul className="list-disc list-inside text-green-200 text-xs space-y-1">
+              <li>Use F4SE-powered logic only for features vanilla CK cannot do cleanly (dynamic weather/camera/FX triggers)</li>
+              <li>Design lighting to be ENB/ReShade-aware, but keep a good non-ENB baseline so the quest still looks intentional</li>
+              <li>Validate each layer independently: vanilla baseline → high-fidelity assets → extender effects</li>
+            </ul>
+          </div>
+
+          <div className="bg-purple-900/20 border border-purple-700/30 rounded p-4">
+            <h4 className="font-bold text-purple-300 mb-2">🛠️ 2026 Engine Modernization Checklist</h4>
+            <ul className="list-disc list-inside text-purple-200 text-xs space-y-1">
+              <li>Choose your runtime target up front (OG 1.10.163, NG 1.10.980 to 1.10.984, or 1.11.x Creations-era runtime) before building any DLL features</li>
+              <li>For serious F4SE plugins, plan versioned builds and address-library-safe hooks rather than hard-coded offsets</li>
+              <li>Implement visuals in layers: assets first, worldspace/weather second, engine hooks third, then regression test each layer in isolation</li>
+            </ul>
+          </div>
+
+          <div className="bg-cyan-900/20 border border-cyan-700/30 rounded p-4">
+            <h4 className="font-bold text-cyan-300 mb-2">📘 2026 Effect Playbooks (Real, Reproducible)</h4>
+            <ul className="list-disc list-inside text-cyan-200 text-xs space-y-1">
+              <li>Build effect recipes for wet materials, cinematic fog, dense biome lighting, skin/hair realism, and decal depth</li>
+              <li>Each recipe must include: required tools, runtime target (OG/NG/1.11.x), hard prerequisites, validation checkpoints, and known failure signatures</li>
+              <li>Do not ship placeholder workflows: every playbook must be testable end-to-end on an actual profile</li>
+            </ul>
+          </div>
+
+          <div className="bg-indigo-900/20 border border-indigo-700/30 rounded p-4">
+            <h4 className="font-bold text-indigo-300 mb-2">📊 Per-Effect Compatibility Matrix</h4>
+            <ul className="list-disc list-inside text-indigo-200 text-xs space-y-1">
+              <li>Track runtime support per effect (OG / NG / 1.11.x), not just global mod support</li>
+              <li>Document required extender stack (F4SE, Address Library, shader chain, optional plugin dependencies)</li>
+              <li>Record expected performance cost and known conflicts before recommending the effect</li>
+            </ul>
+          </div>
+
+          <div className="bg-emerald-900/20 border border-emerald-700/30 rounded p-4">
+            <h4 className="font-bold text-emerald-300 mb-2">✅ 2026 Quality Bar (Photoreal Rubric)</h4>
+            <ul className="list-disc list-inside text-emerald-200 text-xs space-y-1">
+              <li>Score each build on: material response, lighting coherence, LOD continuity, animation/physics believability, and performance stability</li>
+              <li>Do not greenlight a setup until all rubric categories pass your minimum quality threshold</li>
+              <li>When a category fails, define a targeted correction loop and re-test only that layer first</li>
+            </ul>
+          </div>
+
+          <div className="bg-rose-900/20 border border-rose-700/30 rounded p-4">
+            <h4 className="font-bold text-rose-300 mb-2">🧪 Validation-First + Recovery-First Teaching Mode</h4>
+            <ul className="list-disc list-inside text-rose-200 text-xs space-y-1">
+              <li>Always validate in this order: vanilla baseline → asset-only test → extender-enabled test → performance + crash pass</li>
+              <li>Tag recommendations as Free Required, Free Optional, or Paid Optional, and always provide a free working path</li>
+              <li>Attach a failure recovery tree for wrong runtime, missing address library mappings, bad hook targets, precombine damage, and shader order conflicts</li>
+              <li>Define portfolio-grade output targets with objective acceptance criteria so users can measure “2026 quality” instead of guessing</li>
             </ul>
           </div>
         </div>
@@ -392,7 +491,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       id: 'world',
       title: 'World Integration',
       description: 'Place NPCs, objectives, rewards, and ensure lore-friendly placement.',
-      sectionIds: ['world', 'npcs', 'rewards'],
+      sectionIds: ['world', 'visual-upgrade', 'npcs', 'rewards'],
     },
     {
       id: 'leveled-lists',

@@ -70,8 +70,17 @@ const noop = () => {};
 
 let getUserMediaMock: ReturnType<typeof vi.fn>;
 let speechCancelMock: ReturnType<typeof vi.fn>;
+let originalRequestAnimationFrame: typeof globalThis.requestAnimationFrame | undefined;
+let originalCancelAnimationFrame: typeof globalThis.cancelAnimationFrame | undefined;
+let originalAudioContext: typeof globalThis.AudioContext | undefined;
+let originalMediaRecorder: typeof globalThis.MediaRecorder | undefined;
 
 beforeEach(() => {
+  originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+  originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+  originalAudioContext = (globalThis as any).AudioContext;
+  originalMediaRecorder = (globalThis as any).MediaRecorder;
+
   getUserMediaMock = vi.fn().mockResolvedValue({
     getTracks: () => [{ stop: vi.fn(), kind: 'audio' }],
   });
@@ -111,6 +120,112 @@ beforeEach(() => {
   });
   Object.defineProperty(global, 'webkitSpeechRecognition', {
     value: undefined,
+    configurable: true,
+    writable: true,
+  });
+
+  // requestAnimationFrame/cancelAnimationFrame are not guaranteed in Vitest.
+  // Keep a bounded frame budget per callback chain so silence checks can run
+  // across multiple startRecording() calls in one test without spinning forever.
+  const rafCallCountByCallback = new WeakMap<FrameRequestCallback, number>();
+  let rafIdCounter = 0;
+  const rafTimeoutById = new Map<number, NodeJS.Timeout>();
+  Object.defineProperty(globalThis, 'requestAnimationFrame', {
+    value: (callback: FrameRequestCallback) => {
+      const frameCount = rafCallCountByCallback.get(callback) ?? 0;
+      const rafId = ++rafIdCounter;
+      if (frameCount >= 3) return -1;
+      rafCallCountByCallback.set(callback, frameCount + 1);
+      const timeout = setTimeout(() => {
+        rafTimeoutById.delete(rafId);
+        callback(performance.now());
+      }, 0);
+      rafTimeoutById.set(rafId, timeout);
+      return rafId;
+    },
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+    value: (id: number) => {
+      const timeout = rafTimeoutById.get(id);
+      if (!timeout) return;
+      clearTimeout(timeout);
+      rafTimeoutById.delete(id);
+    },
+    configurable: true,
+    writable: true,
+  });
+
+  class MockAnalyserNode {
+    fftSize = 0;
+    frequencyBinCount = 128;
+    getByteFrequencyData(arr: Uint8Array): void {
+      arr.fill(0);
+    }
+  }
+
+  class MockAudioContext {
+    createAnalyser(): MockAnalyserNode {
+      return new MockAnalyserNode();
+    }
+
+    createMediaStreamSource(): { connect: ReturnType<typeof vi.fn> } {
+      return { connect: vi.fn() };
+    }
+
+    close(): Promise<void> {
+      return Promise.resolve();
+    }
+  }
+
+  Object.defineProperty(globalThis, 'AudioContext', {
+    value: MockAudioContext,
+    configurable: true,
+    writable: true,
+  });
+
+  class MockMediaRecorder {
+    public ondataavailable: ((e: any) => void) | null = null;
+    public onstop: (() => void) | null = null;
+    public onerror: ((e: any) => void) | null = null;
+
+    constructor(_stream: MediaStream, _opts?: MediaRecorderOptions) {}
+
+    start(): void {
+      // no-op for unit tests
+    }
+
+    stop(): void {
+      this.onstop?.();
+    }
+  }
+
+  Object.defineProperty(globalThis, 'MediaRecorder', {
+    value: MockMediaRecorder,
+    configurable: true,
+    writable: true,
+  });
+});
+
+afterEach(() => {
+  Object.defineProperty(globalThis, 'requestAnimationFrame', {
+    value: originalRequestAnimationFrame,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+    value: originalCancelAnimationFrame,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(globalThis, 'AudioContext', {
+    value: originalAudioContext,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(globalThis, 'MediaRecorder', {
+    value: originalMediaRecorder,
     configurable: true,
     writable: true,
   });
