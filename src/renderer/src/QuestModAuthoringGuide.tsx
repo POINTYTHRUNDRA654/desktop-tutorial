@@ -305,6 +305,43 @@ export const QuestModAuthoringGuide: React.FC = () => {
               <li>Implement visuals in layers: assets first, worldspace/weather second, engine hooks third, then regression test each layer in isolation</li>
             </ul>
           </div>
+
+          <div className="bg-cyan-900/20 border border-cyan-700/30 rounded p-4">
+            <h4 className="font-bold text-cyan-300 mb-2">📘 2026 Effect Playbooks (Real, Reproducible)</h4>
+            <ul className="list-disc list-inside text-cyan-200 text-xs space-y-1">
+              <li>Build effect recipes for wet materials, cinematic fog, dense biome lighting, skin/hair realism, and decal depth</li>
+              <li>Each recipe must include: required tools, runtime target (OG/NG/1.11.x), hard prerequisites, validation checkpoints, and known failure signatures</li>
+              <li>Do not ship placeholder workflows: every playbook must be testable end-to-end on an actual profile</li>
+            </ul>
+          </div>
+
+          <div className="bg-indigo-900/20 border border-indigo-700/30 rounded p-4">
+            <h4 className="font-bold text-indigo-300 mb-2">📊 Per-Effect Compatibility Matrix</h4>
+            <ul className="list-disc list-inside text-indigo-200 text-xs space-y-1">
+              <li>Track runtime support per effect (OG / NG / 1.11.x), not just global mod support</li>
+              <li>Document required extender stack (F4SE, Address Library, shader chain, optional plugin dependencies)</li>
+              <li>Record expected performance cost and known conflicts before recommending the effect</li>
+            </ul>
+          </div>
+
+          <div className="bg-emerald-900/20 border border-emerald-700/30 rounded p-4">
+            <h4 className="font-bold text-emerald-300 mb-2">✅ 2026 Quality Bar (Photoreal Rubric)</h4>
+            <ul className="list-disc list-inside text-emerald-200 text-xs space-y-1">
+              <li>Score each build on: material response, lighting coherence, LOD continuity, animation/physics believability, and performance stability</li>
+              <li>Do not greenlight a setup until all rubric categories pass your minimum quality threshold</li>
+              <li>When a category fails, define a targeted correction loop and re-test only that layer first</li>
+            </ul>
+          </div>
+
+          <div className="bg-rose-900/20 border border-rose-700/30 rounded p-4">
+            <h4 className="font-bold text-rose-300 mb-2">🧪 Validation-First + Recovery-First Teaching Mode</h4>
+            <ul className="list-disc list-inside text-rose-200 text-xs space-y-1">
+              <li>Always validate in this order: vanilla baseline → asset-only test → extender-enabled test → performance + crash pass</li>
+              <li>Tag recommendations as <strong>Free Required</strong>, <strong>Free Optional</strong>, or <strong>Paid Optional</strong>, and always provide a free working path</li>
+              <li>Attach a failure recovery tree for wrong runtime, missing address library mappings, bad hook targets, precombine damage, and shader order conflicts</li>
+              <li>Define portfolio-grade output targets with objective acceptance criteria so users can measure “2026 quality” instead of guessing</li>
+            </ul>
+          </div>
         </div>
       )
     },
