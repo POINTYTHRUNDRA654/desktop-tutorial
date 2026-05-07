@@ -8975,9 +8975,12 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
             if self.apply_wind_armature and animation_helpers:
                 preset = profile  # 'SHRUB' or 'TREE'
                 tuning_key = self.wind_tuning if self.wind_tuning != 'AUTO' else 'BALANCED'
-                amp, period, tuning_label = _SMART_WIND_TUNING_PRESETS.get(
+                tuning_bucket = _SMART_WIND_TUNING_PRESETS.get(
                     tuning_key, _SMART_WIND_TUNING_PRESETS['BALANCED']
-                )[preset]
+                )
+                amp, period, tuning_label = tuning_bucket.get(
+                    preset, _SMART_WIND_TUNING_PRESETS['BALANCED'][preset]
+                )
                 ok, msg = animation_helpers.AnimationHelpers.apply_wind_animation(
                     obj, amplitude=amp, period=period, axis='X'
                 )
