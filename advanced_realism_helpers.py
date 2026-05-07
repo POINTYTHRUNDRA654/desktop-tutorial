@@ -230,7 +230,7 @@ def _estimate_uv_stretch(mesh_obj: bpy.types.Object):
     return {"triangles": len(ratios), "stretched": stretched, "degenerate": degenerate}
 
 
-def _auto_fix_uv_stretch(mesh_obj: bpy.types.Object) -> bool:
+def _auto_fix_uv_stretch(mesh_obj: bpy.types.Object, error_log: list[str] | None = None) -> bool:
     mesh = getattr(mesh_obj, "data", None)
     if not mesh:
         return False
@@ -238,7 +238,9 @@ def _auto_fix_uv_stretch(mesh_obj: bpy.types.Object) -> bool:
     if not mesh.uv_layers:
         try:
             mesh.uv_layers.new(name="UVMap")
-        except Exception:
+        except Exception as exc:
+            if error_log is not None:
+                error_log.append(f"{mesh_obj.name_full}: UV map create failed ({exc})")
             return False
     uv_layer = mesh.uv_layers.active
     if not uv_layer:
@@ -1122,6 +1124,7 @@ class FO4_OT_RunRealismQAScorecard(Operator):
         }
         fixed = 0
         image_usage = {}
+        uv_fix_errors: list[str] = []
 
         for obj in objs:
             max_dim = max(float(obj.dimensions.x), float(obj.dimensions.y), float(obj.dimensions.z), 0.0)
@@ -1133,8 +1136,8 @@ class FO4_OT_RunRealismQAScorecard(Operator):
                     try:
                         obj.data.uv_layers.new(name="UVMap")
                         fixed += 1
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        uv_fix_errors.append(f"{obj.name_full}: UV map create failed ({exc})")
             else:
                 stretch = _estimate_uv_stretch(obj)
                 if stretch:
@@ -1143,7 +1146,7 @@ class FO4_OT_RunRealismQAScorecard(Operator):
                     has_degenerate = int(stretch["degenerate"]) > 0
                     if severe_outliers or has_degenerate:
                         issues["uv_stretch"] += 1
-                        if self.auto_fix and _auto_fix_uv_stretch(obj):
+                        if self.auto_fix and _auto_fix_uv_stretch(obj, uv_fix_errors):
                             fixed += 1
 
             for slot in obj.material_slots:
@@ -1190,6 +1193,8 @@ class FO4_OT_RunRealismQAScorecard(Operator):
             f"Repeat:{issues['repetition']} | "
             f"Emissive:{issues['emissive']} | Fixed:{fixed}"
         )
+        if uv_fix_errors:
+            summary += f" | UVFixErrors:{len(uv_fix_errors)}"
         context.scene.fo4_realism_qa_status = summary
         self.report({"INFO"}, summary)
         return {"FINISHED"}
