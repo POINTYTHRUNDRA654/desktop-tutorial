@@ -125,12 +125,14 @@ beforeEach(() => {
   });
 
   // requestAnimationFrame/cancelAnimationFrame are not guaranteed in Vitest.
-  // Keep a very small frame budget so silence checks run, but cannot spin forever.
-  let rafFrameBudget = 3;
+  // Keep a bounded frame budget per callback chain so silence checks can run
+  // across multiple startRecording() calls in one test without spinning forever.
+  const rafCallCountByCallback = new WeakMap<FrameRequestCallback, number>();
   Object.defineProperty(globalThis, 'requestAnimationFrame', {
     value: (callback: FrameRequestCallback) => {
-      if (rafFrameBudget <= 0) return 0;
-      rafFrameBudget -= 1;
+      const frameCount = rafCallCountByCallback.get(callback) ?? 0;
+      if (frameCount >= 3) return 0;
+      rafCallCountByCallback.set(callback, frameCount + 1);
       return setTimeout(() => callback(performance.now()), 0) as unknown as number;
     },
     configurable: true,

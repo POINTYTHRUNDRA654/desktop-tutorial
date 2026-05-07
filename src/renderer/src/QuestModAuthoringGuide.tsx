@@ -337,7 +337,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
             <h4 className="font-bold text-rose-300 mb-2">🧪 Validation-First + Recovery-First Teaching Mode</h4>
             <ul className="list-disc list-inside text-rose-200 text-xs space-y-1">
               <li>Always validate in this order: vanilla baseline → asset-only test → extender-enabled test → performance + crash pass</li>
-              <li>Tag recommendations as <strong>Free Required</strong>, <strong>Free Optional</strong>, or <strong>Paid Optional</strong>, and always provide a free working path</li>
+              <li>Tag recommendations as Free Required, Free Optional, or Paid Optional, and always provide a free working path</li>
               <li>Attach a failure recovery tree for wrong runtime, missing address library mappings, bad hook targets, precombine damage, and shader order conflicts</li>
               <li>Define portfolio-grade output targets with objective acceptance criteria so users can measure “2026 quality” instead of guessing</li>
             </ul>
