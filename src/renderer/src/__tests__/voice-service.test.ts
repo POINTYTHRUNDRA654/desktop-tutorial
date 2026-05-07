@@ -128,19 +128,30 @@ beforeEach(() => {
   // Keep a bounded frame budget per callback chain so silence checks can run
   // across multiple startRecording() calls in one test without spinning forever.
   const rafCallCountByCallback = new WeakMap<FrameRequestCallback, number>();
+  let rafIdCounter = 0;
+  const rafTimeoutById = new Map<number, NodeJS.Timeout>();
   Object.defineProperty(globalThis, 'requestAnimationFrame', {
     value: (callback: FrameRequestCallback) => {
       const frameCount = rafCallCountByCallback.get(callback) ?? 0;
-      if (frameCount >= 3) return 0;
+      const rafId = ++rafIdCounter;
+      if (frameCount >= 3) return rafId;
       rafCallCountByCallback.set(callback, frameCount + 1);
-      return setTimeout(() => callback(performance.now()), 0) as unknown as number;
+      const timeout = setTimeout(() => {
+        rafTimeoutById.delete(rafId);
+        callback(performance.now());
+      }, 0);
+      rafTimeoutById.set(rafId, timeout);
+      return rafId;
     },
     configurable: true,
     writable: true,
   });
   Object.defineProperty(globalThis, 'cancelAnimationFrame', {
     value: (id: number) => {
-      clearTimeout(id as unknown as NodeJS.Timeout);
+      const timeout = rafTimeoutById.get(id);
+      if (!timeout) return;
+      clearTimeout(timeout);
+      rafTimeoutById.delete(id);
     },
     configurable: true,
     writable: true,
