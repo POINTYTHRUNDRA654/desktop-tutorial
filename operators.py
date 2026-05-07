@@ -2722,7 +2722,7 @@ class FO4_OT_ShowFoliageLODChecklist(Operator):
             "5) Export NIF + BGSM + textures into Data/Meshes|Materials|Textures.",
             "6) In CK: generate LOD and previs/precombine for dense worldspaces.",
         ]
-        block_name = "FO4_FOLIAGE_LOD_CHECKLIST"
+        block_name = "FO4 Foliage LOD Checklist"
         block = bpy.data.texts.get(block_name)
         if block is None:
             block = bpy.data.texts.new(block_name)
