@@ -8226,7 +8226,7 @@ class FO4_OT_SetupHDMaterial(Operator):
         col.label(text="4K Texture Format Recommendations:", icon='INFO')
         col.label(text="  Diffuse (_d): BC3/DXT5 (with alpha) or BC1/DXT1 (opaque)")
         col.label(text="  Normal  (_n): BC5/ATI2  ← always, regardless of resolution")
-        col.label(text="  Specular(_s): BC1/DXT1")
+        col.label(text="  Specular (_s): BC1/DXT1")
         col.label(text="  Glow    (_g): BC1/DXT1")
         col.label(text="  EnvMap  (_e): BC1/DXT1")
         col.separator(factor=0.5)
