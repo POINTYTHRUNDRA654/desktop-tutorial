@@ -419,6 +419,54 @@ PRESETS: dict = {
         "fo4_shader":        "multilayer",
         "texture_hint":      "_d, _n, _s, _p (height), _i (inner layer)",
     },
+    # ── Glowing Plants ───────────────────────────────────────────────────────
+    "GLOW_PLANT_BGSM": {
+        "label":             "Glowing Plant (BGSM)",
+        "description":       "Standard BGSM glowing plant – emittance enabled with glow map. "
+                             "Set emittance_mult > 1 for neon brightness. "
+                             "Pair with a _g.dds glow mask for per-vein colour control.",
+        "base_color":        (0.03, 0.20, 0.05),
+        "roughness":         0.80,
+        "metallic":          0.0,
+        "alpha_mode":        "CLIP",
+        "alpha_threshold":   0.5,
+        "emission_strength": 2.0,
+        "two_sided":         True,
+        "fo4_shader":        "glowmap_foliage",
+        "texture_hint":      "_d (alpha), _n, _s, _g (glow mask / multi-colour)",
+    },
+    "GLOW_PLANT_BGEM": {
+        "label":             "Glowing Plant Bloom (BGEM)",
+        "description":       "Additive-blend BGEM effect material for the light-bloom halo "
+                             "around a glowing plant. Use this on a separate billboard quad "
+                             "placed around the plant mesh. The additive blend makes light "
+                             "bleed into surrounding air for a modern 'wet' neon glow look.",
+        "base_color":        (0.10, 0.90, 0.30),
+        "roughness":         0.0,
+        "metallic":          0.0,
+        "alpha_mode":        "BLEND",
+        "alpha_threshold":   0.1,
+        "emission_strength": 4.0,
+        "two_sided":         True,
+        "fo4_shader":        "bgem_bloom",
+        "texture_hint":      "_d (bloom sprite, premult-alpha), _g (intensity mask)",
+    },
+    "GLOW_PLANT_MULTICOLOR": {
+        "label":             "Glowing Plant Multi-Color",
+        "description":       "Multi-colour glowing plant. Emittance colour is set to white "
+                             "so the engine reads actual RGB from the _g.dds glow texture. "
+                             "Each vein/petal in the glow map glows in its own colour. "
+                             "Compatible with External Emittance for weather/ToD tinting.",
+        "base_color":        (0.04, 0.15, 0.08),
+        "roughness":         0.85,
+        "metallic":          0.0,
+        "alpha_mode":        "CLIP",
+        "alpha_threshold":   0.5,
+        "emission_strength": 2.5,
+        "two_sided":         True,
+        "fo4_shader":        "glowmap_multicolor_foliage",
+        "texture_hint":      "_d (alpha), _n, _s, _g (full-colour RGB glow map)",
+    },
 }
 
 PRESET_ENUM_ITEMS = [

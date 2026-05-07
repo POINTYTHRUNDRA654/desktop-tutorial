@@ -10122,6 +10122,391 @@ class FO4_OT_ImportBGSM(Operator):
 
 
 # ---------------------------------------------------------------------------
+# Glowing Plant operators  (BGSM/BGEM glow, emittance pulse, multi-colour)
+# ---------------------------------------------------------------------------
+
+class FO4_OT_SetupGlowingPlantMaterial(Operator):
+    """Set up a Fallout 4 glowing plant BGSM material.
+
+    Applies the GLOW_PLANT_BGSM preset (alpha-clip + two-sided), sets the
+    emittance colour and multiplier, enables the glow-map flag, and optionally
+    marks the material for External Emittance so the Creation Kit can link its
+    glow intensity to time-of-day or weather conditions.
+
+    To get per-vein colour variation install a full-colour RGB _g.dds glow map
+    and use the 'Multi-Color Glow Map' variant (GLOW_PLANT_MULTICOLOR preset).
+    """
+    bl_idname = "fo4.setup_glowing_plant_material"
+    bl_label = "Setup Glowing Plant (BGSM)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    glow_color: FloatProperty(
+        name="Glow R",
+        description="Red channel of the emittance colour",
+        min=0.0, max=1.0,
+        default=0.1,
+    )
+    glow_color_g: FloatProperty(
+        name="Glow G",
+        description="Green channel of the emittance colour",
+        min=0.0, max=1.0,
+        default=0.9,
+    )
+    glow_color_b: FloatProperty(
+        name="Glow B",
+        description="Blue channel of the emittance colour",
+        min=0.0, max=1.0,
+        default=0.2,
+    )
+    emittance_mult: FloatProperty(
+        name="Emittance Multiplier",
+        description="Brightness of the glow (1.0 = normal, >1 = neon). "
+                    "Maps directly to the BGSM emittanceMult field",
+        min=0.0,
+        soft_max=20.0,
+        default=2.0,
+    )
+    use_external_emittance: BoolProperty(
+        name="External Emittance",
+        description="Link glow intensity to time-of-day / weather via the "
+                    "Creation Kit External Emittance system. The CK will "
+                    "override emittance colour/intensity at runtime",
+        default=False,
+    )
+    multicolor_mode: BoolProperty(
+        name="Multi-Color Glow Map",
+        description="Set emittance colour to white so the engine reads actual "
+                    "colour from the RGB _g.dds glow texture. Each vein glows "
+                    "in its own colour",
+        default=False,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        if not fo4_material_browser:
+            self.report({'ERROR'}, "fo4_material_browser module not available")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        preset_id = "GLOW_PLANT_MULTICOLOR" if self.multicolor_mode else "GLOW_PLANT_BGSM"
+        ok, msg = fo4_material_browser.MaterialBrowser.apply_preset(obj, preset_id)
+        if not ok:
+            self.report({'ERROR'}, msg)
+            return {'CANCELLED'}
+
+        mat = obj.data.materials[0] if obj.data.materials else None
+        if mat and mat.use_nodes:
+            pbsdf = next(
+                (n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'),
+                None,
+            )
+            if pbsdf is not None:
+                # Emission colour
+                if self.multicolor_mode:
+                    ec = (1.0, 1.0, 1.0, 1.0)  # white → engine reads from RGB glow map
+                else:
+                    ec = (self.glow_color, self.glow_color_g, self.glow_color_b, 1.0)
+                em_col = pbsdf.inputs.get("Emission Color") or pbsdf.inputs.get("Emission")
+                if em_col:
+                    em_col.default_value = ec
+                em_str = pbsdf.inputs.get("Emission Strength")
+                if em_str:
+                    em_str.default_value = self.emittance_mult
+
+            # Store metadata for the BGSM exporter
+            mat["fo4_shader_type"] = "glowmap_multicolor_foliage" if self.multicolor_mode else "glowmap_foliage"
+            mat["fo4_emittance_mult"] = self.emittance_mult
+            if self.use_external_emittance:
+                mat["fo4_external_emittance"] = True
+
+        mode_str = "multi-colour" if self.multicolor_mode else "standard"
+        ext_str = " + External Emittance (CK link)" if self.use_external_emittance else ""
+        full_msg = (
+            f"Glowing plant material ({mode_str}{ext_str}) applied to '{obj.name}'. "
+            "Install a _g.dds glow mask, then export BGSM to enable in-game glow. "
+            "Use 'Apply Emittance Pulse' to add a pulsing animation."
+        )
+        self.report({'INFO'}, full_msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(
+                f"Glowing plant material applied to '{obj.name}'", 'INFO'
+            )
+        return {'FINISHED'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "multicolor_mode")
+        col = layout.column(align=True)
+        col.enabled = not self.multicolor_mode
+        col.label(text="Emittance Colour:")
+        row = col.row(align=True)
+        row.prop(self, "glow_color",   text="R")
+        row.prop(self, "glow_color_g", text="G")
+        row.prop(self, "glow_color_b", text="B")
+        layout.prop(self, "emittance_mult")
+        layout.prop(self, "use_external_emittance")
+        hint = layout.box().column(align=True)
+        hint.scale_y = 0.75
+        if self.multicolor_mode:
+            hint.label(text="White emittance → engine reads RGB from _g.dds.", icon='INFO')
+            hint.label(text="Each coloured vein in the map glows independently.", icon='DOT')
+        else:
+            hint.label(text="Emittance Multiplier 1.0 = normal, >5 = neon glow.", icon='INFO')
+        if self.use_external_emittance:
+            hint.label(text="CK: link this form to an ExternalEmittance record.", icon='INFO')
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_SetupGlowingPlantBGEM(Operator):
+    """Set up an additive-blend BGEM bloom halo for a glowing plant.
+
+    In Fallout 4, a 'bloom' or 'light-bleed' halo around a glowing plant is
+    achieved with a separate billboard quad mesh using an **additive** BGEM
+    effect material (alpha_blend_mode = Additive, NOT standard).  Standard
+    BGSM glow maps are flat; the BGEM additive approach lets light bleed into
+    the surrounding air for a modern 'wet neon' look.
+
+    Workflow:
+    1. Model a simple billboard quad (or low-poly sphere shell) slightly larger
+       than your plant mesh and place it around it.
+    2. Run this operator on the billboard to apply the bloom BGEM material.
+    3. Install your bloom sprite (_d.dds, premultiplied alpha) via Install Texture.
+    4. Export both the plant mesh (BGSM) and the billboard (BGEM) to your mod.
+    """
+    bl_idname = "fo4.setup_glowing_plant_bgem"
+    bl_label = "Setup Glowing Plant Bloom (BGEM)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    bloom_color: FloatProperty(
+        name="Bloom R",
+        description="Red channel of the bloom / base colour",
+        min=0.0, max=1.0,
+        default=0.1,
+    )
+    bloom_color_g: FloatProperty(
+        name="Bloom G",
+        description="Green channel of the bloom / base colour",
+        min=0.0, max=1.0,
+        default=0.9,
+    )
+    bloom_color_b: FloatProperty(
+        name="Bloom B",
+        description="Blue channel of the bloom / base colour",
+        min=0.0, max=1.0,
+        default=0.2,
+    )
+    emission_strength: FloatProperty(
+        name="Emission Strength",
+        description="Bloom brightness – higher = larger apparent halo radius",
+        min=0.0,
+        soft_max=20.0,
+        default=4.0,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        if not fo4_material_browser:
+            self.report({'ERROR'}, "fo4_material_browser module not available")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        ok, msg = fo4_material_browser.MaterialBrowser.apply_preset(obj, "GLOW_PLANT_BGEM")
+        if not ok:
+            self.report({'ERROR'}, msg)
+            return {'CANCELLED'}
+
+        mat = obj.data.materials[0] if obj.data.materials else None
+        if mat and mat.use_nodes:
+            pbsdf = next(
+                (n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'),
+                None,
+            )
+            if pbsdf is not None:
+                bc = pbsdf.inputs.get("Base Color")
+                if bc:
+                    bc.default_value = (self.bloom_color, self.bloom_color_g,
+                                        self.bloom_color_b, 1.0)
+                em_col = pbsdf.inputs.get("Emission Color") or pbsdf.inputs.get("Emission")
+                if em_col:
+                    em_col.default_value = (self.bloom_color, self.bloom_color_g,
+                                            self.bloom_color_b, 1.0)
+                em_str = pbsdf.inputs.get("Emission Strength")
+                if em_str:
+                    em_str.default_value = self.emission_strength
+
+            # Mark as BGEM so the exporter generates a .bgem file.
+            mat["fo4_shader_type"] = "bgem_bloom"
+            mat["fo4_is_bgem"] = True
+
+        full_msg = (
+            f"BGEM bloom material applied to '{obj.name}'. "
+            "Install a bloom sprite (_d.dds, premultiplied alpha) and "
+            "export this mesh alongside the plant NIF. "
+            "Set alpha_blend_mode = Additive in the .bgem file for the halo effect."
+        )
+        self.report({'INFO'}, full_msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(
+                f"BGEM bloom material applied to '{obj.name}'", 'INFO'
+            )
+        return {'FINISHED'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Bloom Colour:")
+        row = layout.row(align=True)
+        row.prop(self, "bloom_color",   text="R")
+        row.prop(self, "bloom_color_g", text="G")
+        row.prop(self, "bloom_color_b", text="B")
+        layout.prop(self, "emission_strength")
+        hint = layout.box().column(align=True)
+        hint.scale_y = 0.75
+        hint.label(text="Place this BGEM mesh as a shell around the plant.", icon='INFO')
+        hint.label(text="Additive blend makes light 'bleed' into the air.", icon='DOT')
+        hint.label(text="Use a soft circular/radial gradient _d.dds.", icon='DOT')
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_ApplyEmittancePulse(Operator):
+    """Add a pulsing glow animation to the active material's Emission Strength.
+
+    This simulates the ``BSLightingShaderPropertyFloatController`` animation
+    that NifSkope uses to animate the Emittance Multiplier at runtime in FO4.
+
+    In Blender the animation drives the Principled BSDF 'Emission Strength'
+    socket with a NOISE modifier so the brightness changes organically.
+
+    After export, open the NIF in NifSkope and manually add:
+    • BSLightingShaderProperty → right-click → 'Attach Controller'
+    • Controller: BSLightingShaderPropertyFloatController
+    • Target: EMISSIVE_MULTIPLE
+    • Interpolator: NiFloatInterpolator  (set keyframe data from this action)
+    """
+    bl_idname = "fo4.apply_emittance_pulse"
+    bl_label = "Apply Emittance Pulse"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    min_strength: FloatProperty(
+        name="Min Brightness",
+        description="Emission Strength at the darkest pulse point (plant dims to this)",
+        min=0.0,
+        soft_max=10.0,
+        default=0.3,
+    )
+    max_strength: FloatProperty(
+        name="Max Brightness",
+        description="Emission Strength at the brightest pulse point (neon peak)",
+        min=0.0,
+        soft_max=30.0,
+        default=4.0,
+    )
+    period: FloatProperty(
+        name="Period (frames)",
+        description="Length of one pulse cycle in frames (lower = faster flicker)",
+        min=4.0,
+        soft_max=300.0,
+        default=60.0,
+    )
+    noise_scale: FloatProperty(
+        name="Noise Scale",
+        description="How quickly the noise changes (0.3–0.8 feels organic; "
+                    "1.0 = one oscillation per period)",
+        min=0.05,
+        max=2.0,
+        default=0.5,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module not available")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        ok, msg = animation_helpers.AnimationHelpers.apply_emittance_pulse(
+            obj,
+            min_strength=self.min_strength,
+            max_strength=self.max_strength,
+            period=self.period,
+            noise_scale=self.noise_scale,
+        )
+        level = 'INFO' if ok else 'ERROR'
+        self.report({level}, msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "min_strength")
+        layout.prop(self, "max_strength")
+        layout.prop(self, "period")
+        layout.prop(self, "noise_scale")
+        hint = layout.box().column(align=True)
+        hint.scale_y = 0.75
+        hint.label(text="In NifSkope: attach BSLightingShaderPropertyFloatController", icon='INFO')
+        hint.label(text="to BSLightingShaderProperty → EMISSIVE_MULTIPLE.", icon='DOT')
+        hint.label(text="Use NiFloatInterpolator with keyframe data from this action.", icon='DOT')
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_RemoveEmittancePulse(Operator):
+    """Remove the pulsing glow animation from the active material.
+
+    Deletes the *_GlowPulse action and resets Emission Strength to the
+    material's non-animated default.
+    """
+    bl_idname = "fo4.remove_emittance_pulse"
+    bl_label = "Remove Emittance Pulse"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        if obj is None or obj.type != 'MESH':
+            return False
+        # Only show button when a GlowPulse action exists.
+        mat = None
+        if obj.data.materials:
+            idx = getattr(obj, 'active_material_index', 0)
+            mat = obj.data.materials[idx] if idx < len(obj.data.materials) else None
+        if mat is None:
+            return False
+        return bool(mat.get("fo4_emittance_pulse"))
+
+    def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module not available")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        ok, msg = animation_helpers.AnimationHelpers.remove_emittance_pulse(obj)
+        level = 'INFO' if ok else 'WARNING'
+        self.report({level}, msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+
+# ---------------------------------------------------------------------------
 # BA2 archive extraction
 # ---------------------------------------------------------------------------
 
@@ -10400,6 +10785,11 @@ classes = (
     FO4_OT_ExportBGSM,
     FO4_OT_BatchExportBGSM,
     FO4_OT_ImportBGSM,
+    # Glowing plant operators (BGSM/BGEM glow, emittance pulse, multi-colour)
+    FO4_OT_SetupGlowingPlantMaterial,
+    FO4_OT_SetupGlowingPlantBGEM,
+    FO4_OT_ApplyEmittancePulse,
+    FO4_OT_RemoveEmittancePulse,
     # BA2 archive extraction
     FO4_OT_ExtractBA2Asset,
 )

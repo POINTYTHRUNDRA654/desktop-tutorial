@@ -621,6 +621,150 @@ class AnimationHelpers:
             return True, "Wind preview stopped"
         return False, "No wind preview running"
 
+    @staticmethod
+    def apply_emittance_pulse(
+        obj,
+        min_strength: float = 0.5,
+        max_strength: float = 3.0,
+        period: float = 60.0,
+        noise_scale: float = 0.5,
+    ):
+        """Animate the Emission Strength of *obj*'s active material to create a
+        realistic organic pulse (simulating the FO4 NifSkope
+        ``BSLightingShaderProperty Float Controller / NiFloatInterpolator``).
+
+        The animation uses a NOISE fcurve modifier so the brightness varies
+        smoothly and irregularly – far more convincing than a sine wave.
+
+        The Blender ``emission_strength`` value is mapped between
+        ``min_strength`` (dark phase) and ``max_strength`` (bright phase).
+        Keyframes are placed at frames 0 and ``period``; after export the NIF
+        must have a ``BSLightingShaderPropertyFloatController`` added in
+        NifSkope that targets ``EMISSIVE_MULTIPLE`` using keyframe data
+        exported from this action.
+
+        Parameters
+        ----------
+        obj          – mesh object whose active material will be animated
+        min_strength – emission strength at the darkest pulse point (≥ 0)
+        max_strength – emission strength at the brightest pulse point
+        period       – animation loop length in frames (scene end is set to this)
+        noise_scale  – controls how fast the noise changes; 0.3–0.8 feels organic
+
+        Returns (success: bool, message: str)
+        """
+        if obj is None or obj.type != 'MESH':
+            return False, "Object is not a mesh"
+
+        # Ensure the active material exists and has nodes.
+        mat = None
+        if obj.data.materials:
+            mat = obj.data.materials[obj.active_material_index]
+        if mat is None:
+            return False, "No material on the active slot"
+
+        mat.use_nodes = True
+        pbsdf = next(
+            (n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'),
+            None,
+        )
+        if pbsdf is None:
+            return False, "Material has no Principled BSDF node"
+
+        # Ensure the material has animation data.
+        if mat.animation_data is None:
+            mat.animation_data_create()
+
+        action_name = f"{mat.name}_GlowPulse"
+        # Remove any existing pulse action so re-running is idempotent.
+        if action_name in bpy.data.actions:
+            bpy.data.actions.remove(bpy.data.actions[action_name])
+
+        action = bpy.data.actions.new(name=action_name)
+        mat.animation_data.action = action
+
+        # Mid-point between min and max; the NOISE modifier will oscillate around it.
+        mid = (min_strength + max_strength) / 2.0
+        amplitude = (max_strength - min_strength) / 2.0
+
+        # data_path for Emission Strength on the Principled BSDF node.
+        node_path = f'nodes["{pbsdf.name}"].inputs["Emission Strength"].default_value'
+        fcurves = _get_action_fcurves(action)
+        fcurve = fcurves.new(data_path=node_path, index=0)
+        fcurve.keyframe_points.add(count=2)
+        fcurve.keyframe_points[0].co = (0.0, mid)
+        fcurve.keyframe_points[1].co = (period, mid)
+        for kp in fcurve.keyframe_points:
+            kp.interpolation = 'LINEAR'
+
+        noise_mod = fcurve.modifiers.new(type='NOISE')
+        noise_mod.strength = amplitude
+        noise_mod.scale = period * noise_scale
+        noise_mod.phase = 0.0
+        noise_mod.depth = 2
+
+        # Set scene frame range.
+        bpy.context.scene.frame_start = 0
+        bpy.context.scene.frame_end = int(period)
+
+        # Tag the material so export scripts know this uses a pulse controller.
+        mat["fo4_emittance_pulse"] = True
+        mat["fo4_emittance_pulse_min"] = min_strength
+        mat["fo4_emittance_pulse_max"] = max_strength
+        mat["fo4_emittance_pulse_period"] = period
+
+        return True, (
+            f"Emittance pulse applied to '{mat.name}' "
+            f"(min={min_strength:.1f}, max={max_strength:.1f}, period={int(period)} frames). "
+            "Add a BSLightingShaderPropertyFloatController in NifSkope targeting "
+            "EMISSIVE_MULTIPLE to reproduce this in-game."
+        )
+
+    @staticmethod
+    def remove_emittance_pulse(obj):
+        """Remove the pulsing emittance animation from *obj*'s active material.
+
+        Clears the ``_GlowPulse`` action and resets the Emission Strength
+        socket to its non-animated default value.
+
+        Returns (success: bool, message: str)
+        """
+        if obj is None or obj.type != 'MESH':
+            return False, "Object is not a mesh"
+
+        mat = None
+        if obj.data.materials:
+            mat = obj.data.materials[obj.active_material_index]
+        if mat is None:
+            return False, "No material on the active slot"
+
+        removed = False
+        action_name = f"{mat.name}_GlowPulse"
+        if action_name in bpy.data.actions:
+            bpy.data.actions.remove(bpy.data.actions[action_name])
+            removed = True
+
+        if mat.animation_data and mat.animation_data.action is None:
+            # If the removed action was the only one, clear animation data.
+            pass
+
+        # Reset Emission Strength to the stored min (non-animated state).
+        pbsdf = next(
+            (n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'),
+            None,
+        ) if mat.use_nodes else None
+        default_strength = mat.get("fo4_emittance_pulse_min", 1.0)
+        if pbsdf and pbsdf.inputs.get("Emission Strength"):
+            pbsdf.inputs["Emission Strength"].default_value = default_strength
+
+        for key in ("fo4_emittance_pulse", "fo4_emittance_pulse_min",
+                    "fo4_emittance_pulse_max", "fo4_emittance_pulse_period"):
+            mat.pop(key, None)
+
+        if removed:
+            return True, f"Emittance pulse removed from '{mat.name}'"
+        return False, f"No GlowPulse action found for '{mat.name}'"
+
 def register():
     """Register animation helper functions"""
     pass

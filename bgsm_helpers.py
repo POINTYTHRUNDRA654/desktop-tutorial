@@ -940,6 +940,20 @@ def _apply_shader_hints(data: BGSMData, hint: str) -> None:
         data.glowmap = True
         data.emit_enabled = True
         data.shader_flags1 |= SF1_EMIT_ENABLED
+        data.shader_flags2 |= SF2_GLOW_MAP
+    if "multicolor" in hint_lower:
+        # White emittance colour lets the engine pull colour from the RGB glow texture.
+        data.emittance_color = (1.0, 1.0, 1.0)
+    if "external_emittance" in hint_lower:
+        data.external_emittance = True
+        data.shader_flags1 |= SF1_EXTERNAL_EMITTANCE
+    if "bgem_bloom" in hint_lower:
+        # Additive blend for bloom halos – mark on the BGSM stub so exporters
+        # know to generate a .bgem file instead of .bgsm.
+        data.alpha_blend_mode = ALPHA_BLEND_ADDITIVE
+        data.glowmap = True
+        data.emit_enabled = True
+        data.shader_flags1 |= SF1_EMIT_ENABLED
     if "env" in hint_lower or "environment" in hint_lower:
         data.shader_flags1 |= SF1_ENVIRONMENT_MAPPING
     if "parallax" in hint_lower:

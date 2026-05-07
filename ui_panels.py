@@ -1314,6 +1314,48 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
         row2.enabled = has_mesh
         row2.operator("fo4.import_bgsm", text="Import .bgsm → Material", icon='IMPORT')
 
+        # ── Glowing Plants ────────────────────────────────────────────────────
+        glow_box = layout.box()
+        glow_box.label(text="Glowing Plants (FO4 Emissive)", icon='LIGHT_SUN')
+        hint_col = glow_box.column(align=True)
+        hint_col.scale_y = 0.75
+        hint_col.label(text="BGSM: standard glow map + emittance flags.", icon='DOT')
+        hint_col.label(text="BGEM: additive bloom halo (light bleeds into air).", icon='DOT')
+        hint_col.label(text="Pulse: NOISE animation → NifSkope FloatController.", icon='DOT')
+
+        col = glow_box.column(align=True)
+        col.enabled = has_mesh
+        col.operator(
+            "fo4.setup_glowing_plant_material",
+            text="Setup Glowing Plant (BGSM)",
+            icon='LIGHT_SUN',
+        )
+        col.operator(
+            "fo4.setup_glowing_plant_bgem",
+            text="Setup Bloom Halo (BGEM Additive)",
+            icon='LIGHT_AREA',
+        )
+        glow_box.separator(factor=0.4)
+        pulse_col = glow_box.column(align=True)
+        pulse_col.enabled = has_mesh
+        pulse_col.operator(
+            "fo4.apply_emittance_pulse",
+            text="Apply Emittance Pulse (Animate)",
+            icon='ANIM',
+        )
+        pulse_col.operator(
+            "fo4.remove_emittance_pulse",
+            text="Remove Emittance Pulse",
+            icon='X',
+        )
+        glow_box.separator(factor=0.4)
+        tip_col = glow_box.column(align=True)
+        tip_col.scale_y = 0.72
+        tip_col.label(text="After applying: install _g.dds glow mask, export BGSM.", icon='INFO')
+        tip_col.label(text="Multi-color: use white emittance + RGB _g.dds texture.", icon='INFO')
+        tip_col.label(text="Pulse → NifSkope: BSLightingShaderPropertyFloatController", icon='INFO')
+        tip_col.label(text="   targeting EMISSIVE_MULTIPLE + NiFloatInterpolator.", icon='DOT')
+
 class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
     """Image to Mesh helpers panel"""
     bl_label = "Image to Mesh"
