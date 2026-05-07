@@ -236,7 +236,10 @@ def _auto_fix_uv_stretch(mesh_obj: bpy.types.Object) -> bool:
         return False
 
     if not mesh.uv_layers:
-        mesh.uv_layers.new(name="UVMap")
+        try:
+            mesh.uv_layers.new(name="UVMap")
+        except Exception:
+            return False
     uv_layer = mesh.uv_layers.active
     if not uv_layer:
         return False
