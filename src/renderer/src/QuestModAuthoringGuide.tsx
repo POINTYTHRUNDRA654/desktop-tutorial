@@ -300,7 +300,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
           <div className="bg-purple-900/20 border border-purple-700/30 rounded p-4">
             <h4 className="font-bold text-purple-300 mb-2">🛠️ 2026 Engine Modernization Checklist</h4>
             <ul className="list-disc list-inside text-purple-200 text-xs space-y-1">
-              <li>Choose your runtime target up front (OG 1.10.163, NG 1.10.980-984, or 1.11.x Creations-era runtime) before building any DLL features</li>
+              <li>Choose your runtime target up front (OG 1.10.163, NG 1.10.980 to 1.10.984, or 1.11.x Creations-era runtime) before building any DLL features</li>
               <li>For serious F4SE plugins, plan versioned builds and address-library-safe hooks rather than hard-coded offsets</li>
               <li>Implement visuals in layers: assets first, worldspace/weather second, engine hooks third, then regression test each layer in isolation</li>
             </ul>
