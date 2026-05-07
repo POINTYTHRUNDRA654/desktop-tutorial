@@ -237,7 +237,9 @@ def _auto_fix_uv_stretch(mesh_obj: bpy.types.Object, error_log: list[str] | None
 
     if not mesh.uv_layers:
         try:
-            mesh.uv_layers.new(name="UVMap")
+            created_layer = mesh.uv_layers.new(name="UVMap")
+            if created_layer is not None:
+                mesh.uv_layers.active = created_layer
         except Exception as exc:
             if error_log is not None:
                 error_log.append(f"{mesh_obj.name_full}: UV map create failed ({exc})")
@@ -1196,6 +1198,8 @@ class FO4_OT_RunRealismQAScorecard(Operator):
         if uv_fix_errors:
             summary += f" | UVFixErrors:{len(uv_fix_errors)}"
         context.scene.fo4_realism_qa_status = summary
+        if uv_fix_errors:
+            self.report({"WARNING"}, uv_fix_errors[0])
         self.report({"INFO"}, summary)
         return {"FINISHED"}
 
