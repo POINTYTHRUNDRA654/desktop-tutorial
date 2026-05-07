@@ -201,10 +201,17 @@ class FO4_OT_RunMaterialIntelligence(Operator):
                             0.9 if metal_hint else 0.2, max(0.0, metallic)
                         )
                         if has_glow:
-                            principled.inputs["Emission Color"].default_value = (1.0, 1.0, 1.0, 1.0)
-                            principled.inputs["Emission Strength"].default_value = max(
-                                1.0, float(principled.inputs["Emission Strength"].default_value)
+                            emission_color = (
+                                principled.inputs.get("Emission Color")
+                                or principled.inputs.get("Emission")
                             )
+                            if emission_color is not None:
+                                emission_color.default_value = (1.0, 1.0, 1.0, 1.0)
+                            emission_strength = principled.inputs.get("Emission Strength")
+                            if emission_strength is not None:
+                                emission_strength.default_value = max(
+                                    1.0, float(emission_strength.default_value)
+                                )
 
                     # Export-time hints consumed by BGSM/BGEM conversion paths
                     mat["fo4_shader_hint"] = "glow" if has_glow else "default"
