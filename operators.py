@@ -8122,6 +8122,438 @@ class FO4_OT_ExportDiagnosticsReport(Operator):
 
 
 # ---------------------------------------------------------------------------
+# Smart Wind + FO4 Export Prep Operator
+# ---------------------------------------------------------------------------
+
+# Name-token sets used for wind-profile auto-detection (same heuristic as
+# fo4_scene_diagnostics._GRASS_NAME_TOKENS, extended for shrubs and trees).
+_WIND_GRASS_TOKENS = frozenset({
+    'grass', 'blade', 'fern', 'straw', 'weed', 'groundcover', 'clover', 'moss',
+})
+_WIND_SHRUB_TOKENS = frozenset({
+    'shrub', 'bush', 'hedge', 'ivy', 'vine', 'plant', 'flora', 'briar', 'thistle',
+})
+_WIND_TREE_TOKENS = frozenset({
+    'tree', 'pine', 'oak', 'birch', 'maple', 'palm', 'trunk', 'branch', 'sapling',
+    'willow', 'cedar', 'ash', 'elm', 'spruce',
+})
+
+
+def _detect_wind_profile(obj) -> str:
+    """Return 'GRASS', 'SHRUB', 'TREE', or 'STATIC' for *obj*.
+
+    Detection order
+    ---------------
+    1. ``fo4_collision_type == 'GRASS'``  → GRASS
+    2. ``fo4_mesh_type`` in VEGETATION/FLORA + name tokens
+    3. Bounding-box height heuristic (> 2 m → TREE, > 0.8 m → SHRUB)
+    4. Name-token fallback (any of the three token sets)
+    5. Default → STATIC
+    """
+    coll_type = getattr(obj, 'fo4_collision_type', None)
+    if coll_type == 'GRASS':
+        return 'GRASS'
+
+    mesh_type = getattr(obj, 'fo4_mesh_type', None)
+    name_lower = obj.name.lower()
+
+    is_veg = mesh_type in ('VEGETATION', 'FLORA', None)
+
+    # Explicit property set to a non-vegetation type → treat as static unless
+    # name heuristic strongly indicates vegetation.
+    if mesh_type and mesh_type not in ('VEGETATION', 'FLORA', 'AUTO'):
+        is_veg = False
+
+    if is_veg or mesh_type in ('AUTO', None):
+        if any(t in name_lower for t in _WIND_GRASS_TOKENS):
+            return 'GRASS'
+        if any(t in name_lower for t in _WIND_TREE_TOKENS):
+            return 'TREE'
+        if any(t in name_lower for t in _WIND_SHRUB_TOKENS):
+            return 'SHRUB'
+
+    # Height heuristic using the object's bounding box
+    if obj.type == 'MESH' and obj.data:
+        try:
+            from mathutils import Vector
+            corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
+            zs = [c.z for c in corners]
+            height = max(zs) - min(zs)
+            if height > 2.0:
+                return 'TREE'
+            if height > 0.8:
+                return 'SHRUB'
+        except Exception:
+            pass
+
+    return 'STATIC'
+
+
+class FO4_OT_SmartPrepareWindMesh(Operator):
+    """One-click wind setup and FO4 export preparation for vegetation meshes.
+
+    Click on any mesh and this operator will:
+
+    1. Auto-detect the wind profile (GRASS / SHRUB / TREE / STATIC) from the
+       object's ``fo4_mesh_type``, ``fo4_collision_type``, name tokens, and
+       bounding-box height.
+    2. Apply the correct FO4 settings for that profile:
+
+       **GRASS** (engine-side wind via GRAS record):
+       - Sets ``fo4_collision_type = 'GRASS'`` and ``fo4_mesh_type = 'VEGETATION'``.
+       - Removes any armature modifier (bones are forbidden on FO4 grass NIFs).
+       - Sets up the vegetation material (Alpha Clip, two-sided).
+       - Adds a ``Col`` vertex-color layer if none exists (white = full sway;
+         paint darker areas to reduce per-vertex wind intensity).
+
+       **SHRUB / TREE** (deformation-based wind):
+       - Sets ``fo4_mesh_type = 'VEGETATION'``.
+       - Sets up the vegetation material.
+       - Generates a ``Wind`` vertex-weight group (Z-axis linear falloff,
+         0 at the base, 1 at the tip).
+       - Optionally applies an armature wind-bone animation using the matching
+         preset (SHRUB or TREE amplitudes/periods).
+
+       **STATIC** (no wind):
+       - Leaves wind settings untouched; runs diagnostics only.
+
+    3. Runs Scene Diagnostics and auto-fixes all fixable issues (UV map,
+       scale, loose verts, normals, triangulation).
+    4. Re-runs diagnostics and reports the final score.
+
+    After this operator finishes, use **Export Vegetation NIF** or
+    **Export Mesh (.nif)** to export, then **Export .bgsm** to write the
+    material file.  Assign the NIF in the Creation Kit; for grass, tune the
+    sway feel via the GRAS record parameters there.
+
+    **Papyrus / F4SE note:** FO4 does not expose per-mesh wind parameters to
+    Papyrus or F4SE at runtime.  Wind is authored entirely in the NIF/BGSM
+    and in the GRAS record.  If you need gameplay-driven variation, author
+    multiple mesh/material variants and swap them via script.
+    """
+    bl_idname = "fo4.smart_prepare_wind_mesh"
+    bl_label  = "Smart Wind + FO4 Export Prep"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    profile_override: bpy.props.EnumProperty(
+        name="Wind Profile",
+        description=(
+            "Override the auto-detected profile.  "
+            "Leave at 'Auto-detect' to let the add-on choose."
+        ),
+        items=[
+            ('AUTO',   "Auto-detect", "Detect from mesh type, name, and height"),
+            ('GRASS',  "Grass",       "Engine-side wind via GRAS record — no bones"),
+            ('SHRUB',  "Shrub",       "Medium sway via wind-bone armature"),
+            ('TREE',   "Tree",        "Slow/heavy sway via wind-bone armature"),
+            ('STATIC', "Static",      "No wind — run diagnostics only"),
+        ],
+        default='AUTO',
+    )
+    apply_wind_armature: bpy.props.BoolProperty(
+        name="Apply Wind Armature (Shrub/Tree)",
+        description=(
+            "Create a wind-bone armature and add a looping animation action.  "
+            "Disable if you prefer to set up the armature manually."
+        ),
+        default=True,
+    )
+    add_vertex_colors: bpy.props.BoolProperty(
+        name="Add Vertex Color Layer (Grass)",
+        description=(
+            "Add a 'Col' vertex-color layer set to white so you can paint "
+            "darker areas to reduce wind intensity on those vertices.  "
+            "Has no effect on non-grass profiles."
+        ),
+        default=True,
+    )
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        return context.window_manager.invoke_props_dialog(self, width=380)
+
+    def draw(self, context):
+        layout = self.layout
+        obj = context.active_object
+
+        # Show the auto-detected profile so the user can review it before clicking OK.
+        if obj and obj.type == 'MESH':
+            detected = _detect_wind_profile(obj)
+            info_col = layout.column(align=True)
+            info_col.scale_y = 0.8
+            info_col.label(text=f"Mesh: {obj.name}", icon='MESH_DATA')
+            info_col.label(text=f"Auto-detected profile: {detected}", icon='FORCE_WIND')
+
+        layout.separator(factor=0.5)
+        layout.prop(self, "profile_override")
+        layout.prop(self, "apply_wind_armature")
+        layout.prop(self, "add_vertex_colors")
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _ensure_veg_material(obj):
+        """Set up (or reuse) a vegetation material on *obj*.
+
+        Calls :func:`texture_helpers.TextureHelpers.setup_vegetation_material`
+        which creates an Alpha-Clip, two-sided PBR material with the FO4
+        texture node slots (Diffuse, Normal, Specular, Glow, Environment).
+        """
+        if texture_helpers:
+            return texture_helpers.TextureHelpers.setup_vegetation_material(obj)
+        return None
+
+    @staticmethod
+    def _remove_armature_modifiers(obj):
+        """Remove all Armature modifiers from *obj* and clear its parent if
+        the parent is an armature."""
+        removed = []
+        for mod in list(obj.modifiers):
+            if mod.type == 'ARMATURE':
+                obj.modifiers.remove(mod)
+                removed.append(mod.name)
+        if obj.parent and obj.parent.type == 'ARMATURE':
+            # Clear parent but keep transform
+            try:
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                bpy.context.view_layer.objects.active = obj
+                bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+            except Exception:
+                pass
+        return removed
+
+    @staticmethod
+    def _ensure_vertex_color_layer(obj):
+        """Ensure *obj* has at least one vertex-color attribute layer.
+
+        Uses ``color_attributes`` (Blender 3.3+) or the legacy
+        ``vertex_colors`` API, initialising all colours to white.
+        """
+        mesh = obj.data
+        if mesh.color_attributes:
+            return mesh.color_attributes[0].name
+        if mesh.vertex_colors:
+            return mesh.vertex_colors[0].name
+        # Create a new layer
+        try:
+            layer = mesh.color_attributes.new(
+                name="Col", type='BYTE_COLOR', domain='CORNER'
+            )
+            # Initialise to white so every vertex has max wind intensity by default.
+            for c in layer.data:
+                c.color = (1.0, 1.0, 1.0, 1.0)
+            return layer.name
+        except Exception:
+            # Blender < 3.3 fallback
+            try:
+                layer = mesh.vertex_colors.new(name="Col")
+                for c in layer.data:
+                    c.color = (1.0, 1.0, 1.0, 1.0)
+                return layer.name
+            except Exception:
+                return None
+
+    # ------------------------------------------------------------------
+    # Main execute
+    # ------------------------------------------------------------------
+
+    def execute(self, context):  # noqa: C901 – intentionally long
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        profile = (
+            _detect_wind_profile(obj)
+            if self.profile_override == 'AUTO'
+            else self.profile_override
+        )
+
+        applied: list[str] = []      # things done automatically
+        blockers: list[str] = []     # remaining issues needing user attention
+
+        # ------------------------------------------------------------------
+        # Profile: GRASS
+        # ------------------------------------------------------------------
+        if profile == 'GRASS':
+            # Collision type must be GRASS (= no collision)
+            try:
+                obj.fo4_collision_type = 'GRASS'
+                applied.append("fo4_collision_type = 'GRASS'")
+            except Exception:
+                pass
+
+            # Mesh type must be VEGETATION
+            try:
+                obj.fo4_mesh_type = 'VEGETATION'
+                applied.append("fo4_mesh_type = 'VEGETATION'")
+            except Exception:
+                pass
+
+            # Remove armature — bones are forbidden on grass NIFs
+            removed = self._remove_armature_modifiers(obj)
+            if removed:
+                applied.append(f"Removed armature modifier(s): {', '.join(removed)}")
+
+            # Remove shape keys if present (not supported on grass)
+            if obj.data.shape_keys and len(obj.data.shape_keys.key_blocks) > 1:
+                blockers.append(
+                    "Grass has shape keys — remove them manually "
+                    "(Edit Mode → Shape Keys → delete all)"
+                )
+
+            # Vegetation material (Alpha Clip, two-sided)
+            mat = self._ensure_veg_material(obj)
+            if mat is not None:
+                applied.append(f"Vegetation material applied: '{mat.name}'")
+            else:
+                blockers.append(
+                    "Could not create vegetation material (texture_helpers unavailable)"
+                )
+
+            # Optional vertex-color layer for per-vertex wind intensity
+            if self.add_vertex_colors:
+                layer_name = self._ensure_vertex_color_layer(obj)
+                if layer_name:
+                    applied.append(
+                        f"Vertex-color layer '{layer_name}' present "
+                        "(white = max sway; paint darker to reduce intensity)"
+                    )
+
+        # ------------------------------------------------------------------
+        # Profile: SHRUB or TREE
+        # ------------------------------------------------------------------
+        elif profile in ('SHRUB', 'TREE'):
+            # Mesh type
+            try:
+                obj.fo4_mesh_type = 'VEGETATION'
+                applied.append("fo4_mesh_type = 'VEGETATION'")
+            except Exception:
+                pass
+
+            # Vegetation material
+            mat = self._ensure_veg_material(obj)
+            if mat is not None:
+                applied.append(f"Vegetation material applied: '{mat.name}'")
+            else:
+                blockers.append("Could not create vegetation material")
+
+            # Wind weights (Z-axis linear falloff)
+            if animation_helpers:
+                ok, msg = animation_helpers.AnimationHelpers.generate_wind_weights(obj)
+                if ok:
+                    applied.append(msg)
+                else:
+                    blockers.append(f"Wind weights failed: {msg}")
+            else:
+                blockers.append("animation_helpers unavailable — wind weights not generated")
+
+            # Optional wind armature + animation action
+            if self.apply_wind_armature and animation_helpers:
+                preset = profile  # 'SHRUB' or 'TREE'
+                amp = 0.15 if preset == 'SHRUB' else 0.3
+                period = 80.0 if preset == 'SHRUB' else 120.0
+                ok, msg = animation_helpers.AnimationHelpers.apply_wind_animation(
+                    obj, amplitude=amp, period=period, axis='X'
+                )
+                if ok:
+                    applied.append(f"Wind armature + animation applied ({preset} preset)")
+                else:
+                    blockers.append(f"Wind animation setup failed: {msg}")
+
+        # ------------------------------------------------------------------
+        # Profile: STATIC — no wind modifications, diagnostics only
+        # ------------------------------------------------------------------
+        # (falls through to the diagnostics section below)
+
+        # ------------------------------------------------------------------
+        # Diagnostics: run → auto-fix → re-run
+        # ------------------------------------------------------------------
+        if fo4_scene_diagnostics:
+            # First pass
+            report = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(context.scene)
+            fo4_scene_diagnostics.store_report(report)
+
+            # Auto-fix all fixable issues
+            fix_count, fix_msgs = fo4_scene_diagnostics.SceneDiagnostics.auto_fix(
+                context, report
+            )
+            if fix_count:
+                applied.append(f"Auto-fixed {fix_count} diagnostic issue(s)")
+
+            # Second pass for the final score
+            report2 = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(context.scene)
+            fo4_scene_diagnostics.store_report(report2)
+
+            # Update scene shortcut properties
+            s = report2.get("summary", {})
+            try:
+                context.scene.fo4_diag_last_score    = s.get("score",         0)
+                context.scene.fo4_diag_last_errors   = s.get("error_count",   0)
+                context.scene.fo4_diag_last_warnings = s.get("warning_count", 0)
+                context.scene.fo4_diag_export_ready  = s.get("export_ready",  False)
+            except Exception:
+                pass
+
+            score = s.get("score", 0)
+            errors = s.get("error_count", 0)
+            warnings = s.get("warning_count", 0)
+            export_ready = s.get("export_ready", False)
+
+            # Collect per-object errors that are still open as blockers
+            for obj_r in report2.get("objects", []):
+                for check in obj_r.get("checks", []):
+                    if check.get("severity") == "ERROR":
+                        blockers.append(
+                            f"[{obj_r['name']}] {check.get('message', '')}"
+                        )
+        else:
+            score = 0
+            errors = 0
+            warnings = 0
+            export_ready = False
+            blockers.append("fo4_scene_diagnostics unavailable — run diagnostics manually")
+
+        # ------------------------------------------------------------------
+        # Build consolidated report message
+        # ------------------------------------------------------------------
+        lines_applied = "\n  • ".join(applied) if applied else "—"
+        if blockers:
+            lines_blockers = "\n  ✗ ".join(blockers)
+            summary = (
+                f"Smart Wind Prep ({profile}) — Score {score}/100  "
+                f"({errors} error(s), {warnings} warning(s))  "
+                f"{'✅ Export ready' if export_ready else '⚠ Fix remaining issues'}\n"
+                f"Auto-applied:\n  • {lines_applied}\n"
+                f"Needs attention:\n  ✗ {lines_blockers}"
+            )
+            self.report({'WARNING'}, summary)
+        else:
+            summary = (
+                f"Smart Wind Prep ({profile}) — Score {score}/100  ✅ Export ready\n"
+                f"Auto-applied:\n  • {lines_applied}"
+            )
+            self.report({'INFO'}, summary)
+
+        if notification_system:
+            status = 'INFO' if export_ready else 'WARNING'
+            short = (
+                f"Smart Wind Prep ({profile}): score {score}/100 "
+                f"{'✅' if export_ready else '⚠'} "
+                f"{len(applied)} applied, {len(blockers)} remaining"
+            )
+            notification_system.FO4_NotificationSystem.notify(short, status)
+
+        return {'FINISHED'}
+
+
+# ---------------------------------------------------------------------------
 # Reference Objects Operators
 # ---------------------------------------------------------------------------
 
@@ -9408,6 +9840,8 @@ classes = (
     FO4_OT_RunSceneDiagnostics,
     FO4_OT_AutoFixDiagnostics,
     FO4_OT_ExportDiagnosticsReport,
+    # Smart wind + export prep (one-click vegetation pipeline)
+    FO4_OT_SmartPrepareWindMesh,
     # Scale reference operators
     FO4_OT_AddReferenceObject,
     FO4_OT_ClearReferenceObjects,
