@@ -78,6 +78,31 @@ _REF_ENUM_ITEMS = (
     else [('NONE', 'None', 'No reference')]
 )
 
+_WIND_ANIM_PRESETS = {
+    'GRASS': (0.10, 40.0),
+    'SHRUB': (0.15, 80.0),
+    'TREE': (0.30, 120.0),
+    'SHRUB_SOFT': (0.10, 95.0),
+    'SHRUB_STORM': (0.24, 55.0),
+    'TREE_CALM': (0.20, 150.0),
+    'TREE_STORM': (0.42, 85.0),
+}
+
+_SMART_WIND_TUNING_PRESETS = {
+    'CALM': {
+        'SHRUB': (0.10, 95.0, "calm"),
+        'TREE':  (0.20, 150.0, "calm"),
+    },
+    'BALANCED': {
+        'SHRUB': (0.15, 80.0, "balanced"),
+        'TREE':  (0.30, 120.0, "balanced"),
+    },
+    'STORM': {
+        'SHRUB': (0.24, 55.0, "storm"),
+        'TREE':  (0.42, 85.0, "storm"),
+    },
+}
+
 # Optional / extended modules – imported safely so a missing or broken module
 # does NOT prevent the core operators from being registered.
 knowledge_helpers     = _safe_import("knowledge_helpers")
@@ -1423,6 +1448,10 @@ class FO4_OT_ApplyWindAnimation(Operator):
             ('GRASS', 'Grass', 'Light, fast swaying'),
             ('SHRUB', 'Shrub', 'Medium amplitude/period'),
             ('TREE', 'Tree', 'Slow, heavy movement'),
+            ('SHRUB_SOFT', 'Shrub (Calm)', 'Subtle shrub sway for calm weather'),
+            ('SHRUB_STORM', 'Shrub (Storm)', 'Aggressive shrub sway for windy weather'),
+            ('TREE_CALM', 'Tree (Calm)', 'Subtle heavy-tree sway'),
+            ('TREE_STORM', 'Tree (Storm)', 'Stronger tree sway for storm scenes'),
         ],
         default='NONE',
     )
@@ -1453,12 +1482,8 @@ class FO4_OT_ApplyWindAnimation(Operator):
     
     def execute(self, context):
         # apply presets if selected
-        if self.preset == 'GRASS':
-            self.amplitude = 0.1; self.period = 40.0
-        elif self.preset == 'SHRUB':
-            self.amplitude = 0.15; self.period = 80.0
-        elif self.preset == 'TREE':
-            self.amplitude = 0.3; self.period = 120.0
+        if self.preset in _WIND_ANIM_PRESETS:
+            self.amplitude, self.period = _WIND_ANIM_PRESETS[self.preset]
 
         mesh = context.active_object
         if not mesh or mesh.type != 'MESH':
@@ -1918,6 +1943,151 @@ class FO4_OT_ExportAll(Operator):
         
         return {'FINISHED'}
     
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+class FO4_OT_ExportCKAssetBundle(Operator):
+    """Export selected meshes and linked files to CK's Data folder layout."""
+    bl_idname = "fo4.export_ck_asset_bundle"
+    bl_label = "Export CK Asset Bundle"
+    bl_options = {'REGISTER'}
+
+    directory: StringProperty(
+        name="FO4 Data Folder",
+        description="Fallout 4 Data folder root (contains Meshes/Materials/Textures)",
+        subtype='DIR_PATH',
+    )
+    mod_subpath: StringProperty(
+        name="Mod Subpath",
+        description=r"Relative folder under Meshes/Materials/Textures (e.g. MyMod/Forest)",
+        default="MyMod",
+    )
+    selected_only: BoolProperty(
+        name="Selected Meshes Only",
+        description="Export only selected mesh objects",
+        default=True,
+    )
+    export_bgsm: BoolProperty(
+        name="Export BGSM",
+        description="Export BGSM file(s) for each mesh material",
+        default=True,
+    )
+    copy_textures: BoolProperty(
+        name="Copy Linked Textures",
+        description="Copy linked Diffuse/Normal/Specular/Glow/EnvMap textures",
+        default=True,
+    )
+
+    def _iter_target_meshes(self, context):
+        if self.selected_only:
+            return [o for o in context.selected_objects if o.type == 'MESH']
+        return [o for o in context.scene.objects if o.type == 'MESH']
+
+    @staticmethod
+    def _safe_name(name: str) -> str:
+        safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in (name or "Asset"))
+        return safe.strip("._") or "Asset"
+
+    @staticmethod
+    def _collect_material_texture_paths(mat) -> list[str]:
+        if mat is None or not getattr(mat, "use_nodes", False) or not mat.node_tree:
+            return []
+        wanted = {"Diffuse", "Normal", "Specular", "Glow", "EnvMap", "Environment"}
+        paths = []
+        for node in mat.node_tree.nodes:
+            if node.type != 'TEX_IMAGE':
+                continue
+            if node.name not in wanted and node.label not in wanted:
+                continue
+            img = getattr(node, "image", None)
+            if not img:
+                continue
+            p = getattr(img, "filepath", "") or ""
+            if p:
+                paths.append(bpy.path.abspath(p))
+        return paths
+
+    def execute(self, context):
+        if not self.directory:
+            self.report({'ERROR'}, "Select a FO4 Data folder")
+            return {'CANCELLED'}
+
+        objs = self._iter_target_meshes(context)
+        if not objs:
+            self.report({'ERROR'}, "No mesh objects to export")
+            return {'CANCELLED'}
+
+        import shutil
+        data_root = bpy.path.abspath(self.directory)
+        sub = (self.mod_subpath or "MyMod").strip().strip("/\\")
+        meshes_dir = _os.path.join(data_root, "Meshes", sub)
+        mats_dir = _os.path.join(data_root, "Materials", sub)
+        tex_dir = _os.path.join(data_root, "Textures", sub)
+        for d in (meshes_dir, mats_dir, tex_dir):
+            _os.makedirs(d, exist_ok=True)
+
+        n_mesh_ok = 0
+        n_bgsm_ok = 0
+        n_tex_ok = 0
+        warns = []
+        copied_src = set()
+
+        for obj in objs:
+            safe_obj = self._safe_name(obj.name)
+            mesh_path = _os.path.join(meshes_dir, f"{safe_obj}.nif")
+            ok, msg = export_helpers.ExportHelpers.export_mesh_to_nif(obj, mesh_path)
+            if ok:
+                n_mesh_ok += 1
+            else:
+                warns.append(f"{obj.name}: NIF export failed ({msg})")
+
+            if self.export_bgsm and bgsm_helpers and obj.data.materials:
+                try:
+                    results = bgsm_helpers.export_bgsm_for_object(obj, mats_dir, all_slots=False)
+                    n_bgsm_ok += sum(1 for r_ok, _ in results if r_ok)
+                    for r_ok, r_msg in results:
+                        if not r_ok:
+                            warns.append(f"{obj.name}: BGSM warning ({r_msg})")
+                except Exception as exc:
+                    warns.append(f"{obj.name}: BGSM export error ({exc})")
+
+            if self.copy_textures and obj.data.materials:
+                for mat in obj.data.materials:
+                    for src in self._collect_material_texture_paths(mat):
+                        src_norm = _os.path.normcase(_os.path.normpath(src))
+                        if src_norm in copied_src:
+                            continue
+                        if not _os.path.isfile(src):
+                            warns.append(f"{obj.name}: texture missing ({src})")
+                            continue
+                        try:
+                            dst = _os.path.join(tex_dir, _os.path.basename(src))
+                            shutil.copy2(src, dst)
+                            copied_src.add(src_norm)
+                            n_tex_ok += 1
+                        except Exception as exc:
+                            warns.append(f"{obj.name}: texture copy failed ({src} → {exc})")
+
+        summary = (
+            f"CK bundle export: {n_mesh_ok}/{len(objs)} mesh(es), "
+            f"{n_bgsm_ok} BGSM file(s), {n_tex_ok} texture(s)"
+        )
+        self.report({'INFO' if not warns else 'WARNING'}, summary)
+        if warns:
+            for w in warns[:10]:
+                self.report({'WARNING'}, w)
+            if len(warns) > 10:
+                self.report({'WARNING'}, f"... and {len(warns) - 10} more warning(s)")
+            print("CK ASSET BUNDLE WARNINGS:")
+            for w in warns:
+                print(f"  - {w}")
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(
+                summary, 'INFO' if not warns else 'WARNING'
+            )
+        return {'FINISHED'}
+
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
@@ -2533,6 +2703,32 @@ class FO4_OT_ShowQuickReference(Operator):
         import sys
         print("\n" + "\n".join(REF) + "\n", file=sys.stdout)
         self.report({'INFO'}, "FO4 Quick Reference printed to System Console (Window > Toggle System Console)")
+        return {'FINISHED'}
+
+
+class FO4_OT_ShowFoliageLODChecklist(Operator):
+    """Show a concise LOD/export checklist for heavy foliage sets."""
+    bl_idname = "fo4.show_foliage_lod_checklist"
+    bl_label = "Show Foliage LOD Checklist"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        lines = [
+            "FO4 Foliage LOD + Export Checklist",
+            "1) Keep hero foliage selective at 4K; use 2K/1K for background sets.",
+            "2) Build LOD chain (LOD0-LOD3) and verify silhouette retention.",
+            "3) Use Alpha Clip + Two-Sided vegetation material with DDS textures.",
+            "4) Run Smart Wind + Export Prep and confirm diagnostics are export-ready.",
+            "5) Export NIF + BGSM + textures into Data/Meshes|Materials|Textures.",
+            "6) In CK: generate LOD and previs/precombine for dense worldspaces.",
+        ]
+        block_name = "FO4 Foliage LOD Checklist"
+        text_block = bpy.data.texts.get(block_name)
+        if text_block is None:
+            text_block = bpy.data.texts.new(block_name)
+        text_block.clear()
+        text_block.write("\n".join(lines))
+        self.report({'INFO'}, f"Checklist written to text block: {block_name}")
         return {'FINISHED'}
 
 
@@ -7919,6 +8115,103 @@ class FO4_OT_SyncPostProcessingProps(Operator):
 # Material Browser Operators
 # ---------------------------------------------------------------------------
 
+class FO4_OT_ApplyCoreMaterialProfile(Operator):
+    """Apply quick FO4 core material profiles for foliage/wet/metal/skin."""
+    bl_idname = "fo4.apply_core_material_profile"
+    bl_label = "Apply Core Material Profile"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    profile: EnumProperty(
+        name="Profile",
+        items=[
+            ('FOLIAGE', "Foliage", "Alpha-clip/two-sided foliage setup"),
+            ('WET', "Wet Surface", "Lower roughness + envmap-ready setup"),
+            ('METAL', "Metal", "FO4 metal baseline preset"),
+            ('SKIN', "Skin", "FO4 skin baseline preset"),
+        ],
+        default='FOLIAGE',
+    )
+    apply_all_selected: BoolProperty(
+        name="Apply to All Selected",
+        default=True,
+    )
+
+    def _targets(self, context):
+        if self.apply_all_selected:
+            return [o for o in context.selected_objects if o.type == 'MESH']
+        obj = context.active_object
+        return [obj] if obj and obj.type == 'MESH' else []
+
+    @staticmethod
+    def _set_bsdf_defaults(mat, roughness=None, metallic=None, emission=None):
+        if not mat or not mat.use_nodes or not mat.node_tree:
+            return
+        pbsdf = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+        if not pbsdf:
+            return
+        if roughness is not None and pbsdf.inputs.get("Roughness"):
+            pbsdf.inputs["Roughness"].default_value = roughness
+        if metallic is not None and pbsdf.inputs.get("Metallic"):
+            pbsdf.inputs["Metallic"].default_value = metallic
+        if emission is not None:
+            emit = pbsdf.inputs.get("Emission Strength")
+            if emit:
+                emit.default_value = emission
+
+    def execute(self, context):
+        targets = self._targets(context)
+        if not targets:
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        applied = 0
+        errors = []
+        for obj in targets:
+            try:
+                mat = None
+                if self.profile == 'FOLIAGE':
+                    mat = texture_helpers.TextureHelpers.setup_vegetation_material(obj) if texture_helpers else None
+                elif self.profile == 'WET':
+                    ok, _ = fo4_material_browser.MaterialBrowser.apply_preset(obj, "CLEAN_METAL")
+                    if not ok:
+                        errors.append(f"{obj.name}: failed to apply wet profile base")
+                        continue
+                    mat = obj.data.materials[0] if obj.data.materials else None
+                    self._set_bsdf_defaults(mat, roughness=0.08, metallic=0.0, emission=0.0)
+                    if mat:
+                        mat["fo4_shader_type"] = "envmap"
+                elif self.profile == 'METAL':
+                    ok, _ = fo4_material_browser.MaterialBrowser.apply_preset(obj, "RUSTY_METAL")
+                    if not ok:
+                        errors.append(f"{obj.name}: failed to apply metal profile")
+                        continue
+                    mat = obj.data.materials[0] if obj.data.materials else None
+                else:  # SKIN
+                    ok, _ = fo4_material_browser.MaterialBrowser.apply_preset(obj, "HUMAN_SKIN")
+                    if not ok:
+                        errors.append(f"{obj.name}: failed to apply skin profile")
+                        continue
+                    mat = obj.data.materials[0] if obj.data.materials else None
+
+                if mat:
+                    mat["fo4_core_profile"] = self.profile.lower()
+                applied += 1
+            except Exception as exc:
+                errors.append(f"{obj.name}: {exc}")
+
+        msg = f"Applied {self.profile.title()} profile to {applied}/{len(targets)} mesh(es)"
+        if errors:
+            self.report({'WARNING'}, msg)
+            for err in errors[:6]:
+                self.report({'WARNING'}, err)
+            if len(errors) > 6:
+                self.report({'WARNING'}, f"... and {len(errors) - 6} more")
+            return {'FINISHED'}
+
+        self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+
 class FO4_OT_ApplyMaterialPreset(Operator):
     """Apply a Fallout 4 material preset to the selected mesh object(s).
 
@@ -8119,6 +8412,670 @@ class FO4_OT_ExportDiagnosticsReport(Operator):
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
+
+
+# ---------------------------------------------------------------------------
+# HD Material Setup Operator (4K textures + glow maps + PBR flags)
+# ---------------------------------------------------------------------------
+
+class FO4_OT_SetupHDMaterial(Operator):
+    """Configure a full HD PBR material on the active mesh for 4K export.
+
+    Creates (or replaces) the Blender material with all five FO4 texture slots,
+    wires the glow/emissive channel correctly so the BGSM exporter writes the
+    right shader flags, and sets PBR-accurate roughness / specular defaults.
+
+    Texture slots set up
+    --------------------
+    • **Diffuse** (_d.dds)  – BC3/DXT5 with alpha, or BC1/DXT1 for opaque
+    • **Normal**  (_n.dds)  – BC5/ATI2 (two-channel tangent-space)
+    • **Specular** (_s.dds) – BC1 (RGB glossiness/specular)
+    • **Glow**    (_g.dds)  – BC1 glow/emissive mask; auto-enables BGSM emit
+    • **EnvMap**  (_e.dds)  – BC1 cube-map reflection mask (optional)
+
+    4K / HD guidance
+    ----------------
+    FO4's BSLightingShaderProperty and DDS texture streaming support up to
+    4096×4096 (4K) per slot.  Use BC7 (``HIGH_QUAL`` in the NVTT converter)
+    for the diffuse when quality matters most – it offers better fidelity at
+    the same file size as BC3.  Keep normal maps at BC5 regardless of resolution.
+
+    Glow maps
+    ---------
+    The ``_g.dds`` texture is a greyscale or RGB mask where white = maximum
+    emissive brightness and black = no glow.  After clicking this button:
+    1. Install your ``_g.dds`` via the **Install Glow Mask** button in the
+       Texture panel.
+    2. Adjust ``Emission Strength`` on the Principled BSDF (1.0–5.0 for subtle;
+       10–30 for neon/screens).
+    3. Export the BGSM – ``emit_enabled``, ``glowmap``, and SF1_EMIT_ENABLED /
+       SF2_GLOW_MAP shader flags will be written automatically.
+
+    F4SE / Papyrus note
+    -------------------
+    The Fallout 4 engine does not expose BGSM material properties to Papyrus
+    or F4SE at runtime.  To vary glow intensity dynamically, author two
+    material variants (e.g. ``mesh_off.bgsm`` / ``mesh_on.bgsm``) and swap
+    the NIF's BSLightingShaderProperty path from a Papyrus script using
+    ObjectReference::SetTextureSet or a shader-swap workaround.
+    """
+    bl_idname  = "fo4.setup_hd_material"
+    bl_label   = "Setup HD Material (4K + Glow)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    emission_strength: bpy.props.FloatProperty(
+        name="Emission Strength",
+        description=(
+            "Default Principled BSDF Emission Strength for the glow channel. "
+            "0 = no glow preview (glow still exported if _g.dds is installed). "
+            "1–5 = subtle ambient. 10–30 = neon/tech glow."
+        ),
+        default=0.0,
+        min=0.0,
+        max=100.0,
+        soft_max=30.0,
+    )
+    roughness: bpy.props.FloatProperty(
+        name="Default Roughness",
+        description=(
+            "Sets the Principled BSDF Roughness default. "
+            "0.0 = mirror-smooth (metal/glass). "
+            "0.5 = mid-range (painted surface). "
+            "1.0 = fully rough (unpolished stone/wood)."
+        ),
+        default=0.5,
+        min=0.0,
+        max=1.0,
+    )
+    use_alpha_clip: bpy.props.BoolProperty(
+        name="Alpha Clip (vegetation / foliage)",
+        description=(
+            "Enable Alpha Clip blend mode and disable backface culling. "
+            "Required for grass, leaves, and any mesh with transparency cut-out."
+        ),
+        default=False,
+    )
+    replace_existing: bpy.props.BoolProperty(
+        name="Replace Existing Material",
+        description=(
+            "If the object already has a material, replace it with a fresh "
+            "HD material.  Disable to skip objects that already have a material."
+        ),
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=380)
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column(align=True)
+        col.scale_y = 0.8
+        col.label(text="4K Texture Format Recommendations:", icon='INFO')
+        col.label(text="  Diffuse (_d): BC3/DXT5 (with alpha) or BC1/DXT1 (opaque)")
+        col.label(text="  Normal  (_n): BC5/ATI2  ← always, regardless of resolution")
+        col.label(text="  Specular (_s): BC1/DXT1")
+        col.label(text="  Glow    (_g): BC1/DXT1")
+        col.label(text="  EnvMap  (_e): BC1/DXT1")
+        col.separator(factor=0.5)
+        col.label(text="For highest quality at 4K: use BC7 for diffuse (texconv).", icon='CHECKMARK')
+        layout.separator(factor=0.5)
+        layout.prop(self, "emission_strength")
+        layout.prop(self, "roughness")
+        layout.prop(self, "use_alpha_clip")
+        layout.prop(self, "replace_existing")
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        # Skip if the object already has a material and replace_existing is off.
+        if obj.data.materials and not self.replace_existing:
+            self.report({'INFO'},
+                f"'{obj.name}' already has a material – skipped "
+                "(enable 'Replace Existing Material' to override)"
+            )
+            return {'FINISHED'}
+
+        # Build the material.
+        if texture_helpers:
+            mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+        else:
+            # Minimal fallback – create a plain Principled BSDF material.
+            mat_name = f"{obj.name}_HD_Material"
+            mat = bpy.data.materials.new(name=mat_name)
+            mat.use_nodes = True
+            if obj.data.materials:
+                obj.data.materials[0] = mat
+            else:
+                obj.data.materials.append(mat)
+
+        if mat is None:
+            self.report({'ERROR'}, "Failed to create material")
+            return {'CANCELLED'}
+
+        # ── PBR defaults ──────────────────────────────────────────────────────
+        pbsdf = None
+        for node in mat.node_tree.nodes:
+            if node.type == 'BSDF_PRINCIPLED':
+                pbsdf = node
+                break
+
+        if pbsdf:
+            rough = pbsdf.inputs.get("Roughness")
+            if rough:
+                rough.default_value = self.roughness
+
+            # Emission strength (applied to the emission channel; the actual
+            # glow is only visible after installing a _g.dds image).
+            emit_str = pbsdf.inputs.get("Emission Strength")
+            if emit_str:
+                emit_str.default_value = self.emission_strength
+
+            # Metallic set to 0 by default (non-metallic PBR baseline).
+            metallic = pbsdf.inputs.get("Metallic")
+            if metallic:
+                metallic.default_value = 0.0
+
+        # ── Alpha settings for vegetation ────────────────────────────────────
+        if self.use_alpha_clip:
+            mat.blend_method = 'CLIP'
+            mat.alpha_threshold = 0.5
+            mat.use_backface_culling = False
+        else:
+            mat.blend_method = 'OPAQUE'
+            mat.use_backface_culling = True
+
+        # ── Tag material so BGSM exporter picks up the right shader hints ──
+        # "glowmap" hint ensures SF1_EMIT_ENABLED + SF2_GLOW_MAP are written
+        # even before the _g.dds image is loaded into the Glow node.
+        try:
+            mat["fo4_shader_type"] = "glowmap" if self.emission_strength > 0.0 else "default"
+        except Exception:
+            pass
+
+        # ── User-facing summary ───────────────────────────────────────────────
+        alpha_note = " • Alpha Clip enabled (vegetation/foliage)" if self.use_alpha_clip else ""
+        glow_note  = (
+            f" • Emission Strength = {self.emission_strength:.1f}"
+            " (install _g.dds to see glow in-game)"
+            if self.emission_strength > 0.0 else
+            " • Emission = 0 (install _g.dds then raise Emission Strength)"
+        )
+        msg = (
+            f"HD material created on '{obj.name}': "
+            f"Roughness={self.roughness:.2f}."
+            f"{alpha_note}"
+            f"{glow_note}"
+            "  Next: install textures via the Texture Helpers panel, "
+            "then Export BGSM."
+        )
+        self.report({'INFO'}, msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(
+                f"HD material applied to '{obj.name}' (4K-ready)", 'INFO'
+            )
+        return {'FINISHED'}
+
+
+# ---------------------------------------------------------------------------
+# Smart Wind + FO4 Export Prep Operator
+# ---------------------------------------------------------------------------
+
+# Name-token sets used for wind-profile auto-detection (same heuristic as
+# fo4_scene_diagnostics._GRASS_NAME_TOKENS, extended for shrubs and trees).
+_WIND_GRASS_TOKENS = frozenset({
+    'grass', 'blade', 'fern', 'straw', 'weed', 'groundcover', 'clover', 'moss',
+})
+_WIND_SHRUB_TOKENS = frozenset({
+    'shrub', 'bush', 'hedge', 'ivy', 'vine', 'plant', 'flora', 'briar', 'thistle',
+})
+_WIND_TREE_TOKENS = frozenset({
+    'tree', 'pine', 'oak', 'birch', 'maple', 'palm', 'trunk', 'branch', 'sapling',
+    'willow', 'cedar', 'ash', 'elm', 'spruce',
+})
+
+
+def _detect_wind_profile(obj) -> str:
+    """Return 'GRASS', 'SHRUB', 'TREE', or 'STATIC' for *obj*.
+
+    Detection order
+    ---------------
+    1. ``fo4_collision_type == 'GRASS'``  → GRASS
+    2. ``fo4_mesh_type`` in VEGETATION/FLORA + name tokens
+    3. Bounding-box height heuristic (> 2 m → TREE, > 0.8 m → SHRUB)
+    4. Name-token fallback (any of the three token sets)
+    5. Default → STATIC
+    """
+    coll_type = getattr(obj, 'fo4_collision_type', None)
+    if coll_type == 'GRASS':
+        return 'GRASS'
+
+    mesh_type = getattr(obj, 'fo4_mesh_type', None)
+    name_lower = obj.name.lower()
+
+    is_veg = mesh_type in ('VEGETATION', 'FLORA', None)
+
+    # Explicit property set to a non-vegetation type → treat as static unless
+    # name heuristic strongly indicates vegetation.
+    if mesh_type and mesh_type not in ('VEGETATION', 'FLORA', 'AUTO'):
+        is_veg = False
+
+    if is_veg or mesh_type in ('AUTO', None):
+        if any(t in name_lower for t in _WIND_GRASS_TOKENS):
+            return 'GRASS'
+        if any(t in name_lower for t in _WIND_TREE_TOKENS):
+            return 'TREE'
+        if any(t in name_lower for t in _WIND_SHRUB_TOKENS):
+            return 'SHRUB'
+
+    # Height heuristic using the object's bounding box
+    if obj.type == 'MESH' and obj.data:
+        try:
+            from mathutils import Vector
+            corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
+            zs = [c.z for c in corners]
+            height = max(zs) - min(zs)
+            if height > 2.0:
+                return 'TREE'
+            if height > 0.8:
+                return 'SHRUB'
+        except Exception:
+            pass
+
+    return 'STATIC'
+
+
+class FO4_OT_SmartPrepareWindMesh(Operator):
+    """One-click wind setup and FO4 export preparation for vegetation meshes.
+
+    Click on any mesh and this operator will:
+
+    1. Auto-detect the wind profile (GRASS / SHRUB / TREE / STATIC) from the
+       object's ``fo4_mesh_type``, ``fo4_collision_type``, name tokens, and
+       bounding-box height.
+    2. Apply the correct FO4 settings for that profile:
+
+       **GRASS** (engine-side wind via GRAS record):
+       - Sets ``fo4_collision_type = 'GRASS'`` and ``fo4_mesh_type = 'VEGETATION'``.
+       - Removes any armature modifier (bones are forbidden on FO4 grass NIFs).
+       - Sets up the vegetation material (Alpha Clip, two-sided).
+       - Adds a ``Col`` vertex-color layer if none exists (white = full sway;
+         paint darker areas to reduce per-vertex wind intensity).
+
+       **SHRUB / TREE** (deformation-based wind):
+       - Sets ``fo4_mesh_type = 'VEGETATION'``.
+       - Sets up the vegetation material.
+       - Generates a ``Wind`` vertex-weight group (Z-axis linear falloff,
+         0 at the base, 1 at the tip).
+       - Optionally applies an armature wind-bone animation using the matching
+         preset (SHRUB or TREE amplitudes/periods).
+
+       **STATIC** (no wind):
+       - Leaves wind settings untouched; runs diagnostics only.
+
+    3. Runs Scene Diagnostics and auto-fixes all fixable issues (UV map,
+       scale, loose verts, normals, triangulation).
+    4. Re-runs diagnostics and reports the final score.
+
+    After this operator finishes, use **Export Vegetation NIF** or
+    **Export Mesh (.nif)** to export, then **Export .bgsm** to write the
+    material file.  Assign the NIF in the Creation Kit; for grass, tune the
+    sway feel via the GRAS record parameters there.
+
+    **Papyrus / F4SE note:** FO4 does not expose per-mesh wind parameters to
+    Papyrus or F4SE at runtime.  Wind is authored entirely in the NIF/BGSM
+    and in the GRAS record.  If you need gameplay-driven variation, author
+    multiple mesh/material variants and swap them via script.
+    """
+    bl_idname = "fo4.smart_prepare_wind_mesh"
+    bl_label  = "Smart Wind + FO4 Export Prep"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    profile_override: bpy.props.EnumProperty(
+        name="Wind Profile",
+        description=(
+            "Override the auto-detected profile.  "
+            "Leave at 'Auto-detect' to let the add-on choose."
+        ),
+        items=[
+            ('AUTO',   "Auto-detect", "Detect from mesh type, name, and height"),
+            ('GRASS',  "Grass",       "Engine-side wind via GRAS record — no bones"),
+            ('SHRUB',  "Shrub",       "Medium sway via wind-bone armature"),
+            ('TREE',   "Tree",        "Slow/heavy sway via wind-bone armature"),
+            ('STATIC', "Static",      "No wind — run diagnostics only"),
+        ],
+        default='AUTO',
+    )
+    apply_wind_armature: bpy.props.BoolProperty(
+        name="Apply Wind Armature (Shrub/Tree)",
+        description=(
+            "Create a wind-bone armature and add a looping animation action.  "
+            "Disable if you prefer to set up the armature manually."
+        ),
+        default=True,
+    )
+    add_vertex_colors: bpy.props.BoolProperty(
+        name="Add Vertex Color Layer (Grass)",
+        description=(
+            "Add a 'Col' vertex-color layer set to white so you can paint "
+            "darker areas to reduce wind intensity on those vertices.  "
+            "Has no effect on non-grass profiles."
+        ),
+        default=True,
+    )
+    wind_tuning: bpy.props.EnumProperty(
+        name="Shrub/Tree Wind Tuning",
+        description=(
+            "Fine-tune shrub/tree wind strength beyond the base profile presets"
+        ),
+        items=[
+            ('AUTO', "Auto (Balanced)", "Use default balanced values"),
+            ('CALM', "Calm", "Lower amplitude, longer period"),
+            ('BALANCED', "Balanced", "Moderate amplitude and period"),
+            ('STORM', "Storm", "Higher amplitude, shorter period"),
+        ],
+        default='AUTO',
+    )
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        return context.window_manager.invoke_props_dialog(self, width=380)
+
+    def draw(self, context):
+        layout = self.layout
+        obj = context.active_object
+
+        # Show the auto-detected profile so the user can review it before clicking OK.
+        if obj and obj.type == 'MESH':
+            detected = _detect_wind_profile(obj)
+            info_col = layout.column(align=True)
+            info_col.scale_y = 0.8
+            info_col.label(text=f"Mesh: {obj.name}", icon='MESH_DATA')
+            info_col.label(text=f"Auto-detected profile: {detected}", icon='FORCE_WIND')
+
+        layout.separator(factor=0.5)
+        layout.prop(self, "profile_override")
+        layout.prop(self, "apply_wind_armature")
+        layout.prop(self, "add_vertex_colors")
+        layout.prop(self, "wind_tuning")
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _ensure_veg_material(obj):
+        """Set up (or reuse) a vegetation material on *obj*.
+
+        Calls :func:`texture_helpers.TextureHelpers.setup_vegetation_material`
+        which creates an Alpha-Clip, two-sided PBR material with the FO4
+        texture node slots (Diffuse, Normal, Specular, Glow, Environment).
+        """
+        if texture_helpers:
+            return texture_helpers.TextureHelpers.setup_vegetation_material(obj)
+        return None
+
+    @staticmethod
+    def _remove_armature_modifiers(obj):
+        """Remove all Armature modifiers from *obj* and clear its parent if
+        the parent is an armature."""
+        removed = []
+        for mod in list(obj.modifiers):
+            if mod.type == 'ARMATURE':
+                obj.modifiers.remove(mod)
+                removed.append(mod.name)
+        if obj.parent and obj.parent.type == 'ARMATURE':
+            # Clear parent but keep transform
+            try:
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                bpy.context.view_layer.objects.active = obj
+                bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+            except Exception:
+                pass
+        return removed
+
+    @staticmethod
+    def _ensure_vertex_color_layer(obj):
+        """Ensure *obj* has at least one vertex-color attribute layer.
+
+        Uses ``color_attributes`` (Blender 3.3+) or the legacy
+        ``vertex_colors`` API, initialising all colours to white.
+        """
+        mesh = obj.data
+        if mesh.color_attributes:
+            return mesh.color_attributes[0].name
+        if mesh.vertex_colors:
+            return mesh.vertex_colors[0].name
+        # Create a new layer
+        try:
+            layer = mesh.color_attributes.new(
+                name="Col", type='BYTE_COLOR', domain='CORNER'
+            )
+            # Initialise to white so every vertex has max wind intensity by default.
+            for c in layer.data:
+                c.color = (1.0, 1.0, 1.0, 1.0)
+            return layer.name
+        except Exception:
+            # Blender < 3.3 fallback
+            try:
+                layer = mesh.vertex_colors.new(name="Col")
+                for c in layer.data:
+                    c.color = (1.0, 1.0, 1.0, 1.0)
+                return layer.name
+            except Exception:
+                return None
+
+    # ------------------------------------------------------------------
+    # Main execute
+    # ------------------------------------------------------------------
+
+    def execute(self, context):  # noqa: C901 - intentionally long
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        profile = (
+            _detect_wind_profile(obj)
+            if self.profile_override == 'AUTO'
+            else self.profile_override
+        )
+
+        applied: list[str] = []      # things done automatically
+        blockers: list[str] = []     # remaining issues needing user attention
+
+        # ------------------------------------------------------------------
+        # Profile: GRASS
+        # ------------------------------------------------------------------
+        if profile == 'GRASS':
+            # Collision type must be GRASS (= no collision)
+            try:
+                obj.fo4_collision_type = 'GRASS'
+                applied.append("fo4_collision_type = 'GRASS'")
+            except Exception:
+                pass
+
+            # Mesh type must be VEGETATION
+            try:
+                obj.fo4_mesh_type = 'VEGETATION'
+                applied.append("fo4_mesh_type = 'VEGETATION'")
+            except Exception:
+                pass
+
+            # Remove armature — bones are forbidden on grass NIFs
+            removed = self._remove_armature_modifiers(obj)
+            if removed:
+                applied.append(f"Removed armature modifier(s): {', '.join(removed)}")
+
+            # Remove shape keys if present (not supported on grass)
+            if obj.data.shape_keys and len(obj.data.shape_keys.key_blocks) > 1:
+                blockers.append(
+                    "Grass has shape keys — remove them manually "
+                    "(Edit Mode → Shape Keys → delete all)"
+                )
+
+            # Vegetation material (Alpha Clip, two-sided)
+            mat = self._ensure_veg_material(obj)
+            if mat is not None:
+                applied.append(f"Vegetation material applied: '{mat.name}'")
+            else:
+                blockers.append(
+                    "Could not create vegetation material (texture_helpers unavailable)"
+                )
+
+            # Optional vertex-color layer for per-vertex wind intensity
+            if self.add_vertex_colors:
+                layer_name = self._ensure_vertex_color_layer(obj)
+                if layer_name:
+                    applied.append(
+                        f"Vertex-color layer '{layer_name}' present "
+                        "(white = max sway; paint darker to reduce intensity)"
+                    )
+
+        # ------------------------------------------------------------------
+        # Profile: SHRUB or TREE
+        # ------------------------------------------------------------------
+        elif profile in ('SHRUB', 'TREE'):
+            # Mesh type
+            try:
+                obj.fo4_mesh_type = 'VEGETATION'
+                applied.append("fo4_mesh_type = 'VEGETATION'")
+            except Exception:
+                pass
+
+            # Vegetation material
+            mat = self._ensure_veg_material(obj)
+            if mat is not None:
+                applied.append(f"Vegetation material applied: '{mat.name}'")
+            else:
+                blockers.append("Could not create vegetation material")
+
+            # Wind weights (Z-axis linear falloff)
+            if animation_helpers:
+                ok, msg = animation_helpers.AnimationHelpers.generate_wind_weights(obj)
+                if ok:
+                    applied.append(msg)
+                else:
+                    blockers.append(f"Wind weights failed: {msg}")
+            else:
+                blockers.append("animation_helpers unavailable — wind weights not generated")
+
+            # Optional wind armature + animation action
+            if self.apply_wind_armature and animation_helpers:
+                preset = profile  # 'SHRUB' or 'TREE'
+                tuning_key = self.wind_tuning if self.wind_tuning != 'AUTO' else 'BALANCED'
+                tuning_bucket = _SMART_WIND_TUNING_PRESETS.get(
+                    tuning_key, _SMART_WIND_TUNING_PRESETS['BALANCED']
+                )
+                amp, period, tuning_label = tuning_bucket.get(
+                    preset, _SMART_WIND_TUNING_PRESETS['BALANCED'][preset]
+                )
+                ok, msg = animation_helpers.AnimationHelpers.apply_wind_animation(
+                    obj, amplitude=amp, period=period, axis='X'
+                )
+                if ok:
+                    applied.append(
+                        f"Wind armature + animation applied ({preset} / {tuning_label})"
+                    )
+                else:
+                    blockers.append(f"Wind animation setup failed: {msg}")
+
+        # ------------------------------------------------------------------
+        # Profile: STATIC — no wind modifications, diagnostics only
+        # ------------------------------------------------------------------
+        # (falls through to the diagnostics section below)
+
+        # ------------------------------------------------------------------
+        # Diagnostics: run → auto-fix → re-run
+        # ------------------------------------------------------------------
+        if fo4_scene_diagnostics:
+            # First pass
+            report = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(context.scene)
+            fo4_scene_diagnostics.store_report(report)
+
+            # Auto-fix all fixable issues
+            fix_count, fix_msgs = fo4_scene_diagnostics.SceneDiagnostics.auto_fix(
+                context, report
+            )
+            if fix_count:
+                applied.append(f"Auto-fixed {fix_count} diagnostic issue(s)")
+
+            # Second pass for the final score
+            report2 = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(context.scene)
+            fo4_scene_diagnostics.store_report(report2)
+
+            # Update scene shortcut properties
+            s = report2.get("summary", {})
+            try:
+                context.scene.fo4_diag_last_score    = s.get("score",         0)
+                context.scene.fo4_diag_last_errors   = s.get("error_count",   0)
+                context.scene.fo4_diag_last_warnings = s.get("warning_count", 0)
+                context.scene.fo4_diag_export_ready  = s.get("export_ready",  False)
+            except Exception:
+                pass
+
+            score = s.get("score", 0)
+            errors = s.get("error_count", 0)
+            warnings = s.get("warning_count", 0)
+            export_ready = s.get("export_ready", False)
+
+            # Collect per-object errors that are still open as blockers
+            for obj_r in report2.get("objects", []):
+                for check in obj_r.get("checks", []):
+                    if check.get("severity") == "ERROR":
+                        blockers.append(
+                            f"[{obj_r['name']}] {check.get('message', '')}"
+                        )
+        else:
+            score = 0
+            errors = 0
+            warnings = 0
+            export_ready = False
+            blockers.append("fo4_scene_diagnostics unavailable — run diagnostics manually")
+
+        # ------------------------------------------------------------------
+        # Build consolidated report message
+        # ------------------------------------------------------------------
+        lines_applied = "\n  • ".join(applied) if applied else "—"
+        if blockers:
+            lines_blockers = "\n  ✗ ".join(blockers)
+            summary = (
+                f"Smart Wind Prep ({profile}) — Score {score}/100  "
+                f"({errors} error(s), {warnings} warning(s))  "
+                f"{'✅ Export ready' if export_ready else '⚠ Fix remaining issues'}\n"
+                f"Auto-applied:\n  • {lines_applied}\n"
+                f"Needs attention:\n  ✗ {lines_blockers}"
+            )
+            self.report({'WARNING'}, summary)
+        else:
+            summary = (
+                f"Smart Wind Prep ({profile}) — Score {score}/100  ✅ Export ready\n"
+                f"Auto-applied:\n  • {lines_applied}"
+            )
+            self.report({'INFO'}, summary)
+
+        if notification_system:
+            status = 'INFO' if export_ready else 'WARNING'
+            short = (
+                f"Smart Wind Prep ({profile}): score {score}/100 "
+                f"{'✅' if export_ready else '⚠'} "
+                f"{len(applied)} applied, {len(blockers)} remaining"
+            )
+            notification_system.FO4_NotificationSystem.notify(short, status)
+
+        return {'FINISHED'}
 
 
 # ---------------------------------------------------------------------------
@@ -9166,6 +10123,391 @@ class FO4_OT_ImportBGSM(Operator):
 
 
 # ---------------------------------------------------------------------------
+# Glowing Plant operators  (BGSM/BGEM glow, emittance pulse, multi-colour)
+# ---------------------------------------------------------------------------
+
+class FO4_OT_SetupGlowingPlantMaterial(Operator):
+    """Set up a Fallout 4 glowing plant BGSM material.
+
+    Applies the GLOW_PLANT_BGSM preset (alpha-clip + two-sided), sets the
+    emittance colour and multiplier, enables the glow-map flag, and optionally
+    marks the material for External Emittance so the Creation Kit can link its
+    glow intensity to time-of-day or weather conditions.
+
+    To get per-vein colour variation install a full-colour RGB _g.dds glow map
+    and use the 'Multi-Color Glow Map' variant (GLOW_PLANT_MULTICOLOR preset).
+    """
+    bl_idname = "fo4.setup_glowing_plant_material"
+    bl_label = "Setup Glowing Plant (BGSM)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    glow_color: FloatProperty(
+        name="Glow R",
+        description="Red channel of the emittance colour",
+        min=0.0, max=1.0,
+        default=0.1,
+    )
+    glow_color_g: FloatProperty(
+        name="Glow G",
+        description="Green channel of the emittance colour",
+        min=0.0, max=1.0,
+        default=0.9,
+    )
+    glow_color_b: FloatProperty(
+        name="Glow B",
+        description="Blue channel of the emittance colour",
+        min=0.0, max=1.0,
+        default=0.2,
+    )
+    emittance_mult: FloatProperty(
+        name="Emittance Multiplier",
+        description="Brightness of the glow (1.0 = normal, >1 = neon). "
+                    "Maps directly to the BGSM emittanceMult field",
+        min=0.0,
+        soft_max=20.0,
+        default=2.0,
+    )
+    use_external_emittance: BoolProperty(
+        name="External Emittance",
+        description="Link glow intensity to time-of-day / weather via the "
+                    "Creation Kit External Emittance system. The CK will "
+                    "override emittance colour/intensity at runtime",
+        default=False,
+    )
+    multicolor_mode: BoolProperty(
+        name="Multi-Color Glow Map",
+        description="Set emittance colour to white so the engine reads actual "
+                    "colour from the RGB _g.dds glow texture. Each vein glows "
+                    "in its own colour",
+        default=False,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        if not fo4_material_browser:
+            self.report({'ERROR'}, "fo4_material_browser module not available")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        preset_id = "GLOW_PLANT_MULTICOLOR" if self.multicolor_mode else "GLOW_PLANT_BGSM"
+        ok, msg = fo4_material_browser.MaterialBrowser.apply_preset(obj, preset_id)
+        if not ok:
+            self.report({'ERROR'}, msg)
+            return {'CANCELLED'}
+
+        mat = obj.data.materials[0] if obj.data.materials else None
+        if mat and mat.use_nodes:
+            pbsdf = next(
+                (n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'),
+                None,
+            )
+            if pbsdf is not None:
+                # Emission colour
+                if self.multicolor_mode:
+                    ec = (1.0, 1.0, 1.0, 1.0)  # white → engine reads from RGB glow map
+                else:
+                    ec = (self.glow_color, self.glow_color_g, self.glow_color_b, 1.0)
+                em_col = pbsdf.inputs.get("Emission Color") or pbsdf.inputs.get("Emission")
+                if em_col:
+                    em_col.default_value = ec
+                em_str = pbsdf.inputs.get("Emission Strength")
+                if em_str:
+                    em_str.default_value = self.emittance_mult
+
+            # Store metadata for the BGSM exporter
+            mat["fo4_shader_type"] = "glowmap_multicolor_foliage" if self.multicolor_mode else "glowmap_foliage"
+            mat["fo4_emittance_mult"] = self.emittance_mult
+            if self.use_external_emittance:
+                mat["fo4_external_emittance"] = True
+
+        mode_str = "multi-colour" if self.multicolor_mode else "standard"
+        ext_str = " + External Emittance (CK link)" if self.use_external_emittance else ""
+        full_msg = (
+            f"Glowing plant material ({mode_str}{ext_str}) applied to '{obj.name}'. "
+            "Install a _g.dds glow mask, then export BGSM to enable in-game glow. "
+            "Use 'Apply Emittance Pulse' to add a pulsing animation."
+        )
+        self.report({'INFO'}, full_msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(
+                f"Glowing plant material applied to '{obj.name}'", 'INFO'
+            )
+        return {'FINISHED'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "multicolor_mode")
+        col = layout.column(align=True)
+        col.enabled = not self.multicolor_mode
+        col.label(text="Emittance Colour:")
+        row = col.row(align=True)
+        row.prop(self, "glow_color",   text="R")
+        row.prop(self, "glow_color_g", text="G")
+        row.prop(self, "glow_color_b", text="B")
+        layout.prop(self, "emittance_mult")
+        layout.prop(self, "use_external_emittance")
+        hint = layout.box().column(align=True)
+        hint.scale_y = 0.75
+        if self.multicolor_mode:
+            hint.label(text="White emittance → engine reads RGB from _g.dds.", icon='INFO')
+            hint.label(text="Each coloured vein in the map glows independently.", icon='DOT')
+        else:
+            hint.label(text="Emittance Multiplier 1.0 = normal, >5 = neon glow.", icon='INFO')
+        if self.use_external_emittance:
+            hint.label(text="CK: link this form to an ExternalEmittance record.", icon='INFO')
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_SetupGlowingPlantBGEM(Operator):
+    """Set up an additive-blend BGEM bloom halo for a glowing plant.
+
+    In Fallout 4, a 'bloom' or 'light-bleed' halo around a glowing plant is
+    achieved with a separate billboard quad mesh using an **additive** BGEM
+    effect material (alpha_blend_mode = Additive, NOT standard).  Standard
+    BGSM glow maps are flat; the BGEM additive approach lets light bleed into
+    the surrounding air for a modern 'wet neon' look.
+
+    Workflow:
+    1. Model a simple billboard quad (or low-poly sphere shell) slightly larger
+       than your plant mesh and place it around it.
+    2. Run this operator on the billboard to apply the bloom BGEM material.
+    3. Install your bloom sprite (_d.dds, premultiplied alpha) via Install Texture.
+    4. Export both the plant mesh (BGSM) and the billboard (BGEM) to your mod.
+    """
+    bl_idname = "fo4.setup_glowing_plant_bgem"
+    bl_label = "Setup Glowing Plant Bloom (BGEM)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    bloom_color: FloatProperty(
+        name="Bloom R",
+        description="Red channel of the bloom / base colour",
+        min=0.0, max=1.0,
+        default=0.1,
+    )
+    bloom_color_g: FloatProperty(
+        name="Bloom G",
+        description="Green channel of the bloom / base colour",
+        min=0.0, max=1.0,
+        default=0.9,
+    )
+    bloom_color_b: FloatProperty(
+        name="Bloom B",
+        description="Blue channel of the bloom / base colour",
+        min=0.0, max=1.0,
+        default=0.2,
+    )
+    emission_strength: FloatProperty(
+        name="Emission Strength",
+        description="Bloom brightness – higher = larger apparent halo radius",
+        min=0.0,
+        soft_max=20.0,
+        default=4.0,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        if not fo4_material_browser:
+            self.report({'ERROR'}, "fo4_material_browser module not available")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        ok, msg = fo4_material_browser.MaterialBrowser.apply_preset(obj, "GLOW_PLANT_BGEM")
+        if not ok:
+            self.report({'ERROR'}, msg)
+            return {'CANCELLED'}
+
+        mat = obj.data.materials[0] if obj.data.materials else None
+        if mat and mat.use_nodes:
+            pbsdf = next(
+                (n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'),
+                None,
+            )
+            if pbsdf is not None:
+                bc = pbsdf.inputs.get("Base Color")
+                if bc:
+                    bc.default_value = (self.bloom_color, self.bloom_color_g,
+                                        self.bloom_color_b, 1.0)
+                em_col = pbsdf.inputs.get("Emission Color") or pbsdf.inputs.get("Emission")
+                if em_col:
+                    em_col.default_value = (self.bloom_color, self.bloom_color_g,
+                                            self.bloom_color_b, 1.0)
+                em_str = pbsdf.inputs.get("Emission Strength")
+                if em_str:
+                    em_str.default_value = self.emission_strength
+
+            # Mark as BGEM so the exporter generates a .bgem file.
+            mat["fo4_shader_type"] = "bgem_bloom"
+            mat["fo4_is_bgem"] = True
+
+        full_msg = (
+            f"BGEM bloom material applied to '{obj.name}'. "
+            "Install a bloom sprite (_d.dds, premultiplied alpha) and "
+            "export this mesh alongside the plant NIF. "
+            "Set alpha_blend_mode = Additive in the .bgem file for the halo effect."
+        )
+        self.report({'INFO'}, full_msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(
+                f"BGEM bloom material applied to '{obj.name}'", 'INFO'
+            )
+        return {'FINISHED'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Bloom Colour:")
+        row = layout.row(align=True)
+        row.prop(self, "bloom_color",   text="R")
+        row.prop(self, "bloom_color_g", text="G")
+        row.prop(self, "bloom_color_b", text="B")
+        layout.prop(self, "emission_strength")
+        hint = layout.box().column(align=True)
+        hint.scale_y = 0.75
+        hint.label(text="Place this BGEM mesh as a shell around the plant.", icon='INFO')
+        hint.label(text="Additive blend makes light 'bleed' into the air.", icon='DOT')
+        hint.label(text="Use a soft circular/radial gradient _d.dds.", icon='DOT')
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_ApplyEmittancePulse(Operator):
+    """Add a pulsing glow animation to the active material's Emission Strength.
+
+    This simulates the ``BSLightingShaderPropertyFloatController`` animation
+    that NifSkope uses to animate the Emittance Multiplier at runtime in FO4.
+
+    In Blender the animation drives the Principled BSDF 'Emission Strength'
+    socket with a NOISE modifier so the brightness changes organically.
+
+    After export, open the NIF in NifSkope and manually add:
+    • BSLightingShaderProperty → right-click → 'Attach Controller'
+    • Controller: BSLightingShaderPropertyFloatController
+    • Target: EMISSIVE_MULTIPLE
+    • Interpolator: NiFloatInterpolator  (set keyframe data from this action)
+    """
+    bl_idname = "fo4.apply_emittance_pulse"
+    bl_label = "Apply Emittance Pulse"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    min_strength: FloatProperty(
+        name="Min Brightness",
+        description="Emission Strength at the darkest pulse point (plant dims to this)",
+        min=0.0,
+        soft_max=10.0,
+        default=0.3,
+    )
+    max_strength: FloatProperty(
+        name="Max Brightness",
+        description="Emission Strength at the brightest pulse point (neon peak)",
+        min=0.0,
+        soft_max=30.0,
+        default=4.0,
+    )
+    period: FloatProperty(
+        name="Period (frames)",
+        description="Length of one pulse cycle in frames (lower = faster flicker)",
+        min=4.0,
+        soft_max=300.0,
+        default=60.0,
+    )
+    noise_scale: FloatProperty(
+        name="Noise Scale",
+        description="How quickly the noise changes (0.3–0.8 feels organic; "
+                    "1.0 = one oscillation per period)",
+        min=0.05,
+        max=2.0,
+        default=0.5,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module not available")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        ok, msg = animation_helpers.AnimationHelpers.apply_emittance_pulse(
+            obj,
+            min_strength=self.min_strength,
+            max_strength=self.max_strength,
+            period=self.period,
+            noise_scale=self.noise_scale,
+        )
+        level = 'INFO' if ok else 'ERROR'
+        self.report({level}, msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "min_strength")
+        layout.prop(self, "max_strength")
+        layout.prop(self, "period")
+        layout.prop(self, "noise_scale")
+        hint = layout.box().column(align=True)
+        hint.scale_y = 0.75
+        hint.label(text="In NifSkope: attach BSLightingShaderPropertyFloatController", icon='INFO')
+        hint.label(text="to BSLightingShaderProperty → EMISSIVE_MULTIPLE.", icon='DOT')
+        hint.label(text="Use NiFloatInterpolator with keyframe data from this action.", icon='DOT')
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_RemoveEmittancePulse(Operator):
+    """Remove the pulsing glow animation from the active material.
+
+    Deletes the *_GlowPulse action and resets Emission Strength to the
+    material's non-animated default.
+    """
+    bl_idname = "fo4.remove_emittance_pulse"
+    bl_label = "Remove Emittance Pulse"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        if obj is None or obj.type != 'MESH':
+            return False
+        # Only show button when a GlowPulse action exists.
+        mat = None
+        if obj.data.materials:
+            idx = getattr(obj, 'active_material_index', 0)
+            mat = obj.data.materials[idx] if idx < len(obj.data.materials) else None
+        if mat is None:
+            return False
+        return bool(mat.get("fo4_emittance_pulse"))
+
+    def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module not available")
+            return {'CANCELLED'}
+
+        obj = context.active_object
+        ok, msg = animation_helpers.AnimationHelpers.remove_emittance_pulse(obj)
+        level = 'INFO' if ok else 'WARNING'
+        self.report({level}, msg)
+        if notification_system:
+            notification_system.FO4_NotificationSystem.notify(msg, level)
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+
+# ---------------------------------------------------------------------------
 # BA2 archive extraction
 # ---------------------------------------------------------------------------
 
@@ -9276,6 +10618,7 @@ classes = (
     FO4_OT_SetCollisionType,
     FO4_OT_ExportMeshWithCollision,
     FO4_OT_ExportAll,
+    FO4_OT_ExportCKAssetBundle,
     FO4_OT_ExportSceneAsNif,
     FO4_OT_ValidateExport,
     FO4_OT_ExportAnimationHavok2FBX,
@@ -9393,6 +10736,7 @@ classes = (
     # AI upscaler one-click installer
     # One-click installers for AI tools
     FO4_OT_ShowQuickReference,
+    FO4_OT_ShowFoliageLODChecklist,
     # Mossy AI UV/texture advisor and auto-fix
     FO4_OT_AskMossyForUVAdvice,
     FO4_OT_MossyAutoFix,
@@ -9403,11 +10747,16 @@ classes = (
     FO4_OT_ExportImageSpaceData,
     FO4_OT_SyncPostProcessingProps,
     # Material browser operators
+    FO4_OT_ApplyCoreMaterialProfile,
     FO4_OT_ApplyMaterialPreset,
     # Scene diagnostics operators
     FO4_OT_RunSceneDiagnostics,
     FO4_OT_AutoFixDiagnostics,
     FO4_OT_ExportDiagnosticsReport,
+    # Smart wind + export prep (one-click vegetation pipeline)
+    FO4_OT_SmartPrepareWindMesh,
+    # HD material setup (4K textures + glow maps + PBR flags)
+    FO4_OT_SetupHDMaterial,
     # Scale reference operators
     FO4_OT_AddReferenceObject,
     FO4_OT_ClearReferenceObjects,
@@ -9437,6 +10786,11 @@ classes = (
     FO4_OT_ExportBGSM,
     FO4_OT_BatchExportBGSM,
     FO4_OT_ImportBGSM,
+    # Glowing plant operators (BGSM/BGEM glow, emittance pulse, multi-colour)
+    FO4_OT_SetupGlowingPlantMaterial,
+    FO4_OT_SetupGlowingPlantBGEM,
+    FO4_OT_ApplyEmittancePulse,
+    FO4_OT_RemoveEmittancePulse,
     # BA2 archive extraction
     FO4_OT_ExtractBA2Asset,
 )
