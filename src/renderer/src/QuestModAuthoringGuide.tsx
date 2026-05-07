@@ -225,6 +225,24 @@ export const QuestModAuthoringGuide: React.FC = () => {
               <li>Debug with Papyrus logging and in-game testing</li>
             </ul>
           </div>
+
+          <div className="bg-blue-900/20 border border-blue-700/30 rounded p-4">
+            <h4 className="font-bold text-blue-300 mb-2">🧠 Engine Hooks with F4SE (C++)</h4>
+            <ul className="list-disc list-inside text-blue-200 text-xs space-y-1">
+              <li>Use Papyrus for quest-facing triggers, state changes, and object events inside CK</li>
+              <li>Use F4SE C++ plugins for engine-level behavior the base engine cannot expose cleanly</li>
+              <li>Treat C++ hooks as low-level systems and keep quest logic orchestration in Papyrus</li>
+            </ul>
+          </div>
+
+          <div className="bg-green-900/20 border border-green-700/30 rounded p-4">
+            <h4 className="font-bold text-green-300 mb-2">🔗 Papyrus → F4SE Bridge Pattern</h4>
+            <ul className="list-disc list-inside text-green-200 text-xs space-y-1">
+              <li>Expose a narrow native function from your F4SE plugin, then call it from Papyrus events</li>
+              <li>Example trigger shape: OnLoad or quest-stage events activate weather/FX logic for your area</li>
+              <li>Validate by layer: Papyrus event fires first, native function executes second, visual effect confirms third</li>
+            </ul>
+          </div>
         </div>
       )
     },
