@@ -164,6 +164,7 @@ unreal_game_assets = _try_import("unreal_game_assets")
 post_processing_helpers = _try_import("post_processing_helpers")
 fo4_material_browser = _try_import("fo4_material_browser")
 fo4_scene_diagnostics = _try_import("fo4_scene_diagnostics")
+advanced_realism_helpers = _try_import("advanced_realism_helpers")
 bgsm_helpers = _try_import("bgsm_helpers")
 fo4_reference_helpers = _try_import("fo4_reference_helpers")
 papyrus_helpers = _try_import("papyrus_helpers")
@@ -283,6 +284,7 @@ modules = list(
             post_processing_helpers,
             fo4_material_browser,
             fo4_scene_diagnostics,
+            advanced_realism_helpers,
             fo4_reference_helpers,
             papyrus_helpers,
             fo4_physics_helpers,
