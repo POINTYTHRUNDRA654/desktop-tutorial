@@ -27,6 +27,8 @@ from bpy.props import (
 )
 from bpy.types import Operator, Panel
 
+_FO4_REALISM_TAG_KEY = "fo4_realism_tag"
+
 
 def _iter_selected_mesh_objects(context) -> Iterable[bpy.types.Object]:
     for obj in context.selected_objects:
@@ -141,6 +143,80 @@ def _connect_or_set(socket, value):
         socket.default_value = value
     except Exception:
         pass
+
+
+def _tagged_name(tag: str) -> str:
+    return f"FO4::{tag}"
+
+
+def _find_tagged_node(node_tree, tag: str):
+    for node in node_tree.nodes:
+        if node.get(_FO4_REALISM_TAG_KEY) == tag:
+            return node
+    return None
+
+
+def _ensure_tagged_node(node_tree, tag: str, node_type: str, location):
+    node = _find_tagged_node(node_tree, tag)
+    if node is None:
+        node = node_tree.nodes.new(node_type)
+        node[_FO4_REALISM_TAG_KEY] = tag
+    node.name = _tagged_name(tag)
+    node.label = _tagged_name(tag)
+    node.location = location
+    return node
+
+
+def _replace_input_link(node_tree, input_socket, output_socket) -> None:
+    if input_socket is None or output_socket is None:
+        return
+    while input_socket.is_linked and input_socket.links:
+        node_tree.links.remove(input_socket.links[0])
+    node_tree.links.new(output_socket, input_socket)
+
+
+def _material_prop_key(pass_key: str, name: str) -> str:
+    return f"fo4_{pass_key}_{name}"
+
+
+def _ensure_material_prop(material: bpy.types.Material, pass_key: str, name: str, value) -> str:
+    key = _material_prop_key(pass_key, name)
+    if key not in material:
+        material[key] = list(value) if isinstance(value, (list, tuple)) else value
+    return key
+
+
+def _get_material_prop(material: bpy.types.Material, pass_key: str, name: str, default=None):
+    key = _material_prop_key(pass_key, name)
+    if key not in material:
+        return default
+    value = material[key]
+    if hasattr(value, "to_list"):
+        return value.to_list()
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return value
+
+
+def _mark_material_processed(material: bpy.types.Material, pass_key: str, **settings) -> None:
+    material[_material_prop_key(pass_key, "processed")] = True
+    for name, value in settings.items():
+        material[_material_prop_key(pass_key, name)] = list(value) if isinstance(value, (list, tuple)) else value
+
+
+def _ensure_mix_base_input(node_tree, principled, mix_node, fallback) -> None:
+    base_input = principled.inputs.get("Base Color")
+    source_input = mix_node.inputs[1]
+    if source_input.is_linked:
+        return
+    prev = _current_color_input_link(principled)
+    if prev and prev.node != mix_node:
+        _replace_input_link(node_tree, source_input, prev)
+        return
+    if base_input is not None:
+        _connect_or_set(source_input, tuple(base_input.default_value))
+    else:
+        _connect_or_set(source_input, fallback)
 
 
 class FO4_OT_ApplyGameLookPreview(Operator):
@@ -421,6 +497,12 @@ class FO4_OT_RunMaterialIntelligence(Operator):
 
                     mat["fo4_shader_hint"] = "glow" if has_glow else "default"
                     mat["fo4_external_emittance"] = bool(has_glow)
+                    _mark_material_processed(
+                        mat,
+                        "material_intelligence",
+                        glow=bool(has_glow),
+                        alpha_clip=bool(has_alpha),
+                    )
                     fixed += 1
 
         mode = "Fix" if self.auto_fix else "Audit"
@@ -528,13 +610,39 @@ class FO4_OT_ApplySurfaceBreakup(Operator):
 
                 rough_input = principled.inputs.get("Roughness")
                 if rough_input:
-                    rough = float(rough_input.default_value)
-                    rough += self.roughness_variation * offset
+                    _ensure_material_prop(
+                        mat,
+                        "surface_breakup",
+                        "base_roughness",
+                        float(rough_input.default_value),
+                    )
+                    base_rough = float(
+                        _get_material_prop(
+                            mat,
+                            "surface_breakup",
+                            "base_roughness",
+                            float(rough_input.default_value),
+                        )
+                    )
+                    rough = base_rough + self.roughness_variation * offset
                     rough_input.default_value = min(0.98, max(0.06, rough))
 
                 base_input = principled.inputs.get("Base Color")
                 if base_input and not base_input.is_linked:
-                    c = list(base_input.default_value)
+                    _ensure_material_prop(
+                        mat,
+                        "surface_breakup",
+                        "base_color",
+                        list(base_input.default_value),
+                    )
+                    c = list(
+                        _get_material_prop(
+                            mat,
+                            "surface_breakup",
+                            "base_color",
+                            list(base_input.default_value),
+                        )
+                    )
                     jitter = self.hue_variation * offset
                     c[0] = min(1.0, max(0.0, c[0] + jitter))
                     c[1] = min(1.0, max(0.0, c[1] + jitter * 0.6))
@@ -546,10 +654,20 @@ class FO4_OT_ApplySurfaceBreakup(Operator):
                         if node.type == "NORMAL_MAP" and hasattr(node, "inputs"):
                             strength = node.inputs.get("Strength")
                             if strength is not None:
-                                n = float(strength.default_value)
+                                baseline_key = _material_prop_key("surface_breakup", "base_strength")
+                                if baseline_key not in node:
+                                    node[baseline_key] = float(strength.default_value)
+                                n = float(node[baseline_key])
                                 n += self.normal_variation * offset
                                 strength.default_value = min(2.0, max(0.15, n))
 
+                _mark_material_processed(
+                    mat,
+                    "surface_breakup",
+                    roughness_variation=float(self.roughness_variation),
+                    hue_variation=float(self.hue_variation),
+                    normal_variation=float(self.normal_variation),
+                )
                 touched += 1
 
         context.scene.fo4_surface_breakup_status = f"Surface breakup applied to {touched} material(s)"
@@ -590,27 +708,36 @@ class FO4_OT_ApplyContactRealism(Operator):
                 if not principled:
                     continue
 
-                ao_node = nt.nodes.new("ShaderNodeAmbientOcclusion")
-                ao_node.location = (principled.location.x - 520, principled.location.y - 180)
+                ao_node = _ensure_tagged_node(
+                    nt,
+                    "contact_realism.ao",
+                    "ShaderNodeAmbientOcclusion",
+                    (principled.location.x - 520, principled.location.y - 180),
+                )
 
-                ramp = nt.nodes.new("ShaderNodeValToRGB")
-                ramp.location = (principled.location.x - 320, principled.location.y - 180)
+                ramp = _ensure_tagged_node(
+                    nt,
+                    "contact_realism.ramp",
+                    "ShaderNodeValToRGB",
+                    (principled.location.x - 320, principled.location.y - 180),
+                )
                 ramp.color_ramp.elements[0].position = max(0.0, 0.45 - self.strength * 0.35)
                 ramp.color_ramp.elements[1].position = min(1.0, 0.75 + self.strength * 0.2)
 
-                mix = nt.nodes.new("ShaderNodeMixRGB")
+                mix = _ensure_tagged_node(
+                    nt,
+                    "contact_realism.mix",
+                    "ShaderNodeMixRGB",
+                    (principled.location.x - 140, principled.location.y),
+                )
                 mix.blend_type = "MULTIPLY"
                 mix.inputs[0].default_value = self.strength
-                mix.location = (principled.location.x - 140, principled.location.y)
 
-                prev = _current_color_input_link(principled)
-                if prev:
-                    nt.links.new(prev, mix.inputs[1])
-                else:
-                    _connect_or_set(mix.inputs[1], (1.0, 1.0, 1.0, 1.0))
-                nt.links.new(ramp.outputs[0], mix.inputs[2])
-                nt.links.new(ao_node.outputs[0], ramp.inputs[0])
-                nt.links.new(mix.outputs[0], principled.inputs["Base Color"])
+                _ensure_mix_base_input(nt, principled, mix, (1.0, 1.0, 1.0, 1.0))
+                _replace_input_link(nt, mix.inputs[2], ramp.outputs[0])
+                _replace_input_link(nt, ramp.inputs[0], ao_node.outputs[0])
+                _replace_input_link(nt, principled.inputs["Base Color"], mix.outputs[0])
+                _mark_material_processed(mat, "contact_realism", strength=float(self.strength))
                 modified += 1
 
         context.scene.fo4_contact_realism_status = f"Contact realism pass updated {modified} material(s)"
@@ -666,33 +793,60 @@ class FO4_OT_ApplyEdgeRealismToolkit(Operator):
                 if not principled:
                     continue
 
-                geom = nt.nodes.new("ShaderNodeNewGeometry")
-                geom.location = (principled.location.x - 600, principled.location.y - 220)
+                geom = _ensure_tagged_node(
+                    nt,
+                    "edge_realism.geometry",
+                    "ShaderNodeNewGeometry",
+                    (principled.location.x - 600, principled.location.y - 220),
+                )
 
-                ramp = nt.nodes.new("ShaderNodeValToRGB")
-                ramp.location = (principled.location.x - 390, principled.location.y - 220)
+                ramp = _ensure_tagged_node(
+                    nt,
+                    "edge_realism.ramp",
+                    "ShaderNodeValToRGB",
+                    (principled.location.x - 390, principled.location.y - 220),
+                )
                 ramp.color_ramp.elements[0].position = max(0.0, 0.6 - self.intensity * 0.45)
                 ramp.color_ramp.elements[1].position = min(1.0, 0.95)
 
-                mix = nt.nodes.new("ShaderNodeMixRGB")
-                mix.location = (principled.location.x - 150, principled.location.y + 40)
+                mix = _ensure_tagged_node(
+                    nt,
+                    "edge_realism.mix",
+                    "ShaderNodeMixRGB",
+                    (principled.location.x - 150, principled.location.y + 40),
+                )
                 mix.inputs[0].default_value = self.intensity
                 mix.inputs[2].default_value = preset_colors[self.preset]
 
-                prev = _current_color_input_link(principled)
-                if prev:
-                    nt.links.new(prev, mix.inputs[1])
-                else:
-                    _connect_or_set(mix.inputs[1], (0.7, 0.7, 0.7, 1.0))
-
-                nt.links.new(geom.outputs["Pointiness"], ramp.inputs[0])
-                nt.links.new(ramp.outputs[0], mix.inputs[0])
-                nt.links.new(mix.outputs[0], principled.inputs["Base Color"])
+                _ensure_mix_base_input(nt, principled, mix, (0.7, 0.7, 0.7, 1.0))
+                _replace_input_link(nt, ramp.inputs[0], geom.outputs["Pointiness"])
+                _replace_input_link(nt, mix.inputs[0], ramp.outputs[0])
+                _replace_input_link(nt, principled.inputs["Base Color"], mix.outputs[0])
 
                 rough = principled.inputs.get("Roughness")
                 if rough:
-                    rough.default_value = min(0.95, max(0.2, float(rough.default_value) + 0.08 * self.intensity))
+                    _ensure_material_prop(
+                        mat,
+                        "edge_realism",
+                        "base_roughness",
+                        float(rough.default_value),
+                    )
+                    base_rough = float(
+                        _get_material_prop(
+                            mat,
+                            "edge_realism",
+                            "base_roughness",
+                            float(rough.default_value),
+                        )
+                    )
+                    rough.default_value = min(0.95, max(0.2, base_rough + 0.08 * self.intensity))
 
+                _mark_material_processed(
+                    mat,
+                    "edge_realism",
+                    preset=self.preset,
+                    intensity=float(self.intensity),
+                )
                 modified += 1
 
         context.scene.fo4_edge_realism_status = f"Edge realism ({self.preset}) applied to {modified} material(s)"
@@ -757,37 +911,58 @@ class FO4_OT_ApplyDecalLayering(Operator):
                 if not principled:
                     continue
 
-                tex = nt.nodes.new("ShaderNodeTexImage")
+                tex = _ensure_tagged_node(
+                    nt,
+                    "decal_layering.texture",
+                    "ShaderNodeTexImage",
+                    (principled.location.x - 520, principled.location.y + 170),
+                )
                 tex.image = decal_image
-                tex.location = (principled.location.x - 520, principled.location.y + 170)
 
-                tint = nt.nodes.new("ShaderNodeRGB")
+                tint = _ensure_tagged_node(
+                    nt,
+                    "decal_layering.tint",
+                    "ShaderNodeRGB",
+                    (principled.location.x - 520, principled.location.y + 20),
+                )
                 tint.outputs[0].default_value = tint_map[self.blend_preset]
-                tint.location = (principled.location.x - 520, principled.location.y + 20)
 
-                multiply = nt.nodes.new("ShaderNodeMixRGB")
+                multiply = _ensure_tagged_node(
+                    nt,
+                    "decal_layering.multiply",
+                    "ShaderNodeMixRGB",
+                    (principled.location.x - 300, principled.location.y + 95),
+                )
                 multiply.blend_type = "MULTIPLY"
                 multiply.inputs[0].default_value = self.density
-                multiply.location = (principled.location.x - 300, principled.location.y + 95)
 
-                mix = nt.nodes.new("ShaderNodeMixRGB")
+                mix = _ensure_tagged_node(
+                    nt,
+                    "decal_layering.mix",
+                    "ShaderNodeMixRGB",
+                    (principled.location.x - 120, principled.location.y),
+                )
                 mix.blend_type = "MIX"
                 mix.inputs[0].default_value = self.density
-                mix.location = (principled.location.x - 120, principled.location.y)
 
-                prev = _current_color_input_link(principled)
-                if prev:
-                    nt.links.new(prev, mix.inputs[1])
-                else:
-                    _connect_or_set(mix.inputs[1], (1.0, 1.0, 1.0, 1.0))
+                _ensure_mix_base_input(nt, principled, mix, (1.0, 1.0, 1.0, 1.0))
 
-                nt.links.new(tex.outputs["Color"], multiply.inputs[1])
-                nt.links.new(tint.outputs[0], multiply.inputs[2])
-                nt.links.new(multiply.outputs[0], mix.inputs[2])
+                _replace_input_link(nt, multiply.inputs[1], tex.outputs["Color"])
+                _replace_input_link(nt, multiply.inputs[2], tint.outputs[0])
+                _replace_input_link(nt, mix.inputs[2], multiply.outputs[0])
                 if tex.outputs.get("Alpha") is not None:
-                    nt.links.new(tex.outputs["Alpha"], mix.inputs[0])
+                    _replace_input_link(nt, mix.inputs[0], tex.outputs["Alpha"])
+                else:
+                    _connect_or_set(mix.inputs[0], self.density)
 
-                nt.links.new(mix.outputs[0], principled.inputs["Base Color"])
+                _replace_input_link(nt, principled.inputs["Base Color"], mix.outputs[0])
+                _mark_material_processed(
+                    mat,
+                    "decal_layering",
+                    blend_preset=self.blend_preset,
+                    density=float(self.density),
+                    decal_image=decal_image.name_full,
+                )
                 modified += 1
 
         scene.fo4_decal_status = f"Decal layering ({self.blend_preset}) applied to {modified} material(s)"
