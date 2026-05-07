@@ -70,8 +70,17 @@ const noop = () => {};
 
 let getUserMediaMock: ReturnType<typeof vi.fn>;
 let speechCancelMock: ReturnType<typeof vi.fn>;
+let originalRequestAnimationFrame: typeof globalThis.requestAnimationFrame | undefined;
+let originalCancelAnimationFrame: typeof globalThis.cancelAnimationFrame | undefined;
+let originalAudioContext: typeof globalThis.AudioContext | undefined;
+let originalMediaRecorder: typeof globalThis.MediaRecorder | undefined;
 
 beforeEach(() => {
+  originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+  originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+  originalAudioContext = (globalThis as any).AudioContext;
+  originalMediaRecorder = (globalThis as any).MediaRecorder;
+
   getUserMediaMock = vi.fn().mockResolvedValue({
     getTracks: () => [{ stop: vi.fn(), kind: 'audio' }],
   });
@@ -111,6 +120,99 @@ beforeEach(() => {
   });
   Object.defineProperty(global, 'webkitSpeechRecognition', {
     value: undefined,
+    configurable: true,
+    writable: true,
+  });
+
+  // requestAnimationFrame/cancelAnimationFrame are not guaranteed in Vitest.
+  // Keep a very small frame budget so silence checks run, but cannot spin forever.
+  let rafFrameBudget = 3;
+  Object.defineProperty(globalThis, 'requestAnimationFrame', {
+    value: (callback: FrameRequestCallback) => {
+      if (rafFrameBudget <= 0) return 0;
+      rafFrameBudget -= 1;
+      return setTimeout(() => callback(performance.now()), 0) as unknown as number;
+    },
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+    value: (id: number) => {
+      clearTimeout(id as unknown as NodeJS.Timeout);
+    },
+    configurable: true,
+    writable: true,
+  });
+
+  class MockAnalyserNode {
+    fftSize = 0;
+    frequencyBinCount = 128;
+    getByteFrequencyData(arr: Uint8Array): void {
+      arr.fill(0);
+    }
+  }
+
+  class MockAudioContext {
+    createAnalyser(): MockAnalyserNode {
+      return new MockAnalyserNode();
+    }
+
+    createMediaStreamSource(): { connect: ReturnType<typeof vi.fn> } {
+      return { connect: vi.fn() };
+    }
+
+    close(): Promise<void> {
+      return Promise.resolve();
+    }
+  }
+
+  Object.defineProperty(globalThis, 'AudioContext', {
+    value: MockAudioContext,
+    configurable: true,
+    writable: true,
+  });
+
+  class MockMediaRecorder {
+    public ondataavailable: ((e: any) => void) | null = null;
+    public onstop: (() => void) | null = null;
+    public onerror: ((e: any) => void) | null = null;
+
+    constructor(_stream: MediaStream, _opts?: MediaRecorderOptions) {}
+
+    start(): void {
+      // no-op for unit tests
+    }
+
+    stop(): void {
+      this.onstop?.();
+    }
+  }
+
+  Object.defineProperty(globalThis, 'MediaRecorder', {
+    value: MockMediaRecorder,
+    configurable: true,
+    writable: true,
+  });
+});
+
+afterEach(() => {
+  Object.defineProperty(globalThis, 'requestAnimationFrame', {
+    value: originalRequestAnimationFrame,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+    value: originalCancelAnimationFrame,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(globalThis, 'AudioContext', {
+    value: originalAudioContext,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(globalThis, 'MediaRecorder', {
+    value: originalMediaRecorder,
     configurable: true,
     writable: true,
   });
