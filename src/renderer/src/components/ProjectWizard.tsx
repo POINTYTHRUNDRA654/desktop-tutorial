@@ -13,12 +13,22 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const toSafeStepData = (value: unknown): unknown => {
+  const toSafeStepData = (value: unknown, seen: WeakSet<object> = new WeakSet()): unknown => {
     if (value === null || value === undefined) return undefined;
     const t = typeof value;
     if (t === 'string' || t === 'number' || t === 'boolean') return value;
-    if (Array.isArray(value)) return value;
-    if (t === 'object' && Object.getPrototypeOf(value) === Object.prototype) return value;
+    if (Array.isArray(value)) {
+      return value.map((item) => toSafeStepData(item, seen));
+    }
+    if (t === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+      if (seen.has(value as object)) return undefined;
+      seen.add(value as object);
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        out[String(k)] = toSafeStepData(v, seen);
+      }
+      return out;
+    }
     return undefined;
   };
 
@@ -197,7 +207,17 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
           <div className="flex justify-between items-center mt-4">
             <button 
               disabled={safeCurrentStepIndex === 0}
-              onClick={() => setState({ ...state, currentStepIndex: Math.max(0, safeCurrentStepIndex - 1) })}
+              onClick={() => setState((prev) => {
+                if (!prev) return prev;
+                return {
+                  id: prev.id,
+                  projectId: prev.projectId,
+                  name: prev.name,
+                  steps: prev.steps,
+                  currentStepIndex: Math.max(0, safeCurrentStepIndex - 1),
+                  lastUpdated: Date.now(),
+                };
+              })}
               className="px-3 py-1 text-xs text-slate-400 hover:text-white disabled:opacity-30 flex items-center gap-1"
             >
               <ChevronLeft className="w-4 h-4" /> Back
@@ -219,7 +239,17 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
                     currentStep && updateStep(currentStep.id, 'completed');
                   }
                 } else {
-                  setState({ ...state, currentStepIndex: Math.min(safeCurrentStepIndex + 1, Math.max(steps.length - 1, 0)) });
+                  setState((prev) => {
+                    if (!prev) return prev;
+                    return {
+                      id: prev.id,
+                      projectId: prev.projectId,
+                      name: prev.name,
+                      steps: prev.steps,
+                      currentStepIndex: Math.min(safeCurrentStepIndex + 1, Math.max(steps.length - 1, 0)),
+                      lastUpdated: Date.now(),
+                    };
+                  });
                 }
               }}
               className={`px-4 py-1.5 rounded font-bold text-xs flex items-center gap-2 transition-all shadow-lg ${
