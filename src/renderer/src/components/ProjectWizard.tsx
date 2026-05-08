@@ -63,7 +63,8 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
   if (loading) return <div className="p-4 text-slate-400">Loading Wizard...</div>;
   if (!state) return <div className="p-4 text-slate-500 italic">No active wizard found. Start a project to enable guidance.</div>;
 
-  const currentStep = state.steps[state.currentStepIndex];
+  const currentStep = state.steps?.[state.currentStepIndex];
+  if (!currentStep) return <div className="p-4 text-slate-400">Wizard error: no steps available</div>;
 
   return (
     <div className={`bg-slate-900 border border-slate-700 rounded-xl overflow-hidden ${className}`}>
@@ -72,28 +73,28 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
           {state.name}
         </h3>
         <div className="text-[10px] text-slate-500 font-mono uppercase tracking-tighter">
-          Step {state.currentStepIndex + 1} of {state.steps.length}
+          Step {state.currentStepIndex + 1} of {state.steps?.length || 0}
         </div>
       </div>
 
       <div className="p-4 flex gap-4">
         {/* Step List */}
         <div className="w-1/3 space-y-2 border-r border-slate-800 pr-4">
-          {state.steps.map((step, idx) => (
+          {Array.isArray(state.steps) && state.steps.map((step, idx) => (
             <div 
-              key={step.id}
+              key={step?.id || idx}
               className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${
                 idx === state.currentStepIndex ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-500'
               }`}
             >
-              {step.status === 'completed' ? (
+              {step?.status === 'completed' ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               ) : idx === state.currentStepIndex ? (
                 <div className="w-4 h-4 rounded-full border-2 border-emerald-500 animate-pulse" />
               ) : (
                 <Circle className="w-4 h-4" />
               )}
-              <span className="text-xs font-medium truncate">{step.title}</span>
+              <span className="text-xs font-medium truncate">{step?.title}</span>
             </div>
           ))}
         </div>
@@ -101,23 +102,23 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
         {/* Step Surface */}
         <div className="flex-1 flex flex-col justify-between min-h-[160px]">
           <div>
-            <h4 className="text-sm font-bold text-white mb-1">{currentStep.title}</h4>
-            <p className="text-xs text-slate-400 mb-4">{currentStep.description}</p>
+            <h4 className="text-sm font-bold text-white mb-1">{currentStep?.title}</h4>
+            <p className="text-xs text-slate-400 mb-4">{currentStep?.description}</p>
             
             {/* Contextual Actions */}
-            {wizardId === 'script-writer' && currentStep.id === 'generate' && (
+            {wizardId === 'script-writer' && currentStep?.id === 'generate' && (
               <div className="space-y-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700">
                 <input 
                   type="text" 
                   placeholder="ScriptName (e.g. MyCoolScript)"
                   className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white"
-                  onChange={(e) => updateStep(currentStep.id, 'in-progress', { scriptName: e.target.value })}
-                  value={currentStep.data?.scriptName || ''}
+                  onChange={(e) => currentStep && updateStep(currentStep.id, 'in-progress', { scriptName: e.target.value })}
+                  value={currentStep?.data?.scriptName || ''}
                 />
                 <select 
                   className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white"
-                  onChange={(e) => updateStep(currentStep.id, 'in-progress', { type: e.target.value })}
-                  value={currentStep.data?.type || 'ObjectReference'}
+                  onChange={(e) => currentStep && updateStep(currentStep.id, 'in-progress', { type: e.target.value })}
+                  value={currentStep?.data?.type || 'ObjectReference'}
                 >
                   <option value="ObjectReference">ObjectReference</option>
                   <option value="Actor">Actor</option>
@@ -127,7 +128,7 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
               </div>
             )}
 
-            {wizardId === 'blender-companion' && currentStep.id === 'inject' && (
+            {wizardId === 'blender-companion' && currentStep?.id === 'inject' && (
               <div className="flex items-center gap-3 p-3 bg-blue-900/20 rounded-lg border border-blue-700/30">
                 <Info className="w-5 h-5 text-blue-400 flex-shrink-0" />
                 <p className="text-[11px] text-blue-200">
@@ -136,7 +137,7 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
               </div>
             )}
             
-            {wizardId === 'audit-fixer' && currentStep.id === 'fix' && (
+            {wizardId === 'audit-fixer' && currentStep?.id === 'fix' && (
               <div className="p-3 bg-emerald-900/20 rounded-lg border border-emerald-700/30">
                 <p className="text-[11px] text-emerald-200">
                   Identified absolute path discrepancies. Use xEdit to locate the MODEL subrecords and remove the drive-letter prefix so paths are relative. Click &quot;Run Action&quot; to mark this step complete once you have applied the fix manually.
@@ -155,32 +156,32 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
             </button>
             
             <button
-              disabled={submitting || (currentStep.id === 'generate' && !currentStep.data?.scriptName)}
+              disabled={submitting || (currentStep?.id === 'generate' && !currentStep?.data?.scriptName)}
               onClick={() => {
-                if (currentStep.status !== 'completed') {
-                  const payload = currentStep.data || {};
+                if (currentStep?.status !== 'completed') {
+                  const payload = currentStep?.data || {};
                   // Specific action triggers
-                  if (wizardId === 'script-writer' && currentStep.id === 'generate') {
+                  if (wizardId === 'script-writer' && currentStep?.id === 'generate') {
                     runAction(currentStep.id, 'generate', { ...payload, targetPath: `Data/Scripts/Source/User/${payload.scriptName}.psc` });
-                  } else if (wizardId === 'blender-companion' && currentStep.id === 'inject') {
+                  } else if (wizardId === 'blender-companion' && currentStep?.id === 'inject') {
                     runAction(currentStep.id, 'inject', payload);
-                  } else if (wizardId === 'audit-fixer' && currentStep.id === 'fix') {
+                  } else if (wizardId === 'audit-fixer' && currentStep?.id === 'fix') {
                     runAction(currentStep.id, 'fix', payload);
                   } else {
-                    updateStep(currentStep.id, 'completed');
+                    currentStep && updateStep(currentStep.id, 'completed');
                   }
                 } else {
-                  setState({...state, currentStepIndex: Math.min(state.currentStepIndex + 1, state.steps.length - 1)});
+                  setState({...state, currentStepIndex: Math.min(state.currentStepIndex + 1, (state.steps?.length || 1) - 1)});
                 }
               }}
               className={`px-4 py-1.5 rounded font-bold text-xs flex items-center gap-2 transition-all shadow-lg ${
-                currentStep.status === 'completed' 
+                currentStep?.status === 'completed' 
                   ? 'bg-slate-700 text-white hover:bg-slate-600' 
                   : 'bg-emerald-600 text-white hover:bg-emerald-500'
               }`}
             >
-              {submitting ? 'Applying...' : currentStep.status === 'completed' ? 'Next' : 'Run Action'} 
-              {currentStep.status === 'completed' ? <ChevronRight className="w-4 h-4" /> : <Play className="w-3 h-3 fill-current" />}
+              {submitting ? 'Applying...' : currentStep?.status === 'completed' ? 'Next' : 'Run Action'} 
+              {currentStep?.status === 'completed' ? <ChevronRight className="w-4 h-4" /> : <Play className="w-3 h-3 fill-current" />}
             </button>
           </div>
         </div>
