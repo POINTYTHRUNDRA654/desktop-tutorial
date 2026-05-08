@@ -1311,7 +1311,7 @@ print("Batch processing complete")`,
   };
 
   const loadTemplate = (template: string) => {
-    if (typeof template !== 'string' || !template.trim()) return;
+    if (typeof template !== 'string' || template.trim().length === 0) return;
     const templatesForType = templates[activeTab as keyof typeof templates];
     if (!templatesForType || typeof templatesForType !== 'object') return;
 
