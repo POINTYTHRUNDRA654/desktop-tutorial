@@ -184,3 +184,71 @@ describe('LiveContext session-ID filter', () => {
     expect(getCtx().transcription).toBe('no-session-id');
   });
 });
+
+// ─── Suite 4: text-input bypasses voice-session guards ───────────────────────
+
+describe('LiveContext text input guards', () => {
+  it('text input (isTextInput=true) is NOT suppressed when mic is muted', async () => {
+    const { getCtx } = mountProvider();
+
+    // Mute the session
+    await act(async () => {
+      getCtx().toggleMute();
+    });
+    expect(getCtx().isMuted).toBe(true);
+
+    // Voice transcription is blocked...
+    await act(async () => {
+      await getCtx().__test_handleTranscription('voice-blocked', 0, false);
+    });
+    expect(getCtx().transcription).toBe('');
+
+    // ...but text input passes through the mute gate
+    await act(async () => {
+      await getCtx().__test_handleTranscription('text-allowed', 0, true);
+    });
+    expect(getCtx().transcription).toBe('text-allowed');
+  });
+
+  it('text input is NOT suppressed by the speak-end grace period', async () => {
+    const { getCtx } = mountProvider();
+
+    // Simulate that Mossy just stopped speaking 100ms ago (within grace period)
+    getCtx().__test_setLastSpeakEnd(Date.now() - 100);
+
+    // Voice transcription is blocked by the grace period...
+    await act(async () => {
+      await getCtx().__test_handleTranscription('voice-grace', 0, false);
+    });
+    expect(getCtx().transcription).toBe('');
+
+    // ...but text input is always accepted
+    await act(async () => {
+      await getCtx().__test_handleTranscription('text-grace', 0, true);
+    });
+    expect(getCtx().transcription).toBe('text-grace');
+  });
+
+  it('sendTextMessage is callable without a connected voice session', async () => {
+    const { getCtx } = mountProvider();
+
+    // Voice session is NOT active — sendTextMessage must not throw.
+    // In the test environment LocalAIEngine.generateResponse will fail because
+    // no Electron IPC/Groq key is available, but handleTranscription catches all
+    // such errors internally so sendTextMessage always resolves.
+    expect(getCtx().isActive).toBe(false);
+
+    let caughtError: unknown = null;
+    await act(async () => {
+      try {
+        await getCtx().sendTextMessage('hello without voice');
+      } catch (e) {
+        caughtError = e;
+      }
+    });
+
+    // sendTextMessage must never throw — errors from the AI layer are caught
+    // inside handleTranscription and surfaced via setStatus, not re-thrown.
+    expect(caughtError).toBeNull();
+  });
+});
