@@ -1057,8 +1057,13 @@ export class VoiceService {
   }
 
   isSupported(): boolean {
-    const hasSTT = ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
-    const hasTTS = 'speechSynthesis' in window;
-    return hasSTT && hasTTS;
+    const hasBrowserStt = ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
+    const hasBackendCapture =
+      typeof navigator !== 'undefined' &&
+      !!navigator.mediaDevices?.getUserMedia &&
+      typeof MediaRecorder !== 'undefined';
+    const hasBrowserTts = 'speechSynthesis' in window;
+    // Voice can run with either browser STT OR backend capture/transcription.
+    return hasBrowserTts && (hasBrowserStt || hasBackendCapture);
   }
 }
