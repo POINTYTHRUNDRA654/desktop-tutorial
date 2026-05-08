@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Share2, Image as ImageIcon, FileText, Upload, Globe, CheckCircle, Loader2 } from 'lucide-react';
 
 interface ModMetadata {
@@ -61,7 +62,7 @@ Please ask before using assets from this mod.
 `;
 
     setReadme(template);
-    alert('README generated! You can edit it below.');
+    toast.success('README generated! You can edit it below.');
   };
 
   const generateChangelog = () => {
@@ -80,7 +81,7 @@ Please ask before using assets from this mod.
 `;
 
     setChangelog(template);
-    alert('Changelog generated! Add your specific changes.');
+    toast.success('Changelog generated! Add your specific changes.');
   };
 
   const addScreenshot = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -103,7 +104,7 @@ Please ask before using assets from this mod.
   const publish = async () => {
     // Validation
     if (!metadata.name || !metadata.author || !metadata.description) {
-      alert('Please fill in all required fields');
+      toast.error('Please fill in all required fields');
       return;
     }
 
@@ -136,12 +137,12 @@ Please ask before using assets from this mod.
 
       if (response.ok) {
         setPublished(true);
-        alert('Mod published successfully!');
+        toast.success('Mod published successfully!');
       } else {
         throw new Error('Upload failed');
       }
     } catch (error) {
-      alert(`Publication failed: Could not connect to the publishing bridge on port 21337. Ensure your server is active.`);
+      toast.error(`Publication failed: Could not connect to the publishing bridge on port 21337. Ensure your server is active.`);
     } finally {
       setPublishing(false);
     }

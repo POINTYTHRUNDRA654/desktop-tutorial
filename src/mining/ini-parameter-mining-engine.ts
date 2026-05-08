@@ -9,8 +9,16 @@ import {
   IniParameter,
   ParameterRecommendation,
   PerformanceProfile,
-  CompatibilityCheck
+  CompatibilityCheck,
+  INIFile,
+  INISettingsRecommendation,
+  ConfigurationValidation,
+  HardwareProfile,
 } from '../shared/types';
+
+type IniConfigReader = {
+  readFile?: (filePath: string) => Promise<string>;
+};
 
 export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
   async analyze(iniFiles: INIFile[], hardwareProfile: HardwareProfile): Promise<IniOptimization[]> {
@@ -23,7 +31,7 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
 
         if (recommendations.length > 0) {
           optimizations.push({
-            iniPath: iniFile.path,
+            iniPath: typeof iniFile === 'string' ? iniFile : iniFile.fileName || (iniFile as any).path,
             currentParameters: parameters,
             recommendations,
             expectedPerformanceGain: this.calculateExpectedPerformanceGain(recommendations),
@@ -32,11 +40,11 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
           });
         }
       } catch (error) {
-        console.warn(`Failed to analyze INI file ${iniFile.path}:`, error);
+        console.warn(`Failed to analyze INI file ${typeof iniFile === 'string' ? iniFile : iniFile.fileName}:`, error);
       }
     }
 
-    return optimizations.sort((a, b) => b.expectedPerformanceGain - a.expectedPerformanceGain);
+    return optimizations.sort((a, b) => (b.expectedPerformanceGain || 0) - (a.expectedPerformanceGain || 0));
   }
 
   async optimizeForPerformance(iniPaths: string[], performanceProfile: PerformanceProfile): Promise<ParameterRecommendation[]> {
@@ -53,7 +61,48 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
       }
     }
 
-    return allRecommendations.sort((a, b) => b.expectedPerformanceGain - a.expectedPerformanceGain);
+    return allRecommendations.sort((a, b) => (b.expectedPerformanceGain || 0) - (a.expectedPerformanceGain || 0));
+  }
+
+  async recommendSettings(iniFile: INIFile | string, hardwareProfile: HardwareProfile): Promise<INISettingsRecommendation> {
+    const parameters = await this.parseIniFile(iniFile as any);
+    const recommendations = await this.generateParameterRecommendations(parameters, hardwareProfile);
+
+    return {
+      settings: [
+        {
+          iniPath: typeof iniFile === 'string' ? iniFile : (iniFile as INIFile).fileName,
+          recommendations,
+          expectedPerformanceGain: this.calculateExpectedPerformanceGain(recommendations),
+          stabilityScore: await this.calculateStabilityScore(recommendations),
+          compatibilityWarnings: await this.checkCompatibility(recommendations),
+        } as any,
+      ],
+      profile: 'default',
+      expectedPerformanceGain: this.calculateExpectedPerformanceGain(recommendations),
+      compatibilityWarnings: await this.checkCompatibility(recommendations),
+    };
+  }
+
+  async validateConfiguration(iniSettings: Record<string, any>, hardwareProfile: HardwareProfile): Promise<ConfigurationValidation> {
+    // Basic validation wrapper - can be expanded
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Ensure INI keys are known (simple heuristic)
+    for (const key of Object.keys(iniSettings)) {
+      if (!key.includes('.')) {
+        warnings.push(`INI key '${key}' should be namespaced with a section (e.g. 'Display.iShadowMapResolution')`);
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      performanceScore: 0,
+      recommendations: warnings,
+    };
   }
 
   async validateParameterCompatibility(parameters: IniParameter[]): Promise<CompatibilityCheck[]> {
@@ -90,13 +139,41 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
     return checks;
   }
 
-  private async parseIniFile(iniFile: INIFile): Promise<any[]> {
-    // Use the actual INI file sections
+  private async parseIniFile(iniFile: INIFile | string): Promise<any[]> {
+    // Accept either INIFile object or a path
     const parameters: any[] = [];
-    const fileName = iniFile.fileName.toLowerCase();
+
+    if (typeof iniFile === 'string') {
+      // lightweight INI parser for string paths
+      try {
+        const content = await this.readIniFileContent(iniFile);
+        let currentSection = 'General';
+        for (const rawLine of content.split(/[\r\n]+/)) {
+          const line = rawLine.trim();
+          if (!line || line.startsWith(';') || line.startsWith('#')) continue;
+          const sectionMatch = line.match(/^\[(.+)\]$/);
+          if (sectionMatch) {
+            currentSection = sectionMatch[1];
+            continue;
+          }
+          const kv = line.split('=');
+          if (kv.length >= 2) {
+            const key = kv[0].trim();
+            const value = kv.slice(1).join('=').trim();
+            parameters.push({ section: currentSection, key, value, defaultValue: value, description: this.getParameterDescription(currentSection, key), category: this.getParameterCategory(currentSection, key) });
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to read INI path:', iniFile, err);
+      }
+      return parameters;
+    }
+
+    // Use the actual INI file sections
+    const fileName = (iniFile as INIFile).fileName?.toLowerCase() || '';
 
     // Convert the Map structure to parameter objects
-    for (const [section, sectionData] of iniFile.sections) {
+    for (const [section, sectionData] of (iniFile as INIFile).sections) {
       for (const [key, value] of sectionData) {
         parameters.push({
           section,
@@ -112,16 +189,20 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
     return parameters;
   }
 
-  private getParameterDescription(section: string, key: string): string {
-    // Return description based on section and key
-    return `Parameter ${key} in section ${section}`;
-  }
+  private async readIniFileContent(filePath: string): Promise<string> {
+    const api = (globalThis as any)?.electron?.api;
+    const iniConfigManager: IniConfigReader | undefined = api?.iniConfigManager;
+    const workshopReader: IniConfigReader | undefined = api;
 
-  private getParameterCategory(section: string, key: string): string {
-    // Return category based on section
-    if (section.toLowerCase().includes('display')) return 'graphics';
-    if (section.toLowerCase().includes('general')) return 'performance';
-    return 'other';
+    if (typeof iniConfigManager?.readFile === 'function') {
+      return iniConfigManager.readFile(filePath);
+    }
+
+    if (typeof workshopReader?.readFile === 'function') {
+      return workshopReader.readFile(filePath);
+    }
+
+    throw new Error('INI file read API unavailable in this runtime');
   }
 
   private async generateParameterRecommendations(parameters: any[], hardwareProfile: HardwareProfile): Promise<any[]> {
@@ -236,10 +317,11 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
     switch (`${parameter.section}.${parameter.key}`) {
       case 'General.uGridsToLoad': {
         let recommendedGrids = 5; // Default
+        const ramGb = typeof ram === 'number' ? ram : (ram && (ram.total ?? (ram as any).capacity)) || 0;
 
-        if (ram < 8) recommendedGrids = 3; // Low RAM
-        else if (ram < 16) recommendedGrids = 4; // Medium RAM
-        else if (ram > 32) recommendedGrids = 7; // High RAM
+        if (ramGb < 8) recommendedGrids = 3; // Low RAM
+        else if (ramGb < 16) recommendedGrids = 4; // Medium RAM
+        else if (ramGb > 32) recommendedGrids = 7; // High RAM
 
         if (parseInt(parameter.value) !== recommendedGrids) {
           return {
@@ -247,9 +329,9 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
             currentValue: parameter.value,
             recommendedValue: recommendedGrids.toString(),
             expectedPerformanceGain: Math.abs(parseInt(parameter.value) - recommendedGrids) * 0.5,
-            stabilityImpact: ram < 8 ? 0.2 : 0.05,
+            stabilityImpact: ramGb < 8 ? 0.2 : 0.05,
             visualQualityImpact: recommendedGrids < parseInt(parameter.value) ? -0.2 : 0.1,
-            reason: `Optimized for ${ram}GB RAM system`,
+            reason: `Optimized for ${ramGb}GB RAM system`,
             implementationSteps: [
               '1. Open SkyrimPrefs.ini',
               '2. Locate [General] section',
@@ -264,9 +346,9 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
       case 'Display.iShadowMapResolution': {
         let recommendedShadowRes = 2048; // Default
 
-        if (gpu.vram < 4) recommendedShadowRes = 1024; // Low VRAM
-        else if (gpu.vram < 8) recommendedShadowRes = 1536; // Medium VRAM
-        else if (gpu.vram > 12) recommendedShadowRes = 4096; // High VRAM
+        if ((gpu?.vram ?? 0) < 4) recommendedShadowRes = 1024; // Low VRAM
+        else if ((gpu?.vram ?? 0) < 8) recommendedShadowRes = 1536; // Medium VRAM
+        else if ((gpu?.vram ?? 0) > 12) recommendedShadowRes = 4096; // High VRAM
 
         if (parseInt(parameter.value) !== recommendedShadowRes) {
           return {
@@ -276,7 +358,7 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
             expectedPerformanceGain: Math.abs(parseInt(parameter.value) - recommendedShadowRes) / 1000,
             stabilityImpact: 0.1,
             visualQualityImpact: recommendedShadowRes > parseInt(parameter.value) ? 0.3 : -0.2,
-            reason: `Optimized for ${gpu.vram}GB VRAM GPU`,
+            reason: `Optimized for ${gpu?.vram ?? 0}GB VRAM GPU`,
             implementationSteps: [
               '1. Open SkyrimPrefs.ini',
               '2. Locate [Display] section',
@@ -416,7 +498,7 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
   }
 
   private calculateExpectedPerformanceGain(recommendations: ParameterRecommendation[]): number {
-    return recommendations.reduce((total, rec) => total + rec.expectedPerformanceGain, 0);
+    return recommendations.reduce((total, rec) => total + (rec.expectedPerformanceGain ?? 0), 0);
   }
 
   private async calculateStabilityScore(recommendations: ParameterRecommendation[]): Promise<number> {
@@ -424,7 +506,7 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
     let baseScore = 100;
 
     for (const rec of recommendations) {
-      baseScore -= rec.stabilityImpact * 20; // Convert to percentage points
+      baseScore -= (rec.stabilityImpact ?? 0) * 20; // Convert to percentage points
     }
 
     return Math.max(0, Math.min(100, baseScore));
@@ -443,7 +525,7 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
         warnings.push('High shadow resolution may not be supported on all GPUs');
       }
 
-      if (rec.visualQualityImpact < -0.3) {
+      if ((rec.visualQualityImpact ?? 0) < -0.3) {
         warnings.push('Significant visual quality reduction may be noticeable');
       }
     }

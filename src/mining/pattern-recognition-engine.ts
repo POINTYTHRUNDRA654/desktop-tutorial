@@ -110,11 +110,11 @@ export class PatternRecognitionEngine implements IPatternRecognitionEngine {
     const modPerformance = new Map<string, number[]>();
 
     for (const metric of data.performanceMetrics) {
-      for (const mod of metric.modCombination) {
+      for (const mod of metric.modCombination ?? []) {
         if (!modPerformance.has(mod)) {
           modPerformance.set(mod, []);
         }
-        modPerformance.get(mod)!.push(metric.fps);
+        modPerformance.get(mod)!.push(typeof metric.fps === 'number' ? metric.fps : 0);
       }
     }
 
@@ -135,7 +135,7 @@ export class PatternRecognitionEngine implements IPatternRecognitionEngine {
             examples: [{
               modCombination: [mod],
               outcome: 'failure',
-              metrics: data.performanceMetrics.find(m => m.modCombination.includes(mod)),
+              metrics: data.performanceMetrics.find(m => (m.modCombination ?? []).includes(mod)),
               description: `Average FPS: ${avgFps.toFixed(1)}`
             }]
           });
@@ -154,8 +154,9 @@ export class PatternRecognitionEngine implements IPatternRecognitionEngine {
     const failedCombinations = new Map<string, number>();
 
     for (const metric of data.performanceMetrics) {
-      const key = metric.modCombination.sort().join(',');
-      const isSuccess = metric.fps > 50 && metric.stabilityScore > 80;
+      const key = (metric.modCombination ?? []).sort().join(',');
+      const isSuccess = (typeof metric.fps === 'number' ? metric.fps : 0) > 50 &&
+        (typeof metric.stabilityScore === 'number' ? metric.stabilityScore : 0) > 80;
 
       if (isSuccess) {
         successfulCombinations.set(key, (successfulCombinations.get(key) || 0) + 1);
@@ -194,8 +195,8 @@ export class PatternRecognitionEngine implements IPatternRecognitionEngine {
     const highMemoryMods: string[] = [];
 
     for (const metric of data.performanceMetrics) {
-      if (metric.memoryUsage > 8000) { // 8GB threshold
-        highMemoryMods.push(...metric.modCombination);
+      if ((metric.memoryUsage ?? 0) > 8000) { // 8GB threshold
+        highMemoryMods.push(...(metric.modCombination ?? []));
       }
     }
 
@@ -250,7 +251,7 @@ export class PatternRecognitionEngine implements IPatternRecognitionEngine {
     if (data.performanceMetrics.length < 3) return anomalies;
 
     // Calculate baseline performance
-    const fpsValues = data.performanceMetrics.map(m => m.fps);
+    const fpsValues = data.performanceMetrics.map(m => typeof m.fps === 'number' ? m.fps : 0);
     const meanFps = fpsValues.reduce((a, b) => a + b, 0) / fpsValues.length;
     const stdDevFps = Math.sqrt(
       fpsValues.reduce((acc, fps) => acc + Math.pow(fps - meanFps, 2), 0) / fpsValues.length
@@ -258,14 +259,14 @@ export class PatternRecognitionEngine implements IPatternRecognitionEngine {
 
     // Find anomalous performance metrics
     for (const metric of data.performanceMetrics) {
-      const deviation = Math.abs(metric.fps - meanFps) / stdDevFps;
+      const deviation = Math.abs((typeof metric.fps === 'number' ? metric.fps : 0) - meanFps) / stdDevFps;
 
       if (deviation > 2) { // 2 standard deviations
         anomalies.push({
-          id: `performance-anomaly-${metric.modCombination.join('-')}`,
+          id: `performance-anomaly-${(metric.modCombination ?? []).join('-')}`,
           type: 'performance',
           description: `Unusual FPS performance (${metric.fps}) for mod combination`,
-          affectedMods: metric.modCombination,
+          affectedMods: metric.modCombination ?? [],
           deviation,
           severity: deviation > 3 ? 'high' : 'medium'
         });
@@ -280,21 +281,21 @@ export class PatternRecognitionEngine implements IPatternRecognitionEngine {
 
     if (data.performanceMetrics.length < 3) return anomalies;
 
-    const memoryValues = data.performanceMetrics.map(m => m.memoryUsage);
+    const memoryValues = data.performanceMetrics.map(m => m.memoryUsage ?? 0);
     const meanMemory = memoryValues.reduce((a, b) => a + b, 0) / memoryValues.length;
     const stdDevMemory = Math.sqrt(
       memoryValues.reduce((acc, mem) => acc + Math.pow(mem - meanMemory, 2), 0) / memoryValues.length
     );
 
     for (const metric of data.performanceMetrics) {
-      const deviation = Math.abs(metric.memoryUsage - meanMemory) / stdDevMemory;
+      const deviation = Math.abs((metric.memoryUsage ?? 0) - meanMemory) / stdDevMemory;
 
       if (deviation > 2) {
         anomalies.push({
-          id: `memory-anomaly-${metric.modCombination.join('-')}`,
+          id: `memory-anomaly-${(metric.modCombination ?? []).join('-')}`,
           type: 'memory',
           description: `Unusual memory usage (${metric.memoryUsage}MB) for mod combination`,
-          affectedMods: metric.modCombination,
+          affectedMods: metric.modCombination ?? [],
           deviation,
           severity: deviation > 3 ? 'high' : 'medium'
         });

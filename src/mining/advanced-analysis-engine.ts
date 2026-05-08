@@ -102,7 +102,7 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
           mods: data.mods,
           peakVRAM: 0, // Would be calculated
           peakRAM: 0, // Would be calculated
-          averageFPS: data.performanceMetrics.reduce((acc, m) => acc + m.fps, 0) / data.performanceMetrics.length
+          averageFPS: data.performanceMetrics.reduce((acc, m) => acc + (typeof m.fps === 'number' ? m.fps : 0), 0) / data.performanceMetrics.length
         }
       }),
       this.compatibilityMining.build([]) // Would use historical compatibility data
@@ -222,7 +222,7 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
     }
 
     // Generate optimization recommendations
-    const improvements = [];
+    const improvements: { type: string; description: string; gain: number }[] = [];
 
     // Load order improvements
     if (currentBottlenecks.optimizationOpportunities.some(opp => opp.type === 'load_order')) {
@@ -231,7 +231,7 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
         improvements.push({
           type: 'load_order',
           description: loadOrderOpp.description,
-          gain: loadOrderOpp.potentialGain
+          gain: loadOrderOpp.potentialGain as unknown as number
         });
       }
     }
@@ -247,7 +247,7 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
         mods,
         peakVRAM: 0,
         peakRAM: 0,
-        averageFPS: performanceData.metrics.reduce((acc, m) => acc + m.fps, 0) / performanceData.metrics.length
+        averageFPS: performanceData.metrics.reduce((acc, m) => acc + (typeof m.fps === 'number' ? m.fps : 0), 0) / performanceData.metrics.length
       }
     });
 
@@ -255,7 +255,7 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
       improvements.push({
         type: 'memory',
         description: rec.description,
-        gain: rec.potentialSavings
+        gain: rec.potentialSavings as number
       });
     }
 
@@ -295,7 +295,28 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
 
     // Calculate summary scores
     const compatibilityScore = this.calculateCompatibilityScore(analysis.compatibilityMatrix, data.mods);
-    const performanceScore = this.calculatePerformanceScore(data.performanceMetrics);
+    // If data.performanceMetrics is an array, map to the expected type
+    const performanceScore = Array.isArray(data.performanceMetrics)
+      ? this.calculatePerformanceScore(
+        data.performanceMetrics.map((m: any) => ({
+          fps: typeof m.fps === 'number' ? m.fps : (typeof m.fps === 'object' && typeof m.fps.average === 'number' ? m.fps.average : 0),
+          stabilityScore: typeof m.stabilityScore === 'number' ? m.stabilityScore : 0,
+          memoryUsage: typeof m.memoryUsage === 'number' ? m.memoryUsage : 0
+        }))
+      )
+      : this.calculatePerformanceScore([
+        {
+          fps: typeof (data.performanceMetrics as any)?.fps === 'number'
+            ? (data.performanceMetrics as any).fps
+            : (typeof (data.performanceMetrics as any)?.fps === 'object' && typeof (data.performanceMetrics as any).fps.average === 'number'
+              ? (data.performanceMetrics as any).fps.average
+              : 0),
+          stabilityScore: typeof (data.performanceMetrics as any)?.stabilityScore === 'number'
+            ? (data.performanceMetrics as any).stabilityScore
+            : 0
+          // memoryUsage is not part of the expected type, so omit it
+        }
+      ]);
     const riskLevel = this.calculateRiskLevel(analysis, data);
 
     // Collect issues
@@ -356,8 +377,12 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
     riskScore += analysis.patterns.anomalies.length * 10;
     riskScore += analysis.patterns.patterns.filter(p => p.severity === 'critical').length * 20;
 
-    // Bottleneck risk
-    riskScore += analysis.bottlenecks.bottlenecks.filter(b => b.confidence > 0.8).length * 15;
+    // Bottleneck risk — count high/critical bottlenecks from both primary and secondary lists
+    const allBottlenecks = [
+      ...(analysis.bottlenecks.primaryBottlenecks || []),
+      ...(analysis.bottlenecks.secondaryBottlenecks || [])
+    ];
+    riskScore += allBottlenecks.filter(b => b.severity === 'high' || b.severity === 'critical').length * 15;
 
     // Memory risk
     riskScore += analysis.memory.leakDetection.length * 25;
@@ -396,14 +421,20 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
       });
     }
 
-    // Bottleneck issues
-    for (const bottleneck of analysis.bottlenecks.bottlenecks) {
+    // Bottleneck issues (map Phase2PerformanceBottleneck -> issue shape)
+    const allBottlenecks = [
+      ...(analysis.bottlenecks.primaryBottlenecks || []),
+      ...(analysis.bottlenecks.secondaryBottlenecks || [])
+    ];
+
+    for (const bottleneck of allBottlenecks) {
+      const primaryMod = bottleneck.affectedMods?.[0] || 'unknown';
       issues.push({
         type: 'performance',
-        severity: bottleneck.confidence > 0.8 ? 'high' : 'medium',
-        description: `${bottleneck.modName} causing ${bottleneck.bottleneckType} bottleneck`,
-        affectedMods: [bottleneck.modName],
-        recommendation: bottleneck.mitigationStrategies[0] || 'Optimize or replace mod'
+        severity: (bottleneck.severity === 'high' || bottleneck.severity === 'critical') ? 'high' : 'medium',
+        description: `${primaryMod} causing ${bottleneck.type} bottleneck`,
+        affectedMods: [primaryMod],
+        recommendation: (bottleneck.mitigationStrategies && bottleneck.mitigationStrategies.length > 0) ? (typeof bottleneck.mitigationStrategies[0] === 'string' ? bottleneck.mitigationStrategies[0] : (bottleneck.mitigationStrategies[0].description || 'Optimize or replace mod')) : 'Optimize or replace mod'
       });
     }
 
@@ -449,12 +480,19 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
     }> = [];
 
     // High priority recommendations
-    for (const bottleneck of analysis.bottlenecks.bottlenecks.filter(b => b.confidence > 0.8)) {
+    const allBottlenecks = [
+      ...(analysis.bottlenecks.primaryBottlenecks || []),
+      ...(analysis.bottlenecks.secondaryBottlenecks || []),
+    ];
+
+    for (const bottleneck of allBottlenecks.filter(b => b.severity === 'high' || b.severity === 'critical')) {
+      const mod = bottleneck.affectedMods?.[0] || 'unknown';
+      const fpsImpact = (bottleneck.impact && typeof bottleneck.impact === 'object') ? (bottleneck.impact.fps || 0) : 0;
       recommendations.push({
         priority: 'high',
         category: 'performance',
-        description: `Address ${bottleneck.bottleneckType} bottleneck in ${bottleneck.modName}`,
-        expectedBenefit: `${bottleneck.impact.toFixed(1)} FPS improvement`
+        description: `Address ${bottleneck.type} bottleneck in ${mod}`,
+        expectedBenefit: `${fpsImpact.toFixed(1)} FPS improvement`
       });
     }
 
@@ -480,11 +518,12 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
 
     // Optimization opportunities
     for (const opp of analysis.bottlenecks.optimizationOpportunities) {
+      const gain = typeof (opp as any).potentialGain === 'number' ? (opp as any).potentialGain : ((opp as any).potentialGain?.fps ?? 0);
       recommendations.push({
         priority: opp.difficulty === 'easy' ? 'medium' : 'low',
         category: 'optimization',
         description: opp.description,
-        expectedBenefit: `${opp.potentialGain.toFixed(1)} FPS improvement`
+        expectedBenefit: `${gain.toFixed(1)} FPS improvement`
       });
     }
 

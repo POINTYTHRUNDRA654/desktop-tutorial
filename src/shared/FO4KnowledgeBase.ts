@@ -122,7 +122,7 @@ Event ObjectReference.OnItemAdded(ObjectReference akSender, Form akBaseItem, int
     ; Handle event
 EndEvent`
     },
-    
+
     propertyManagement: {
       description: "Define and use script properties",
       code: `; Auto property (filled in CK)
@@ -228,7 +228,7 @@ endWhile`
   // === PREVIS/PRECOMBINE KNOWLEDGE ===
   previsSystem: {
     description: "PreVis (Pre-Visible) and PreCombined meshes improve performance by pre-calculating visibility and combining static meshes",
-    
+
     whatBreaksPrevis: [
       "Moving or deleting static references in exterior cells",
       "Adding new static objects to cells with existing PreVis",
@@ -247,7 +247,44 @@ endWhile`
       "Always generate PreVis before releasing worldspace edits",
       "Test in-game to verify no yellow precombined meshes",
       "Document which cells had PreVis regenerated",
-      "Consider using Buffout 4 to detect PreVis issues"
+      "Use Buffout 4 NG (Nexus #64880) to detect PreVis issues — run CLASSIC (Nexus #56255) to auto-scan crash logs",
+      "Use PRP 81.5+ (Nexus #46403) — required for AE/NG content cells"
+    ]
+  },
+
+  // === NAVMESH REPAIR (2025) ===
+  navmeshRepair: {
+    overview: "Deleted navmesh records (NAVM with flag 0x00000020) cause immediate CTD when NPCs try to pathfind through the affected area. Never delete vanilla NAVM records — always replace using the Change FormID method in xEdit.",
+
+    xEditWorkflow: [
+      "1. Load plugin in xEdit 4.0.3+ with all masters",
+      "2. Find [D] NAVM records (deleted flag) — or run Check for Errors",
+      "3. Copy the FormID of the deleted NAVM record",
+      "4. Find the replacement NAVM your mod added",
+      "5. Right-click replacement → Change FormID → paste copied FormID → accept 'Update all references'",
+      "6. Remove the original [D] NAVM record",
+      "7. Run Check for Errors again and save"
+    ],
+
+    ckWorkflow: [
+      "Never use Delete on a navmesh triangle — cover it first",
+      "Create a new triangle over the problem area, THEN delete the old one",
+      "Always Finalize Cell Navmesh before saving",
+      "Use Navmesh → Find Navmesh Errors to check cell borders"
+    ],
+
+    communityResources: {
+      nexusArticle: "nexusmods.com/fallout4/articles/4209",
+      afkmodsGuide: "afkmods.com → Knowledge Base → Navmesh Repair",
+      youtubeGuide: "youtube.com/watch?v=yRBsmki8JHA (Real Jenn — Fixing and Preventing Deleted Navmeshes)",
+      nexusForums: "forums.nexusmods.com/topic/13522083"
+    },
+
+    symptoms: [
+      "NPCs frozen near a door or entrance",
+      "CTD when approaching a specific location or fast-travelling to a settlement",
+      "NPCs refusing to enter or leave a building",
+      "Crash on cell load in an area edited by a mod"
     ]
   },
 
@@ -257,7 +294,7 @@ endWhile`
       cause: "Infinite loop or too many recursive function calls in Papyrus",
       solution: "Add Utility.Wait() calls in loops, check for infinite recursion, reduce update frequency"
     },
-    
+
     "Cannot call X() on a None object": {
       cause: "Script property not filled or object doesn't exist",
       solution: "Check CK properties are filled, add None checks: if MyProperty != None"
@@ -269,8 +306,8 @@ endWhile`
     },
 
     "CTD on Cell Load": {
-      cause: "Corrupt mesh, missing texture, or bad NavMesh",
-      solution: "Check Papyrus log, validate all assets with nif_validate, check for missing masters"
+      cause: "Corrupt mesh, missing texture, bad NavMesh, or deleted NAVM record",
+      solution: "Run CLASSIC (Nexus #56255) on your Buffout 4 NG crash log first. Then: check Papyrus log, validate assets with nif_validate, check for missing masters, scan ESP for deleted NAVM records in xEdit"
     },
 
     "ESP won't load in CK": {
@@ -287,7 +324,7 @@ endWhile`
   // === NIF MESH SPECIFICATIONS ===
   nifSpecs: {
     version: "Fallout 4 uses BSTriShape (version 20.2.0.7)",
-    
+
     blockTypes: {
       BSTriShape: "Main mesh geometry block (FO4 format)",
       BSLightingShaderProperty: "Material and texture assignments",
@@ -356,7 +393,7 @@ endWhile`
     masterFiles: [
       "Fallout4.esm (always first)",
       "DLCRobot.esm",
-      "DLCworkshop01.esm", 
+      "DLCworkshop01.esm",
       "DLCCoast.esm",
       "DLCworkshop02.esm",
       "DLCworkshop03.esm",
@@ -364,10 +401,10 @@ endWhile`
     ],
 
     priorities: {
-      high: ["Unofficial Fallout 4 Patch", "F4SE plugins", "Framework mods (MCM, etc)"],
-      medium: ["Gameplay overhauls", "Quest mods", "New lands"],
+      high: ["Unofficial Fallout 4 Patch", "F4SE + Address Library (Nexus #47327)", "Addictol (Nexus #84214, ALL-IN-ONE stability — do NOT also install Buffout 4 or X-Cell)", "Framework mods (MCM NG, etc)"],
+      medium: ["Gameplay overhauls", "Quest mods", "New lands", "PRP 81.5+ (Nexus #46403)"],
       low: ["Texture replacers", "Sound replacers", "Minor tweaks"],
-      last: ["Personal patches", "Bashed patches", "Load order patches"]
+      last: ["Personal patches", "Bashed patches", "Load order patches", "PRP compatibility patches"]
     },
 
     rules: [
@@ -531,6 +568,118 @@ end.`
       purpose: "Texture map generator. Converts diffuse images into normal, displacement, specular, and AO maps.",
       status: "Professional Material Authoring Tool"
     }
+  },
+
+  // === COMMUNITY EDUCATORS & RESOURCES ===
+  communityEducators: {
+    sheldonSeddon: {
+      name: "Sheldon Seddon",
+      channel: "YouTube: Sheldon Seddon",
+      url: "https://www.youtube.com/user/seddon4494",
+      focus: "Creation Kit (CK) and GECK comprehensive knowledge repository",
+      description: "Dedicated to accumulating as much Creation Kit and GECK knowledge as possible. Big and small topics covering CK fundamentals, scripting, quest design, NPC creation, worldbuilding, and advanced modding techniques.",
+      trustLevel: "official",
+      topics: [
+        "Creation Kit fundamentals",
+        "GECK (Garden of Eden Creation Kit)",
+        "Papyrus scripting and quest design",
+        "NPC and actor configuration",
+        "Dialogue setup and scripting",
+        "Quest stages and objectives",
+        "Environment and worldbuilding",
+        "Precombine and previs optimization",
+        "Custom spells and items",
+        "Faction and leveled list manipulation"
+      ],
+      usage: "When answering Creation Kit or modding workflow questions, reference Sheldon's channel as a comprehensive free resource. Direct users to his YouTube channel for in-depth tutorials.",
+      credit: "All CK knowledge references should credit Sheldon Seddon and direct users to his YouTube channel for full video tutorials."
+    },
+
+    darkfox127: {
+      name: "Darkfox127 (Richard)",
+      channel: "YouTube: @Darkfox127 | Twitch: darkfox127",
+      url: "https://www.youtube.com/@Darkfox127",
+      playlists: "https://www.youtube.com/@Darkfox127/playlists",
+      twitch: "https://www.twitch.tv/darkfox127",
+      website: "https://darkfox127.com",
+      focus: "Creation Kit tutorial videos and live modding education",
+      description: "Richard (Darkfox127) creates comprehensive tutorial videos teaching Creation Kit modding. In addition to structured YouTube tutorials, he livestreams live mod creation on Twitch, providing real-time problem-solving and interactive learning opportunities.",
+      trustLevel: "official",
+      topics: [
+        "Creation Kit fundamentals",
+        "Creation Kit workflows and interface",
+        "Modding tutorials for Fallout",
+        "Step-by-step creation guides",
+        "World editing and design",
+        "NPC and actor configuration",
+        "Quest and dialogue creation",
+        "Best practices for mod creation",
+        "Live modding sessions",
+        "Real-time problem-solving"
+      ],
+      contentTypes: ["Video Tutorials", "YouTube Playlists", "Twitch Live Streams", "Website Resources"],
+      usage: "When answering Creation Kit questions, reference Darkfox127's tutorial library and livestreams. Direct users to his YouTube channel for structured tutorials or Twitch for live learning experiences.",
+      credit: "All CK knowledge and tutorials referenced from Darkfox127 (Richard) should include proper credit and direct users to his YouTube channel, Twitch streams, or website."
+    }
+  },
+  // === 2025–2026 ESSENTIAL TOOLS & STABILITY STACK ===
+  communityTools2025: {
+    stabilityStack: [
+      { name: "F4SE 0.7.7", nexus: "f4se.silverlock.org", note: "Script extender — 0.7.7 for runtime 1.11.191; match version to your game" },
+      { name: "Address Library for F4SE Plugins", nexus: "#47327", note: "All In One (Anniversary Edition) build — required by all DLL mods" },
+      { name: "Addictol (ALL-IN-ONE stability tool)", nexus: "#84214", note: "Supersedes and includes Buffout 4 (all variants), X-Cell, BakaMaxPapyrusOps, Faster Workshop, Interior NavCut Fix, Escape Freeze, Long Save Bug Fix, Disk Cache Enabler, Drop 7FFF Fix, and more. Do NOT install Buffout 4, X-Cell, or those mods alongside it." },
+      { name: "High FPS Physics Fix", nexus: "#44798", note: "v0.8.13+ — critical for >60 FPS" },
+      { name: "Unofficial Fallout 4 Patch (UFO4P)", nexus: "latest", note: "Always latest version; load after all DLC" },
+      { name: "PRP 81.5", nexus: "#46403", note: "March 2026 stable — required for NG/1.11.x cells; load late in order" },
+      { name: "MCM NG", nexus: "search 'MCM NG'", note: "Use the NG build — legacy MCM Framework does not work on NG/1.11.x" },
+      { name: "CLASSIC Crash Scanner", nexus: "#56255", note: "Run after every CTD — scans Addictol crash logs at %LOCALAPPDATA%\\Fallout4\\F4SE\\; covers 250+ error scenarios" },
+      { name: "Canary Save Scummer", nexus: "search Nexus", note: "Save file health checker — warns of corruption before it becomes a full loss" }
+    ],
+
+    addictolConfig: {
+      description: "Addictol (Nexus #84214) is the ALL-IN-ONE stability tool for OG/NG/1.11.x. It supersedes and includes Buffout 4, X-Cell, BakaMaxPapyrusOps, and many others. Do NOT install Buffout 4 or X-Cell alongside it.",
+      replaces: [
+        "Buffout 4 (all variants: OG, NG, AE)",
+        "X-Cell",
+        "BakaMaxPapyrusOps",
+        "Faster Workshop / NG / AE",
+        "Interior NavCut Fix",
+        "Escape Freeze OG / NG",
+        "Long Save Bug Fix",
+        "Disk Cache Enabler",
+        "Drop 7FFF Fix",
+        "Baka ScrapHeap",
+        "Fallout Priority",
+        "Private Profile Redirector",
+      ],
+      requiredBy: [
+        "Address Library AiO (Nexus #47327)",
+        "F4SE (matching version to game runtime)",
+      ],
+    },
+
+    deprecatedMods: [
+      { name: "AWKCR", reason: "No longer actively maintained (2024+). Use standalone keywords or ECO instead." },
+      { name: "Buffout 4 (all variants: OG, NG, AE)", reason: "Superseded by Addictol (#84214). Do NOT install alongside Addictol." },
+      { name: "X-Cell", reason: "Superseded by Addictol (#84214). Do NOT install alongside Addictol." },
+      { name: "BakaMaxPapyrusOps", reason: "Included in Addictol. Do NOT install separately." },
+      { name: "Baka ScrapHeap", reason: "Superseded by Addictol." },
+      { name: "Fallout Priority", reason: "Superseded by Addictol." },
+      { name: "Private Profile Redirector", reason: "Superseded by Addictol." },
+      { name: "Legacy MCM Framework", reason: "Does not work on NG or 1.11.x. Use MCM NG." }
+    ],
+
+    gameVersions: {
+      OG: "1.10.163 — F4SE 0.6.23",
+      NG: "1.10.980–1.10.984 — F4SE 0.7.x (April 2024 update)",
+      "community-AE": "NG + 76 bundled free CC items (same EXE as NG: 1.10.984)",
+      "official-AE / 1.11.x": "1.11.137–1.11.191 — F4SE 0.7.7 (Bethesda's official 'Anniversary Edition', November–December 2025)"
+    },
+
+    communityGuides: [
+      { name: "The Midnight Ride", url: "themidnightride.moddinglinked.com", note: "Authoritative NG/1.11.x modding setup guide — kept updated after every patch" },
+      { name: "Nexar's Curated 2026 Modlist", url: "nexarplays.co.za/fallout4", note: "NG-optimised list; no downgrade required" }
+    ]
   }
 };
 

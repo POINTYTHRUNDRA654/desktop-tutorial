@@ -1,0 +1,236 @@
+name: Release Build and Upload
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 5.4.27)'
+        required: true
+      draft:
+        description: 'Create as draft release'
+        required: false
+        default: true
+        type: boolean
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [ "${{ github.event.inputs.version }}" != "" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(jq -r '.version' < package.json)
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building version: $VERSION"
+
+      - name: Verify version matches package.json
+        run: |
+          PKG_VERSION=$(jq -r '.version' < package.json)
+          INPUT_VERSION="${{ steps.get_version.outputs.version }}"
+          if [ "$PKG_VERSION" != "$INPUT_VERSION" ]; then
+            echo "❌ Version mismatch: release version '$INPUT_VERSION' does not match package.json version '$PKG_VERSION'."
+            echo "Update package.json to version $INPUT_VERSION before creating this release."
+            exit 1
+          fi
+          echo "✅ Release version $INPUT_VERSION matches package.json version $PKG_VERSION"
+
+      - name: Create Release
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          DRAFT_FLAG=""
+          PRERELEASE_FLAG=""
+          if [ "${{ github.event.inputs.draft }}" != "false" ]; then
+            DRAFT_FLAG="--draft"
+          fi
+          if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          cat > /tmp/release-notes.md << EOF
+          # Mossy Desktop v${VERSION}
+
+          ## What's New
+          - Professional Fallout 4 modding assistant with AI
+          - Full OG/NG/AE/Creations Menu version awareness
+          - Professional asset optimization tools
+          - Neural Link integration for real-time tool monitoring
+          - Comprehensive modding workflow automation
+
+          ## Installation
+          1. Download the installer for your system
+          2. Run the installer
+          3. Follow the first-run setup wizard
+
+          ## Editions
+          - **Universal**: CPU-based PyTorch, works on all systems
+          - **NVIDIA**: CUDA-accelerated with fine-tuning capabilities (requires NVIDIA GPU)
+
+          ## System Requirements
+          - Windows 10/11 (64-bit)
+          - 8GB RAM minimum (16GB recommended)
+          - 5GB free disk space
+          - .NET Runtime 8.0+
+          - Visual C++ Redistributables
+
+          ## Documentation
+          See the [README](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/README.md) for full documentation.
+          EOF
+          gh release create "v${VERSION}" \
+            --title "Mossy v${VERSION}" \
+            --notes-file /tmp/release-notes.md \
+            $DRAFT_FLAG $PRERELEASE_FLAG
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-universal:
+    name: Build Universal Edition
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          cache: 'npm'
+
+      - name: Configure npm
+        run: |
+          npm config set fund false
+          npm config set audit false
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          npm config set fetch-timeout 300000
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run prepackage steps
+        run: npm run prepackage
+        continue-on-error: true
+
+      - name: Package Universal Edition
+        run: npx electron-builder --win --publish never
+        timeout-minutes: 30
+        env:
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+
+      - name: List built files
+        run: |
+          Write-Host "Files in release directory:"
+          Get-ChildItem -Path release | ForEach-Object {
+            $sizeMB = [math]::Round($_.Length / 1MB, 2)
+            Write-Host "  $($_.Name) - $sizeMB MB"
+          }
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: release/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts (backup)
+        uses: actions/upload-artifact@v6
+        with:
+          name: mossy-universal-${{ needs.create-release.outputs.version }}
+          path: release/*.exe
+          retention-days: 30
+
+  build-nvidia:
+    name: Build NVIDIA Edition
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          cache: 'npm'
+
+      - name: Configure npm
+        run: |
+          npm config set fund false
+          npm config set audit false
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          npm config set fetch-timeout 300000
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run prepackage steps
+        run: npm run prepackage
+        continue-on-error: true
+
+      - name: Package NVIDIA Edition
+        run: npm run package:win:nvidia -- --publish never
+        timeout-minutes: 30
+        env:
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+
+      - name: List built files
+        run: |
+          Write-Host "Files in release directory:"
+          Get-ChildItem -Path release | ForEach-Object {
+            $sizeMB = [math]::Round($_.Length / 1MB, 2)
+            Write-Host "  $($_.Name) - $sizeMB MB"
+          }
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: release/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts (backup)
+        uses: actions/upload-artifact@v6
+        with:
+          name: mossy-nvidia-${{ needs.create-release.outputs.version }}
+          path: release/*.exe
+          retention-days: 30

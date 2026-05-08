@@ -139,7 +139,7 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
             {wizardId === 'audit-fixer' && currentStep.id === 'fix' && (
               <div className="p-3 bg-emerald-900/20 rounded-lg border border-emerald-700/30">
                 <p className="text-[11px] text-emerald-200">
-                  Identified 12 absolute path discrepancies. Fix-It will convert these records to relative format.
+                  Identified absolute path discrepancies. Use xEdit to locate the MODEL subrecords and remove the drive-letter prefix so paths are relative. Click &quot;Run Action&quot; to mark this step complete once you have applied the fix manually.
                 </p>
               </div>
             )}

@@ -54,7 +54,7 @@ describe('WorkflowAutomationService', () => {
 
     const macros = service.getAllMacros();
     expect(macros).toHaveLength(2);
-    expect(macros.map(m => m.name)).toEqual(['Macro 1', 'Macro 2']);
+    expect(macros.map((m: { name: string }) => m.name)).toEqual(['Macro 1', 'Macro 2']);
   });
 
   it('should update a macro', async () => {

@@ -8,7 +8,7 @@ Mossy is your AI companion for Fallout 4 modding. This guide will help you get s
 
 When you download and launch Mossy for the first time, you'll see a streamlined setup process. **You must complete this to use Mossy** - but don't worry, it only takes a minute!
 
-### What's New in v5.4.21 ✨
+### What's New in v5.4.23 ✨
 - **Direct-Write Protocol:** Mossy can now directly write scripts to Papyrus, xEdit, and Blender with your explicit permission
 - **Neural Link Monitoring:** Real-time monitoring of your modding tools (Blender, Creation Kit, xEdit, NifSkope)
 - **Headless Automation:** Batch execution and automation for Blender operations
@@ -253,4 +253,4 @@ A: Bug reports are reviewed by the Mossy team for privacy issues before analysis
 
 **Remember:** Mossy is here to help YOU succeed in modding. Your privacy and control over your data are always the priority. Enjoy your modding journey!
 
-*Version 5.4.21* | *Last Updated: February 2026*
+*Version 5.4.23* | *Last Updated: February 2026*

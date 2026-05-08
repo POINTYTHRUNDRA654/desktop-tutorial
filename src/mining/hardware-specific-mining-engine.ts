@@ -9,6 +9,7 @@ import {
   HardwareOptimization,
   HardwareRecommendation,
   HardwarePerformancePrediction,
+  PerformanceBenchmark,
   TextureOptimization,
   MeshOptimization
 } from '../shared/types';
@@ -223,7 +224,7 @@ export class HardwareSpecificMiningEngineImpl implements HardwareSpecificMiningE
       storageScore: await this.benchmarkStorage(profile.storage),
       overallScore: 0,
       bottleneckIdentified: '',
-      recommendations: []
+      recommendations: [] as string[]
     };
 
     // Calculate overall score

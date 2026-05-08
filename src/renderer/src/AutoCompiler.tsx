@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { FileCode, CheckCircle2, XCircle, Play, FolderOpen, Clock, AlertTriangle } from 'lucide-react';
 
 interface CompilationResult {
@@ -52,7 +53,7 @@ export const AutoCompiler: React.FC = () => {
       }
     } catch (error) {
       setWatching(false);
-      alert('Connection Failed: Watching requires a running Desktop Bridge server.');
+      toast.error('Connection Failed: Watching requires a running Desktop Bridge server.');
     }
   };
 
@@ -98,7 +99,7 @@ export const AutoCompiler: React.FC = () => {
         setCompilations(prev => [result, ...prev].slice(0, 20));
       }
     } catch (error) {
-      alert('Compilation requires Desktop Bridge with Papyrus Compiler access');
+      toast.error('Compilation requires Desktop Bridge with Papyrus Compiler access');
     }
   };
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Brain, TrendingUp, Lightbulb, CheckCircle, AlertTriangle, Target, FileText, Code, Download } from 'lucide-react';
 import { selfImprovementEngine, ImprovementOpportunity, ScriptGenerationRequest, GeneratedScript } from '../SelfImprovementEngine';
 
@@ -47,9 +48,9 @@ export const SelfImprovementPanel: React.FC<SelfImprovementPanelProps> = ({ isVi
         description: '',
         requirements: []
       });
-      alert(`Script "${generatedScript.name}" generated successfully!`);
+      toast.success(`Script "${generatedScript.name}" generated successfully!`);
     } catch (error) {
-      alert(`Error generating script: ${error}`);
+      toast.error(`Error generating script: ${error}`);
     }
   };
 

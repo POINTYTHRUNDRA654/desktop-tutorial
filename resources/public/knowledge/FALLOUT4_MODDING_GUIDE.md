@@ -703,7 +703,7 @@ texconv -f BC1_UNORM -m 0 *.png
 
 ### Essential Testing Tools
 
-1. **Buffout 4** - Crash logger
+1. **Addictol** (Nexus #84214) - ALL-IN-ONE stability tool (crash fixes, memory, script perf, FaceGen); supersedes Buffout 4 (all variants), X-Cell, BakaMaxPapyrusOps, and others — do NOT install those alongside it
 2. **Papyrus Profiler** - Script performance
 3. **FallUI** - Better UI for testing
 4. **Achievement Mod Enabler** - Test with achievements

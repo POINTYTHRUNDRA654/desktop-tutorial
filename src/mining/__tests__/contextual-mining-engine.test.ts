@@ -170,13 +170,13 @@ describe('ContextualMiningEngine', () => {
     it('should adapt behavior patterns', async () => {
       // Record multiple interactions to establish patterns
       const interactions = [
-        { type: 'mod_installation', modName: 'VisualMod1', context: { gameMode: 'roleplay' }, outcome: { success: true } },
-        { type: 'mod_installation', modName: 'VisualMod2', context: { gameMode: 'roleplay' }, outcome: { success: true } },
-        { type: 'mod_installation', modName: 'PerformanceMod1', context: { gameMode: 'survival' }, outcome: { success: true } }
+        { type: 'mod_installation', modName: 'VisualMod1', timestamp: Date.now(), context: { gameMode: 'roleplay' }, outcome: { success: true } },
+        { type: 'mod_installation', modName: 'VisualMod2', timestamp: Date.now() + 1000, context: { gameMode: 'roleplay' }, outcome: { success: true } },
+        { type: 'mod_installation', modName: 'PerformanceMod1', timestamp: Date.now() + 2000, context: { gameMode: 'survival' }, outcome: { success: true } }
       ];
 
       for (const interaction of interactions) {
-        await engine.recordUserInteraction(interaction);
+        await engine.recordUserInteraction(interaction as any);
       }
 
       const patterns = await engine.analyzeBehaviorPatterns();
@@ -197,17 +197,19 @@ describe('ContextualMiningEngine', () => {
         type: 'preference_setting',
         settingName: 'visual_quality',
         value: 'high',
+        timestamp: Date.now(),
         context: {},
         outcome: { satisfaction: 9 }
-      });
+      } as any);
 
       await engine.recordUserInteraction({
         type: 'mod_rating',
         modName: 'HighResTextures',
         rating: 9,
+        timestamp: Date.now() + 1000,
         context: {},
         outcome: {}
-      });
+      } as any);
 
       const personalizedRecs = await engine.generatePersonalizedRecommendations();
 

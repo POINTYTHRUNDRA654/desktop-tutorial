@@ -1,5 +1,6 @@
 import React, { useEffect, Suspense, useState } from 'react';
-import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import packageJson from '../../../package.json';
+import { HashRouter, MemoryRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MossyObserver from './MossyObserver';
 import CommandPalette from './CommandPalette';
@@ -12,10 +13,16 @@ import PipBoyStartup from './PipBoyStartup';
 import { FirstRunOnboarding } from './FirstRunOnboarding';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
 import GuidedTour from './GuidedTour';
+import InteractiveTutorial from './InteractiveTutorial';
+import TutorialLaunch from './TutorialLaunch';
 import { NotificationProvider } from './NotificationContext';
+import AutoUpdateNotifier from './components/AutoUpdateNotifier';
 import { ensureBrowserTtsSettingsStored } from './browserTts';
+import toast from 'react-hot-toast';
 
-import { Command, Loader2, Radio, Zap } from 'lucide-react';
+import { Command, Loader2, MessageSquare, Radio, Zap } from 'lucide-react';
+import KeepAlivePanel from './KeepAlivePanel';
+import AvatarOverlay from './AvatarOverlay';
 import { LiveProvider } from './LiveContext';
 import { OpenAIVoiceProvider } from './OpenAIVoiceContext';
 import { ModProject } from '../../shared/types';
@@ -25,7 +32,7 @@ import AvatarCore from './AvatarCore';
 import { GlobalSearch } from './GlobalSearch';
 import { useWhatsNew } from './WhatsNewDialog';
 import WhatsNewPage from './WhatsNewPage';
-import { SkeletonLoader } from './SkeletonLoader';
+
 
 // Import new performance & reliability managers
 import { cacheManager } from './CacheManager';
@@ -38,6 +45,7 @@ import { getWorkflowAutomationService } from './WorkflowAutomationService';
 import { getPluginSystemService } from './PluginSystemService';
 import { WorkflowAutomationService } from './WorkflowAutomationService';
 import { PluginSystemService } from './PluginSystemService';
+import './bridges'; // registers all bridges on startup
 
 // --- LAZY LOAD MODULES ---
 // This prevents the app from loading ALL code at startup.
@@ -54,14 +62,17 @@ const WorkflowRunner = React.lazy(() => import('./WorkflowRunner'));
 const Holodeck = React.lazy(() => import('./Holodeck'));
 const TheVault = React.lazy(() => import('./TheVault'));
 const TheNexus = React.lazy(() => import('./TheNexus'));
-const TheAuditor = React.lazy(() => import('./TheAuditor'));
+const SecurityValidator = React.lazy(() => import('./SecurityValidator'));
 const TheBlueprint = React.lazy(() => import('./TheBlueprint'));
 const TheScribe = React.lazy(() => import('./TheScribeEnhanced').then(module => ({ default: module.TheScribe })));
 const DonationSupport = React.lazy(() => import('./DonationSupport').then(module => ({ default: module.DonationSupport })));
 const DevtoolsHub = React.lazy(() => import('./DevtoolsHub'));
 const CosmosWorkflow = React.lazy(() => import('./CosmosWorkflow'));
 const LearningHub = React.lazy(() => import('./LearningHub'));
+const CommunityLearning = React.lazy(() => import('./CommunityLearning'));
 const SettingsHub = React.lazy(() => import('./SettingsHub'));
+// Mod browser UI
+const ModBrowser = React.lazy(() => import('./ModBrowser'));
 const BlenderAnimationGuide = React.lazy(() => import('./BlenderAnimationGuide').then(module => ({ default: module.BlenderAnimationGuide })));
 const QuestModAuthoringGuide = React.lazy(() => import('./QuestModAuthoringGuide').then(module => ({ default: module.QuestModAuthoringGuide })));
 const ProjectHub = React.lazy(() => import('./ProjectHub'));
@@ -69,14 +80,43 @@ const BodyslideGuide = React.lazy(() => import('./BodyslideGuide'));
 const SimSettlementsGuide = React.lazy(() => import('./SimSettlementsGuide'));
 const PaperScriptGuide = React.lazy(() => import('./PaperScriptGuide'));
 
+// Knowledge & Learning Components
+const QuickReference = React.lazy(() => import('./QuickReference').then(module => ({ default: module.QuickReference })));
+const KnowledgeSearch = React.lazy(() => import('./KnowledgeSearch'));
+const Lorekeeper = React.lazy(() => import('./Lorekeeper'));
+const LocalCapabilities = React.lazy(() => import('./LocalCapabilities'));
+
+// Tool extensions (lazy-loaded named exports mapped to default for React.lazy)
+const MO2Extension = React.lazy(() => import('./MO2Extension').then(module => ({ default: module.MO2Extension })));
+const ComfyUIExtension = React.lazy(() => import('./ComfyUIExtension').then(module => ({ default: module.ComfyUIExtension })));
+const UpscaylExtension = React.lazy(() => import('./UpscaylExtension').then(module => ({ default: module.UpscaylExtension })));
+
+// INI Configuration Manager
+const IniConfigManager = React.lazy(() => import('./IniConfigManager'));
+const AssetDeduplicator = React.lazy(() => import('./AssetDeduplicator'));
+
+// New Power Tools (Features 3-10)
+const GameLogMonitor = React.lazy(() => import('./GameLogMonitor'));
+const XEditTools = React.lazy(() => import('./XEditTools'));
+const ProjectTemplates = React.lazy(() => import('./ProjectTemplates'));
+const ModConflictVisualizer = React.lazy(() => import('./ModConflictVisualizer'));
+const FormIdRemapper = React.lazy(() => import('./FormIdRemapper'));
+const ModComparisonTool = React.lazy(() => import('./ModComparisonTool'));
+const PrecombineGenerator = React.lazy(() => import('./PrecombineGenerator'));
+const VoiceCommands = React.lazy(() => import('./VoiceCommands'));
+const AutomationManager = React.lazy(() => import('./AutomationManager'));
+
 // AI & Intelligence Features
+const AIAssistant = React.lazy(() => import('./AIAssistant'));
+const AIModAssistant = React.lazy(() => import('./AIModAssistant'));
+const CloudSync = React.lazy(() => import('./CloudSync'));
 const WorkflowRecorder = React.lazy(() => import('./WorkflowRecorder').then(module => ({ default: module.WorkflowRecorder })));
 const PluginManager = React.lazy(() => import('./PluginManager').then(module => ({ default: module.PluginManager })));
 const RoadmapPanel = React.lazy(() => import('./RoadmapPanel'));
 const DiagnosticsHub = React.lazy(() => import('./DiagnosticsHub'));
 const PackagingHub = React.lazy(() => import('./PackagingHub'));
+const TheAssembler = React.lazy(() => import('./TheAssembler'));
 const WizardsHub = React.lazy(() => import('./WizardsHub'));
-const DuplicateFinder = React.lazy(() => import('./DuplicateFinder'));
 
 // Archive Management
 const BA2Manager = React.lazy(() => import('./BA2Manager').then(module => ({ default: module.BA2Manager })));
@@ -85,11 +125,23 @@ const BA2Manager = React.lazy(() => import('./BA2Manager').then(module => ({ def
 const ProjectSelector = React.lazy(() => import('./ProjectSelector').then(module => ({ default: module.ProjectSelector })));
 
 // Mining Infrastructure
-const MiningDashboard = React.lazy(() => import('./MiningDashboard').then(module => ({ default: module.MiningDashboard })));
-
-// Mining Infrastructure
+const MiningHub = React.lazy(() => import('./MiningHub'));
 const MiningPanel = React.lazy(() => import('./MiningPanel').then(module => ({ default: module.MiningPanel })));
 const AdvancedAnalysisPanel = React.lazy(() => import('./AdvancedAnalysisPanel').then(module => ({ default: module.AdvancedAnalysisPanel })));
+
+// Mining Infrastructure
+
+// CK Tools
+const CKExtension = React.lazy(() => import('./CKExtension').then(module => ({ default: module.CKExtension })));
+
+// Knowledge & Memory
+const MossyMemoryVault = React.lazy(() => import('./MossyMemoryVault'));
+const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
+
+/** Delay (ms) before navigating to the post-onboarding route (lets the overlay finish closing). */
+const POST_ONBOARDING_NAV_DELAY_MS = 150;
+const DDSConverter = React.lazy(() => import('./DDSConverter').then(module => ({ default: module.DDSConverter })));
+const TextureGenerator = React.lazy(() => import('./TextureGenerator').then(module => ({ default: module.TextureGenerator })));
 
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
@@ -113,7 +165,7 @@ const NeuralController: React.FC = () => {
   useEffect(() => {
     const handleControl = (e: CustomEvent<{ action: string; payload: any }>) => {
       const { action, payload } = e.detail;
-      
+
       console.log(`[Neural Control] Executing: ${action}`, payload);
 
       if (action === 'navigate') {
@@ -121,7 +173,7 @@ const NeuralController: React.FC = () => {
           navigate(payload.path);
         }
       }
-      
+
       // Future expansion: 'toggle_sidebar', 'open_modal', etc.
       if (action === 'open_palette') {
         // Trigger command palette keyboard shortcut logic if needed
@@ -136,34 +188,289 @@ const NeuralController: React.FC = () => {
   return null;
 };
 
-const ModuleLoader = () => <SkeletonLoader type="module" />;
+/**
+ * Set of all paths that are served by KeepAlivePanel entries. The Routes catch-all
+ * uses this to distinguish "panel not yet visible" from "truly unknown route".
+ */
+const KEEP_ALIVE_PATHS = new Set([
+  '/', '/chat', '/ai-assistant', '/ai-mod-assistant', '/cloud-sync', '/first-success',
+  '/roadmap', '/live', '/tools', '/tools/ini-config', '/tools/asset-deduplicator',
+  '/tools/log-monitor', '/tools/xedit', '/tools/ck-extension', '/tools/project-templates',
+  '/tools/formid-remapper', '/tools/precombine-generator', '/tools/voice-commands',
+  '/tools/automation', '/tools/ck-crash-prevention', '/tools/security', '/tools/mining',
+  '/tools/advanced-analysis', '/tools/blueprint', '/tools/scribe', '/tools/vault',
+  '/tools/ba2-manager', '/tools/cosmos', '/dev', '/dev/workshop', '/mods',
+  '/dev/orchestrator', '/dev/workflow-runner', '/dev/workflow-recorder',
+  '/dev/plugin-manager', '/dev/load-order', '/media', '/media/images', '/test',
+  '/test/holo', '/test/notification-test', '/test/bridge', '/learn', '/reference',
+  '/knowledge', '/lore', '/memory-vault', '/ck-crash-prevention', '/dds-converter',
+  '/texture-generator', '/guides', '/guides/blender', '/guides/blender/animation',
+  '/guides/creation-kit', '/guides/creation-kit/quest-authoring', '/guides/papyrus/guide',
+  '/guides/physics', '/guides/mods', '/guides/mods/bodyslide', '/guides/mods/sim-settlements',
+  '/wizards', '/devtools', '/settings', '/project', '/support', '/assembler', '/diagnostics',
+  '/community', '/capabilities', '/packaging-release', '/extensions/mo2',
+  '/extensions/comfyui', '/extensions/upscayl',
+  // Special routes rendered directly inside <Routes>
+  '/tutorial', '/whats-new',
+]);
+
+/**
+ * Shown by the Routes catch-all only for paths that are not handled by either a
+ * redirect route or a KeepAlivePanel. Valid panel paths should never hit this.
+ */
+const RouteNotFound: React.FC = () => {
+  const location = useLocation();
+  // Content-panel routes are rendered by KeepAlivePanel outside <Routes>.
+  // Return null here so they're not blocked by the catch-all.
+  if (KEEP_ALIVE_PATHS.has(location.pathname)) return null;
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-slate-400">
+      <div className="text-5xl font-mono">404</div>
+      <div className="text-sm font-mono">Page not found — <code>{location.pathname}</code></div>
+    </div>
+  );
+};
 
 const WhatsNewRedirect: React.FC<{ enabled: boolean }> = ({ enabled }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const hasRedirectedRef = React.useRef(false);
 
   useEffect(() => {
-    if (!enabled || location.pathname === '/whats-new') return;
+    // Only perform a one-time redirect while the notice is enabled to avoid trapping
+    if (!enabled || location.pathname === '/whats-new' || hasRedirectedRef.current) return;
+    hasRedirectedRef.current = true;
     navigate('/whats-new', { replace: true, state: { from: location.pathname } });
   }, [enabled, location.pathname, navigate]);
+
+  // Reset guard when the notice is dismissed so it can run on next session if needed
+  useEffect(() => {
+    if (!enabled) hasRedirectedRef.current = false;
+  }, [enabled]);
 
   return null;
 };
 
+// Floating "Ask Mossy" button — available on every panel except /chat itself
+const AskMossyButton: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  if (location.pathname === '/chat') return null;
+
+  const handleClick = () => {
+    const panelName = location.pathname.replace(/^\//, '').replace(/-/g, ' ') || 'home';
+    navigate('/chat', {
+      state: { prefill: `I'm currently on the ${panelName} panel. Can you help me with what I'm working on here?` }
+    });
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      title="Ask Mossy about this panel"
+      aria-label="Ask Mossy"
+      style={{
+        position: 'fixed',
+        bottom: 60, // above the Pip-Boy toggle button (bottom: 16 + ~40px height)
+        left: 8,
+        zIndex: 9990,
+      }}
+      className="flex items-center gap-2 px-4 py-2 bg-green-700/90 hover:bg-green-600 text-white text-sm font-bold rounded-full shadow-lg border border-green-500/50 transition-all focus-visible"
+    >
+      <MessageSquare className="w-4 h-4" />
+      Ask Mossy
+    </button>
+  );
+};
+
 const App: React.FC = () => {
   const devBuildId = '2026-01-27-1227-debug-probe';
+
+  // Debug: log test mode detection and initial URL for E2E troubleshooting
+  useEffect(() => {
+    console.log('[App] initial URL', window.location.href);
+    console.log('[App] location.search', window.location.search);
+    console.log('[App] test mode checks', {
+      urlHasTest: window.location.search.includes('test'),
+      localStorageTestMode: window.localStorage.getItem('mossy_test_mode'),
+      localStorageBooted: window.localStorage.getItem('mossy_has_booted'),
+    });
+  }, []);
+  // ── Synchronous fresh-install detection ─────────────────────────────────
+  // When the main process detects a fresh install (marker file or no settings.json)
+  // it loads the renderer with ?freshInstall=true in the URL.  This useState
+  // initialiser runs before all other state hooks so it can clear stale
+  // onboarding localStorage flags before they are read.  This avoids the race
+  // condition of the IPC-based TRIGGER_FRESH_INSTALL approach.
+  //
+  // Note: mossy_has_booted is intentionally NOT cleared here so that returning
+  // users (reinstalls) skip the PipBoy boot animation.
+  const [freshInstallDetected] = useState(() => {
+    try {
+      if (!new URLSearchParams(window.location.search).has('freshInstall')) return false;
+
+      // Check if user already completed onboarding in a previous install
+      const userCompletedOnboardingBefore = localStorage.getItem('mossy_onboarding_completed') === 'true';
+
+      if (userCompletedOnboardingBefore) {
+        // User already did onboarding - only clear UI flags, preserve all data
+        console.log('[App] Fresh install detected but onboarding was already completed. Preserving all user data.');
+        const uiFlagsOnly = [
+          'mossy_tutorial_completed',
+          'mossy_tutorial_autostart',
+          'mossy_tutorial_skipped',
+          'mossy_tutorial_step',
+        ];
+        uiFlagsOnly.forEach(k => localStorage.removeItem(k));
+        // Keep scan data and onboarding completion state intact
+      } else {
+        // First time user - clear onboarding flags but preserve any existing scan data
+        // (in case they ran the app before but didn't complete onboarding)
+        console.log('[App] Fresh install for new user. Clearing onboarding flags.');
+        const onboardingFlags = [
+          'mossy_onboarding_complete',
+          'mossy_onboarding_completed',
+          'mossy_tutorial_completed',
+          'mossy_tutorial_autostart',
+          'mossy_voice_setup_complete',
+        ];
+        onboardingFlags.forEach(k => localStorage.removeItem(k));
+        // NOTE: We do NOT clear mossy_scan_summary or mossy_all_detected_apps
+        // so if they previously scanned, they don't have to scan again
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
   const [hasBooted, setHasBooted] = useState(() => {
     // Skip boot sequence in test mode - check multiple sources
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('test') ||
-        window.location.search.includes('test') ||
-        window.localStorage.getItem('mossy_test_mode') === 'true' ||
-        window.localStorage.getItem('mossy_has_booted') === 'true') {
+      window.location.search.includes('test') ||
+      window.localStorage.getItem('mossy_test_mode') === 'true' ||
+      window.localStorage.getItem('mossy_has_booted') === 'true') {
       return true;
     }
     // Persist boot so we don't show the startup sequence every launch.
     return localStorage.getItem('mossy_has_booted') === 'true';
   });
+
+  // expose readiness flag for tests whenever we boot
+  useEffect(() => {
+    if (hasBooted) {
+      try {
+        (window as any).__MOSSY_TEST_READY__ = true;
+      } catch { /* ignore */ }
+    }
+  }, [hasBooted]);
+
+  // ── PyTorch auto-setup progress listener ──────────────────────────────────
+  // The main process runs a background PyTorch install on first launch and
+  // sends progress events. We display them as toast notifications so the user
+  // always knows what is happening without needing to open Settings.
+  useEffect(() => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (!api?.onFreshInstall) return;
+
+    const unsubscribe = api.onFreshInstall(() => {
+      // A fresh-install.marker was found by the main process, meaning the user
+      // just installed (or reinstalled) via the NSIS installer.  IMPORTANT: if the
+      // user has ALREADY completed onboarding in a previous install, preserve ALL
+      // user data including scan results, program selections, and downloaded tools.
+      // Chat history, projects, and other user data are always preserved.
+      const userCompletedOnboardingBefore = localStorage.getItem('mossy_onboarding_completed') === 'true';
+
+      if (userCompletedOnboardingBefore) {
+        // User already completed onboarding - preserve EVERYTHING including scan data
+        console.log('[App] Fresh install detected. User ALREADY completed onboarding in a previous install.');
+        console.log('[App] Preserving ALL user data: scan results, program selections, downloads, chat history, projects.');
+
+        // Only clear tutorial progress flags (user can restart tutorial if they want)
+        const tutorialFlagsOnly = [
+          'mossy_tutorial_completed',
+          'mossy_tutorial_autostart',
+          'mossy_tutorial_skipped',
+          'mossy_tutorial_step',
+        ];
+        tutorialFlagsOnly.forEach(k => localStorage.removeItem(k));
+
+        // Keep scan data, onboarding completion, and all other user data intact
+        // Mark as booted so we skip the startup sequence
+        try {
+          localStorage.setItem('mossy_has_booted', 'true');
+        } catch { /* ignore */ }
+      } else {
+        // First time user - clear onboarding flags but preserve any existing scan data
+        console.log('[App] Fresh install detected. User has NOT completed onboarding before.');
+        console.log('[App] Preserving any existing scan data so user doesn\'t have to re-scan if they already did.');
+
+        const onboardingKeysToReset = [
+          'mossy_has_booted',
+          'mossy_onboarding_complete',
+          'mossy_onboarding_completed',
+          'mossy_voice_setup_complete',
+          'mossy_tutorial_completed',
+          'mossy_tutorial_autostart',
+          'mossy_tutorial_skipped',
+          'mossy_tutorial_step',
+        ];
+        onboardingKeysToReset.forEach(k => localStorage.removeItem(k));
+
+        // NOTE: We intentionally do NOT clear these keys so scan data persists:
+        // - mossy_scan_summary (program detection results)
+        // - mossy_all_detected_apps (full list of detected programs)
+        // - any selected program paths or download selections
+
+        setShowFirstRun(true);
+        setShowOnboarding(true);
+      }
+
+      console.log('[App] Fresh install: user data preserved. Only UI state flags cleared.');
+      setShowVoiceSetup(false);
+    });
+
+    return () => unsubscribe?.();
+  }, []);
+
+  useEffect(() => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (!api?.onPytorchSetupProgress) return;
+
+    let loadingToastId: string | null = null;
+
+    const unsubscribe = api.onPytorchSetupProgress((data: { message: string }) => {
+      const msg = data?.message || '';
+      if (msg.startsWith('✅')) {
+        if (loadingToastId) { toast.dismiss(loadingToastId); loadingToastId = null; }
+        toast.success(msg, { duration: 6000, id: 'pytorch-setup' });
+      } else if (msg.startsWith('❌')) {
+        if (loadingToastId) { toast.dismiss(loadingToastId); loadingToastId = null; }
+        toast.error(msg, { duration: 10000, id: 'pytorch-setup' });
+      } else if (msg.startsWith('⚠️')) {
+        if (loadingToastId) { toast.dismiss(loadingToastId); loadingToastId = null; }
+        toast(msg, { duration: 8000, id: 'pytorch-setup', icon: '⚠️' });
+      } else {
+        // Progress update — show/update a loading toast
+        if (loadingToastId) {
+          toast.loading(msg, { id: loadingToastId });
+        } else {
+          loadingToastId = toast.loading(msg, { id: 'pytorch-setup-loading' });
+        }
+      }
+    });
+
+    // Signal to the main process that the renderer is ready so it can start
+    // the background auto-install immediately (instead of waiting for the fallback timeout).
+    api.notifyPytorchRendererReady?.();
+
+    return () => {
+      unsubscribe?.();
+      if (loadingToastId) toast.dismiss(loadingToastId);
+    };
+  }, []);
   const [showFirstRun, setShowFirstRun] = useState(() => {
     // Check if user has completed first-run onboarding
     return localStorage.getItem('mossy_onboarding_complete') !== 'true';
@@ -178,6 +485,62 @@ const App: React.FC = () => {
     const hasCompletedVoiceSetup = localStorage.getItem('mossy_voice_setup_complete') === 'true';
     return hasCompletedFirstRun && !hasCompletedVoiceSetup;
   });
+
+  // Tutorial state
+  const [showTutorialLaunch, setShowTutorialLaunch] = useState(false);
+  const [showInteractiveTutorialOverlay, setShowInteractiveTutorialOverlay] = useState(false);
+  const getTutorialReturnHash = () => {
+    const stored = localStorage.getItem('mossy_tutorial_return');
+    if (stored && stored.startsWith('#/')) return stored;
+    return '#/';
+  };
+
+  const startInteractiveTutorial = () => {
+    // If we're in FirstRunOnboarding, show tutorial as overlay
+    if (showFirstRun) {
+      setShowInteractiveTutorialOverlay(true);
+      return;
+    }
+
+    // Otherwise navigate to tutorial route
+    const currentHash = window.location.hash || '#/';
+    const returnHash = currentHash.startsWith('#/tutorial') ? '#/' : currentHash;
+    try {
+      localStorage.setItem('mossy_tutorial_return', returnHash);
+    } catch {
+      // ignore
+    }
+    window.location.hash = '#/tutorial';
+  };
+
+  const exitInteractiveTutorial = () => {
+    // If shown as overlay, just hide it
+    if (showInteractiveTutorialOverlay) {
+      setShowInteractiveTutorialOverlay(false);
+      return;
+    }
+
+    // Otherwise navigate back
+    const returnHash = getTutorialReturnHash();
+    try {
+      localStorage.removeItem('mossy_tutorial_return');
+    } catch {
+      // ignore
+    }
+    window.location.hash = returnHash;
+  };
+
+  useEffect(() => {
+    const hasCompletedFirstRun = localStorage.getItem('mossy_onboarding_complete') === 'true';
+    const tutorialCompleted = localStorage.getItem('mossy_tutorial_completed') === 'true';
+    const tutorialSkipped = localStorage.getItem('mossy_tutorial_skipped') === 'true';
+    const tutorialStep = localStorage.getItem('mossy_tutorial_step');
+
+    if (hasCompletedFirstRun && !tutorialCompleted && !tutorialSkipped && tutorialStep !== null) {
+      startInteractiveTutorial();
+    }
+  }, []);
+
   const [debugHash, setDebugHash] = useState(() => window.location.hash || '');
   const [showDevHud, setShowDevHud] = useState(() => {
     if (!import.meta.env.DEV) return false;
@@ -187,6 +550,7 @@ const App: React.FC = () => {
       return false;
     }
   });
+  const [isTutorialRoute, setIsTutorialRoute] = useState(() => window.location.hash.startsWith('#/tutorial'));
   const [isPipBoy, setIsPipBoy] = useState(() => {
     try {
       return localStorage.getItem('mossy_pip_mode') === 'true';
@@ -210,8 +574,12 @@ const App: React.FC = () => {
     probeMainCenter: 'n/a',
   }));
   const [pipToggledAt, setPipToggledAt] = useState(() => '');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+  // Sidebar open by default on desktop (width >= 768px)
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth >= 768;
+  });
+
   // Project management state
   const [currentProject, setCurrentProject] = useState<ModProject | null>(null);
 
@@ -246,6 +614,13 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isPipBoy]);
 
+  useEffect(() => {
+    const updateTutorialRoute = () => setIsTutorialRoute(window.location.hash.startsWith('#/tutorial'));
+    updateTutorialRoute();
+    window.addEventListener('hashchange', updateTutorialRoute);
+    return () => window.removeEventListener('hashchange', updateTutorialRoute);
+  }, []);
+
   // Project management handlers
   const handleProjectChange = (project: ModProject) => {
     setCurrentProject(project);
@@ -258,7 +633,7 @@ const App: React.FC = () => {
   // Guided Tour Event Listeners
   useEffect(() => {
     const handleStartWelcomeTour = () => {
-      setGuidedTour({ isOpen: true, type: 'welcome', targetModule: undefined });
+      startInteractiveTutorial();
     };
 
     const handleStartModuleTour = (event: CustomEvent) => {
@@ -273,14 +648,45 @@ const App: React.FC = () => {
       setGuidedTour({ isOpen: true, type: 'feature-spotlight', targetModule: undefined });
     };
 
+    const handleStartInteractiveTutorial = () => {
+      startInteractiveTutorial();
+    };
+
+    const handleStartScanTutorial = () => {
+      console.log('[App] Scan tutorial event received - launching interactive tutorial');
+      try {
+        // Store timestamp consistently with FirstRunOnboarding's expectation
+        localStorage.setItem('mossy_scan_tutorial_opened_at', Date.now().toString());
+      } catch (err) {
+        // localStorage may be unavailable (private browsing, quota exceeded, etc.)
+        console.warn('[App] Failed to store scan tutorial timestamp:', err);
+      }
+      startInteractiveTutorial();
+    };
+
+    // Expose the scan tutorial function for FirstRunOnboarding to call directly.
+    // FirstRunOnboarding tries direct function call first (synchronous), then falls back
+    // to dispatching events if the function doesn't exist. This dual approach ensures
+    // the tutorial launches reliably even if timing issues prevent event listeners from
+    // being registered in time.
+    (window as any).mossyOpenScanTutorial = handleStartScanTutorial;
+
     window.addEventListener('start-welcome-tour', handleStartWelcomeTour);
     window.addEventListener('start-module-tour', handleStartModuleTour as EventListener);
     window.addEventListener('start-feature-tour', handleStartFeatureTour);
+    window.addEventListener('start-tutorial', handleStartInteractiveTutorial);
+    window.addEventListener('start-interactive-tutorial', handleStartInteractiveTutorial);
+    // Event listener for scan tutorial (backup mechanism if direct function call fails)
+    window.addEventListener('start-scan-tutorial', handleStartScanTutorial);
 
     return () => {
       window.removeEventListener('start-welcome-tour', handleStartWelcomeTour);
       window.removeEventListener('start-module-tour', handleStartModuleTour as EventListener);
       window.removeEventListener('start-feature-tour', handleStartFeatureTour);
+      window.removeEventListener('start-tutorial', handleStartInteractiveTutorial);
+      window.removeEventListener('start-interactive-tutorial', handleStartInteractiveTutorial);
+      window.removeEventListener('start-scan-tutorial', handleStartScanTutorial);
+      delete (window as any).mossyOpenScanTutorial;
     };
   }, []);
 
@@ -580,6 +986,19 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [sidebarOpen]);
 
+  // Handle window resize - keep sidebar open on desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        // Desktop: ensure sidebar is open
+        setSidebarOpen(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Ensure API Key selection for paid features (Veo/Pro Image) if applicable
   useEffect(() => {
     const checkKey = async () => {
@@ -587,9 +1006,9 @@ const App: React.FC = () => {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         if (!hasKey) {
           try {
-             await window.aistudio.openSelectKey();
+            await window.aistudio.openSelectKey();
           } catch (e) {
-             console.log("User dismissed key selection");
+            console.log("User dismissed key selection");
           }
         }
       }
@@ -654,11 +1073,50 @@ const App: React.FC = () => {
 
     if (showFirstRun) {
       return (
-        <FirstRunOnboarding 
-          onComplete={() => {
-            setShowFirstRun(false);
-          }} 
-        />
+        <div className="relative h-full w-full min-h-0">
+          <FirstRunOnboarding
+            onComplete={() => {
+              // CRITICAL: Set localStorage flags so onboarding doesn't show again on next launch
+              try {
+                localStorage.setItem('mossy_onboarding_complete', 'true');
+                localStorage.setItem('mossy_onboarding_completed', 'true');
+              } catch { /* ignore */ }
+
+              setShowFirstRun(false);
+              // If the user clicked "Open in Auditor" on the Spriggit digest step,
+              // navigate there now that the onboarding overlay has been dismissed.
+              try {
+                const pendingNav = localStorage.getItem('mossy_post_onboarding_nav');
+                if (pendingNav) {
+                  localStorage.removeItem('mossy_post_onboarding_nav');
+                  setTimeout(() => { window.location.hash = pendingNav; }, POST_ONBOARDING_NAV_DELAY_MS);
+                  return; // skip tutorial launch prompt when navigating directly
+                }
+              } catch { /* ignore */ }
+              // Show tutorial launch prompt after onboarding
+              setTimeout(() => {
+                setShowTutorialLaunch(true);
+              }, 500);
+            }}
+          />
+          {showInteractiveTutorialOverlay && (
+            <div
+              className="absolute inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm overflow-hidden"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Interactive Tutorial"
+            >
+              <MemoryRouter initialEntries={["/tutorial"]}>
+                <div className="w-full max-w-6xl h-full max-h-full min-h-0 overflow-hidden rounded-2xl shadow-2xl">
+                  <InteractiveTutorial
+                    onComplete={exitInteractiveTutorial}
+                    onSkip={exitInteractiveTutorial}
+                  />
+                </div>
+              </MemoryRouter>
+            </div>
+          )}
+        </div>
       );
     }
 
@@ -679,7 +1137,7 @@ const App: React.FC = () => {
 
     if (showOnboarding) {
       return (
-        <MossyOnboarding 
+        <MossyOnboarding
           onComplete={() => {
             setShowOnboarding(false);
             localStorage.setItem('mossy_onboarding_completed', 'true');
@@ -727,7 +1185,7 @@ const App: React.FC = () => {
           />
 
           {/* Main Application Header */}
-          <header className="main-header bg-slate-900 border-b border-green-500/20 px-4 py-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+          <header className="main-header bg-slate-900 border-b border-green-500/20 px-4 py-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1.6fr)] items-center gap-4">
             <div className="flex items-center gap-4">
               <h1 className="text-xl font-bold text-green-400 font-mono">MOSSY</h1>
               <div className="hidden md:block">
@@ -740,14 +1198,15 @@ const App: React.FC = () => {
                 </Suspense>
               </div>
             </div>
-            <div className="flex items-center gap-3 justify-self-stretch justify-end min-w-0">
+            <div className="flex flex-col items-center gap-1 justify-self-center">
+              <AvatarCore className="w-7 h-7" showRings={false} />
+              <div className="hidden xl:block text-[10px] text-emerald-300 uppercase tracking-[0.3em] font-bold">Mossy Core</div>
+            </div>
+            <div className="flex items-center gap-2 justify-self-stretch justify-end min-w-0">
               <GlobalSearch />
-              <div className="flex items-center gap-2">
-                <AvatarCore className="w-7 h-7" showRings={false} />
-                <div className="hidden xl:block text-[10px] text-emerald-300 uppercase tracking-[0.3em] font-bold">Mossy Core</div>
-              </div>
               <button
                 type="button"
+                data-tour="command-palette-trigger"
                 onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors text-xs text-slate-300"
                 title="Command Palette (Ctrl+K)"
@@ -758,16 +1217,15 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsPipBoy((prev) => !prev)}
-                className={`p-2 rounded-lg border text-xs transition-colors ${
-                  isPipBoy
-                    ? 'bg-amber-900/20 text-amber-300 border-amber-500/40'
-                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
-                }`}
+                className={`p-2 rounded-lg border text-xs transition-colors ${isPipBoy
+                  ? 'bg-amber-900/20 text-amber-300 border-amber-500/40'
+                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                  }`}
                 title="Toggle Pip-Boy Theme"
               >
                 <Radio className="w-3.5 h-3.5" />
               </button>
-              <span className="text-xs text-green-600 font-mono">v5.4.2.1</span>
+              <span className="text-xs text-green-600 font-mono">v{packageJson.version}</span>
             </div>
           </header>
 
@@ -803,120 +1261,50 @@ const App: React.FC = () => {
           >
             <div className="relative z-10">
               <MossyObserver />
-              <Suspense fallback={<ModuleLoader />}>
-                <Routes>
-                {/* Core Application Routes */}
-                <Route path="/" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/chat" element={<ErrorBoundary><ChatInterface /></ErrorBoundary>} />
-                <Route path="/first-success" element={<ErrorBoundary><FirstSuccessWizard /></ErrorBoundary>} />
-                <Route path="/roadmap" element={<ErrorBoundary><RoadmapPanel /></ErrorBoundary>} />
+
+              {/*
+               * Redirect-only routes — React Router handles navigation but renders no panel content.
+               * Special routes with dynamic props (/tutorial, /whats-new) are also kept here
+               * since they do not benefit from keep-alive and reset state on each visit.
+               */}
+              <Routes>
+                {/* Special routes that render inline */}
+                <Route
+                  path="/tutorial"
+                  element={
+                    <InteractiveTutorial
+                      onComplete={exitInteractiveTutorial}
+                      onSkip={exitInteractiveTutorial}
+                    />
+                  }
+                />
                 <Route path="/whats-new" element={<ErrorBoundary><WhatsNewPage onDismiss={dismissWhatsNew} /></ErrorBoundary>} />
-                <Route path="/live" element={<ErrorBoundary><VoiceChat /></ErrorBoundary>} />
 
-                {/* Core Tools */}
-                <Route path="/tools" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
+                {/* Redirect routes */}
                 <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
-                <Route path="/tools/auditor" element={<TheAuditor />} />
-                <Route path="/tools/mining" element={<ErrorBoundary><MiningPanel /></ErrorBoundary>} />
-                <Route path="/tools/advanced-analysis" element={<ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary>} />
-                <Route path="/tools/assembler" element={<Navigate to="/packaging-release" replace />} />
-                <Route path="/tools/blueprint" element={<TheBlueprint />} />
-                <Route path="/tools/scribe" element={<TheScribe />} />
-                <Route path="/tools/vault" element={<ErrorBoundary><TheVault /></ErrorBoundary>} />
-                <Route path="/tools/dedupe" element={<ErrorBoundary><DuplicateFinder /></ErrorBoundary>} />
-                <Route path="/tools/ba2-manager" element={<ErrorBoundary><BA2Manager /></ErrorBoundary>} />
-                <Route path="/tools/cosmos" element={<ErrorBoundary><CosmosWorkflow /></ErrorBoundary>} />
-
-                {/* Development & Workflow */}
-                <Route path="/dev" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/dev/workshop" element={<Workshop />} />
-                <Route path="/dev/orchestrator" element={<WorkflowOrchestrator />} />
-                <Route path="/dev/workflow-runner" element={<ErrorBoundary><WorkflowRunner /></ErrorBoundary>} />
+                <Route path="/tools/auditor" element={<Navigate to="/ck-crash-prevention?tab=audit" replace />} />
+                <Route path="/tools/asset-scanner" element={<Navigate to="/tools/asset-deduplicator" replace />} />
+                <Route path="/tools/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
+                <Route path="/tools/xedit-executor" element={<Navigate to="/tools/xedit" replace />} />
+                <Route path="/tools/xedit-extension" element={<Navigate to="/tools/xedit" replace />} />
+                <Route path="/tools/conflict-visualizer" element={<Navigate to="/packaging-release?section=conflicts" replace />} />
+                <Route path="/tools/mod-comparison" element={<Navigate to="/packaging-release?section=comparison" replace />} />
+                <Route path="/tools/assembler" element={<Navigate to="/assembler" replace />} />
+                <Route path="/tools/ck-safety" element={<Navigate to="/tools/ck-crash-prevention" replace />} />
                 <Route path="/dev/neural-link" element={<Navigate to="/live" replace />} />
-                <Route path="/dev/workflow-recorder" element={<ErrorBoundary><WorkflowRecorder /></ErrorBoundary>} />
-                <Route path="/dev/plugin-manager" element={<ErrorBoundary><PluginManager /></ErrorBoundary>} />
-                <Route path="/dev/mining-dashboard" element={<ErrorBoundary><MiningDashboard /></ErrorBoundary>} />
-                <Route path="/dev/load-order" element={<LoadOrderHub />} />
-
-                {/* Media & Assets */}
-                <Route path="/media" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/media/images" element={<ImageSuite />} />
+                <Route path="/dev/mining-dashboard" element={<Navigate to="/tools/mining-hub?tab=dashboard" replace />} />
+                <Route path="/learn/lore" element={<Navigate to="/lore" replace />} />
+                <Route path="/learn/reference" element={<Navigate to="/reference" replace />} />
+                <Route path="/learn/knowledge" element={<Navigate to="/knowledge" replace />} />
+                <Route path="/learn/community" element={<Navigate to="/community" replace />} />
+                <Route path="/learn/capabilities" element={<Navigate to="/learn" replace />} />
                 <Route path="/media/tts" element={<Navigate to="/live" replace />} />
                 <Route path="/media/memory-vault" element={<Navigate to="/live" replace />} />
-
-                {/* Testing & Deployment */}
-                <Route path="/test" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/test/holo" element={<Holodeck />} />
-                <Route path="/test/notification-test" element={<NotificationTest />} />
-                <Route path="/test/bridge" element={<ErrorBoundary><DesktopBridge /></ErrorBoundary>} />
-
-                {/* Knowledge & Learning */}
-                <Route path="/learn" element={<LearningHub />} />
-                <Route path="/learn/lore" element={<Navigate to="/learn" replace />} />
-                <Route path="/learn/knowledge" element={<Navigate to="/learn" replace />} />
-                <Route path="/learn/reference" element={<Navigate to="/learn" replace />} />
-                <Route path="/learn/community" element={<Navigate to="/learn" replace />} />
-                <Route path="/learn/capabilities" element={<Navigate to="/learn" replace />} />
-
-                {/* Guides - Organized by Category */}
-                <Route path="/guides" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/guides/blender" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/guides/blender/animation" element={<BlenderAnimationGuide />} />
-                <Route path="/guides/blender/skeleton" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/guides/blender/animation-validator" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/guides/blender/rigging-checklist" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/guides/blender/export-settings" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/guides/blender/rigging-mistakes" element={<Navigate to="/guides/blender/animation" replace />} />
-
-                <Route path="/guides/creation-kit" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/guides/creation-kit/precombine-prp" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/guides/creation-kit/precombine-checker" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/guides/creation-kit/leveled-list-injection" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-                <Route path="/guides/creation-kit/quest-authoring" element={<QuestModAuthoringGuide />} />
-                <Route path="/guides/creation-kit/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
-
-                <Route path="/guides/papyrus" element={<Navigate to="/guides/papyrus/guide" replace />} />
-                <Route path="/guides/papyrus/guide" element={<PaperScriptGuide />} />
-                <Route path="/guides/papyrus/quick-start" element={<Navigate to="/guides/papyrus/guide" replace />} />
-                <Route path="/guides/papyrus/fallout4" element={<Navigate to="/guides/papyrus/guide" replace />} />
-
-                <Route path="/guides/physics" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/guides/physics/havok" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/guides/physics/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
-                <Route path="/guides/physics/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
-
-                <Route path="/guides/mods" element={<ErrorBoundary><TheNexus /></ErrorBoundary>} />
-                <Route path="/guides/mods/bodyslide" element={<BodyslideGuide />} />
-                <Route path="/guides/mods/sim-settlements" element={<SimSettlementsGuide />} />
-                <Route path="/guides/mods/sim-settlements-addon" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
-                <Route path="/guides/mods/sim-settlements-units-loadouts" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
-                <Route path="/guides/mods/sim-settlements-addon-toolkits" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
-
-                {/* Wizards & Advanced Tools */}
-                <Route path="/wizards" element={<WizardsHub />} />
-                <Route path="/wizards/install" element={<Navigate to="/wizards" replace />} />
-                <Route path="/wizards/platforms" element={<Navigate to="/wizards" replace />} />
-                <Route path="/wizards/crash-triage" element={<Navigate to="/diagnostics" replace />} />
-                <Route path="/wizards/packaging-release" element={<Navigate to="/packaging-release" replace />} />
-                <Route path="/wizards/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
-
-                {/* Development Tools */}
-                <Route path="/devtools" element={<DevtoolsHub />} />
-                <Route path="/devtools/script-analyzer" element={<Navigate to="/devtools" replace />} />
-                <Route path="/devtools/template-generator" element={<Navigate to="/devtools" replace />} />
-                <Route path="/devtools/tool-verify" element={<Navigate to="/diagnostics" replace />} />
-                <Route path="/devtools/diagnostics" element={<Navigate to="/diagnostics" replace />} />
-
-                {/* Settings */}
-                <Route path="/settings" element={<SettingsHub />} />
                 <Route path="/settings/privacy" element={<Navigate to="/settings" replace />} />
                 <Route path="/settings/voice" element={<Navigate to="/live" replace />} />
                 <Route path="/settings/language" element={<Navigate to="/settings" replace />} />
                 <Route path="/settings/tools" element={<Navigate to="/settings" replace />} />
                 <Route path="/settings/import-export" element={<Navigate to="/settings" replace />} />
-
-                {/* Project Management */}
-                <Route path="/project" element={<ProjectHub />} />
                 <Route path="/project/journey" element={<Navigate to="/project" replace />} />
                 <Route path="/project/achievements" element={<Navigate to="/project" replace />} />
                 <Route path="/project/manager" element={<Navigate to="/project" replace />} />
@@ -924,42 +1312,57 @@ const App: React.FC = () => {
                 <Route path="/project/collaboration" element={<Navigate to="/project" replace />} />
                 <Route path="/project/analytics" element={<Navigate to="/project" replace />} />
                 <Route path="/project/analytics-dashboard" element={<Navigate to="/project" replace />} />
-
-                {/* Support */}
-                <Route path="/support" element={<DonationSupport />} />
-
-                {/* Legacy Routes - Redirect to new structure */}
+                <Route path="/guides/blender/skeleton" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/blender/animation-validator" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/blender/rigging-checklist" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/blender/export-settings" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/blender/rigging-mistakes" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/creation-kit/precombine-prp" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                <Route path="/guides/creation-kit/precombine-checker" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                <Route path="/guides/creation-kit/leveled-list-injection" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                <Route path="/guides/creation-kit/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                <Route path="/guides/papyrus" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                <Route path="/guides/papyrus/quick-start" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                <Route path="/guides/papyrus/fallout4" element={<Navigate to="/guides/papyrus/guide" replace />} />
+                <Route path="/guides/physics/havok" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/physics/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/physics/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
+                <Route path="/guides/mods/sim-settlements-addon" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
+                <Route path="/guides/mods/sim-settlements-units-loadouts" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
+                <Route path="/guides/mods/sim-settlements-addon-toolkits" element={<Navigate to="/guides/mods/sim-settlements" replace />} />
+                <Route path="/wizards/install" element={<Navigate to="/wizards" replace />} />
+                <Route path="/wizards/platforms" element={<Navigate to="/wizards" replace />} />
+                <Route path="/wizards/crash-triage" element={<Navigate to="/diagnostics" replace />} />
+                <Route path="/wizards/packaging-release" element={<Navigate to="/packaging-release" replace />} />
+                <Route path="/wizards/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
+                <Route path="/devtools/script-analyzer" element={<Navigate to="/devtools" replace />} />
+                <Route path="/devtools/template-generator" element={<Navigate to="/devtools" replace />} />
+                <Route path="/devtools/tool-verify" element={<Navigate to="/diagnostics" replace />} />
+                <Route path="/devtools/diagnostics" element={<Navigate to="/diagnostics" replace />} />
+                <Route path="/extensions/xedit" element={<Navigate to="/tools/xedit" replace />} />
+                <Route path="/extensions/ck" element={<Navigate to="/tools/ck-extension" replace />} />
                 <Route path="/monitor" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/load-order" element={<Navigate to="/dev/load-order" replace />} />
-                <Route path="/assembler" element={<Navigate to="/packaging-release" replace />} />
-                <Route path="/auditor" element={<Navigate to="/tools/auditor" replace />} />
+                <Route path="/auditor" element={<Navigate to="/ck-crash-prevention?tab=audit" replace />} />
                 <Route path="/blueprint" element={<Navigate to="/tools/blueprint" replace />} />
                 <Route path="/scribe" element={<Navigate to="/tools/scribe" replace />} />
                 <Route path="/orchestrator" element={<Navigate to="/dev/orchestrator" replace />} />
                 <Route path="/workflow-runner" element={<Navigate to="/dev/workflow-runner" replace />} />
-                <Route path="/lore" element={<Navigate to="/learn" replace />} />
                 <Route path="/holo" element={<Navigate to="/test/holo" replace />} />
                 <Route path="/vault" element={<Navigate to="/tools/vault" replace />} />
-                <Route path="/memory-vault" element={<Navigate to="/live" replace />} />
                 <Route path="/neural-link" element={<Navigate to="/live" replace />} />
                 <Route path="/workshop" element={<Navigate to="/dev/workshop" replace />} />
                 <Route path="/images" element={<Navigate to="/media/images" replace />} />
                 <Route path="/tts" element={<Navigate to="/live" replace />} />
                 <Route path="/bridge" element={<Navigate to="/test/bridge" replace />} />
-                <Route path="/dedupe" element={<Navigate to="/tools/dedupe" replace />} />
+                <Route path="/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
                 <Route path="/cosmos" element={<Navigate to="/tools/cosmos" replace />} />
-                <Route path="/diagnostics" element={<DiagnosticsHub />} />
                 <Route path="/tool-verify" element={<Navigate to="/diagnostics" replace />} />
-                <Route path="/community" element={<Navigate to="/learn" replace />} />
-                <Route path="/reference" element={<Navigate to="/learn" replace />} />
-                <Route path="/capabilities" element={<Navigate to="/learn" replace />} />
-                <Route path="/knowledge" element={<Navigate to="/learn" replace />} />
                 <Route path="/script-analyzer" element={<Navigate to="/devtools" replace />} />
                 <Route path="/template-generator" element={<Navigate to="/devtools" replace />} />
                 <Route path="/install-wizard" element={<Navigate to="/wizards" replace />} />
                 <Route path="/platforms" element={<Navigate to="/wizards" replace />} />
                 <Route path="/crash-triage" element={<Navigate to="/diagnostics" replace />} />
-                <Route path="/packaging-release" element={<PackagingHub />} />
                 <Route path="/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
                 <Route path="/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
                 <Route path="/animation-guide" element={<Navigate to="/guides/blender/animation" replace />} />
@@ -985,8 +1388,99 @@ const App: React.FC = () => {
                 <Route path="/havok" element={<Navigate to="/guides/blender/animation" replace />} />
                 <Route path="/havok-quick-start" element={<Navigate to="/guides/blender/animation" replace />} />
                 <Route path="/havok-fo4" element={<Navigate to="/guides/blender/animation" replace />} />
-                </Routes>
-              </Suspense>
+                {/* Catch-all: content panels are rendered by KeepAlivePanel below.
+                    RouteNotFound returns null for known panel paths and a 404 for unknown routes. */}
+                <Route path="*" element={<RouteNotFound />} />
+              </Routes>
+
+              {/*
+               * Content panels — each mounts on first visit and stays alive in the DOM
+               * thereafter. Inactive panels use CSS display:none so React state is
+               * preserved and any in-progress background operations (scans, installs,
+               * log monitors, etc.) keep running while the user browses other panels.
+               */}
+              {/* Core */}
+              <KeepAlivePanel path="/"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/chat"><ErrorBoundary><ChatInterface /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/ai-assistant"><ErrorBoundary><AIAssistant /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/ai-mod-assistant"><ErrorBoundary><AIModAssistant /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/cloud-sync"><ErrorBoundary><CloudSync /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/first-success"><ErrorBoundary><FirstSuccessWizard /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/roadmap"><ErrorBoundary><RoadmapPanel /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/live"><ErrorBoundary><VoiceChat /></ErrorBoundary></KeepAlivePanel>
+              {/* Tools */}
+              <KeepAlivePanel path="/tools"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/ini-config"><ErrorBoundary><IniConfigManager /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/asset-deduplicator"><ErrorBoundary><AssetDeduplicator /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/log-monitor"><ErrorBoundary><GameLogMonitor /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/xedit"><ErrorBoundary><XEditTools /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/ck-extension"><ErrorBoundary><CKExtension /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/project-templates"><ErrorBoundary><ProjectTemplates /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/formid-remapper"><ErrorBoundary><FormIdRemapper /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/precombine-generator"><ErrorBoundary><PrecombineGenerator /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/voice-commands"><ErrorBoundary><VoiceCommands /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/automation"><ErrorBoundary><AutomationManager /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/ck-crash-prevention"><ErrorBoundary><CKCrashPrevention /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/security"><ErrorBoundary><SecurityValidator /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/mining"><ErrorBoundary><MiningPanel /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/advanced-analysis"><ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/blueprint"><ErrorBoundary><TheBlueprint /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/scribe"><ErrorBoundary><TheScribe /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/vault"><ErrorBoundary><TheVault /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/ba2-manager"><ErrorBoundary><BA2Manager /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/tools/cosmos"><ErrorBoundary><CosmosWorkflow /></ErrorBoundary></KeepAlivePanel>
+              {/* Development & Workflow */}
+              <KeepAlivePanel path="/dev"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/dev/workshop"><ErrorBoundary><Workshop /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/mods"><ErrorBoundary><ModBrowser /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/dev/orchestrator"><ErrorBoundary><WorkflowOrchestrator /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/dev/workflow-runner"><ErrorBoundary><WorkflowRunner /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/dev/workflow-recorder"><ErrorBoundary><WorkflowRecorder /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/dev/plugin-manager"><ErrorBoundary><PluginManager /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/dev/load-order"><ErrorBoundary><LoadOrderHub /></ErrorBoundary></KeepAlivePanel>
+              {/* Media & Assets */}
+              <KeepAlivePanel path="/media"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/media/images"><ErrorBoundary><ImageSuite /></ErrorBoundary></KeepAlivePanel>
+              {/* Testing */}
+              <KeepAlivePanel path="/test"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/test/holo"><ErrorBoundary><Holodeck /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/test/notification-test"><ErrorBoundary><NotificationTest /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/test/bridge"><ErrorBoundary><DesktopBridge /></ErrorBoundary></KeepAlivePanel>
+              {/* Knowledge & Learning */}
+              <KeepAlivePanel path="/learn"><ErrorBoundary><LearningHub /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/reference"><ErrorBoundary><QuickReference /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/knowledge"><ErrorBoundary><KnowledgeSearch /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/lore"><ErrorBoundary><Lorekeeper /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/memory-vault"><ErrorBoundary><MossyMemoryVault /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/ck-crash-prevention"><ErrorBoundary><CKCrashPrevention /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/dds-converter"><ErrorBoundary><DDSConverter /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/texture-generator"><ErrorBoundary><TextureGenerator /></ErrorBoundary></KeepAlivePanel>
+              {/* Guides */}
+              <KeepAlivePanel path="/guides"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/guides/blender"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/guides/blender/animation"><ErrorBoundary><BlenderAnimationGuide /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/guides/creation-kit"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/guides/creation-kit/quest-authoring"><ErrorBoundary><QuestModAuthoringGuide /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/guides/papyrus/guide"><ErrorBoundary><PaperScriptGuide /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/guides/physics"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/guides/mods"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/guides/mods/bodyslide"><ErrorBoundary><BodyslideGuide /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/guides/mods/sim-settlements"><ErrorBoundary><SimSettlementsGuide /></ErrorBoundary></KeepAlivePanel>
+              {/* Wizards & Tools */}
+              <KeepAlivePanel path="/wizards"><ErrorBoundary><WizardsHub /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/devtools"><ErrorBoundary><DevtoolsHub /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/settings"><ErrorBoundary><SettingsHub /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/project"><ErrorBoundary><ProjectHub /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/support"><ErrorBoundary><DonationSupport /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/assembler"><ErrorBoundary><TheAssembler /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/diagnostics"><ErrorBoundary><DiagnosticsHub /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/community"><ErrorBoundary><CommunityLearning /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/capabilities"><ErrorBoundary><LocalCapabilities /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/packaging-release"><ErrorBoundary><PackagingHub /></ErrorBoundary></KeepAlivePanel>
+              {/* Extensions */}
+              <KeepAlivePanel path="/extensions/mo2"><ErrorBoundary><MO2Extension /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/extensions/comfyui"><ErrorBoundary><ComfyUIExtension /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/extensions/upscayl"><ErrorBoundary><UpscaylExtension /></ErrorBoundary></KeepAlivePanel>
             </div>
           </main>
           <GuidedTour
@@ -995,6 +1489,23 @@ const App: React.FC = () => {
             tourType={guidedTour.type}
             targetModule={guidedTour.targetModule}
           />
+
+          {/* Tutorial Launch Prompt */}
+          {showTutorialLaunch && (
+            <TutorialLaunch
+              onStartTutorial={() => {
+                setShowTutorialLaunch(false);
+                localStorage.setItem('mossy_tutorial_started', 'true');
+                startInteractiveTutorial();
+              }}
+              onSkip={() => {
+                setShowTutorialLaunch(false);
+                localStorage.setItem('mossy_tutorial_skipped', 'true');
+              }}
+            />
+          )}
+          <AvatarOverlay />
+          <AskMossyButton />
         </div>
       </HashRouter>
     );
@@ -1131,6 +1642,9 @@ const App: React.FC = () => {
             </button>
             <NotificationProvider>
               {renderAppContent()}
+
+              {/* Auto-Update Notification */}
+              <AutoUpdateNotifier />
             </NotificationProvider>
           </PipBoyFrame>
         </OpenAIVoiceProvider>

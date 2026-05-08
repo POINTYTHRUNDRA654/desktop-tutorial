@@ -1,0 +1,188 @@
+name: Manual Release Creation
+
+# This workflow creates public releases WITHOUT creating tags
+# It downloads artifacts from successful builds and creates a tagless release
+# This works around repository rulesets that block tag creation
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 5.4.28)'
+        required: true
+      run_id:
+        description: 'GitHub Actions run ID to get artifacts from (from build-and-deploy-desktop workflow)'
+        required: true
+      edition:
+        description: 'Edition to release'
+        required: true
+        default: 'universal'
+        type: choice
+        options:
+          - universal
+          - nvidia
+          - both
+      draft:
+        description: 'Create as draft release'
+        required: false
+        default: true
+        type: boolean
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  create-tagless-release:
+    name: Create Tagless Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Verify version matches package.json
+        run: |
+          PKG_VERSION=$(jq -r '.version' < package.json)
+          INPUT_VERSION="${{ github.event.inputs.version }}"
+          if [ "$PKG_VERSION" != "$INPUT_VERSION" ]; then
+            echo "❌ Version mismatch: release version '$INPUT_VERSION' does not match package.json version '$PKG_VERSION'."
+            echo "Update package.json to version $INPUT_VERSION before creating this release."
+            exit 1
+          fi
+          echo "✅ Release version $INPUT_VERSION matches package.json version $PKG_VERSION"
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          NOTES=$(cat <<'EOF'
+          # Mossy Desktop v$VERSION
+
+          ## 📦 Download Instructions
+          
+          **Choose your edition:**
+          - **Universal Edition**: Works on all systems (CPU-based PyTorch)
+          - **NVIDIA Edition**: For NVIDIA GPUs (CUDA-accelerated, includes fine-tuning)
+
+          ## ✨ Features
+          
+          - Professional Fallout 4 modding assistant with AI
+          - Full OG/NG/AE/Creations Menu version awareness
+          - Real-time tool monitoring (Blender, Creation Kit, xEdit)
+          - Professional asset optimization and analysis
+          - Comprehensive modding workflow automation
+          - Knowledge Vault with Spriggit integration
+          - Training data pipeline for model fine-tuning (NVIDIA edition)
+
+          ## 🔧 Installation
+          
+          1. Download the installer for your edition
+          2. Run the installer (Windows may show SmartScreen warning - click "More info" → "Run anyway")
+          3. Follow the first-run setup wizard
+          4. Install recommended dependencies (.NET Runtime 8.0+, Visual C++ Redistributables)
+
+          ## 📋 System Requirements
+          
+          **Minimum:**
+          - Windows 10/11 (64-bit)
+          - 8GB RAM (16GB recommended)
+          - 5GB free disk space
+          - .NET Runtime 8.0+
+          - Visual C++ Redistributables
+
+          **For NVIDIA Edition:**
+          - NVIDIA GPU with CUDA 12.4+ support
+          - 12GB+ VRAM recommended for fine-tuning
+
+          ## 📚 Documentation
+          
+          - [Full Documentation](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/README.md)
+          - [Spriggit Guide](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/resources/public/knowledge/SPRIGGIT_COLLABORATIVE_MODDING_GUIDE.md)
+          - [FO4 Versions Guide](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/resources/public/knowledge/FALLOUT4_VERSIONS_GUIDE.md)
+
+          ## ⚠️ Note About Tags
+          
+          This release does not have an associated git tag due to repository restrictions. 
+          Version information is maintained in package.json and the release metadata.
+
+          ---
+          
+          **Build Source:** GitHub Actions Run #${{ github.event.inputs.run_id }}
+          EOF
+          )
+          # Replace $VERSION placeholder
+          NOTES="${NOTES//\$VERSION/$VERSION}"
+          {
+            echo "notes<<EOFNOTES"
+            echo "$NOTES"
+            echo "EOFNOTES"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download Universal artifact
+        if: github.event.inputs.edition != 'nvidia'
+        uses: actions/download-artifact@v5
+        with:
+          name: mossy-universal-${{ github.event.inputs.version }}
+          path: ./artifacts/universal
+          run-id: ${{ github.event.inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download NVIDIA artifact
+        if: github.event.inputs.edition == 'nvidia' || github.event.inputs.edition == 'both'
+        uses: actions/download-artifact@v5
+        with:
+          name: mossy-nvidia-${{ github.event.inputs.version }}
+          path: ./artifacts/nvidia
+          run-id: ${{ github.event.inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List downloaded artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find ./artifacts -type f -exec ls -lh {} \;
+
+      - name: Create tagless release
+        id: create_release
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          DRAFT="${{ github.event.inputs.draft }}"
+          PRERELEASE="${{ github.event.inputs.prerelease }}"
+          
+          # Create release without a tag (uses commit SHA instead)
+          RELEASE_ARGS="--title \"Mossy v$VERSION\" --notes '${{ steps.notes.outputs.notes }}'"
+          
+          if [ "$DRAFT" = "true" ]; then
+            RELEASE_ARGS="$RELEASE_ARGS --draft"
+          fi
+          
+          if [ "$PRERELEASE" = "true" ]; then
+            RELEASE_ARGS="$RELEASE_ARGS --prerelease"
+          fi
+          
+          # Create release using current commit (no tag)
+          # Note: This creates a "tagless release" which is perfectly valid
+          gh release create "release-v$VERSION" \
+            --title "Mossy v$VERSION" \
+            --notes-file <(echo '${{ steps.notes.outputs.notes }}') \
+            $([ "$DRAFT" = "true" ] && echo "--draft") \
+            $([ "$PRERELEASE" = "true" ] && echo "--prerelease") \
+            $([ -d ./artifacts/universal ] && find ./artifacts/universal -name "*.exe" -exec echo {} \;) \
+            $([ -d ./artifacts/nvidia ] && find ./artifacts/nvidia -name "*.exe" -exec echo {} \;)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release created
+        run: |
+          echo "✅ Release created successfully!"
+          echo "🔗 URL: https://github.com/${{ github.repository }}/releases"
+          echo ""
+          echo "📦 Artifacts attached:"
+          find ./artifacts -name "*.exe" -exec basename {} \;

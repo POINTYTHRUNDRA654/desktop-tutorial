@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { Plus, ChevronRight, FileText, Trash2, Settings, CheckCircle2, Clock, AlertCircle, TrendingUp, FolderOpen, Zap } from 'lucide-react';
 import { ModProjectStorage } from './services/ModProjectStorage';
@@ -47,7 +48,7 @@ const ModProjectManager: React.FC<ModProjectManagerProps> = ({ embedded = false 
 
   const handleCreateProject = () => {
     if (!createModal.name.trim()) {
-      alert('Mod name is required');
+      toast.error('Mod name is required');
       return;
     }
 

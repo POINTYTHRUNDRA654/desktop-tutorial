@@ -6,7 +6,7 @@
 import {
   QuestObjectiveMiningEngine,
   QuestObjectiveAnalysis,
-  QuestObjective,
+  AnalysisQuestObjective,
   QuestDependency,
   QuestConflict,
   QuestModInteraction,
@@ -59,7 +59,7 @@ export class QuestObjectiveMiningEngineImpl implements QuestObjectiveMiningEngin
   }
 
   private async analyzeQuest(questRecord: any, espFile: ESPFile): Promise<QuestObjectiveAnalysis | null> {
-    const objectives: QuestObjective[] = [];
+    const objectives: AnalysisQuestObjective[] = [];
     const dependencies: QuestDependency[] = [];
     const modInteractions: QuestModInteraction[] = [];
 
@@ -181,7 +181,7 @@ export class QuestObjectiveMiningEngineImpl implements QuestObjectiveMiningEngin
     const conflicts: QuestConflict[] = [];
 
     // Group objectives by reward type
-    const rewardGroups = new Map<string, QuestObjective[]>();
+    const rewardGroups = new Map<string, AnalysisQuestObjective[]>();
 
     for (const analysis of questAnalyses) {
       for (const objective of analysis.objectives) {

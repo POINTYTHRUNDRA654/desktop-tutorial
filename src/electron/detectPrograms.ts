@@ -22,10 +22,12 @@ const execAsync = promisify(exec);
  */
 export async function detectPrograms(): Promise<InstalledProgram[]> {
   const programs = new Map<string, InstalledProgram>();
+  console.log('[Program Detection] Starting comprehensive program scan...');
 
   try {
     // Try to get programs from Windows Registry first (most reliable)
     const registryPrograms = await getRegistryPrograms();
+    console.log(`[Program Detection] Found ${registryPrograms.length} programs from Windows Registry`);
     registryPrograms.forEach(prog => {
       programs.set(prog.path.toLowerCase(), prog);
     });
@@ -36,6 +38,7 @@ export async function detectPrograms(): Promise<InstalledProgram[]> {
   try {
     // Scan Program Files directories as fallback or supplement
     const fileSystemPrograms = await scanProgramFiles();
+    console.log(`[Program Detection] Found ${fileSystemPrograms.length} programs from file system scan`);
     fileSystemPrograms.forEach(prog => {
       const key = prog.path.toLowerCase();
       if (!programs.has(key)) {
@@ -59,7 +62,7 @@ export async function detectPrograms(): Promise<InstalledProgram[]> {
     console.warn('Special programs scan failed:', error);
   }
 
-  return Array.from(programs.values())
+  const finalList = Array.from(programs.values())
     .filter(p => {
         const pathLower = p.path.toLowerCase();
         // Eliminate typical installer/helper noise that isn't the primary tool
@@ -69,6 +72,9 @@ export async function detectPrograms(): Promise<InstalledProgram[]> {
                !pathLower.includes('redist');
     })
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  
+  console.log(`[Program Detection] Total programs detected: ${finalList.length} (after filtering)`);
+  return finalList;
 }
 
 /**
@@ -216,6 +222,62 @@ async function queryRegistryKey(keyPath: string): Promise<InstalledProgram | nul
   }
 }
 
+/** Timeout for the wmic drive-listing command (ms). Fast CLI tool; 6 s is generous. */
+const WMIC_TIMEOUT_MS = 6000;
+/** Timeout for the PowerShell drive-listing fallback (ms). PS startup adds overhead. */
+const POWERSHELL_TIMEOUT_MS = 8000;
+/** Matches a bare Windows drive letter returned by `wmic logicaldisk get name` (e.g. "C:"). */
+const WMIC_DRIVE_RE = /^[A-Za-z]:$/;
+/** Matches a Windows drive root with trailing backslash (e.g. "C:\"). */
+const DRIVE_ROOT_RE = /^[A-Za-z]:\\$/;
+
+/**
+ * Enumerate all currently-mounted Windows drive roots (e.g. ['C:\\', 'D:\\', 'E:\\']).
+ *
+ * Strategy (most reliable → least):
+ *  1. `wmic logicaldisk get name` — fast, authoritative
+ *  2. PowerShell `(Get-PSDrive -PSProvider FileSystem).Root` — fallback
+ *  3. Blind A-Z probe via fs.stat — last resort
+ */
+async function getWindowsDriveRoots(): Promise<string[]> {
+  // Strategy 1: wmic
+  try {
+    const { stdout } = await execAsync('wmic logicaldisk get name', { timeout: WMIC_TIMEOUT_MS });
+    const letters = stdout
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(l => WMIC_DRIVE_RE.test(l))
+      .map(l => `${l.toUpperCase()}\\`);
+    if (letters.length > 0) return letters;
+  } catch { /* fall through */ }
+
+  // Strategy 2: PowerShell
+  try {
+    const { stdout } = await execAsync(
+      'powershell -NoProfile -Command "(Get-PSDrive -PSProvider FileSystem).Root"',
+      { timeout: POWERSHELL_TIMEOUT_MS }
+    );
+    const roots = stdout
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(l => DRIVE_ROOT_RE.test(l))
+      .map(l => l.toUpperCase());
+    if (roots.length > 0) return roots;
+  } catch { /* fall through */ }
+
+  // Strategy 3: blind A-Z probe
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const found: string[] = [];
+  await Promise.all(
+    letters.map(async (l) => {
+      const root = `${l}:\\`;
+      const exists = await fs.stat(root).then(() => true).catch(() => false);
+      if (exists) found.push(root);
+    })
+  );
+  return found.sort();
+}
+
 /**
  * Scan Program Files directories for executables
  * This is the fallback method if registry scanning fails
@@ -241,9 +303,9 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
     'C:\\ML',
   ];
 
-  // Search other common drives for program folders
-  // ULTRA COMPREHENSIVE SCAN - First impression matters!
-  const potentialDrives = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+  // Enumerate actual mounted drives rather than probing all 26 letters blindly
+  const driveRoots = await getWindowsDriveRoots();
+
   const commonFolders = [
     // Standard Windows
     'Program Files', 'Program Files (x86)', 'Programs', 'Apps', 'Software', 'Applications',
@@ -268,20 +330,11 @@ async function scanProgramFiles(): Promise<InstalledProgram[]> {
     'Chocolatey', 'scoop', 'winget'
   ];
   
-  // Add root of drives and then the folders
-  for (const drive of potentialDrives) {
-    const driveRoot = `${drive}:\\`;
-    // Skip drives that don't exist to save time
-    try {
-      const driveStats = await fs.stat(driveRoot).catch(() => null);
-      if (!driveStats) continue;
-      
-      programFilesPaths.push(driveRoot); 
-      for (const folder of commonFolders) {
-         programFilesPaths.push(path.join(driveRoot, folder));
-      }
-    } catch {
-      continue;
+  // Expand each detected drive root with common folder candidates
+  for (const driveRoot of driveRoots) {
+    programFilesPaths.push(driveRoot);
+    for (const folder of commonFolders) {
+      programFilesPaths.push(path.join(driveRoot, folder));
     }
   }
 
@@ -461,180 +514,218 @@ export async function openProgram(programPath: string): Promise<void> {
 /**
  * Find special high-priority programs that users commonly request
  * Checks known installation paths for programs like NVIDIA Canvas, Blender, etc.
+ * NOW SCANS ALL DETECTED DRIVES, not just C:\ and D:\
  */
 async function findSpecialPrograms(): Promise<InstalledProgram[]> {
   const programs: InstalledProgram[] = [];
   
-  // Define common installation paths for special programs
-  const specialPaths = [
+  // Get all mounted drives dynamically
+  const driveRoots = await getWindowsDriveRoots();
+  console.log(`[Program Detection] Scanning ${driveRoots.length} mounted drives: ${driveRoots.join(', ')}`);
+  
+  // Define path templates (without drive letter) for special programs
+  // These will be combined with all detected drives
+  const specialPathTemplates = [
     // NVIDIA Canvas (Vita Canvas)
     {
-      paths: [
-        'C:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
-        'C:\\Program Files (x86)\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
-        'C:\\Program Files\\NVIDIA\\Canvas\\NVIDIACanvas.exe',
+      templates: [
+        'Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe',
+        'Program Files (x86)\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe',
+        'Program Files\\NVIDIA\\Canvas\\Canvas.exe',
+        'Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
+        'Program Files (x86)\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe',
+        'Program Files\\NVIDIA\\Canvas\\NVIDIACanvas.exe',
       ],
       displayName: 'NVIDIA Canvas (Vita)',
       name: 'NVIDIACanvas'
     },
     // NVIDIA Omniverse
     {
-      paths: [
-        'C:\\Program Files\\NVIDIA Corporation\\Omniverse\\Launcher\\omniverse-launcher.exe',
+      templates: [
+        'Program Files\\omniverse-launcher\\omniverse-launcher.exe',
+        'Program Files\\NVIDIA Corporation\\Omniverse\\Launcher\\omniverse-launcher.exe',
+      ],
+      specialPaths: [
         'C:\\Users\\Public\\NVIDIA\\Omniverse\\Launcher\\omniverse-launcher.exe',
       ],
       displayName: 'NVIDIA Omniverse',
       name: 'Omniverse'
     },
-    // Blender (common locations)
+    // Blender (common locations — 4.5/4.4 first for PyNifly 25+ compatibility)
     {
-      paths: [
-        'C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe',
-        'C:\\Program Files\\Blender Foundation\\Blender 4.1\\blender.exe',
-        'C:\\Program Files\\Blender Foundation\\Blender 4.0\\blender.exe',
-        'C:\\Program Files\\Blender Foundation\\Blender 3.6\\blender.exe',
-        'C:\\Program Files\\Blender Foundation\\Blender\\blender.exe',
+      templates: [
+        'Program Files\\Blender Foundation\\Blender 4.5\\blender.exe',
+        'Program Files\\Blender Foundation\\Blender 4.4\\blender.exe',
+        'Program Files\\Blender Foundation\\Blender 4.3\\blender.exe',
+        'Program Files\\Blender Foundation\\Blender 4.2\\blender.exe',
+        'Program Files\\Blender Foundation\\Blender 4.1\\blender.exe',
+        'Program Files\\Blender Foundation\\Blender 4.0\\blender.exe',
+        'Program Files\\Blender Foundation\\Blender 3.6\\blender.exe',
+        'Program Files\\Blender Foundation\\Blender\\blender.exe',
       ],
       displayName: 'Blender',
       name: 'blender'
     },
     // Fallout 4 Creation Kit
     {
-      paths: [
-        'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4\\CreationKit.exe',
-        'C:\\Program Files\\Steam\\steamapps\\common\\Fallout 4\\CreationKit.exe',
-        'D:\\SteamLibrary\\steamapps\\common\\Fallout 4\\CreationKit.exe',
-        'E:\\SteamLibrary\\steamapps\\common\\Fallout 4\\CreationKit.exe',
-        'F:\\SteamLibrary\\steamapps\\common\\Fallout 4\\CreationKit.exe',
+      templates: [
+        'Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4\\CreationKit.exe',
+        'Program Files\\Steam\\steamapps\\common\\Fallout 4\\CreationKit.exe',
+        'SteamLibrary\\steamapps\\common\\Fallout 4\\CreationKit.exe',
+        'Games\\Steam\\steamapps\\common\\Fallout 4\\CreationKit.exe',
       ],
       displayName: 'Fallout 4 Creation Kit',
       name: 'CreationKit'
     },
     // xEdit/FO4Edit
     {
-      paths: [
-        'C:\\Program Files\\FO4Edit\\FO4Edit.exe',
-        'C:\\Program Files (x86)\\FO4Edit\\FO4Edit.exe',
-        'C:\\Modding\\xEdit\\FO4Edit.exe',
-        'C:\\Tools\\FO4Edit\\FO4Edit.exe',
-        'D:\\Modding\\xEdit\\FO4Edit.exe',
+      templates: [
+        'Program Files\\FO4Edit\\FO4Edit.exe',
+        'Program Files (x86)\\FO4Edit\\FO4Edit.exe',
+        'Modding\\xEdit\\FO4Edit.exe',
+        'Tools\\FO4Edit\\FO4Edit.exe',
+        'ModdingTools\\FO4Edit\\FO4Edit.exe',
       ],
       displayName: 'FO4Edit (xEdit)',
       name: 'FO4Edit'
     },
     // LOOT
     {
-      paths: [
-        'C:\\Program Files\\LOOT\\LOOT.exe',
-        'C:\\Program Files (x86)\\LOOT\\LOOT.exe',
-        'C:\\Modding\\LOOT\\LOOT.exe',
-        'C:\\Tools\\LOOT\\LOOT.exe',
+      templates: [
+        'Program Files\\LOOT\\LOOT.exe',
+        'Program Files (x86)\\LOOT\\LOOT.exe',
+        'Modding\\LOOT\\LOOT.exe',
+        'Tools\\LOOT\\LOOT.exe',
       ],
       displayName: 'LOOT (Load Order Optimization Tool)',
       name: 'LOOT'
     },
     // NifSkope
     {
-      paths: [
-        'C:\\Program Files\\NifSkope\\NifSkope.exe',
-        'C:\\Program Files (x86)\\NifSkope\\NifSkope.exe',
-        'C:\\Modding\\NifSkope\\NifSkope.exe',
-        'C:\\Tools\\NifSkope\\NifSkope.exe',
+      templates: [
+        'Program Files\\NifSkope\\NifSkope.exe',
+        'Program Files (x86)\\NifSkope\\NifSkope.exe',
+        'Modding\\NifSkope\\NifSkope.exe',
+        'Tools\\NifSkope\\NifSkope.exe',
       ],
       displayName: 'NifSkope',
       name: 'NifSkope'
     },
     // F4SE (Fallout 4 Script Extender)
     {
-      paths: [
-        'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4\\f4se_loader.exe',
-        'C:\\Program Files\\Steam\\steamapps\\common\\Fallout 4\\f4se_loader.exe',
-        'D:\\SteamLibrary\\steamapps\\common\\Fallout 4\\f4se_loader.exe',
+      templates: [
+        'Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4\\f4se_loader.exe',
+        'Program Files\\Steam\\steamapps\\common\\Fallout 4\\f4se_loader.exe',
+        'SteamLibrary\\steamapps\\common\\Fallout 4\\f4se_loader.exe',
+        'Games\\Steam\\steamapps\\common\\Fallout 4\\f4se_loader.exe',
       ],
       displayName: 'F4SE (Fallout 4 Script Extender)',
       name: 'f4se_loader'
     },
     // Papyrus Compiler
     {
-      paths: [
-        'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4\\Papyrus Compiler\\PapyrusCompiler.exe',
-        'C:\\Program Files\\Steam\\steamapps\\common\\Fallout 4\\Papyrus Compiler\\PapyrusCompiler.exe',
+      templates: [
+        'Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4\\Papyrus Compiler\\PapyrusCompiler.exe',
+        'Program Files\\Steam\\steamapps\\common\\Fallout 4\\Papyrus Compiler\\PapyrusCompiler.exe',
+        'SteamLibrary\\steamapps\\common\\Fallout 4\\Papyrus Compiler\\PapyrusCompiler.exe',
       ],
       displayName: 'Papyrus Compiler',
       name: 'PapyrusCompiler'
     },
     // Visual Studio Code (for Papyrus scripting)
     {
-      paths: [
-        'C:\\Program Files\\Microsoft VS Code\\Code.exe',
-        'C:\\Program Files\\Microsoft VS Code\\bin\\code.cmd',
-        'C:\\Users\\${username}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe',
+      templates: [
+        'Program Files\\Microsoft VS Code\\Code.exe',
+        'Program Files\\Microsoft VS Code\\bin\\code.cmd',
+      ],
+      specialPaths: [
+        path.join(os.homedir(), 'AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe'),
       ],
       displayName: 'Visual Studio Code',
       name: 'Code'
     },
     // 7-Zip (for BSA/BA2 archives)
     {
-      paths: [
-        'C:\\Program Files\\7-Zip\\7zFM.exe',
-        'C:\\Program Files (x86)\\7-Zip\\7zFM.exe',
+      templates: [
+        'Program Files\\7-Zip\\7zFM.exe',
+        'Program Files (x86)\\7-Zip\\7zFM.exe',
       ],
       displayName: '7-Zip',
       name: '7zFM'
     },
     // Everything (file search tool)
     {
-      paths: [
-        'C:\\Program Files\\Everything\\Everything.exe',
-        'C:\\Program Files (x86)\\Everything\\Everything.exe',
+      templates: [
+        'Program Files\\Everything\\Everything.exe',
+        'Program Files (x86)\\Everything\\Everything.exe',
       ],
       displayName: 'Everything (File Search)',
       name: 'Everything'
     },
     // Notepad++ (script editing)
     {
-      paths: [
-        'C:\\Program Files\\Notepad++\\notepad++.exe',
-        'C:\\Program Files (x86)\\Notepad++\\notepad++.exe',
+      templates: [
+        'Program Files\\Notepad++\\notepad++.exe',
+        'Program Files (x86)\\Notepad++\\notepad++.exe',
       ],
       displayName: 'Notepad++',
       name: 'notepad++'
     },
     // Git (version control)
     {
-      paths: [
-        'C:\\Program Files\\Git\\cmd\\git.exe',
-        'C:\\Program Files\\Git\\bin\\git.exe',
+      templates: [
+        'Program Files\\Git\\cmd\\git.exe',
+        'Program Files\\Git\\bin\\git.exe',
       ],
       displayName: 'Git',
       name: 'git'
     },
     // GIMP 3.x (PRIORITIZE newer versions)
     {
-      paths: [
-        'C:\\Program Files\\GIMP 3\\bin\\gimp-3.0.exe',
-        'C:\\Program Files\\GIMP 3\\bin\\gimp.exe',
-        'C:\\Program Files (x86)\\GIMP 3\\bin\\gimp-3.0.exe',
-        'C:\\Program Files\\GIMP\\bin\\gimp-3.0.exe',
+      templates: [
+        'Program Files\\GIMP 3\\bin\\gimp-3.0.exe',
+        'Program Files\\GIMP 3\\bin\\gimp.exe',
+        'Program Files (x86)\\GIMP 3\\bin\\gimp-3.0.exe',
+        'Program Files\\GIMP\\bin\\gimp-3.0.exe',
       ],
       displayName: 'GIMP 3',
       name: 'gimp'
     },
     // GIMP 2.x (fallback only if GIMP 3 not found)
     {
-      paths: [
-        'C:\\Program Files\\GIMP 2\\bin\\gimp-2.10.exe',
-        'C:\\Program Files\\GIMP 2\\bin\\gimp-2.99.exe',
-        'C:\\Program Files (x86)\\GIMP 2\\bin\\gimp-2.10.exe',
+      templates: [
+        'Program Files\\GIMP 2\\bin\\gimp-2.10.exe',
+        'Program Files\\GIMP 2\\bin\\gimp-2.99.exe',
+        'Program Files (x86)\\GIMP 2\\bin\\gimp-2.10.exe',
       ],
       displayName: 'GIMP 2',
       name: 'gimp'
     },
   ];
 
-  // Check each special program path
-  for (const special of specialPaths) {
-    for (const testPath of special.paths) {
+  // Check each special program by combining templates with all detected drives
+  for (const special of specialPathTemplates) {
+    let found = false;
+    
+    // First, generate paths for all drives
+    const pathsToCheck: string[] = [];
+    
+    // Add drive-based paths
+    if (special.templates) {
+      for (const driveRoot of driveRoots) {
+        for (const template of special.templates) {
+          pathsToCheck.push(path.join(driveRoot, template));
+        }
+      }
+    }
+    
+    // Add any special hardcoded paths (e.g., user-specific paths)
+    if (special.specialPaths) {
+      pathsToCheck.push(...special.specialPaths);
+    }
+    
+    // Now check all generated paths
+    for (const testPath of pathsToCheck) {
       try {
         await fs.access(testPath);
         // File exists! Add it
@@ -643,13 +734,19 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
           displayName: special.displayName,
           path: testPath,
         });
+        found = true;
         break; // Found it, no need to check other paths for this program
       } catch {
         // File doesn't exist, try next path
       }
     }
+    
+    if (found) {
+      continue; // Move to next program
+    }
   }
 
+  console.log(`[Program Detection] Found ${programs.length} special programs across all drives`);
   return programs;
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   CheckCircle2, 
   Circle, 
@@ -39,6 +39,7 @@ const RoadmapPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [newGoal, setNewGoal] = useState('');
+  const goalInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadRoadmaps();
@@ -47,7 +48,6 @@ const RoadmapPanel: React.FC = () => {
   const loadRoadmaps = async () => {
     try {
       setLoading(true);
-      // @ts-expect-error: Dynamic IPC invoke for roadmap
       const result = await window.electron.api.invoke('roadmap-get-all');
       setRoadmaps(result || []);
       if (result && result.length > 0) {
@@ -65,7 +65,6 @@ const RoadmapPanel: React.FC = () => {
     
     try {
       setGenerating(true);
-      // @ts-expect-error: Dynamic IPC invoke for roadmap AI
       const result = await window.electron.api.invoke('roadmap-generate-ai', { 
         prompt: newGoal,
         projectId: 'default' // For demo
@@ -85,7 +84,6 @@ const RoadmapPanel: React.FC = () => {
 
   const updateStepStatus = async (roadmapId: string, stepId: string, status: string) => {
     try {
-      // @ts-expect-error: Dynamic IPC invoke for roadmap step update
       const result = await window.electron.api.invoke('roadmap-update-step', { 
         roadmapId, 
         stepId, 
@@ -149,7 +147,11 @@ const RoadmapPanel: React.FC = () => {
             </Link>
             <button 
               className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm transition-colors border border-slate-700"
-              onClick={() => setActiveRoadmap(null)}
+              onClick={() => {
+                setActiveRoadmap(null);
+                // Give React one tick to show the input before focusing
+                setTimeout(() => goalInputRef.current?.focus(), 0);
+              }}
             >
               <Plus className="w-4 h-4" />
               New Goal
@@ -161,6 +163,7 @@ const RoadmapPanel: React.FC = () => {
         {!activeRoadmap && (
           <div className="relative">
             <input 
+              ref={goalInputRef}
               type="text"
               placeholder="What do you want to create? (e.g., 'A custom plasma rifle')"
               className="w-full bg-slate-950 border border-slate-800 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200"

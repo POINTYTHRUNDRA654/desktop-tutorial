@@ -1,6 +1,6 @@
 # Progress Marker
-- Last completed page: Page 42 - Support Mossy
-- Next page to add: Page 43 (pending)
+- Last completed page: Page 43 - Support Mossy
+- Next page to add: Page 44 (pending)
 - Notes: Add new page blocks as provided by user (title, image filename, page number, insert location).
 
 # Mossy Onboarding Visual Guide
@@ -49,128 +49,204 @@ If you are brand new, start with the Newbie First Run Checklist below, then read
 
 ## Page 01 - Mossy.Space (Home Dashboard)
 
-![Page 01 - Mossy.Space](visual-guide-images/Page%20one.%20Mossy's%20space..png)
+![Page 01 - Mossy.Space](visual-guide-images/page-1-mossy-space.png)
 
 **What this page is for**
-The Mossy.Space page is your home dashboard. It shows quick health signals (Electron, storage, vault, mic/tts), a short orientation panel, and your current system status so you can confirm the app is running correctly.
+The Nexus (Mossy.Space) is your central control room — the fastest way to check app health, pick a task, and jump to tools. Think of it as the "home base": status badges, quick actions, current project, and the entry points to every feature.
 
-**How to use it**
-1. Check the health badges at the top to confirm your environment is OK.
-2. Read the Tools / Install / Verify panel for the recommended first steps.
-3. Use the sidebar to jump to specific modules (Chat, Tools, Diagnostics, etc.).
-4. Return here whenever you need a quick status check.
+**How to use it (step‑by‑step)**
+1. Scan the top health badges (Electron, Storage, Vault, Wizard, Mic/TTS). Address any WARN/BAD badges first.
+2. Open the Tools / Install / Verify panel to run the Install Wizard or System Monitor if required.
+3. Use the left sidebar to open Chat, First‑Success Wizard, The Auditor, or any other module.
+4. Click the active project name to switch projects or create a new one.
+5. If you’re unsure, click Help or start the Interactive Tutorial from here.
 
 **Page functions (what each part does)**
-- Health badges: show green/yellow/red status for core systems (Electron, storage, vault, mic/tts).
-- Tools / Install / Verify panel: gives the next best action based on what is missing.
-- System status strip: confirms the app is running and shows current state at a glance.
-- Sidebar navigation: your main way to open any module or tool page.
+- Health badges: live indicators for core systems — hover for details and follow the listed troubleshooting action.
+- Tools / Install / Verify panel: shows next recommended actions (run scan, verify paths, etc.).
+- Project selector: open or switch mod projects quickly.
+- Quick action buttons: Help, Command Palette (Ctrl/Cmd+K), Replay Tutorial.
+- Avatar / Neural Link: visual feedback for listening/processing/speaking state.
+
+**Screenshot callouts (what the picture shows)**
+- Left sidebar — navigation to every module (start with CORE section).
+- Center — greeting and quick status; suggested first actions are shown here.
+- Top health strip — Electron, Storage, Vault count, Wizard, Mic/TTS statuses.
+- Right — avatar and project/status summary.
 
 **Beginner tips**
-- If any badge shows WARN/BAD, open Diagnostics to see what is missing.
-- Run the Install Wizard once so the tool paths are detected and saved.
-- If Mic/TTS show WARN, check your OS permissions and refresh the page.
+- Fix WARN/BAD badges first by following the Diagnostics link in the Tools panel. ✅
+- Run the Install Wizard once after first launch — it detects and saves tool paths.
+- Keep the Desktop Bridge ONLINE if you plan to use local tools (Creation Kit, Blender).
+- Use the Nexus to re‑orient yourself anytime — it’s safe and non‑destructive.
 
 ## Page 02 - AI Chat
 
-![Page 02 - AI Chat](visual-guide-images/Page%20two.%20AI%20Chat..png)
+![Page 02 - AI Chat](visual-guide-images/page-2-ai-chat.png)
 
 **What this page is for**
-The AI Chat page is the main conversation hub. Use it to ask questions, get modding help, generate text, and manage Mossy responses.
+AI Chat is Mossy’s primary conversation workspace — ask questions, troubleshoot, generate code & text, and run one‑click smart actions that save time when modding.
 
-**How to use it**
-1. Type your question in the message box and press Enter or click Send.
-2. Use the toolbar buttons to toggle voice, copy responses, or clear the chat.
-3. If you need a fresh start, use the reset/clear option to wipe the current thread.
-4. Return here anytime you want direct help or step-by-step guidance.
+**How to use it (step‑by‑step)**
+1. Click the message input at the bottom, type a clear question (include exact error messages or file names), then press Enter or Send.
+2. Use Smart Actions (Generate Script, Inline Suggestions, Refactor, Quick Fix) to apply common modding tasks in one click.
+3. Toggle Voice to speak with Mossy (if configured in Settings → Voice).
+4. Use Export/Copy to save important instructions or generated scripts.
 
 **Page functions (what each part does)**
-- Message box: where you write your question or command.
-- Send action: submits the message to Mossy.
-- Voice toggle: enables or disables voice features for the chat.
-- Copy button: copies the most recent response for notes or sharing.
-- Clear/reset: removes the current thread so you can start clean.
+- Message list: full chat history with Mossy (context is preserved unless you reset it).
+- Message input + Send: write questions and submit them to Mossy.
+- Voice / Listening button: enable STT input (Live Voice) or stop listening.
+- Smart Actions strip: one‑click helpers that generate code, suggest fixes, or run simulated tasks.
+- Code Assistant panel (right): shows generated scripts and previews for copy / save.
+- Suggestions / Quick Actions: contextual buttons returned by Mossy for immediate use.
+
+**Screenshot callouts**
+- Center-left: conversation pane (read replies and follow step instructions).
+- Bottom bar: type prompts, paste error text or file paths for precise answers.
+- Right column: code previews and Smart Action suggestions.
 
 **Beginner tips**
-- Start with a simple prompt like "Help me set up my first Fallout 4 mod".
-- If a response is long, ask for a shorter checklist.
-- For tool actions, confirm your Desktop Bridge is ONLINE.
+- Be specific: include the file name, exact error text, and what you tried already.
+- Ask Mossy to "show step‑by‑step" when you need an actionable checklist.
+- Use Smart Actions to generate starter scripts, then move them into the Workshop for editing.
 
-## Page 03 - First Success Wizard
+---
 
-![Page 03 - First Success Wizard](visual-guide-images/Page%20three.%20First%20success..png)
+## Page 03 - AI Mod Assistant
+
+![Page 03 - AI Mod Assistant](visual-guide-images/page-3-ai-mod-assistant.png)
 
 **What this page is for**
-The First Success Wizard is a fast onboarding checklist that gets your tools scanned, verified, and ready for real help.
+The AI Mod Assistant is a focused, development‑oriented chat for mod creation: generate Papyrus scripts, scaffold quests, validate code, and get one‑click starter assets. It’s optimized for developers and creators who need precise, actionable code and templates.
 
-**How to use it**
-1. Run the System Monitor scan so Mossy can detect installed tools.
-2. Verify tool paths and versions in Tool Verify.
-3. Build the Knowledge Search index and add your own notes to the Memory Vault.
-4. Ask your first question using a tight, specific prompt.
+**How to use it (step‑by‑step)**
+1. Paste code snippets, error messages, or describe the task you want (e.g., "Generate a Papyrus script to start a quest when the player enters a cell").
+2. Use **Generate Script** for starter code or **Quest Template** to scaffold quest logic.
+3. Click **Validate Script** to run quick linting before testing in the Creation Kit.
+4. Use Smart Actions (Inline Suggestions, Refactor, Quick Fix) to apply small changes immediately — then export to Workshop for edits.
 
 **Page functions (what each part does)**
-- Step cards: each card is a required setup task in the right order.
-- Step descriptions: explain why the step matters and where to click next.
-- Example prompt box: shows a starter question format you can copy.
-- Help button: opens the reference page if you are stuck.
+- Message input: paste code or type a programming question; context-aware prompts improve results.
+- Smart Actions row: one‑click operations for scripts and workflows (Generate Script, Inline Suggestions, Refactor, Quick Fix).
+- Code Assistant panel (right): shows generated code previews, validation messages, and quick action buttons.
+- Learning toggle: enable guided examples and step suggestions for beginners.
+- Voice toggle: use STT to describe tasks by voice.
+
+**Screenshot callouts**
+- Top bar: `Learning` toggle and `Voice` button — turn on Learning Mode for guided walkthroughs.
+- Middle input: paste a code snippet or write a targeted request (best practice: include game/version and target object).
+- Smart Actions: use `Generate Script` for templates, `Inline Suggestions` for targeted edits.
+- Right column: Code Assistant shows previews and validation output — copy or save to Workshop.
 
 **Beginner tips**
-- If scans show missing tools, run the Install Wizard before continuing.
-- Keep your first question narrow so Mossy can answer precisely.
+- Provide context: tell Mossy the game version (Fallout 4) and whether you target a quest, NPC, or item.
+- Start with small requests (single function or event) before asking for large systems.
+- Validate generated code before running it in the Creation Kit; use the Workshop to edit and test safely.
+
+## Page 04 - First Success Wizard
+
+![Page 04 - First Success Wizard](visual-guide-images/page-4-first-success.png)
+
+**What this page is for**
+The First Success Wizard is a short, guided onboarding checklist that ensures Mossy knows your environment and can give precise, tool‑aware help. It walks you through the minimum steps required for your first successful modding task.
+
+**How to use it (step‑by‑step)**
+1. Run a System Monitor scan (opens System Monitor) so Mossy can detect installed tools and versions.
+2. Open Tool Verify and confirm each detected path (Creation Kit, xEdit, Blender, etc.).
+3. Build the Knowledge Search index and add one personal note to the Memory Vault.
+4. Copy the example prompt from the Example Prompt box and ask your first question in Chat.
+
+**Page functions (what each part does)**
+- Step cards: numbered tasks in recommended order — complete them from 1 → 4.
+- Step descriptions: short explanation + link to the page that performs the action.
+- Example prompt card: starter prompt you can copy into Chat for an immediate, precise result.
+- Help / Reference link: jump to relevant docs if you get stuck.
+
+**Screenshot callouts**
+- Left of the card list: quick link to System Monitor and Tool Verify.
+- Center cards: run the recommended task and watch the checkmark appear when complete.
+- Example prompt (bottom of the last card): paste or edit this into Chat as your first question.
+
+**Beginner tips**
+- Run the System Monitor first — most follow‑up help uses detected tool data.
+- Verify tool paths even if the scanner found them; a wrong path will break integrations.
+- Add one short Memory Vault note (e.g., your mod folder path) so answers are personalized.
 - Add at least one personal note to the Memory Vault so results feel tailored.
 
-## Page 04 - Modding Roadmaps
+## Page 05 - Modding Roadmaps
 
-![Page 04 - Modding Roadmaps](visual-guide-images/Page%204%20Modding%20RoadMaps..png)
-
-**What this page is for**
-Modding Roadmaps turn a big idea into a clear checklist, with progress tracking and tool hints so you always know the next step.
-
-**How to use it**
-1. Click New Goal to open the goal input.
-2. Type what you want to build (keep it specific) and press Enter.
-3. Use the lightning button to generate a roadmap.
-4. Open a roadmap card to see the full step-by-step path.
-5. Click the circle icon on a step to mark it complete.
-6. Use Back to Roadmap List to return to all your goals.
-
-**Page functions (what each part does)**
-- New Goal button: switches from list view to goal creation.
-- Goal input field: where you describe the mod you want to make.
-- Lightning button: asks Mossy to generate a roadmap from your goal.
-- Roadmap cards: show each goal with a progress bar and completion count.
-- Progress bar: visual percent of finished steps.
-- Active Objective header: shows the selected roadmap title and goal.
-- Step list: ordered tasks; each step includes a tool badge.
-- Status icon: click to toggle a step between not started and completed.
-- Tool badge: hints which app/tool is used for that step.
-- Back to Roadmap List: returns to the grid view.
-
-## Page 05 - What's New
-
-![Page 05 - What's New](visual-guide-images/Page%205.%20What's%20New.png)
+![Page 05 - Modding Roadmaps](visual-guide-images/page-5-modding-roadmaps.png)
 
 **What this page is for**
-What's New is your release notes hub. It highlights new features, changes, and tips so you can quickly see what changed since your last visit.
+Modding Roadmaps converts a mod idea into a practical, ordered plan — generated by Mossy and editable by you. Each step includes expected tools, an estimated effort, and a progress tracker so beginners can see concrete next actions.
 
-**How to use it**
-1. Read the Highlights list to understand the newest features.
-2. Scan Navigation Tips for quick keyboard shortcuts and workflow hints.
-3. Use the Back to Mossy button to return to your dashboard.
-4. If you do not want to see this page automatically, disable the auto-open option at the bottom.
+**How to use it (step‑by‑step)**
+1. Click **New Goal** and type a short, specific objective (e.g., “Create a custom weapon with new textures”).
+2. Press the **lightning (Generate)** button to have Mossy create a draft roadmap.
+3. Open the generated roadmap card to inspect ordered steps and tool badges.
+4. Click a step to see details, estimated time, and recommended tools.
+5. Mark steps complete by clicking the circle/status icon — progress updates the roadmap automatically.
+6. Edit steps manually or export/share the roadmap for collaboration.
 
 **Page functions (what each part does)**
-- Highlights list: shows major new features and improvements.
-- Update badge: confirms the page reflects the latest release notes.
-- Navigation Tips: quick reminders for shortcuts and common flows.
-- Stay in the loop section: explains how release notes are surfaced.
-- Auto-open toggle: controls whether this page appears on startup.
-- Continue to dashboard button: returns you to the main home screen.
+- New Goal: create a roadmap from a short goal phrase.
+- Lightning (AI Generate): uses Mossy to draft a practical step list.
+- Roadmap cards: show goals with progress bars and completion counts.
+- Step list: ordered, actionable items; each step shows a `tool badge` and `estimate`.
+- Status icon: toggle to mark a step done / undone (updates the progress bar).
+- Back to Roadmap List: return to the grid of all saved goals.
 
-## Page 06 - Mod Projects
+**Screenshot callouts**
+- Top-left: New Goal + goal input field (start here).
+- Center: generated roadmap with ordered steps and progress bar.
+- Step entries: show tool badges and quick action links to open that tool.
 
-![Page 06 - Mod Projects](visual-guide-images/Page%206%20mod%20projects..png)
+**Beginner tips**
+- Make goals short and focused — the generator works best with concrete outcomes.
+- After generation, edit or split large steps into smaller sub‑tasks.
+- Use Roadmaps together with the Workshop and Project Hub to keep work organized.
+
+## Page 06 - Whats New
+
+![Page 06 - Whats New](visual-guide-images/page-6-whats-new.png)
+
+**What this page is for**
+What's New is the release‑notes hub inside Mossy — the single place to see version highlights, breaking changes, and short migration steps so you can update safely and take advantage of new features immediately.
+
+**How to use it (install‑tutorial format)
+1. Read the Highlights banner** — scan the topmost bullets for the biggest changes (API, integrations, or breaking behavior).
+2. **Open Detailed Changelog** for precise fixes and migration steps if the Highlights mention breaking changes.
+3. **Try New Features** using the quick links shown on the page (each new feature includes a "Try" or "Go to" button).
+4. **Adjust settings** if a change requires updated preferences (the page shows which Settings entries to check).
+5. **Disable auto‑open** at the bottom if you prefer not to be shown the page on launch.
+
+**Page functions (what each part does)**
+- Highlights banner: concise bullets for important additions and breaking changes.
+- Changelog panel: full release notes grouped by category (features, fixes, security, breaking).
+- Quick‑action tiles: one‑click links that open the updated module or demo for the new feature.
+- Migration tips: short, step‑by‑step notes for any breaking changes you must act on.
+- Auto‑open toggle: enable/disable automatic display after upgrades.
+- Share / Export button: copy release notes or save them for team distribution.
+
+**Screenshot callouts**
+- Top: Highlights banner with headline callouts and version number.
+- Middle-left: Changelog list with grouped entries and links to docs or demos.
+- Middle-right: Quick‑action tiles showing "Try" buttons for major new features.
+- Bottom: Auto‑open toggle and Export/Share controls.
+
+**Beginner tips**
+- Always check the Highlights for "breaking" or "migration" bullets before updating projects.
+- Use the Quick‑action tiles to try new features in a sandbox environment (don’t jump straight into production projects).
+- If an update mentions changed file formats or APIs, follow the Migration tips step‑by‑step.
+- Disable auto‑open if you prefer to read the release notes only when needed.
+
+---
+
+
+## Page 07 - Mod Projects
+
+![Page 07 - Mod Projects](visual-guide-images/page-7-mod-projects.png)
 
 **What this page is for**
 Mod Projects is your project hub. It organizes mod plans, progress, and collaboration in one place so you can manage everything from idea to release.
@@ -191,9 +267,9 @@ Mod Projects is your project hub. It organizes mod plans, progress, and collabor
 - Tips panel: quick best practices for testing and iteration.
 - Create First Mod button: shortcut when you have no projects yet.
 
-## Page 07 - Quick Reference
+## Page 08 - Quick Reference
 
-![Page 07 - Quick Reference](visual-guide-images/Page%207.%20Quick%20reference.png)
+![Page 08 - Quick Reference](visual-guide-images/page-8-quick-reference.png)
 
 **What this page is for**
 Quick Reference is a fast lookup page for common actions, shortcuts, and first-aid steps when you are stuck. It is the place you open when you want immediate guidance without reading a full guide.
@@ -215,9 +291,9 @@ Quick Reference is a fast lookup page for common actions, shortcuts, and first-a
 - Use the shortcuts list to speed up your workflow early.
 - Keep this page open in another window while you learn the UI.
 
-## Page 08 - Knowledge Search
+## Page 09 - Knowledge Search
 
-![Page 08 - Knowledge Search](visual-guide-images/Page%208%20knowledge%20search..png)
+![Page 09 - Knowledge Search](visual-guide-images/page-9-knowledge-search.png)
 
 **What this page is for**
 Knowledge Search is the built-in library browser. It lets you search the guides, docs, and vault notes so you can find answers without leaving Mossy.
@@ -240,9 +316,9 @@ Knowledge Search is the built-in library browser. It lets you search the guides,
 - If results feel noisy, add the tool name ("xEdit", "CK", "Blender").
 - Save your top 3 references so you can return in one click.
 
-## Page 09 - Wizards
+## Page 10 - Wizards
 
-![Page 09 - Wizards](visual-guide-images/Page%209%20wizards..png)
+![Page 10 - Wizards](visual-guide-images/page-11-wizards.png)
 
 **What this page is for**
 Wizards is the guided workflow hub. Each wizard is a step-by-step flow that sets up tools, validates prerequisites, and walks you through complex tasks without guessing.
@@ -265,9 +341,9 @@ Wizards is the guided workflow hub. Each wizard is a step-by-step flow that sets
 - If the app feels unstable, run Crash Triage before anything else.
 - Stick to one wizard at a time so your progress stays consistent.
 
-## Page 10 - Crash Triage
+## Page 11 - Crash Triage
 
-![Page 10 - Crash Triage](visual-guide-images/Page%2010%20crash%20triage..png)
+![Page 11 - Crash Triage](visual-guide-images/page-12-crash-triage.png)
 
 **What this page is for**
 Crash Triage is the stability first-aid station. It helps you confirm system health, verify tool paths, and diagnose crashes or freezes before you start modding work.
@@ -292,9 +368,9 @@ Crash Triage is the stability first-aid station. It helps you confirm system hea
 - Green status means safe to continue; yellow means fix soon; red means stop and repair.
 - If a tool shows "not detected", confirm install path in Tool Verify.
 
-## Page 11 - Packaging and Release
+## Page 12 - Packaging and Release
 
-![Page 11 - Packaging and Release](visual-guide-images/Page%2011.%20Packaging%20and%20release..png)
+![Page 12 - Packaging and Release](visual-guide-images/page-16-packaging-release.png)
 
 **What this page is for**
 Packaging and Release is the final checkpoint before you publish. It walks you through packaging, sanity checks, test installs, and release notes so your mod ships cleanly.
@@ -319,9 +395,9 @@ Packaging and Release is the final checkpoint before you publish. It walks you t
 - If assets are missing, re-check archive paths and file structure.
 - Keep release notes short and list changes plus requirements.
 
-## Page 12 - Animation Guide
+## Page 13 - Animation Guide
 
-![Page 12 - Animation Guide](visual-guide-images/Page%2012%20Animation%20Guide..png)
+![Page 13 - Animation Guide](visual-guide-images/page-17-animation-guide.png)
 
 **What this page is for**
 Animation Guide is the end-to-end pipeline page for Fallout 4 animations. It keeps the required tools, reference files, and validation steps in one ordered flow so you can build animations that import and play correctly in game.
@@ -344,9 +420,9 @@ Animation Guide is the end-to-end pipeline page for Fallout 4 animations. It kee
 - Test a short clip first to validate scale and bone names.
 - If animations do nothing in game, double-check export settings and target skeleton.
 
-## Page 13 - Quest Mod Authorizing
+## Page 14 - Quest Mod Authorizing
 
-![Page 13 - Quest Mod Authorizing](visual-guide-images/Page%2013.%20Quest%20mod%20authorizing.%20.png)
+![Page 14 - Quest Mod Authorizing](visual-guide-images/page-18-quest-mod-authorizing.png)
 
 **What this page is for**
 Quest Mod Authorizing is the all-in-one workflow hub for building a quest mod. It organizes your Creation Kit steps, validation checks, and first-test loop so you can create a working quest without missing required setup.
@@ -371,9 +447,9 @@ Quest Mod Authorizing is the all-in-one workflow hub for building a quest mod. I
 - Test in a clean profile so you know your plugin is the only variable.
 - If the quest never starts, check stage indexes and confirm the plugin is enabled.
 
-## Page 14 - The LoreKeeper
+## Page 15 - The LoreKeeper
 
-![Page 14 - The LoreKeeper](visual-guide-images/Page%2014%20The%20LoreKeeper..png)
+![Page 15 - The LoreKeeper](visual-guide-images/page-19-the-lorekeeper.png)
 
 **What this page is for**
 The LoreKeeper is your worldbuilding and canon guardrail. It helps you keep factions, timelines, locations, and character details consistent so your quest mod feels like it belongs in Fallout 4.
@@ -398,9 +474,9 @@ The LoreKeeper is your worldbuilding and canon guardrail. It helps you keep fact
 - Use the timeline before scripting events or dialogue.
 - Keep a running list of names so you do not accidentally duplicate or conflict.
 
-## Page 15 - Tools
+## Page 16 - Tools
 
-![Page 15 - Tools](visual-guide-images/Page%2015%20tools..png)
+![Page 16 - Tools](visual-guide-images/page-20-tools.png)
 
 **What this page is for**
 Tools is your command center for launching and verifying the modding apps Mossy integrates with. It shows what is installed, what is missing, and gives you safe launch and config shortcuts.
@@ -425,9 +501,9 @@ Tools is your command center for launching and verifying the modding apps Mossy 
 - Keep tools in stable locations to avoid broken paths.
 - If a tool is missing, install it before starting any wizard.
 
-## Page 16 - Cosmos Workflow
+## Page 17 - Cosmos Workflow
 
-![Page 16 - Cosmos Workflow](visual-guide-images/Page%2016%20Cosmos%20Workflow..png)
+![Page 17 - Cosmos Workflow](visual-guide-images/page-21-cosmos-workflow.png)
 
 **What this page is for**
 Cosmos Workflow is the structured pipeline for building larger, story-driven mods. It connects lore, quest design, asset creation, and testing into a single ordered flow so you can move from concept to playable build without losing track.
@@ -452,9 +528,9 @@ Cosmos Workflow is the structured pipeline for building larger, story-driven mod
 - Keep builds small until your first end-to-end test passes.
 - If you get stuck, jump back to Tools or Quick Reference for help.
 
-## Page 17 - Dev Tools
+## Page 18 - Dev Tools
 
-![Page 17 - Dev Tools](visual-guide-images/Page%2017%20dev%20tools..png)
+![Page 18 - Dev Tools](visual-guide-images/page-22-devtools.png)
 
 **What this page is for**
 Dev Tools is the advanced utilities hub. It surfaces diagnostic, profiling, and automation helpers used to validate mods, inspect assets, and streamline repetitive tasks.
@@ -477,9 +553,9 @@ Dev Tools is the advanced utilities hub. It surfaces diagnostic, profiling, and 
 - Start with diagnostics before assuming a tool is broken.
 - If a tool reports warnings, fix those before continuing your build.
 
-## Page 18 - The Assembler
+## Page 19 - The Assembler
 
-![Page 18 - The Assembler](visual-guide-images/Page%2018%20the%20assembler..png)
+![Page 19 - The Assembler](visual-guide-images/page-23-the-assembler.png)
 
 **What this page is for**
 The Assembler is your build-and-bundle workspace. It helps you gather assets, validate structure, and assemble a clean, release-ready package without missing required files.
@@ -503,9 +579,9 @@ The Assembler is your build-and-bundle workspace. It helps you gather assets, va
 - Fix warnings early; they often become in-game errors later.
 - Rebuild the staging output after any asset change.
 
-## Page 19 - The Workshop
+## Page 20 - The Workshop
 
-![Page 19 - The Workshop](visual-guide-images/Page%2019%2C%20the%20workshop..png)
+![Page 20 - The Workshop](visual-guide-images/page-24-the-workshop.png)
 
 **What this page is for**
 The Workshop is your hands-on creation space. It is where you shape assets, configure files, and iterate quickly before sending content to packaging or release.
@@ -529,9 +605,9 @@ The Workshop is your hands-on creation space. It is where you shape assets, conf
 - Keep notes on what you changed so you can undo or repeat.
 - If a step is unclear, jump to Quick Reference for a fast reminder.
 
-## Page 20 - The Blueprint
+## Page 21 - The Blueprint
 
-![Page 20 - The Blueprint](visual-guide-images/Page%2020%20the%20blueprint..png)
+![Page 21 - The Blueprint](visual-guide-images/page-20-the-blueprint.png)
 
 **What this page is for**
 The Blueprint is the planning and specification page. It helps you define scope, dependencies, and required assets before you build, so your mod stays consistent and manageable.
@@ -555,9 +631,9 @@ The Blueprint is the planning and specification page. It helps you define scope,
 - If you add a dependency, note why it is required.
 - Use the milestones as checkpoints for playtests.
 
-## Page 21 - The Auditor
+## Page 22 - The Auditor
 
-![Page 21 - The Auditor](visual-guide-images/Page%2021%20the%20auditor..png)
+![Page 22 - The Auditor](visual-guide-images/page-25-the-auditor.png)
 
 **What this page is for**
 The Auditor is your quality control checkpoint. It scans assets, plugins, and references to detect errors early, so you can fix issues before packaging or release.
@@ -581,9 +657,9 @@ The Auditor is your quality control checkpoint. It scans assets, plugins, and re
 - Do not ignore warnings; they often become in-game bugs.
 - Audit after any large content change or merge.
 
-## Page 22 - Mining Dashboard
+## Page 23 - Mining Dashboard
 
-![Page 22 - Mining Dashboard](visual-guide-images/Page%2022%20Mining%20dashboard..png)
+![Page 23 - Mining Dashboard](visual-guide-images/page-27-mining-and-analysis-hub.png)
 
 **What this page is for**
 Mining Dashboard is the data discovery hub. It helps you scan docs, files, and references to surface useful patterns, common fixes, and related topics for your current modding task.
@@ -607,9 +683,9 @@ Mining Dashboard is the data discovery hub. It helps you scan docs, files, and r
 - Save the top 3 findings so you can reuse them later.
 - If results feel broad, add a tool name or keyword.
 
-## Page 23 - Advanced Analysis
+## Page 24 - Advanced Analysis
 
-![Page 23 - Advanced Analysis](visual-guide-images/Page%2023%20Advanced%20Analysis.png)
+![Page 24 - Advanced Analysis](visual-guide-images/page-27-mining-and-analysis-hub.png)
 
 **What this page is for**
 Advanced Analysis is the deep-dive diagnostics area. It helps you inspect complex issues across plugins, assets, and workflows so you can pinpoint root causes and plan precise fixes.
@@ -633,10 +709,13 @@ Advanced Analysis is the deep-dive diagnostics area. It helps you inspect comple
 - Fix errors first, then tackle warnings.
 - Keep notes on changes so you can compare results after re-runs.
 
-## Page 24 - The Scribe
+## Page 25 - The Scribe
 
-![Page 24 - The Scribe](visual-guide-images/Page%2024%20The%20Scribe..png)
+![Page 25 - The Scribe](visual-guide-images/page-28-the-scribe.png)
 
+## Page 26 - System Monitor
+
+![Page 26 - System Monitor](visual-guide-images/page-29-system-monitor.png)
 **What this page is for**
 The Scribe is your writing and documentation workspace. It helps you draft quest dialogue, notes, changelogs, and internal documentation so your mod stays consistent and easy to maintain.
 
@@ -659,35 +738,15 @@ The Scribe is your writing and documentation workspace. It helps you draft quest
 - Use consistent naming across notes and scripts.
 - Write a quick changelog after each major edit.
 
-## Page 25 - System Monitor
-
-![Page 25 - System Monitor](visual-guide-images/Page%2025%20System%20Monitor..png)
-
-**What this page is for**
-System Monitor shows the live health of Mossy and your modding environment. It tracks bridge status, tool detection, and system signals so you can confirm everything is ready before you build.
-
-**How to use it**
-1. Check the main status tiles for green/yellow/red indicators.
-2. Run a full scan if you just installed or moved tools.
-3. Review each module status to see what is missing or misconfigured.
-4. Use the quick links to fix issues (Install Wizard, Tool Verify).
-5. Return here whenever something feels slow or unstable.
-
-**Page functions (what each part does)**
-- Status tiles: quick health view for core systems.
-- Full scan button: re-checks tools, paths, and permissions.
-- Module list: shows which integrations are detected and active.
-- Error details: explains why a status is warning or failed.
-- Quick fix links: jumps to the exact tool to resolve a problem.
 
 **Beginner tips**
 - Always run a scan after changing tool installs.
 - Yellow means fix soon; red means stop and repair before continuing.
 - If the bridge is offline, restart Mossy before troubleshooting deeper.
 
-## Page 26 - The Orchestrator
+## Page 27 - The Orchestrator
 
-![Page 26 - The Orchestrator](visual-guide-images/Page%2026%20the%20Orchestrator..png)
+![Page 27 - The Orchestrator](visual-guide-images/page-30-the-orchestrator.png)
 
 **What this page is for**
 The Orchestrator coordinates complex, multi-tool workflows. It keeps long processes in order, tracks dependencies, and makes sure each stage runs in the correct sequence.
@@ -711,9 +770,9 @@ The Orchestrator coordinates complex, multi-tool workflows. It keeps long proces
 - Do not skip failed steps; fix and resume to keep results clean.
 - Keep logs from successful runs so you can repeat them later.
 
-## Page 27 - Workflow Runner
+## Page 28 - Workflow Runner
 
-![Page 27 - Workflow Runner](visual-guide-images/Page%2027%20workflow%20runner..png)
+![Page 28 - Workflow Runner](visual-guide-images/page-31-workflow-runner.png)
 
 **What this page is for**
 Workflow Runner is the execution console for predefined tasks. It lets you run a specific workflow end-to-end while showing live progress, outputs, and any required actions.
@@ -737,9 +796,9 @@ Workflow Runner is the execution console for predefined tasks. It lets you run a
 - Read the steps first so you are not surprised by tool prompts.
 - Save logs from failed runs to help troubleshooting.
 
-## Page 28 - The Holodeck
+## Page 29 - The Holodeck
 
-![Page 28 - The Holodeck](visual-guide-images/Page%2028.%20The%20holodeck..png)
+![Page 29 - The Holodeck](visual-guide-images/page-32-the-holodeck.png)
 
 **What this page is for**
 The Holodeck is your safe test space. It lets you simulate workflows, preview outcomes, and run sandbox checks before you commit changes to your live project.
@@ -763,9 +822,9 @@ The Holodeck is your safe test space. It lets you simulate workflows, preview ou
 - Treat warnings as signals to improve stability.
 - Keep test inputs close to your real setup for accurate results.
 
-## Page 29 - The Vault
+## Page 30 - The Vault
 
-![Page 29 - The Vault](visual-guide-images/Page%2029%20the%20Vault..png)
+![Page 30 - The Vault](visual-guide-images/page-33-the-vault.png)
 
 **What this page is for**
 The Vault is your personal knowledge store. It keeps notes, saved answers, references, and project context so you can reuse what you learn across multiple modding sessions.
@@ -789,9 +848,9 @@ The Vault is your personal knowledge store. It keeps notes, saved answers, refer
 - Use consistent tags so searches stay fast.
 - Keep one note per issue so it is easy to update later.
 
-## Page 30 - BA2 Manager
+## Page 31 - BA2 Manager
 
-![Page 30 - BA2 Manager](visual-guide-images/Page%2030%20BA2%20Manager..png)
+![Page 31 - BA2 Manager](visual-guide-images/page-34-ba2-manager.png)
 
 **What this page is for**
 BA2 Manager handles Fallout 4 archive files. It helps you pack, inspect, and verify BA2 archives so your assets load correctly in game.
@@ -815,9 +874,9 @@ BA2 Manager handles Fallout 4 archive files. It helps you pack, inspect, and ver
 - Verify after every build to catch missing files early.
 - Use clear archive names so you can identify them later.
 
-## Page 31 - Workflow Recorder
+## Page 32 - Workflow Recorder
 
-![Page 31 - Workflow Recorder](visual-guide-images/Page%2031.%20Workflow%20recorder..png)
+![Page 32 - Workflow Recorder](visual-guide-images/page-35-workflow-recorder.png)
 
 **What this page is for**
 Workflow Recorder captures your steps as you work so you can replay, share, or automate them later. It helps turn your manual process into a repeatable workflow.
@@ -841,9 +900,9 @@ Workflow Recorder captures your steps as you work so you can replay, share, or a
 - Add labels that describe why each step matters.
 - Test the recorded workflow once before relying on it.
 
-## Page 32 - Plugin Manager
+## Page 33 - Plugin Manager
 
-![Page 32 - Plugin Manager](visual-guide-images/Page%2032.%20Plugin%20manager..png)
+![Page 33 - Plugin Manager](visual-guide-images/page-36-plugin-manager.png)
 
 **What this page is for**
 Plugin Manager helps you organize and validate your ESP/ESM/ESL files. It keeps load order clean, highlights conflicts, and ensures required masters are present before you test.
@@ -867,9 +926,9 @@ Plugin Manager helps you organize and validate your ESP/ESM/ESL files. It keeps 
 - Fix missing masters before launching the game.
 - Save a clean baseline profile you can return to.
 
-## Page 33 - Local Capabilities
+## Page 34 - Local Capabilities
 
-![Page 33 - Local Capabilities](visual-guide-images/Page%2033.%20Local%20capabilities..png)
+![Page 34 - Local Capabilities](visual-guide-images/page-37-local-capabilities.png)
 
 **What this page is for**
 Local Capabilities shows what Mossy can do on your machine right now. It summarizes detected tools, available integrations, and permissions so you know which features are ready to use.
@@ -893,9 +952,9 @@ Local Capabilities shows what Mossy can do on your machine right now. It summari
 - Fix warnings before starting complex workflows.
 - Use this page as your first check when a feature is disabled.
 
-## Page 34 - Image Studio
+## Page 35 - Image Studio
 
-![Page 34 - Image Studio](visual-guide-images/Page%2034%20image%20Studio..png)
+![Page 35 - Image Studio](visual-guide-images/page-38-image-studio.png)
 
 **What this page is for**
 Image Studio is your texture and UI art workspace. It helps you prepare images for Fallout 4 by resizing, converting formats, and validating texture rules before you ship.
@@ -919,9 +978,9 @@ Image Studio is your texture and UI art workspace. It helps you prepare images f
 - Always preview before saving to avoid compression artifacts.
 - Keep a backup of the original source image.
 
-## Page 35 - Live Synapse
+## Page 36 - Live Synapse
 
-![Page 35 - Live Synapse](visual-guide-images/Page%2035%20Live%20Synapse..png)
+![Page 36 - Live Synapse](visual-guide-images/page-39-live-synapse.png)
 
 **What this page is for**
 Live Synapse is the real-time activity feed. It monitors tool activity, file changes, and workflow events so you can see what Mossy is detecting as you work.
@@ -945,9 +1004,9 @@ Live Synapse is the real-time activity feed. It monitors tool activity, file cha
 - If nothing appears, confirm your integrations are enabled.
 - Export logs before asking for help.
 
-## Page 36 - Desktop Bridge
+## Page 37 - Desktop Bridge
 
-![Page 36 - Desktop Bridge](visual-guide-images/Page%2036%2C%20Desktop%20Bridge..png)
+![Page 37 - Desktop Bridge](visual-guide-images/page-40-desktop-bridge.png)
 
 **What this page is for**
 Desktop Bridge is the connection layer between Mossy and your installed tools. It manages permissions, detects running apps, and enables safe automation.
@@ -971,9 +1030,9 @@ Desktop Bridge is the connection layer between Mossy and your installed tools. I
 - Only grant permissions for tools you actively use.
 - If a tool is missing, re-scan in System Monitor.
 
-## Page 37 - Duplicate Finder
+## Page 38 - Duplicate Finder
 
-![Page 37 - Duplicate Finder](visual-guide-images/Page%2037.%20Duplicate.%20Finder..png)
+![Page 38 - Duplicate Finder](visual-guide-images/page-46-duplicate-finder.png)
 
 **What this page is for**
 Duplicate Finder helps you detect repeated or conflicting assets. It scans files and plugins to find duplicates so you can avoid wasted space and in-game overrides you did not intend.
@@ -997,9 +1056,9 @@ Duplicate Finder helps you detect repeated or conflicting assets. It scans files
 - Always back up before removing files.
 - Rebuild archives after deleting duplicates.
 
-## Page 38 - Community Learning
+## Page 39 - Community Learning
 
-![Page 38 - Community Learning](visual-guide-images/Page%2038.%20Community%20learning..png)
+![Page 39 - Community Learning](visual-guide-images/page-47-community-learning.png)
 
 **What this page is for**
 Community Learning is the shared knowledge hub. It helps you discover tutorials, proven workflows, and community tips so you can learn faster and avoid common mistakes.
@@ -1023,11 +1082,11 @@ Community Learning is the shared knowledge hub. It helps you discover tutorials,
 - Save anything that solves a current problem.
 - Compare two guides if steps conflict.
 
-## Page 39 - Tool Verify
+## Page 40 - Tool Verify
 
-![Page 39 - Tool Verify](visual-guide-images/Page%2039%20Tool%20verify..png)
+![Page 40 - Tool Verify](visual-guide-images/page-48-tool-verify.png)
 
-**What this page is for**
+**What this page does**
 Tool Verify confirms your external modding tools are installed correctly. It checks paths, versions, and required components so workflows can run without errors.
 
 **How to use it**
@@ -1049,9 +1108,9 @@ Tool Verify confirms your external modding tools are installed correctly. It che
 - Keep tool installs in stable locations to avoid broken paths.
 - If verification fails, use Install Wizard or Settings to update paths.
 
-## Page 40 - Settings
+## Page 41 - Settings
 
-![Page 40 - Settings](visual-guide-images/Page%2039%20settings..png)
+![Page 41 - Settings](visual-guide-images/page-49-settings.png)
 
 **What this page is for**
 Settings is where you customize how Mossy behaves. It controls preferences like integrations, storage, privacy options, and UI defaults so the app matches your workflow.
@@ -1075,9 +1134,9 @@ Settings is where you customize how Mossy behaves. It controls preferences like 
 - Keep storage paths in a safe, backed-up location.
 - If something feels off, reset that section and reconfigure.
 
-## Page 41 - Diagnostic Tools
+## Page 42 - Diagnostic Tools
 
-![Page 41 - Diagnostic Tools](visual-guide-images/Page%2041%20Diagnostic%20Tools..png)
+![Page 42 - Diagnostic Tools](visual-guide-images/page-50-diagnostic-tools.png)
 
 **What this page is for**
 Diagnostic Tools provides focused utilities to troubleshoot problems. It helps you isolate crashes, missing assets, and tool integration issues before they block your workflow.
@@ -1101,9 +1160,9 @@ Diagnostic Tools provides focused utilities to troubleshoot problems. It helps y
 - Fix errors before chasing warnings.
 - Keep reports for issues that repeat.
 
-## Page 42 - Support Mossy
+## Page 43 - Support Mossy
 
-![Page 42 - Support Mossy](visual-guide-images/Page%2042%20support%20Mossy..png)
+![Page 43 - Support Mossy](visual-guide-images/page-51-support-mossy.png)
 
 **What this page is for**
 Support Mossy is the community support and sustainability page. It explains how you can contribute, share feedback, and help keep the project active.
@@ -1124,6 +1183,313 @@ Support Mossy is the community support and sustainability page. It explains how 
 - Feedback is just as valuable as donations.
 - Share clear bug reports with steps to reproduce.
 - Support only through official links.
+
+## Page 44 - CK Extensions
+
+![Page 44 - CK Extensions](visual-guide-images/page-43-ck-extensions.png)
+
+**What this page is for**
+Integration helpers and safety features for the Creation Kit (CK): launch helpers, preflight checks and crash‑prevention tools.
+
+**How to use it (step‑by‑step)**
+1. Run the Preflight checks before opening CK to catch missing masters and path issues.
+2. Launch CK through the MO2/Launcher integration when working with virtual profiles.
+3. Use the safety hints if CK reports missing data or crashes on load.
+4. Re-run the preflight after major plugin edits.
+
+**Page functions (what each part does)**
+- Launch CK: open Creation Kit with the correct profile and environment.
+- Preflight: run sanity checks to reduce crash risk.
+- Safety hints: actions to fix common CK startup failures.
+
+**Screenshot callouts**
+- Launch button — respects MO2 profiles.
+- Preflight panel — lists warnings and suggested fixes.
+
+**Beginner tips**
+- Always backup before opening CK with experimental plugins. ✅
+- Use Preflight when you see CK crashes on load.
+
+## Page 45 - ComFyui Extensions
+
+![Page 45 - ComFyui Extensions](visual-guide-images/page-44-comfyui-extensions.png)
+
+**What this page is for**
+Connect and control ComfyUI image‑pipeline instances from inside Mossy — run pipelines, manage presets, and preview outputs.
+
+**How to use it (step‑by‑step)**
+1. Start your local ComfyUI server and confirm it’s reachable.
+2. Open the ComFyUI extension in Mossy and check the status indicator.
+3. Select a preset/pipeline and click Run to process images.
+4. Review previews and export outputs to your project.
+
+**Page functions (what each part does)**
+- Status view: shows connection state to ComfyUI.
+- Pipeline selector: pick a saved pipeline preset.
+- Run/Preview: execute and preview results before exporting.
+
+**Screenshot callouts**
+- Top: connection status and start/stop controls.
+- Center: pipeline list and preset selector.
+- Bottom: preview pane with quick‑export.
+
+**Beginner tips**
+- Start ComfyUI before opening this page.
+- Use small test images when trying a new pipeline.
+
+## Page 46 - Upscayl / Upscale Extension
+
+![Page 46 - Upscayl Extension](visual-guide-images/page-45-upscale-extension.png)
+
+**What this page is for**
+Run local Upscayl upscaling from Mossy to improve texture resolution with presets and batch operations.
+
+**How to use it (step‑by‑step)**
+1. Open the Upscayl extension and add textures to the queue.
+2. Choose an upscaling preset appropriate for UI or in‑game art.
+3. Run the batch job and inspect generated outputs.
+4. Import results into Image Studio or the Workshop.
+
+**Page functions (what each part does)**
+- File queue: add/remove textures to process.
+- Preset selector: choose transform & strength.
+- Batch controls: run, pause or cancel jobs.
+
+**Screenshot callouts**
+- Queue pane — adds input files for processing.
+- Preset dropdown — pick quality/scale settings.
+- Result preview — compare before/after.
+
+**Beginner tips**
+- Upscale then manually retouch for best results.
+- Use presets matched to asset type (UI vs textures).
+
+## Page 47 - MO2 Extension
+
+![Page 47 - MO2 Extension](visual-guide-images/page-41-mo2-extension.png)
+
+**What this page is for**
+Integration with Mod Organizer 2 (MO2): surface profiles, load orders and profile‑scoped operations.
+
+**How to use it (step‑by‑step)**
+1. Start MO2 and ensure your profile is active.
+2. Open the MO2 Extension and click Refresh to load profile data.
+3. Inspect load order, enable/disable mods or export lists for tools.
+4. Use the integration when packaging or running audits.
+
+**Page functions (what each part does)**
+- Profile detection: shows the active MO2 profile.
+- Load order preview: quick snapshot of plugin order.
+- Export list: produce files for auditors or patchers.
+
+**Screenshot callouts**
+- Top-left: detected MO2 profile name.
+- Center: mod list and load‑order preview.
+- Action buttons: refresh & export.
+
+**Beginner tips**
+- Always refresh after changing profiles in MO2.
+- Use exported load lists for reproducible tests.
+
+## Page 48 - xEdit Tools
+
+![Page 48 - XEdit Tools](visual-guide-images/page-42-xedit-tools.png)
+
+**What this page is for**
+Utilities for xEdit/FO4Edit: export load orders, run xEdit scripts, and produce patch‑friendly lists.
+
+**How to use it (step‑by‑step)**
+1. Open XEdit Tools and choose Export Load Order to create a plugin list.
+2. Use Run Script for batch fixes (always backup first).
+3. Import exported lists into Auditors or patch generators.
+
+**Page functions (what each part does)**
+- Export load order: produces plugins.txt or JSON lists.
+- Run script: execute xEdit scripts in a safe, sandboxed flow.
+- Profile awareness: respects active MO2/Vortex profiles.
+
+**Screenshot callouts**
+- Export button — select output format.
+- Scripts panel — available batch scripts.
+
+**Beginner tips**
+- Backup your plugins before running scripts.
+- Prefer read‑only exports until you’re confident.
+
+## Page 49 - DDS Converter
+
+![Page 49 - DDS Converter](visual-guide-images/page-14-dds-converter.png)
+
+**What this page is for**
+Convert textures between DDS and common formats (PNG/JPEG) with game‑safe presets and mipmap options.
+
+**How to use it (step‑by‑step)**
+1. Select the source texture(s) and pick a target preset (FO4 UI, Albedo, Normal).
+2. Choose mipmap and compression options.
+3. Click Convert and inspect the output in Image Studio.
+4. Save converted textures to your project folder.
+
+**Page functions (what each part does)**
+- Preset selector: pick output rules for the game.
+- Mipmap controls: generate or strip mipmaps.
+- Convert button: run the transformation.
+
+**Screenshot callouts**
+- Preset dropdown and sample preview.
+- Compression/format controls.
+
+**Beginner tips**
+- Use the FO4 texture presets to avoid in‑game artifacts.
+- Keep originals backed up before converting.
+
+## Page 50 - Texture Generator
+
+![Page 50 - Texture Generator](visual-guide-images/page-15-texture-generator.png)
+
+**What this page is for**
+AI‑assisted texture creation and enhancement (bakes, style presets, seamless generation).
+
+**How to use it (step‑by‑step)**
+1. Upload or select a base texture.
+2. Choose a generator preset (seamless, weathering, upscaling).
+3. Run generation and iterate until satisfied.
+4. Export to Image Studio for final edits.
+
+**Page functions (what each part does)**
+- Presets: quick style/goal selection.
+- Generate: starts the AI pipeline.
+- Batch: process multiple textures at once.
+
+**Screenshot callouts**
+- Preset gallery — choose generation style.
+- Preview pane — inspect before export.
+
+**Beginner tips**
+- Start with low-strength presets and iterate.
+- Combine generator output with manual touch‑ups.
+
+## Page 51 - Guided Tours
+
+![Page 51 - Guided Tours](visual-guide-images/page-54-guided-tours.png)
+
+**What this page is for**
+Prebuilt, interactive tours (Welcome, Feature Spotlight, Module tours) that walk you through Mossy step‑by‑step.
+
+**How to use it (step‑by‑step)**
+1. Open Guided Tours and pick a tour (Welcome, Workshop, Feature Spotlight).
+2. Follow each on‑screen step; Mossy will highlight UI elements and explain actions.
+3. Use Next/Previous to control pace or Exit to stop.
+4. Re-run tours anytime via the Command Palette (Ctrl+K).
+
+**Page functions (what each part does)**
+- Tour list: choose which guided flow to run.
+- Step overlay: highlights UI and shows instructions.
+- Replay controls: restart or step through the tour.
+
+**Screenshot callouts**
+- Tour chooser — list of available tours.
+- Overlay sample — shows a highlighted UI area and narration.
+
+**Beginner tips**
+- Use the Welcome tour on first launch.
+- Re-run the Workshop tour when learning a new tool.
+
+## Page 52 - Fallout 4 Wiki (Reference)
+
+![Page 52 - Fallout 4 Wiki](visual-guide-images/page-53-fallout-4-wiki.png)
+
+**What this page is for**
+Quick access to community references (Fallout 4 Wiki, common form lists, and game‑specific docs) inside the Learning Hub.
+
+**How to use it (step‑by‑step)**
+1. Search the wiki from the Learning Hub or open this reference page.
+2. Use filters to find NPC, quest, or asset references.
+3. Save frequently used pages to your Vault.
+
+**Page functions (what each part does)**
+- Search bar: find game references quickly.
+- Result list: links to external docs and internal knowledge.
+- Save action: add to Memory Vault.
+
+**Beginner tips**
+- Keep a shortlist of 3 wiki pages you use most.
+- Save critical references to your Vault for offline access.
+
+## Page 53 - Pip‑Boy Mode
+
+![Page 53 - Pip‑Boy Mode](visual-guide-images/page-55-pip-boy-on-off.png)
+
+**What this page is for**
+Pip‑Boy Mode changes the app's look to a retro Fallout CRT/pip‑boy theme and provides themed UI affordances for immersion.
+
+**How to use it (step‑by‑step)**
+1. Toggle the Pip‑Boy icon in the header or press the Pip‑Boy hotkey.
+2. Choose green or amber color variants in Settings.
+3. Use full‑screen for the classic Pip‑Boy experience.
+4. Toggle off anytime to return to normal mode.
+
+**Page functions (what each part does)**
+- Theme toggle: switch Pip‑Boy mode on/off.
+- Color presets: select green/amber variants.
+- Window styling:CRT frame, scanlines, and themed accents.
+
+**Beginner tips**
+- Pip‑Boy is cosmetic only — it does not affect tool behavior.
+- Use full‑screen for the most authentic look.
+
+## Page 54 - FormID Remapper
+
+![Page 54 - FormID Remapper](visual-guide-images/page-25-the-auditor.png)
+
+**What this page is for**
+Safely remap FormIDs across plugins to avoid conflicts when merging multiple ESP/ESM files — useful when consolidating work from multiple authors or toolchains.
+
+**How to use it (step‑by‑step)**
+1. Open the FormID Remapper and add the plugins you want to merge or adjust.
+2. Run the Analyze action to surface collisions and cross‑references.
+3. Review the suggested remaps and backup your files.
+4. Apply the remap and run a validation / quick audit.
+
+**Page functions (what each part does)**
+- Analyze: detects conflicts and overlapping FormIDs.
+- Preview: shows proposed remap ranges and affected records.
+- Apply Remap: executes changes with an automatic backup.
+
+**Screenshot callouts**
+- Left: plugin list and detected conflicts.
+- Center: remap preview and affected records.
+- Bottom: Apply/Undo controls with backup status.
+
+**Beginner tips**
+- Always create a backup before applying a remap. ✅
+- Run the Auditor after remapping to confirm no references were lost.
+
+## Page 55 - Precombine Generator
+
+![Page 55 - Precombine Generator](visual-guide-images/page-23-the-assembler.png)
+
+**What this page is for**
+Generate PRP / precombine patches to fix rendering and lighting issues caused by complex meshes — helps improve performance and correct in‑game lighting artifacts.
+
+**How to use it (step‑by‑step)**
+1. Scan your mod folder to find meshes flagged for precombine.
+2. Inspect flagged objects and preview how precombine will change geometry groups.
+3. Generate the PRP patch and test in the Holodeck or a small test profile.
+4. Iterate only on items that improve the in‑game result.
+
+**Page functions (what each part does)**
+- Scan: finds mesh assets with precombine concerns.
+- Preview: shows expected PRP changes and warnings.
+- Generate Patch: creates a PRP/patch file you can apply and test.
+
+**Screenshot callouts**
+- Scan results list with severity badges.
+- Preview pane showing mesh group changes.
+- Generate button and output location.
+
+**Beginner tips**
+- Test patches on a small profile before wide application.
+- Precombine helps lighting/performance but may require mesh rework.
 
 ## Onboarding Flow Diagram
 
@@ -1515,3 +1881,38 @@ This visual guide shows:
 - Color and icon references
 
 All visually integrated into the Mossy Pip-Boy aesthetic! 🎨✨
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

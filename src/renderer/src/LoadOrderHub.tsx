@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, List, Beaker } from 'lucide-react';
+import { ChevronDown, ChevronUp, List, Beaker, Sparkles, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { LoadOrderAnalyzer } from './LoadOrderAnalyzer';
 import { LoadOrderLab } from './loadOrder/LoadOrderLab';
+import LoadOrderOptimizer from './LoadOrderOptimizer';
 
 type HubSection = {
   id: string;
@@ -33,6 +35,13 @@ const LoadOrderHub: React.FC = () => {
       icon: Beaker,
       content: <LoadOrderLab embedded />,
     },
+    {
+      id: 'optimizer',
+      title: 'Step 3: Load Order Optimizer',
+      description: 'Conflict analysis, rule-based optimization, and export.',
+      icon: Sparkles,
+      content: <LoadOrderOptimizer embedded />,
+    },
   ];
 
   return (
@@ -51,7 +60,30 @@ const LoadOrderHub: React.FC = () => {
           <ol className="list-decimal list-inside mt-2 space-y-1 text-slate-300">
             <li>Run the analyzer for quick issues</li>
             <li>Use Load Order Lab for deeper prep</li>
+            <li>Use the Optimizer for rule-based conflict resolution</li>
+            <li>Generate a <strong className="text-emerald-200">PRP-compatible combined patch</strong> for your entire load order &mdash; or rebuild precombines for a single mod</li>
           </ol>
+        </div>
+
+        {/* Step 4 shortcut card */}
+        <div className="mb-5 border border-emerald-700/50 rounded-lg overflow-hidden bg-emerald-950/30">
+          <div className="px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <Zap className="w-5 h-5 text-emerald-300 flex-shrink-0" />
+              <div>
+                <div className="text-sm font-black text-white">Step 4: PRP Patch Tools</div>
+                <div className="text-xs font-medium text-slate-300">
+                  One-click combined patch for your whole load order &bull; Single mod precombine rebuild + PRP companion patch
+                </div>
+              </div>
+            </div>
+            <Link
+              to="/tools/precombine-generator"
+              className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs transition-colors whitespace-nowrap"
+            >
+              Open PRP Tools &rarr;
+            </Link>
+          </div>
         </div>
 
         <div className="space-y-4">

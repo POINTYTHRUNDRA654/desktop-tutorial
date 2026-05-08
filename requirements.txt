@@ -1,0 +1,21 @@
+# Mossy Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core backend dependencies (mossy_server.py)
+flask>=3.0.0
+flask-cors>=4.0.0
+mss>=9.0.0
+pyautogui>=0.9.54
+pyperclip>=1.8.2
+psutil>=5.9.0
+
+# Gradio for Python code writing assistance
+gradio>=4.0.0
+
+# Code quality and formatting
+black>=24.0.0
+autopep8>=2.0.0
+pylint>=3.0.0
+
+# Additional utilities
+requests>=2.31.0

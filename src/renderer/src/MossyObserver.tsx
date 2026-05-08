@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MessageSquare, X } from 'lucide-react';
 import { useLive } from './LiveContext';
+import { recordActivity, type ActivityEvent } from './panelActivity';
+import { mossyAvatarUrl } from './assets/avatar';
 
 const QUIPS: Record<string, string[]> = {
     '/': [
@@ -20,15 +22,19 @@ const QUIPS: Record<string, string[]> = {
         "Your RAM usage is... ambitious."
     ],
     '/crucible': [
-        "Load your crash logs from Buffout or Crash Logger using the file input.",
-        "I analyze stack traces for common culprits - null pointers, bad references, corrupted meshes.",
+        "Crash logs from Addictol (Nexus #84214) are at %LOCALAPPDATA%\\Fallout4\\F4SE\\. Addictol is the all-in-one stability tool that supersedes Buffout 4 — do NOT install both.",
+        "Run CLASSIC (Nexus #56255) on your crash log first — it covers 250+ error scenarios and names the exact cause automatically.",
+        "Addictol (Nexus #84214) is the ALL-IN-ONE stability tool for OG/NG/1.11.x — it supersedes Buffout 4 (all variants), X-Cell, BakaMaxPapyrusOps, Faster Workshop, and more. Do NOT install Buffout 4 alongside it.",
+        "Address Library AiO (Nexus #47327) + Addictol + High FPS Physics Fix is the core 2026 stability stack.",
+        "I analyze stack traces for common culprits — null pointers, bad references, corrupted meshes.",
         "Look for EXCEPTION_ACCESS_VIOLATION and check which registers are null (RAX/RCX = 0x0).",
         "TESObjectREFR crashes often mean deleted references or bad object calls.",
         "BSLightingShaderProperty issues? Check your NIF files for corrupted materials.",
         "The 'File:' lines in the stack tell you which plugin caused the crash.",
-        "FormIDs starting with FF are temporary - they can't be saved and often cause issues.",
+        "FormIDs starting with FF are temporary — they can't be saved and often cause issues.",
         "If multiple plugins appear in the stack, the lowest one is usually the culprit.",
-        "Update Buffout 4 regularly - new crash detection gets added all the time."
+        "A [D] NAVM FormID in the crash log means a deleted navmesh — use the xEdit Change FormID fix (see NAVMESH_FIX_GUIDE.md).",
+        "Update Addictol after every game patch — it needs runtime-specific builds."
     ],
     '/reverie': [
         "Ideas Bank is your brainstorm vault - capture quest concepts, settlement designs, NPC backstories before you forget them.",
@@ -212,7 +218,10 @@ const QUIPS: Record<string, string[]> = {
         "Blender is open? Remember: 1.0 scale and 30 FPS.",
         "Creation Kit detected. Don't forget to save frequently—and watch for deleted references.",
         "xEdit link is active. I can help resolve record conflicts in real-time.",
-        "I'm pulse-checking your system resources to ensure stability during asset heavy loads."
+        "I'm pulse-checking your system resources to ensure stability during asset heavy loads.",
+        "Blender add-on connected? I'm listening on http://127.0.0.1:8080 — install the real mossy_link.py (scripts/blender/) to get AI answers inside Blender.",
+        "The Blender add-on sends events to me on /event — I can react to mesh imports, exports, and step completions in real time.",
+        "If Blender shows 'Mossy not available', check that the Mossy desktop app is open and that your Groq API key is set in Settings."
     ],
     '/lorekeeper': [
         "The Lorekeeper manages LOD generation and precombine optimization for large worldspace performance.",
@@ -549,7 +558,62 @@ const MossyObserver: React.FC = () => {
         return undefined;
     }, []);
 
-    if (!message && !visible) return null;
+    // ── Bridge Activity (IPC: Desktop Bridge, Blender Bridge, MO2 Bridge, future plugins) ──
+    // Main process sends 'bridge-activity' when an external bridge/plugin registers
+    // something the user is doing.  We forward it into the activity store so Mossy's
+    // system context stays current, and surface a brief observation bubble.
+    useEffect(() => {
+        const api = window.electron?.api;
+        if (!api?.on) return undefined;
+
+        const unsubscribe = api.on('bridge-activity', (payload: ActivityEvent) => {
+            const { source, eventType, detail, panel } = payload || {};
+            if (!source || !eventType) return;
+
+            // Persist into the shared activity store.
+            recordActivity(source, eventType, detail, panel);
+
+            // Surface a brief "I see you…" observation.
+            const sourceLabel: Record<string, string> = {
+                'blender-bridge': 'Blender',
+                'desktop-bridge': 'Desktop Bridge',
+                'mo2-bridge': 'Mod Organizer 2',
+            };
+            const label = sourceLabel[source] ?? source;
+            const detailSuffix = detail ? `: ${detail}` : '';
+            setIsAlert(false);
+            setMessage(`[${label}] ${eventType}${detailSuffix}`);
+            setVisible(true);
+            setTimeout(() => setVisible(false), 4000);
+        });
+
+        return () => {
+            if (typeof unsubscribe === 'function') unsubscribe();
+        };
+    }, []);
+
+    // ── In-App Panel Activity (DOM event from KeepAlivePanel / any panel component) ──
+    // Any panel can call recordActivity() which also fires this custom event.
+    // MossyObserver listens here to show a brief "watching" indicator.
+    useEffect(() => {
+        const handleActivity = (e: Event) => {
+            const event = (e as CustomEvent<ActivityEvent>).detail;
+            if (!event) return;
+
+            // Only show a bubble for non-trivial events (skip bare panel entry quips
+            // since the route-based QUIPS effect already handles those).
+            if (event.eventType === 'entered') return;
+
+            const detailSuffix = event.detail ? `: ${event.detail}` : '';
+            setIsAlert(false);
+            setMessage(`Observing${event.panel ? ` [${event.panel}]` : ''} — ${event.eventType}${detailSuffix}`);
+            setVisible(true);
+            setTimeout(() => setVisible(false), 3500);
+        };
+
+        window.addEventListener('mossy-activity-event', handleActivity);
+        return () => window.removeEventListener('mossy-activity-event', handleActivity);
+    }, []);
 
     return (
         <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-30 transition-all duration-500 transform ${visible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'}`}>
@@ -578,28 +642,16 @@ const MossyObserver: React.FC = () => {
                 
                 {/* Mini Avatar Bubble */}
                 <div className={`w-12 h-12 rounded-full bg-black border-2 flex items-center justify-center overflow-hidden relative shadow-lg ${isAlert ? 'border-emerald-400 shadow-[0_0_15px_#10b981]' : 'border-slate-800'}`}>
-                    {customAvatar ? (
-                        <>
-                            <div className="absolute inset-0 bg-emerald-500/20 animate-pulse"></div>
-                            <img
-                                src={customAvatar}
-                                alt="Mossy"
-                                className="w-full h-full object-cover opacity-90"
-                                style={{ pointerEvents: 'none' }}
-                                draggable={false}
-                            />
-                        </>
-                    ) : (
-                        <>
-                            {/* Inner Glow */}
-                            <div className="absolute inset-0 bg-emerald-900/20"></div>
-                            {/* Core */}
-                            <div className="w-4 h-4 bg-emerald-400 rounded-full shadow-[0_0_15px_#10b981] animate-pulse"></div>
-                            {/* Rings */}
-                            <div className="absolute inset-1 border border-emerald-500/30 rounded-full animate-spin-slow"></div>
-                            <div className="absolute inset-2 border border-emerald-500/20 rounded-full animate-reverse-spin"></div>
-                        </>
-                    )}
+                    <>
+                        <div className="absolute inset-0 bg-emerald-500/20 animate-pulse"></div>
+                        <img
+                            src={customAvatar || mossyAvatarUrl}
+                            alt="Mossy"
+                            className="w-full h-full object-cover opacity-90"
+                            style={{ objectPosition: 'top center', pointerEvents: 'none' }}
+                            draggable={false}
+                        />
+                    </>
                 </div>
             </div>
         </div>

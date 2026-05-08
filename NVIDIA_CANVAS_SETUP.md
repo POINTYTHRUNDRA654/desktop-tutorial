@@ -23,7 +23,7 @@ NVIDIA Canvas (also called **Vita Canvas** by some users) is an AI-powered paint
 2. Follow the installation wizard
 3. Default installation path:
    ```
-   C:\Program Files\NVIDIA Corporation\NVIDIA Canvas\NVIDIACanvas.exe
+   D:\Program Files\NVIDIA Corporation\NVIDIA Canvas\Canvas.exe
    ```
 
 ---
@@ -44,8 +44,8 @@ Mossy should automatically detect NVIDIA Canvas if it's installed in the default
 If automatic detection didn't work:
 
 1. Click **"Browse"** next to NVIDIA Canvas
-2. Navigate to: `C:\Program Files\NVIDIA Corporation\NVIDIA Canvas\`
-3. Select: `NVIDIACanvas.exe`
+2. Navigate to: `D:\Program Files\NVIDIA Corporation\NVIDIA Canvas\`
+3. Select: `Canvas.exe` (some builds name it `NVIDIACanvas.exe`)
 4. Click **"Save Settings"**
 5. Test with **"Test Launch"**
 
@@ -59,8 +59,8 @@ If automatic detection didn't work:
 
 **Solution**:
 1. Open Windows Explorer
-2. Navigate to: `C:\Program Files\NVIDIA Corporation\NVIDIA Canvas\`
-3. Look for: `NVIDIACanvas.exe`
+2. Navigate to: `D:\Program Files\NVIDIA Corporation\NVIDIA Canvas\`
+3. Look for: `Canvas.exe` (or `NVIDIACanvas.exe`)
 4. If it's there, copy the full path
 5. Paste it into Mossy's External Tools settings
 6. Save and test
@@ -78,7 +78,7 @@ Some users accidentally select:
 - `NVIDIACanvas_Setup.exe` (the installer, not the app)
 - `Uninstall.exe` (the uninstaller)
 
-Make sure you select `NVIDIACanvas.exe` (the actual application)
+Make sure you select `Canvas.exe` (the actual application; older builds use `NVIDIACanvas.exe`)
 
 ---
 
@@ -107,17 +107,17 @@ You can ask Mossy to open Canvas:
    - Paint terrain (mountains, grass, sky)
    - Export as high-res PNG
 
-2. **Process in GIMP/Photopea**
-   - Adjust colors, contrast
-   - Add weathering effects
-   - Crop to power-of-2 dimensions (512, 1024, 2048, 4096)
+3. Default installation path:
+   ```
+   D:\Program Files\NVIDIA Corporation\NVIDIA Canvas\Canvas.exe
+   ```
 
 3. **Convert to DDS**
    - Use NVIDIA Texture Tools or GIMP DDS plugin
    - BC7 for color textures
    - BC5 for normal maps
 
-4. **Import to Creation Kit**
+2. Navigate to: `D:\Program Files\NVIDIA Corporation\NVIDIA Canvas\`
    - Place in `Data/Textures/YourMod/`
    - Reference in material files
 
@@ -130,7 +130,7 @@ NVIDIA Canvas is sometimes called:
 - **Canvas** (short name)
 - **GauGAN** (the AI technology behind it)
 
-All these names work with Mossy's launch commands!
+2. Navigate to: `D:\Program Files\NVIDIA Corporation\NVIDIA Canvas\`
 
 ---
 

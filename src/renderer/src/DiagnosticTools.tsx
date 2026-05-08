@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { AlertCircle, CheckCircle2, XCircle, Loader2, Play, Copy, ArrowDownToLine } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
@@ -96,6 +97,7 @@ const DiagnosticTools: React.FC<DiagnosticToolsProps> = ({ embedded = false }) =
   const [revealStatus, setRevealStatus] = useState<string>('');
 
   const runDiagnostics = async () => {
+    toast('Running diagnostics...', { icon: <Loader2 className="w-4 h-4 animate-spin" /> });
     const updatedChecks: DiagnosticCheck[] = checks.map(c => ({ ...c, status: 'checking', result: '', errorDetails: '' }));
 
     const setCheck = (id: string, patch: Partial<DiagnosticCheck>) => {
@@ -236,10 +238,9 @@ const DiagnosticTools: React.FC<DiagnosticToolsProps> = ({ embedded = false }) =
           const flags = [
             `backend=${status.backendToken ? 'yes' : 'no'}`,
             `openai=${status.openai ? 'yes' : 'no'}`,
-            `elevenlabs=${status.elevenlabs ? 'yes' : 'no'}`,
             `groq=${status.groq ? 'yes' : 'no'}`,
           ].join(' | ');
-          const anyConfigured = status.backendToken || status.openai || status.elevenlabs || status.groq;
+          const anyConfigured = status.backendToken || status.openai || status.groq;
           setCheck('secret-status', { result: flags, status: anyConfigured ? 'success' : 'error' });
         }
       }
@@ -248,6 +249,7 @@ const DiagnosticTools: React.FC<DiagnosticToolsProps> = ({ embedded = false }) =
     }
 
     setChecks(updatedChecks);
+    toast.success('Diagnostics complete');
   };
 
   // Auto-run when opening the page (quick health view)
@@ -630,7 +632,7 @@ ${listAvailableAPIs()}
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(testOutput);
-                      alert('Output copied to clipboard');
+                      toast.success('Output copied to clipboard');
                     }}
                     className="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1"
                   >
@@ -664,7 +666,7 @@ ${listAvailableAPIs()}
                   if ((window as any).electron?.webContents?.openDevTools) {
                     (window as any).electron.webContents.openDevTools();
                   } else {
-                    alert('Dev tools not available. Try pressing F12 or check if you are running the desktop app.');
+                    toast.error('Dev tools not available. Try pressing F12 or check if you are running the desktop app.');
                   }
                 }
               }}

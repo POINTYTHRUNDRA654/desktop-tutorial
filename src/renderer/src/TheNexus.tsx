@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Zap, Wrench, Database, Mic, Volume2, Activity, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Zap, Wrench, Database, Mic, Volume2, Activity, AlertCircle, CheckCircle2, Archive, Brain, Binary, Network, Code, Hammer, DraftingCompass, Feather, Container, Gamepad2, Gauge } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
@@ -24,8 +24,8 @@ const HealthBadge: React.FC<{
     status === 'ok'
       ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
       : status === 'bad'
-      ? 'border-red-500/40 bg-red-500/10 text-red-200'
-      : 'border-yellow-500/40 bg-yellow-500/10 text-yellow-100';
+        ? 'border-red-500/40 bg-red-500/10 text-red-200'
+        : 'border-yellow-500/40 bg-yellow-500/10 text-yellow-100';
 
   const dot = status === 'ok' ? <CheckCircle2 className="w-3 h-3" /> : status === 'bad' ? <AlertCircle className="w-3 h-3" /> : <Activity className="w-3 h-3" />;
 
@@ -56,7 +56,7 @@ const TheNexus: React.FC = () => {
     ttsCount: 0,
     micState: 'unknown' as string,
   }));
-  
+
   // Get live interaction state from context
   const { isActive, mode, volume } = useLive();
 
@@ -70,7 +70,7 @@ const TheNexus: React.FC = () => {
     // 2. Load Local State
     const savedProject = localStorage.getItem('mossy_project');
     if (savedProject) setActiveProject(JSON.parse(savedProject));
-    
+
     const bridge = localStorage.getItem('mossy_bridge_active') === 'true';
     setBridgeStatus(bridge);
 
@@ -153,14 +153,14 @@ const TheNexus: React.FC = () => {
     };
 
     const onVaultUpdate = () => {
-      runHealth().catch(() => {});
+      runHealth().catch(() => { });
     };
 
-    runHealth().catch(() => {});
+    runHealth().catch(() => { });
     window.addEventListener('mossy-knowledge-updated', onVaultUpdate);
 
     const synth: any = (window as any).speechSynthesis;
-    const onVoicesChanged = () => runHealth().catch(() => {});
+    const onVoicesChanged = () => runHealth().catch(() => { });
     try {
       synth?.addEventListener?.('voiceschanged', onVoicesChanged);
     } catch {
@@ -178,25 +178,25 @@ const TheNexus: React.FC = () => {
   }, []);
 
   return (
-    <div 
+    <div
       className="h-full w-full flex flex-col relative overflow-y-auto overflow-x-hidden bg-black font-mono transition-all duration-700"
     >
       {/* HUD Overlays */}
       <div className="absolute inset-0 bg-emerald-500/5 mix-blend-overlay pointer-events-none" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_#000_150%)] pointer-events-none scale-150" />
-      
+
       {/* Digital Scanlines */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-20" />
 
       {/* Main UI Container */}
       <div className="relative z-20 flex-1 flex flex-col px-4 sm:px-6 lg:px-10 py-8">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-12">
-            <div>
-                <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase italic">
+          <div>
+            <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase italic">
               Mossy<span className="text-emerald-400">.Space</span>
-                </h1>
+            </h1>
             <p className="text-emerald-400 text-xs tracking-[0.3em] font-bold mt-2">NEURAL ENVIRONMENT • 1.0.4-STABLE</p>
-            </div>
+          </div>
           <div className="flex items-center gap-3">
             <Link
               to="/reference"
@@ -205,8 +205,8 @@ const TheNexus: React.FC = () => {
               Help
             </Link>
             <div className={`px-4 py-2 border rounded-full text-[10px] font-bold tracking-widest transition-all ${bridgeStatus ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400' : 'bg-red-500/10 border-red-500 text-red-400'}`}>
-                  {bridgeStatus ? 'UPLINK SYNCED' : 'UPLINK REQUIRED'}
-              </div>
+              {bridgeStatus ? 'UPLINK SYNCED' : 'UPLINK REQUIRED'}
+            </div>
           </div>
         </div>
 
@@ -240,6 +240,61 @@ const TheNexus: React.FC = () => {
             'If Mic/TTS show WARN, check permissions in your OS and retry.',
           ]}
         />
+
+        {/* Tools Navigation Grid */}
+        <div className="mb-12">
+          <h2 className="text-lg font-black text-emerald-300 uppercase tracking-widest mb-4">Quick Tools Access</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <Link to="/tools/xedit" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Database size={20} className="text-emerald-400" />
+              <span className="font-bold">xEdit Tools</span>
+            </Link>
+            <Link to="/tools/security" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Wrench size={20} className="text-emerald-400" />
+              <span className="font-bold">Security Scanner</span>
+            </Link>
+            <Link to="/tools/mining" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Binary size={20} className="text-emerald-400" />
+              <span className="font-bold">Mining Dashboard</span>
+            </Link>
+            <Link to="/tools/advanced-analysis" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Brain size={20} className="text-emerald-400" />
+              <span className="font-bold">Advanced Analysis</span>
+            </Link>
+            <Link to="/tools/ck-extension" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Code size={20} className="text-emerald-400" />
+              <span className="font-bold">CK Extension</span>
+            </Link>
+            <Link to="/tools/precombine-generator" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Zap size={20} className="text-emerald-400" />
+              <span className="font-bold">PRP Patch Tools</span>
+            </Link>
+            <Link to="/tools/asset-deduplicator" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Database size={20} className="text-emerald-400" />
+              <span className="font-bold">Asset Deduplicator</span>
+            </Link>
+            <Link to="/tools/ba2-manager" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Archive size={20} className="text-emerald-400" />
+              <span className="font-bold">BA2 Manager</span>
+            </Link>
+            <Link to="/tools/cosmos" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Network size={20} className="text-emerald-400" />
+              <span className="font-bold">Cosmos Workflow</span>
+            </Link>
+            <Link to="/tools/blueprint" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <DraftingCompass size={20} className="text-emerald-400" />
+              <span className="font-bold">The Blueprint</span>
+            </Link>
+            <Link to="/tools/scribe" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Feather size={20} className="text-emerald-400" />
+              <span className="font-bold">The Scribe</span>
+            </Link>
+            <Link to="/tools/vault" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Container size={20} className="text-emerald-400" />
+              <span className="font-bold">The Vault</span>
+            </Link>
+          </div>
+        </div>
 
         <div className="flex-1 flex items-center justify-center">
           <div className="relative">

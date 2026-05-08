@@ -11,10 +11,17 @@ import {
   TextureFormat,
   TextureResolution,
   DDSFile,
-  HardwareProfile
+  HardwareProfile,
+  BatchOptimizationResult,
 } from '../shared/types';
 
 export class TextureOptimizationMiningEngineImpl implements TextureOptimizationMiningEngine {
+  async recommendCompression(texture: DDSFile): Promise<CompressionRecommendation> {
+    const analysis = await this.analyzeTexture(texture);
+    const rec = this.createCompressionRecommendation(analysis);
+    return rec || { texturePath: texture.path, suggestedFormat: (analysis.format as any) || 'DDS', suggestedResolution: { width: analysis.resolution || 0, height: analysis.resolution || 0 }, compressionRatio: 1, qualityLoss: 0, performanceGain: 0, expectedSavings: 0, compatibilityNotes: [], implementationSteps: [] } as CompressionRecommendation;
+  }
+
   async analyze(ddsFiles: DDSFile[], hardwareProfile: HardwareProfile): Promise<TextureOptimization[]> {
     const optimizations: TextureOptimization[] = [];
 
@@ -27,8 +34,8 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
           optimizations.push({
             texturePath: ddsFile.path,
             currentFormat: analysis.format,
-            recommendedFormat: recommendations[0].recommendedFormat,
-            compressionRatio: this.calculateCompressionRatio(analysis, recommendations[0]),
+            recommendedFormat: recommendations[0].recommendedFormat ?? '',
+            compressionRatio: this.calculateCompressionRatio(analysis.format as any, recommendations[0].recommendedFormat as any),
             qualityImpact: recommendations[0].qualityLoss,
             performanceGain: recommendations[0].performanceGain,
             memorySavings: recommendations[0].expectedSavings
@@ -39,7 +46,7 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
       }
     }
 
-    return optimizations.sort((a, b) => b.expectedSavings - a.expectedSavings);
+    return optimizations.sort((a, b) => (b.expectedSavings ?? 0) - (a.expectedSavings ?? 0));
   }
 
   async batchOptimize(textures: DDSFile[]): Promise<BatchOptimizationResult> {
@@ -59,8 +66,8 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
     return {
       totalTextures: textures.length,
       optimizedTextures: recommendations.length,
-      totalMemorySavings: recommendations.reduce((sum, rec) => sum + rec.expectedSavings, 0),
-      averageQualityLoss: recommendations.reduce((sum, rec) => sum + rec.qualityLoss, 0) / recommendations.length,
+      totalMemorySavings: recommendations.reduce((sum, rec) => sum + (rec.expectedSavings ?? 0), 0),
+      averageQualityLoss: recommendations.reduce((sum, rec) => sum + (rec.qualityLoss ?? 0), 0) / recommendations.length,
       processingTime: Date.now(), // Placeholder
       recommendations: recommendations.map(rec => ({
         texturePath: rec.texturePath || '',
@@ -95,7 +102,7 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
       }
     }
 
-    return recommendations.sort((a, b) => b.performanceGain - a.performanceGain);
+    return recommendations.sort((a, b) => (b.performanceGain ?? 0) - (a.performanceGain ?? 0));
   }
 
   private async analyzeTexture(ddsFile: DDSFile): Promise<any> {
@@ -112,7 +119,8 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
     const resolution = ddsFile.resolution.width; // Use width as representative
 
     // Use actual file size
-    const fileSize = ddsFile.size;
+    let fileSize = ddsFile.size || 0;
+    const baseSize = fileSize || 1024;
 
     // Adjust size based on format
     switch (format) {
@@ -128,13 +136,16 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
       case 'TGA':
         fileSize = baseSize; // Uncompressed
         break;
+      default:
+        fileSize = baseSize;
+        break;
     }
 
     // Simulate usage analysis
     const usage = isNormalMap ? 'normal' : isDiffuse ? 'diffuse' : isSpecular ? 'specular' : 'other';
 
     return {
-      path: texturePath,
+      path: ddsFile.path,
       format,
       resolution,
       fileSize,
@@ -156,7 +167,7 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
     }
 
     // Resolution optimization for large textures
-    if (analysis.resolution > 2048) {
+    if (this.resolutionToNumber(analysis.resolution) > 2048) {
       const resolutionRecommendation = this.createResolutionRecommendation(analysis, 2048);
       if (resolutionRecommendation) recommendations.push(resolutionRecommendation);
     }
@@ -179,7 +190,7 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
     }
 
     // Add resolution optimization for batch processing
-    if (analysis.resolution > 1024) {
+    if (this.resolutionToNumber(analysis.resolution) > 1024) {
       const resolutionRec = this.createResolutionRecommendation(analysis, 1024);
       if (resolutionRec) recommendations.push(resolutionRec);
     }
@@ -206,8 +217,14 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
     };
   }
 
+  private resolutionToNumber(res: TextureResolution): number {
+    return typeof res === 'number' ? res : Math.max(res.width || 0, res.height || 0);
+  }
+
   private createResolutionRecommendation(analysis: TextureAnalysis, targetResolution: TextureResolution): CompressionRecommendation | null {
-    const compressionRatio = analysis.resolution / targetResolution;
+    const aRes = this.resolutionToNumber(analysis.resolution as TextureResolution);
+    const tRes = this.resolutionToNumber(targetResolution);
+    const compressionRatio = aRes / tRes;
     const qualityLoss = this.estimateQualityLoss(analysis, analysis.format, targetResolution);
     const performanceGain = this.calculatePerformanceGain(analysis, analysis.format, targetResolution);
 
@@ -268,14 +285,14 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
   }
 
   private calculateCompressionRatio(fromFormat: TextureFormat, toFormat: TextureFormat): number {
-    const ratios: Record<TextureFormat, number> = {
+    const ratios: Partial<Record<TextureFormat, number>> = {
       'PNG': 1,
       'TGA': 1,
       'JPEG': 10,
       'DDS': 4
     };
 
-    return ratios[fromFormat] / ratios[toFormat];
+    return (ratios[fromFormat] ?? 1) / (ratios[toFormat] ?? 1);
   }
 
   private estimateQualityLoss(
@@ -293,8 +310,8 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
     }
 
     // Resolution reduction loss
-    if (targetResolution < analysis.resolution) {
-      const ratio = targetResolution / analysis.resolution;
+    if (this.resolutionToNumber(targetResolution) < this.resolutionToNumber(analysis.resolution)) {
+      const ratio = this.resolutionToNumber(targetResolution) / this.resolutionToNumber(analysis.resolution as TextureResolution);
       loss += (1 - ratio) * 0.2; // Resolution scaling loss
     }
 
@@ -319,8 +336,8 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
     }
 
     // Resolution reduction gain
-    if (targetResolution < analysis.resolution) {
-      const ratio = targetResolution / analysis.resolution;
+    if (this.resolutionToNumber(targetResolution) < this.resolutionToNumber(analysis.resolution)) {
+      const ratio = this.resolutionToNumber(targetResolution) / this.resolutionToNumber(analysis.resolution as TextureResolution);
       gain += (1 - ratio) * 3; // Memory and performance scaling
     }
 
@@ -333,7 +350,7 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
   }
 
   private calculateExpectedSavings(recommendations: CompressionRecommendation[]): number {
-    return recommendations.reduce((total, rec) => total + rec.performanceGain, 0);
+    return recommendations.reduce((total, rec) => total + (rec.performanceGain ?? 0), 0);
   }
 
   private async calculateCompatibilityScore(recommendations: CompressionRecommendation[]): Promise<number> {
@@ -350,7 +367,7 @@ export class TextureOptimizationMiningEngineImpl implements TextureOptimizationM
       }
 
       // Resolution penalties
-      if (rec.suggestedResolution < 512) {
+      if (typeof rec.suggestedResolution === 'number' && rec.suggestedResolution < 512) {
         score -= 20; // Too low resolution
       }
     }
