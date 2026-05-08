@@ -1,8 +1,0 @@
-owner: POINTYTHRUNDRA654
-repo: mossy-ai
-provider: github
-releaseType: prerelease
-timeout: 600000
-requestHeaders:
-  User-Agent: electron-builder
-updaterCacheDirName: mossy-ai-updater

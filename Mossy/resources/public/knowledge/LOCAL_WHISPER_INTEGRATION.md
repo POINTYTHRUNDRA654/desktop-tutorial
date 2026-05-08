@@ -17,12 +17,12 @@ A complete integration that:
 
 **Python Virtual Environment:**
 ```
-C:\Users\billy\venv\Scripts\python.exe
+${workspaceFolder}\.venv\Scripts\python.exe
 ```
 
 **Whisper Package:**
 ```
-C:\Users\billy\venv\Lib\site-packages\speech_recognition\recognizers\whisper_api
+${workspaceFolder}\.venv\Lib\site-packages\speech_recognition\recognizers\whisper_api
 ```
 
 ## Architecture
@@ -61,7 +61,7 @@ Create `src/python/whisper_service.py`:
 """
 Local Whisper Speech Recognition Service
 Uses existing speech_recognition package from:
-C:\\Users\\billy\\venv\\Lib\\site-packages\\speech_recognition
+${workspaceFolder}\\.venv\\Lib\\site-packages\\speech_recognition
 """
 
 import speech_recognition as sr
@@ -194,7 +194,7 @@ if __name__ == "__main__":
 
 ```bash
 # Test directly with Python
-C:\Users\billy\venv\Scripts\python.exe src/python/whisper_service.py test_audio.wav
+./.venv/Scripts/python.exe src/python/whisper_service.py test_audio.wav
 
 # Expected output:
 # {"success": true, "text": "your transcribed text", "confidence": 0.95}
@@ -224,7 +224,7 @@ export class LocalWhisperService {
 
   constructor() {
     // Your specific Python path
-    this.pythonPath = 'C:\\Users\\billy\\venv\\Scripts\\python.exe';
+    this.pythonPath = process.env.PYTHON_PATH || './.venv/Scripts/python.exe';
     
     // Script path (will be in app resources after packaging)
     this.scriptPath = path.join(__dirname, '../python/whisper_service.py');
@@ -591,7 +591,7 @@ export function LocalWhisperTest() {
 # Create a test audio file or use an existing one
 # Test the Python service directly
 
-C:\Users\billy\venv\Scripts\python.exe src/python/whisper_service.py test.wav
+./.venv/Scripts/python.exe src/python/whisper_service.py test.wav
 
 # Expected output:
 # {"success": true, "text": "hello world", "confidence": 0.95}
@@ -713,7 +713,7 @@ function VoiceChat() {
 **Solution:**
 ```bash
 # Verify Python path
-dir C:\Users\billy\venv\Scripts\python.exe
+dir .venv\Scripts\python.exe
 
 # If not found, update path in localWhisperService.ts
 ```
@@ -723,7 +723,7 @@ dir C:\Users\billy\venv\Scripts\python.exe
 **Solution:**
 ```bash
 # Install in your venv
-C:\Users\billy\venv\Scripts\pip.exe install SpeechRecognition
+./.venv/Scripts/pip.exe install SpeechRecognition
 ```
 
 ### Issue: Whisper API not working
@@ -733,7 +733,7 @@ The whisper_api method might not be available in older versions. You can use the
 
 ```bash
 # Install Whisper
-C:\Users\billy\venv\Scripts\pip.exe install openai-whisper
+./.venv/Scripts/pip.exe install openai-whisper
 
 # Then use in code:
 text = recognizer.recognize_whisper(audio_data)

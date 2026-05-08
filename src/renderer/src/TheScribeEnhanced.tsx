@@ -58,11 +58,19 @@ export const TheScribe: React.FC = () => {
   useEffect(() => {
     const init = async () => {
       try {
+        if (!window.electronAPI?.getSettings) {
+          console.warn('[TheScribe] electronAPI.getSettings not available');
+          setSettings(null);
+          return;
+        }
         const s = await window.electronAPI.getSettings();
         setSettings(s);
-        window.electronAPI.onSettingsUpdated((next) => setSettings(next));
+        if (window.electronAPI?.onSettingsUpdated) {
+          window.electronAPI.onSettingsUpdated((next) => setSettings(next));
+        }
       } catch (e) {
         console.warn('[TheScribe] Failed to load settings', e);
+        setSettings(null);
       }
     };
     init();
@@ -124,6 +132,11 @@ export const TheScribe: React.FC = () => {
 
   const persistLibrary = async (type: 'xedit' | 'blender', nextLibrary: ScriptTemplate[]) => {
     try {
+      if (!window.electronAPI?.setSettings) {
+        console.warn('[TheScribe] electronAPI.setSettings not available');
+        setLibraryStatus('API not available.');
+        return;
+      }
       if (type === 'xedit') {
         await window.electronAPI.setSettings({ xeditScriptLibrary: nextLibrary });
       } else {
@@ -151,6 +164,11 @@ export const TheScribe: React.FC = () => {
 
   const persistBundles = async (nextBundles: ScriptBundle[]) => {
     try {
+      if (!window.electronAPI?.setSettings) {
+        console.warn('[TheScribe] electronAPI.setSettings not available');
+        setBundleStatus('API not available.');
+        return;
+      }
       await window.electronAPI.setSettings({ scriptBundles: nextBundles });
       setBundleStatus('Saved.');
       setTimeout(() => setBundleStatus(''), 1500);
@@ -1293,9 +1311,10 @@ print("Batch processing complete")`,
   };
 
   const loadTemplate = (template: string) => {
-    const templates_for_type = templates[activeTab];
+    if (!template) return;
+    const templates_for_type = templates[activeTab as keyof typeof templates];
     if (templates_for_type && template in templates_for_type) {
-      setCode((templates_for_type as any)[template]);
+      setCode((templates_for_type as Record<string, string>)[template]);
       setValidationErrors([]);
     }
   };
@@ -1587,20 +1606,21 @@ print("Batch processing complete")`,
                 error: 'border-red-500/50 bg-red-900/20 text-red-400',
                 warning: 'border-amber-500/50 bg-amber-900/20 text-amber-400',
                 info: 'border-blue-500/50 bg-blue-900/20 text-blue-400',
-              };
+              } as const;
 
               const icons = {
                 error: X,
                 warning: AlertTriangle,
                 info: Zap,
-              };
+              } as const;
 
-              const Icon = icons[error.severity];
+              const colorClass = colors[error.severity as keyof typeof colors] || 'border-slate-500/50 bg-slate-900/20 text-slate-400';
+              const Icon = icons[error.severity as keyof typeof icons] || Zap;
 
               return (
                 <div
                   key={index}
-                  className={`border rounded-lg p-3 ${colors[error.severity]}`}
+                  className={`border rounded-lg p-3 ${colorClass}`}
                 >
                   <div className="flex items-start gap-2">
                     <Icon className="w-4 h-4 flex-shrink-0 mt-0.5" />

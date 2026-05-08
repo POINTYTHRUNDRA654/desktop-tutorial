@@ -110,12 +110,12 @@ export const PlatformsHub: React.FC<PlatformsHubProps> = ({ embedded = false }) 
   ];
 
   const containerClassName = embedded
-    ? 'p-4 bg-[#0a0e0a] text-slate-100'
-    : 'min-h-full p-6 md:p-10 bg-[#0a0e0a] text-slate-100';
+    ? 'p-4 bg-[#0a0e0a] text-slate-100 h-full flex flex-col'
+    : 'min-h-full p-6 md:p-10 bg-[#0a0e0a] text-slate-100 h-full flex flex-col';
 
   return (
     <div className={containerClassName}>
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto flex flex-col flex-1 min-h-0">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
             <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor - Platforms</div>
@@ -150,7 +150,7 @@ export const PlatformsHub: React.FC<PlatformsHubProps> = ({ embedded = false }) 
           ]}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1 overflow-y-auto">
           {cards.map((c) => {
             const body = (
               <div className="rounded-xl border border-slate-800 bg-black/40 hover:border-slate-600 transition-colors p-5 h-full">

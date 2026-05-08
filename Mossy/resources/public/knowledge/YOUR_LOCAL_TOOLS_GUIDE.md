@@ -7,7 +7,7 @@ You already have some great tools installed on your computer that can be integra
 ## What You Have
 
 ### 1. Windsurf Editor
-**Location:** `C:\Users\billy\OneDrive\Desktop\Windsurf.lnk`
+**Location:** Use Start Menu or system PATH installation
 
 Windsurf is a modern AI-powered code editor perfect for developing Mossy. It includes:
 - AI code generation and completion
@@ -16,7 +16,7 @@ Windsurf is a modern AI-powered code editor perfect for developing Mossy. It inc
 - TypeScript support
 
 ### 2. Whisper API (Python)
-**Location:** `C:\Users\billy\venv\Lib\site-packages\speech_recognition\recognizers\whisper_api`
+**Location:** `${workspaceFolder}\.venv\Lib\site-packages\speech_recognition\recognizers\whisper_api`
 
 You have OpenAI's Whisper speech recognition already installed in your Python virtual environment! This means you can:
 - Do speech-to-text completely FREE
@@ -91,17 +91,17 @@ You have OpenAI's Whisper speech recognition already installed in your Python vi
 
 ### Python Environment Path
 ```
-C:\Users\billy\venv\Scripts\python.exe
+${workspaceFolder}\.venv\Scripts\python.exe
 ```
 
 ### Whisper Package Location
 ```
-C:\Users\billy\venv\Lib\site-packages\speech_recognition\recognizers\whisper_api
+${workspaceFolder}\.venv\Lib\site-packages\speech_recognition\recognizers\whisper_api
 ```
 
 ### Windsurf Shortcut
 ```
-C:\Users\billy\OneDrive\Desktop\Windsurf.lnk
+Start Menu or system PATH installation
 ```
 
 ## Integration Code Snippets
@@ -150,7 +150,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 
 // Your specific Python path
-const PYTHON_PATH = 'C:\\Users\\billy\\venv\\Scripts\\python.exe';
+const PYTHON_PATH = process.env.PYTHON_PATH || path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
 
 async function transcribeWithLocalWhisper(audioPath: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -209,7 +209,7 @@ ipcMain.handle('transcribe-local', async (event, audioPath) => {
 
 2. **Test Python directly:**
    ```bash
-   C:\Users\billy\venv\Scripts\python.exe src/python/whisper_service.py test.wav
+   ./.venv/Scripts/python.exe src/python/whisper_service.py test.wav
    ```
 
 3. **Expected output:**
@@ -292,13 +292,13 @@ ipcMain.handle('transcribe-local', async (event, audioPath) => {
 **Solution:**
 ```bash
 # Verify Python exists
-C:\Users\billy\venv\Scripts\python.exe --version
+./.venv/Scripts/python.exe --version
 
 # Verify speech_recognition package
-C:\Users\billy\venv\Scripts\python.exe -c "import speech_recognition; print(speech_recognition.__version__)"
+./.venv/Scripts/python.exe -c "import speech_recognition; print(speech_recognition.__version__)"
 
 # If missing, install:
-C:\Users\billy\venv\Scripts\pip.exe install SpeechRecognition
+./.venv/Scripts/pip.exe install SpeechRecognition
 ```
 
 ### Whisper Not Working
@@ -313,7 +313,7 @@ recognizer.recognize_whisper_api(audio_data)
 
 If you need the local Whisper model instead:
 ```bash
-C:\Users\billy\venv\Scripts\pip.exe install openai-whisper
+./.venv/Scripts/pip.exe install openai-whisper
 ```
 
 ### Windsurf Issues
