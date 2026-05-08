@@ -13,6 +13,15 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  const toSafeStepData = (value: unknown): unknown => {
+    if (value === null || value === undefined) return undefined;
+    const t = typeof value;
+    if (t === 'string' || t === 'number' || t === 'boolean') return value;
+    if (Array.isArray(value)) return value;
+    if (t === 'object' && Object.getPrototypeOf(value) === Object.prototype) return value;
+    return undefined;
+  };
+
   const normalizeWizardState = (raw: unknown): ProjectWizardState | null => {
     if (!raw || typeof raw !== 'object') return null;
     const src = raw as Record<string, unknown>;
@@ -29,7 +38,7 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
           description: String(step.description || ''),
           status: status === 'not-started' || status === 'in-progress' || status === 'completed' ? status : 'not-started',
           type: type === 'script' || type === 'blender' || type === 'audit' || type === 'setup' ? type : 'setup',
-          data: step.data,
+          data: toSafeStepData(step.data),
         };
       });
 
