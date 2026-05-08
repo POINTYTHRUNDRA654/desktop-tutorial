@@ -1184,6 +1184,8 @@ const App: React.FC = () => {
             onClose={() => setSidebarOpen(false)}
           />
 
+          {/* Right section: header + main content (must flex to fill remaining space) */}
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {/* Main Application Header */}
           <header className="main-header bg-slate-900 border-b border-green-500/20 px-4 py-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1.6fr)] items-center gap-4">
             <div className="flex items-center gap-4">
@@ -1248,6 +1250,7 @@ const App: React.FC = () => {
             data-mossy-main="1"
             data-tour="main-content"
             className="flex-1 relative overflow-y-auto overflow-x-hidden"
+            style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}
             style={{
               background: 'linear-gradient(135deg, #0a0e0a 0%, #1a1f1a 100%)',
               boxShadow: 'inset 0 0 20px rgba(0, 255, 0, 0.1)',
@@ -1483,6 +1486,7 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/extensions/upscayl"><ErrorBoundary><UpscaylExtension /></ErrorBoundary></KeepAlivePanel>
             </div>
           </main>
+          </div>
           <GuidedTour
             isOpen={guidedTour.isOpen}
             onClose={() => setGuidedTour(prev => ({ ...prev, isOpen: false }))}

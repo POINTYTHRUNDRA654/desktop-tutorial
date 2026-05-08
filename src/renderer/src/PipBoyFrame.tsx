@@ -143,6 +143,8 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           /* Allow the inner app (including the tutorial footer) to scroll instead of being clipped by the bezel */
           overflow: auto;
           background: #000;
+          display: flex;
+          flex-direction: column;
         }
 
         body.pip-boy-mode .pipboy-content {
