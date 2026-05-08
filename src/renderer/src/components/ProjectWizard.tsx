@@ -16,7 +16,7 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
   const normalizeWizardState = (raw: any): ProjectWizardState | null => {
     if (!raw || typeof raw !== 'object') return null;
 
-    const steps = Array.isArray(raw.steps) ? raw.steps.filter((step) => step && typeof step === 'object') : [];
+    const steps = Array.isArray(raw.steps) ? raw.steps.filter((step) => step !== null && typeof step === 'object') : [];
     const rawIndex = Number(raw.currentStepIndex);
     const safeIndex = Number.isFinite(rawIndex)
       ? Math.max(0, Math.min(rawIndex, Math.max(steps.length - 1, 0)))
