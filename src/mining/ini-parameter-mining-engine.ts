@@ -3,7 +3,6 @@
  * AI-powered Skyrim INI optimization and parameter tuning
  */
 
-import * as fs from 'fs';
 import {
   IniParameterMiningEngine,
   IniOptimization,
@@ -16,6 +15,10 @@ import {
   ConfigurationValidation,
   HardwareProfile,
 } from '../shared/types';
+
+type IniConfigReader = {
+  readFile?: (filePath: string) => Promise<string>;
+};
 
 export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
   async analyze(iniFiles: INIFile[], hardwareProfile: HardwareProfile): Promise<IniOptimization[]> {
@@ -143,7 +146,7 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
     if (typeof iniFile === 'string') {
       // lightweight INI parser for string paths
       try {
-        const content = await fs.promises.readFile(iniFile, 'utf-8');
+        const content = await this.readIniFileContent(iniFile);
         let currentSection = 'General';
         for (const rawLine of content.split(/[\r\n]+/)) {
           const line = rawLine.trim();
@@ -184,6 +187,22 @@ export class IniParameterMiningEngineImpl implements IniParameterMiningEngine {
     }
 
     return parameters;
+  }
+
+  private async readIniFileContent(filePath: string): Promise<string> {
+    const api = (globalThis as any)?.electron?.api;
+    const iniConfigManager: IniConfigReader | undefined = api?.iniConfigManager;
+    const workshopReader: IniConfigReader | undefined = api;
+
+    if (typeof iniConfigManager?.readFile === 'function') {
+      return iniConfigManager.readFile(filePath);
+    }
+
+    if (typeof workshopReader?.readFile === 'function') {
+      return workshopReader.readFile(filePath);
+    }
+
+    throw new Error('INI file read API unavailable in this runtime');
   }
 
   private async generateParameterRecommendations(parameters: any[], hardwareProfile: HardwareProfile): Promise<any[]> {
