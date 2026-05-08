@@ -13,24 +13,39 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const normalizeWizardState = (raw: any): ProjectWizardState | null => {
+  const normalizeWizardState = (raw: unknown): ProjectWizardState | null => {
     if (!raw || typeof raw !== 'object') return null;
+    const src = raw as Record<string, unknown>;
 
-    const steps = Array.isArray(raw.steps) ? raw.steps.filter((step) => step !== null && typeof step === 'object') : [];
-    const rawIndex = Number(raw.currentStepIndex);
+    const rawSteps = Array.isArray(src.steps) ? src.steps : [];
+    const steps: WizardStep[] = rawSteps
+      .filter((step): step is Record<string, unknown> => step !== null && typeof step === 'object')
+      .map((step, idx) => {
+        const status = step.status;
+        const type = step.type;
+        return {
+          id: String(step.id || `${wizardId}-step-${idx}`),
+          title: String(step.title || 'Untitled step'),
+          description: String(step.description || ''),
+          status: status === 'not-started' || status === 'in-progress' || status === 'completed' ? status : 'not-started',
+          type: type === 'script' || type === 'blender' || type === 'audit' || type === 'setup' ? type : 'setup',
+          data: step.data,
+        };
+      });
+
+    const rawIndex = Number(src.currentStepIndex);
     const safeIndex = Number.isFinite(rawIndex)
       ? Math.max(0, Math.min(rawIndex, Math.max(steps.length - 1, 0)))
       : 0;
 
     return {
-      ...raw,
-      id: String(raw.id || wizardId),
-      projectId: String(raw.projectId || ''),
-      name: String(raw.name || 'Project Wizard'),
+      id: String(src.id || wizardId),
+      projectId: String(src.projectId || ''),
+      name: String(src.name || 'Project Wizard'),
       steps,
       currentStepIndex: safeIndex,
-      lastUpdated: Number(raw.lastUpdated || Date.now()),
-    } as ProjectWizardState;
+      lastUpdated: Number(src.lastUpdated || Date.now()),
+    };
   };
 
   useEffect(() => {

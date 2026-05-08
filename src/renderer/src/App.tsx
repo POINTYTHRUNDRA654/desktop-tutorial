@@ -1250,8 +1250,10 @@ const App: React.FC = () => {
             data-mossy-main="1"
             data-tour="main-content"
             className="flex-1 relative overflow-y-auto overflow-x-hidden"
-            style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}
             style={{
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
               background: 'linear-gradient(135deg, #0a0e0a 0%, #1a1f1a 100%)',
               boxShadow: 'inset 0 0 20px rgba(0, 255, 0, 0.1)',
               // Layout fail-safe
