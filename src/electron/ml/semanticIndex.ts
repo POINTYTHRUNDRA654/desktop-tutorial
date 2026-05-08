@@ -170,33 +170,52 @@ let cachedEmbedder:
   | ((text: string) => Promise<EmbeddingVector>)
   | { pending: Promise<(text: string) => Promise<EmbeddingVector>> } = null
 
+const LOCAL_EMBED_DIM = 384
+
+function hashToken(token: string): number {
+  let hash = 2166136261
+  for (let i = 0; i < token.length; i++) {
+    hash ^= token.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+function tokenizeForEmbedding(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length > 1)
+}
+
+function embedLocally(text: string): EmbeddingVector {
+  const out = new Float32Array(LOCAL_EMBED_DIM)
+  const tokens = tokenizeForEmbedding(text)
+  if (!tokens.length) return out
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i]
+    const tokenHash = hashToken(token)
+    out[tokenHash % LOCAL_EMBED_DIM] += 1
+
+    if (i + 1 < tokens.length) {
+      const bigramHash = hashToken(`${token} ${tokens[i + 1]}`)
+      out[bigramHash % LOCAL_EMBED_DIM] += 0.5
+    }
+  }
+
+  return normalize(out)
+}
+
 async function getEmbedder(model: string): Promise<(text: string) => Promise<EmbeddingVector>> {
   if (cachedEmbedder && typeof cachedEmbedder === 'function') return cachedEmbedder
   if (cachedEmbedder && typeof cachedEmbedder === 'object' && 'pending' in cachedEmbedder) return cachedEmbedder.pending
 
   const pending = (async () => {
-    // Lazy import so Electron main stays fast on startup.
-    const { pipeline } = await import('@xenova/transformers')
-
-    const extractor = await pipeline('feature-extraction', model, {
-      quantized: true,
-    })
-
     const embed = async (text: string): Promise<EmbeddingVector> => {
-      // Return normalized mean-pooled embeddings.
-      const output = await extractor(text, {
-        pooling: 'mean',
-        normalize: true,
-      })
-
-      // Transformers.js returns a Tensor-like object. Ensure we get Float32Array.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data: any = output
-      const vec: Float32Array = data.data ?? data
-      if (!(vec instanceof Float32Array)) {
-        return normalize(Float32Array.from(vec))
-      }
-      return vec
+      void model
+      return embedLocally(text)
     }
 
     cachedEmbedder = embed
