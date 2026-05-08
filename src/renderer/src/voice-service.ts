@@ -1062,8 +1062,8 @@ export class VoiceService {
       typeof navigator !== 'undefined' &&
       !!navigator.mediaDevices?.getUserMedia &&
       typeof MediaRecorder !== 'undefined';
-    const hasTts = 'speechSynthesis' in window;
+    const hasBrowserTts = 'speechSynthesis' in window;
     // Voice can run with either browser STT OR backend capture/transcription.
-    return hasTts && (hasBrowserStt || hasBackendCapture);
+    return hasBrowserTts && (hasBrowserStt || hasBackendCapture);
   }
 }
