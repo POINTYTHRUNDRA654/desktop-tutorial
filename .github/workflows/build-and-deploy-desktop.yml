@@ -42,11 +42,15 @@ jobs:
         with:
           node-version: 24.x
 
+      - name: Get npm cache directory
+        id: npm-cache-dir
+        run: echo "dir=$(npm config get cache)" >> $env:GITHUB_OUTPUT
+
       - name: Cache npm dependencies
         uses: actions/cache@v4
         continue-on-error: true
         with:
-          path: C:\npm\cache
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
           key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-npm-
