@@ -373,8 +373,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     // Check if transcription is disabled (after disconnect)
-    // But allow transcriptions if we just reconnected (isFreshlyConnectedRef is true)
-    if (transcriptionDisabled && !isActive && !isFreshlyConnectedRef.current) {
+    // But allow transcriptions if we just reconnected (isFreshlyConnectedRef is true).
+    // Text input always bypasses this guard — it works independently of the voice session.
+    if (!isTextInput && transcriptionDisabled && !isActive && !isFreshlyConnectedRef.current) {
       console.log('[LiveContext] Ignoring transcription - transcription disabled after disconnect and not actively connected');
       return;
     }
@@ -393,24 +394,28 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isFreshlyConnectedRef.current = false;
     }
 
-    // Honour the mute button — discard input while the user has silenced the mic.
+    // Honour the mute button — discard VOICE input while the user has silenced the mic.
+    // Text input is never gated by the mute button: the mic mute only affects voice capture.
     // isMutedRef stays in sync with the isMuted state even though this callback
     // is a stale closure registered at connect() time.
-    if (isMutedRef.current) {
+    if (isMutedRef.current && !isTextInput) {
       console.log('[LiveContext] Ignoring transcription - muted');
       return;
     }
 
     // Check if we're disconnecting (user manually ended the session).
     // Use the ref so the stale closure always sees the current value.
-    if (isDisconnectingRef.current) {
+    // Text input is allowed to complete even during a disconnect so the user
+    // gets their response before the session fully closes.
+    if (isDisconnectingRef.current && !isTextInput) {
       console.log('[LiveContext] Ignoring transcription - voice session is disconnecting');
       return;
     }
 
-    // Prevent audio feedback - don't transcribe while TTS is active.
+    // Prevent audio feedback - don't transcribe VOICE while TTS is active.
+    // Text input is always accepted regardless of speaking state.
     // Use modeRef so the stale closure always sees the current mode value.
-    if (modeRef.current === 'speaking') {
+    if (modeRef.current === 'speaking' && !isTextInput) {
       console.log('[LiveContext] Ignoring transcription - currently speaking (audio feedback prevention)');
       return;
     }
@@ -418,6 +423,12 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.log('[LiveContext] Processing transcription:', text);
     setTranscription(text);
     setMode('processing');
+    // Update the watchdog reference time so the 25-second stall-detection timer
+    // starts from now.  This must be set for BOTH voice and text-input paths
+    // because the useEffect watchdog only fires in 'processing' mode and checks
+    // this ref — if it is 0 (initial value) the condition is always true and the
+    // watchdog would prematurely restart the link for text-input messages.
+    processingStartRef.current = Date.now();
     // successful transcription—clear any previous STT error tally
     setSttErrors(0);
 
@@ -443,9 +454,10 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('[LiveContext] ✅ AI response received - duration:', aiDuration, 'ms');
       const response = aiResult.content || 'Sorry, I encountered an error processing your request.';
 
-      // Check if session ID changed (user disconnected, or session ended for another reason)
-      // Use the captured ID so we don't discard valid responses from disconnect() being called during processing
-      if (currentSessionRef.current === 0 || currentSessionRef.current !== sessionIdAtStart) {
+      // Check if session ID changed (user disconnected, or session ended for another reason).
+      // Use the captured ID so we don't discard valid responses from disconnect() being called during processing.
+      // Text input responses are always delivered — the voice session state is irrelevant for text.
+      if (!isTextInput && (currentSessionRef.current === 0 || currentSessionRef.current !== sessionIdAtStart)) {
         console.log('[LiveContext] Ignoring AI response - voice session ended during processing (session was:', sessionIdAtStart, 'now:', currentSessionRef.current + ')');
         isProcessingResponseRef.current = false;
         return;
@@ -811,13 +823,13 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const sendTextMessage = async (text: string) => {
     if (!text.trim()) return;
 
-    // If not connected, connect first
-    if (!isActive) {
-      await connect();
-    }
-
-    // Process the text message the same way as voice transcription
-    // but flag it as text input so the audio feedback grace period is skipped
+    // Text input works independently of the voice session — we never require the
+    // voice pipeline (STT backend / Whisper / OpenAI key) just to handle typed
+    // messages.  The AI response is routed through LocalAIEngine (Groq) the same
+    // way regardless of whether voice is active.
+    //
+    // If voice is NOT active we use session ID 0 so the response-delivery check
+    // inside handleTranscription is bypassed for isTextInput === true.
     const currentSessionId = currentSessionRef.current;
     try {
       await handleTranscription(text, currentSessionId, true); // true = isTextInput
