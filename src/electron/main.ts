@@ -306,9 +306,26 @@ const dedupeAllowedPathsByScan = new Map<string, Set<string>>();
 // Development mode flag - only check for dev when not packaged
 const isDev = !app.isPackaged && (process.env.NODE_ENV === 'development' || process.env.ELECTRON_IS_TEST === 'true');
 
-// Edition: 'nvidia' when the productName contains "NVIDIA", otherwise 'universal'.
-// Determined at runtime so both editions can share 100% of the source.
-const MOSSY_EDITION: 'nvidia' | 'universal' = app.getName().toLowerCase().includes('nvidia') ? 'nvidia' : 'universal';
+// Edition detection:
+// Prefer explicit build/runtime overrides, then fall back to app metadata/executable naming.
+// This avoids false "universal" reads when app.getName() does not include edition text.
+const detectMossyEdition = (): 'nvidia' | 'universal' => {
+  const envEdition = String(process.env.MOSSY_EDITION || process.env.MOSSY_BUILD_EDITION || '').toLowerCase().trim();
+  if (envEdition === 'nvidia') return 'nvidia';
+  if (envEdition === 'universal') return 'universal';
+
+  const markers = [
+    app.getName(),
+    app.name,
+    process.title,
+    path.basename(process.execPath || ''),
+  ]
+    .map((v) => String(v || '').toLowerCase())
+    .join(' ');
+
+  return markers.includes('nvidia') ? 'nvidia' : 'universal';
+};
+const MOSSY_EDITION: 'nvidia' | 'universal' = detectMossyEdition();
 
 // Allow override of start URL for development
 const ELECTRON_START_URL = process.env.ELECTRON_START_URL;
