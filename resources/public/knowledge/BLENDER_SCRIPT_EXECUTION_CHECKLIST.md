@@ -1,12 +1,12 @@
 # Blender Script Execution Checklist
 
-**Updated for Mossy v5.4.21**
+**Updated for Mossy v5.4.23**
 
 A quick, practical reference to control and audit script execution in .blend files. Now includes Mossy direct-write, headless automation, and onboarding for new users.
 
 ---
 
-## 🚀 Mossy Integration & Onboarding (v5.4.21)
+## 🚀 Mossy Integration & Onboarding (v5.4.23)
 
 Mossy now supports:
 - Direct script installation and execution via The Scribe (IDE)
@@ -28,7 +28,7 @@ Mossy now supports:
 - Drivers: Python-based drivers may be muted when auto-run is OFF; trust file or enable auto-run to restore.
 - Typical setup: trust all paths except your downloads folder.
 
-**Mossy v5.4.21:**
+**Mossy v5.4.23:**
 - All direct-write and automation features require explicit user permission
 - Mossy respects Blender's auto-exec and trust settings
 
@@ -81,7 +81,7 @@ Notes:
 
 ---
 
-## Mossy Direct-Write & Automation (v5.4.21)
+## Mossy Direct-Write & Automation (v5.4.23)
 
 Mossy can:
 - Write scripts directly to your Blender add-ons folder

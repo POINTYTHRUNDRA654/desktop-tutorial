@@ -170,33 +170,52 @@ let cachedEmbedder:
   | ((text: string) => Promise<EmbeddingVector>)
   | { pending: Promise<(text: string) => Promise<EmbeddingVector>> } = null
 
+const LOCAL_EMBED_DIM = 384
+
+function hashToken(token: string): number {
+  let hash = 2166136261
+  for (let i = 0; i < token.length; i++) {
+    hash ^= token.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+function tokenizeForEmbedding(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length > 1)
+}
+
+function embedLocally(text: string): EmbeddingVector {
+  const out = new Float32Array(LOCAL_EMBED_DIM)
+  const tokens = tokenizeForEmbedding(text)
+  if (!tokens.length) return out
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i]
+    const tokenHash = hashToken(token)
+    out[tokenHash % LOCAL_EMBED_DIM] += 1
+
+    if (i + 1 < tokens.length) {
+      const bigramHash = hashToken(`${token} ${tokens[i + 1]}`)
+      out[bigramHash % LOCAL_EMBED_DIM] += 0.5
+    }
+  }
+
+  return normalize(out)
+}
+
 async function getEmbedder(model: string): Promise<(text: string) => Promise<EmbeddingVector>> {
   if (cachedEmbedder && typeof cachedEmbedder === 'function') return cachedEmbedder
   if (cachedEmbedder && typeof cachedEmbedder === 'object' && 'pending' in cachedEmbedder) return cachedEmbedder.pending
 
   const pending = (async () => {
-    // Lazy import so Electron main stays fast on startup.
-    const { pipeline } = await import('@xenova/transformers')
-
-    const extractor = await pipeline('feature-extraction', model, {
-      quantized: true,
-    })
-
     const embed = async (text: string): Promise<EmbeddingVector> => {
-      // Return normalized mean-pooled embeddings.
-      const output = await extractor(text, {
-        pooling: 'mean',
-        normalize: true,
-      })
-
-      // Transformers.js returns a Tensor-like object. Ensure we get Float32Array.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data: any = output
-      const vec: Float32Array = data.data ?? data
-      if (!(vec instanceof Float32Array)) {
-        return normalize(Float32Array.from(vec))
-      }
-      return vec
+      void model
+      return embedLocally(text)
     }
 
     cachedEmbedder = embed
@@ -331,32 +350,96 @@ export async function querySemanticIndex(query: string, opts?: { topK?: number }
   | {
       ok: true
       results: Array<{ score: number; sourcePath: string; title: string; content: string }>
+      keywordMode?: boolean
     }
   | { ok: false; error: string }
 > {
   const trimmed = query.trim()
   if (!trimmed) return { ok: true, results: [] }
 
+  const topK = Math.max(1, Math.min(25, opts?.topK ?? 8))
+
   const indexPath = getIndexFilePath()
   const index = await readJsonIfExists<SemanticIndex>(indexPath)
-  if (!index) return { ok: false, error: 'Index not built. Run build first.' }
 
-  const embedder = await getEmbedder(index.model)
-  const qVec = await embedder(trimmed)
+  // No AI index yet — fall back to fast keyword search over bundled knowledge files.
+  if (!index) {
+    return keywordFallbackSearch(trimmed, { topK })
+  }
 
-  const scored = index.chunks
-    .map((chunk) => {
-      const vec = decodeFloat32FromBase64(chunk.embeddingB64)
-      const score = dot(qVec, vec)
-      return {
-        score,
-        sourcePath: chunk.sourcePath,
-        title: chunk.title,
-        content: chunk.content,
-      }
-    })
-    .sort((a, b) => b.score - a.score)
+  try {
+    const embedder = await getEmbedder(index.model)
+    const qVec = await embedder(trimmed)
 
+    const scored = index.chunks
+      .map((chunk) => {
+        const vec = decodeFloat32FromBase64(chunk.embeddingB64)
+        const score = dot(qVec, vec)
+        return {
+          score,
+          sourcePath: chunk.sourcePath,
+          title: chunk.title,
+          content: chunk.content,
+        }
+      })
+      .sort((a, b) => b.score - a.score)
+
+    return { ok: true, results: scored.slice(0, topK) }
+  } catch (err: any) {
+    // AI embedder failed (model not downloaded, no internet, etc.) — fall back to keyword search.
+    const fallback = await keywordFallbackSearch(trimmed, { topK })
+    return { ...fallback, keywordMode: true }
+  }
+}
+
+async function keywordFallbackSearch(
+  query: string,
+  opts?: { topK?: number },
+): Promise<{
+  ok: true
+  results: Array<{ score: number; sourcePath: string; title: string; content: string }>
+  keywordMode: true
+}> {
   const topK = Math.max(1, Math.min(25, opts?.topK ?? 8))
-  return { ok: true, results: scored.slice(0, topK) }
+  const terms = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((t) => t.length > 1)
+
+  const roots = getBundledKnowledgeRoots()
+  const mdFiles: string[] = []
+  for (const root of roots) {
+    try {
+      const found = await walkForMarkdown(root)
+      mdFiles.push(...found)
+    } catch {
+      // skip unreadable roots
+    }
+  }
+
+  const results: Array<{ score: number; sourcePath: string; title: string; content: string }> = []
+
+  for (const filePath of Array.from(new Set(mdFiles))) {
+    try {
+      const md = await fs.readFile(filePath, 'utf-8')
+      const chunks = chunkMarkdown(filePath, md)
+
+      for (const chunk of chunks) {
+        const haystack = (chunk.title + ' ' + chunk.content).toLowerCase()
+        let score = 0
+        for (const term of terms) {
+          const matches = haystack.split(term).length - 1
+          score += matches
+        }
+        if (score > 0) {
+          results.push({ score, sourcePath: filePath, title: chunk.title, content: chunk.content })
+        }
+      }
+    } catch {
+      // skip unreadable files
+    }
+  }
+
+  results.sort((a, b) => b.score - a.score)
+  return { ok: true, results: results.slice(0, topK), keywordMode: true }
 }

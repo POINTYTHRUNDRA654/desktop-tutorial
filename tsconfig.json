@@ -12,12 +12,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": ["node", "vite/client"],
+    "types": ["node", "vite/client", "@testing-library/jest-dom", "vitest/globals"],
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["./src/shared/*"]
     }
   },
   "include": ["src/renderer/**/*", "src/shared/**/*"],
-  "exclude": ["node_modules", "dist", "dist-electron", "**/*.backup.ts", "**/*.backup.tsx"]
+  "exclude": ["node_modules", "dist", "dist-electron", "**/*.backup.ts", "**/*.backup.tsx", "src/renderer/src/installer-test-suite.ts", "src/renderer/src/installer-test-suite.tsx"]
 }

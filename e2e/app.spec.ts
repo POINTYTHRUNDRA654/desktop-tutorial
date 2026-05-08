@@ -8,7 +8,7 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
   test.beforeAll(async () => {
     // Launch Electron app in development mode with test parameters
     electronApp = await _electron.launch({
-      args: ['dist-electron/main/main.js'], // Use built main process
+      args: ['dist-electron/electron/main.js'], // Use built main process
       cwd: process.cwd(),
       env: {
         ...process.env,
@@ -19,6 +19,10 @@ test.describe('Mossy Desktop App - Comprehensive Testing Suite', () => {
 
     // Get the first window
     page = await electronApp.firstWindow();
+
+    // Capture renderer console and uncaught errors for debugging
+    page.on('console', msg => console.log('[renderer console]', msg.type(), msg.text()));
+    page.on('pageerror', err => console.error('[renderer error]', err));
 
     // Navigate to the dev server with test parameter
     await page.goto('http://localhost:5174?test=true');

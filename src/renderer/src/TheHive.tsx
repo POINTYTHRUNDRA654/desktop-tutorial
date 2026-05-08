@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Hexagon, Plus, Trash2, GitBranch, CheckCircle2, AlertTriangle, ArrowDownToLine, Upload, Package, Zap, Wrench, Play, StopCircle, Clock, FileText, Copy } from 'lucide-react';
+import { LocalAIEngine } from './LocalAIEngine';
 
 interface ModProject {
     id: string;
@@ -113,7 +115,7 @@ const TheHive: React.FC = () => {
         
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         if (!bridgeActive) {
-            alert('Bridge Offline: Build pipelines require a running Desktop Bridge server.');
+            toast.error('Bridge Offline: Build pipelines require a running Desktop Bridge server.');
             return;
         }
 
@@ -154,6 +156,11 @@ const TheHive: React.FC = () => {
             setBuildLogs(prev => [...prev, { msg: 'SUCCESS: Validation complete.', type: 'info' }]);
 
             setBuildLogs(prev => [...prev, { msg: 'Build pipeline completed successfully.', type: 'info' }]);
+            LocalAIEngine.recordAction('hive_build_pipeline_complete', {
+                projectName: selectedProject.name,
+                projectVersion: selectedProject.version,
+                projectType: selectedProject.type,
+            }).catch(() => {/* non-critical */});
             
         } catch (error) {
             setBuildLogs(prev => [...prev, { msg: `FATAL: ${error instanceof Error ? error.message : 'Unknown error'}`, type: 'error' }]);

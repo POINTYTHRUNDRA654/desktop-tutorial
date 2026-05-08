@@ -56,7 +56,7 @@ describe('LongitudinalMiningEngine', () => {
         }
       ];
 
-      const trends = await engine.trackPerformanceOverTime(sessionData);
+      const trends = await engine.trackPerformanceOverTime(sessionData as any);
 
       expect(Array.isArray(trends)).toBe(true);
       expect(trends.length).toBeGreaterThan(0);
@@ -126,7 +126,7 @@ describe('LongitudinalMiningEngine', () => {
         }
       ];
 
-      const alerts = await engine.detectPerformanceDegradation(trends);
+      const alerts = await engine.detectPerformanceDegradation(trends as any);
 
       expect(Array.isArray(alerts)).toBe(true);
       expect(alerts.length).toBeGreaterThan(0);
@@ -145,6 +145,8 @@ describe('LongitudinalMiningEngine', () => {
       // Add some historical data first
       await engine.recordPerformanceData({
         timestamp: Date.now() - 86400000,
+        mods: ['mod1', 'mod2'],
+        outcome: 'success',
         fps: 50,
         memoryUsage: 4000,
         loadTime: 20000,
@@ -154,6 +156,8 @@ describe('LongitudinalMiningEngine', () => {
 
       await engine.recordPerformanceData({
         timestamp: Date.now() - 43200000,
+        mods: ['mod1', 'mod2'],
+        outcome: 'success',
         fps: 48,
         memoryUsage: 4100,
         loadTime: 21000,

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Package, Plus, Trash2, Eye, Code, Wand2, RefreshCw, FileText, Layers, CheckSquare, Image as ImageIcon, ChevronRight, ChevronDown, ArrowDownToLine, ExternalLink, Info } from 'lucide-react';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
@@ -104,7 +105,7 @@ const TheAssembler: React.FC<TheAssemblerProps> = ({ embedded = false }) => {
             : '';
 
         if (!toolPath) {
-            alert('Set the FOMOD Creation Tool path in Tool Settings first.');
+            toast.error('Set the FOMOD Creation Tool path in Tool Settings first.');
             openUrl('https://www.nexusmods.com/fallout4/mods/6821');
             return;
         }
@@ -112,19 +113,11 @@ const TheAssembler: React.FC<TheAssemblerProps> = ({ embedded = false }) => {
             if (window.electronAPI?.openExternal) {
                 await window.electronAPI.openExternal(toolPath);
             } else {
-                alert('External tool launch requires Desktop Bridge connection.');
+                toast.error('External tool launch requires Desktop Bridge connection.');
             }
         } catch (error) {
             console.error('Failed to launch FOMOD Tool:', error);
-            const errorMsg = `Could not launch FOMOD Creation Tool.
-
-Check the configured path in Tool Settings.
-
-Download the tool from Nexus Mods:
-https://www.nexusmods.com/fallout4/mods/6821
-
-After installing, you may need to update the tool path in settings.`;
-            alert(errorMsg);
+            toast.error('Could not launch FOMOD Creation Tool. Check the configured path in Tool Settings.');
         }
     };
 
@@ -216,7 +209,7 @@ After installing, you may need to update the tool path in settings.`;
 
         } catch (e) {
             console.error(e);
-            alert("Failed to auto-generate structure. AI returned invalid format.");
+            toast.error('Failed to auto-generate structure. AI returned invalid format.');
         } finally {
             setIsGenerating(false);
         }
@@ -310,7 +303,7 @@ After installing, you may need to update the tool path in settings.`;
             URL.revokeObjectURL(infoUrl);
         }, 100);
         
-        alert('FOMOD files downloaded! Place ModuleConfig.xml in /fomod/ folder and info.xml in root.');
+        toast.success('FOMOD files downloaded! Place ModuleConfig.xml in /fomod/ folder and info.xml in root.');
     };
 
     // --- Renderers ---
@@ -431,7 +424,7 @@ After installing, you may need to update the tool path in settings.`;
                             <Package className="w-6 h-6 text-purple-400" />
                             The Assembler
                         </h2>
-                        <p className="text-xs text-slate-400 font-mono mt-1">FOMOD Creation Tool v1.7</p>
+                        <p className="text-xs text-slate-400 font-mono mt-1">FOMOD Creation Tool v1.7 <span className="text-amber-400">by AlexxEG</span></p>
                     </div>
                     <div className="flex gap-2">
                         <Link
@@ -444,7 +437,7 @@ After installing, you may need to update the tool path in settings.`;
                         <button 
                             onClick={handleLaunchExternalTool}
                             className="px-4 py-2 bg-blue-700 hover:bg-blue-600 border border-blue-500 rounded text-xs font-bold flex items-center gap-2 transition-all group relative"
-                            title="Launch FOMOD Creation Tool 1.7\n\nRequires: FOMOD Creation Tool (Download from Nexus Mods)\nhttps://www.nexusmods.com/fallout4/mods/6821"
+                            title="Launch FOMOD Creation Tool 1.7 by AlexxEG\n\nRequires: FOMOD Creation Tool (Download from Nexus Mods)\nhttps://www.nexusmods.com/fallout4/mods/6821"
                         >
                             <ExternalLink className="w-4 h-4" /> Launch Tool
                             <Info className="w-3 h-3 text-blue-300 opacity-50 group-hover:opacity-100 transition-opacity" />
@@ -486,7 +479,7 @@ After installing, you may need to update the tool path in settings.`;
                             description="Assembler lets you design a FOMOD structure and export it. Launching an external FOMOD editor is optional and only works if you set a real path in Tool Settings."
                             tools={[
                                 {
-                                    label: 'FOMOD Creation Tool (optional external editor)',
+                                    label: 'FOMOD Creation Tool by AlexxEG (optional external editor)',
                                     href: 'https://www.nexusmods.com/fallout4/mods/6821',
                                     note: 'Optional. Use Tool Settings to point Mossy at the executable you installed.',
                                     kind: 'official',
@@ -515,6 +508,7 @@ After installing, you may need to update the tool path in settings.`;
                                 toolName="FOMOD Creation Tool" 
                                 nexusUrl="https://www.nexusmods.com/fallout4/mods/6821"
                                 description="Use the external designer to finalize your installer. Configure the path and launch directly from here."
+                                author="AlexxEG"
                             />
                     </div>
                 </>

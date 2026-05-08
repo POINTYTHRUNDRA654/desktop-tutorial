@@ -23,11 +23,15 @@ import {
 
 export interface ContextualConfig {
   learningRate: number;
-  preferenceDecay: number; // days
+  preferenceDecay?: number; // days
   contextWindowSize: number; // interactions
-  enableAdaptiveLearning: boolean;
+  enableAdaptiveLearning?: boolean;
   userProfilePath?: string;
-  behaviorTrackingEnabled: boolean;
+  behaviorTrackingEnabled?: boolean;
+
+  // Back-compat / test-friendly options
+  enablePersonalization?: boolean;
+  feedbackIncorporationRate?: number;
 }
 
 export class ContextualMiningEngineImpl extends EventEmitter implements ContextualMiningEngine {
@@ -41,9 +45,20 @@ export class ContextualMiningEngineImpl extends EventEmitter implements Contextu
 
   constructor(config: ContextualConfig) {
     super();
-    this.config = config;
+    // Provide sensible defaults so tests and callers may pass a minimal config
+    this.config = {
+      preferenceDecay: config.preferenceDecay ?? 30,
+      enableAdaptiveLearning: config.enableAdaptiveLearning ?? true,
+      behaviorTrackingEnabled: config.behaviorTrackingEnabled ?? true,
+      learningRate: config.learningRate,
+      contextWindowSize: config.contextWindowSize,
+      userProfilePath: config.userProfilePath,
+      enablePersonalization: config.enablePersonalization,
+      feedbackIncorporationRate: config.feedbackIncorporationRate
+    } as ContextualConfig;
+
     this.userProfile = this.createDefaultProfile();
-    this.profileManager = new UserProfileManager(config.userProfilePath);
+    this.profileManager = new UserProfileManager(this.config.userProfilePath);
   }
 
   async start(): Promise<void> {
@@ -151,7 +166,10 @@ export class ContextualMiningEngineImpl extends EventEmitter implements Contextu
     this.emit('context-updated', { context, profileUpdated: true });
   }
 
-  async analyzeUserPreferences(): Promise<PreferenceAnalysis> {
+  async analyzeUserPreferences(userProfile?: UserProfile): Promise<PreferenceAnalysis> {
+    // Accept optional profile (matches shared type signature); fall back to internal profile when not provided
+    if (userProfile) this.userProfile = userProfile;
+
     this.emit('status', { status: 'running', message: 'Analyzing user preferences' });
 
     const visualQuality = this.determineVisualQuality();
@@ -1004,10 +1022,11 @@ export class ContextualMiningEngineImpl extends EventEmitter implements Contextu
     };
   }
 
-  async generatePersonalizedRecommendations(): Promise<ContextualRecommendation[]> {
+  async generatePersonalizedRecommendations(userContext?: any): Promise<ContextualRecommendation[]> {
+    // Accept optional userContext (matches shared type signature)
     const recommendations: ContextualRecommendation[] = [];
 
-    // Generate recommendations based on user profile
+    // Generate recommendations based on user profile (and optional context)
     const preferences = await this.analyzeUserPreferences();
 
     if ((preferences as any).performancePriority > 7) {

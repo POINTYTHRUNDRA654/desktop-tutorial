@@ -12,9 +12,10 @@ export interface UserSession {
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
+  citations?: any[];
   metadata?: Record<string, any>;
 }
 
@@ -219,6 +220,23 @@ export class AutoSaveManager {
     } catch (error) {
       console.error('Failed to cleanup old data:', error);
     }
+  }
+
+  // State updates (called by UI layer)
+  updateCurrentChatHistory(history: ChatMessage[]): void {
+    this._currentChatHistory = Array.isArray(history) ? history : [];
+  }
+
+  updateCurrentWorkInProgress(items: WorkInProgress[]): void {
+    this._currentWorkInProgress = Array.isArray(items) ? items : [];
+  }
+
+  updateCurrentSettings(settings: Record<string, any>): void {
+    this._currentSettings = settings && typeof settings === 'object' ? settings : {};
+  }
+
+  updateCurrentUIState(uiState: Record<string, any>): void {
+    this._currentUIState = uiState && typeof uiState === 'object' ? uiState : {};
   }
 
   // Getters for current state (to be implemented by the app)

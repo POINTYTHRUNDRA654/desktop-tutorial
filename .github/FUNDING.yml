@@ -1,0 +1,25 @@
+# These are supported funding model platforms
+
+# GitHub Sponsors username
+# Replace 'POINTYTHRUNDRA654' with your actual GitHub Sponsors username once set up
+github: POINTYTHRUNDRA654
+
+# Patreon username
+# Uncomment and add your Patreon username if you set one up
+# patreon: your-patreon-username
+
+# Ko-fi username  
+# Uncomment and add your Ko-fi username once you create an account
+# ko_fi: your-kofi-username
+
+# Buy Me a Coffee username
+# Uncomment and add your Buy Me a Coffee username once you create an account
+# custom: ['https://buymeacoffee.com/your-username']
+
+# PayPal
+# Uncomment and add your PayPal.me link or email
+# custom: ['https://paypal.me/your-username']
+
+# Multiple custom URLs (if using several platforms)
+# Uncomment and customize when you have accounts set up:
+# custom: ['https://buymeacoffee.com/mossy', 'https://ko-fi.com/mossy', 'https://paypal.me/mossy']

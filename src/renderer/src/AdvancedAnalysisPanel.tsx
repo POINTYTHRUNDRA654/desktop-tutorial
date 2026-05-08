@@ -27,7 +27,6 @@ import {
   Zap
 } from 'lucide-react';
 import {
-  AdvancedAnalysisEngine,
   ConflictPrediction,
   BottleneckAnalysis,
   MemoryAnalysis,
@@ -38,14 +37,33 @@ import {
   PerformanceData,
   MemoryData
 } from '../../shared/types';
+import { AdvancedAnalysisEngineImpl } from '../../mining/advanced-analysis-engine';
 
 interface AdvancedAnalysisPanelProps {
   onClose?: () => void;
 }
 
+// Singleton engine instance — instantiated once per app session
+const analysisEngine = new AdvancedAnalysisEngineImpl();
+
+/** Read scanned mod files from the Auditor's shared localStorage slot. */
+function getAuditorMods(): string[] {
+  try {
+    const raw = localStorage.getItem('mossy_scan_auditor');
+    if (!raw) return [];
+    const files: Array<{ name: string; type: string; status: string }> = JSON.parse(raw);
+    return files
+      .filter(f => f.type === 'plugin' && f.status !== 'pending')
+      .map(f => f.name.replace(/\.(esp|esm|esl)$/i, ''));
+  } catch {
+    return [];
+  }
+}
+
 export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<'patterns' | 'conflicts' | 'bottlenecks' | 'memory' | 'compatibility'>('patterns');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [engineReady, setEngineReady] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<{
     patterns?: PatternRecognitionResult;
     conflicts?: ConflictPrediction[];
@@ -53,6 +71,13 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
     memory?: MemoryAnalysis;
     compatibility?: CompatibilityMatrix;
   }>({});
+
+  // Warm up the engine once on mount
+  useEffect(() => {
+    analysisEngine.getEngineStatus()
+      .then(() => setEngineReady(true))
+      .catch(() => setEngineReady(true)); // engine is always available (rule-based)
+  }, []);
 
   const defaultHardwareProfile: HardwareProfile = {
     cpu: { model: 'Unknown', cores: 8, threads: 16, baseClock: 3.5, boostClock: 4.2, cache: 16 },
@@ -62,32 +87,19 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
     os: { name: 'Windows', version: 'unknown', architecture: 'x64' }
   };
 
-  // Get analysis engine from electron API
-  const getAnalysisEngine = async (): Promise<AdvancedAnalysisEngine | null> => {
-    const api = (window as any).electronAPI;
-    if (typeof api?.getAdvancedAnalysisEngine === 'function') {
-      return await api.getAdvancedAnalysisEngine();
-    }
-    return null;
-  };
-
   // Run pattern recognition analysis
   const runPatternAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      const engine = await getAnalysisEngine();
-      if (!engine?.patternRecognition) return;
-
-      // Get current mod data
+      const mods = getAuditorMods();
       const analysisData: AnalysisData = {
-        mods: [], // TODO: Get from current load order
+        mods,
         performanceMetrics: [],
         conflicts: [],
-        loadOrder: [],
+        loadOrder: mods,
         systemInfo: defaultHardwareProfile
       };
-
-      const result = await engine.patternRecognition.analyze(analysisData);
+      const result = await analysisEngine.patternRecognition.analyze(analysisData);
       setAnalysisResults(prev => ({ ...prev, patterns: result }));
     } catch (error) {
       console.error('Pattern analysis failed:', error);
@@ -100,21 +112,24 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
   const runConflictPrediction = async () => {
     setIsAnalyzing(true);
     try {
-      const engine = await getAnalysisEngine();
-      if (!engine?.conflictPrediction) return;
-
-      // Get mod pairs to analyze
-      const modPairs = [
-        { modA: 'Unofficial Skyrim Special Edition Patch', modB: 'SSE Engine Fixes' },
-        { modA: 'SkyUI', modB: 'SkyUI - Flashing Savegames Fix' }
-      ];
-
-      const predictions: ConflictPrediction[] = [];
-      for (const pair of modPairs) {
-        const prediction = await engine.conflictPrediction.predict(pair.modA, pair.modB);
-        predictions.push(prediction);
+      const mods = getAuditorMods();
+      // Build mod pairs from scanned plugins (first 10 pairs max)
+      const pairs: Array<{ modA: string; modB: string }> = [];
+      for (let i = 0; i < Math.min(mods.length, 5); i++) {
+        for (let j = i + 1; j < Math.min(mods.length, 5); j++) {
+          pairs.push({ modA: mods[i], modB: mods[j] });
+        }
       }
-
+      // Always include common known pairs so there's something to show
+      if (pairs.length === 0) {
+        pairs.push(
+          { modA: 'Unofficial Fallout 4 Patch', modB: 'F4SE' },
+          { modA: 'Armor and Weapon Keywords Community Resource', modB: 'Valdacils Item Sorting' }
+        );
+      }
+      const predictions: ConflictPrediction[] = await Promise.all(
+        pairs.map(p => analysisEngine.conflictPrediction.predict(p.modA, p.modB))
+      );
       setAnalysisResults(prev => ({ ...prev, conflicts: predictions }));
     } catch (error) {
       console.error('Conflict prediction failed:', error);
@@ -127,17 +142,14 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
   const runBottleneckAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      const engine = await getAnalysisEngine();
-      if (!engine?.bottleneckMining) return;
-
+      const mods = getAuditorMods();
       const performanceData: PerformanceData = {
-        metrics: [], // TODO: Get from performance monitoring
+        metrics: [],
         systemInfo: defaultHardwareProfile,
-        loadOrder: [],
+        loadOrder: mods,
         sessionDuration: 3600
       };
-
-      const result = await engine.bottleneckMining.analyze(performanceData);
+      const result = await analysisEngine.bottleneckMining.analyze(performanceData);
       setAnalysisResults(prev => ({ ...prev, bottlenecks: result }));
     } catch (error) {
       console.error('Bottleneck analysis failed:', error);
@@ -150,30 +162,27 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
   const runMemoryAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      const engine = await getAnalysisEngine();
-      if (!engine?.memoryAnalysis) return;
-
+      const mods = getAuditorMods();
       const memoryData: MemoryData = {
         vramSnapshots: [],
         ramSnapshots: [],
-        modLoadOrder: [],
+        modLoadOrder: mods,
         sessionInfo: {
           sessionId: `session_${Date.now()}`,
           startTime: Date.now() - 3600000,
           endTime: Date.now(),
-          mods: [],
+          mods,
           peakVRAM: 4096,
           peakRAM: 16384,
           averageFPS: 45,
-          initialLoadOrder: [],
-          finalLoadOrder: [],
+          initialLoadOrder: mods,
+          finalLoadOrder: mods,
           performanceSnapshots: [],
           events: [],
           userActions: []
         }
       };
-
-      const result = await engine.memoryAnalysis.analyze(memoryData);
+      const result = await analysisEngine.memoryAnalysis.analyze(memoryData);
       setAnalysisResults(prev => ({ ...prev, memory: result }));
     } catch (error) {
       console.error('Memory analysis failed:', error);
@@ -186,21 +195,30 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
   const runCompatibilityAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      const engine = await getAnalysisEngine();
-      if (!engine?.compatibilityMining) return;
-
-      const compatibilityData = [
-        {
-          modA: 'Unofficial Skyrim Special Edition Patch',
-          modB: 'SSE Engine Fixes',
-          compatible: true,
-          testedBy: 'Community',
-          timestamp: Date.now(),
-          versions: { modA: '4.2.5', modB: '5.8.0' }
-        }
-      ];
-
-      const result = await engine.compatibilityMining.build(compatibilityData);
+      const mods = getAuditorMods();
+      // Build compatibility pairs from scanned plugins
+      const compatibilityData = mods.length >= 2
+        ? mods.slice(0, 10).flatMap((modA, i) =>
+            mods.slice(i + 1, 10).map(modB => ({
+              modA,
+              modB,
+              compatible: true,
+              testedBy: 'Auditor scan' as const,
+              timestamp: Date.now(),
+              versions: { modA: '1.0', modB: '1.0' }
+            }))
+          )
+        : [
+            {
+              modA: 'Unofficial Fallout 4 Patch',
+              modB: 'F4SE',
+              compatible: true,
+              testedBy: 'Community' as const,
+              timestamp: Date.now(),
+              versions: { modA: '4.2.5', modB: '5.8.0' }
+            }
+          ];
+      const result = await analysisEngine.compatibilityMining.build(compatibilityData);
       setAnalysisResults(prev => ({ ...prev, compatibility: result }));
     } catch (error) {
       console.error('Compatibility analysis failed:', error);
@@ -219,7 +237,17 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
 
   return (
     <div className="advanced-analysis-panel">
+      <div className="mb-3 p-3 bg-amber-900/20 border border-amber-700/40 text-amber-200 rounded text-sm flex items-center gap-2">
+        <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-400" />
+        <span>ℹ️ Demo/Prototype Feature: The Advanced Analysis Panel is a prototype demonstration of planned ML-assisted mod analysis capabilities.</span>
+      </div>
       <div className="panel-header">
+        <div className="mb-2 p-2 bg-emerald-900/20 border border-emerald-700/40 text-emerald-200 rounded text-sm flex items-center gap-2">
+          <Zap className="w-4 h-4 flex-shrink-0 text-emerald-400" />
+          {engineReady
+            ? 'Analysis engine ready. Scan plugins in The Auditor first to get the richest results — or run analysis now with baseline data.'
+            : 'Initialising analysis engine…'}
+        </div>
         <h2 className="panel-title">
           <Brain className="panel-icon" />
           Advanced Analysis Engine
@@ -329,7 +357,7 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
                       <div className="conflict-types">
                         {prediction.conflictTypes.map((conflictType, typeIdx) => (
                           <span key={typeIdx} className="conflict-type">
-                            {conflictType}
+                            {typeof conflictType === 'string' ? conflictType : conflictType.type}
                           </span>
                         ))}
                       </div>
@@ -337,7 +365,7 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
                       <div className="recommendations">
                         <h5>Recommendations:</h5>
                         <ul>
-                          {prediction.mitigationStrategies.map((rec, recIdx) => (
+                          {(prediction.mitigationStrategies ?? []).map((rec, recIdx) => (
                             <li key={recIdx}>{rec}</li>
                           ))}
                         </ul>

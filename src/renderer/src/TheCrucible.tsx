@@ -43,7 +43,7 @@ const analyzeCrashLog = (content: string): Analysis => {
         const match = fileLine.match(/File:\s*"([^"]+)"/i);
         if (match && match[1]) culprit = match[1];
     } else if (/Buffout/i.test(content)) {
-        culprit = 'Buffout 4 (runtime)';
+        culprit = 'Addictol (runtime)';
     }
 
     let reason = 'Unknown crash cause';
@@ -65,7 +65,7 @@ const analyzeCrashLog = (content: string): Analysis => {
     if (culprit.endsWith('.esp') || culprit.endsWith('.esm')) {
         fix = `Reinstall or disable ${culprit}; check meshes and scripts referenced around the crash.`;
     } else if (/Buffout/i.test(culprit)) {
-        fix = 'Update Buffout 4 and verify prerequisites (Address Library, TBB).';
+        fix = 'Install Addictol (#84214) and verify prerequisites (Address Library AiO #47327, High FPS Physics Fix #44798).';
     }
     if (stack.some((l) => /BSLightingShaderProperty/i.test(l))) {
         fix = 'Open referenced mesh in NifSkope; fix shader blocks and ensure textures exist.';
@@ -90,38 +90,38 @@ const analyzeCrashLog = (content: string): Analysis => {
 const TheCrucible: React.FC = () => {
     const [logs, setLogs] = useState<CrashLog[]>(initialLogs);
     const [selectedLog, setSelectedLog] = useState<CrashLog | null>(null);
-        const [analysis, setAnalysis] = useState<Analysis | null>(null);
-        const [isAnalyzing, setIsAnalyzing] = useState(false);
-        const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [analysis, setAnalysis] = useState<Analysis | null>(null);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-        const handleLoadLog = () => {
-                fileInputRef.current?.click();
+    const handleLoadLog = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            const text = typeof reader.result === 'string' ? reader.result : '';
+            const lines = text.split('\n');
+            const newLog: CrashLog = {
+                id: `${Date.now()}`,
+                filename: file.name,
+                date: new Date(file.lastModified).toLocaleString(),
+                engine: parseEngine(lines),
+                preview: parsePreview(lines),
+                content: text,
+            };
+            setLogs((prev) => [newLog, ...prev]);
+            setSelectedLog(newLog);
+            setAnalysis(null);
         };
-
-        const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const text = typeof reader.result === 'string' ? reader.result : '';
-                    const lines = text.split('\n');
-                    const newLog: CrashLog = {
-                        id: `${Date.now()}`,
-                        filename: file.name,
-                        date: new Date(file.lastModified).toLocaleString(),
-                        engine: parseEngine(lines),
-                        preview: parsePreview(lines),
-                        content: text,
-                    };
-                    setLogs((prev) => [newLog, ...prev]);
-                    setSelectedLog(newLog);
-                    setAnalysis(null);
-                };
-                reader.readAsText(file);
-                // Reset input so selecting the same file again triggers change
-                e.target.value = '';
-        };
+        reader.readAsText(file);
+        // Reset input so selecting the same file again triggers change
+        e.target.value = '';
+    };
 
     const handleSelectLog = (log: CrashLog) => {
         setSelectedLog(log);
@@ -160,25 +160,25 @@ const TheCrucible: React.FC = () => {
                     <div className="p-3 border-b border-red-900/20 text-xs font-bold text-red-400 uppercase tracking-widest bg-[#1a0b0b]">
                         Recent Incidents
                     </div>
-                                        <div className="p-3 border-b border-red-900/20 bg-[#1a0b0b] flex items-center gap-2 text-[11px] text-slate-300">
-                                                <button
-                                                    onClick={handleLoadLog}
-                                                    className="flex items-center gap-2 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-[11px] font-bold transition-colors"
-                                                >
-                                                    <Upload className="w-3 h-3" /> Load Crash Log
-                                                </button>
-                                                <input
-                                                    ref={fileInputRef}
-                                                    type="file"
-                                                    accept=".log,.txt"
-                                                    className="hidden"
-                                                    onChange={handleFileChange}
-                                                />
-                                        </div>
+                    <div className="p-3 border-b border-red-900/20 bg-[#1a0b0b] flex items-center gap-2 text-[11px] text-slate-300">
+                        <button
+                            onClick={handleLoadLog}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-[11px] font-bold transition-colors"
+                        >
+                            <Upload className="w-3 h-3" /> Load Crash Log
+                        </button>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".log,.txt"
+                            className="hidden"
+                            onChange={handleFileChange}
+                        />
+                    </div>
                     <div className="flex-1 overflow-y-auto">
                         {logs.map(log => (
-                            <div 
-                                key={log.id} 
+                            <div
+                                key={log.id}
                                 onClick={() => handleSelectLog(log)}
                                 className={`p-4 border-b border-red-900/10 cursor-pointer transition-colors hover:bg-red-900/10 ${selectedLog?.id === log.id ? 'bg-red-900/20 border-l-2 border-l-red-500' : ''}`}
                             >
@@ -199,11 +199,11 @@ const TheCrucible: React.FC = () => {
                 <div className="flex-1 bg-[#0a0505] flex flex-col relative overflow-hidden">
                     <div className="p-3 border-b border-red-900/20 bg-[#140a0a] flex justify-between items-center">
                         <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
-                            <FileText className="w-3 h-3" /> 
+                            <FileText className="w-3 h-3" />
                             {selectedLog ? selectedLog.filename : "No Log Selected"}
                         </span>
                         {selectedLog && (
-                            <button 
+                            <button
                                 onClick={handleAnalyze}
                                 disabled={isAnalyzing}
                                 className="flex items-center gap-2 px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-bold transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] disabled:opacity-50"
@@ -213,7 +213,7 @@ const TheCrucible: React.FC = () => {
                             </button>
                         )}
                     </div>
-                    
+
                     <div className="flex-1 overflow-auto p-6 font-mono text-xs leading-relaxed text-slate-400 custom-scrollbar">
                         {selectedLog ? (
                             <pre className="whitespace-pre-wrap">
@@ -242,7 +242,7 @@ const TheCrucible: React.FC = () => {
                                 <Activity className="w-4 h-4" /> Diagnostic Report
                             </h3>
                         </div>
-                        
+
                         <div className="flex-1 p-6 space-y-6 overflow-y-auto">
                             {/* Culprit Card */}
                             <div className="bg-black/40 rounded-xl p-4 border border-red-500/30 relative overflow-hidden">
@@ -253,9 +253,8 @@ const TheCrucible: React.FC = () => {
                                 <div className="text-lg font-bold text-white break-words">{analysis.culprit}</div>
                                 <div className="mt-2 flex items-center gap-2 text-xs">
                                     <span className="text-slate-500">Confidence:</span>
-                                    <span className={`px-2 py-0.5 rounded font-bold ${
-                                        analysis.confidence === 'High' ? 'bg-red-500 text-white' : 'bg-yellow-500 text-black'
-                                    }`}>{analysis.confidence}</span>
+                                    <span className={`px-2 py-0.5 rounded font-bold ${analysis.confidence === 'High' ? 'bg-red-500 text-white' : 'bg-yellow-500 text-black'
+                                        }`}>{analysis.confidence}</span>
                                 </div>
                             </div>
 

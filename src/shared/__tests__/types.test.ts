@@ -38,6 +38,7 @@ describe('Shared Types', () => {
       expect(IPC_CHANNELS).toHaveProperty('SET_SETTINGS');
       expect(IPC_CHANNELS).toHaveProperty('TTS_SPEAK');
       expect(IPC_CHANNELS).toHaveProperty('STT_START');
+      expect(IPC_CHANNELS).toHaveProperty('WORKSHOP_READ_BLENDER_ZIP');
     });
 
     it('should have unique channel names', () => {

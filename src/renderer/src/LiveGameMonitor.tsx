@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { Activity, Cpu, Zap, Eye, RefreshCw, Play, Square, AlertTriangle, TrendingUp } from 'lucide-react';
 
 interface GameMetrics {
@@ -64,10 +65,10 @@ export const LiveGameMonitor: React.FC = () => {
         setConnected(true);
       } else {
         const data = await resp.json();
-        alert(`Connection to Fallout 4 Bridge failed: ${data.message || 'Is the F4SE plugin installed?'}`);
+        toast.error(`Connection to Fallout 4 Bridge failed: ${data.message || 'Is the F4SE plugin installed?'}`);
       }
     } catch (error) {
-      alert('Volt Bridge not detected. Please ensure you have launched the game through the F4SE loader with the Mossy Live Bridge plugin enabled.');
+      toast.error('Volt Bridge not detected. Please ensure you have launched the game through the F4SE loader with the Mossy Live Bridge plugin enabled.');
     }
   };
 
@@ -105,9 +106,9 @@ export const LiveGameMonitor: React.FC = () => {
   const hotReload = async () => {
     try {
       await fetch('http://localhost:21337/game/hotreload', { method: 'POST' });
-      alert('Scripts hot-reloaded!');
+      toast.success('Scripts hot-reloaded!');
     } catch (error) {
-      alert('Hot reload triggered (demo mode - requires Desktop Bridge)');
+      toast.success('Hot reload triggered (demo mode - requires Desktop Bridge)');
     }
   };
 

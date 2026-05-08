@@ -54,7 +54,7 @@ describe('HardwareAwareMiningEngine', () => {
     });
 
     it('should generate hardware-aware recommendations', async () => {
-      const mockProfile = {
+      const mockProfile: any = {
         cpu: { model: 'Intel i5', cores: 4, threads: 8, baseClock: 3.0, boostClock: 4.0, cache: 8 },
         gpu: { model: 'GTX 1060', vram: 6, driverVersion: '400', dxVersion: '11', rayTracing: false },
         ram: { total: 16, speed: 2133, type: 'DDR4', channels: 2 },
@@ -83,7 +83,7 @@ describe('HardwareAwareMiningEngine', () => {
 
     it('should predict performance for hardware configuration', async () => {
       const mods = ['High-res textures', 'Complex weather mod'];
-      const hardwareProfile = {
+      const hardwareProfile: any = {
         cpu: { model: 'Intel i7', cores: 8, threads: 16, baseClock: 3.8, boostClock: 5.1, cache: 16 },
         gpu: { model: 'RTX 3070', vram: 8, driverVersion: '516', dxVersion: '12', rayTracing: true },
         ram: { total: 32, speed: 3200, type: 'DDR4', channels: 2 },
@@ -110,7 +110,7 @@ describe('HardwareAwareMiningEngine', () => {
 
     it('should optimize settings for hardware', async () => {
       const mods = ['Texture pack', 'Mesh replacer'];
-      const hardwareProfile = {
+      const hardwareProfile: any = {
         cpu: { model: 'Intel i5', cores: 6, threads: 12, baseClock: 4.1, boostClock: 4.6, cache: 12 },
         gpu: { model: 'RTX 3060', vram: 12, driverVersion: '531', dxVersion: '12', rayTracing: true },
         ram: { total: 16, speed: 3200, type: 'DDR4', channels: 2 },

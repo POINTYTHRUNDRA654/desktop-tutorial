@@ -1,7 +1,7 @@
 # Mossy - Comprehensive Tutorial Guide
 ## Your Complete Guide to Using Mossy for Fallout 4 Modding
 
-**Version:** 5.4.21  
+**Version:** 5.4.23  
 **Last Updated:** February 2026  
 **Author:** Mossy Development Team
 
@@ -51,7 +51,7 @@ Mossy is a production-ready Electron desktop application designed specifically f
 ### Installation
 
 1. **Download the Installer**
-   - Get the latest `Mossy Setup 5.4.21.exe` from the releases page
+   - Get the latest `Mossy Setup 5.4.23.exe` from the releases page
    - Run the installer and follow the prompts
 
 2. **First Launch**
@@ -96,9 +96,15 @@ The onboarding wizard guides you through initial setup:
 
 ## Main Interface Overview
 
+![Mossy Main Interface](docs/screenshots/nexus-dashboard-overview.png)
+*The Mossy interface showing the main dashboard, sidebar navigation, and header bar*
+
 ### Sidebar Navigation
 
 The sidebar is your primary navigation tool in Mossy.
+
+![Sidebar Navigation](docs/screenshots/sidebar-navigation.png)
+*The sidebar displays all module categories and navigation options*
 
 **Location:** Left side of the screen  
 **Toggle:** Click the menu icon (☰) on mobile/small screens
@@ -185,6 +191,9 @@ The sidebar is your primary navigation tool in Mossy.
 **Path:** `/` (Home)  
 **Purpose:** Central hub showing all available modules and quick actions
 
+![The Nexus Dashboard](docs/screenshots/nexus-dashboard-overview.png)
+*The Nexus shows all available modules organized by category with quick access cards*
+
 **Features:**
 
 - Overview of all tools and modules
@@ -214,6 +223,9 @@ The sidebar is your primary navigation tool in Mossy.
 
 **Path:** `/chat`  
 **Purpose:** Text-based AI conversation for modding assistance
+
+![Chat Interface](docs/screenshots/chat-interface.png)
+*The chat interface with message history and natural language input*
 
 **Features:**
 
@@ -253,6 +265,9 @@ The sidebar is your primary navigation tool in Mossy.
 
 **Path:** `/live`  
 **Purpose:** Voice-based interaction with Mossy AI
+
+![Live Voice Chat](docs/screenshots/live-voice-listening.png)
+*Live voice chat interface showing the avatar in listening mode*
 
 **Features:**
 
@@ -297,6 +312,9 @@ The sidebar is your primary navigation tool in Mossy.
 **Path:** `/media/images`  
 **Purpose:** PBR texture generation and image processing
 
+![Image Suite Interface](docs/screenshots/image-suite-main.png)
+*The Image Suite showing PBR texture generation options*
+
 **Features:**
 
 - **Normal Map Generation** - Sobel edge detection
@@ -334,6 +352,9 @@ The sidebar is your primary navigation tool in Mossy.
 
 **Path:** `/tools/auditor`  
 **Purpose:** Validate and analyze mod assets
+
+![The Auditor Interface](docs/screenshots/auditor-main.png)
+*The Auditor analyzing ESP, NIF, and DDS files for issues*
 
 **Features:**
 
@@ -383,6 +404,9 @@ The sidebar is your primary navigation tool in Mossy.
 
 **Path:** `/dev/workshop`  
 **Purpose:** Write and edit Papyrus scripts with IDE features
+
+![Workshop Code Editor](docs/screenshots/workshop-editor.png)
+*The Workshop showing Papyrus code editing with syntax highlighting*
 
 **Features:**
 
@@ -577,6 +601,9 @@ The sidebar is your primary navigation tool in Mossy.
 **Path:** `/settings`  
 **Purpose:** Configure all app preferences and integrations
 
+![Settings Interface](docs/screenshots/settings-general.png)
+*The Settings hub with various configuration options*
+
 **Settings Categories:**
 
 **1. General**
@@ -631,6 +658,9 @@ The sidebar is your primary navigation tool in Mossy.
 
 **Path:** `/learn`  
 **Purpose:** Access comprehensive modding documentation
+
+![Learning Hub](docs/screenshots/learning-hub-main.png)
+*The Learning Hub provides access to extensive modding guides and documentation*
 
 **Features:**
 
@@ -856,6 +886,67 @@ The sidebar is your primary navigation tool in Mossy.
 - Skeleton setup for Fallout 4
 - Export settings
 - Common mistakes to avoid
+
+### Blender Add-on Integration
+
+Mossy ships with Blender add-ons that extend your workflow. All add-ons are located in `scripts/blender/` and `public/mossy_link_addon.py`.
+
+#### Mossy Link Add-on (`public/mossy_link_addon.py`)
+
+The **Mossy Link** add-on connects Blender directly to the Mossy Desktop Bridge, enabling real-time AI-driven script execution from within Blender.
+
+**Install:**
+1. Open Blender → Edit → Preferences → Add-ons → Install…
+2. Select `public/mossy_link_addon.py` and click **Install Add-on**
+3. Search for "Mossy Link" and enable it
+4. The add-on starts a local socket server on port `9999` automatically
+
+**Features:**
+- Execute Python scripts in Blender from Mossy's chat or The Scribe IDE
+- Read and set object properties remotely
+- Create and select objects via AI commands
+- Panel at View3D → Mossy Link with a toggle and bridge test button
+
+**Supported command types:**
+
+| Type | Description |
+|------|-------------|
+| `script` | Execute arbitrary Python in Blender's context |
+| `text` | Write (and optionally run) a Text datablock |
+| `property` | Read a `bpy.context` property by dot-path |
+| `status` | Return Blender version, scene, object counts |
+| `select` | Select an object by name |
+| `create` | Create a new mesh object |
+
+#### Example Add-ons (`scripts/blender/`)
+
+Two ready-to-install add-ons are included for learning and automation:
+
+**`blender_move_x.py` — Move X by One**
+- Moves every object in the scene `+1` unit along the X axis
+- Available via Operator Search (`F3`) or the Object menu
+
+```powershell
+# Run headless via the helper script
+./scripts/blender/run_blender_ops.ps1 -BlendFile "C:\scene.blend" -Operator move_x -EnableAutoExec
+```
+
+**`blender_cursor_array.py` — Cursor Array**
+- Creates linked duplicates between the active object and the 3D cursor
+- `Steps` property controls instance count (default 2, max 100)
+- Shortcut: `Ctrl+Shift+T` in Object Mode
+- Available via Operator Search or the Object menu
+
+```powershell
+# Run headless with 8 steps
+./scripts/blender/run_blender_ops.ps1 -BlendFile "C:\scene.blend" -Operator cursor_array -Total 8 -EnableAutoExec
+```
+
+**Install either add-on:**
+1. Blender → Edit → Preferences → Add-ons → Install… → select the `.py` file → enable
+2. Or open in the Text Editor and click **Run Script** (session-only)
+
+For full details see [`scripts/blender/README_BLENDER_ADDONS.md`](scripts/blender/README_BLENDER_ADDONS.md) and [`resources/public/knowledge/BLENDER_ADDON_TUTORIAL.md`](resources/public/knowledge/BLENDER_ADDON_TUTORIAL.md).
 
 ### Quest Mod Authoring Guide
 
@@ -1236,7 +1327,7 @@ A: See CONTRIBUTING.md in the repository for guidelines on contributing code, do
 
 ## Version History
 
-**v5.4.21** (Current)
+**v5.4.23** (Current)
 - Direct-write protocol for scripting
 - Headless Blender automation
 - Real-time tool monitoring (Neural Link)
@@ -1285,6 +1376,7 @@ SOFTWARE.
 
 **End of Tutorial**
 
-For updates and more information, visit the [GitHub repository](https://github.com/POINTYTHRUNDRA654/desktop-tutorial).
+For updates and more information, visit the [GitHub repository](https://github.com/POINTYTHRUNDRA654/mossy-ai).
 
 Happy Modding! 🎮
+

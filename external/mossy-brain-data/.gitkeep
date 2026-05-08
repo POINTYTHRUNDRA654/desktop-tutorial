@@ -1,0 +1,2 @@
+# This directory will contain Mossy's brain data, instructions, and training data
+# It's created and populated automatically by the pre-push git hook

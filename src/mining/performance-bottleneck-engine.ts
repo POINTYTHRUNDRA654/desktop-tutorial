@@ -245,8 +245,8 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
   private analyzeFPSBottleneck(metrics: PerformanceMetric[]): Phase2PerformanceBottleneck | null {
     if (metrics.length === 0) return null;
 
-    const avgFPS = metrics.reduce((sum, m) => sum + m.fps, 0) / metrics.length;
-    const minFPS = Math.min(...metrics.map(m => m.fps));
+    const avgFPS = metrics.reduce((sum, m) => sum + (typeof m.fps === 'number' ? m.fps : 0), 0) / metrics.length;
+    const minFPS = Math.min(...metrics.map(m => typeof m.fps === 'number' ? m.fps : 0));
 
     if (avgFPS < this.config.bottleneckThresholds.fps) {
       return {
@@ -302,7 +302,7 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
           loadTime: 2
         },
         affectedMods: [],
-        rootCause: `High memory usage (${(avgMemory/1024).toFixed(1)}GB) approaching system limits`,
+        rootCause: `High memory usage (${(avgMemory / 1024).toFixed(1)}GB) approaching system limits`,
         mitigationStrategies: [
           {
             type: 'optimize',
@@ -412,7 +412,7 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
 
     // Return mods that appear in the most bottlenecks
     return Object.entries(modFrequency)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([mod]) => mod);
   }
@@ -529,7 +529,7 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
     }
 
     const riskLevel = Math.abs(predictedImpact.fps) > 10 ? 'high' :
-                     Math.abs(predictedImpact.fps) > 5 ? 'medium' : 'low';
+      Math.abs(predictedImpact.fps) > 5 ? 'medium' : 'low';
 
     return {
       modChange: change,

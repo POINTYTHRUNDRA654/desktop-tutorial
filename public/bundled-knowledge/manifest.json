@@ -1,0 +1,27 @@
+{
+  "version": "1.1.0",
+  "lastUpdated": "2026-04-20",
+  "description": "Bundled knowledge packs that are auto-imported on first run",
+  "packs": [
+    {
+      "id": "core-tutorials-v1",
+      "name": "Core Tutorials",
+      "version": "1.0.0",
+      "file": "core-tutorials.json",
+      "description": "Essential getting started tutorials for Mossy",
+      "itemCount": 1,
+      "auto-import": true
+    },
+    {
+      "id": "4estgimp-donated-files-v1",
+      "name": "4estGimp Donated Files — Fallout 4 Patch Database",
+      "version": "1.0.0",
+      "file": "4estgimp-donated-files.json",
+      "description": "Knowledge from 4estGimp's personally donated PDF files — first 400 entries of their Fallout 4 patch and compatibility database. Gifted to Mossy by 4estGimp (https://www.nexusmods.com/fallout4/users/30343500).",
+      "itemCount": 6,
+      "auto-import": true,
+      "creditName": "4estGimp",
+      "creditUrl": "https://www.nexusmods.com/fallout4/users/30343500"
+    }
+  ]
+}

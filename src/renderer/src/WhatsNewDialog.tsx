@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Sparkles, CheckCircle } from 'lucide-react';
+import packageJson from '../../../package.json';
 
 interface WhatsNewDialogProps {
   isOpen: boolean;
@@ -44,7 +45,15 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose 
 
   const handleClose = () => {
     if (dontShowAgain) {
-      localStorage.setItem('mossy_whats_new_dismissed', 'true');
+      try {
+        // Store the current version as dismissed so the dialog re-appears on the next release
+        localStorage.setItem('mossy_whats_new_dismissed_version', packageJson.version);
+        // Migrate: remove old boolean flag so version-based check takes over
+        localStorage.removeItem('mossy_whats_new_dismissed');
+      } catch (err) {
+        // Don't block closing the dialog if storage is unavailable
+        console.warn('[WhatsNewDialog] could not persist dismissal:', err);
+      }
     }
     onClose();
   };
@@ -58,7 +67,7 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose 
         <div className="flex items-center justify-between p-6 border-b border-slate-700">
           <div className="flex items-center gap-3">
             <Sparkles className="w-6 h-6 text-yellow-400" />
-            <h2 className="text-xl font-bold text-white">What's New in Mossy v5.4.2.1</h2>
+            <h2 className="text-xl font-bold text-white">What's New in Mossy v{packageJson.version}</h2>
           </div>
           <button
             onClick={handleClose}
@@ -109,23 +118,51 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose 
   );
 };
 
+// Sentinel value used when migrating from the old boolean-flag dismissal system.
+// Any stored version that matches this value is treated as "dismissed before version
+// tracking existed" — the dialog will re-appear since we can't know which exact
+// version they dismissed.
+const LEGACY_DISMISSED_VERSION = '__legacy__';
+
 // Hook to manage "What's New" dialog state
 export const useWhatsNew = () => {
   const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   useEffect(() => {
-    // Check if user has dismissed the dialog before
-    const dismissed = localStorage.getItem('mossy_whats_new_dismissed');
-    if (!dismissed) {
+    // Version-aware dismissal: show again whenever the app version changes.
+    // If the user checked "Don't show again" for this exact version, respect that.
+    // Otherwise always show on the first launch of each new release.
+    const dismissedVersion = (() => {
+      try {
+        // Check new version-aware key first
+        const v = localStorage.getItem('mossy_whats_new_dismissed_version');
+        if (v) return v;
+        // Migrate old boolean key: treat as dismissed for any version before current
+        if (localStorage.getItem('mossy_whats_new_dismissed') === 'true') return LEGACY_DISMISSED_VERSION;
+        return null;
+      } catch { return null; }
+    })();
+    const permanentlyDismissed = dismissedVersion === packageJson.version;
+    const sessionDismissed = (() => {
+      try { return sessionStorage.getItem('mossy_whats_new_session_dismissed') === 'true'; } catch { return false; }
+    })();
+
+    if (!permanentlyDismissed && !sessionDismissed) {
       // Show after a brief delay to avoid overwhelming new users
-      const timer = setTimeout(() => {
-        setShowWhatsNew(true);
-      }, 2000);
+      const timer = setTimeout(() => setShowWhatsNew(true), 2000);
       return () => clearTimeout(timer);
     }
+
+    return;
   }, []);
 
-  const dismissWhatsNew = () => setShowWhatsNew(false);
+  // Dismiss for the current session (and optionally persist permanently elsewhere)
+  const dismissWhatsNew = (persistSession = true) => {
+    setShowWhatsNew(false);
+    if (persistSession) {
+      try { sessionStorage.setItem('mossy_whats_new_session_dismissed', 'true'); } catch { /* ignore */ }
+    }
+  };
 
   return { showWhatsNew, dismissWhatsNew };
 };

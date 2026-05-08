@@ -1,6 +1,42 @@
 # Screenshots Directory
 
-This directory contains screenshots for the Mossy Comprehensive Tutorial.
+This directory contains screenshots for Mossy tutorial documentation.
+
+## 📝 Status: Screenshots Available
+
+**Current State:** This directory contains 9 core interface screenshots used for quick reference in tutorials. For comprehensive page-by-page screenshots, see `/visual-guide-images/` which has 55+ actual application screenshots.
+
+## Available Screenshots
+
+### Core Interface Screenshots (This Directory)
+- ✅ nexus-dashboard-overview.png - Main dashboard
+- ✅ sidebar-navigation.png - Navigation menu
+- ✅ chat-interface.png - AI chat interface  
+- ✅ live-voice-listening.png - Voice chat mode
+- ✅ image-suite-main.png - Image Suite tool
+- ✅ auditor-main.png - File analysis tool
+- ✅ workshop-editor.png - Code editor
+- ✅ settings-general.png - Settings page
+- ✅ learning-hub-main.png - Learning resources
+
+### Comprehensive Page Screenshots
+For detailed screenshots of all 55+ pages, see `/visual-guide-images/`
+
+## Screenshot Locations
+
+### Visual Guide Images (`/visual-guide-images/`)
+- **55+ screenshots** covering every page in Mossy
+- **Format:** "Page X, [feature name].png"
+- **Used by:** VISUAL_GUIDE.md
+- **Coverage:** Complete application documentation
+
+### Tutorial Reference (`/docs/screenshots/`)
+- **9 screenshots** of core interfaces
+- **Format:** "[feature]-[description].png" 
+- **Used by:** MOSSY_COMPREHENSIVE_TUTORIAL.md, MOSSY_TUTORIAL_ENHANCED.md
+- **Coverage:** Most commonly referenced pages
+
+---
 
 ## How to Add Screenshots
 
@@ -45,25 +81,26 @@ Examples:
 ## Required Screenshots
 
 ### Core Modules
-- [ ] `nexus-dashboard-overview.png` - The Nexus main dashboard
-- [ ] `chat-interface-conversation.png` - Chat with message history
-- [ ] `live-voice-listening.png` - Voice chat in listening mode
+- [x] `nexus-dashboard-overview.png` - The Nexus main dashboard (PLACEHOLDER)
+- [x] `chat-interface.png` - Chat with message history (PLACEHOLDER)
+- [x] `live-voice-listening.png` - Voice chat in listening mode (PLACEHOLDER)
 - [ ] `live-voice-speaking.png` - Voice chat with Mossy speaking
-- [ ] `image-suite-main.png` - Image Suite main interface
+- [x] `image-suite-main.png` - Image Suite main interface (PLACEHOLDER)
 - [ ] `image-suite-normal-map.png` - Normal map generation
+- [x] `auditor-main.png` - Asset analysis main interface (PLACEHOLDER)
 - [ ] `auditor-esp-analysis.png` - ESP file analysis results
 - [ ] `auditor-nif-validation.png` - NIF file validation
-- [ ] `workshop-editor.png` - Workshop code editor
+- [x] `workshop-editor.png` - Workshop code editor (PLACEHOLDER)
 - [ ] `workshop-snippets.png` - Code snippets panel
 - [ ] `vault-browser.png` - The Vault file browser
 - [ ] `scribe-editor.png` - The Scribe text editor
 - [ ] `holodeck-launch.png` - Holodeck game launch interface
 - [ ] `bridge-tools.png` - Desktop Bridge tool detection
-- [ ] `settings-general.png` - General settings page
+- [x] `settings-general.png` - General settings page (PLACEHOLDER)
 - [ ] `settings-ai.png` - AI & Voice settings
 - [ ] `settings-tools.png` - Tools & Paths settings
 - [ ] `settings-privacy.png` - Privacy settings
-- [ ] `learning-hub-main.png` - Learning Hub overview
+- [x] `learning-hub-main.png` - Learning Hub overview (PLACEHOLDER)
 
 ### Development Tools
 - [ ] `workflow-orchestrator.png` - Workflow builder
@@ -80,7 +117,7 @@ Examples:
 - [ ] `guide-sim-settlements.png` - Sim Settlements Guide
 
 ### UI Elements
-- [ ] `sidebar-navigation.png` - Sidebar with all sections
+- [x] `sidebar-navigation.png` - Sidebar with all sections (PLACEHOLDER)
 - [ ] `header-bar.png` - Top header with all components
 - [ ] `pip-boy-theme.png` - Pip-Boy themed interface
 - [ ] `command-palette.png` - Command palette (Ctrl+K)

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, Database, Zap } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
@@ -114,7 +115,7 @@ const CosmosWorkflow: React.FC = () => {
 
   useEffect(() => {
     refreshRoots();
-    refreshRootStatus().catch(() => {});
+    refreshRootStatus().catch(() => { });
   }, []);
 
   const addKnowledgeRoot = async (repo: typeof COSMOS_REPOS[number]) => {
@@ -131,7 +132,7 @@ const CosmosWorkflow: React.FC = () => {
             if (!picked) return;
             target = String(picked);
           } else {
-            alert(`${repo.label} folder not found. Add a root manually in Knowledge Search.`);
+            toast.error(`${repo.label} folder not found. Add a root manually in Knowledge Search.`);
             return;
           }
         }
@@ -141,23 +142,41 @@ const CosmosWorkflow: React.FC = () => {
       const parsed = raw ? JSON.parse(raw) : [];
       const existing = Array.isArray(parsed) ? parsed : [];
       if (existing.includes(target)) {
-        alert(`${repo.label} is already in Knowledge Search roots.`);
+        toast.error(`${repo.label} is already in Knowledge Search roots.`);
         return;
       }
 
       localStorage.setItem(ROOTS_KEY, JSON.stringify([...existing, target]));
       refreshRoots();
-      alert(`Added ${repo.label} to Knowledge Search roots.`);
+      toast.success(`Added ${repo.label} to Knowledge Search roots.`);
     } catch (e) {
       console.warn('[CosmosWorkflow] Failed to add knowledge root', e);
-      alert('Failed to add Knowledge Search root.');
+      toast.error('Failed to add Knowledge Search root.');
     } finally {
       setBusyId(null);
     }
   };
 
   const openIntegrationDoc = async (docPath: string) => {
-    await openExternal(docPath);
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    try {
+      // For local files, use revealInFolder to show the file in explorer
+      // or try to open with the default application
+      if (api?.openExternal) {
+        // Try to open as a file path
+        const result = await api.openExternal(docPath);
+        if (result?.success) {
+          toast.success('Opening integration documentation...');
+          return;
+        }
+      }
+
+      // Fallback: show error
+      toast.error(`Could not open integration doc: ${docPath}`);
+    } catch (e) {
+      console.warn('[CosmosWorkflow] Failed to open doc', e);
+      toast.error('Failed to open integration documentation.');
+    }
   };
 
   return (

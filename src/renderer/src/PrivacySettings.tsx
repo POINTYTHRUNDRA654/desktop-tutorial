@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Lock, Database, Share2, Shield, Settings as SettingsIcon, AlertCircle, CheckCircle2, Eye, EyeOff, Clock, Network, Key, Trash2, ArrowDownToLine, RefreshCw } from 'lucide-react';
-import { DEFAULT_SETTINGS, Settings } from '../../shared/types';
+import { Lock, Database, Share2, Shield, Settings as SettingsIcon, AlertCircle, CheckCircle2, Clock, Network, Key, Trash2, ArrowDownToLine, RefreshCw, Plus, X, Ban } from 'lucide-react';
+import { DEFAULT_SETTINGS, Settings, BlacklistEntry } from '../../shared/types';
 
 function getElectronApi(): any {
   return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
@@ -28,13 +28,12 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   const [showDetails, setShowDetails] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
-  // API Key inputs
-  const [backendBaseUrlInput, setBackendBaseUrlInput] = useState<string>('');
-  const [backendTokenInput, setBackendTokenInput] = useState<string>('');
-  const [showBackendToken, setShowBackendToken] = useState(false);
+  // Mod Content Whitelist
+  const [whitelistInput, setWhitelistInput] = useState<string>('');
 
-  const [secrets, setSecrets] = useState<{ backendToken: boolean } | null>(null);
-  const [keySaveStatus, setKeySaveStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
+  // Blacklists
+  const [modBlacklistInput, setModBlacklistInput] = useState<string>('');
+  const [programBlacklistInput, setProgramBlacklistInput] = useState<string>('');
 
   useEffect(() => {
     console.log('[PrivacySettings] useEffect running');
@@ -61,21 +60,8 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
           },
         };
         setSettings(mergedSettings);
-        setBackendBaseUrlInput(String(mergedSettings?.backendBaseUrl || '').trim());
       } catch (e) {
         console.error('Failed to load settings:', e);
-      }
-    }
-
-    // Load secret status
-    if (api?.getSecretStatus) {
-      try {
-        const st = await api.getSecretStatus();
-        if (st?.ok) {
-          setSecrets({ backendToken: !!st.backendToken });
-        }
-      } catch (e) {
-        console.warn('Failed to load secret status:', e);
       }
     }
   };
@@ -94,36 +80,6 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
     } catch (e) {
       console.error('Failed to save settings:', e);
       setSaveStatus('idle');
-    }
-  };
-
-  const saveBackendConfig = async (baseUrl: string, tokenOrEmpty?: string) => {
-    const api = getElectronApi();
-    if (!api?.setSettings || !api?.getSecretStatus) {
-      setKeySaveStatus((prev) => ({ ...prev, backend: 'error' }));
-      return;
-    }
-
-    setKeySaveStatus((prev) => ({ ...prev, backend: 'saving' }));
-    try {
-      const payload: any = { backendBaseUrl: String(baseUrl || '').trim() };
-      if (typeof tokenOrEmpty === 'string') {
-        payload.backendToken = tokenOrEmpty.trim();
-      }
-      await api.setSettings(payload);
-
-      // Clear token input so it doesn't linger in renderer memory.
-      if (typeof tokenOrEmpty === 'string' && tokenOrEmpty.trim()) {
-        setBackendTokenInput('');
-      }
-
-      const st = await api.getSecretStatus();
-      if (st?.ok) setSecrets({ backendToken: !!st.backendToken });
-
-      setKeySaveStatus((prev) => ({ ...prev, backend: 'saved' }));
-      setTimeout(() => setKeySaveStatus((prev) => ({ ...prev, backend: 'idle' })), 2500);
-    } catch {
-      setKeySaveStatus((prev) => ({ ...prev, backend: 'error' }));
     }
   };
 
@@ -189,7 +145,6 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
           // Remove sensitive data from export
           openaiApiKey: undefined,
           groqApiKey: undefined,
-          elevenLabsApiKey: undefined,
           backendToken: undefined
         },
         exportDate: new Date().toISOString(),
@@ -208,13 +163,123 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
     }
   };
 
-  const handleDeleteAllData = () => {
-    if (confirm('Are you absolutely sure? This will delete all local data and cannot be undone.')) {
-      if (confirm('This is your final warning. All your project data will be lost.')) {
+  const handleDeleteAllData = async () => {
+    if (confirm('Are you absolutely sure? This will delete all local data including your Knowledge Vault, mod projects, and chat history. This cannot be undone.')) {
+      if (confirm('Final warning: This will permanently erase your knowledge vault, mod projects, chat history, and all settings. Continue?')) {
+        // Wipe durable file backups so they do not restore on next launch.
+        const api = (window as any).electron?.api || (window as any).electronAPI;
+        try {
+          await Promise.allSettled([
+            api?.saveKnowledgeVault?.([]),
+            api?.saveModProjects?.([]),
+            api?.saveChatHistory?.([]),
+          ]);
+        } catch {
+          // Ignore — we still clear localStorage below
+        }
         localStorage.clear();
         location.reload();
       }
     }
+  };
+
+  const currentWhitelist = (): string[] => {
+    return settings?.privacySettings?.modContentWhitelist ?? [];
+  };
+
+  const handleAddToWhitelist = () => {
+    const trimmed = whitelistInput.trim();
+    if (!trimmed || !settings) return;
+    const existing = currentWhitelist();
+    if (existing.includes(trimmed)) {
+      setWhitelistInput('');
+      return;
+    }
+    saveSettings({
+      privacySettings: {
+        ...settings.privacySettings,
+        modContentWhitelist: [...existing, trimmed],
+      },
+    });
+    setWhitelistInput('');
+  };
+
+  const handleRemoveFromWhitelist = (entry: string) => {
+    if (!settings) return;
+    saveSettings({
+      privacySettings: {
+        ...settings.privacySettings,
+        modContentWhitelist: currentWhitelist().filter((e) => e !== entry),
+      },
+    });
+  };
+
+  // Mod Blacklist handlers
+  const currentModBlacklist = (): BlacklistEntry[] => {
+    return (settings?.privacySettings?.modContentBlacklist ?? []).map((e: any) =>
+      typeof e === 'string' ? { name: e } : e
+    );
+  };
+
+  const handleAddToModBlacklist = () => {
+    const trimmed = modBlacklistInput.trim();
+    if (!trimmed || !settings) return;
+    const existing = currentModBlacklist();
+    if (existing.some(e => e.name.toLowerCase() === trimmed.toLowerCase())) {
+      setModBlacklistInput('');
+      return;
+    }
+    saveSettings({
+      privacySettings: {
+        ...settings.privacySettings,
+        modContentBlacklist: [...existing, { name: trimmed }],
+      },
+    });
+    setModBlacklistInput('');
+  };
+
+  const handleRemoveFromModBlacklist = (name: string) => {
+    if (!settings) return;
+    saveSettings({
+      privacySettings: {
+        ...settings.privacySettings,
+        modContentBlacklist: currentModBlacklist().filter((e) => e.name !== name),
+      },
+    });
+  };
+
+  // Program Blacklist handlers
+  const currentProgramBlacklist = (): BlacklistEntry[] => {
+    return (settings?.privacySettings?.programBlacklist ?? []).map((e: any) =>
+      typeof e === 'string' ? { name: e } : e
+    );
+  };
+
+  const handleAddToProgramBlacklist = () => {
+    const trimmed = programBlacklistInput.trim();
+    if (!trimmed || !settings) return;
+    const existing = currentProgramBlacklist();
+    if (existing.some(e => e.name.toLowerCase() === trimmed.toLowerCase())) {
+      setProgramBlacklistInput('');
+      return;
+    }
+    saveSettings({
+      privacySettings: {
+        ...settings.privacySettings,
+        programBlacklist: [...existing, { name: trimmed }],
+      },
+    });
+    setProgramBlacklistInput('');
+  };
+
+  const handleRemoveFromProgramBlacklist = (name: string) => {
+    if (!settings) return;
+    saveSettings({
+      privacySettings: {
+        ...settings.privacySettings,
+        programBlacklist: currentProgramBlacklist().filter((e) => e.name !== name),
+      },
+    });
   };
 
   const settingGroups = [
@@ -470,8 +535,8 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
 
               <div className="space-y-4">
                 {group.settings.map((setting, settingIndex) => {
-                  const isEnabled = settings.privacySettings[setting.id];
-                  const isDisabled = setting.dependsOn && !settings.privacySettings[setting.dependsOn];
+                  const isEnabled = (settings.privacySettings as unknown as Record<string, boolean | undefined>)[setting.id];
+                  const isDisabled = setting.dependsOn && !(settings.privacySettings as unknown as Record<string, boolean | undefined>)[setting.dependsOn];
 
                   return (
                     <div key={settingIndex} className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
@@ -486,7 +551,7 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
                           <button
                             id={`setting-${setting.id}`}
                             onClick={() => !isDisabled && handlePrivacySettingToggle(setting.id)}
-                            disabled={isDisabled}
+                            disabled={!!isDisabled}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 ${
                               isEnabled && !isDisabled ? 'bg-blue-600' : 'bg-slate-600'
                             } ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
@@ -566,93 +631,6 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
           </div>
         </div>
 
-        {/* API Configuration - Backend Only */}
-        <div className="mt-12">
-          <h2 className="text-2xl font-bold text-slate-100 mb-6">API Configuration</h2>
-          <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50">
-            <div className="space-y-4">
-              <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5" />
-                  <div>
-                    <h4 className="text-blue-100 font-medium mb-1">Backend-Only Architecture</h4>
-                    <p className="text-blue-200 text-sm">
-                      Mossy uses a backend service for all AI features. Individual API keys are no longer supported.
-                      Configure your backend service below to enable chat, transcription, and other AI features.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Backend Configuration */}
-              <div className="space-y-4">
-                <h4 className="text-lg font-semibold text-slate-100">Backend Service Configuration</h4>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-100">Backend Base URL</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={backendBaseUrlInput}
-                      onChange={(e) => setBackendBaseUrlInput(e.target.value)}
-                      placeholder="https://your-backend.onrender.com"
-                      className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <button
-                      onClick={() => saveBackendConfig(backendBaseUrlInput)}
-                      disabled={keySaveStatus.backend === 'saving'}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {keySaveStatus.backend === 'saving' ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-100">Backend Token</label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type={showBackendToken ? 'text' : 'password'}
-                        value={backendTokenInput}
-                        onChange={(e) => setBackendTokenInput(e.target.value)}
-                        placeholder="Bearer token for backend authentication"
-                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                      <button
-                        onClick={() => setShowBackendToken(!showBackendToken)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-300"
-                      >
-                        {showBackendToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => saveBackendConfig(backendBaseUrlInput, backendTokenInput)}
-                      disabled={keySaveStatus.backend === 'saving'}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {keySaveStatus.backend === 'saving' ? 'Saving...' : 'Save'}
-                    </button>
-                    {secrets?.backendToken && (
-                      <button
-                        onClick={() => saveBackendConfig(backendBaseUrlInput, '')}
-                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  {keySaveStatus.backend && keySaveStatus.backend !== 'idle' && (
-                    <p className={`text-sm ${keySaveStatus.backend === 'saved' ? 'text-green-400' : 'text-red-400'}`}>
-                      {keySaveStatus.backend === 'saved' ? '✓ Backend configuration saved' : keySaveStatus.backend === 'saving' ? 'Saving...' : 'Failed to save'}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Data Management */}
         <div className="mt-12">
           <h2 className="text-2xl font-bold text-slate-100 mb-6">Data Management</h2>
@@ -692,6 +670,229 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Mod Content Whitelist */}
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold text-slate-100 mb-2">Mod Content Whitelist</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            If you are a mod author — or a user who wants to protect specific mods from being referenced,
+            discussed, or touched by Mossy in any way — add them here. Mossy will never mention, recommend,
+            use as examples, or interact with whitelisted mods in any response or action.
+          </p>
+
+          <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50 space-y-4">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-900/20 border border-amber-700/40">
+              <Ban className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+              <div className="text-sm text-amber-200">
+                <span className="font-semibold">Protected mod notice:</span> Adding a mod here tells Mossy
+                to stay away from that content entirely — she cannot touch it no matter what. This is entirely local — no data is sent
+                anywhere. The whitelist is stored in your private settings file.
+              </div>
+            </div>
+
+            {/* Add entry */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={whitelistInput}
+                onChange={(e) => setWhitelistInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && whitelistInput.trim()) handleAddToWhitelist(); }}
+                placeholder="Mod name or keyword (e.g. My Awesome Mod)"
+                className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleAddToWhitelist}
+                disabled={!whitelistInput.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 bg-red-700 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+            </div>
+
+            {/* Whitelist entries */}
+            {currentWhitelist().length === 0 ? (
+              <p className="text-slate-500 text-sm italic">
+                No mods are protected yet. Mossy will treat all mod content equally.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {currentWhitelist().map((entry) => (
+                  <li
+                    key={entry}
+                    className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-700/40 rounded-md border border-slate-600/50"
+                  >
+                    <span className="text-slate-200 text-sm font-mono truncate">{entry}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromWhitelist(entry)}
+                      className="shrink-0 p-1 rounded text-slate-400 hover:text-red-400 hover:bg-red-900/20 transition-colors"
+                      title="Remove from whitelist"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <p className="text-xs text-slate-500">
+              {currentWhitelist().length} mod{currentWhitelist().length !== 1 ? 's' : ''} protected.
+              Changes take effect on your next message to Mossy.
+            </p>
+          </div>
+        </div>
+
+        {/* Mod Content Blacklist */}
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold text-slate-100 mb-2">Mod Content Blacklist</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            Add mods that are problematic, broken, or incompatible that Mossy should warn against.
+            When users ask about these mods, Mossy will provide warnings about potential issues.
+          </p>
+
+          <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50 space-y-4">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-red-900/20 border border-red-700/40">
+              <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
+              <div className="text-sm text-red-200">
+                <span className="font-semibold">Problematic mod warning:</span> Mods added here will be
+                flagged as potentially problematic. Mossy will warn users about known issues with these mods
+                and suggest alternatives when appropriate.
+              </div>
+            </div>
+
+            {/* Add entry */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={modBlacklistInput}
+                onChange={(e) => setModBlacklistInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && modBlacklistInput.trim()) handleAddToModBlacklist(); }}
+                placeholder="Mod name or keyword (e.g. Broken Mod X)"
+                className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleAddToModBlacklist}
+                disabled={!modBlacklistInput.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 bg-orange-700 text-white rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+            </div>
+
+            {/* Blacklist entries */}
+            {currentModBlacklist().length === 0 ? (
+              <p className="text-slate-500 text-sm italic">
+                No mods are blacklisted yet. Mossy will not warn about any specific mods.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {currentModBlacklist().map((entry) => (
+                  <li
+                    key={entry.name}
+                    className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-700/40 rounded-md border border-orange-600/50"
+                  >
+                    <div className="min-w-0">
+                      <span className="text-slate-200 text-sm font-mono truncate block">{entry.name}</span>
+                      {entry.reason && <span className="text-xs text-slate-400 truncate block">{entry.reason}</span>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromModBlacklist(entry.name)}
+                      className="shrink-0 p-1 rounded text-slate-400 hover:text-orange-400 hover:bg-orange-900/20 transition-colors"
+                      title="Remove from blacklist"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <p className="text-xs text-slate-500">
+              {currentModBlacklist().length} mod{currentModBlacklist().length !== 1 ? 's' : ''} blacklisted.
+              Changes take effect on your next message to Mossy.
+            </p>
+          </div>
+        </div>
+
+        {/* Program Blacklist */}
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold text-slate-100 mb-2">Program Blacklist</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            Add programs or tools that are known to cause issues, conflicts, or problems with modding workflows.
+            Mossy will warn users against using these programs and suggest safer alternatives.
+          </p>
+
+          <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50 space-y-4">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-red-900/20 border border-red-700/40">
+              <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
+              <div className="text-sm text-red-200">
+                <span className="font-semibold">Problematic program warning:</span> Programs added here will be
+                flagged as potentially dangerous or incompatible. Mossy will actively discourage their use
+                and recommend safer alternatives when asked.
+              </div>
+            </div>
+
+            {/* Add entry */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={programBlacklistInput}
+                onChange={(e) => setProgramBlacklistInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && programBlacklistInput.trim()) handleAddToProgramBlacklist(); }}
+                placeholder="Program name (e.g. Buggy Tool 2023)"
+                className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleAddToProgramBlacklist}
+                disabled={!programBlacklistInput.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 bg-orange-700 text-white rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+            </div>
+
+            {/* Blacklist entries */}
+            {currentProgramBlacklist().length === 0 ? (
+              <p className="text-slate-500 text-sm italic">
+                No programs are blacklisted yet. Mossy will not warn against any specific programs.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {currentProgramBlacklist().map((entry) => (
+                  <li
+                    key={entry.name}
+                    className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-700/40 rounded-md border border-orange-600/50"
+                  >
+                    <div className="min-w-0">
+                      <span className="text-slate-200 text-sm font-mono truncate block">{entry.name}</span>
+                      {entry.reason && <span className="text-xs text-slate-400 truncate block">{entry.reason}</span>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromProgramBlacklist(entry.name)}
+                      className="shrink-0 p-1 rounded text-slate-400 hover:text-orange-400 hover:bg-orange-900/20 transition-colors"
+                      title="Remove from blacklist"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <p className="text-xs text-slate-500">
+              {currentProgramBlacklist().length} program{currentProgramBlacklist().length !== 1 ? 's' : ''} blacklisted.
+              Changes take effect on your next message to Mossy.
+            </p>
           </div>
         </div>
       </div>

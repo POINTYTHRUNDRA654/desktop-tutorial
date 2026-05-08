@@ -1,5 +1,6 @@
 import { logMossyError, getErrorReport } from './MossyErrorReporter';
 import { ModProjectStorage } from './services/ModProjectStorage';
+import { isDuplicateVaultEntry, pruneAutoFetchedVaultItems } from './knowledgeRetrieval';
 
 export const sanitizeBlenderScript = (rawScript: string): string => {
     let safeScript = rawScript;
@@ -153,6 +154,9 @@ export const executeMossyTool = async (name: string, args: any, context: {
             const sceneInfo = await sendToBlenderAddon('get_scene_info');
             if (sceneInfo?.success) {
                 const info = sceneInfo.scene_info;
+                if (!info) {
+                    return { success: false, result: 'Blender responded but returned no scene data. Make sure a scene is open.' };
+                }
                 const result = `**Blender Scene Information:**
 
 **Scene:** ${info.scene_name}
@@ -327,9 +331,10 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 'spin3d': 'Spin3D'
             };
             
-            const toolId = args.toolId.toLowerCase();
-            const targetSettingKey = settingsKeyMapping[toolId] || `${args.toolId}Path`;
-            const toolDisplayName = toolNameMapping[toolId] || args.toolId;
+            const rawToolId = String(args?.toolId || '');
+            const toolId = rawToolId.toLowerCase();
+            const targetSettingKey = settingsKeyMapping[toolId] || `${rawToolId}Path`;
+            const toolDisplayName = toolNameMapping[toolId] || rawToolId || toolId;
             
             // ALIASES FOR BETTER MATCHING
             const toolAliases: Record<string, string[]> = {
@@ -455,7 +460,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 
                 // Special case for NVIDIA Canvas (Vita)
                 if (toolId === 'canvas' || toolId === 'vita' || toolId === 'nvidiacanvas' || args.toolId.toLowerCase().includes('canvas')) {
-                    suggestion = `\n\n**⚠️ NVIDIA Canvas (Vita Canvas) Not Found**\n\nNVIDIA Canvas requires:\n• NVIDIA RTX GPU (20 series or newer)\n• Installed from: https://www.nvidia.com/en-us/studio/canvas/\n\nDefault install location:\n\`C:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\NVIDIACanvas.exe\`\n\n**To configure manually:**\n1. Go to **External Tools** settings (⚙️)\n2. Find **"NVIDIA Canvas (Vita Canvas)"**\n3. Click **Browse** and select \`NVIDIACanvas.exe\`\n4. Click **Save Settings**\n\n**Not installed?** Download from NVIDIA's website (requires RTX GPU).`;
+                    suggestion = `\n\n**⚠️ NVIDIA Canvas (Vita Canvas) Not Found**\n\nNVIDIA Canvas requires:\n• NVIDIA RTX GPU (20 series or newer)\n• Installed from: https://www.nvidia.com/en-us/studio/canvas/\n\nDefault install location:\n\`D:\\Program Files\\NVIDIA Corporation\\NVIDIA Canvas\\Canvas.exe\` (some builds use \`NVIDIACanvas.exe\`)\n\n**To configure manually:**\n1. Go to **External Tools** settings (⚙️)\n2. Find **"NVIDIA Canvas (Vita Canvas)"**\n3. Click **Browse** and select \`Canvas.exe\` (or \`NVIDIACanvas.exe\` if present)\n4. Click **Save Settings**\n\n**Not installed?** Download from NVIDIA's website (requires RTX GPU).`;
                 } else if (!hasScanCache) {
                     suggestion = `\n\n**⚠️ ACTION REQUIRED:**\nYour system hasn't been scanned yet. To use ${toolDisplayName}:\n\n1. Go to the **External Tools** settings (click the wrench icon)\n2. Click **Browse** next to "${toolDisplayName}"\n3. Find and select the ${toolDisplayName} executable\n4. Click **Save Settings**\n\nAlternatively, click **System Scan** in Desktop Bridge to auto-detect all tools.`;
                 } else {
@@ -1462,14 +1467,133 @@ Check your Downloads folder or the location where files are saved.`;
     } else if (name === 'ck_set_render_mode') {
         result = `**CK Render Mode set to:** ${args.mode}`;
     } else if (name === 'search_fallout4_wiki') {
-        const query = encodeURIComponent(args.query);
-        const url = `https://fallout.fandom.com/wiki/Special:Search?query=${query}`;
-        if (api?.openExternal) {
-            await api.openExternal(url);
-            result = `**Wiki Search Dispatched:** Searching for "${args.query}" on the Fallout 4 Wiki.\n*External browser session initialized.*`;
-        } else {
-            window.open(url, '_blank');
-            result = `**Wiki Search Opened:** "${args.query}" (Browser redirected to Fallout 4 Wiki).`;
+        try {
+            const query: string = String(args.query || '').trim();
+            // Use the main-process web-search handler to actually fetch wiki content
+            if (api?.webSearch) {
+                const res: any = await api.webSearch(query, 'wiki');
+                if (res?.success && res?.text) {
+                    result = `**Fallout 4 Wiki Results for "${query}":**\n\n${res.text}` +
+                        (res.url ? `\n\n*Source: [${res.heading || 'Fallout 4 Wiki'}](${res.url})*` : '');
+                } else {
+                    // Fall back to opening browser if fetch failed
+                    const url = `https://fallout.fandom.com/wiki/Special:Search?query=${encodeURIComponent(query)}`;
+                    if (api?.openExternal) await api.openExternal(url);
+                    result = `**Wiki Search:** Could not fetch live content (${res?.error || 'unknown error'}). Opened browser to Fallout 4 Wiki search for "${query}".`;
+                }
+            } else {
+                const url = `https://fallout.fandom.com/wiki/Special:Search?query=${encodeURIComponent(query)}`;
+                if (api?.openExternal) {
+                    await api.openExternal(url);
+                    result = `**Wiki Search Dispatched:** Searching for "${query}" on the Fallout 4 Wiki.\n*External browser session initialized.*`;
+                } else {
+                    window.open(url, '_blank');
+                    result = `**Wiki Search Opened:** "${query}" (Browser redirected to Fallout 4 Wiki).`;
+                }
+            }
+        } catch (e: any) {
+            result = `**Wiki Search Error:** ${e?.message || 'Unknown error'}`;
+        }
+    } else if (name === 'scan_fallout4_live') {
+        try {
+            const topic: string = String(args.topic || 'Fallout 4 modding').trim();
+            const saveToVault: boolean = args.saveToVault !== false; // default true
+            const results: string[] = [];
+            const savedItems: string[] = [];
+
+            const getVault = (): any[] => {
+                try { return JSON.parse(localStorage.getItem('mossy_knowledge_vault') || '[]'); } catch { return []; }
+            };
+            const saveVault = (vault: any[]) => {
+                localStorage.setItem('mossy_knowledge_vault', JSON.stringify(vault));
+            };
+
+            if (!api?.webSearch) {
+                result = `**Online Scan:** Live web access requires the desktop app. Please restart the app and try again.`;
+            } else {
+                // 1. Search the Fallout 4 Fandom wiki
+                try {
+                    const wikiRes: any = await api.webSearch(topic, 'wiki');
+                    if (wikiRes?.success && wikiRes?.text) {
+                        results.push(`**📖 Fallout 4 Wiki — "${topic}":**\n\n${wikiRes.text}${wikiRes.url ? `\n\n*Source: ${wikiRes.url}*` : ''}`);
+                        if (saveToVault && wikiRes.text.length > 50) {
+                            const vault = getVault();
+                            const wikiTitle = `[Live Scan] FO4 Wiki: ${topic}`;
+                            if (!isDuplicateVaultEntry(vault, wikiTitle)) {
+                                vault.push({
+                                    id: `live-scan-wiki-${Date.now()}`,
+                                    title: wikiTitle,
+                                    content: wikiRes.text,
+                                    source: wikiRes.url || 'https://fallout.fandom.com',
+                                    trustLevel: 'community',
+                                    tags: ['fallout4', 'wiki', 'live-scan', ...topic.toLowerCase().split(/\s+/).slice(0, 4)],
+                                    date: new Date().toISOString(),
+                                });
+                                saveVault(pruneAutoFetchedVaultItems(vault));
+                                savedItems.push('Fallout 4 Wiki excerpt');
+                            }
+                        }
+                    }
+                } catch { /* non-critical */ }
+
+                // 2. Search DuckDuckGo for broader modding community info
+                try {
+                    const ddgRes: any = await api.webSearch(`Fallout 4 ${topic} modding`, undefined);
+                    if (ddgRes?.success && ddgRes?.text) {
+                        results.push(`**🌐 Web — "Fallout 4 ${topic} modding":**\n\n${ddgRes.text}${ddgRes.url ? `\n\n*Source: ${ddgRes.url}*` : ''}`);
+                        if (saveToVault && ddgRes.text.length > 50) {
+                            const vault = getVault();
+                            const ddgTitle = `[Live Scan] Web: Fallout 4 ${topic}`;
+                            if (!isDuplicateVaultEntry(vault, ddgTitle)) {
+                                vault.push({
+                                    id: `live-scan-web-${Date.now()}`,
+                                    title: ddgTitle,
+                                    content: ddgRes.text,
+                                    source: ddgRes.url || 'https://duckduckgo.com',
+                                    trustLevel: 'community',
+                                    tags: ['fallout4', 'web-search', 'live-scan', ...topic.toLowerCase().split(/\s+/).slice(0, 4)],
+                                    date: new Date().toISOString(),
+                                });
+                                saveVault(pruneAutoFetchedVaultItems(vault));
+                                savedItems.push('Web search results');
+                            }
+                        }
+                    }
+                } catch { /* non-critical */ }
+
+                if (results.length === 0) {
+                    result = `**Online Scan:** No results found for "${topic}" right now. The Fallout 4 Wiki and DuckDuckGo didn't return a match for that exact term. Try rephrasing the topic (e.g., "Papyrus script event" instead of just "Papyrus"), or I can answer from my existing knowledge if you'd like.`;
+                } else {
+                    const vaultNote = savedItems.length > 0
+                        ? `\n\n✅ **Saved to Knowledge Vault:** ${savedItems.join(', ')} — I'll remember this permanently across all future sessions.`
+                        : '';
+                    result = `**🔍 Live Scan Results for "${topic}":**\n\n` + results.join('\n\n---\n\n') + vaultNote;
+                }
+            }
+        } catch (e: any) {
+            result = `**Online Scan Error:** ${e?.message || 'Unknown error'}`;
+        }
+    } else if (name === 'browse_web') {
+        try {
+            const url: string = String(args.url || '').trim();
+            if (!url) {
+                result = `**Browse Error:** No URL provided.`;
+            } else if (!/^https:\/\//i.test(url)) {
+                result = `**Browse Error:** Only HTTPS URLs are supported for security reasons.`;
+            } else if (api?.browseWeb) {
+                const res: any = await api.browseWeb(url);
+                if (res?.success && res?.text) {
+                    result = `**Web Content from ${url}:**\n\n${res.text.slice(0, 4000)}`;
+                } else {
+                    result = `**Browse Error:** Could not fetch "${url}": ${res?.error || 'Unknown error'}. Try a different URL or check that the site is accessible.`;
+                }
+            } else {
+                // No IPC available — open in browser as fallback
+                if (api?.openExternal) await api.openExternal(url);
+                result = `**Browse:** Opened "${url}" in your default browser. (Live content fetch requires the desktop app.)`;
+            }
+        } catch (e: any) {
+            result = `**Browse Error:** ${e?.message || 'Unknown error'}`;
         }
     } else if (name === 'create_mod_project') {
         try {
@@ -1557,6 +1681,113 @@ Check your Downloads folder or the location where files are saved.`;
             }
         } catch (e) {
             result = `❌ Error setting current mod: ${e}`;
+        }
+    } else if (name === 'scan_plugin') {
+        // ── scan_plugin ───────────────────────────────────────────────────────────
+        // Read the plugin binary via IPC (main process), pass it through the
+        // asset-analyzer web worker, and return a human-readable diagnostic report.
+        try {
+            const filePath = String(args.filePath || '').trim();
+            if (!filePath) {
+                result = '❌ **scan_plugin**: No file path provided. Please give me the full path to the ESP/ESM/ESL file.';
+            } else if (!api?.readBinaryFile) {
+                result = '❌ **scan_plugin**: readBinaryFile API unavailable. Please restart the app.';
+            } else {
+                const readRes: any = await api.readBinaryFile(filePath);
+                if (!readRes?.success || !readRes?.data) {
+                    result = `❌ **scan_plugin**: Could not read file at "${filePath}": ${readRes?.error || 'Unknown error'}. Make sure the file exists and is not locked by another program.`;
+                } else {
+                    // Decode base64 → ArrayBuffer
+                    const binary = atob(readRes.data);
+                    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+                    const buffer = bytes.buffer;
+
+                    // Spin up the asset-analyzer worker inline via importScripts-compatible URL
+                    // Instead, use the already-initialised WorkerManager singleton if available,
+                    // otherwise fall back to the analyzeEsp IPC which does a lighter header scan.
+                    // We must import WorkerManager dynamically to avoid circular deps.
+                    let analysis: any = null;
+                    try {
+                        const { workerManager } = await import('./WorkerManager');
+                        const pluginName = filePath.replace(/\\/g, '/').split('/').pop() || 'plugin.esp';
+                        analysis = await workerManager.analyzeAsset('esp', buffer, pluginName, undefined, true);
+                    } catch (workerErr) {
+                        // Worker unavailable in this context — fall back to the IPC-level analysis
+                        if (api?.analyzeEsp) {
+                            const ipcRes: any = await api.analyzeEsp(filePath);
+                            if (ipcRes?.success) {
+                                analysis = { issues: ipcRes.issues || [], recordCounts: {}, masters: [], fileSize: ipcRes.fileSize, fileSizeMB: (ipcRes.fileSize || 0) / (1024 * 1024) };
+                            }
+                        }
+                    }
+
+                    if (!analysis) {
+                        result = `❌ **scan_plugin**: Analysis engine unavailable. Use The Auditor to scan "${filePath}".`;
+                    } else {
+                        const issues: any[] = analysis.issues || [];
+                        const masters: string[] = analysis.masters || [];
+                        const sizeMB = (analysis.fileSizeMB || (analysis.fileSize || 0) / (1024 * 1024)).toFixed(2);
+                        const pluginName = filePath.replace(/\\/g, '/').split('/').pop() || 'plugin';
+                        const flags = analysis.flags || {};
+
+                        let report = `## 🔍 Plugin Scan: ${pluginName}\n\n`;
+                        report += `**File size:** ${sizeMB} MB  |  **Masters:** ${masters.length > 0 ? masters.join(', ') : 'none declared'}  |  **Flags:** ${[flags.isESM && 'ESM', flags.isESL && 'ESL', flags.isLocalized && 'Localized'].filter(Boolean).join(', ') || 'standard ESP'}\n\n`;
+
+                        if (issues.length === 0) {
+                            report += `✅ **No issues detected.** This plugin looks clean — no deleted navmesh, UDRs, broken precombines, absolute paths, or missing masters found.\n`;
+                        } else {
+                            const errors   = issues.filter((i: any) => i.severity === 'error');
+                            const warnings = issues.filter((i: any) => i.severity === 'warning');
+                            const info     = issues.filter((i: any) => i.severity === 'info');
+                            report += `**Found ${issues.length} issue(s):** ${errors.length} error(s), ${warnings.length} warning(s), ${info.length} info\n\n`;
+                            report += `---\n\n`;
+
+                            for (const issue of issues) {
+                                const icon = issue.severity === 'error' ? '🔴' : issue.severity === 'warning' ? '🟡' : 'ℹ️';
+                                report += `${icon} **[${issue.category}] ${issue.message}**\n`;
+                                report += `${issue.details}\n\n`;
+                                report += `💡 **Fix:** ${issue.fix}\n\n`;
+                                report += `---\n\n`;
+                            }
+                        }
+
+                        // Surface auto-fixable hints
+                        const hasUDR = issues.some((i: any) => i.category === 'Deleted References');
+                        const hasESL = issues.some((i: any) => i.category === 'Optimization' && i.message.includes('ESL'));
+                        if (hasUDR || hasESL) {
+                            report += `\n**⚡ Auto-fix available:**`;
+                            if (hasUDR) report += `\n• I can generate a ready-to-run xEdit UDR script for this plugin — just say "apply UDR fix to this plugin".`;
+                            if (hasESL) report += `\n• I can apply the ESL flag directly to this plugin (with backup) — just say "apply ESL flag to this plugin".`;
+                        }
+
+                        result = report;
+                    }
+                }
+            }
+        } catch (e: any) {
+            result = `❌ **scan_plugin error:** ${e?.message || String(e)}`;
+        }
+    } else if (name === 'apply_esp_fix') {
+        // ── apply_esp_fix ─────────────────────────────────────────────────────────
+        // Delegate to the main-process IPC handler which does the actual binary
+        // patching or script generation with a .bak backup.
+        try {
+            const filePath = String(args.filePath || '').trim();
+            const fixType  = String(args.fixType  || '').trim();
+            if (!filePath || !fixType) {
+                result = '❌ **apply_esp_fix**: Both filePath and fixType are required.';
+            } else if (!api?.applyEspFix) {
+                result = '❌ **apply_esp_fix**: applyEspFix API unavailable. Please restart the app to get the latest build.';
+            } else {
+                const res: any = await api.applyEspFix(filePath, fixType);
+                if (res?.success) {
+                    result = res.message || '✅ Fix applied successfully.';
+                } else {
+                    result = `❌ **apply_esp_fix failed:** ${res?.error || 'Unknown error'}`;
+                }
+            }
+        } catch (e: any) {
+            result = `❌ **apply_esp_fix error:** ${e?.message || String(e)}`;
         }
     }
 

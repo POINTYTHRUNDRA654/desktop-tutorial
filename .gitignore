@@ -9,7 +9,6 @@ lerna-debug.log*
 
 # Dependencies
 node_modules
-package-lock.json
 
 # Local dev folders
 .venv/
@@ -24,10 +23,23 @@ dist-ssr
 dist-backend
 release
 release-test
+tmp-release/
 *.local
 
 # Local release artifacts
 release.zip
+
+# Electron distributable binaries placed in the repo root during packaging
+# (leading / means these patterns only match at the repository root)
+/*.dll
+/*.pak
+/*.bin
+/*.dat
+/locales/
+/vk_swiftshader_icd.json
+# Vendored Windows redistributables added by electron-builder
+/resources/elevate.exe
+/resources/vcredist/
 
 # Generated knowledge bundle (created during build)
 public/knowledge/
@@ -41,6 +53,7 @@ external/volttech-dist/*
 .env.local
 .env.production
 .env.development
+.env.encrypted.backup
 
 # Database
 *.db
@@ -61,14 +74,74 @@ external/volttech-dist/*
 .DS_Store
 Thumbs.db
 
-# Build artifacts
+# Build artifacts – packaged Electron app outputs (electron-builder output folder)
+# The "Mossy/" directory is created by electron-builder and contains the full
+# packaged installer/app (190 MB+ .exe, 400 MB+ .asar) which must never be committed.
+Mossy/
 Mossy.exe
 Uninstall Mossy.exe
 resources/app.asar
 
-# Large build outputs
-*.asar
-*.exe
-Mossy/
-dist/
+# External AI libraries (cloned repos)
+external/chroma/
+external/langchain/
+external/electron-store/
+external/cosmos-predict2.5/
+external/cosmos-transfer2.5/
+external/cosmos-reason2/
+external/cosmos-cookbook/
+external/cosmos-rl/
+external/cosmos-dependencies/
+external/cosmos-curate/
+external/cosmos-xenna/
+external/phoenix_live_view/
+external/lc-deepagents-quickstarts/
+external/nat-ui/
 
+# Previously orphaned git submodule directories — must never be re-tracked
+NeMo-Agent-Toolkit/
+vscode-pull-request-github/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Test results
+test-results/
+playwright-report/
+
+# Legacy/archived files
+archive/
+
+# Generated build artifacts
+public/mossy-blender-addons.zip
+
+tmp-release/win-unpacked/resources/app.asar
+
+# Runtime generated data files
+behavior-history.json
+longitudinal-data.json
+user-profile.json
+
+# Bundled embedded Python (downloaded at build time via fetch-python-embedded.mjs)
+# The directory itself is tracked via .gitkeep; its contents are generated
+resources/python-embedded/*
+!resources/python-embedded/.gitkeep
+release/
+
+# Encrypted API key bundle backup (auto-generated, not needed in repo)
+.env.encrypted.backup
+actionlint*

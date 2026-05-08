@@ -122,8 +122,8 @@ bash diagnose_repository.sh
 
 ## 🎯 Project Info
 
-**Repository:** POINTYTHRUNDRA654/desktop-tutorial  
-**Project:** Mossy v5.4.21 - Fallout 4 Modding Assistant  
+**Repository:** POINTYTHRUNDRA654/mossy-ai  
+**Project:** Mossy v5.4.23 - Fallout 4 Modding Assistant  
 **Type:** Electron + React + TypeScript desktop application
 
 ---
@@ -133,3 +133,4 @@ bash diagnose_repository.sh
 ---
 
 *Investigation completed: February 11, 2026*
+

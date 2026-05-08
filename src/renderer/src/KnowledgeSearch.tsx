@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 type IndexStatus =
   | { ok: true; indexPath: string; indexedChunks: number; indexedSources: number; model: string; createdAt: string }
@@ -41,14 +42,17 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
   const [roots, setRoots] = useState<string[]>(() => loadRoots());
 
   const [buildBusy, setBuildBusy] = useState(false);
+  const [buildError, setBuildError] = useState<string>('');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<QueryResult[]>([]);
   const [searchBusy, setSearchBusy] = useState(false);
-  const [error, setError] = useState<string>('');
+  const [searchError, setSearchError] = useState<string>('');
+  const [keywordMode, setKeywordMode] = useState(false);
 
   const [ollamaModel, setOllamaModel] = useState('');
   const [answerBusy, setAnswerBusy] = useState(false);
   const [answer, setAnswer] = useState('');
+  const [ollamaCheckBusy, setOllamaCheckBusy] = useState(false);
 
   const desktopReady = !!api?.mlIndexStatus;
 
@@ -102,16 +106,26 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
   const onBuildIndex = async () => {
     if (!desktopReady) return;
     setBuildBusy(true);
-    setError('');
+    setBuildError('');
     setAnswer('');
     try {
       const resp = await api.mlIndexBuild(effectiveRoots.length ? { roots: effectiveRoots } : undefined);
       if (!resp?.ok) {
-        setError(String(resp?.error || 'Failed to build index'));
+        const raw = String(resp?.error || 'Failed to build index');
+        const friendly = raw.toLowerCase().includes('fetch') || raw.toLowerCase().includes('network')
+          ? 'Could not download the AI embedding model (no internet access). The semantic index requires a one-time model download. Keyword search still works without the index.'
+          : raw;
+        setBuildError(friendly);
+      } else {
+        toast.success('Index built successfully!');
       }
       await refreshStatus();
     } catch (e: any) {
-      setError(String(e?.message || e));
+      const raw = String(e?.message || e);
+      const friendly = raw.toLowerCase().includes('fetch') || raw.toLowerCase().includes('network')
+        ? 'Could not download the AI embedding model (no internet access). Keyword search still works without the index.'
+        : raw;
+      setBuildError(friendly);
     } finally {
       setBuildBusy(false);
     }
@@ -120,55 +134,79 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
   const onSearch = async () => {
     if (!desktopReady) return;
     const q = query.trim();
-    if (!q) return;
+    if (!q) {
+      toast('Type a question or keyword first.', { icon: '🔍' });
+      return;
+    }
 
     setSearchBusy(true);
-    setError('');
+    setSearchError('');
+    setKeywordMode(false);
     setAnswer('');
     try {
       const resp = await api.mlIndexQuery({ query: q, topK: 8 });
       if (!resp?.ok) {
-        setError(String(resp?.error || 'Search failed'));
+        setSearchError(String(resp?.error || 'Search failed'));
         setResults([]);
       } else {
         setResults(resp.results || []);
+        setKeywordMode(!!(resp as any).keywordMode);
       }
     } catch (e: any) {
-      setError(String(e?.message || e));
+      setSearchError(String(e?.message || e));
     } finally {
       setSearchBusy(false);
     }
   };
 
   const onOpenResult = async (filePath: string) => {
-    if (!api?.openExternal) return;
-    await api.openExternal(filePath);
+    try {
+      if (!api?.openExternal) {
+        toast.error('Desktop API not available');
+        return;
+      }
+      const result = await api.openExternal(filePath);
+      if (!result?.success) {
+        toast.error(result?.error || 'Failed to open file');
+      }
+    } catch (e: any) {
+      toast.error(`Failed to open file: ${e?.message || 'Unknown error'}`);
+    }
   };
 
   const onRevealResult = async (filePath: string) => {
-    if (!api?.revealInFolder) return;
-    await api.revealInFolder(filePath);
+    try {
+      if (!api?.revealInFolder) {
+        toast.error('Desktop API not available');
+        return;
+      }
+      const result = await api.revealInFolder(filePath);
+      if (!result?.success) {
+        toast.error(result?.error || 'Failed to reveal file');
+      }
+    } catch (e: any) {
+      toast.error(`Failed to reveal file: ${e?.message || 'Unknown error'}`);
+    }
   };
 
   const onDraftAnswer = async () => {
     if (!desktopReady) return;
     if (!llmStatus?.ok) {
-      setError('Ollama not detected. Start Ollama and try again.');
+      toast.error('Ollama is not running. Start Ollama and click "Check Ollama" first.');
       return;
     }
     const model = ollamaModel.trim();
     if (!model) {
-      setError('Pick an Ollama model first.');
+      toast.error('Pick an Ollama model first.');
       return;
     }
     const q = query.trim();
     if (!q) {
-      setError('Enter a question first.');
+      toast('Type a question first.', { icon: '🔍' });
       return;
     }
 
     setAnswerBusy(true);
-    setError('');
     try {
       const excerpts = (results || []).slice(0, 4).map((r, i) => {
         const clipped = r.content.length > 1200 ? `${r.content.slice(0, 1200)}\n...` : r.content;
@@ -190,12 +228,12 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
 
       const resp = await api.mlLlmGenerate({ provider: 'ollama', model, prompt });
       if (!resp?.ok) {
-        setError(String(resp?.error || 'Ollama generation failed'));
+        toast.error(String(resp?.error || 'Ollama generation failed'));
         return;
       }
       setAnswer(String(resp.text || ''));
     } catch (e: any) {
-      setError(String(e?.message || e));
+      toast.error(String(e?.message || e));
     } finally {
       setAnswerBusy(false);
     }
@@ -219,7 +257,7 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-white">Knowledge Search</h2>
-          <p className="text-slate-300 text-sm">Offline semantic search across your Markdown guides.</p>
+          <p className="text-slate-300 text-sm">Offline search across your Markdown guides. Keyword search works immediately; build the index for AI-powered results.</p>
         </div>
         <div className="flex items-center gap-2">
           {!embedded && (
@@ -234,11 +272,18 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
             onClick={onBuildIndex}
             disabled={buildBusy}
             className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold"
+            title="Build semantic index for AI-powered search (requires internet for first-time model download)"
           >
             {buildBusy ? 'Indexing…' : 'Build / Refresh Index'}
           </button>
         </div>
       </div>
+
+      {buildError && (
+        <div className="text-xs text-amber-300 bg-amber-900/20 border border-amber-700/40 rounded px-3 py-2">
+          ⚠️ {buildError}
+        </div>
+      )}
 
       <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4 space-y-3">
         <div className="flex items-center justify-between">
@@ -293,6 +338,7 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && onSearch()}
             placeholder="Ask something like: 'How do I set up Blender export settings for FO4?'"
             className="flex-1 bg-slate-950/60 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 outline-none"
           />
@@ -305,7 +351,12 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
           </button>
         </div>
 
-        {error ? <div className="text-xs text-red-300">{error}</div> : null}
+        {keywordMode && results.length > 0 && (
+          <div className="text-xs text-amber-300">
+            💡 Keyword search — build the index for AI-ranked results.
+          </div>
+        )}
+        {searchError ? <div className="text-xs text-red-300">{searchError}</div> : null}
 
         <div className="space-y-3">
           {results.map((r, idx) => (
@@ -335,7 +386,7 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
             </div>
           ))}
 
-          {results.length === 0 ? <div className="text-xs text-slate-400">No results yet.</div> : null}
+          {results.length === 0 && !searchError ? <div className="text-xs text-slate-400">No results yet. Type a question and click Search.</div> : null}
         </div>
       </div>
 
@@ -343,25 +394,44 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
         <div className="flex items-center justify-between">
           <div className="text-sm text-slate-200 font-semibold">Optional: Draft answer with local Ollama</div>
           <button
-            onClick={async () => setLlmStatus(await api.mlLlmStatus())}
-            className="text-xs px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200"
+            onClick={async () => {
+              setOllamaCheckBusy(true);
+              try {
+                const ls = await api.mlLlmStatus();
+                setLlmStatus(ls);
+                if (ls?.ok) {
+                  toast.success(`Ollama connected — ${ls.models?.length ?? 0} model(s) available`);
+                  if (ls.models?.length && !ollamaModel) setOllamaModel(ls.models[0]);
+                } else {
+                  toast('Ollama not detected. Make sure Ollama is installed and running.', { icon: '⚠️' });
+                }
+              } catch (e: any) {
+                toast.error(`Could not reach Ollama: ${e?.message || e}`);
+              } finally {
+                setOllamaCheckBusy(false);
+              }
+            }}
+            disabled={ollamaCheckBusy}
+            className="text-xs px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-60 text-slate-200"
           >
-            Check Ollama
+            {ollamaCheckBusy ? 'Checking…' : 'Check Ollama'}
           </button>
         </div>
 
         {llmStatus?.ok ? (
-          <div className="text-xs text-emerald-300">Ollama detected ({llmStatus.models.length} model(s)).</div>
+          <div className="text-xs text-emerald-300">✅ Ollama connected — {llmStatus.models.length} model(s) available.</div>
         ) : (
-          <div className="text-xs text-slate-400">Ollama not detected: {llmStatus?.error || 'Unknown'} (start Ollama to enable)</div>
+          <div className="text-xs text-slate-400">
+            Ollama not detected — <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="text-emerald-400 underline">install Ollama</a> and start it, then click Check Ollama.
+          </div>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <select
             value={ollamaModel}
             onChange={(e) => setOllamaModel(e.target.value)}
             disabled={!llmStatus?.ok}
-            className="bg-slate-950/60 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 outline-none"
+            className="bg-slate-950/60 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 outline-none disabled:opacity-50"
           >
             {(llmStatus?.ok ? llmStatus.models : []).map((m) => (
               <option key={m} value={m}>
@@ -372,10 +442,14 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
           <button
             onClick={onDraftAnswer}
             disabled={!llmStatus?.ok || answerBusy}
-            className="px-4 py-2 rounded bg-purple-700 hover:bg-purple-800 disabled:opacity-60 text-white text-sm font-semibold"
+            title={!llmStatus?.ok ? 'Start Ollama and click "Check Ollama" to enable this' : undefined}
+            className="px-4 py-2 rounded bg-purple-700 hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold"
           >
             {answerBusy ? 'Drafting…' : 'Draft Answer'}
           </button>
+          {!llmStatus?.ok && (
+            <span className="text-xs text-slate-500">Start Ollama to enable</span>
+          )}
         </div>
 
         {answer ? (

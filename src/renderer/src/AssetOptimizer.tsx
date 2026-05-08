@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Zap, Image, Box, FileArchive, ArrowDownToLine, Settings, Play, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface OptimizationJob {
@@ -23,7 +24,7 @@ export const AssetOptimizer: React.FC = () => {
 
   const startOptimization = async (type: 'texture' | 'mesh' | 'archive' | 'all') => {
     if (!inputPath) {
-      alert('Please specify input path');
+      toast.error('Please specify input path');
       return;
     }
 
@@ -94,7 +95,7 @@ export const AssetOptimizer: React.FC = () => {
 
   const exportMod = () => {
     if (!inputPath) {
-      alert('Please specify mod path');
+      toast.error('Please specify mod path');
       return;
     }
 

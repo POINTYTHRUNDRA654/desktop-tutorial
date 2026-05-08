@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { FolderOpen, Eye, AlertTriangle, FileCode, FileImage, Box, Zap, CheckCircle2, Clock } from 'lucide-react';
 
 interface WatchedFile {
@@ -47,7 +48,7 @@ export const FileWatcher: React.FC = () => {
       }
     } catch (error) {
       console.error('File watcher connection failed:', error);
-      alert('Connection Failed: The Desktop Bridge is not responding on port 21337. File watching requires the active VoltTech Wrapper.');
+      toast.error('Connection Failed: The Desktop Bridge is not responding on port 21337. File watching requires the active VoltTech Wrapper.');
       setWatching(false);
     }
   };

@@ -3,13 +3,14 @@ import { Link } from 'react-router-dom';
 import { Save, Map, ExternalLink } from 'lucide-react';
 import { resolveUiLanguage, useI18n } from './i18n';
 import { openExternal } from './utils/openExternal';
+import { getBrowserTtsVoices, loadBrowserTtsSettings, saveBrowserTtsSettings, pickBrowserTtsVoice } from './browserTts';
 
 function getElectronApi(): any {
   return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
 }
 
 const REQUEST_LANGUAGE_URL =
-  'https://github.com/POINTYTHRUNDRA654/desktop-tutorial/issues/new?labels=language-request&title=Language%20request%3A%20';
+  'https://github.com/POINTYTHRUNDRA654/mossy-ai/issues/new?labels=language-request&title=Language%20request%3A%20';
 
 type LanguageSettingsProps = {
   embedded?: boolean;
@@ -69,6 +70,18 @@ const LanguageSettings: React.FC<LanguageSettingsProps> = ({ embedded = false })
         setUiLanguagePref('auto');
       } else {
         setUiLanguagePref(resolveUiLanguage(uiLanguage));
+      }
+
+      // Auto-select a female voice for the chosen language (only if voice exists for that language)
+      if (uiLanguage !== 'auto') {
+        const voices = getBrowserTtsVoices();
+        const langBase = uiLanguage.split('-')[0].toLowerCase();
+        const matchedVoice = pickBrowserTtsVoice(voices, undefined, langBase);
+        if (matchedVoice && matchedVoice.lang && matchedVoice.lang.toLowerCase().startsWith(langBase)) {
+          // Only auto-select if the voice actually matches the requested language
+          const settings = loadBrowserTtsSettings();
+          saveBrowserTtsSettings({ ...settings, preferredVoiceName: matchedVoice.name, enabled: true });
+        }
       }
     } finally {
       setSaving(false);
@@ -132,24 +145,49 @@ const LanguageSettings: React.FC<LanguageSettingsProps> = ({ embedded = false })
       </div>
 
       <div className={contentClassName}>
+        <div className="bg-black/40 border border-amber-500/40 rounded-xl p-5 mb-6">
+          <div className="text-xs font-black text-amber-300 uppercase tracking-widest">⚠️ In Development</div>
+          <div className="text-[11px] text-amber-200 mt-2">
+            Multi-language support is currently in development. When you select a language, Mossy's UI language (labels, buttons) will change, but <strong>text-to-speech will only work if you have voices for that language installed on your Windows system</strong>.
+          </div>
+          <div className="text-[11px] text-amber-200 mt-2">
+            <strong>English is fully supported.</strong> For other languages, see Settings → Voice for which languages have voices installed, or go to Windows Settings → Speech → Add voices to install them.
+          </div>
+        </div>
+
         <div className="bg-black/40 border border-white/10 rounded-xl p-5">
           <div className="text-xs font-black text-white uppercase tracking-widest">{t('settings.language.uiLanguageLabel', 'App language')}</div>
           <div className="text-[11px] text-slate-400 mt-1">{t('settings.language.uiLanguageHelp', 'Affects labels, buttons, and UI text (where translated).')}</div>
 
-          <div className="mt-4">
-            <select
-              value={uiLanguage}
-              onChange={(e) => void onChange(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-3 py-2"
-            >
-              <option value="auto">{t('settings.language.auto', 'Auto (system)')}</option>
-              <option value="en">English</option>
-              <option value="es">Español</option>
-              <option value="fr">Français</option>
-              <option value="de">Deutsch</option>
-              <option value="ru">Русский</option>
-              <option value="zh-Hans">中文（简体）</option>
-            </select>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {[
+              { value: 'auto', label: t('settings.language.auto', 'Auto (system)') },
+              { value: 'en', label: 'English' },
+              { value: 'es', label: 'Español' },
+              { value: 'fr', label: 'Français' },
+              { value: 'de', label: 'Deutsch' },
+              { value: 'ru', label: 'Русский' },
+              { value: 'zh-Hans', label: '中文（简体）' },
+              { value: 'pt-BR', label: 'Português (BR)' },
+              { value: 'ja', label: '日本語' },
+              { value: 'ko', label: '한국어' },
+              { value: 'it', label: 'Italiano' },
+              { value: 'pl', label: 'Polski' },
+              { value: 'tr', label: 'Türkçe' },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={uiLanguage === value}
+                onClick={() => void onChange(value)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors text-left ${uiLanguage === value
+                  ? 'bg-emerald-600 border-emerald-500 text-white'
+                  : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700 hover:border-slate-500'
+                  }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 

@@ -29,11 +29,12 @@ from pathlib import Path
 
 bl_info = {
     "name": "Mossy Link - AI Assistant Integration",
-    "blender": (4, 5, 0),
+    # Compatible down to Blender 2.80; tested forward through 4.x
+    "blender": (2, 80, 0),
     "author": "OmniForge AI",
-    "version": (5, 0, 0),
+    "version": (5, 1, 0),
     "location": "View3D > Mossy Link Panel",
-    "description": "Real-time AI script execution and Blender control via Mossy v4.0+ Desktop Bridge",
+    "description": "Real-time AI script execution and Blender control via Mossy Desktop Bridge",
     "warning": "",
     "wiki_url": "",
     "tracker_url": "",

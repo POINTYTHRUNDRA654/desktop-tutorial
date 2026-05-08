@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle, Sparkles } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import packageJson from '../../../package.json';
 
 interface WhatsNewPageProps {
   onDismiss?: () => void;
@@ -49,9 +50,19 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
 
   const handleBack = () => {
     if (dontShowAgain) {
-      localStorage.setItem('mossy_whats_new_dismissed', 'true');
+      try {
+        // Store the current version as dismissed so it re-appears on the next release
+        localStorage.setItem('mossy_whats_new_dismissed_version', packageJson.version);
+        localStorage.removeItem('mossy_whats_new_dismissed');
+      } catch (err) {
+        // Don't block navigation if storage fails
+        console.warn('[WhatsNewPage] could not persist dismissal:', err);
+      }
     }
+
+    // Notify parent/hook (will at minimum set a session-dismiss flag)
     onDismiss?.();
+
     const from = (location.state as { from?: string } | null)?.from;
     if (from && from !== '/whats-new') {
       navigate(from, { replace: true });
@@ -85,7 +96,7 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
               <div>
                 <p className="text-xs uppercase tracking-[0.35em] text-emerald-300">Release Notes</p>
                 <h1 className="text-3xl font-black text-white">What's New in Mossy</h1>
-                <p className="text-sm text-emerald-100/70">v5.4.2.1 - Mossy Overlay highlights, now on its own page.</p>
+                <p className="text-sm text-emerald-100/70">v{packageJson.version} — what's changed in this release.</p>
               </div>
             </div>
             <button

@@ -110,7 +110,7 @@ const builtInLinks: Record<WizardTopic, Array<{ label: string; url: string; note
     { label: 'Nexus search: Sim Settlements 2', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=Sim%20Settlements%202&gsearchtype=mods', note: 'Search results in case you install via Nexus.' },
   ],
   prp: [
-    { label: 'Nexus search: PRP', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=PRP&gsearchtype=mods', note: 'Search for “Previsibines Repair Pack (PRP)”.' },
+    { label: 'Nexus search: PRP', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=PRP&gsearchtype=mods', note: 'Search for "Previsibines Repair Pack (PRP)".' },
     { label: 'Nexus search: Previsibines Repair Pack', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=Previsibines%20Repair%20Pack&gsearchtype=mods' },
   ],
   patching: [
@@ -309,14 +309,14 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
     const modManagerBlurb = mm === 'mo2'
       ? 'You are using Mod Organizer 2 (MO2). Install mods as separate entries; keep plugins organized; verify with LOOT.'
       : mm === 'vortex'
-      ? 'You are using Vortex. Install/enable mods, deploy, then sort plugins; verify deployment is successful.'
-      : 'You are installing manually. This is riskier; keep backups and be extra careful about overwrites.';
+        ? 'You are using Vortex. Install/enable mods, deploy, then sort plugins; verify deployment is successful.'
+        : 'You are installing manually. This is riskier; keep backups and be extra careful about overwrites.';
 
     const installPathHint = mm === 'mo2'
       ? 'MO2: install via “Install a new mod from an archive” and keep it enabled in the left pane; plugins in right pane.'
       : mm === 'vortex'
-      ? 'Vortex: install from file, enable, deploy, then check Plugins page for enabled state.'
-      : 'Manual: copy into Fallout 4 Data folder only when you know exactly what files are overwriting.';
+        ? 'Vortex: install from file, enable, deploy, then check Plugins page for enabled state.'
+        : 'Manual: copy into Fallout 4 Data folder only when you know exactly what files are overwriting.';
 
     if (state.topic === 'xedit') {
       return [
@@ -397,6 +397,21 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               id: 'wrong-exe',
               title: 'If Mossy launches the wrong xEdit',
               details: <>Set the path in <Link className="text-blue-400 hover:underline" to="/settings/tools">External Tools Settings</Link>. That overrides detection and makes launching deterministic.</>,
+            },
+            {
+              id: 'navmesh-find',
+              title: 'Fix deleted navmesh — find [D] NAVM records',
+              details: <>Deleted navmesh causes CTD and frozen NPCs. In xEdit, right-click the plugin → <b>Check for Errors</b>. Look for records labelled <b>[D] NAVM</b>. Note the FormID of each deleted record before you continue.</>,
+            },
+            {
+              id: 'navmesh-fix',
+              title: 'Fix deleted navmesh — Change FormID method',
+              details: <>In the same cell, find the <em>new</em> NAVM record your mod added. Right-click it → <b>Change FormID</b> → paste the deleted record's FormID → accept <em>"Update all references?"</em>. Then remove the original <b>[D] NAVM</b> record. Re-run Check for Errors to confirm the fix. See <b>NAVMESH_FIX_GUIDE.md</b> for the full walkthrough.</>,
+            },
+            {
+              id: 'navmesh-ck',
+              title: 'Fix navmesh in the Creation Kit instead',
+              details: <>Never delete a navmesh triangle outright in CK. Create a <em>new</em> triangle covering the same area first, <em>then</em> delete the old one. Always run <b>Navmesh → Finalize Cell Navmesh</b> before saving. Check borders with <b>Find Navmesh Errors</b>.</>,
             },
           ],
         },
@@ -549,74 +564,96 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
     }
 
     // patching
-    return [
-      {
-        id: 'prereqs',
-        title: t('installWizard.section.prereqs', 'Prereqs'),
-        icon: Wrench,
-        steps: [
-          {
-            id: 'goal',
-            title: 'Define what you are patching',
-            details: <>Patching means deciding which mod “wins” for specific records. Be specific: leveled lists? worldspace edits? weapon stats? SS2/PRP conflicts?</>,
-          },
-        ],
-      },
-      {
-        id: 'download',
-        title: t('installWizard.section.download', 'Download'),
-        icon: Download,
-        steps: [
-          {
-            id: 'xedit',
-            title: 'Ensure xEdit is installed and configured',
-            details: <>Most patching workflows depend on xEdit. If you haven’t done the xEdit wizard steps, do those first.</>,
-          },
-        ],
-      },
-      {
-        id: 'install',
-        title: t('installWizard.section.buildPatch', 'Build the patch'),
-        icon: GitBranch,
-        steps: [
-          {
-            id: 'create-plugin',
-            title: 'Create a new patch plugin (ESP/ESL where appropriate)',
-            details: <>In xEdit: right-click → <b>Other</b> → <b>Create Empty Plugin</b> (or equivalent), then add overrides into your patch.</>,
-          },
-          {
-            id: 'copy-records',
-            title: 'Copy records as override into your patch',
-            details: <>For each conflict: copy the winning record into your patch, then edit values to reflect your intended combined behavior.</>,
-          },
-        ],
-      },
-      {
-        id: 'verify',
-        title: t('installWizard.section.verify', 'Verify'),
-        icon: ShieldCheck,
-        steps: [
-          {
-            id: 'loadorder',
-            title: 'Place the patch late in load order',
-            details: <>Your patch must load after the mods it is patching. Then test in-game and confirm the behavior change is present.</>,
-          },
-        ],
-      },
-      {
-        id: 'troubleshoot',
-        title: t('installWizard.section.troubleshoot', 'Troubleshoot'),
-        icon: AlertCircle,
-        steps: [
-          {
-            id: 'esl',
-            title: 'If your patch won’t load',
-            details: <>Check for missing masters, bad ESL flags, or incorrect load order. Fix those before continuing.</>,
-          },
-        ],
-      },
-    ];
-  }, [state.modManager, state.topic, t]);
+    if (state.topic === 'patching') {
+      return [
+        {
+          id: 'prereqs',
+          title: t('installWizard.section.prereqs', 'Prereqs'),
+          icon: Wrench,
+          steps: [
+            {
+              id: 'goal',
+              title: 'Define what you are patching',
+              details: <>Patching means deciding which mod "wins" for specific records. Be specific: leveled lists? worldspace edits? weapon stats? SS2/PRP conflicts?</>,
+            },
+            {
+              id: 'scan-first',
+              title: 'Scan the mod in the Auditor before patching',
+              details: <>Upload the plugin's ESP/ESM in Mossy's <b>Auditor</b> tab first. Fix any <em>Deleted Navmesh (CTD Risk)</em> or missing-master errors before you build a patch — a patch on a broken plugin will inherit the same problems. Use the xEdit troubleshoot steps above if navmesh errors appear.</>,
+            },
+            {
+              id: 'install-check',
+              title: 'Verify the mod is correctly installed',
+              details: <>In your mod manager, confirm the plugin is enabled and active. Run <b>LOOT</b> to sort load order and check for warnings. If the mod requires F4SE, confirm your F4SE version matches your game runtime (F4SE 0.7.7 for runtime 1.11.x).</>,
+            },
+          ],
+        },
+        {
+          id: 'download',
+          title: t('installWizard.section.download', 'Download'),
+          icon: Download,
+          steps: [
+            {
+              id: 'xedit',
+              title: 'Ensure xEdit is installed and configured',
+              details: <>Most patching workflows depend on xEdit. If you haven't done the xEdit wizard steps, do those first.</>,
+            },
+          ],
+        },
+        {
+          id: 'install',
+          title: t('installWizard.section.buildPatch', 'Build the patch'),
+          icon: GitBranch,
+          steps: [
+            {
+              id: 'create-plugin',
+              title: 'Create a new patch plugin (ESP/ESL where appropriate)',
+              details: <>In xEdit: right-click → <b>Other</b> → <b>Create Empty Plugin</b> (or equivalent), then add overrides into your patch.</>,
+            },
+            {
+              id: 'copy-records',
+              title: 'Copy records as override into your patch',
+              details: <>For each conflict: copy the winning record into your patch, then edit values to reflect your intended combined behavior.</>,
+            },
+          ],
+        },
+        {
+          id: 'verify',
+          title: t('installWizard.section.verify', 'Verify'),
+          icon: ShieldCheck,
+          steps: [
+            {
+              id: 'loadorder',
+              title: 'Place the patch late in load order',
+              details: <>Your patch must load after the mods it is patching. Then test in-game and confirm the behavior change is present.</>,
+            },
+            {
+              id: 'stability',
+              title: 'Confirm stability — run CLASSIC if you get a CTD',
+              details: <>If the game crashes after installing your patch, open the crash log at <code>%LOCALAPPDATA%\Fallout4\F4SE\</code> (written by Addictol, Nexus #84214) and run <b>CLASSIC</b> (Nexus #56255) on it. CLASSIC covers 250+ crash scenarios and will pinpoint missing masters, DLL version mismatches, or navmesh issues.</>,
+            },
+          ],
+        },
+        {
+          id: 'troubleshoot',
+          title: t('installWizard.section.troubleshoot', 'Troubleshoot'),
+          icon: AlertCircle,
+          steps: [
+            {
+              id: 'esl',
+              title: 'If your patch won\'t load',
+              details: <>Check for missing masters, bad ESL flags, or incorrect load order. Fix those before continuing.</>,
+            },
+            {
+              id: 'ctd-after-patch',
+              title: 'If the game CTDs in the patched area',
+              details: <>Run CLASSIC on the crash log first. If it points to a NAVM error, use the xEdit topic's navmesh fix steps (Change FormID method). If it points to a DLL version mismatch, update that mod to the build matching your game runtime.</>,
+            },
+          ],
+        },
+      ];
+    }
+  }, [state.modManager, state.topic, t]) ?? [];
 
   const topicMeta = {
     xedit: {
@@ -726,11 +763,10 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
                 key={topic.id}
                 type="button"
                 onClick={() => setState((s) => ({ ...s, topic: topic.id }))}
-                className={`w-full text-left px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${
-                  state.topic === topic.id
+                className={`w-full text-left px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${state.topic === topic.id
                     ? 'bg-emerald-900/30 border-emerald-500/40 text-emerald-200'
                     : 'bg-slate-900/40 border-slate-800 text-slate-300 hover:border-slate-600'
-                }`}
+                  }`}
               >
                 {topic.label}
               </button>
@@ -744,11 +780,10 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
                     key={m.id}
                     type="button"
                     onClick={() => setState((s) => ({ ...s, modManager: m.id }))}
-                    className={`flex-1 px-2 py-2 rounded-lg border text-[11px] font-black transition-colors ${
-                      state.modManager === m.id
+                    className={`flex-1 px-2 py-2 rounded-lg border text-[11px] font-black transition-colors ${state.modManager === m.id
                         ? 'bg-blue-900/30 border-blue-500/40 text-blue-200'
                         : 'bg-slate-900/40 border-slate-800 text-slate-300 hover:border-slate-600'
-                    }`}
+                      }`}
                   >
                     {m.label}
                   </button>

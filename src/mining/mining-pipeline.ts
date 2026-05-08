@@ -56,11 +56,11 @@ export class MiningPipelineOrchestrator {
             conflictCount: 0,
             timestamp: Date.now(),
             hardwareProfile: {
-              cpu: 'Unknown',
-              gpu: 'Unknown',
-              ram: 16,
-              storage: 'Unknown',
-              os: 'Unknown'
+              cpu: { model: 'Unknown', cores: 1, threads: 1, baseClock: 0, boostClock: 0, cache: 0 },
+              gpu: { model: 'Unknown', vram: 0, driverVersion: '', dxVersion: '', rayTracing: false },
+              ram: { total: 16, speed: 0, type: 'DDR4', channels: 2 },
+              storage: { type: 'SSD', readSpeed: 0, writeSpeed: 0, totalSpace: 0, availableSpace: 0 },
+              os: { name: 'Unknown', version: '', architecture: 'x64' }
             }
           },
           modImpact: new Map(),
@@ -519,7 +519,8 @@ export class MiningPipelineOrchestrator {
       },
       storage: {
         type: 'SSD',
-        capacity: 1000,
+        totalSpace: 1000,
+        availableSpace: 800,
         readSpeed: 3500,
         writeSpeed: 3000
       },

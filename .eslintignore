@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-electron/
+release/
+bundled-knowledge/
+playwright-report/
+cml/
+vscode-pull-request-github/

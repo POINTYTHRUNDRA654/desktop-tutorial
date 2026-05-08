@@ -9,7 +9,11 @@ import {
   MeshAnalysis,
   LODRecommendation,
   MeshSimplification,
-  VertexOptimization
+  VertexOptimization,
+  NIFFile,
+  LODSettings,
+  LODSuggestion,
+  BatchMeshOptimization
 } from '../shared/types';
 
 export class MeshOptimizationMiningEngineImpl implements MeshOptimizationMiningEngine {
@@ -25,11 +29,11 @@ export class MeshOptimizationMiningEngineImpl implements MeshOptimizationMiningE
           optimizations.push({
             meshPath: nifFile.path,
             currentVertexCount: analysis.vertexCount,
-            currentTriangleCount: analysis.triangleCount,
-            currentLodLevels: analysis.lodLevels,
+            currentTriangles: analysis.triangleCount,
+            lodLevels: analysis.lodLevels,
             recommendations,
             expectedPerformanceGain: this.calculateExpectedPerformanceGain(recommendations),
-            qualityImpact: this.calculateQualityImpact(recommendations)
+            qualityLoss: Math.max(0, 1 - (this.calculateQualityImpact(recommendations) / 100))
           });
         }
       } catch (error) {
@@ -37,11 +41,11 @@ export class MeshOptimizationMiningEngineImpl implements MeshOptimizationMiningE
       }
     }
 
-    return optimizations.sort((a, b) => b.expectedPerformanceGain - a.expectedPerformanceGain);
+    return optimizations.sort((a, b) => (b.expectedPerformanceGain || 0) - (a.expectedPerformanceGain || 0));
   }
 
-  async generateLODs(meshPath: string, targetLevels: number): Promise<LODRecommendation[]> {
-    const analysis = await this.analyzeMesh(meshPath);
+  async generateLODs(nifFile: NIFFile, targetLevels: number): Promise<LODRecommendation[]> {
+    const analysis = await this.analyzeMesh(nifFile);
     const recommendations: LODRecommendation[] = [];
 
     // Generate LOD recommendations for each level
@@ -57,26 +61,26 @@ export class MeshOptimizationMiningEngineImpl implements MeshOptimizationMiningE
         simplificationMethod: this.determineSimplificationMethod(analysis, level),
         expectedQualityLoss: this.calculateQualityLoss(analysis, reductionFactor),
         performanceGain: this.calculateLODPerformanceGain(analysis, level),
-        generationSteps: this.generateLODSteps(meshPath, level, targetVertices)
+        generationSteps: this.generateLODSteps(analysis, level, targetVertices)
       });
     }
 
     return recommendations;
   }
 
-  async optimizeVertexData(meshPaths: string[]): Promise<VertexOptimization[]> {
+  async optimizeVertexData(nifFiles: NIFFile[]): Promise<VertexOptimization[]> {
     const optimizations: VertexOptimization[] = [];
 
-    for (const meshPath of meshPaths) {
+    for (const nifFile of nifFiles) {
       try {
-        const analysis = await this.analyzeMesh(meshPath);
+        const analysis = await this.analyzeMesh(nifFile);
         const vertexOptimization = await this.generateVertexOptimization(analysis);
 
         if (vertexOptimization) {
           optimizations.push(vertexOptimization);
         }
       } catch (error) {
-        console.warn(`Failed to optimize vertex data for ${meshPath}:`, error);
+        console.warn(`Failed to optimize vertex data for ${nifFile.path}:`, error);
       }
     }
 
@@ -116,7 +120,7 @@ export class MeshOptimizationMiningEngineImpl implements MeshOptimizationMiningE
     };
 
     return {
-      path: meshPath,
+      path: nifFile.path,
       vertexCount: baseVertices,
       triangleCount: baseTriangles,
       lodLevels,
@@ -210,7 +214,7 @@ export class MeshOptimizationMiningEngineImpl implements MeshOptimizationMiningE
       targetTriangleCount: analysis.triangleCount, // No triangle change
       method: 'texture_atlas',
       qualityPreservation: 0.95,
-      performanceGain: analysis.materials * 0.5, // Small performance gain per consolidated material
+      performanceGain: (analysis.materials ?? 0) * 0.5, // Small performance gain per consolidated material
       implementationSteps: [
         '1. Identify similar materials in the mesh',
         '2. Create texture atlas combining diffuse/normal/specular maps',
@@ -269,7 +273,7 @@ export class MeshOptimizationMiningEngineImpl implements MeshOptimizationMiningE
     let adjustment = 0;
     if (analysis.isSkinned) adjustment += 0.1; // Skinned meshes lose more quality
     if (analysis.hasTangents) adjustment += 0.05; // Normal mapping sensitive
-    if (analysis.materials > 1) adjustment += 0.05; // Multi-material meshes
+    if ((analysis.materials ?? 0) > 1) adjustment += 0.05; // Multi-material meshes
 
     return Math.min(baseLoss + adjustment, 1.0);
   }
@@ -305,14 +309,65 @@ export class MeshOptimizationMiningEngineImpl implements MeshOptimizationMiningE
     return totalPreservation / recommendations.length;
   }
 
-  private generateLODSteps(meshPath: string, level: number, targetVertices: number): string[] {
-    const fileName = meshPath.split('/').pop() || 'mesh';
+  // Interface helpers required by MeshOptimizationMiningEngine
+  async suggestLOD(mesh: NIFFile, lodSettings: LODSettings): Promise<LODSuggestion> {
+    const lods = await this.generateLODs(mesh, lodSettings.qualityLevels || 2);
+    // Return a compact LODSuggestion based on the top recommendation
+    const top = lods[0];
+    const qualityNumber = (lodSettings.quality === 'low' ? 1 : lodSettings.quality === 'high' ? 3 : 2);
+
+    return {
+      meshPath: mesh.path,
+      lodLevels: lods.map(l => ({ level: l.level, distance: l.level * (lodSettings.baseDistance || 50), vertexCount: l.targetVertexCount, triangleCount: l.targetTriangleCount, quality: qualityNumber })),
+      totalReduction: top ? (1 - (top.targetVertexCount / (mesh.vertexCount || 1))) : 0,
+      generationMethod: top?.simplificationMethod || 'quadric_edge_collapse',
+      reasoning: top ? `Generated ${lods.length} LOD levels` : 'No LOD recommended'
+    } as LODSuggestion;
+  }
+
+  async optimizeBatch(meshes: NIFFile[], lodSettings: LODSettings): Promise<BatchMeshOptimization> {
+    const optimizations: MeshOptimization[] = [];
+    let totalReduction = 0;
+
+    for (const mesh of meshes) {
+      const analysis = await this.analyzeMesh(mesh);
+      const recs = await this.generateMeshRecommendations(analysis, lodSettings);
+
+      optimizations.push({
+        meshPath: mesh.path,
+        currentVertexCount: analysis.vertexCount,
+        currentTriangles: analysis.triangleCount,
+        lodSuggestions: recs.filter(r => r.type === 'lod_generation') as any,
+        recommendations: recs.map(r => r.method || r.type.toString()),
+        expectedPerformanceGain: this.calculateExpectedPerformanceGain(recs as any)
+      });
+
+      totalReduction += (analysis.triangleCount - (recs[0]?.targetTriangleCount || analysis.triangleCount));
+    }
+
+    return {
+      optimizations,
+      totalMeshes: meshes.length,
+      optimizedMeshes: optimizations.length,
+      totalTriangleReduction: totalReduction,
+      averagePerformanceGain: optimizations.reduce((s, o) => s + (o.expectedPerformanceGain || 0), 0) / Math.max(1, optimizations.length),
+      lodGenerationStats: {
+        totalMeshes: meshes.length,
+        successfulGenerations: optimizations.filter(o => (o.lodSuggestions || []).length > 0).length,
+        failedGenerations: optimizations.filter(o => (o.lodSuggestions || []).length === 0).length,
+        averageLODsPerMesh: optimizations.reduce((s, o) => s + ((o.lodSuggestions || []).length), 0) / Math.max(1, optimizations.length)
+      }
+    } as BatchMeshOptimization;
+  }
+
+  private generateLODSteps(analysis: any, level: number, targetVertices: number): string[] {
+    const fileName = (analysis.path || 'mesh').split('/').pop() || 'mesh';
     const baseName = fileName.replace(/\.[^/.]+$/, ''); // Remove extension
 
     return [
       `1. Create LOD${level} version of ${fileName}`,
       `2. Reduce vertex count to approximately ${targetVertices}`,
-      `3. Use ${this.determineSimplificationMethod(await this.analyzeMesh(meshPath), level)} method`,
+      `3. Use ${this.determineSimplificationMethod(analysis, level)} method`,
       `4. Preserve UV coordinates and material assignments`,
       `5. Save as ${baseName}_lod${level}.nif`,
       `6. Update ESP file to reference LOD mesh`,

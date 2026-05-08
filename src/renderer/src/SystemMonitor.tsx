@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import ExternalToolNotice from './components/ExternalToolNotice';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { Settings as SettingsIcon } from 'lucide-react';
@@ -76,6 +77,12 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
   const [installStep, setInstallStep] = useState(0); // 0: Init, 1: Scanning, 2: Installing, 3: Done
   const [installLog, setInstallLog] = useState<string[]>([]);
   const [foundTools, setFoundTools] = useState<Array<{name: string, category: string}>>([]);
+
+  // Deployment / build state
+  const [buildStatus, setBuildStatus] = useState<'idle' | 'building' | 'complete' | 'error'>('idle');
+  const [buildProgress, setBuildProgress] = useState(0);
+  const [buildLog, setBuildLog] = useState<string[]>([]);
+  const [releaseUrl, setReleaseUrl] = useState<string>('');
 
   const logsEndRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
@@ -189,8 +196,8 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
             setData(prev => {
                 const newData = [...prev, {
                     name: new Date().toLocaleTimeString(),
-                    cpu: perf.cpu || Math.floor(Math.random() * 20) + 10,
-                    neural: perf.mem || Math.floor(Math.random() * 10) + 5
+                    cpu: perf.cpu ?? Math.floor(Math.random() * 20) + 10,
+                    neural: perf.mem ?? Math.floor(Math.random() * 10) + 5
                 }].slice(-20);
                 return newData;
             });
@@ -227,12 +234,12 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
 
     // STEP 1: Get System Hardware Info
     let sysInfo: any = null;
-    if (window.electron?.api?.getSystemInfo) {
+    if (typeof window.electron?.api?.getSystemInfo === 'function') {
         try {
             addLog("[STEP 1/3] Scanning system hardware...", 'info');
             setScanProgress(10);
             console.log('[SystemMonitor] Calling getSystemInfo...');
-            sysInfo = await window.electronAPI.getSystemInfo();
+            sysInfo = await window.electron.api.getSystemInfo();
             
             console.log('[SystemMonitor] Received system info from Electron:', sysInfo);
             
@@ -420,10 +427,10 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
 
   // --- Deployment Logic ---
   const startBuild = () => {
-      // TODO: Implement build status, progress, and log state
-      // setBuildStatus('building');
-      // setBuildProgress(0);
-      // setBuildLog(['Initializing Mod Deployment Sequence...']);
+      // Initialize build state
+      setBuildStatus('building');
+      setBuildProgress(0);
+      setBuildLog(['Initializing Mod Deployment Sequence...']);
       
       const steps = [
           "Verifying Plugin Integrity (.esp/.esl)...",
@@ -440,15 +447,16 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
       const interval = setInterval(() => {
           if (currentStep >= steps.length) {
               clearInterval(interval);
-              // TODO: Implement build status and release URL state
-              // setBuildStatus('complete');
-              // setReleaseUrl(window.location.href.split('#')[0] + '#/beta/invite/' + Math.random().toString(36).substring(7));
+              // Mark build as complete and generate secure release URL
+              setBuildStatus('complete');
+              const inviteCode = uuidv4().split('-')[0]; // Use first segment of UUID for cleaner URL
+              setReleaseUrl(window.location.href.split('#')[0] + '#/beta/invite/' + inviteCode);
               return;
           }
 
-          // TODO: Implement build log and progress state
-          // setBuildLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${steps[currentStep]}`]);
-          // setBuildProgress(prev => Math.min(100, prev + (100 / steps.length)));
+          // Add log entry and update progress
+          setBuildLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${steps[currentStep]}`]);
+          setBuildProgress(prev => Math.min(100, prev + (100 / steps.length)));
           currentStep++;
       }, 800);
   };
@@ -543,11 +551,9 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
   };
 
   const copyLink = () => {
-      // TODO: Implement release URL and copied state
-      // if (!releaseUrl) return;
-      // navigator.clipboard.writeText(releaseUrl);
-      // setCopied(true);
-      // setTimeout(() => setCopied(false), 2000);
+      if (!releaseUrl) return;
+      navigator.clipboard.writeText(releaseUrl);
+      addLog('Release URL copied to clipboard!', 'success');
   };
 
     const mainScrollRef = useRef<HTMLDivElement | null>(null);
@@ -716,7 +722,7 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
 
       </div>
 
-            <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto p-6 pb-24 bg-slate-900/50">
+            <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-6 pb-24 bg-slate-900/50">
       
       {/* TELEMETRY TAB */}
       {activeTab === 'telemetry' && (

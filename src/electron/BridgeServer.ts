@@ -13,9 +13,15 @@ import fs from 'fs';
 export class BridgeServer {
     private server: http.Server | null = null;
     private port: number = 21337;
+    private addonPort: number;
+
+    constructor(addonPort: number = 9999) {
+        this.addonPort = addonPort;
+    }
 
     start() {
         this.server = http.createServer(async (req, res) => {
+            console.log('[Bridge] incoming request', req.method, req.url);
             // Set CORS headers
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -83,15 +89,170 @@ export class BridgeServer {
                     req.on('data', chunk => { body += chunk.toString(); });
                     req.on('end', async () => {
                         try {
-                            const { type, script, target } = JSON.parse(body);
+                            const { type, script, target, name, run } = JSON.parse(body);
+                            console.log('[Bridge] /execute payload', { type, script, target });
                             
                             // Handle Blender Python Execution
-                            if (type === 'blender' && target) {
-                                console.log('[Bridge] Executing Blender Python...');
-                                res.writeHead(200, { 'Content-Type': 'application/json' });
-                                res.end(JSON.stringify({ status: "success", message: "Script transmitted to Blender Neural Link." }));
+                            if (type === 'blender') {
+                                console.log('[Bridge] executing blender type');
+                                // forward the script (or text block) to the add-on socket on port 9999
+                                // this mirrors the behaviour of the Python helper that users can download.
+                                const net = await import('net');
+                                const timeoutMs = 3000;
+
+                                const sendCommandToAddon = (payload: any) => {
+                                    console.log('[Bridge] sendCommandToAddon payload', payload);
+                                    return new Promise<string>((resolve, reject) => {
+                                        const socket = new net.Socket();
+                                        let finished = false;
+
+                                        const cleanup = () => {
+                                            try { socket.destroy(); } catch { /* ignore */ }
+                                        };
+
+                                        socket.setTimeout(timeoutMs);
+
+                                        socket.on('connect', () => {
+                                            console.log('[Bridge] socket connected');
+                                            try {
+                                                socket.write(JSON.stringify(payload));
+                                            } catch (e) {
+                                                console.log('[Bridge] socket write error', e);
+                                            }
+                                        });
+
+                                        socket.on('data', (data) => {
+                                            console.log('[Bridge] socket data', data.toString());
+                                            if (finished) return;
+                                            finished = true;
+                                            const str = data.toString();
+                                            cleanup();
+                                            resolve(str);
+                                        });
+
+                                        socket.on('timeout', () => {
+                                            console.log('[Bridge] socket timeout');
+                                            if (finished) return;
+                                            finished = true;
+                                            cleanup();
+                                            reject({ type: 'timeout' });
+                                        });
+
+                                        socket.on('error', (err: any) => {
+                                            console.log('[Bridge] socket error', err);
+                                            if (finished) return;
+                                            finished = true;
+                                            cleanup();
+                                            reject({ type: 'conn', error: err });
+                                        });
+
+                                        socket.on('close', () => {
+                                            console.log('[Bridge] socket close');
+                                            if (!finished) {
+                                                finished = true;
+                                                reject({ type: 'conn', error: new Error('Connection closed prematurely') });
+                                            }
+                                        });
+
+                                        try {
+                                            socket.connect(this.addonPort, '127.0.0.1');
+                                        } catch (e) {
+                                            console.log('[Bridge] socket connect throw', e);
+                                            if (!finished) {
+                                                finished = true;
+                                                cleanup();
+                                                reject({ type: 'conn', error: e });
+                                            }
+                                        }
+                                    });
+                                };
+
+                                try {
+                                    const addonPayload: any = { type: 'script', code: script };
+                                    const responseText = await sendCommandToAddon(addonPayload);
+                                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ status: "success", message: "Blender command executed", response: responseText }));
+                                } catch (e: any) {
+                                    console.log('[Bridge] sendCommandToAddon failed', e);
+                                    if (e?.type === 'conn') {
+                                        res.writeHead(503, { 'Content-Type': 'application/json' });
+                                        res.end(JSON.stringify({ status: "error", message: `Blender addon not responding on port ${this.addonPort}. Is the addon active?` }));
+                                    } else if (e?.type === 'timeout') {
+                                        res.writeHead(504, { 'Content-Type': 'application/json' });
+                                        res.end(JSON.stringify({ status: "error", message: "Blender addon timed out (>3s)." }));
+                                    } else {
+                                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                                        res.end(JSON.stringify({ status: "error", message: "Bridge internal error" }));
+                                    }
+                                }
                             } 
-                            else if (type === 'shell') {
+                            else if (type === 'text') {
+                                console.log('[Bridge] executing text type');
+                                // create or update a text datablock in Blender
+                                const net = await import('net');
+                                const timeoutMs = 3000;
+
+                                const sendCommandToAddon = (payload: any) => {
+                                    return new Promise<string>((resolve, reject) => {
+                                        const socket = new net.Socket();
+                                        let finished = false;
+                                        const cleanup = () => { try { socket.destroy(); } catch { /* ignore */ } };
+                                        socket.setTimeout(timeoutMs);
+                                        socket.on('connect', () => {
+                                            socket.write(JSON.stringify(payload));
+                                        });
+                                        socket.on('data', (data) => {
+                                            if (finished) return;
+                                            finished = true;
+                                            cleanup();
+                                            resolve(data.toString());
+                                        });
+                                        socket.on('timeout', () => {
+                                            if (finished) return;
+                                            finished = true;
+                                            cleanup();
+                                            reject({ type: 'timeout' });
+                                        });
+                                        socket.on('error', (err: any) => {
+                                            if (finished) return;
+                                            finished = true;
+                                            cleanup();
+                                            reject({ type: 'conn', error: err });
+                                        });
+                                        socket.on('close', () => {
+                                            if (!finished) {
+                                                finished = true;
+                                                reject({ type: 'conn', error: new Error('Connection closed prematurely') });
+                                            }
+                                        });
+                                        try { socket.connect(this.addonPort, '127.0.0.1'); } catch (e) {
+                                            if (!finished) {
+                                                finished = true;
+                                                cleanup();
+                                                reject({ type: 'conn', error: e });
+                                            }
+                                        }
+                                    });
+                                };
+
+                                try {
+                                    const addonPayload: any = { type: 'text', code: script, name, run };
+                                    const responseText = await sendCommandToAddon(addonPayload);
+                                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ status: "success", message: "Blender text updated", response: responseText }));
+                                } catch (e: any) {
+                                    if (e?.type === 'conn') {
+                                        res.writeHead(503, { 'Content-Type': 'application/json' });
+                                        res.end(JSON.stringify({ status: "error", message: `Blender addon not responding on port ${this.addonPort}. Is the addon active?` }));
+                                    } else if (e?.type === 'timeout') {
+                                        res.writeHead(504, { 'Content-Type': 'application/json' });
+                                        res.end(JSON.stringify({ status: "error", message: "Blender addon timed out (>3s)." }));
+                                    } else {
+                                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                                        res.end(JSON.stringify({ status: "error", message: "Bridge internal error" }));
+                                    }
+                                }
+                            } else if (type === 'shell') {
                                 exec(script, (err, stdout, stderr) => {
                                     res.writeHead(200, { 'Content-Type': 'application/json' });
                                     res.end(JSON.stringify({ status: "success", stdout, stderr, code: err ? 1 : 0 }));
