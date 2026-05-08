@@ -13,13 +13,67 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  const toSafeStepData = (value: unknown, seen: WeakSet<object> = new WeakSet()): unknown => {
+    if (value === null || value === undefined) return undefined;
+    const t = typeof value;
+    if (t === 'string' || t === 'number' || t === 'boolean') return value;
+    if (Array.isArray(value)) {
+      return value.map((item) => toSafeStepData(item, seen));
+    }
+    if (t === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+      if (seen.has(value as object)) return undefined;
+      seen.add(value as object);
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        out[String(k)] = toSafeStepData(v, seen);
+      }
+      return out;
+    }
+    return undefined;
+  };
+
+  const normalizeWizardState = (raw: unknown): ProjectWizardState | null => {
+    if (!raw || typeof raw !== 'object') return null;
+    const src = raw as Record<string, unknown>;
+
+    const rawSteps = Array.isArray(src.steps) ? src.steps : [];
+    const steps: WizardStep[] = rawSteps
+      .filter((step): step is Record<string, unknown> => step !== null && typeof step === 'object')
+      .map((step, idx) => {
+        const status = step.status;
+        const type = step.type;
+        return {
+          id: String(step.id || `${wizardId}-step-${idx}`),
+          title: String(step.title || 'Untitled step'),
+          description: String(step.description || ''),
+          status: status === 'not-started' || status === 'in-progress' || status === 'completed' ? status : 'not-started',
+          type: type === 'script' || type === 'blender' || type === 'audit' || type === 'setup' ? type : 'setup',
+          data: toSafeStepData(step.data),
+        };
+      });
+
+    const rawIndex = Number(src.currentStepIndex);
+    const safeIndex = Number.isFinite(rawIndex)
+      ? Math.max(0, Math.min(rawIndex, Math.max(steps.length - 1, 0)))
+      : 0;
+
+    return {
+      id: String(src.id || wizardId),
+      projectId: String(src.projectId || ''),
+      name: String(src.name || 'Project Wizard'),
+      steps,
+      currentStepIndex: safeIndex,
+      lastUpdated: Number(src.lastUpdated || Date.now()),
+    };
+  };
+
   useEffect(() => {
     const fetchState = async () => {
       try {
         const bridge = (window as any).electronAPI;
         if (bridge?.wizardGetState) {
           const s = await bridge.wizardGetState(wizardId);
-          setState(s);
+          setState(normalizeWizardState(s));
         }
       } catch (e) {
         console.error('Failed to fetch wizard state:', e);
@@ -35,7 +89,7 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
       const bridge = (window as any).electronAPI;
       if (bridge?.wizardUpdateStep) {
         const nextState = await bridge.wizardUpdateStep(wizardId, stepId, status, data);
-        setState(nextState);
+        setState(normalizeWizardState(nextState));
       }
     } catch (e) {
       console.error('Failed to update step:', e);
@@ -63,33 +117,37 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
   if (loading) return <div className="p-4 text-slate-400">Loading Wizard...</div>;
   if (!state) return <div className="p-4 text-slate-500 italic">No active wizard found. Start a project to enable guidance.</div>;
 
-  const currentStep = state.steps?.[state.currentStepIndex];
+  const steps = Array.isArray(state.steps) ? state.steps : [];
+  const safeCurrentStepIndex = Number.isFinite(state.currentStepIndex)
+    ? Math.max(0, Math.min(state.currentStepIndex, Math.max(steps.length - 1, 0)))
+    : 0;
+  const currentStep = steps[safeCurrentStepIndex];
   if (!currentStep) return <div className="p-4 text-slate-400">Wizard error: no steps available</div>;
 
   return (
-    <div className={`bg-slate-900 border border-slate-700 rounded-xl overflow-hidden ${className}`}>
+    <div className={`bg-slate-900 border border-slate-700 rounded-xl overflow-hidden ${className || ''}`}>
       <div className="bg-slate-800 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
         <h3 className="text-sm font-bold text-white flex items-center gap-2">
           {state.name}
         </h3>
         <div className="text-[10px] text-slate-500 font-mono uppercase tracking-tighter">
-          Step {state.currentStepIndex + 1} of {state.steps?.length || 0}
+          Step {safeCurrentStepIndex + 1} of {steps.length}
         </div>
       </div>
 
       <div className="p-4 flex gap-4">
         {/* Step List */}
         <div className="w-1/3 space-y-2 border-r border-slate-800 pr-4">
-          {Array.isArray(state.steps) && state.steps.map((step, idx) => (
+          {steps.map((step, idx) => (
             <div 
               key={step?.id || idx}
               className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${
-                idx === state.currentStepIndex ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-500'
+                idx === safeCurrentStepIndex ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-500'
               }`}
             >
               {step?.status === 'completed' ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              ) : idx === state.currentStepIndex ? (
+              ) : idx === safeCurrentStepIndex ? (
                 <div className="w-4 h-4 rounded-full border-2 border-emerald-500 animate-pulse" />
               ) : (
                 <Circle className="w-4 h-4" />
@@ -148,8 +206,18 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
 
           <div className="flex justify-between items-center mt-4">
             <button 
-              disabled={state.currentStepIndex === 0}
-              onClick={() => setState({...state, currentStepIndex: state.currentStepIndex - 1})}
+              disabled={safeCurrentStepIndex === 0}
+              onClick={() => setState((prev) => {
+                if (!prev) return prev;
+                return {
+                  id: prev.id,
+                  projectId: prev.projectId,
+                  name: prev.name,
+                  steps: prev.steps,
+                  currentStepIndex: Math.max(0, safeCurrentStepIndex - 1),
+                  lastUpdated: Date.now(),
+                };
+              })}
               className="px-3 py-1 text-xs text-slate-400 hover:text-white disabled:opacity-30 flex items-center gap-1"
             >
               <ChevronLeft className="w-4 h-4" /> Back
@@ -171,7 +239,17 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
                     currentStep && updateStep(currentStep.id, 'completed');
                   }
                 } else {
-                  setState({...state, currentStepIndex: Math.min(state.currentStepIndex + 1, (state.steps?.length || 1) - 1)});
+                  setState((prev) => {
+                    if (!prev) return prev;
+                    return {
+                      id: prev.id,
+                      projectId: prev.projectId,
+                      name: prev.name,
+                      steps: prev.steps,
+                      currentStepIndex: Math.min(safeCurrentStepIndex + 1, Math.max(steps.length - 1, 0)),
+                      lastUpdated: Date.now(),
+                    };
+                  });
                 }
               }}
               className={`px-4 py-1.5 rounded font-bold text-xs flex items-center gap-2 transition-all shadow-lg ${

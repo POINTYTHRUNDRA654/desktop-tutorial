@@ -1311,12 +1311,15 @@ print("Batch processing complete")`,
   };
 
   const loadTemplate = (template: string) => {
-    if (!template) return;
-    const templates_for_type = templates[activeTab as keyof typeof templates];
-    if (templates_for_type && template in templates_for_type) {
-      setCode((templates_for_type as Record<string, string>)[template]);
-      setValidationErrors([]);
-    }
+    if (typeof template !== 'string' || template.trim().length === 0) return;
+    const templatesForType = templates[activeTab as keyof typeof templates];
+    if (!templatesForType || typeof templatesForType !== 'object') return;
+
+    const selectedTemplate = (templatesForType as Record<string, string>)[template];
+    if (typeof selectedTemplate !== 'string') return;
+
+    setCode(selectedTemplate);
+    setValidationErrors([]);
   };
 
   return (
@@ -2049,4 +2052,3 @@ print("Batch processing complete")`,
     </div>
   );
 };
-
