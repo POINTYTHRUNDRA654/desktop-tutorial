@@ -119,6 +119,66 @@ mix phx.new mossy_web --live
 
 See `PHOENIX_LIVEVIEW_GUIDE.md` for integration details.
 
+### 13. DeepSeek-OCR-2
+- **Repository**: https://github.com/deepseek-ai/DeepSeek-OCR-2
+- **Purpose**: Document OCR and layout-to-markdown extraction
+- **Usage**: Optional local OCR research/reference workflow for image and PDF document parsing, including Fallout 4 asset-spec extraction before Blender/NIF export
+- **License**: See upstream repository
+- **Recommended Clone Path**: `external/deepseek-ai/DeepSeek-OCR-2`
+
+To use DeepSeek-OCR-2:
+```bash
+git clone https://github.com/deepseek-ai/DeepSeek-OCR-2.git external/deepseek-ai/DeepSeek-OCR-2
+cd external/deepseek-ai/DeepSeek-OCR-2
+
+# Upstream baseline Python deps
+python -m pip install -r requirements.txt
+
+# Optional upstream GPU stack for full inference
+python -m pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+```
+
+Upstream `requirements.txt` currently includes:
+- `transformers==4.46.3`
+- `tokenizers==0.20.3`
+- `PyMuPDF`
+- `img2pdf`
+- `einops`
+- `easydict`
+- `addict`
+- `Pillow`
+- `numpy`
+
+For Fallout 4 workflows, treat DeepSeek-OCR-2 as a reference/spec extraction stage and send the downstream mesh work through Mossy's existing FO4 Blender + PyNifly export settings.
+
+### 14. TripoSG
+- **Repository**: https://github.com/VAST-AI-Research/TripoSG
+- **Purpose**: High-fidelity image-to-3D shape synthesis (GLB mesh generation)
+- **Usage**: Optional local mesh generation workflow before Fallout 4 Blender/NIF handoff
+- **License**: See upstream repository
+- **Recommended Clone Path**: `external/VAST-AI-Research/TripoSG`
+
+To use TripoSG:
+```bash
+git clone https://github.com/VAST-AI-Research/TripoSG.git external/VAST-AI-Research/TripoSG
+cd external/VAST-AI-Research/TripoSG
+
+# pytorch (choose your CUDA wheel index)
+python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# project dependencies
+python -m pip install -r requirements.txt
+```
+
+Quick start (upstream):
+```bash
+python -m scripts.inference_triposg --image-input assets/example_data/hjswed.png --output-path ./output.glb
+python -m scripts.inference_triposg --image-input assets/example_data/hjswed.png --faces 5000 --output-path ./output.glb
+python -m scripts.inference_triposg_scribble --image-input assets/example_scribble_data/cat_with_wings.png --prompt "a cat with wings" --scribble-conf 0.3 --output-path output.glb
+```
+
+For Fallout 4 workflows, treat TripoSG output as upstream GLB geometry and route final cleanup/validation/export through Mossy's FO4 Blender + NIF workflow.
+
 ## Setup
 
 These repositories are cloned for reference and integration. They are excluded from git tracking via `.gitignore`.
@@ -139,6 +199,8 @@ git clone https://github.com/nvidia-cosmos/cosmos-dependencies.git
 git clone https://github.com/nvidia-cosmos/cosmos-curate.git
 git clone https://github.com/nvidia-cosmos/cosmos-xenna.git
 git clone https://github.com/plausible/phoenix_live_view.git
+git clone https://github.com/deepseek-ai/DeepSeek-OCR-2.git external/deepseek-ai/DeepSeek-OCR-2
+git clone https://github.com/VAST-AI-Research/TripoSG.git external/VAST-AI-Research/TripoSG
 ```
 
 ### Integration
@@ -147,6 +209,8 @@ git clone https://github.com/plausible/phoenix_live_view.git
 - See `ELECTRON_STORE_GUIDE.md` for settings management
 - See `COSMOS_INTEGRATION_GUIDE.md` for NVIDIA Cosmos platform
 - See `PHOENIX_LIVEVIEW_GUIDE.md` for real-time web UI
+- See `resources/public/knowledge/DEEPSEEK_OCR2_INTEGRATION.md` for DeepSeek-OCR-2 local indexing and dependency notes
+- See `resources/public/knowledge/TRIPOSG_INTEGRATION.md` for TripoSG local indexing and dependency notes
 
 ## Why External?
 

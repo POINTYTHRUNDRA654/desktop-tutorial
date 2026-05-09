@@ -786,6 +786,8 @@ const App: React.FC = () => {
         'external/nvidia-cosmos/cosmos-dependencies',
         'external/nvidia-cosmos/cosmos-curate',
         'external/nvidia-cosmos/cosmos-xenna',
+        'external/deepseek-ai/DeepSeek-OCR-2',
+        'external/VAST-AI-Research/TripoSG',
       ];
       try {
         const api = (window as any).electron?.api || (window as any).electronAPI;

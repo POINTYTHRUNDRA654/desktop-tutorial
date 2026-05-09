@@ -64,6 +64,7 @@ import sys
 import os
 import traceback
 import secrets
+import subprocess
 from io import StringIO
 
 # ---------------------------------------------------------------------------
@@ -114,6 +115,68 @@ class MossyLinkPreferences(bpy.types.AddonPreferences):
         default="",
         subtype="PASSWORD",
     )
+    deepseek_ocr2_repo_path: bpy.props.StringProperty(
+        name="DeepSeek-OCR-2 Repo Path",
+        description="Local path to deepseek-ai/DeepSeek-OCR-2 clone",
+        default="",
+        subtype="DIR_PATH",
+    )
+    deepseek_ocr2_python_path: bpy.props.StringProperty(
+        name="DeepSeek-OCR-2 Python",
+        description="Python executable for DeepSeek-OCR-2 environment (optional)",
+        default="",
+        subtype="FILE_PATH",
+    )
+    deepseek_ocr2_output_dir: bpy.props.StringProperty(
+        name="DeepSeek-OCR-2 Output Directory",
+        description="Default output directory for OCR2 markdown/results",
+        default="",
+        subtype="DIR_PATH",
+    )
+    deepseek_ocr2_prompt: bpy.props.StringProperty(
+        name="DeepSeek-OCR-2 Default Prompt",
+        description="Default OCR prompt sent to DeepSeek-OCR-2",
+        default="<|grounding|>Convert the document to markdown.",
+    )
+    deepseek_ocr2_timeout_seconds: bpy.props.IntProperty(
+        name="DeepSeek-OCR-2 Timeout (seconds)",
+        description="Maximum time to wait for DeepSeek-OCR-2 execution",
+        default=1800,
+        min=60,
+        max=7200,
+    )
+    triposg_repo_path: bpy.props.StringProperty(
+        name="TripoSG Repo Path",
+        description="Local path to VAST-AI-Research/TripoSG clone",
+        default="",
+        subtype="DIR_PATH",
+    )
+    triposg_python_path: bpy.props.StringProperty(
+        name="TripoSG Python",
+        description="Python executable for TripoSG environment (optional)",
+        default="",
+        subtype="FILE_PATH",
+    )
+    triposg_output_dir: bpy.props.StringProperty(
+        name="TripoSG Output Directory",
+        description="Default output directory for generated meshes (GLB)",
+        default="",
+        subtype="DIR_PATH",
+    )
+    triposg_default_faces: bpy.props.IntProperty(
+        name="TripoSG Default Face Budget",
+        description="Default target face count for generated meshes",
+        default=5000,
+        min=0,
+        max=200000,
+    )
+    triposg_timeout_seconds: bpy.props.IntProperty(
+        name="TripoSG Timeout (seconds)",
+        description="Maximum time to wait for TripoSG execution",
+        default=1800,
+        min=60,
+        max=7200,
+    )
 
     def draw(self, context):
         layout = self.layout
@@ -121,6 +184,20 @@ class MossyLinkPreferences(bpy.types.AddonPreferences):
         layout.prop(self, "autostart")
         layout.prop(self, "show_fo4_warnings")
         layout.prop(self, "token")
+        layout.separator()
+        layout.label(text="DeepSeek-OCR-2 (optional)", icon="TEXT")
+        layout.prop(self, "deepseek_ocr2_repo_path")
+        layout.prop(self, "deepseek_ocr2_python_path")
+        layout.prop(self, "deepseek_ocr2_output_dir")
+        layout.prop(self, "deepseek_ocr2_prompt")
+        layout.prop(self, "deepseek_ocr2_timeout_seconds")
+        layout.separator()
+        layout.label(text="TripoSG (optional)", icon="MESH_DATA")
+        layout.prop(self, "triposg_repo_path")
+        layout.prop(self, "triposg_python_path")
+        layout.prop(self, "triposg_output_dir")
+        layout.prop(self, "triposg_default_faces")
+        layout.prop(self, "triposg_timeout_seconds")
 
 
 def _get_prefs():
@@ -971,7 +1048,8 @@ class MossyLinkServer:
                 "tools": {
                     "available": [
                         "mesh-cleanup", "uv-optimization", "lod-generation",
-                        "texture-generation", "animation-validation", "collision-setup"
+                        "texture-generation", "animation-validation", "collision-setup",
+                        "deepseek-ocr2", "triposg"
                     ],
                     "enabled": True
                 },
@@ -1012,6 +1090,427 @@ class MossyLinkServer:
             "message": "Query ready to send to Mossy AI endpoint"
         })
 
+    def _deepseek_ocr2_defaults(self):
+        prefs = _get_prefs()
+        default_output = os.path.join(os.path.expanduser("~"), "Desktop", "Mossy_DeepSeek_OCR2")
+        return {
+            "repo_path": (getattr(prefs, "deepseek_ocr2_repo_path", "") or "").strip() if prefs else "",
+            "python_path": (getattr(prefs, "deepseek_ocr2_python_path", "") or "").strip() if prefs else "",
+            "output_dir": (getattr(prefs, "deepseek_ocr2_output_dir", "") or "").strip() if prefs else default_output,
+            "prompt": (getattr(prefs, "deepseek_ocr2_prompt", "") or "").strip() if prefs else "<|grounding|>Convert the document to markdown.",
+            "timeout_seconds": int(getattr(prefs, "deepseek_ocr2_timeout_seconds", 1800)) if prefs else 1800,
+        }
+
+    def _deepseek_ocr2_fo4_profile(self):
+        defaults = self._deepseek_ocr2_defaults()
+        return {
+            "pipeline": "deepseek-ocr2 -> blender_fo4_mesh_pipeline",
+            "fallout4_profile": {
+                "unit_system": FO4_UNIT_SYSTEM,
+                "unit_scale": FO4_UNIT_SCALE,
+                "fps": FO4_FPS_HKX,
+                "max_tris_guidance": FO4_MAX_TRIS,
+                "max_bones_guidance": FO4_MAX_BONES,
+                "nif_export": {
+                    "preferred": {"game_type": "FO4", "exporter": "PyNifly"},
+                    "legacy_fallback": {"game": "FALLOUT_4", "nif_version": "20.2.0.7"},
+                },
+            },
+            "defaults": defaults,
+            "notes": [
+                "DeepSeek-OCR-2 is used as document/spec extraction input, not direct NIF output.",
+                "Run FO4 scene checks before export (fo4_setup_scene + fo4_check).",
+            ],
+        }
+
+    def _run_deepseek_ocr2_fo4_profile(self, payload):
+        payload = payload or {}
+        profile = self._deepseek_ocr2_fo4_profile()
+        defaults = profile.get("defaults", {})
+
+        input_path = str(payload.get("input_path", "")).strip()
+        output_dir = str(payload.get("output_dir", "")).strip() or defaults.get("output_dir", "")
+        repo_path = str(payload.get("repo_path", "")).strip() or defaults.get("repo_path", "")
+        python_path = str(payload.get("python_path", "")).strip() or defaults.get("python_path", "") or sys.executable
+        base_prompt = str(payload.get("prompt", "")).strip() or defaults.get("prompt", "")
+        execute = bool(payload.get("execute", False))
+        timeout_seconds = int(payload.get("timeout_seconds", defaults.get("timeout_seconds", 1800)) or 1800)
+        timeout_seconds = max(60, min(7200, timeout_seconds))
+
+        fo4_prompt = (
+            "<|grounding|>Extract Fallout 4 mesh-build specifications in markdown: "
+            "real-world dimensions, part grouping, material tags, collision notes, "
+            "LODs, and export constraints for FO4-compatible Blender/NIF output."
+        )
+        prompt = f"<image>\n{base_prompt}\n\n{fo4_prompt}" if base_prompt else f"<image>\n{fo4_prompt}"
+
+        if not input_path:
+            return {
+                "success": False,
+                "tool": "deepseek-ocr2",
+                "action": "run-fo4-profile",
+                "error": "input_path is required",
+                "profile": profile,
+            }
+
+        if not os.path.exists(input_path):
+            return {
+                "success": False,
+                "tool": "deepseek-ocr2",
+                "action": "run-fo4-profile",
+                "error": f"Input path not found: {input_path}",
+                "profile": profile,
+            }
+
+        if not output_dir:
+            return {
+                "success": False,
+                "tool": "deepseek-ocr2",
+                "action": "run-fo4-profile",
+                "error": "output_dir is required (or set DeepSeek-OCR-2 Output Directory in add-on preferences)",
+                "profile": profile,
+            }
+
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except Exception as e:
+            return {
+                "success": False,
+                "tool": "deepseek-ocr2",
+                "action": "run-fo4-profile",
+                "error": f"Could not create output directory: {e}",
+                "profile": profile,
+            }
+
+        run_preview = {
+            "python": python_path,
+            "repo_path": repo_path,
+            "input_path": input_path,
+            "output_dir": output_dir,
+            "prompt": prompt,
+            "execute": execute,
+            "timeout_seconds": timeout_seconds,
+        }
+
+        if not execute:
+            return {
+                "success": True,
+                "tool": "deepseek-ocr2",
+                "action": "run-fo4-profile",
+                "status": "configured",
+                "message": "FO4 profile prepared. Set execute=true to run inference.",
+                "profile": profile,
+                "run_preview": run_preview,
+                "next_steps": [
+                    "Ensure DeepSeek-OCR-2 repo path and Python env are configured in Blender add-on preferences.",
+                    "Run with execute=true to attempt local OCR inference.",
+                    "Then apply FO4 mesh pipeline in Blender: fo4_setup_scene → fo4_check → export (FO4).",
+                ],
+            }
+
+        if not repo_path or not os.path.isdir(repo_path):
+            return {
+                "success": False,
+                "tool": "deepseek-ocr2",
+                "action": "run-fo4-profile",
+                "error": "DeepSeek-OCR-2 repo_path is required for execute=true and must exist",
+                "profile": profile,
+                "run_preview": run_preview,
+            }
+
+        py_snippet = r'''
+import os, json, traceback
+from transformers import AutoModel, AutoTokenizer
+import torch
+
+input_path = os.environ["MOSSY_DSK_INPUT"]
+output_dir = os.environ["MOSSY_DSK_OUTPUT"]
+prompt = os.environ["MOSSY_DSK_PROMPT"]
+model_name = "deepseek-ai/DeepSeek-OCR-2"
+
+try:
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    model = AutoModel.from_pretrained(
+        model_name,
+        trust_remote_code=True,
+        use_safetensors=True
+    )
+    if torch.cuda.is_available():
+        model = model.eval().cuda().to(torch.bfloat16)
+    else:
+        model = model.eval()
+
+    result = model.infer(
+        tokenizer,
+        prompt=prompt,
+        image_file=input_path,
+        output_path=output_dir,
+        base_size=1024,
+        image_size=768,
+        crop_mode=True,
+        save_results=True
+    )
+    print(json.dumps({"ok": True, "result": str(result), "output_dir": output_dir}))
+except Exception as e:
+    print(json.dumps({
+        "ok": False,
+        "error": str(e),
+        "traceback": traceback.format_exc()
+    }))
+'''
+
+        env = os.environ.copy()
+        env["MOSSY_DSK_INPUT"] = input_path
+        env["MOSSY_DSK_OUTPUT"] = output_dir
+        env["MOSSY_DSK_PROMPT"] = prompt
+
+        try:
+            proc = subprocess.run(
+                [python_path, "-c", py_snippet],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                env=env,
+            )
+        except Exception as e:
+            return {
+                "success": False,
+                "tool": "deepseek-ocr2",
+                "action": "run-fo4-profile",
+                "error": f"Failed to launch DeepSeek-OCR-2 process: {e}",
+                "profile": profile,
+                "run_preview": run_preview,
+            }
+
+        stdout = (proc.stdout or "").strip()
+        stderr = (proc.stderr or "").strip()
+        parsed = None
+        if stdout:
+            try:
+                parsed = json.loads(stdout.splitlines()[-1])
+            except Exception:
+                parsed = None
+
+        if proc.returncode != 0 or (parsed and not parsed.get("ok", False)):
+            return {
+                "success": False,
+                "tool": "deepseek-ocr2",
+                "action": "run-fo4-profile",
+                "error": (parsed or {}).get("error", "DeepSeek-OCR-2 execution failed"),
+                "returncode": proc.returncode,
+                "stdout": stdout[-4000:],
+                "stderr": stderr[-4000:],
+                "profile": profile,
+                "run_preview": run_preview,
+            }
+
+        return {
+            "success": True,
+            "tool": "deepseek-ocr2",
+            "action": "run-fo4-profile",
+            "status": "completed",
+            "result": parsed if isinstance(parsed, dict) else stdout,
+            "profile": profile,
+            "run_preview": run_preview,
+        }
+
+    def _triposg_defaults(self):
+        prefs = _get_prefs()
+        default_output = os.path.join(os.path.expanduser("~"), "Desktop", "Mossy_TripoSG")
+        return {
+            "repo_path": (getattr(prefs, "triposg_repo_path", "") or "").strip() if prefs else "",
+            "python_path": (getattr(prefs, "triposg_python_path", "") or "").strip() if prefs else "",
+            "output_dir": (getattr(prefs, "triposg_output_dir", "") or "").strip() if prefs else default_output,
+            "default_faces": int(getattr(prefs, "triposg_default_faces", 5000)) if prefs else 5000,
+            "timeout_seconds": int(getattr(prefs, "triposg_timeout_seconds", 1800)) if prefs else 1800,
+        }
+
+    def _triposg_fo4_profile(self):
+        defaults = self._triposg_defaults()
+        return {
+            "pipeline": "triposg_image_to_glb -> blender_fo4_mesh_pipeline",
+            "fallout4_profile": {
+                "unit_system": FO4_UNIT_SYSTEM,
+                "unit_scale": FO4_UNIT_SCALE,
+                "fps": FO4_FPS_HKX,
+                "max_tris_guidance": FO4_MAX_TRIS,
+                "max_bones_guidance": FO4_MAX_BONES,
+                "mesh_handoff": [
+                    "Import generated .glb to Blender",
+                    "Run fo4_setup_scene + fo4_apply_transforms + fo4_check",
+                    "Export using FO4 NIF settings (PyNifly FO4 / legacy FALLOUT_4)",
+                ],
+            },
+            "defaults": defaults,
+            "notes": [
+                "TripoSG generates high-fidelity shape meshes (typically GLB output).",
+                "Use FO4 checks before final NIF/HKX export to ensure game compatibility.",
+            ],
+        }
+
+    def _run_triposg_fo4_profile(self, payload):
+        payload = payload or {}
+        profile = self._triposg_fo4_profile()
+        defaults = profile.get("defaults", {})
+
+        input_path = str(payload.get("input_path", "")).strip()
+        output_dir = str(payload.get("output_dir", "")).strip() or defaults.get("output_dir", "")
+        repo_path = str(payload.get("repo_path", "")).strip() or defaults.get("repo_path", "")
+        python_path = str(payload.get("python_path", "")).strip() or defaults.get("python_path", "") or sys.executable
+        mode = str(payload.get("mode", "image")).strip().lower() or "image"
+        prompt = str(payload.get("prompt", "")).strip()
+        execute = bool(payload.get("execute", False))
+
+        faces = int(payload.get("faces", defaults.get("default_faces", 5000)) or 0)
+        faces = max(0, faces)
+        timeout_seconds = int(payload.get("timeout_seconds", defaults.get("timeout_seconds", 1800)) or 1800)
+        timeout_seconds = max(60, min(7200, timeout_seconds))
+        scribble_conf = float(payload.get("scribble_conf", 0.3) or 0.3)
+        scribble_conf = max(0.0, min(1.0, scribble_conf))
+
+        if not input_path:
+            return {
+                "success": False,
+                "tool": "triposg",
+                "action": "run-fo4-profile",
+                "error": "input_path is required",
+                "profile": profile,
+            }
+        if not os.path.exists(input_path):
+            return {
+                "success": False,
+                "tool": "triposg",
+                "action": "run-fo4-profile",
+                "error": f"Input path not found: {input_path}",
+                "profile": profile,
+            }
+        if not output_dir:
+            return {
+                "success": False,
+                "tool": "triposg",
+                "action": "run-fo4-profile",
+                "error": "output_dir is required (or set TripoSG Output Directory in add-on preferences)",
+                "profile": profile,
+            }
+
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except Exception as e:
+            return {
+                "success": False,
+                "tool": "triposg",
+                "action": "run-fo4-profile",
+                "error": f"Could not create output directory: {e}",
+                "profile": profile,
+            }
+
+        default_name = "triposg_scribble_output.glb" if mode == "scribble" else "triposg_output.glb"
+        output_path = str(payload.get("output_path", "")).strip() or os.path.join(output_dir, default_name)
+
+        cmd = [python_path]
+        if mode == "scribble":
+            cmd += [
+                "-m", "scripts.inference_triposg_scribble",
+                "--image-input", input_path,
+                "--prompt", prompt or "a Fallout 4 compatible hard-surface game asset",
+                "--scribble-conf", str(scribble_conf),
+                "--output-path", output_path,
+            ]
+        else:
+            cmd += [
+                "-m", "scripts.inference_triposg",
+                "--image-input", input_path,
+                "--output-path", output_path,
+            ]
+            if faces > 0:
+                cmd += ["--faces", str(faces)]
+
+        run_preview = {
+            "python": python_path,
+            "repo_path": repo_path,
+            "command": cmd,
+            "mode": mode,
+            "faces": faces,
+            "output_path": output_path,
+            "execute": execute,
+            "timeout_seconds": timeout_seconds,
+        }
+
+        if not execute:
+            return {
+                "success": True,
+                "tool": "triposg",
+                "action": "run-fo4-profile",
+                "status": "configured",
+                "message": "TripoSG FO4 profile prepared. Set execute=true to run generation.",
+                "profile": profile,
+                "run_preview": run_preview,
+                "next_steps": [
+                    "Ensure TripoSG repo path and Python env are configured in Blender add-on preferences.",
+                    "Run with execute=true to generate GLB.",
+                    "Import GLB into Blender and run FO4 checks before exporting to NIF.",
+                ],
+            }
+
+        if not repo_path or not os.path.isdir(repo_path):
+            return {
+                "success": False,
+                "tool": "triposg",
+                "action": "run-fo4-profile",
+                "error": "TripoSG repo_path is required for execute=true and must exist",
+                "profile": profile,
+                "run_preview": run_preview,
+            }
+
+        try:
+            proc = subprocess.run(
+                cmd,
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                env=os.environ.copy(),
+            )
+        except Exception as e:
+            return {
+                "success": False,
+                "tool": "triposg",
+                "action": "run-fo4-profile",
+                "error": f"Failed to launch TripoSG process: {e}",
+                "profile": profile,
+                "run_preview": run_preview,
+            }
+
+        stdout = (proc.stdout or "").strip()
+        stderr = (proc.stderr or "").strip()
+        if proc.returncode != 0:
+            return {
+                "success": False,
+                "tool": "triposg",
+                "action": "run-fo4-profile",
+                "error": "TripoSG execution failed",
+                "returncode": proc.returncode,
+                "stdout": stdout[-4000:],
+                "stderr": stderr[-4000:],
+                "profile": profile,
+                "run_preview": run_preview,
+            }
+
+        generated_ok = os.path.exists(output_path)
+        return {
+            "success": generated_ok,
+            "tool": "triposg",
+            "action": "run-fo4-profile",
+            "status": "completed" if generated_ok else "unknown",
+            "message": f"TripoSG finished. Output {'found' if generated_ok else 'not found'}: {output_path}",
+            "output_path": output_path,
+            "stdout": stdout[-2000:],
+            "stderr": stderr[-2000:],
+            "profile": profile,
+            "run_preview": run_preview,
+        }
+
     def _call_mossy_tool(self, tool, action, payload):
         """Call a Mossy tool function."""
         if not tool or not action:
@@ -1050,6 +1549,24 @@ class MossyLinkServer:
                     "lods_created": 3,
                     "reduction_ratios": [0.5, 0.25, 0.1]
                 }
+            },
+            "deepseek-ocr2": {
+                "get-fo4-profile": lambda: {
+                    "success": True,
+                    "tool": "deepseek-ocr2",
+                    "action": "get-fo4-profile",
+                    "profile": self._deepseek_ocr2_fo4_profile(),
+                },
+                "run-fo4-profile": lambda: self._run_deepseek_ocr2_fo4_profile(payload or {}),
+            },
+            "triposg": {
+                "get-fo4-profile": lambda: {
+                    "success": True,
+                    "tool": "triposg",
+                    "action": "get-fo4-profile",
+                    "profile": self._triposg_fo4_profile(),
+                },
+                "run-fo4-profile": lambda: self._run_triposg_fo4_profile(payload or {}),
             }
         }
 
