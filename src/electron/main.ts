@@ -2532,10 +2532,14 @@ function setupIpcHandlers() {
           const response = JSON.parse(data.toString().trim());
           cleanup();
 
+          const normalizedSuccess = typeof response.success === 'boolean'
+            ? response.success
+            : response.status === 'success';
+
           const standardResponse = {
-            success: response.status === 'success',
-            status: response.status || 'success',
-            message: response.message || '',
+            success: normalizedSuccess,
+            status: response.status || (normalizedSuccess ? 'success' : 'error'),
+            message: response.message || response.error || '',
             ...response
           };
 

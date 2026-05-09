@@ -164,6 +164,22 @@ const DesktopBridge: React.FC = () => {
     const [blenderExportPath, setBlenderExportPath] = useState<string>('');
     const [blenderExportStatus, setBlenderExportStatus] = useState<string>('');
     const [blenderExportProfile, setBlenderExportProfile] = useState<'obj_outfit' | 'fbx_anim'>('obj_outfit');
+    const [deepSeekInputPath, setDeepSeekInputPath] = useState<string>('');
+    const [deepSeekOutputDir, setDeepSeekOutputDir] = useState<string>('');
+    const [deepSeekRepoPath, setDeepSeekRepoPath] = useState<string>('');
+    const [deepSeekPythonPath, setDeepSeekPythonPath] = useState<string>('');
+    const [deepSeekPrompt, setDeepSeekPrompt] = useState<string>('<|grounding|>Convert the document to markdown.');
+    const [deepSeekStatus, setDeepSeekStatus] = useState<string>('');
+    const [deepSeekBusy, setDeepSeekBusy] = useState<boolean>(false);
+    const [tripoInputPath, setTripoInputPath] = useState<string>('');
+    const [tripoOutputDir, setTripoOutputDir] = useState<string>('');
+    const [tripoRepoPath, setTripoRepoPath] = useState<string>('');
+    const [tripoPythonPath, setTripoPythonPath] = useState<string>('');
+    const [tripoPrompt, setTripoPrompt] = useState<string>('a Fallout 4 compatible hard-surface game asset');
+    const [tripoFaces, setTripoFaces] = useState<string>('5000');
+    const [tripoMode, setTripoMode] = useState<'image' | 'scribble'>('image');
+    const [tripoStatus, setTripoStatus] = useState<string>('');
+    const [tripoBusy, setTripoBusy] = useState<boolean>(false);
 
     const [havokToolsUrl, setHavokToolsUrl] = useState<string>(() => {
         try {
@@ -1517,6 +1533,145 @@ pause
         }
     };
 
+    const applyFo4SceneProfile = async () => {
+        if (!blenderLinked) {
+            setDeepSeekStatus('Blender link is offline. Connect Mossy Link first.');
+            return;
+        }
+        setDeepSeekBusy(true);
+        setDeepSeekStatus('Applying FO4 scene profile in Blender...');
+        try {
+            const setup = await sendBlenderCommandWithToken('run_automation', { preset: 'fo4_setup_scene' });
+            const check = await sendBlenderCommandWithToken('run_automation', { preset: 'fo4_check' });
+
+            const setupMsg = setup?.message || setup?.result || 'fo4_setup_scene sent';
+            const checkMsg = check?.message || check?.result || 'fo4_check sent';
+            setDeepSeekStatus(`FO4 profile applied. ${String(setupMsg)} | ${String(checkMsg)}`);
+            addLog('Blender', 'Applied FO4 scene profile via Mossy Link', 'success');
+        } catch (e: any) {
+            setDeepSeekStatus(`FO4 profile apply failed: ${String(e?.message || e)}`);
+            addLog('Blender', `FO4 profile apply failed: ${String(e?.message || e)}`, 'err');
+        } finally {
+            setDeepSeekBusy(false);
+        }
+    };
+
+    const runDeepSeekFo4Profile = async (execute: boolean) => {
+        if (!blenderLinked) {
+            setDeepSeekStatus('Blender link is offline. Connect Mossy Link first.');
+            return;
+        }
+
+        const inputPath = (deepSeekInputPath || '').trim();
+        const outputDir = (deepSeekOutputDir || '').trim();
+        if (!inputPath) {
+            setDeepSeekStatus('Set an input image/PDF path first.');
+            return;
+        }
+        if (!outputDir) {
+            setDeepSeekStatus('Set an output directory first.');
+            return;
+        }
+
+        setDeepSeekBusy(true);
+        setDeepSeekStatus(execute ? 'Running DeepSeek-OCR-2 FO4 profile in Blender...' : 'Preparing DeepSeek-OCR-2 FO4 profile...');
+        try {
+            const response = await sendBlenderCommandWithToken('call_tool', {
+                tool: 'deepseek-ocr2',
+                action: 'run-fo4-profile',
+                payload: {
+                    input_path: inputPath,
+                    output_dir: outputDir,
+                    repo_path: (deepSeekRepoPath || '').trim() || undefined,
+                    python_path: (deepSeekPythonPath || '').trim() || undefined,
+                    prompt: (deepSeekPrompt || '').trim() || undefined,
+                    execute,
+                    fallout4_profile: true,
+                },
+            });
+
+            const rawResult = response?.result;
+            let parsed: any = rawResult;
+            if (typeof rawResult === 'string') {
+                try {
+                    parsed = JSON.parse(rawResult);
+                } catch {
+                    parsed = { message: rawResult };
+                }
+            }
+
+            const ok = Boolean(parsed?.success ?? response?.success);
+            const message = parsed?.message || parsed?.status || parsed?.error || response?.message || 'Command finished.';
+            setDeepSeekStatus(ok ? String(message) : `DeepSeek-OCR-2 failed: ${String(message)}`);
+            addLog('Blender', ok ? 'DeepSeek-OCR-2 FO4 profile command finished' : `DeepSeek-OCR-2 FO4 profile failed: ${String(message)}`, ok ? 'success' : 'err');
+        } catch (e: any) {
+            setDeepSeekStatus(`DeepSeek-OCR-2 command failed: ${String(e?.message || e)}`);
+            addLog('Blender', `DeepSeek-OCR-2 command failed: ${String(e?.message || e)}`, 'err');
+        } finally {
+            setDeepSeekBusy(false);
+        }
+    };
+
+    const runTripoFo4Profile = async (execute: boolean) => {
+        if (!blenderLinked) {
+            setTripoStatus('Blender link is offline. Connect Mossy Link first.');
+            return;
+        }
+
+        const inputPath = (tripoInputPath || '').trim();
+        const outputDir = (tripoOutputDir || '').trim();
+        if (!inputPath) {
+            setTripoStatus('Set an input image path first.');
+            return;
+        }
+        if (!outputDir) {
+            setTripoStatus('Set an output directory first.');
+            return;
+        }
+
+        const faces = Number.parseInt((tripoFaces || '').trim() || '0', 10);
+
+        setTripoBusy(true);
+        setTripoStatus(execute ? 'Running TripoSG FO4 profile in Blender...' : 'Preparing TripoSG FO4 profile...');
+        try {
+            const response = await sendBlenderCommandWithToken('call_tool', {
+                tool: 'triposg',
+                action: 'run-fo4-profile',
+                payload: {
+                    input_path: inputPath,
+                    output_dir: outputDir,
+                    repo_path: (tripoRepoPath || '').trim() || undefined,
+                    python_path: (tripoPythonPath || '').trim() || undefined,
+                    mode: tripoMode,
+                    prompt: (tripoPrompt || '').trim() || undefined,
+                    faces: Number.isFinite(faces) ? faces : 0,
+                    execute,
+                    fallout4_profile: true,
+                },
+            });
+
+            const rawResult = response?.result;
+            let parsed: any = rawResult;
+            if (typeof rawResult === 'string') {
+                try {
+                    parsed = JSON.parse(rawResult);
+                } catch {
+                    parsed = { message: rawResult };
+                }
+            }
+
+            const ok = Boolean(parsed?.success ?? response?.success);
+            const message = parsed?.message || parsed?.status || parsed?.error || response?.message || 'Command finished.';
+            setTripoStatus(ok ? String(message) : `TripoSG failed: ${String(message)}`);
+            addLog('Blender', ok ? 'TripoSG FO4 profile command finished' : `TripoSG FO4 profile failed: ${String(message)}`, ok ? 'success' : 'err');
+        } catch (e: any) {
+            setTripoStatus(`TripoSG command failed: ${String(e?.message || e)}`);
+            addLog('Blender', `TripoSG command failed: ${String(e?.message || e)}`, 'err');
+        } finally {
+            setTripoBusy(false);
+        }
+    };
+
     const fetchHardwareInfo = async () => {
         try {
             const base = normalizeHttpUrl(bridgeBaseUrl) || 'http://127.0.0.1:21337';
@@ -2856,6 +3011,157 @@ pause
                                         </button>
                                     </div>
                                     {blenderExportStatus && <div className="mt-2 text-xs text-slate-300">{blenderExportStatus}</div>}
+                                </div>
+
+                                <div className="mt-6 bg-black/30 border border-slate-800 rounded p-3">
+                                    <div className="text-xs font-bold text-slate-200 mb-2">DeepSeek-OCR-2 → Fallout 4 Mesh Workflow</div>
+                                    <div className="text-[11px] text-slate-400 mb-3">
+                                        This runs through the Blender add-on command channel and keeps downstream output aligned to FO4 scene/export constraints.
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                        <input
+                                            value={deepSeekInputPath}
+                                            onChange={(e) => setDeepSeekInputPath(e.target.value)}
+                                            placeholder="Input image/PDF path (e.g. C:\\Docs\\concept.png)"
+                                            className="rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                        />
+                                        <input
+                                            value={deepSeekOutputDir}
+                                            onChange={(e) => setDeepSeekOutputDir(e.target.value)}
+                                            placeholder="Output dir (e.g. C:\\Exports\\DeepSeekOCR)"
+                                            className="rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                        />
+                                        <input
+                                            value={deepSeekRepoPath}
+                                            onChange={(e) => setDeepSeekRepoPath(e.target.value)}
+                                            placeholder="DeepSeek repo path (optional; override Blender prefs)"
+                                            className="rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                        />
+                                        <input
+                                            value={deepSeekPythonPath}
+                                            onChange={(e) => setDeepSeekPythonPath(e.target.value)}
+                                            placeholder="Python exe path (optional; override Blender prefs)"
+                                            className="rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                        />
+                                    </div>
+
+                                    <div className="mt-2">
+                                        <textarea
+                                            value={deepSeekPrompt}
+                                            onChange={(e) => setDeepSeekPrompt(e.target.value)}
+                                            rows={3}
+                                            placeholder="OCR prompt (without <image> prefix)"
+                                            className="w-full rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200"
+                                        />
+                                    </div>
+
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                            onClick={() => void applyFo4SceneProfile()}
+                                            disabled={deepSeekBusy || !blenderLinked}
+                                            className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold rounded text-xs"
+                                        >
+                                            Apply FO4 Scene Profile
+                                        </button>
+                                        <button
+                                            onClick={() => void runDeepSeekFo4Profile(false)}
+                                            disabled={deepSeekBusy || !blenderLinked}
+                                            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold rounded text-xs"
+                                        >
+                                            Prepare OCR2 FO4 Profile
+                                        </button>
+                                        <button
+                                            onClick={() => void runDeepSeekFo4Profile(true)}
+                                            disabled={deepSeekBusy || !blenderLinked}
+                                            className="px-3 py-2 bg-blue-700 hover:bg-blue-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold rounded text-xs"
+                                        >
+                                            Run OCR2 Now
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-2 text-[10px] text-slate-500">
+                                        Configure persistent DeepSeek repo/python defaults in Blender Add-on Preferences → Mossy Link.
+                                    </div>
+                                    {deepSeekStatus && <div className="mt-2 text-xs text-slate-300">{deepSeekStatus}</div>}
+                                </div>
+
+                                <div className="mt-6 bg-black/30 border border-slate-800 rounded p-3">
+                                    <div className="text-xs font-bold text-slate-200 mb-2">TripoSG → Fallout 4 Mesh Workflow</div>
+                                    <div className="text-[11px] text-slate-400 mb-3">
+                                        Generate a GLB from an image (or scribble mode), then hand off to FO4 checks/export inside Blender.
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                        <input
+                                            value={tripoInputPath}
+                                            onChange={(e) => setTripoInputPath(e.target.value)}
+                                            placeholder="Input image path (e.g. C:\\Refs\\asset.png)"
+                                            className="rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                        />
+                                        <input
+                                            value={tripoOutputDir}
+                                            onChange={(e) => setTripoOutputDir(e.target.value)}
+                                            placeholder="Output dir (e.g. C:\\Exports\\TripoSG)"
+                                            className="rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                        />
+                                        <input
+                                            value={tripoRepoPath}
+                                            onChange={(e) => setTripoRepoPath(e.target.value)}
+                                            placeholder="TripoSG repo path (optional; override Blender prefs)"
+                                            className="rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                        />
+                                        <input
+                                            value={tripoPythonPath}
+                                            onChange={(e) => setTripoPythonPath(e.target.value)}
+                                            placeholder="Python exe path (optional; override Blender prefs)"
+                                            className="rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200 font-mono"
+                                        />
+                                    </div>
+
+                                    <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
+                                        <select
+                                            value={tripoMode}
+                                            onChange={(e) => setTripoMode(e.target.value as 'image' | 'scribble')}
+                                            className="rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200"
+                                        >
+                                            <option value="image">Image mode</option>
+                                            <option value="scribble">Scribble+prompt mode</option>
+                                        </select>
+                                        <input
+                                            value={tripoFaces}
+                                            onChange={(e) => setTripoFaces(e.target.value)}
+                                            placeholder="Face budget (e.g. 5000)"
+                                            className="rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200"
+                                        />
+                                        <input
+                                            value={tripoPrompt}
+                                            onChange={(e) => setTripoPrompt(e.target.value)}
+                                            placeholder="Prompt (used for scribble mode)"
+                                            className="rounded px-3 py-2 text-xs border border-slate-700 bg-black/40 text-slate-200"
+                                        />
+                                    </div>
+
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                            onClick={() => void runTripoFo4Profile(false)}
+                                            disabled={tripoBusy || !blenderLinked}
+                                            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold rounded text-xs"
+                                        >
+                                            Prepare TripoSG FO4 Profile
+                                        </button>
+                                        <button
+                                            onClick={() => void runTripoFo4Profile(true)}
+                                            disabled={tripoBusy || !blenderLinked}
+                                            className="px-3 py-2 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold rounded text-xs"
+                                        >
+                                            Run TripoSG Now
+                                        </button>
+                                    </div>
+                                    <div className="mt-2 text-[10px] text-slate-500">
+                                        Configure persistent TripoSG repo/python/output defaults in Blender Add-on Preferences → Mossy Link.
+                                    </div>
+                                    {tripoStatus && <div className="mt-2 text-xs text-slate-300">{tripoStatus}</div>}
                                 </div>
 
                                 <div className="mt-6 bg-black/30 border border-slate-800 rounded p-3">
