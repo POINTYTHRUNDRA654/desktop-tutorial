@@ -43,7 +43,7 @@ Use these downstream Fallout 4 targets when turning OCR output into mesh work:
   - unit scale `1.0`
   - applied transforms before export
   - at least one UV map
-  - active mesh budget under `65,534` triangles where possible
+  - active mesh budget under Mossy's existing `65,534` triangle guidance
   - armatures under the existing `80` bone guidance
 - Export through the Fallout 4 path already used by Mossy:
   - PyNifly `game_type='FO4'`
@@ -56,7 +56,9 @@ Use these downstream Fallout 4 targets when turning OCR output into mesh work:
   - `fo4_generate_lightmap_uv`
   - `fo4_batch_export`
 
-If you later want runtime wiring, keep the OCR stage focused on extracting clean Fallout 4 asset specifications, then hand those specs to the Blender add-on/export pipeline for FO4-safe mesh generation.
+## Future Runtime Wiring
+
+For future runtime wiring, keep the OCR stage focused on extracting clean Fallout 4 asset specifications, then hand those specs to the Blender add-on/export pipeline for FO4-safe mesh generation.
 
 ## Upstream Dependency Notes
 
