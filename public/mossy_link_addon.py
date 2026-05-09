@@ -136,7 +136,14 @@ class MossyLinkPreferences(bpy.types.AddonPreferences):
     deepseek_ocr2_prompt: bpy.props.StringProperty(
         name="DeepSeek-OCR-2 Default Prompt",
         description="Default OCR prompt sent to DeepSeek-OCR-2",
-        default="<image>\n<|grounding|>Convert the document to markdown.",
+        default="<|grounding|>Convert the document to markdown.",
+    )
+    deepseek_ocr2_timeout_seconds: bpy.props.IntProperty(
+        name="DeepSeek-OCR-2 Timeout (seconds)",
+        description="Maximum time to wait for DeepSeek-OCR-2 execution",
+        default=1800,
+        min=60,
+        max=7200,
     )
 
     def draw(self, context):
@@ -151,6 +158,7 @@ class MossyLinkPreferences(bpy.types.AddonPreferences):
         layout.prop(self, "deepseek_ocr2_python_path")
         layout.prop(self, "deepseek_ocr2_output_dir")
         layout.prop(self, "deepseek_ocr2_prompt")
+        layout.prop(self, "deepseek_ocr2_timeout_seconds")
 
 
 def _get_prefs():
@@ -1050,7 +1058,8 @@ class MossyLinkServer:
             "repo_path": (getattr(prefs, "deepseek_ocr2_repo_path", "") or "").strip() if prefs else "",
             "python_path": (getattr(prefs, "deepseek_ocr2_python_path", "") or "").strip() if prefs else "",
             "output_dir": (getattr(prefs, "deepseek_ocr2_output_dir", "") or "").strip() if prefs else default_output,
-            "prompt": (getattr(prefs, "deepseek_ocr2_prompt", "") or "").strip() if prefs else "<image>\n<|grounding|>Convert the document to markdown.",
+            "prompt": (getattr(prefs, "deepseek_ocr2_prompt", "") or "").strip() if prefs else "<|grounding|>Convert the document to markdown.",
+            "timeout_seconds": int(getattr(prefs, "deepseek_ocr2_timeout_seconds", 1800)) if prefs else 1800,
         }
 
     def _deepseek_ocr2_fo4_profile(self):
@@ -1086,6 +1095,8 @@ class MossyLinkServer:
         python_path = str(payload.get("python_path", "")).strip() or defaults.get("python_path", "") or sys.executable
         base_prompt = str(payload.get("prompt", "")).strip() or defaults.get("prompt", "")
         execute = bool(payload.get("execute", False))
+        timeout_seconds = int(payload.get("timeout_seconds", defaults.get("timeout_seconds", 1800)) or 1800)
+        timeout_seconds = max(60, min(7200, timeout_seconds))
 
         fo4_prompt = (
             "<|grounding|>Extract Fallout 4 mesh-build specifications in markdown: "
@@ -1139,6 +1150,7 @@ class MossyLinkServer:
             "output_dir": output_dir,
             "prompt": prompt,
             "execute": execute,
+            "timeout_seconds": timeout_seconds,
         }
 
         if not execute:
@@ -1219,7 +1231,7 @@ except Exception as e:
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
-                timeout=1800,
+                timeout=timeout_seconds,
                 env=env,
             )
         except Exception as e:
