@@ -520,8 +520,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setStatus(`Voice Error: ${error}`);
     setMode('idle');
 
-    // detect backend/transcription related errors
-    if (/backend|Deepgram|transcribe|network/i.test(error)) {
+    // detect backend/transcription/auth related errors
+    if (/backend|Deepgram|transcribe|network|invalid[_\s-]?api[_\s-]?key|incorrect api key|unauthorized|401/i.test(error)) {
       sttErrorsRef.current += 1;
       setSttErrors(sttErrorsRef.current);
     }
