@@ -32,6 +32,32 @@ git clone https://github.com/deepseek-ai/DeepSeek-OCR-2.git external/deepseek-ai
 4. Build/refresh the index.
 5. Ask questions against the local docs or inspect the upstream examples before wiring OCR automation.
 
+## Fallout 4 Compatibility Profile
+
+DeepSeek-OCR-2 is best treated as a document/spec extraction stage. It does **not** directly generate Fallout 4-ready meshes by itself, so Mossy should route any downstream asset work through the existing Fallout 4 Blender/NIF pipeline.
+
+Use these downstream Fallout 4 targets when turning OCR output into mesh work:
+
+- Treat OCR output as structured reference (`markdown`, dimensions, labels, material notes), not as final mesh data.
+- Build meshes in Blender with the Mossy Fallout 4 scene assumptions already used elsewhere in the app:
+  - unit scale `1.0`
+  - applied transforms before export
+  - at least one UV map
+  - active mesh budget under `65,534` triangles where possible
+  - armatures under the existing `80` bone guidance
+- Export through the Fallout 4 path already used by Mossy:
+  - PyNifly `game_type='FO4'`
+  - legacy fallback `game='FALLOUT_4'`
+  - NIF target version `20.2.0.7`
+- Prefer the existing Mossy Blender automation chain after OCR-assisted planning:
+  - `fo4_setup_scene`
+  - `fo4_apply_transforms`
+  - `fo4_check`
+  - `fo4_generate_lightmap_uv`
+  - `fo4_batch_export`
+
+If you later want runtime wiring, keep the OCR stage focused on extracting clean Fallout 4 asset specifications, then hand those specs to the Blender add-on/export pipeline for FO4-safe mesh generation.
+
 ## Upstream Dependency Notes
 
 Upstream README currently targets:
@@ -74,4 +100,5 @@ These files are available inside the repo clone:
 
 - Integrated as a documented, indexable local repo.
 - No runtime execution is wired into the UI yet.
+- Fallout 4 use should flow through Mossy's existing FO4 Blender/NIF export settings, not a standalone OCR-only output path.
 - If you want a direct Mossy/Blender OCR workflow, we can add that next.

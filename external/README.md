@@ -122,7 +122,7 @@ See `PHOENIX_LIVEVIEW_GUIDE.md` for integration details.
 ### 13. DeepSeek-OCR-2
 - **Repository**: https://github.com/deepseek-ai/DeepSeek-OCR-2
 - **Purpose**: Document OCR and layout-to-markdown extraction
-- **Usage**: Optional local OCR research/reference workflow for image and PDF document parsing
+- **Usage**: Optional local OCR research/reference workflow for image and PDF document parsing, including Fallout 4 asset-spec extraction before Blender/NIF export
 - **License**: See upstream repository
 - **Recommended Clone Path**: `external/deepseek-ai/DeepSeek-OCR-2`
 
@@ -148,6 +148,8 @@ Upstream `requirements.txt` currently includes:
 - `addict`
 - `Pillow`
 - `numpy`
+
+For Fallout 4 workflows, treat DeepSeek-OCR-2 as a reference/spec extraction stage and send the downstream mesh work through Mossy's existing FO4 Blender + PyNifly export settings.
 
 ## Setup
 
