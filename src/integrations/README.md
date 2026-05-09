@@ -102,6 +102,7 @@ The following repos are included locally for reference and optional workflows:
 - Cosmos Curate (external clone): `external/nvidia-cosmos/cosmos-curate`
 - Cosmos Xenna (external clone): `external/nvidia-cosmos/cosmos-xenna`
 - DeepSeek-OCR-2 (external clone): `external/deepseek-ai/DeepSeek-OCR-2`
+- TripoSG (external clone): `external/VAST-AI-Research/TripoSG`
 
 These are documented integrations and are not auto-executed by Mossy. Use Knowledge Search to index them if you want local semantic search.
 
