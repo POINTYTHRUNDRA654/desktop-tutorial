@@ -101,6 +101,6 @@ These files are available inside the repo clone:
 ## Status
 
 - Integrated as a documented, indexable local repo.
-- No runtime execution is wired into the UI yet.
+- Blender Link now includes direct DeepSeek-OCR-2 FO4 profile controls (prepare/run) through Mossy Link commands.
 - Fallout 4 use should flow through Mossy's existing FO4 Blender/NIF export settings, not a standalone OCR-only output path.
-- If you want a direct Mossy/Blender OCR workflow, we can add that next.
+- Runtime execution still depends on your local DeepSeek-OCR-2 repo + Python environment being configured in Blender add-on preferences.
