@@ -119,6 +119,36 @@ mix phx.new mossy_web --live
 
 See `PHOENIX_LIVEVIEW_GUIDE.md` for integration details.
 
+### 13. DeepSeek-OCR-2
+- **Repository**: https://github.com/deepseek-ai/DeepSeek-OCR-2
+- **Purpose**: Document OCR and layout-to-markdown extraction
+- **Usage**: Optional local OCR research/reference workflow for image and PDF document parsing
+- **License**: See upstream repository
+- **Recommended Clone Path**: `external/deepseek-ai/DeepSeek-OCR-2`
+
+To use DeepSeek-OCR-2:
+```bash
+git clone https://github.com/deepseek-ai/DeepSeek-OCR-2.git external/deepseek-ai/DeepSeek-OCR-2
+cd external/deepseek-ai/DeepSeek-OCR-2
+
+# Upstream baseline Python deps
+python -m pip install -r requirements.txt
+
+# Optional upstream GPU stack for full inference
+python -m pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+```
+
+Upstream `requirements.txt` currently includes:
+- `transformers==4.46.3`
+- `tokenizers==0.20.3`
+- `PyMuPDF`
+- `img2pdf`
+- `einops`
+- `easydict`
+- `addict`
+- `Pillow`
+- `numpy`
+
 ## Setup
 
 These repositories are cloned for reference and integration. They are excluded from git tracking via `.gitignore`.
@@ -139,6 +169,7 @@ git clone https://github.com/nvidia-cosmos/cosmos-dependencies.git
 git clone https://github.com/nvidia-cosmos/cosmos-curate.git
 git clone https://github.com/nvidia-cosmos/cosmos-xenna.git
 git clone https://github.com/plausible/phoenix_live_view.git
+git clone https://github.com/deepseek-ai/DeepSeek-OCR-2.git external/deepseek-ai/DeepSeek-OCR-2
 ```
 
 ### Integration
@@ -147,6 +178,7 @@ git clone https://github.com/plausible/phoenix_live_view.git
 - See `ELECTRON_STORE_GUIDE.md` for settings management
 - See `COSMOS_INTEGRATION_GUIDE.md` for NVIDIA Cosmos platform
 - See `PHOENIX_LIVEVIEW_GUIDE.md` for real-time web UI
+- See `resources/public/knowledge/DEEPSEEK_OCR2_INTEGRATION.md` for DeepSeek-OCR-2 local indexing and dependency notes
 
 ## Why External?
 

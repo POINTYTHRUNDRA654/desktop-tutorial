@@ -759,6 +759,24 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               Each user picks their own folder path (not shared or synced).
             </div>
           </div>
+
+          <div className="p-4 bg-slate-900 border border-slate-800 rounded-lg">
+            <div className="text-sm font-bold text-white mb-2">DeepSeek-OCR-2 (Local Repo)</div>
+            <div className="text-xs text-slate-300 mb-3">
+              Adds the local DeepSeek-OCR-2 repo to Knowledge Search so you can index OCR docs and dependency notes.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => addCosmosKnowledgeRoot('external/deepseek-ai/DeepSeek-OCR-2', 'DeepSeek-OCR-2')}
+                className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold"
+              >
+                Add to Knowledge Search Roots
+              </button>
+            </div>
+            <div className="mt-2 text-[10px] text-slate-500">
+              Default path: external/deepseek-ai/DeepSeek-OCR-2
+            </div>
+          </div>
         </div>
 
         <div className="mb-6 p-4 bg-blue-900/30 border border-blue-700 rounded-lg text-sm text-blue-300">
