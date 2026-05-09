@@ -1888,18 +1888,12 @@ function setupIpcHandlers() {
 
           const msg = String(resp.json?.message || resp.json?.error || resp.text || `Backend transcribe failed (${resp.status})`);
           console.warn('[Transcription] Backend proxy response:', { status: resp.status, message: msg });
-          console.warn('[Transcription] Backend proxy failed; falling back to local providers:', msg);
-          if (backend?.baseUrl && backendToken) {
-            return { success: false, error: msg };
-          }
           if (!hasLocalProviders) {
             return { success: false, error: msg };
           }
+          console.warn('[Transcription] Backend proxy failed; falling back to local providers:', msg);
         } catch (e: any) {
           console.warn('[Transcription] Backend proxy error; falling back to local providers:', e?.message || e);
-          if (backend?.baseUrl && backendToken) {
-            return { success: false, error: e?.message || 'Backend service unavailable' };
-          }
           if (!hasLocalProviders) {
             return { success: false, error: e?.message || 'Backend service unavailable' };
           }
