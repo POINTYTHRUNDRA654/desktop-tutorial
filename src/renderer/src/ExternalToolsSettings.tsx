@@ -763,7 +763,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
           <div className="p-4 bg-slate-900 border border-slate-800 rounded-lg">
             <div className="text-sm font-bold text-white mb-2">DeepSeek-OCR-2 (Local Repo)</div>
             <div className="text-xs text-slate-300 mb-3">
-              Adds the local DeepSeek-OCR-2 repo to Knowledge Search so you can index OCR docs and dependency notes.
+              Adds the local DeepSeek-OCR-2 repo to Knowledge Search so you can index OCR docs, dependency notes, and Fallout 4 downstream mesh workflow guidance.
             </div>
             <div className="flex flex-wrap gap-2">
               <button
