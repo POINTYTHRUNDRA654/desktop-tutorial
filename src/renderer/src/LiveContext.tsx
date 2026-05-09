@@ -515,13 +515,14 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // count consecutive backend failures so we can fall back automatically
   const [sttErrors, setSttErrors] = useState(0);
   const sttErrorsRef = useRef(0);
+  const sttFallbackErrorPattern = /backend|deepgram|transcribe|network|invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key|unauthorized|401/i;
 
   const handleVoiceError = (error: string) => {
     setStatus(`Voice Error: ${error}`);
     setMode('idle');
 
     // detect backend/transcription/auth related errors
-    if (/backend|Deepgram|transcribe|network|invalid[_\s-]?api[_\s-]?key|incorrect api key|unauthorized|401/i.test(error)) {
+    if (sttFallbackErrorPattern.test(error)) {
       sttErrorsRef.current += 1;
       setSttErrors(sttErrorsRef.current);
     }
