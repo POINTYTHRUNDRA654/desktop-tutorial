@@ -53,6 +53,7 @@
     "systemMonitor": "System Monitor",
     "orchestrator": "FO4 Automation Orchestrator",
     "workflowRunner": "FO4 Automation Runner",
+    "runtimeHub": "FO4 Runtime Hub",
     "holodeck": "The Holodeck",
     "vault": "The Vault",
     "ba2Manager": "BA2 Manager",

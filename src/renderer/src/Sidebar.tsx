@@ -102,7 +102,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     // === CONTENT CREATION ===
 
     // === INTEGRATION & SUPPORT ===
-    { to: '/runtime-hub', icon: Radio, label: t('nav.runtimeHub', 'Runtime Hub') },
+    { to: '/runtime-hub', icon: Radio, label: t('nav.runtimeHub', 'FO4 Runtime Hub') },
 
     // === TOOL EXTENSIONS ===
     { to: '/ext-tools', icon: Package, label: t('nav.externalTools', 'External Integrations Hub') },

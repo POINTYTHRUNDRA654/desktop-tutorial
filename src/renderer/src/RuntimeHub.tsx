@@ -34,8 +34,8 @@ const RuntimeHub: React.FC = () => {
   return (
     <div className="h-full flex flex-col bg-[#0a0e0a] overflow-hidden">
       <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-slate-800/60">
-        <h1 className="text-xl font-black text-white tracking-tight">Runtime Hub</h1>
-        <p className="text-xs text-slate-400 mt-1">Live Synapse · Desktop Bridge · Holodeck Testing</p>
+        <h1 className="text-xl font-black text-white tracking-tight">FO4 Runtime Hub</h1>
+        <p className="text-xs text-slate-400 mt-1">Live Synapse · Desktop Bridge · Holodeck testing workflows</p>
         <div className="flex gap-1 mt-4 overflow-x-auto">
           {tabs.map((tab) => (
             <button

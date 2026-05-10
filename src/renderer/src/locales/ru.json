@@ -49,6 +49,7 @@
     "systemMonitor": "Монитор системы",
     "orchestrator": "FO4 Automation Orchestrator",
     "workflowRunner": "FO4 Automation Runner",
+    "runtimeHub": "FO4 Runtime Hub",
     "holodeck": "Холодек",
     "vault": "Хранилище",
     "ba2Manager": "Менеджер BA2",

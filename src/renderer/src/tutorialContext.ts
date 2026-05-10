@@ -2392,6 +2392,82 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
+  'runtime-hub': {
+    pageId: 'runtime-hub',
+    pageName: 'FO4 Runtime Hub',
+    visualGuidePage: 39,
+    route: '/runtime-hub',
+    purpose: 'Three-tab runtime operations hub for live voice sessions, desktop bridge connectivity, and in-app testing workflows.',
+    features: [
+      'Three-tab consolidated layout: Live Synapse, Desktop Bridge, and Holodeck',
+      'Session-persistent tab selection via sessionStorage key `runtime_hub_tab`',
+      'Live Synapse voice interaction and runtime assistant workflows',
+      'Desktop Bridge connectivity checks for desktop-only tools and system integrations',
+      'Holodeck scenario testing from the same runtime workspace',
+      'Single hub for switching between live assist, bridge diagnostics, and runtime QA',
+    ],
+    controls: [
+      {
+        name: 'Runtime tab strip',
+        type: 'tabs',
+        description: 'Switch between Live Synapse, Desktop Bridge, and Holodeck without leaving the hub',
+        whenToUse: 'Move between runtime voice, bridge, and testing workflows',
+      },
+      {
+        name: 'Live Synapse tab',
+        type: 'panel',
+        description: 'Opens the live voice workflow with mic-driven interaction and assistant responses',
+        whenToUse: 'When you want spoken interaction or hands-free guidance',
+      },
+      {
+        name: 'Desktop Bridge tab',
+        type: 'panel',
+        description: 'Shows bridge connectivity, local integration status, and desktop-only tooling',
+        whenToUse: 'Before using local scans, file actions, or external program automations',
+      },
+      {
+        name: 'Holodeck tab',
+        type: 'panel',
+        description: 'Loads runtime testing and scenario validation tools',
+        whenToUse: 'When validating mod behavior before in-game testing',
+      },
+    ],
+    commonMistakes: [
+      'Treating Runtime Hub as a single tool instead of a 3-tab operations hub',
+      'Forgetting that desktop-only actions still depend on Desktop Bridge being online',
+      'Expecting the hub to keep a tab across brand-new sessions rather than the current session only',
+    ],
+    guides: [
+      {
+        title: 'Choose the right runtime tab',
+        steps: [
+          'Open FO4 Runtime Hub',
+          'Use Live Synapse for voice-driven interaction and spoken guidance',
+          'Switch to Desktop Bridge to verify local connectivity and integrations',
+          'Open Holodeck when you need runtime scenario testing and validation',
+        ],
+      },
+      {
+        title: 'Recover from a failed desktop action',
+        steps: [
+          'Open the Desktop Bridge tab inside FO4 Runtime Hub',
+          'Confirm the bridge is online before retrying the action',
+          'Review bridge/tool status, then retry the workflow from chat or the destination hub',
+        ],
+      },
+    ],
+    tutorialSections: [
+      'FO4 Runtime Hub - Unified Runtime Operations',
+      'Live Synapse, Bridge, and Holodeck Routing',
+    ],
+    suggestedQuestions: [
+      'When should I use Live Synapse versus Desktop Bridge?',
+      'Why did a desktop action fail even though I am inside Runtime Hub?',
+      'Does Runtime Hub remember my last open tab?',
+      'How do I switch from voice workflows to Holodeck testing quickly?',
+    ],
+  },
+
   'desktop-bridge': {
     pageId: 'desktop-bridge',
     pageName: 'Desktop Bridge',
