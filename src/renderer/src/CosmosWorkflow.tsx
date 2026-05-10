@@ -185,7 +185,7 @@ const CosmosWorkflow: React.FC = () => {
         <div className="flex items-center justify-between gap-3 mb-2">
           <div className="flex items-center gap-3">
             <Zap className="w-5 h-5 text-emerald-300" />
-            <h2 className="text-xl font-bold text-white">Cosmos Workflow Hub</h2>
+            <h2 className="text-xl font-bold text-white">FO4 Automation Studio</h2>
           </div>
           <Link
             to="/reference"
@@ -196,8 +196,7 @@ const CosmosWorkflow: React.FC = () => {
           </Link>
         </div>
         <p className="text-sm text-slate-300">
-          Local integration page for Cosmos Transfer2.5 and Predict2.5. Use this to wire documentation into Knowledge Search
-          and keep the workflow traceable inside Mossy.
+          FO4 automation workspace for Cosmos integrations: detect local repos, register Knowledge Search roots, open integration docs, and validate indexable workflow coverage inside Mossy.
         </p>
       </div>
 
