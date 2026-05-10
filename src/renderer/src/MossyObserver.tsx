@@ -413,10 +413,11 @@ const QUIPS: Record<string, string[]> = {
     '/ext-tools': [
         "FO4 External Integrations Hub consolidates three third-party workflows: MO2 profile awareness, ComfyUI image generation, and Upscayl texture enhancement.",
         "Use the tab bar to move between MO2, ComfyUI, and Upscayl without leaving the hub; your current tab is restored during the session.",
+        "The auto-connect panel also tracks setup-time desktop tools such as xEdit, Creation Kit, Blender, LOOT, NifSkope, and BodySlide / Outfit Studio.",
         "MO2 is the profile and load-order context tab — use it when you need Mossy to understand active mods, profiles, and file-priority behavior.",
         "ComfyUI is the concept-art and texture-iteration tab — best for reference generation before committing assets into the FO4 texture pipeline.",
         "Upscayl is the finishing tab for low-resolution source textures that still need DDS conversion and Fallout-friendly compression afterward.",
-        "If you are unsure which external tool to open, start in FO4 External Integrations Hub and route to the tab matching your current workflow stage."
+        "If you are unsure which external tool to open, start in FO4 External Integrations Hub and route to the tab or auto-connect tool that matches your current workflow stage."
     ],
     '/paperscript': [
         "PaperScript is a modern scripting language for Fallout 4 - a cleaner, more powerful alternative to Papyrus.",

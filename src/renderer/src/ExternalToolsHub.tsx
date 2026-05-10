@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Package, Network, Maximize2, ChevronRight } from 'lucide-react';
+import { Package, Network, Maximize2, ChevronRight, RefreshCw } from 'lucide-react';
 
 const MO2Extension = React.lazy(() =>
   import('./MO2Extension').then((m) => ({ default: m.MO2Extension }))
@@ -19,6 +19,17 @@ const UpscaylExtension = React.lazy(() =>
 );
 
 type HubTab = 'mo2' | 'comfyui' | 'upscayl';
+
+type AutoConnectTool = {
+  id: string;
+  label: string;
+  match: string[];
+};
+
+type AutoConnectStatus = AutoConnectTool & {
+  installed: boolean;
+  running: boolean;
+};
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'mo2', icon: Package, label: 'MO2 Integration', sublabel: 'Mod Organizer 2' },
@@ -62,6 +73,18 @@ const TOOL_INFO = [
   },
 ];
 
+const AUTO_CONNECT_TOOLS: AutoConnectTool[] = [
+  { id: 'mo2', label: 'Mod Organizer 2', match: ['mod organizer', 'modorganizer', 'mo2'] },
+  { id: 'xedit', label: 'xEdit / FO4Edit', match: ['xedit', 'fo4edit'] },
+  { id: 'creation-kit', label: 'Creation Kit', match: ['creation kit'] },
+  { id: 'blender', label: 'Blender', match: ['blender'] },
+  { id: 'loot', label: 'LOOT', match: ['loot'] },
+  { id: 'nifskope', label: 'NifSkope', match: ['nifskope'] },
+  { id: 'bodyslide', label: 'BodySlide / Outfit Studio', match: ['bodyslide', 'outfit studio'] },
+  { id: 'comfyui', label: 'ComfyUI', match: ['comfyui', 'comfy'] },
+  { id: 'upscayl', label: 'Upscayl', match: ['upscayl'] },
+];
+
 const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <Suspense
     fallback={
@@ -74,6 +97,10 @@ const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 const ExternalToolsHub: React.FC = () => {
   const [activeTab, setActiveTab] = useState<HubTab>('mo2');
+  const [autoConnectTools, setAutoConnectTools] = useState<AutoConnectStatus[]>(
+    AUTO_CONNECT_TOOLS.map((tool) => ({ ...tool, installed: false, running: false }))
+  );
+  const [scanningAutoConnect, setScanningAutoConnect] = useState(false);
 
   useEffect(() => {
     const saved = sessionStorage.getItem('ext_hub_tab') as HubTab | null;
@@ -83,6 +110,48 @@ const ExternalToolsHub: React.FC = () => {
   useEffect(() => {
     sessionStorage.setItem('ext_hub_tab', activeTab);
   }, [activeTab]);
+
+  const refreshAutoConnect = async () => {
+    const bridge = (window as any).electron?.api || (window as any).electronAPI;
+    setScanningAutoConnect(true);
+
+    try {
+      const [installedPrograms, runningProcesses] = await Promise.all([
+        bridge?.detectPrograms?.().catch(() => []),
+        bridge?.getRunningProcesses?.().catch(() => []),
+      ]);
+
+      const activeToolsRaw = localStorage.getItem('mossy_active_tools');
+      let activeTools: any[] = [];
+      try {
+        activeTools = activeToolsRaw ? JSON.parse(activeToolsRaw)?.tools ?? [] : [];
+      } catch {
+        activeTools = [];
+      }
+
+      const installedHaystack = (installedPrograms ?? []).map((prog: any) =>
+        `${prog?.displayName || ''} ${prog?.name || ''} ${prog?.path || ''}`.toLowerCase()
+      );
+      const runningHaystack = [
+        ...(runningProcesses ?? []).map((proc: any) => `${proc?.name || ''} ${proc?.windowTitle || ''}`.toLowerCase()),
+        ...activeTools.map((tool: any) => `${tool?.name || ''} ${tool?.path || ''}`.toLowerCase()),
+      ];
+
+      setAutoConnectTools(
+        AUTO_CONNECT_TOOLS.map((tool) => {
+          const installed = tool.match.some((needle) => installedHaystack.some((entry) => entry.includes(needle)));
+          const running = tool.match.some((needle) => runningHaystack.some((entry) => entry.includes(needle)));
+          return { ...tool, installed, running };
+        })
+      );
+    } finally {
+      setScanningAutoConnect(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshAutoConnect();
+  }, []);
 
   const info = TOOL_INFO.find((t) => t.id === activeTab);
 
@@ -96,7 +165,7 @@ const ExternalToolsHub: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl font-black text-white tracking-tight">FO4 External Integrations Hub</h1>
-            <p className="text-xs text-slate-400">MO2 · ComfyUI · Upscayl workflows for Fallout 4 modding</p>
+            <p className="text-xs text-slate-400">MO2 · ComfyUI · Upscayl workflows plus setup-tool auto-connect</p>
           </div>
         </div>
 
@@ -134,6 +203,41 @@ const ExternalToolsHub: React.FC = () => {
             </ul>
           </div>
         )}
+
+        <div className="mt-4 rounded-lg border border-cyan-700/20 bg-cyan-950/10 p-3 text-xs">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div>
+              <p className="text-slate-200 font-semibold">Auto-connect desktop tools</p>
+              <p className="text-slate-400 mt-1">
+                Platform 19 now also covers the desktop tools commonly pulled in during setup so Mossy can detect installed apps and live-running integrations from one category.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void refreshAutoConnect()}
+              className="inline-flex items-center gap-2 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/20"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${scanningAutoConnect ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {autoConnectTools.map((tool) => (
+              <div key={tool.id} className="rounded-md border border-slate-800/80 bg-black/20 px-3 py-2">
+                <div className="text-slate-200 font-medium">{tool.label}</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${tool.installed ? 'bg-emerald-500/15 text-emerald-200 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                    {tool.installed ? 'Installed' : 'Not detected'}
+                  </span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${tool.running ? 'bg-cyan-500/15 text-cyan-200 border border-cyan-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                    {tool.running ? 'Live link' : 'Idle'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Tab Content */}

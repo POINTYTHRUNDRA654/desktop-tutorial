@@ -67,7 +67,7 @@ const searchIndex: SearchItem[] = [
   { id: 'orchestrator', label: 'FO4 Automation Orchestrator', path: '/orchestrator', category: 'Workflow', description: 'Unified asset pipeline orchestration with step logs, storage stats, and BA2 queue staging' },
   { id: 'workflow-runner', label: 'FO4 Automation Runner', path: '/workflow-runner', category: 'Workflow', description: 'Author and execute typed automation steps with run history, logs, and JSON import/export' },
   { id: 'runtime-hub', label: 'FO4 Runtime Hub', path: '/runtime-hub', category: 'Runtime', description: 'Unified runtime hub for Live Synapse, Desktop Bridge connectivity, and Holodeck testing' },
-  { id: 'ext-tools', label: 'FO4 External Integrations Hub', path: '/ext-tools', category: 'Integration', description: 'Unified external integrations hub for MO2 profiles, ComfyUI workflows, and Upscayl texture upscaling' },
+  { id: 'ext-tools', label: 'FO4 External Integrations Hub', path: '/ext-tools', category: 'Integration', description: 'Unified external integrations hub for MO2, ComfyUI, Upscayl, and auto-detected setup-time desktop tools' },
   { id: 'holodeck', label: 'The Holodeck', path: '/holo', category: 'Testing', description: 'Testing and simulation environment' },
   { id: 'vault', label: 'The Vault', path: '/vault', category: 'Assets', description: 'Asset management and storage' },
   { id: 'memory-vault', label: 'FO4 Memory Vault', path: '/memory-vault', category: 'AI', description: 'AI memory and knowledge storage' },
