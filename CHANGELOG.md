@@ -4,7 +4,17 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.50] — Latest
+## [5.4.51] — Latest
+
+### Improved — Platform 8: Setup Wizards Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 8 labels now use **FO4 Setup Wizards** in sidebar, hub header, locale text, and global discovery entries.
+- **Operations verified end-to-end**: `/wizards` KeepAlive routing and embedded 3-step flow (Platform Selector, Install Wizard, PRP Patch Builder) were validated against active panel behavior.
+- **Context gap fixed**: Platform 8 tutorial context now reflects current embedded operations (trusted links + vault sources, optional vault import, persistent checklist state, copy-ready PRP README/Nexus output) instead of generic wizard metadata.
+- **Discovery text refreshed**: Global search entries for setup and PRP wizard workflows now describe the real consolidated operations and expected outputs.
+
+---
+
+## [5.4.50]
 
 ### Improved — Platform 7: Memory Vault Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 7 labels now use **FO4 Memory Vault** in sidebar and key discovery surfaces.
