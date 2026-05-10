@@ -8,12 +8,14 @@ interface WhatsNewPageProps {
   onDismiss?: () => void;
 }
 
+const CURRENT_RELEASE_DATA = getWhatsNewReleaseData(packageJson.version);
+
 const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
-  const releaseData = useMemo(() => getWhatsNewReleaseData(packageJson.version), []);
+  const releaseData = CURRENT_RELEASE_DATA;
   const features = useMemo(
     () => releaseData.features.map((feature, index) => ({ ...feature, icon: index % 2 === 0 ? '✨' : '🛠️' })),
     [releaseData.features]
