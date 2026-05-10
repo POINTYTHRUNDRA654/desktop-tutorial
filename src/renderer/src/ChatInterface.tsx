@@ -1632,7 +1632,7 @@ export const ChatInterface: React.FC = () => {
                     "• Packaging & Release Hub (/packaging-release): BA2 and FOMOD packaging/release checks.",
                     "• FO4 Runtime Hub (/runtime-hub): Live Synapse voice workflows, Desktop Bridge connectivity, and Holodeck runtime testing.",
                     "• FO4 External Integrations Hub (/ext-tools): MO2, ComfyUI, Upscayl, plus auto-detected setup-time desktop tools like xEdit, Creation Kit, Blender, LOOT, NifSkope, and BodySlide.",
-                    "• System Hub (/system-hub): diagnostics, security posture, and local capability checks.",
+                    "• FO4 System & Diagnostics Hub (/system-hub): diagnostics, local AI capabilities, blacklist/security management, asset vault, and Mossy support.",
                     "• FO4 Knowledge Hub (/knowledge-hub): in-app FO4 docs/reference search."
                 ].join('\n');
 
@@ -2379,7 +2379,7 @@ export const ChatInterface: React.FC = () => {
                         { label: 'FO4 Knowledge Hub', to: '/knowledge-hub' },
                         { label: 'FO4 Plugin & Load Order Hub', to: '/plugin-tools' },
                         { label: 'Creation Kit Hub', to: '/ck-tools' },
-                        { label: 'System Hub', to: '/system-hub' },
+                        { label: 'FO4 System & Diagnostics Hub', to: '/system-hub' },
                     ]}
                 />
             </div>

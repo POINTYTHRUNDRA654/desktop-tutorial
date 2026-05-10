@@ -2764,6 +2764,89 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
+  'system-hub': {
+    pageId: 'system-hub',
+    pageName: 'FO4 System & Diagnostics Hub',
+    visualGuidePage: 21,
+    route: '/system-hub',
+    purpose: 'Five-tab system hub for runtime diagnostics, local AI/hardware capability checks, blacklist/security rule management, asset vault manifest verification, and Mossy development support.',
+    features: [
+      'Five-tab layout: Diagnostics, Capabilities, Blacklist Manager, Asset Vault, Support Mossy',
+      'Session-persistent tab selection via sessionStorage key `system_hub_tab`',
+      'Diagnostics — full runtime check suite: bridge, storage, mic, secrets, TTS voices, and exportable diagnostic snapshots',
+      'Capabilities — local AI runtime detection: Ollama, GPU, RAM, voice model availability',
+      'Blacklist Manager — safety rule management for flagged mods, authors, and pattern-based content filters',
+      'Asset Vault — manifest-driven asset registry with integrity verification and deduplication checks',
+      'Support Mossy — development support links, donation options, and community entry points',
+    ],
+    controls: [
+      {
+        name: 'Hub tab strip',
+        type: 'tabs',
+        description: 'Switch between Diagnostics, Capabilities, Blacklist Manager, Asset Vault, and Support in one workspace',
+        whenToUse: 'Move between system checks, capability scans, security rules, vault operations, and support without leaving the hub',
+      },
+      {
+        name: 'Diagnostics tab',
+        type: 'panel',
+        description: 'Run bridge, tool path, secret, microphone, and TTS voice checks; export diagnostic snapshots',
+        whenToUse: 'On first launch, after installing tools, or when any integration behaves unexpectedly',
+      },
+      {
+        name: 'Capabilities tab',
+        type: 'panel',
+        description: 'Scan local hardware and AI runtime availability (Ollama, GPU, RAM, voice models)',
+        whenToUse: 'When evaluating whether local AI workflows or offline voice features can be enabled',
+      },
+      {
+        name: 'Blacklist Manager tab',
+        type: 'panel',
+        description: 'Add, review, and remove safety rules for flagged mods, authors, or content patterns',
+        whenToUse: 'When configuring content filters or investigating why a mod is being excluded',
+      },
+      {
+        name: 'Asset Vault tab',
+        type: 'panel',
+        description: 'Inspect the asset manifest, run integrity verification, and identify duplicate entries',
+        whenToUse: 'When verifying tracked assets before packaging or after a deduplication pass',
+      },
+      {
+        name: 'Support Mossy tab',
+        type: 'panel',
+        description: 'Access donation links, premium feature info, and Mossy community resources',
+        whenToUse: 'When you want to contribute to the project or connect with the community',
+      },
+    ],
+    commonMistakes: [
+      'Not running Diagnostics after a tool installation or Desktop Bridge reconnect',
+      'Assuming Capabilities scan reflects real-time state without re-running it after hardware changes',
+      'Adding blacklist rules without understanding pattern-matching scope',
+      'Skipping Asset Vault verification before a BA2 packaging or release pass',
+    ],
+    guides: [
+      {
+        title: 'Run a full system health check',
+        steps: [
+          'Open FO4 System & Diagnostics Hub from the sidebar',
+          'On the Diagnostics tab, click Run Diagnostics and review all check results',
+          'Switch to Capabilities and scan for local AI/GPU/voice availability',
+          'Check Blacklist Manager for any stale or incorrect safety rules',
+          'Open Asset Vault and run manifest verification before your next packaging session',
+        ],
+      },
+    ],
+    tutorialSections: [
+      'FO4 System & Diagnostics Hub - 5-Tab System Workflow',
+      'Diagnostics, Capabilities, Blacklist, Vault, and Support',
+    ],
+    suggestedQuestions: [
+      'How do I run a full diagnostic check and export the report?',
+      'Why is my local Ollama / GPU capability not detected?',
+      'How do I add or remove blacklist rules for specific mods?',
+      'What does Asset Vault manifest verification check for?',
+    ],
+  },
+
   'guides-hub': {
     pageId: 'guides-hub',
     pageName: 'FO4 Guides Hub',
