@@ -9254,10 +9254,10 @@ Mossy is a desktop Fallout 4 modding assistant focused on practical workflows, n
 - **Speech providers (optional):** Deepgram (speech-to-text), ElevenLabs (voice)
 - These are optional integrations; you can run local-only mode with no cloud provider configured.
 - You choose which providers to enable by adding your own API keys in Settings.
-- API/model compatibility depends on each provider's currently supported endpoints and model versions (for example, whichever chat/image/speech models your account can access).
+- Available model types follow provider capabilities: Groq/OpenAI/local endpoints for chat, OpenAI for optional image workflows, and Deepgram/ElevenLabs for speech features.
 
 **What Data You Provide (Cloud AI Enabled):**
-- Your prompt plus any context you choose to include (for example pasted notes or prior chat context)
+- Your prompt plus any context you choose to include (for example, pasted notes or prior chat context)
 - Optional voice audio only when you actively use voice features
 - API keys are user-supplied and stored locally; they are not bundled with the app
 - Mossy does not require uploading your whole mod project to function
@@ -12912,7 +12912,6 @@ Mossy is a desktop AI assistant for Fallout 4 modding. I run as an Electron desk
 Beyond FO4-specific tuning, Mossy can help with general PC gaming performance: Thermal paste replacement: every 3–5 years on CPU/GPU die. Arctic MX-6 or Thermal Grizzly Kryonaut recommended. Badly dried paste can cause CPU to thermal throttle at 90°C+ reducing performance 20–40%. RAM XMP/EXPO profile: enable in BIOS (XMP for Intel, EXPO for AMD) — unoptimized DDR4/DDR5 runs at 2133 MHz by default, XMP enables rated speed (3200–7200 MHz). 3200MHz DDR4 vs 2133MHz: ~15% gaming FPS difference in CPU-bound scenarios. Dual-channel: ALWAYS populate both RAM slots (slot 2 + slot 4 for most boards) — dual-channel nearly doubles memory bandwidth. CPU overclocking: Intel Z-series motherboard + K-series CPU required. AMD Ryzen: PBO (Precision Boost Overdrive) + auto-OC safe for most users. GPU overclocking: MSI Afterburner → +150 MHz core clock (conservative), +500 MHz VRAM (try 1000 MHz for GDDR6X — lower if artifacts). NVIDIA Resizable BAR / AMD Smart Access Memory: enable in BIOS UEFI (UEFI mode, not Legacy) → improves GPU frame buffer access for VRAM-bound games 5–15%. DirectX 12 vs 11 in FO4: FO4 is DX11 — DX12 wrapper (DXVK) can improve CPU overhead but may introduce compatibility issues. Monitor settings: calibrate display profile (ICC profile from manufacturer); ensure 144Hz/165Hz/240Hz is actually set in Windows Display Settings → Advanced Display → Refresh Rate. VSync: NEVER use VSync in-game with FO4 + ENB — use NVIDIA Control Panel Adaptive Sync or FastSync at GPU driver level, or cap framerate with RivaTuner to target-5 (e.g. 141 for 144Hz monitor). Frame generation (DLSS 3+ / FSR 3): adds latency of 1 frame — not recommended for competitive games; acceptable for FO4 single-player. GPU undervolting: reduces heat + power consumption without performance loss — use Afterburner Curve Editor to find stable minimum voltage at max boost clock.
 
 `;
-
 
 
 
