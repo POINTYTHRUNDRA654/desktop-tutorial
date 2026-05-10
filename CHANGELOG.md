@@ -4,7 +4,16 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.48] — Latest
+## [5.4.49] — Latest
+
+### Improved — Platform 6: Knowledge Hub Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 6 labels now use **FO4 Knowledge Hub** in sidebar and key hub references.
+- **Handler/wiring verified and hardened**: `/knowledge-hub` KeepAlive route and tab-state handlers were verified; session tab restore now safely handles storage access failures.
+- **Context gap fixed**: Platform 6 tutorial context now matches the real Knowledge Hub behavior (Quick Reference / Search / Community tabs and tab-memory behavior) instead of outdated learning-page placeholders.
+
+---
+
+## [5.4.48]
 
 ### Improved — Platform 5: What's New Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 5 labels now use **FO4 What's New** in sidebar and release-note headers.
