@@ -88,7 +88,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Desktop Bridge / UPLINK status indicator',
       'Time-based greeting (Good Morning / Afternoon / Evening)',
       'Quick Help link → Knowledge Hub',
-      'In-app shortcuts panel (AI Chat, Setup Wizards, System Hub, Knowledge Hub, Journey Hub)',
+      'In-app shortcuts panel (AI Chat, Setup Wizards, System Hub, Knowledge Hub, FO4 Mod Journey Hub)',
       'Version display reads from package.json automatically',
     ],
     controls: [
@@ -119,7 +119,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'Active Project Banner',
         type: 'panel',
-        description: 'Appears when a mod project is active; click Open to jump to Journey Hub → Mod Projects',
+        description: 'Appears when a mod project is active; click Open to jump to FO4 Mod Journey Hub → Mod Projects',
         whenToUse: 'When returning to Mossy mid-project — quickly jump back to your open project',
       },
       {

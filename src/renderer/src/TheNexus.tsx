@@ -274,7 +274,7 @@ const TheNexus: React.FC = () => {
             { label: 'Setup Wizards', to: '/wizards' },
             { label: 'System Hub', to: '/system-hub' },
             { label: 'Knowledge Hub', to: '/knowledge-hub' },
-            { label: 'Journey Hub', to: '/journey-hub' },
+            { label: 'FO4 Mod Journey Hub', to: '/journey-hub' },
           ]}
         />
 
@@ -289,7 +289,7 @@ const TheNexus: React.FC = () => {
             </Link>
             <Link to="/journey-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Sparkles size={20} className="text-emerald-400" />
-              <span className="font-bold">Journey Hub</span>
+              <span className="font-bold">FO4 Mod Journey Hub</span>
               <span className="text-slate-500 text-[9px]">Projects · Roadmaps</span>
             </Link>
             <Link to="/ck-tools" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
@@ -361,7 +361,7 @@ const TheNexus: React.FC = () => {
                 icon: Target,
                 step: '2',
                 title: 'Pick a Modding Goal',
-                body: 'Open Journey Hub → Roadmaps and generate a step-by-step plan. Whether you are adding weapons, quests, or worldspaces — start with a clear goal.',
+                body: 'Open FO4 Mod Journey Hub → Roadmaps and generate a step-by-step plan. Whether you are adding weapons, quests, or worldspaces — start with a clear goal.',
                 to: '/journey-hub',
               },
               {

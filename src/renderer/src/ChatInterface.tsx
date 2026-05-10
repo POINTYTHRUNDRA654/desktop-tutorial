@@ -1621,7 +1621,7 @@ export const ChatInterface: React.FC = () => {
             // Expose current hub architecture so Mossy stays aligned with the 22-platform UI
             const appFeatures = `\n**MOSSY PLATFORMS (Current):**\n` +
                 [
-                    "• Journey Hub (/journey-hub): Project flow, First Success, mod browser, and roadmap planning.",
+                    "• FO4 Mod Journey Hub (/journey-hub): Project flow, First Success, mod browser, and roadmap planning.",
                     "• Creation Kit Hub (/ck-tools): CK safety tooling, crash prevention workflows, and FO4 CK references.",
                     "• Textures & Materials Hub (/textures): DDS format decisions and FO4 material pipeline guidance.",
                     "• Plugin & Load Order Hub (/plugin-tools): xEdit conflict checks, load order workflows, and PRP-aware patching.",
