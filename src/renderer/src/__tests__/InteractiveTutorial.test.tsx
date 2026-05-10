@@ -174,7 +174,8 @@ describe('InteractiveTutorial layout & navigation', () => {
     const settingsContext = tutorialContexts['settings'];
 
     const withoutPackaged = buildTutorialText(settingsContext, 0, false);
-    expect(/Enter your OpenAI API key/i.test(withoutPackaged)).toBeTruthy();
+    // Settings features mention "Groq primary model" which is an API-key-gated provider
+    expect(/Groq/i.test(withoutPackaged)).toBeTruthy();
 
     const withPackaged = buildTutorialText(settingsContext, 0, true);
     // No API-key guidance or provider mentions should appear in packaged builds
