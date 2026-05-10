@@ -1,13 +1,19 @@
 import React, { Suspense, useEffect, useState } from 'react';
-import { Container, Coffee, Gauge, ShieldCheck, Wrench } from 'lucide-react';
+import { Container, Coffee, Gauge, ShieldCheck, Wrench, Save, Eye } from 'lucide-react';
 
 const DiagnosticsHub = React.lazy(() => import('./DiagnosticsHub'));
 const LocalCapabilities = React.lazy(() => import('./LocalCapabilities'));
 const SecurityValidator = React.lazy(() => import('./SecurityValidator'));
 const TheVault = React.lazy(() => import('./TheVault'));
 const DonationSupport = React.lazy(() => import('./DonationSupport').then((m) => ({ default: m.DonationSupport })));
+const BackupManager = React.lazy(() =>
+  import('./BackupManager').then((m) => ({ default: m.BackupManager }))
+);
+const FileWatcher = React.lazy(() =>
+  import('./FileWatcher').then((m) => ({ default: m.FileWatcher }))
+);
 
-type SystemTab = 'diagnostics' | 'capabilities' | 'security' | 'vault' | 'support';
+type SystemTab = 'diagnostics' | 'capabilities' | 'security' | 'vault' | 'support' | 'backup' | 'watcher';
 
 const tabs: Array<{ id: SystemTab; label: string; sublabel: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: 'diagnostics', label: 'Diagnostics', sublabel: 'Troubleshoot tools', icon: Wrench },
@@ -15,6 +21,8 @@ const tabs: Array<{ id: SystemTab; label: string; sublabel: string; icon: React.
   { id: 'security', label: 'Blacklist Manager', sublabel: 'Safety rules', icon: ShieldCheck },
   { id: 'vault', label: 'Asset Vault', sublabel: 'Manifest + verification', icon: Container },
   { id: 'support', label: 'Support Mossy', sublabel: 'Support links', icon: Coffee },
+  { id: 'backup', label: 'Backup Manager', sublabel: 'Snapshots & git', icon: Save },
+  { id: 'watcher', label: 'File Watcher', sublabel: 'Live file tracking', icon: Eye },
 ];
 
 const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -66,6 +74,8 @@ const SystemHub: React.FC = () => {
         {activeTab === 'security' && <PanelLoader><SecurityValidator /></PanelLoader>}
         {activeTab === 'vault' && <PanelLoader><TheVault /></PanelLoader>}
         {activeTab === 'support' && <PanelLoader><DonationSupport /></PanelLoader>}
+        {activeTab === 'backup' && <PanelLoader><BackupManager /></PanelLoader>}
+        {activeTab === 'watcher' && <PanelLoader><FileWatcher /></PanelLoader>}
       </div>
     </div>
   );

@@ -6,19 +6,35 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Shield, Wrench, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { Shield, Wrench, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Info, Scroll, Activity, Save, Monitor, Link } from 'lucide-react';
 
 const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
 const CKExtension = React.lazy(() =>
   import('./CKExtension').then((m) => ({ default: m.CKExtension }))
 );
+const QuestEditor = React.lazy(() => import('./QuestEditor'));
+const AnimationEditor = React.lazy(() =>
+  import('./AnimationEditor').then((m) => ({ default: m.AnimationEditor }))
+);
+const SaveGameParser = React.lazy(() =>
+  import('./SaveGameParser').then((m) => ({ default: m.SaveGameParser }))
+);
+const LiveGameMonitor = React.lazy(() =>
+  import('./LiveGameMonitor').then((m) => ({ default: m.LiveGameMonitor }))
+);
+const GameIntegration = React.lazy(() => import('./GameIntegration'));
 
-type HubTab = 'safety' | 'extension' | 'guide';
+type HubTab = 'safety' | 'extension' | 'guide' | 'quests' | 'anim' | 'saves' | 'livemon' | 'gameint';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'safety', icon: Shield, label: 'CK Safety', sublabel: 'Crash Prevention · Validation' },
   { id: 'extension', icon: Wrench, label: 'CK Extension', sublabel: 'Auto-save · Script Compiler' },
   { id: 'guide', icon: BookOpen, label: 'FO4 CK Guide', sublabel: 'Best Practices · Pitfalls' },
+  { id: 'quests', icon: Scroll, label: 'Quest Editor', sublabel: 'Stages & aliases' },
+  { id: 'anim', icon: Activity, label: 'Animation', sublabel: 'Havok/hkx' },
+  { id: 'saves', icon: Save, label: 'Save Parser', sublabel: 'Save game data' },
+  { id: 'livemon', icon: Monitor, label: 'Live Monitor', sublabel: 'Runtime events' },
+  { id: 'gameint', icon: Link, label: 'Game Link', sublabel: 'F4SE bridge' },
 ];
 
 // ============================================================================
@@ -337,6 +353,31 @@ const CKToolsHub: React.FC = () => {
           </PanelLoader>
         )}
         {activeTab === 'guide' && <FO4CKGuide />}
+        {activeTab === 'quests' && (
+          <PanelLoader>
+            <QuestEditor />
+          </PanelLoader>
+        )}
+        {activeTab === 'anim' && (
+          <PanelLoader>
+            <AnimationEditor />
+          </PanelLoader>
+        )}
+        {activeTab === 'saves' && (
+          <PanelLoader>
+            <SaveGameParser />
+          </PanelLoader>
+        )}
+        {activeTab === 'livemon' && (
+          <PanelLoader>
+            <LiveGameMonitor />
+          </PanelLoader>
+        )}
+        {activeTab === 'gameint' && (
+          <PanelLoader>
+            <GameIntegration />
+          </PanelLoader>
+        )}
       </div>
     </div>
   );

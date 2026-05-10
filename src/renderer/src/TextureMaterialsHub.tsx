@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Image, Layers, Wand2, BookOpen, AlertCircle, ChevronRight } from 'lucide-react';
+import { Image, Layers, Wand2, BookOpen, AlertCircle, ChevronRight, Zap, Sparkles } from 'lucide-react';
 
 // Lazy-load the three existing tool panels so the hub stays lightweight
 const DDSConverter = React.lazy(() =>
@@ -16,14 +16,26 @@ const TextureGenerator = React.lazy(() =>
   import('./TextureGenerator').then((m) => ({ default: m.TextureGenerator }))
 );
 const ImageSuite = React.lazy(() => import('./ImageSuite'));
+const MaterialEditor = React.lazy(() =>
+  import('./MaterialEditor').then((m) => ({ default: m.MaterialEditor }))
+);
+const AssetOptimizer = React.lazy(() =>
+  import('./AssetOptimizer').then((m) => ({ default: m.AssetOptimizer }))
+);
+const TextureEnhancer = React.lazy(() =>
+  import('./TextureEnhancer').then((m) => ({ default: m.TextureEnhancer }))
+);
 
-type HubTab = 'dds' | 'generator' | 'images' | 'guide';
+type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'materials' | 'optimizer' | 'enhancer';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'dds', icon: Image, label: 'DDS Converter', sublabel: 'BC1·BC3·BC5·BC7' },
   { id: 'generator', icon: Wand2, label: 'Texture Generator', sublabel: 'PBR · Procedural' },
   { id: 'images', icon: Layers, label: 'Image Studio', sublabel: 'PBR maps · Convert' },
   { id: 'guide', icon: BookOpen, label: 'FO4 Texture Guide', sublabel: 'Formats · Channels' },
+  { id: 'materials', icon: Layers, label: 'Mat Editor', sublabel: 'BGSM/BGEM' },
+  { id: 'optimizer', icon: Zap, label: 'Optimizer', sublabel: 'Batch compress' },
+  { id: 'enhancer', icon: Sparkles, label: 'Enhancer', sublabel: 'AI upscale' },
 ];
 
 // ============================================================================
@@ -384,6 +396,21 @@ const TextureMaterialsHub: React.FC = () => {
           </PanelLoader>
         )}
         {activeTab === 'guide' && <FO4TextureGuide />}
+        {activeTab === 'materials' && (
+          <PanelLoader>
+            <MaterialEditor />
+          </PanelLoader>
+        )}
+        {activeTab === 'optimizer' && (
+          <PanelLoader>
+            <AssetOptimizer />
+          </PanelLoader>
+        )}
+        {activeTab === 'enhancer' && (
+          <PanelLoader>
+            <TextureEnhancer />
+          </PanelLoader>
+        )}
       </div>
     </div>
   );

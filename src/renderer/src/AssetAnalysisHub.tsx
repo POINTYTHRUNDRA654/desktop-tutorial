@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Binary, Brain, Copy, BookOpen, ChevronRight, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Binary, Brain, Copy, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Box } from 'lucide-react';
 
 const MiningPanel = React.lazy(() =>
   import('./MiningPanel').then((m) => ({ default: m.MiningPanel }))
@@ -15,14 +15,18 @@ const AdvancedAnalysisPanel = React.lazy(() =>
   import('./AdvancedAnalysisPanel').then((m) => ({ default: m.AdvancedAnalysisPanel }))
 );
 const AssetDeduplicator = React.lazy(() => import('./AssetDeduplicator'));
+const AssetViewer3D = React.lazy(() =>
+  import('./AssetViewer3D').then((m) => ({ default: m.AssetViewer3D }))
+);
 
-type HubTab = 'mining' | 'analysis' | 'dedup' | 'guide';
+type HubTab = 'mining' | 'analysis' | 'dedup' | 'guide' | 'viewer';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'mining', icon: Binary, label: 'Mining Dashboard', sublabel: 'ESP · Assets · Dependencies' },
   { id: 'analysis', icon: Brain, label: 'Advanced Analysis', sublabel: 'Conflicts · Perf · Memory' },
   { id: 'dedup', icon: Copy, label: 'Asset Deduplicator', sublabel: 'Duplicates · VRAM' },
   { id: 'guide', icon: BookOpen, label: 'FO4 Asset Guide', sublabel: 'Budget · Optimization' },
+  { id: 'viewer', icon: Box, label: '3D Viewer', sublabel: 'NIF preview' },
 ];
 
 // ============================================================================
@@ -274,6 +278,11 @@ const AssetAnalysisHub: React.FC = () => {
           </PanelLoader>
         )}
         {activeTab === 'guide' && <FO4AssetGuide />}
+        {activeTab === 'viewer' && (
+          <PanelLoader>
+            <AssetViewer3D />
+          </PanelLoader>
+        )}
       </div>
     </div>
   );
