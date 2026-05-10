@@ -2359,6 +2359,74 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
+  'guides-hub': {
+    pageId: 'guides-hub',
+    pageName: 'FO4 Guides Hub',
+    visualGuidePage: 12,
+    route: '/guides-hub',
+    purpose: 'Three-tab consolidated guide hub covering the three deepest FO4 mod authoring disciplines: Animation & Rigging, Quest Authoring, and LOD & Precombine.',
+    features: [
+      'Three-tab layout: Animation & Rigging, Quest Authoring, LOD & Precombine',
+      'Tab selection persists for the session via sessionStorage key `guides_hub_tab`',
+      'Animation & Rigging — full Blender + Havok pipeline (skeleton, weights, FBX export, HKX conversion)',
+      'Quest Authoring — CK + Papyrus + F4SE workflow from smoke test to release',
+      'LOD & Precombine — xLODGen + DynDOLOD + PRP end-to-end generation and validation',
+    ],
+    controls: [
+      {
+        name: 'Animation & Rigging Tab',
+        type: 'button',
+        description: 'Opens the Blender + Havok FO4 animation pipeline guide',
+        whenToUse: 'Use when authoring, exporting, or validating FO4 animations or rigged meshes',
+      },
+      {
+        name: 'Quest Authoring Tab',
+        type: 'button',
+        description: 'Opens the Creation Kit + Papyrus quest and dialogue authoring guide',
+        whenToUse: 'Use when building quests, dialogue, or scripted content in the CK',
+      },
+      {
+        name: 'LOD & Precombine Tab',
+        type: 'button',
+        description: 'Opens the LOD generation and precombine rebuild guide for exterior mods',
+        whenToUse: 'Use when generating LODs or rebuilding precombines after exterior edits',
+      },
+      {
+        name: 'Tab Memory Handler',
+        type: 'indicator',
+        description: 'Restores your last selected Guides Hub tab for continuity between visits',
+        whenToUse: 'Expect this when returning to the hub mid-workflow',
+      },
+    ],
+    commonMistakes: [
+      'Starting quest content without running the Minimal Working Quest smoke test first',
+      'Exporting animations with renamed deform bones (breaks in-game rigging)',
+      'Editing exterior cells without running precombines afterward',
+      'Confusing the Animation tab with the LOD tab when looking for Havok vs xLODGen guides',
+    ],
+    guides: [
+      {
+        title: 'Navigate FO4 Guides Hub by discipline',
+        steps: [
+          'Open /guides-hub and select the tab matching your current work: Animation, Quest, or LOD',
+          'Follow the in-tab pipeline in order — each guide is sequential from setup to release',
+          'Use Tab Memory to return to your active step when switching between Mossy panels',
+        ],
+      },
+    ],
+    tutorialSections: [
+      'Animation & Rigging (Blender + Havok)',
+      'Quest Authoring (CK + Papyrus + F4SE)',
+      'LOD & Precombine (xLODGen + DynDOLOD + PRP)',
+    ],
+    suggestedQuestions: [
+      'Which Guides Hub tab covers Blender FBX to HKX conversion?',
+      'How do I start a quest smoke test in the CK?',
+      'What is the correct order for LOD generation and PRP precombine rebuilds?',
+      'How do I switch between Animation, Quest, and LOD guides without losing my place?',
+    ],
+  },
+
   'blender-animation-guide': {
     pageId: 'blender-animation-guide',
     pageName: 'Animation Guide',
@@ -3661,18 +3729,18 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'the-lorekeeper': {
     pageId: 'the-lorekeeper',
-    pageName: 'The LoreKeeper',
+    pageName: 'LOD & Precombine Guide',
     visualGuidePage: 15,
     route: '/guides-hub',
-    purpose: 'Browse and search Fallout 4 lore, world-building references and modding lore docs.',
-    features: ['Lore search', 'Reference cards', 'Bookmarks'],
+    purpose: 'End-to-end LOD generation and precombine rebuild workflow for FO4 exterior mods: xLODGen terrain/object LODs, DynDOLOD tree/dynamic LODs, and PRP precombine rebuild and validation.',
+    features: ['xLODGen terrain and object LOD generation', 'DynDOLOD tree and dynamic LOD setup', 'PRP precombine rebuild steps', 'Exterior cell edit validation', 'Precombine conflict detection'],
     controls: [
-      { name: 'Search Lore', type: 'input', description: 'Search lore entries', whenToUse: 'When researching lore for your mod' },
+      { name: 'LOD & Precombine Tab', type: 'button', description: 'Opens the combined LOD generation and precombine guide', whenToUse: 'Use when editing exterior cells or generating LODs for distribution' },
     ],
-    commonMistakes: ['Confusing lore accuracy with gameplay mechanics'],
-    guides: [{ title: 'Research lore', steps: ['Open The LoreKeeper', 'Enter a search term', 'Read lore entries'] }],
-    tutorialSections: ['Lore Reference'],
-    suggestedQuestions: ['Where can I find lore about the Institute?'],
+    commonMistakes: ['Editing exterior cells without rebuilding precombines', 'Running xLODGen before DynDOLOD (order matters)', 'Not validating PRP compatibility before release'],
+    guides: [{ title: 'LOD & Precombine rebuild (quick path)', steps: ['Edit exterior cells in CK', 'Rebuild precombines and verify with PRP', 'Run xLODGen for terrain/object LODs', 'Run DynDOLOD for tree/dynamic LODs', 'Test in-game on a clean profile'] }],
+    tutorialSections: ['xLODGen', 'DynDOLOD', 'PRP Precombine Rebuild'],
+    suggestedQuestions: ['What order should I run xLODGen and DynDOLOD?', 'How do I rebuild precombines for a cell I edited?', 'What does PRP do vs standard precombines?'],
   },
 
   'tools': {

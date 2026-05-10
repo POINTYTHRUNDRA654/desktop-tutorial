@@ -4,7 +4,17 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.54] — Latest
+## [5.4.55] — Latest
+
+### Improved — Platform 12: Guides Hub Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 12 labels now use **FO4 Guides Hub** in sidebar, hub header, locale nav key, and global search discovery.
+- **Operations verified end-to-end**: `/guides-hub` KeepAlive route and 3-tab layout (Animation & Rigging, Quest Authoring, LOD & Precombine) validated against the active hub implementation; session tab persistence via `guides_hub_tab` confirmed.
+- **Context wiring refreshed**: added a primary `guides-hub` tutorial context entry mapping real 3-tab operations; fixed the `the-lorekeeper` context entry which previously described generic lore browsing but is actually the LOD & Precombine tab (xLODGen + DynDOLOD + PRP workflow).
+- **Discovery text added**: global search now includes a dedicated FO4 Guides Hub entry describing the three deep-dive guide disciplines.
+
+---
+
+## [5.4.54]
 
 ### Improved — Platform 11: Packaging & Release Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 11 labels now use **FO4 Packaging & Release** in sidebar, hub header, locale nav key, and global search discovery.
