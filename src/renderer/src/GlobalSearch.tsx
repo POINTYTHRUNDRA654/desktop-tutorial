@@ -59,7 +59,7 @@ const searchIndex: SearchItem[] = [
   { id: 'precombine-checker', label: 'Precombine Checker', path: '/precombine-checker', category: 'Optimization', description: 'Check precombine setup' },
 
   // Quality Assurance
-  { id: 'auditor', label: 'The Auditor', path: '/auditor', category: 'Quality', description: 'Asset analysis and validation' },
+  { id: 'auditor', label: 'FO4 Asset Analysis Hub', path: '/asset-analysis', category: 'Quality', description: 'Unified quality hub: Mining Dashboard, Advanced Analysis, Asset Deduplicator, and FO4 asset optimization reference' },
   { id: 'scribe', label: 'The Scribe', path: '/scribe', category: 'Tools', description: 'Code editor and scripting' },
   { id: 'monitor', label: 'System Monitor', path: '/monitor', category: 'System', description: 'Monitor system performance' },
 

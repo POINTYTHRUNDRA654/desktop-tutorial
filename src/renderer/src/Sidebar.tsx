@@ -93,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     // === ENHANCEMENT: ADVANCED SPECIALIZATION ===
 
     // === QUALITY ASSURANCE: VALIDATE & VERIFY ===
-    { to: '/asset-analysis', icon: Binary, label: t('nav.assetAnalysis', 'Asset Analysis Hub') },
+    { to: '/asset-analysis', icon: Binary, label: t('nav.assetAnalysis', 'FO4 Asset Analysis Hub') },
 
     // === EXECUTION & COLLABORATION ===
     { to: '/orchestrator', icon: GitBranch, label: t('nav.orchestrator', 'Automation Orchestrator') },

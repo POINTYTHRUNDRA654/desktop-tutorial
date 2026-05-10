@@ -4,7 +4,17 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.57] — Latest
+## [5.4.58] — Latest
+
+### Improved — Platform 15: Asset Analysis Hub Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 15 labels now use **FO4 Asset Analysis Hub** across sidebar, hub header, locale nav key, command palette, search, and discovery references.
+- **Operations verified end-to-end**: `/asset-analysis` KeepAlive route and 4-tab workflow (Mining Dashboard, Advanced Analysis, Asset Deduplicator, FO4 Asset Guide) validated against the active hub implementation; session tab persistence via `asset_hub_tab` confirmed.
+- **Context wiring added**: introduced a dedicated `asset-analysis` tutorial context entry covering real tab behavior, tab persistence, and QA sequencing from mining to optimization guidance.
+- **Discovery text refreshed**: assistant platform summary, hub cards, and global search now describe the consolidated Asset Analysis workflow instead of legacy Auditor-only wording.
+
+---
+
+## [5.4.57]
 
 ### Improved — Platform 14: Mod Builder Hub Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 14 labels now use **FO4 Mod Builder Hub** in sidebar, hub header, locale nav key, command palette navigation, and key discovery surfaces.

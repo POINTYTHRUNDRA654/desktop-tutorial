@@ -1,5 +1,5 @@
 /**
- * Asset Analysis Hub
+ * FO4 Asset Analysis Hub
  *
  * Unified platform for all mod asset analysis, mining, and deduplication.
  * Consolidates: Mining Dashboard · Advanced Analysis · Asset Deduplicator · FO4 Analysis Guide
@@ -228,9 +228,9 @@ const AssetAnalysisHub: React.FC = () => {
             <Binary className="h-5 w-5 text-emerald-300" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight">Asset Analysis</h1>
+            <h1 className="text-xl font-black text-white tracking-tight">FO4 Asset Analysis Hub</h1>
             <p className="text-xs text-slate-400">
-              Mine · Analyse · Deduplicate — all mod asset work in one place
+              Mining Dashboard · Advanced Analysis · Deduplicator · FO4 Asset Guide
             </p>
           </div>
         </div>

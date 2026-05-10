@@ -309,7 +309,7 @@ const TheNexus: React.FC = () => {
             </Link>
             <Link to="/asset-analysis" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Binary size={20} className="text-emerald-400" />
-              <span className="font-bold">Asset Analysis Hub</span>
+              <span className="font-bold">FO4 Asset Analysis Hub</span>
               <span className="text-slate-500 text-[9px]">Scan · Dedupe · Mining</span>
             </Link>
             <Link to="/mod-builder" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
