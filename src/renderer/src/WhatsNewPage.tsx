@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle, Sparkles } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import packageJson from '../../../package.json';
+import { getWhatsNewReleaseData } from './services/whatsNewReleaseNotes';
 
 interface WhatsNewPageProps {
   onDismiss?: () => void;
@@ -12,40 +13,10 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
   const location = useLocation();
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
+  const releaseData = useMemo(() => getWhatsNewReleaseData(packageJson.version), []);
   const features = useMemo(
-    () => [
-      {
-        title: 'Enhanced AI Chat',
-        description: 'Improved conversation memory and context awareness for better assistance.',
-        icon: '🤖',
-      },
-      {
-        title: 'Project Management',
-        description: 'Create, switch, and manage multiple modding projects with ease.',
-        icon: '📁',
-      },
-      {
-        title: 'Neural Link Integration',
-        description: 'Real-time monitoring of Blender, Creation Kit, and other modding tools.',
-        icon: '🧠',
-      },
-      {
-        title: 'Advanced Asset Analysis',
-        description: 'Comprehensive NIF, DDS, and ESP file validation with performance warnings.',
-        icon: '🔍',
-      },
-      {
-        title: 'Global Search',
-        description: 'Search across all modules and features with Ctrl+K shortcut.',
-        icon: '🔎',
-      },
-      {
-        title: 'Favorites System',
-        description: 'Bookmark frequently used tools for quick access.',
-        icon: '⭐',
-      },
-    ],
-    []
+    () => releaseData.features.map((feature, index) => ({ ...feature, icon: index % 2 === 0 ? '✨' : '🛠️' })),
+    [releaseData.features]
   );
 
   const handleBack = () => {
@@ -97,6 +68,11 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
                 <p className="text-xs uppercase tracking-[0.35em] text-emerald-300">Release Notes</p>
                 <h1 className="text-3xl font-black text-white">What's New in Mossy</h1>
                 <p className="text-sm text-emerald-100/70">v{packageJson.version} — what's changed in this release.</p>
+                {!releaseData.hasExactMatch && releaseData.renderedVersion && (
+                  <p className="text-xs text-amber-300/90 mt-1">
+                    No changelog entry was found for v{releaseData.requestedVersion} yet. Showing latest notes from v{releaseData.renderedVersion}.
+                  </p>
+                )}
               </div>
             </div>
             <button

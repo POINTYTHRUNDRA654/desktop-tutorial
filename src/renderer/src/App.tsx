@@ -32,6 +32,7 @@ import AvatarCore from './AvatarCore';
 import { GlobalSearch } from './GlobalSearch';
 import { useWhatsNew } from './WhatsNewDialog';
 import WhatsNewPage from './WhatsNewPage';
+import { backupCriticalProgressToDisk, restoreCriticalProgressFromDiskIfMissing } from './services/criticalProgressBackup';
 
 
 // Import new performance & reliability managers
@@ -585,6 +586,22 @@ const App: React.FC = () => {
 
   // Quick Wins state
   const { showWhatsNew, dismissWhatsNew } = useWhatsNew();
+
+  // Keep a durable local backup of user-authored progress so updates or rescans
+  // never wipe project/chat/vault progress data stored in localStorage.
+  useEffect(() => {
+    void (async () => {
+      await restoreCriticalProgressFromDiskIfMissing();
+      await backupCriticalProgressToDisk();
+    })();
+
+    const onBeforeUnload = () => {
+      void backupCriticalProgressToDisk();
+    };
+
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
 
   useEffect(() => {
     document.body.classList.toggle('pip-boy-mode', isPipBoy);
