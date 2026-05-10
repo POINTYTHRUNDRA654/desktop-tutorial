@@ -81,33 +81,25 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/mods', icon: Download, label: t('nav.modBrowser', 'Mod Browser') },
 
     // === CORE LEARNING: GUIDES & REFERENCES ===
-    { to: '/reference', icon: Book, label: t('nav.quickReference', 'Quick Reference') },
-    { to: '/knowledge', icon: Bot, label: t('nav.knowledgeSearch', 'Knowledge Search') },
+    { to: '/knowledge-hub', icon: Book, label: t('nav.knowledgeHub', 'Knowledge Hub') },
     { to: '/memory-vault', icon: Brain, label: t('nav.memoryVault', 'Memory Vault') },
     { to: '/wizards', icon: Wrench, label: t('nav.wizards', 'Wizards') },
-    { to: '/crash-triage', icon: Bug, label: t('nav.crashTriage', 'Crash Triage') },
     { to: '/ck-tools', icon: ShieldCheck, label: t('nav.ckTools', 'CK Tools') },
     { to: '/textures', icon: Layers, label: t('nav.texturesMaterials', 'Textures & Materials') },
     { to: '/packaging-release', icon: Archive, label: t('nav.packagingRelease', 'Packaging & Release') },
-    { to: '/animation-guide', icon: Book, label: t('nav.animationGuide', 'Animation Guide') },
+    { to: '/animation-guide', icon: Book, label: t('nav.animationGuide', 'Animation & Rigging') },
     { to: '/quest-authoring', icon: BookOpen, label: t('nav.questModAuthoring', 'Quest Mod Authoring') },
-    { to: '/lore', icon: Network, label: t('nav.lorekeeper', 'The Lorekeeper') },
+    { to: '/lore', icon: Network, label: t('nav.lorekeeper', 'LOD & Precombine') },
 
     // === BUILDING TOOLS: CREATE & GENERATE ===
-    { to: '/tools', icon: Wrench, label: t('nav.tools', 'Tools') },
     { to: '/tools/cosmos', icon: Hexagon, label: t('nav.cosmosWorkflow', 'Cosmos Workflow') },
-    { to: '/devtools', icon: Code, label: t('nav.devtools', 'Devtools') },
-    { to: '/assembler', icon: Package, label: t('nav.assembler', 'The Assembler') },
-    { to: '/workshop', icon: Hammer, label: t('nav.workshop', 'The Workshop') },
-    { to: '/blueprint', icon: DraftingCompass, label: t('nav.blueprint', 'The Blueprint') },
+    { to: '/mod-builder', icon: Hammer, label: t('nav.modBuilder', 'Mod Builder') },
 
     // === ENHANCEMENT: ADVANCED SPECIALIZATION ===
 
     // === QUALITY ASSURANCE: VALIDATE & VERIFY ===
     { to: '/tools/security', icon: ShieldCheck, label: t('nav.securityScanner', 'Blacklist Manager') },
     { to: '/asset-analysis', icon: Binary, label: t('nav.assetAnalysis', 'Asset Analysis') },
-    { to: '/scribe', icon: Feather, label: t('nav.scribe', 'The Scribe') },
-    { to: '/monitor', icon: Activity, label: t('nav.systemMonitor', 'System Monitor') },
 
     // === EXECUTION & COLLABORATION ===
     { to: '/orchestrator', icon: GitBranch, label: t('nav.orchestrator', 'The Orchestrator') },
@@ -123,13 +115,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/bridge', icon: Monitor, label: t('nav.desktopBridge', 'Desktop Bridge') },
 
     // === TOOL EXTENSIONS ===
-    { to: '/extensions/mo2', icon: Package, label: t('nav.mo2Extension', 'MO2 Extension') },
+    { to: '/ext-tools', icon: Package, label: t('nav.externalTools', 'External Tools') },
     { to: '/plugin-tools', icon: Database, label: t('nav.pluginTools', 'Plugin & Load Order') },
-    { to: '/extensions/comfyui', icon: Network, label: t('nav.comfyuiExtension', 'ComfyUI Extension') },
-    { to: '/extensions/upscayl', icon: Aperture, label: t('nav.upscaylExtension', 'Upscayl Extension') },
 
-    { to: '/community', icon: Github, label: t('nav.communityLearning', 'Community Learning') },
-    { to: '/tool-verify', icon: CheckCircle2, label: t('nav.toolVerify', 'Tool Verify') },
     { to: '/settings', icon: Settings, label: t('nav.settings', 'Settings') },
     { to: '/diagnostics', icon: Wrench, label: t('nav.diagnosticTools', 'Diagnostic Tools') },
     { to: '/support', icon: Coffee, label: t('nav.supportMossy', 'Support Mossy') },

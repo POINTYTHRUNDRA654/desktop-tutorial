@@ -7,8 +7,23 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 ## [5.4.42] — Latest
 
 ### Added
-- **Textures & Materials Hub** — DDS Converter, Texture Generator, and Image Studio are now unified under a single sidebar entry (`Textures & Materials`). A new **FO4 Texture Guide** tab is included with a comprehensive, up-to-date reference covering: format selection table (BC1/BC3/BC5/BC7/BC4/BC6H), FO4 channel conventions (_d, _n, _s, _g, _h, _rmaos, _m, .bgsm), mipmap & resolution rules, PBR pipeline notes (Community Shaders + ENB), common mistakes to avoid, and a tools reference list.
-- Old sidebar entries for DDS Converter, Texture Generator, and Image Studio have been removed; navigating to their old URLs redirects to the new `/textures` hub automatically.
+- **Textures & Materials Hub** — DDS Converter, Texture Generator, and Image Studio unified under `/textures`. New FO4 Texture Guide tab with BC-format table, channel conventions (_d/_n/_s/_g/_h/_rmaos/.bgsm), mipmap rules, PBR pipeline notes (Community Shaders + ENB), and tools reference.
+- **CK Tools Hub** — CK Safety (Crash Prevention) and CK Extension (auto-save, script compilation) unified under `/ck-tools`. New FO4 CK Guide with crash causes, best practices, Papyrus tips, ESL/FormID table, and tools reference.
+- **Asset Analysis Hub** — Mining Dashboard, Advanced Analysis, and Asset Deduplicator unified under `/asset-analysis`. New FO4 Asset Guide with asset budgets, conflict types, optimization strategies, and analysis tools.
+- **BA2 Manager integrated into Packaging Hub** — BA2 Manager is now Step 0 inside the Packaging & Release hub. Single sidebar entry covers the full packaging pipeline (archive management → checklist → conflict analysis → comparison → FOMOD builder).
+- **Plugin & Load Order Hub** — xEdit Tools, PRP Patch Tools, and Load Order Hub unified under `/plugin-tools`. New FO4 Plugin Guide with load order rules, xEdit cleaning workflow, PRP precombine workflow, ESL/FormID table, and common mistakes.
+- **External Tools Hub** — MO2 Extension, ComfyUI Extension, and Upscayl Extension unified under `/ext-tools` with contextual FO4 tips for each tool.
+- **Knowledge Hub** — Quick Reference, Knowledge Search, and Community Learning unified under `/knowledge-hub` for all knowledge lookup and learning needs.
+- **Mod Builder Hub** — The Blueprint (mod architecture), Workshop (file browser + compile), Devtools (Papyrus scripts), and The Scribe (documentation) unified under `/mod-builder`.
+
+### Changed
+- Sidebar reduced from 52+ entries to 33 — nearly 37% fewer navigation items, with all content preserved and accessible via unified hubs.
+- Lorekeeper sidebar label updated to **LOD & Precombine** to accurately reflect the tool's function (LOD generation + precombine management).
+- Animation Guide sidebar label updated to **Animation & Rigging** for clarity.
+- Redundant sidebar entries removed (Crash Triage, Tool Verify, System Monitor, Tools hub root) — all redirected to Diagnostics.
+
+### Fixed
+- All old URLs continue to work via automatic redirects to new hub paths.
 
 ---
 
