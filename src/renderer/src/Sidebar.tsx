@@ -106,7 +106,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
 
     // === TOOL EXTENSIONS ===
     { to: '/ext-tools', icon: Package, label: t('nav.externalTools', 'FO4 External Integrations Hub') },
-    { to: '/plugin-tools', icon: Database, label: t('nav.pluginTools', 'Plugin & Load Order Hub') },
+    { to: '/plugin-tools', icon: Database, label: t('nav.pluginTools', 'FO4 Plugin & Load Order Hub') },
 
     { to: '/system-hub', icon: Wrench, label: t('nav.systemHub', 'System Hub') },
     { to: '/settings', icon: Settings, label: t('nav.settings', 'Settings') },

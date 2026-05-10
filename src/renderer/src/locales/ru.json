@@ -51,6 +51,7 @@
     "workflowRunner": "FO4 Automation Runner",
     "runtimeHub": "FO4 Runtime Hub",
     "externalTools": "FO4 External Integrations Hub",
+    "pluginTools": "FO4 Plugin & Load Order Hub",
     "holodeck": "Холодек",
     "vault": "Хранилище",
     "ba2Manager": "Менеджер BA2",

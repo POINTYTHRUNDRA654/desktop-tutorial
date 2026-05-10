@@ -299,7 +299,7 @@ const TheNexus: React.FC = () => {
             </Link>
             <Link to="/plugin-tools" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Database size={20} className="text-emerald-400" />
-              <span className="font-bold">Plugin & Load Order</span>
+              <span className="font-bold">FO4 Plugin &amp; Load Order Hub</span>
               <span className="text-slate-500 text-[9px]">xEdit · Load Order · PRP</span>
             </Link>
             <Link to="/textures" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
@@ -368,7 +368,7 @@ const TheNexus: React.FC = () => {
                 icon: Package,
                 step: '3',
                 title: 'Know the Load Order Rules',
-                body: 'Fallout 4 has a 255 plugin cap (ESM+ESP+ESL). ESL-flagged plugins share a 2,048 FormID pool. Use Plugin & Load Order Hub to manage and validate.',
+                body: 'Fallout 4 has a 255 plugin cap (ESM+ESP+ESL). ESL-flagged plugins share a 2,048 FormID pool. Use FO4 Plugin & Load Order Hub to manage and validate.',
                 to: '/plugin-tools',
               },
               {

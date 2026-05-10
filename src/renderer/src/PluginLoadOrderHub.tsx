@@ -1,5 +1,5 @@
 /**
- * Plugin & Load Order Hub
+ * FO4 Plugin & Load Order Hub
  *
  * Unified platform for xEdit operations, PRP patch generation, load order management,
  * and comprehensive FO4 plugin/load-order reference.
@@ -258,7 +258,7 @@ const PluginLoadOrderHub: React.FC = () => {
             <Database className="h-5 w-5 text-emerald-300" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight">Plugin &amp; Load Order</h1>
+            <h1 className="text-xl font-black text-white tracking-tight">FO4 Plugin &amp; Load Order Hub</h1>
             <p className="text-xs text-slate-400">
               xEdit · PRP Precombines · Load Order — all plugin work in one place
             </p>

@@ -55,6 +55,7 @@
     "workflowRunner": "FO4 Automation Runner",
     "runtimeHub": "FO4 Runtime Hub",
     "externalTools": "FO4 External Integrations Hub",
+    "pluginTools": "FO4 Plugin & Load Order Hub",
     "holodeck": "The Holodeck",
     "vault": "The Vault",
     "ba2Manager": "BA2 Manager",
