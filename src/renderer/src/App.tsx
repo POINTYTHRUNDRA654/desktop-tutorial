@@ -154,6 +154,10 @@ const PluginLoadOrderHub = React.lazy(() => import('./PluginLoadOrderHub'));
 const ExternalToolsHub = React.lazy(() => import('./ExternalToolsHub'));
 const KnowledgeHub = React.lazy(() => import('./KnowledgeHub'));
 const ModBuilderHub = React.lazy(() => import('./ModBuilderHub'));
+const JourneyHub = React.lazy(() => import('./JourneyHub'));
+const RuntimeHub = React.lazy(() => import('./RuntimeHub'));
+const SystemHub = React.lazy(() => import('./SystemHub'));
+const GuidesHub = React.lazy(() => import('./GuidesHub'));
 
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
@@ -221,7 +225,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/guides/physics', '/guides/mods', '/guides/mods/bodyslide', '/guides/mods/sim-settlements',
   '/wizards', '/devtools', '/settings', '/project', '/support', '/assembler', '/diagnostics',
   '/community', '/capabilities', '/asset-analysis', '/plugin-tools', '/packaging-release', '/extensions/mo2',
-  '/extensions/comfyui', '/extensions/upscayl',
+  '/extensions/comfyui', '/extensions/upscayl', '/journey-hub', '/runtime-hub', '/system-hub', '/guides-hub',
   // Special routes rendered directly inside <Routes>
   '/tutorial', '/whats-new',
 ]);
@@ -1459,6 +1463,8 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/first-success"><ErrorBoundary><FirstSuccessWizard /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/roadmap"><ErrorBoundary><RoadmapPanel /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/live"><ErrorBoundary><VoiceChat /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/journey-hub"><ErrorBoundary><JourneyHub /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/runtime-hub"><ErrorBoundary><RuntimeHub /></ErrorBoundary></KeepAlivePanel>
               {/* Tools */}
               <KeepAlivePanel path="/tools"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/ini-config"><ErrorBoundary><IniConfigManager /></ErrorBoundary></KeepAlivePanel>
@@ -1477,6 +1483,7 @@ const App: React.FC = () => {
               {/* Asset Analysis Hub */}
               <KeepAlivePanel path="/asset-analysis"><ErrorBoundary><AssetAnalysisHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/security"><ErrorBoundary><SecurityValidator /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/system-hub"><ErrorBoundary><SystemHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/mining"><ErrorBoundary><MiningPanel /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/advanced-analysis"><ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/blueprint"><ErrorBoundary><TheBlueprint /></ErrorBoundary></KeepAlivePanel>
@@ -1520,6 +1527,7 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/dds-converter"><ErrorBoundary><DDSConverter /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/texture-generator"><ErrorBoundary><TextureGenerator /></ErrorBoundary></KeepAlivePanel>
               {/* Guides */}
+              <KeepAlivePanel path="/guides-hub"><ErrorBoundary><GuidesHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/guides"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/guides/blender"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/guides/blender/animation"><ErrorBoundary><BlenderAnimationGuide /></ErrorBoundary></KeepAlivePanel>

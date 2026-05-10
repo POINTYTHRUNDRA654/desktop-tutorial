@@ -4,7 +4,21 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.42] — Latest
+## [5.4.43] — Latest
+
+### Added
+- **Journey Hub** (`/journey-hub`) — consolidated First Success, Mod Projects, Modding Roadmaps, and Mod Browser into one platform.
+- **Runtime Hub** (`/runtime-hub`) — consolidated Live Synapse, Desktop Bridge, and Holodeck into one platform.
+- **System Hub** (`/system-hub`) — consolidated Diagnostics, Local Capabilities, Blacklist Manager, Vault, and Support into one platform.
+- **Guides Hub** (`/guides-hub`) — consolidated Animation & Rigging, Quest Authoring, and LOD & Precombine guides into one platform.
+
+### Changed
+- Sidebar reduced further from **33 to 22 platforms** (below the 24-target), with old routes still accessible.
+- Platform names were clarified for discoverability (examples: Setup Wizards, Creation Kit Hub, Automation Studio, Automation Orchestrator, Automation Runner, External Integrations Hub, Plugin & Load Order Hub, Asset Analysis Hub).
+
+---
+
+## [5.4.42]
 
 ### Added
 - **Textures & Materials Hub** — DDS Converter, Texture Generator, and Image Studio unified under `/textures`. New FO4 Texture Guide tab with BC-format table, channel conventions (_d/_n/_s/_g/_h/_rmaos/.bgsm), mipmap rules, PBR pipeline notes (Community Shaders + ENB), and tools reference.

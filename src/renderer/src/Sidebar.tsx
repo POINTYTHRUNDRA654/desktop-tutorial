@@ -74,53 +74,42 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/', icon: LayoutDashboard, label: t('nav.home', 'Mossy.Space') },
     { to: '/chat', icon: MessageSquare, label: t('nav.chat', 'AI Chat') },
     { to: '/ai-mod-assistant', icon: Code, label: t('nav.aiModAssistant', 'AI Mod Assistant') },
-    { to: '/first-success', icon: CheckCircle2, label: t('nav.firstSuccess', 'First Success') },
-    { to: '/project', icon: Sparkles, label: t('nav.modProjects', 'Mod Projects') },
-    { to: '/roadmap', icon: Target, label: t('nav.roadmap', 'Modding Roadmaps') },
+    { to: '/journey-hub', icon: Sparkles, label: t('nav.journeyHub', 'Journey Hub') },
     { to: '/whats-new', icon: Star, label: t('nav.whatsNew', "What's New") },
-    { to: '/mods', icon: Download, label: t('nav.modBrowser', 'Mod Browser') },
 
     // === CORE LEARNING: GUIDES & REFERENCES ===
     { to: '/knowledge-hub', icon: Book, label: t('nav.knowledgeHub', 'Knowledge Hub') },
     { to: '/memory-vault', icon: Brain, label: t('nav.memoryVault', 'Memory Vault') },
-    { to: '/wizards', icon: Wrench, label: t('nav.wizards', 'Wizards') },
-    { to: '/ck-tools', icon: ShieldCheck, label: t('nav.ckTools', 'CK Tools') },
+    { to: '/wizards', icon: Wrench, label: t('nav.wizards', 'Setup Wizards') },
+    { to: '/ck-tools', icon: ShieldCheck, label: t('nav.ckTools', 'Creation Kit Hub') },
     { to: '/textures', icon: Layers, label: t('nav.texturesMaterials', 'Textures & Materials') },
     { to: '/packaging-release', icon: Archive, label: t('nav.packagingRelease', 'Packaging & Release') },
-    { to: '/animation-guide', icon: Book, label: t('nav.animationGuide', 'Animation & Rigging') },
-    { to: '/quest-authoring', icon: BookOpen, label: t('nav.questModAuthoring', 'Quest Mod Authoring') },
-    { to: '/lore', icon: Network, label: t('nav.lorekeeper', 'LOD & Precombine') },
+    { to: '/guides-hub', icon: Book, label: t('nav.guidesHub', 'Guides Hub') },
 
     // === BUILDING TOOLS: CREATE & GENERATE ===
-    { to: '/tools/cosmos', icon: Hexagon, label: t('nav.cosmosWorkflow', 'Cosmos Workflow') },
+    { to: '/tools/cosmos', icon: Hexagon, label: t('nav.cosmosWorkflow', 'Automation Studio') },
     { to: '/mod-builder', icon: Hammer, label: t('nav.modBuilder', 'Mod Builder') },
 
     // === ENHANCEMENT: ADVANCED SPECIALIZATION ===
 
     // === QUALITY ASSURANCE: VALIDATE & VERIFY ===
-    { to: '/tools/security', icon: ShieldCheck, label: t('nav.securityScanner', 'Blacklist Manager') },
-    { to: '/asset-analysis', icon: Binary, label: t('nav.assetAnalysis', 'Asset Analysis') },
+    { to: '/asset-analysis', icon: Binary, label: t('nav.assetAnalysis', 'Asset Analysis Hub') },
 
     // === EXECUTION & COLLABORATION ===
-    { to: '/orchestrator', icon: GitBranch, label: t('nav.orchestrator', 'The Orchestrator') },
-    { to: '/workflow-runner', icon: Workflow, label: t('nav.workflowRunner', 'Workflow Runner') },
-    { to: '/holo', icon: Gamepad2, label: t('nav.holodeck', 'The Holodeck') },
-    { to: '/vault', icon: Container, label: t('nav.vault', 'The Vault') },
-    { to: '/capabilities', icon: Gauge, label: t('nav.localCapabilities', 'Local Capabilities') },
+    { to: '/orchestrator', icon: GitBranch, label: t('nav.orchestrator', 'Automation Orchestrator') },
+    { to: '/workflow-runner', icon: Workflow, label: t('nav.workflowRunner', 'Automation Runner') },
 
     // === CONTENT CREATION ===
 
     // === INTEGRATION & SUPPORT ===
-    { to: '/live', icon: Radio, label: t('nav.liveSynapse', 'Live Synapse') },
-    { to: '/bridge', icon: Monitor, label: t('nav.desktopBridge', 'Desktop Bridge') },
+    { to: '/runtime-hub', icon: Radio, label: t('nav.runtimeHub', 'Runtime Hub') },
 
     // === TOOL EXTENSIONS ===
-    { to: '/ext-tools', icon: Package, label: t('nav.externalTools', 'External Tools') },
-    { to: '/plugin-tools', icon: Database, label: t('nav.pluginTools', 'Plugin & Load Order') },
+    { to: '/ext-tools', icon: Package, label: t('nav.externalTools', 'External Integrations Hub') },
+    { to: '/plugin-tools', icon: Database, label: t('nav.pluginTools', 'Plugin & Load Order Hub') },
 
+    { to: '/system-hub', icon: Wrench, label: t('nav.systemHub', 'System Hub') },
     { to: '/settings', icon: Settings, label: t('nav.settings', 'Settings') },
-    { to: '/diagnostics', icon: Wrench, label: t('nav.diagnosticTools', 'Diagnostic Tools') },
-    { to: '/support', icon: Coffee, label: t('nav.supportMossy', 'Support Mossy') },
   ];
 
   return (
