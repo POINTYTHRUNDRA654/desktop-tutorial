@@ -57,8 +57,17 @@ const AIModAssistant: React.FC = () => {
 
   const handleQuickAction = async (action: any) => {
     if (action.type === 'create-file') {
-      await bridge.saveFile(action.parameters.content || '// new file', action.parameters.name || 'new.txt');
-      setMessages(m => [...m, { role: 'assistant', text: `File created: ${action.parameters.name || 'new.txt'}` }]);
+      try {
+        if (typeof bridge?.saveFile !== 'function') {
+          setMessages(m => [...m, { role: 'assistant', text: 'Desktop Bridge file-save API is unavailable. Open Runtime Hub to verify bridge connectivity.' }]);
+          return;
+        }
+        await bridge.saveFile(action.parameters.content || '// new file', action.parameters.name || 'new.txt');
+        setMessages(m => [...m, { role: 'assistant', text: `File created: ${action.parameters.name || 'new.txt'}` }]);
+      } catch (err) {
+        console.error('[AIModAssistant] create-file action failed:', err);
+        setMessages(m => [...m, { role: 'assistant', text: 'Failed to create file. Verify bridge permissions and try again.' }]);
+      }
     }
     if (action.type === 'edit-code') {
       setCodePreview(action.parameters.patch || '// patched code');
@@ -66,12 +75,18 @@ const AIModAssistant: React.FC = () => {
     if (action.type === 'open-panel') {
       const routeMap: Record<string, string> = {
         chat: '/chat',
-        vault: '/vault',
-        auditor: '/auditor',
-        scribe: '/scribe',
-        holo: '/holo',
-        bridge: '/bridge',
+        vault: '/memory-vault',
+        auditor: '/asset-analysis',
+        scribe: '/mod-builder',
+        holo: '/runtime-hub',
+        bridge: '/runtime-hub',
         settings: '/settings',
+        knowledge: '/knowledge-hub',
+        plugins: '/plugin-tools',
+        textures: '/textures',
+        ck: '/ck-tools',
+        packaging: '/packaging-release',
+        system: '/system-hub',
       };
       const route = routeMap[action.parameters.panel] || `/${action.parameters.panel}`;
       navigate(route);
