@@ -4,7 +4,18 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.45] — Latest
+## [5.4.46] — Latest
+
+### Improved — Platform 3: AI Mod Assistant Deep Scan
+- **Quick-action hub routing updated** in `AIModAssistant` so legacy panel aliases now navigate to current consolidated hubs (Memory Vault, Asset Analysis Hub, Mod Builder, Runtime Hub, etc.).
+- **Bridge file-action hardening**: create-file quick action now handles missing `saveFile` API safely and returns clear Runtime Hub/Desktop Bridge guidance instead of failing silently.
+- **tutorialContext `ai-mod-assistant` corrected**:
+  - route fixed from stale `/mod-assistant` to `/ai-mod-assistant`
+  - feature/control/guide text updated to match current Platform 3 behavior (chat + code preview + smart actions + voice/learning toggles)
+
+---
+
+## [5.4.45]
 
 ### Improved — Platform 2: AI Chat Deep Scan
 - **Help route fixed** on AI Chat toolbar: `/reference` → `/knowledge-hub`.
