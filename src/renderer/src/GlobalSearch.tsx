@@ -25,23 +25,26 @@ const searchIndex: SearchItem[] = [
   // Learning & Reference
   { id: 'reference', label: 'Quick Reference', path: '/reference', category: 'Learning', description: 'Quick reference guides and documentation' },
   { id: 'knowledge', label: 'Knowledge Search', path: '/knowledge', category: 'Learning', description: 'Search through modding knowledge base' },
-  { id: 'install-wizard', label: 'Install Wizard', path: '/wizards', category: 'Setup', description: 'Installation and setup wizard' },
-  { id: 'platforms', label: 'Platforms', path: '/wizards', category: 'Learning', description: 'Platform-specific guides and tools' },
+  { id: 'install-wizard', label: 'FO4 Setup Wizards', path: '/wizards', category: 'Setup', description: 'All-in-one setup flow: platform selection, install checks, and PRP planning' },
+  { id: 'platforms', label: 'FO4 Platform Selector', path: '/wizards', category: 'Learning', description: 'Choose the right setup workflow before running install/PRP steps' },
+  { id: 'ck-tools-hub', label: 'FO4 Creation Kit Hub', path: '/ck-tools', category: 'Learning', description: 'Unified CK safety, extension tools, and FO4 Creation Kit reference tabs' },
   { id: 'crash-triage', label: 'Crash Triage', path: '/crash-triage', category: 'Debugging', description: 'Diagnose and fix game crashes' },
-  { id: 'packaging', label: 'Packaging & Release', path: '/packaging-release', category: 'Publishing', description: 'Package and release your mods' },
+  { id: 'packaging', label: 'FO4 Packaging & Release', path: '/packaging-release', category: 'Publishing', description: 'Unified release pipeline: BA2 management, packaging checks, conflict analysis, comparison, and FOMOD export' },
+  { id: 'guides-hub', label: 'FO4 Guides Hub', path: '/guides-hub', category: 'Guides', description: 'Three-tab deep-dive guide hub: Animation & Rigging (Blender + Havok), Quest Authoring (CK + Papyrus), and LOD & Precombine (xLODGen + DynDOLOD + PRP)' },
   { id: 'quest-dialogue', label: 'CK Quest & Dialogue', path: '/ck-quest-dialogue', category: 'Content', description: 'Creation Kit quest and dialogue guides' },
   { id: 'animation-guide', label: 'Animation Guide', path: '/animation-guide', category: 'Animation', description: 'Animation creation and editing guides' },
   { id: 'skeleton-reference', label: 'Skeleton Reference', path: '/skeleton-reference', category: 'Animation', description: 'Reference for skeleton and rigging' },
   { id: 'rigging-mistakes', label: 'Rigging Mistakes', path: '/rigging-mistakes', category: 'Animation', description: 'Common rigging mistakes and fixes' },
   { id: 'quest-authoring', label: 'Quest Mod Authoring', path: '/quest-authoring', category: 'Content', description: 'Create and author quest mods' },
   { id: 'precombine-prp', label: 'Precombine & PRP Guide', path: '/precombine-prp', category: 'Optimization', description: 'LOD and precombine optimization guides' },
-  { id: 'prp-patch-builder', label: 'PRP Patch Builder', path: '/wizards', category: 'Tools', description: 'Build PRP patches for optimization' },
+  { id: 'prp-patch-builder', label: 'PRP Patch Builder Wizard', path: '/wizards', category: 'Tools', description: 'Generate PRP patch README/plan and copy-ready compatibility notes' },
   { id: 'leveled-list-injection', label: 'Leveled List Injection', path: '/leveled-list-injection', category: 'Content', description: 'Inject items into leveled lists' },
   { id: 'lorekeeper', label: 'The Lorekeeper', path: '/lore', category: 'Reference', description: 'Comprehensive Fallout 4 lore and references' },
 
   // Building Tools
   { id: 'tools', label: 'Tools', path: '/tools', category: 'Tools', description: 'General tools and utilities' },
-  { id: 'cosmos-workflow', label: 'Cosmos Workflow', path: '/tools/cosmos', category: 'Tools', description: 'Cosmos Transfer2.5 workflow hub' },
+  { id: 'cosmos-workflow', label: 'FO4 Automation Studio', path: '/tools/cosmos', category: 'Tools', description: 'Cosmos integration workspace: repo detection, Knowledge Search root wiring, local docs access, and index/query validation' },
+  { id: 'mod-builder', label: 'FO4 Mod Builder Hub', path: '/mod-builder', category: 'Tools', description: 'Four-tab build hub: Blueprint planning, Workshop file/compile flow, Devtools scripting, and Scribe documentation' },
   { id: 'devtools', label: 'Devtools', path: '/devtools', category: 'Tools', description: 'Script generation and analysis tools' },
   { id: 'template-generator', label: 'Template Generator', path: '/devtools', category: 'Tools', description: 'Generate templates for mods' },
   { id: 'script-analyzer', label: 'Script Analyzer', path: '/devtools', category: 'Tools', description: 'Analyze Papyrus scripts' },
@@ -56,23 +59,28 @@ const searchIndex: SearchItem[] = [
   { id: 'precombine-checker', label: 'Precombine Checker', path: '/precombine-checker', category: 'Optimization', description: 'Check precombine setup' },
 
   // Quality Assurance
-  { id: 'auditor', label: 'The Auditor', path: '/auditor', category: 'Quality', description: 'Asset analysis and validation' },
+  { id: 'auditor', label: 'FO4 Asset Analysis Hub', path: '/asset-analysis', category: 'Quality', description: 'Unified quality hub: Mining Dashboard, Advanced Analysis, Asset Deduplicator, and FO4 asset optimization reference' },
   { id: 'scribe', label: 'The Scribe', path: '/scribe', category: 'Tools', description: 'Code editor and scripting' },
   { id: 'monitor', label: 'System Monitor', path: '/monitor', category: 'System', description: 'Monitor system performance' },
 
   // Execution & Collaboration
-  { id: 'orchestrator', label: 'The Orchestrator', path: '/orchestrator', category: 'Workflow', description: 'Workflow orchestration' },
-  { id: 'workflow-runner', label: 'Workflow Runner', path: '/workflow-runner', category: 'Workflow', description: 'Run automated workflows' },
+  { id: 'orchestrator', label: 'FO4 Automation Orchestrator', path: '/orchestrator', category: 'Workflow', description: 'Unified asset pipeline orchestration with step logs, storage stats, and BA2 queue staging' },
+  { id: 'workflow-runner', label: 'FO4 Automation Runner', path: '/workflow-runner', category: 'Workflow', description: 'Author and execute typed automation steps with run history, logs, and JSON import/export' },
+  { id: 'runtime-hub', label: 'FO4 Runtime Hub', path: '/runtime-hub', category: 'Runtime', description: 'Unified runtime hub for Live Synapse, Desktop Bridge connectivity, and Holodeck testing' },
+  { id: 'ext-tools', label: 'FO4 External Integrations Hub', path: '/ext-tools', category: 'Integration', description: 'Unified external integrations hub for MO2, ComfyUI, Upscayl, and auto-detected setup-time desktop tools' },
+  { id: 'plugin-tools', label: 'FO4 Plugin & Load Order Hub', path: '/plugin-tools', category: 'Integration', description: 'Four-tab plugin workflow hub for xEdit tooling, PRP patch generation, load order analysis, and FO4 plugin/reference guidance' },
+  { id: 'system-hub', label: 'FO4 System & Diagnostics Hub', path: '/system-hub', category: 'System', description: 'Five-tab system hub for diagnostics, local AI capability checks, blacklist/security management, asset vault verification, and Mossy support' },
   { id: 'holodeck', label: 'The Holodeck', path: '/holo', category: 'Testing', description: 'Testing and simulation environment' },
   { id: 'vault', label: 'The Vault', path: '/vault', category: 'Assets', description: 'Asset management and storage' },
-  { id: 'memory-vault', label: 'Memory Vault', path: '/memory-vault', category: 'AI', description: 'AI memory and knowledge storage' },
+  { id: 'memory-vault', label: 'FO4 Memory Vault', path: '/memory-vault', category: 'AI', description: 'AI memory and knowledge storage' },
   { id: 'neural-link', label: 'Neural Link', path: '/neural-link', category: 'Integration', description: 'Tool integration and monitoring' },
   { id: 'workflow-recorder', label: 'Workflow Recorder', path: '/dev/workflow-recorder', category: 'Development', description: 'Record and replay workflows' },
   { id: 'plugin-manager', label: 'Plugin Manager', path: '/dev/plugin-manager', category: 'Development', description: 'Manage plugins and extensions' },
   { id: 'local-capabilities', label: 'Local Capabilities', path: '/capabilities', category: 'System', description: 'Local system capabilities' },
 
   // Content Creation
-  { id: 'image-studio', label: 'Image Studio', path: '/images', category: 'Content', description: 'Image processing and PBR texture generation' },
+  { id: 'textures-hub', label: 'FO4 Textures & Materials', path: '/textures', category: 'Content', description: 'Unified texture hub: DDS conversion, PBR generation, Image Studio, and FO4 texture format reference' },
+  { id: 'image-studio', label: 'Image Studio', path: '/textures', category: 'Content', description: 'Image processing and PBR texture generation' },
   { id: 'audio-studio', label: 'Audio Studio', path: '/tts', category: 'Content', description: 'Text-to-speech and audio tools' },
 
   // Integration & Support

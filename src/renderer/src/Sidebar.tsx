@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MessageSquare, Radio, Image, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, FileDigit, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Archive, Eye, Save, FileCode as FileCodeIcon, Bot, Box, Gauge, Clock, Share2, Github, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy, Star, Brain, Target, ExternalLink, Database, Wand2, Zap, Download } from 'lucide-react';
+import { MessageSquare, Radio, Image, Layers, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, FileDigit, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Archive, Eye, Save, FileCode as FileCodeIcon, Bot, Box, Gauge, Clock, Share2, Github, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy, Star, Brain, Target, ExternalLink, Database, Wand2, Zap, Download } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { useI18n } from './i18n';
 import TourLauncher from './TourLauncher';
@@ -74,72 +74,42 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/', icon: LayoutDashboard, label: t('nav.home', 'Mossy.Space') },
     { to: '/chat', icon: MessageSquare, label: t('nav.chat', 'AI Chat') },
     { to: '/ai-mod-assistant', icon: Code, label: t('nav.aiModAssistant', 'AI Mod Assistant') },
-    { to: '/first-success', icon: CheckCircle2, label: t('nav.firstSuccess', 'First Success') },
-    { to: '/project', icon: Sparkles, label: t('nav.modProjects', 'Mod Projects') },
-    { to: '/roadmap', icon: Target, label: t('nav.roadmap', 'Modding Roadmaps') },
-    { to: '/whats-new', icon: Star, label: t('nav.whatsNew', "What's New") },
-    { to: '/mods', icon: Download, label: t('nav.modBrowser', 'Mod Browser') },
+    { to: '/journey-hub', icon: Sparkles, label: t('nav.journeyHub', 'FO4 Mod Journey Hub') },
+    { to: '/whats-new', icon: Star, label: t('nav.whatsNew', 'FO4 What\'s New') },
 
     // === CORE LEARNING: GUIDES & REFERENCES ===
-    { to: '/reference', icon: Book, label: t('nav.quickReference', 'Quick Reference') },
-    { to: '/knowledge', icon: Bot, label: t('nav.knowledgeSearch', 'Knowledge Search') },
-    { to: '/memory-vault', icon: Brain, label: t('nav.memoryVault', 'Memory Vault') },
-    { to: '/wizards', icon: Wrench, label: t('nav.wizards', 'Wizards') },
-    { to: '/crash-triage', icon: Bug, label: t('nav.crashTriage', 'Crash Triage') },
-    { to: '/ck-crash-prevention?tab=audit', icon: ShieldCheck, label: t('nav.ckCrashPrevention', 'CK Safety') },
-    { to: '/dds-converter', icon: Image, label: t('nav.ddsConverter', 'DDS Converter') },
-    { to: '/texture-generator', icon: Wand2, label: t('nav.textureGenerator', 'Texture Generator') },
-    { to: '/packaging-release', icon: Archive, label: t('nav.packagingRelease', 'Packaging & Release') },
-    { to: '/animation-guide', icon: Book, label: t('nav.animationGuide', 'Animation Guide') },
-    { to: '/quest-authoring', icon: BookOpen, label: t('nav.questModAuthoring', 'Quest Mod Authoring') },
-    { to: '/lore', icon: Network, label: t('nav.lorekeeper', 'The Lorekeeper') },
+    { to: '/knowledge-hub', icon: Book, label: t('nav.knowledgeHub', 'FO4 Knowledge Hub') },
+    { to: '/memory-vault', icon: Brain, label: t('nav.memoryVault', 'FO4 Memory Vault') },
+    { to: '/wizards', icon: Wrench, label: t('nav.wizards', 'FO4 Setup Wizards') },
+    { to: '/ck-tools', icon: ShieldCheck, label: t('nav.ckTools', 'FO4 Creation Kit Hub') },
+    { to: '/textures', icon: Layers, label: t('nav.texturesMaterials', 'FO4 Textures & Materials') },
+    { to: '/packaging-release', icon: Archive, label: t('nav.packagingRelease', 'FO4 Packaging & Release') },
+    { to: '/guides-hub', icon: Book, label: t('nav.guidesHub', 'FO4 Guides Hub') },
 
     // === BUILDING TOOLS: CREATE & GENERATE ===
-    { to: '/tools', icon: Wrench, label: t('nav.tools', 'Tools') },
-    { to: '/tools/cosmos', icon: Hexagon, label: t('nav.cosmosWorkflow', 'Cosmos Workflow') },
-    { to: '/devtools', icon: Code, label: t('nav.devtools', 'Devtools') },
-    { to: '/assembler', icon: Package, label: t('nav.assembler', 'The Assembler') },
-    { to: '/workshop', icon: Hammer, label: t('nav.workshop', 'The Workshop') },
-    { to: '/blueprint', icon: DraftingCompass, label: t('nav.blueprint', 'The Blueprint') },
+    { to: '/tools/cosmos', icon: Hexagon, label: t('nav.cosmosWorkflow', 'FO4 Automation Studio') },
+    { to: '/mod-builder', icon: Hammer, label: t('nav.modBuilder', 'FO4 Mod Builder Hub') },
 
     // === ENHANCEMENT: ADVANCED SPECIALIZATION ===
 
     // === QUALITY ASSURANCE: VALIDATE & VERIFY ===
-    { to: '/tools/security', icon: ShieldCheck, label: t('nav.securityScanner', 'Blacklist Manager') },
-    { to: '/tools/mining', icon: Binary, label: t('nav.miningDashboard', 'Mining Dashboard') },
-    { to: '/tools/advanced-analysis', icon: Brain, label: t('nav.advancedAnalysis', 'Advanced Analysis') },
-    { to: '/scribe', icon: Feather, label: t('nav.scribe', 'The Scribe') },
-    { to: '/monitor', icon: Activity, label: t('nav.systemMonitor', 'System Monitor') },
+    { to: '/asset-analysis', icon: Binary, label: t('nav.assetAnalysis', 'FO4 Asset Analysis Hub') },
 
     // === EXECUTION & COLLABORATION ===
-    { to: '/orchestrator', icon: GitBranch, label: t('nav.orchestrator', 'The Orchestrator') },
-    { to: '/workflow-runner', icon: Workflow, label: t('nav.workflowRunner', 'Workflow Runner') },
-    { to: '/holo', icon: Gamepad2, label: t('nav.holodeck', 'The Holodeck') },
-    { to: '/vault', icon: Container, label: t('nav.vault', 'The Vault') },
-    { to: '/tools/ba2-manager', icon: Archive, label: t('nav.ba2Manager', 'BA2 Manager') },
-    { to: '/capabilities', icon: Gauge, label: t('nav.localCapabilities', 'Local Capabilities') },
+    { to: '/orchestrator', icon: GitBranch, label: t('nav.orchestrator', 'FO4 Automation Orchestrator') },
+    { to: '/workflow-runner', icon: Workflow, label: t('nav.workflowRunner', 'FO4 Automation Runner') },
 
     // === CONTENT CREATION ===
-    { to: '/images', icon: Image, label: t('nav.imageStudio', 'Image Studio') },
 
     // === INTEGRATION & SUPPORT ===
-    { to: '/live', icon: Radio, label: t('nav.liveSynapse', 'Live Synapse') },
-    { to: '/bridge', icon: Monitor, label: t('nav.desktopBridge', 'Desktop Bridge') },
+    { to: '/runtime-hub', icon: Radio, label: t('nav.runtimeHub', 'FO4 Runtime Hub') },
 
     // === TOOL EXTENSIONS ===
-    { to: '/extensions/mo2', icon: Package, label: t('nav.mo2Extension', 'MO2 Extension') },
-    { to: '/tools/xedit', icon: Database, label: t('nav.xeditTools', 'xEdit Tools') },
-    { to: '/tools/ck-extension', icon: Wrench, label: t('nav.ckExtension', 'CK Extension') },
-    { to: '/tools/precombine-generator', icon: Zap, label: t('nav.prpPatchTools', 'PRP Patch Tools') },
-    { to: '/extensions/comfyui', icon: Network, label: t('nav.comfyuiExtension', 'ComfyUI Extension') },
-    { to: '/extensions/upscayl', icon: Aperture, label: t('nav.upscaylExtension', 'Upscayl Extension') },
+    { to: '/ext-tools', icon: Package, label: t('nav.externalTools', 'FO4 External Integrations Hub') },
+    { to: '/plugin-tools', icon: Database, label: t('nav.pluginTools', 'FO4 Plugin & Load Order Hub') },
 
-    { to: '/tools/asset-deduplicator', icon: Copy, label: t('nav.duplicateFinder', 'Asset Deduplicator') },
-    { to: '/community', icon: Github, label: t('nav.communityLearning', 'Community Learning') },
-    { to: '/tool-verify', icon: CheckCircle2, label: t('nav.toolVerify', 'Tool Verify') },
+    { to: '/system-hub', icon: Wrench, label: t('nav.systemHub', 'FO4 System & Diagnostics Hub') },
     { to: '/settings', icon: Settings, label: t('nav.settings', 'Settings') },
-    { to: '/diagnostics', icon: Wrench, label: t('nav.diagnosticTools', 'Diagnostic Tools') },
-    { to: '/support', icon: Coffee, label: t('nav.supportMossy', 'Support Mossy') },
   ];
 
   return (

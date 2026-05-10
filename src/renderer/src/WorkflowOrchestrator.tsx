@@ -268,9 +268,9 @@ const WorkflowOrchestrator = () => {
                 <div>
                     <h2 className="text-lg font-bold text-white flex items-center gap-2">
                         <GitBranch className="w-5 h-5 text-purple-400" />
-                        The Orchestrator
+                        FO4 Automation Orchestrator
                     </h2>
-                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">Asset Processing Pipeline & Shared Storage</p>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">Asset Pipelines · Run Logs · Storage Stats · BA2 Queue</p>
                 </div>
                 <div className="flex gap-2">
                     <Link
@@ -291,7 +291,7 @@ const WorkflowOrchestrator = () => {
                     <ToolsInstallVerifyPanel
                         className="mb-0"
                         accentClassName="text-purple-300"
-                        description="Orchestrator is a pipeline planner and run log UI. Any real processing requires you to connect it to real tools/commands in your environment (no default paths are assumed)."
+                        description="FO4 Automation Orchestrator is a pipeline planner and run log UI. Any real processing requires you to connect it to real tools/commands in your environment (no default paths are assumed)."
                         tools={[]}
                         verify={[
                             'Select an asset and confirm applicable pipelines update.',

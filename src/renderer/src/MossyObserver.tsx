@@ -342,7 +342,7 @@ const QUIPS: Record<string, string[]> = {
         "Automation sequences for repetitive tasks."
     ],
     '/orchestrator': [
-        "The Orchestrator is your single asset-processing pipeline to avoid duplicate work across mods.",
+        "FO4 Automation Orchestrator is your single asset-processing pipeline to avoid duplicate work across mods.",
         "Pick an asset once and run the matching pipeline: meshes, textures, audio, or scripts — no parallel tool hopping.",
         "Mesh pipeline order matters: validate NIF → regenerate physics → generate LOD → stage to Data/ for BA2 packing.",
         "Texture pipeline enforces correct formats: BC1 for albedo, BC5 for normals, BC3 for alpha. No mixed compression.",
@@ -357,6 +357,15 @@ const QUIPS: Record<string, string[]> = {
         "Use consistent target paths (Data/Meshes, Data/Textures, Data/Sound, Data/Scripts) to keep archives clean.",
         "After pipeline runs, stage assets for Archive2/BA2 packing — no manual drag-and-drop required.",
         "Re-run the pipeline after fixes to confirm issues are cleared; the log history will confirm successful stages."
+    ],
+    '/workflow-runner': [
+        "FO4 Automation Runner executes reusable workflow steps in sequence: run tool commands, open programs, open external links, and reveal files.",
+        "Use New Workflow to create repeatable task chains, then save and run from one panel instead of retyping commands each session.",
+        "Step types require specific fields: runTool needs cmd/args/cwd; openProgram/openExternal/revealInFolder rely on target paths or URLs.",
+        "Run History keeps the latest 50 runs with success/fail state and full log lines for troubleshooting.",
+        "Export Workflows creates JSON snapshots you can share with teammates; Import merges by workflow id to avoid accidental loss.",
+        "When Electron APIs are unavailable, editing/import/export still works but execution is disabled in web mode.",
+        "Use log export/copy after a failed run to capture exact step output and speed up debugging."
     ],
     '/hyperterminal': [
         "HyperTerminal provides pre-built command templates for all major Fallout 4 modding tools - xEdit, Papyrus, meshes, textures, and utilities.",
@@ -391,6 +400,24 @@ const QUIPS: Record<string, string[]> = {
         "Test Results show pass/fail status, duration, and detailed issues found - use this to debug problems in your mod.",
         "Critical severity tests prevent CTDs and data loss - run these before any release. Major severity tests affect functionality.",
         "Re-run tests after fixing issues to confirm your changes worked - the Holodeck tracks all test runs for comparison."
+    ],
+    '/runtime-hub': [
+        "FO4 Runtime Hub unifies three live runtime surfaces: Live Synapse for voice sessions, Desktop Bridge for local integrations, and Holodeck for scenario testing.",
+        "Use the tab bar to switch runtime context without leaving the hub; your last tab is restored from session storage on reload.",
+        "Live Synapse is the voice-first entry point when you need hands-free guidance, live transcription, or tool-aware conversation flow.",
+        "Desktop Bridge is where you verify desktop-only connectivity before relying on local scans, file actions, or external program integrations.",
+        "Holodeck inside Runtime Hub is your pre-release sandbox for scenario validation before testing in-game.",
+        "If a desktop action fails from chat, open FO4 Runtime Hub and confirm the Desktop Bridge path is active before retrying.",
+        "Treat Runtime Hub as the operational status page for live audio, local bridge health, and runtime QA in one place."
+    ],
+    '/ext-tools': [
+        "FO4 External Integrations Hub consolidates three third-party workflows: MO2 profile awareness, ComfyUI image generation, and Upscayl texture enhancement.",
+        "Use the tab bar to move between MO2, ComfyUI, and Upscayl without leaving the hub; your current tab is restored during the session.",
+        "The auto-connect panel also tracks setup-time desktop tools such as xEdit, Creation Kit, Blender, LOOT, NifSkope, and BodySlide / Outfit Studio.",
+        "MO2 is the profile and load-order context tab — use it when you need Mossy to understand active mods, profiles, and file-priority behavior.",
+        "ComfyUI is the concept-art and texture-iteration tab — best for reference generation before committing assets into the FO4 texture pipeline.",
+        "Upscayl is the finishing tab for low-resolution source textures that still need DDS conversion and Fallout-friendly compression afterward.",
+        "If you are unsure which external tool to open, start in FO4 External Integrations Hub and route to the tab or auto-connect tool that matches your current workflow stage."
     ],
     '/paperscript': [
         "PaperScript is a modern scripting language for Fallout 4 - a cleaner, more powerful alternative to Papyrus.",

@@ -32,6 +32,11 @@ import AvatarCore from './AvatarCore';
 import { GlobalSearch } from './GlobalSearch';
 import { useWhatsNew } from './WhatsNewDialog';
 import WhatsNewPage from './WhatsNewPage';
+import {
+  backupCriticalProgressSnapshotSync,
+  backupCriticalProgressToDisk,
+  restoreMissingCriticalProgress,
+} from './services/criticalProgressBackup';
 
 
 // Import new performance & reliability managers
@@ -142,6 +147,17 @@ const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
 const POST_ONBOARDING_NAV_DELAY_MS = 150;
 const DDSConverter = React.lazy(() => import('./DDSConverter').then(module => ({ default: module.DDSConverter })));
 const TextureGenerator = React.lazy(() => import('./TextureGenerator').then(module => ({ default: module.TextureGenerator })));
+const TextureMaterialsHub = React.lazy(() => import('./TextureMaterialsHub'));
+const CKToolsHub = React.lazy(() => import('./CKToolsHub'));
+const AssetAnalysisHub = React.lazy(() => import('./AssetAnalysisHub'));
+const PluginLoadOrderHub = React.lazy(() => import('./PluginLoadOrderHub'));
+const ExternalToolsHub = React.lazy(() => import('./ExternalToolsHub'));
+const KnowledgeHub = React.lazy(() => import('./KnowledgeHub'));
+const ModBuilderHub = React.lazy(() => import('./ModBuilderHub'));
+const JourneyHub = React.lazy(() => import('./JourneyHub'));
+const RuntimeHub = React.lazy(() => import('./RuntimeHub'));
+const SystemHub = React.lazy(() => import('./SystemHub'));
+const GuidesHub = React.lazy(() => import('./GuidesHub'));
 
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
@@ -203,13 +219,13 @@ const KEEP_ALIVE_PATHS = new Set([
   '/dev/orchestrator', '/dev/workflow-runner', '/dev/workflow-recorder',
   '/dev/plugin-manager', '/dev/load-order', '/media', '/media/images', '/test',
   '/test/holo', '/test/notification-test', '/test/bridge', '/learn', '/reference',
-  '/knowledge', '/lore', '/memory-vault', '/ck-crash-prevention', '/dds-converter',
+  '/knowledge', '/lore', '/memory-vault', '/ck-tools', '/ck-crash-prevention', '/textures', '/dds-converter',
   '/texture-generator', '/guides', '/guides/blender', '/guides/blender/animation',
   '/guides/creation-kit', '/guides/creation-kit/quest-authoring', '/guides/papyrus/guide',
   '/guides/physics', '/guides/mods', '/guides/mods/bodyslide', '/guides/mods/sim-settlements',
   '/wizards', '/devtools', '/settings', '/project', '/support', '/assembler', '/diagnostics',
-  '/community', '/capabilities', '/packaging-release', '/extensions/mo2',
-  '/extensions/comfyui', '/extensions/upscayl',
+  '/community', '/capabilities', '/asset-analysis', '/plugin-tools', '/packaging-release', '/extensions/mo2',
+  '/extensions/comfyui', '/extensions/upscayl', '/journey-hub', '/runtime-hub', '/system-hub', '/guides-hub',
   // Special routes rendered directly inside <Routes>
   '/tutorial', '/whats-new',
 ]);
@@ -585,6 +601,36 @@ const App: React.FC = () => {
 
   // Quick Wins state
   const { showWhatsNew, dismissWhatsNew } = useWhatsNew();
+
+  // Keep a durable local backup of user-authored progress so updates or rescans
+  // never wipe project/chat/vault progress data stored in localStorage.
+  useEffect(() => {
+    const persistBackup = () => {
+      backupCriticalProgressSnapshotSync();
+      void backupCriticalProgressToDisk();
+    };
+
+    void (async () => {
+      await restoreMissingCriticalProgress();
+      await backupCriticalProgressToDisk();
+    })();
+
+    const intervalId = window.setInterval(persistBackup, 30000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') persistBackup();
+    };
+    const onBeforeUnload = () => {
+      persistBackup();
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, []);
 
   useEffect(() => {
     document.body.classList.toggle('pip-boy-mode', isPipBoy);
@@ -1290,8 +1336,8 @@ const App: React.FC = () => {
                 {/* Redirect routes */}
                 <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/tools/auditor" element={<Navigate to="/ck-crash-prevention?tab=audit" replace />} />
-                <Route path="/tools/asset-scanner" element={<Navigate to="/tools/asset-deduplicator" replace />} />
-                <Route path="/tools/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
+                <Route path="/tools/asset-scanner" element={<Navigate to="/asset-analysis" replace />} />
+                <Route path="/tools/dedupe" element={<Navigate to="/asset-analysis" replace />} />
                 <Route path="/tools/xedit-executor" element={<Navigate to="/tools/xedit" replace />} />
                 <Route path="/tools/xedit-extension" element={<Navigate to="/tools/xedit" replace />} />
                 <Route path="/tools/conflict-visualizer" element={<Navigate to="/packaging-release?section=conflicts" replace />} />
@@ -1299,7 +1345,7 @@ const App: React.FC = () => {
                 <Route path="/tools/assembler" element={<Navigate to="/assembler" replace />} />
                 <Route path="/tools/ck-safety" element={<Navigate to="/tools/ck-crash-prevention" replace />} />
                 <Route path="/dev/neural-link" element={<Navigate to="/live" replace />} />
-                <Route path="/dev/mining-dashboard" element={<Navigate to="/tools/mining-hub?tab=dashboard" replace />} />
+                <Route path="/dev/mining-dashboard" element={<Navigate to="/asset-analysis" replace />} />
                 <Route path="/learn/lore" element={<Navigate to="/lore" replace />} />
                 <Route path="/learn/reference" element={<Navigate to="/reference" replace />} />
                 <Route path="/learn/knowledge" element={<Navigate to="/knowledge" replace />} />
@@ -1359,10 +1405,11 @@ const App: React.FC = () => {
                 <Route path="/vault" element={<Navigate to="/tools/vault" replace />} />
                 <Route path="/neural-link" element={<Navigate to="/live" replace />} />
                 <Route path="/workshop" element={<Navigate to="/dev/workshop" replace />} />
-                <Route path="/images" element={<Navigate to="/media/images" replace />} />
+                <Route path="/images" element={<Navigate to="/textures" replace />} />
+                <Route path="/media/images" element={<Navigate to="/textures" replace />} />
                 <Route path="/tts" element={<Navigate to="/live" replace />} />
                 <Route path="/bridge" element={<Navigate to="/test/bridge" replace />} />
-                <Route path="/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
+                <Route path="/dedupe" element={<Navigate to="/asset-analysis" replace />} />
                 <Route path="/cosmos" element={<Navigate to="/tools/cosmos" replace />} />
                 <Route path="/tool-verify" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/script-analyzer" element={<Navigate to="/devtools" replace />} />
@@ -1370,6 +1417,7 @@ const App: React.FC = () => {
                 <Route path="/install-wizard" element={<Navigate to="/wizards" replace />} />
                 <Route path="/platforms" element={<Navigate to="/wizards" replace />} />
                 <Route path="/crash-triage" element={<Navigate to="/diagnostics" replace />} />
+                <Route path="/tools/ck-extension" element={<Navigate to="/ck-tools" replace />} />
                 <Route path="/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
                 <Route path="/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
                 <Route path="/animation-guide" element={<Navigate to="/guides/blender/animation" replace />} />
@@ -1415,11 +1463,15 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/first-success"><ErrorBoundary><FirstSuccessWizard /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/roadmap"><ErrorBoundary><RoadmapPanel /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/live"><ErrorBoundary><VoiceChat /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/journey-hub"><ErrorBoundary><JourneyHub /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/runtime-hub"><ErrorBoundary><RuntimeHub /></ErrorBoundary></KeepAlivePanel>
               {/* Tools */}
               <KeepAlivePanel path="/tools"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/ini-config"><ErrorBoundary><IniConfigManager /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/asset-deduplicator"><ErrorBoundary><AssetDeduplicator /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/log-monitor"><ErrorBoundary><GameLogMonitor /></ErrorBoundary></KeepAlivePanel>
+              {/* Plugin & Load Order Hub */}
+              <KeepAlivePanel path="/plugin-tools"><ErrorBoundary><PluginLoadOrderHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/xedit"><ErrorBoundary><XEditTools /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/ck-extension"><ErrorBoundary><CKExtension /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/project-templates"><ErrorBoundary><ProjectTemplates /></ErrorBoundary></KeepAlivePanel>
@@ -1428,7 +1480,10 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/tools/voice-commands"><ErrorBoundary><VoiceCommands /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/automation"><ErrorBoundary><AutomationManager /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/ck-crash-prevention"><ErrorBoundary><CKCrashPrevention /></ErrorBoundary></KeepAlivePanel>
+              {/* Asset Analysis Hub */}
+              <KeepAlivePanel path="/asset-analysis"><ErrorBoundary><AssetAnalysisHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/security"><ErrorBoundary><SecurityValidator /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/system-hub"><ErrorBoundary><SystemHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/mining"><ErrorBoundary><MiningPanel /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/advanced-analysis"><ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/blueprint"><ErrorBoundary><TheBlueprint /></ErrorBoundary></KeepAlivePanel>
@@ -1438,6 +1493,8 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/tools/cosmos"><ErrorBoundary><CosmosWorkflow /></ErrorBoundary></KeepAlivePanel>
               {/* Development & Workflow */}
               <KeepAlivePanel path="/dev"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
+              {/* Mod Builder Hub */}
+              <KeepAlivePanel path="/mod-builder"><ErrorBoundary><ModBuilderHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/dev/workshop"><ErrorBoundary><Workshop /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/mods"><ErrorBoundary><ModBrowser /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/dev/orchestrator"><ErrorBoundary><WorkflowOrchestrator /></ErrorBoundary></KeepAlivePanel>
@@ -1455,14 +1512,22 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/test/bridge"><ErrorBoundary><DesktopBridge /></ErrorBoundary></KeepAlivePanel>
               {/* Knowledge & Learning */}
               <KeepAlivePanel path="/learn"><ErrorBoundary><LearningHub /></ErrorBoundary></KeepAlivePanel>
+              {/* Knowledge Hub — Quick Reference + Search + Community */}
+              <KeepAlivePanel path="/knowledge-hub"><ErrorBoundary><KnowledgeHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/reference"><ErrorBoundary><QuickReference /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/knowledge"><ErrorBoundary><KnowledgeSearch /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/lore"><ErrorBoundary><Lorekeeper /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/memory-vault"><ErrorBoundary><MossyMemoryVault /></ErrorBoundary></KeepAlivePanel>
+              {/* CK Tools Hub — unified Creation Kit platform */}
+              <KeepAlivePanel path="/ck-tools"><ErrorBoundary><CKToolsHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/ck-crash-prevention"><ErrorBoundary><CKCrashPrevention /></ErrorBoundary></KeepAlivePanel>
+              {/* Textures & Materials Hub — unified platform for all texture/material work */}
+              <KeepAlivePanel path="/textures"><ErrorBoundary><TextureMaterialsHub /></ErrorBoundary></KeepAlivePanel>
+              {/* Legacy individual panels kept alive for backward compatibility */}
               <KeepAlivePanel path="/dds-converter"><ErrorBoundary><DDSConverter /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/texture-generator"><ErrorBoundary><TextureGenerator /></ErrorBoundary></KeepAlivePanel>
               {/* Guides */}
+              <KeepAlivePanel path="/guides-hub"><ErrorBoundary><GuidesHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/guides"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/guides/blender"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/guides/blender/animation"><ErrorBoundary><BlenderAnimationGuide /></ErrorBoundary></KeepAlivePanel>
@@ -1485,6 +1550,8 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/capabilities"><ErrorBoundary><LocalCapabilities /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/packaging-release"><ErrorBoundary><PackagingHub /></ErrorBoundary></KeepAlivePanel>
               {/* Extensions */}
+              {/* External Tools Hub */}
+              <KeepAlivePanel path="/ext-tools"><ErrorBoundary><ExternalToolsHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/extensions/mo2"><ErrorBoundary><MO2Extension /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/extensions/comfyui"><ErrorBoundary><ComfyUIExtension /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/extensions/upscayl"><ErrorBoundary><UpscaylExtension /></ErrorBoundary></KeepAlivePanel>

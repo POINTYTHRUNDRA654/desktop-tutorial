@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { Search, Command, Zap, ArrowRight, CornerDownLeft, BrainCircuit, Loader2, FileCode, LayoutDashboard, Terminal, MessageSquare, Activity, Image, Mic2, Hexagon, Layers, Box, Settings, Sparkles, RefreshCw, Dna, Database, Shield, Radio, Map, Container, Camera, Aperture, Network, GitBranch, PenTool, FlaskConical, Bug, Package, Globe, Smartphone, Heart, Lock, Gamepad2, Monitor, Rocket, ShieldCheck, Feather, Keyboard, Lightbulb, Video } from 'lucide-react';
+import { Search, Command, Zap, ArrowRight, CornerDownLeft, BrainCircuit, Loader2, FileCode, LayoutDashboard, Terminal, MessageSquare, Activity, Image, Mic2, Hexagon, Hammer, Layers, Box, Settings, Sparkles, RefreshCw, Dna, Database, Shield, Radio, Map, Container, Camera, Aperture, Network, GitBranch, PenTool, FlaskConical, Bug, Package, Globe, Smartphone, Heart, Lock, Gamepad2, Monitor, Rocket, ShieldCheck, Feather, Keyboard, Lightbulb, Video } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface Action {
@@ -72,11 +72,15 @@ const CommandPalette: React.FC = () => {
         { id: 'nav-cartographer', title: 'The Cartographer', subtitle: 'Level Design & Mapping', icon: Map, group: 'Navigation', action: () => navigate('/cartographer'), keywords: ['cartographer', 'level', 'design', 'mapping'] },
         { id: 'nav-organizer', title: 'The Organizer', subtitle: 'Mod Load Order Tool', icon: Layers, group: 'Navigation', action: () => navigate('/organizer'), keywords: ['organizer', 'load', 'order', 'mod'] },
         { id: 'nav-crucible', title: 'The Crucible', subtitle: 'Crash Log Forensics', icon: Bug, group: 'Navigation', action: () => navigate('/crucible'), keywords: ['crucible', 'crash', 'log', 'forensics'] },
-        { id: 'nav-auditor', title: 'The Auditor', subtitle: 'Mod QA & Integrity Check', icon: ShieldCheck, group: 'Navigation', action: () => navigate('/auditor'), keywords: ['auditor', 'qa', 'integrity', 'check'] },
+        { id: 'nav-auditor', title: 'FO4 Asset Analysis Hub', subtitle: 'Mining, analysis, dedupe, and FO4 guide', icon: ShieldCheck, group: 'Navigation', action: () => navigate('/asset-analysis'), keywords: ['asset analysis', 'auditor', 'dedupe', 'mining dashboard', 'advanced analysis', 'fo4 asset guide'] },
         { id: 'nav-scribe', title: 'The Scribe', subtitle: 'Documentation & Publishing', icon: Feather, group: 'Navigation', action: () => navigate('/scribe'), keywords: ['scribe', 'documentation', 'publishing', 'write'] },
         { id: 'nav-assembler', title: 'The Assembler', subtitle: 'FOMOD Installer Creator', icon: Package, group: 'Navigation', action: () => navigate('/assembler'), keywords: ['assembler', 'fomod', 'installer', 'package'] },
-        { id: 'nav-orchestrator', title: 'The Orchestrator', subtitle: 'Automated Workflow Pipelines', icon: GitBranch, group: 'Navigation', action: () => navigate('/orchestrator'), keywords: ['orchestrator', 'workflow', 'pipeline', 'automation'] },
-        { id: 'nav-cosmos', title: 'Cosmos Workflow', subtitle: 'Cosmos Transfer2.5 hub', icon: Hexagon, group: 'Navigation', action: () => navigate('/tools/cosmos'), keywords: ['cosmos', 'workflow', 'transfer2.5', 'ai', 'ml'] },
+        { id: 'nav-orchestrator', title: 'FO4 Automation Orchestrator', subtitle: 'Asset pipelines, run logs, and BA2 staging', icon: GitBranch, group: 'Navigation', action: () => navigate('/orchestrator'), keywords: ['automation orchestrator', 'orchestrator', 'asset pipeline', 'run logs', 'ba2 queue', 'workflow'] },
+        { id: 'nav-workflow-runner', title: 'FO4 Automation Runner', subtitle: 'Typed steps, execution logs, and run history', icon: Play, group: 'Navigation', action: () => navigate('/workflow-runner'), keywords: ['automation runner', 'workflow runner', 'run workflow', 'run history', 'workflow json import', 'workflow json export'] },
+        { id: 'nav-runtime-hub', title: 'FO4 Runtime Hub', subtitle: 'Live Synapse, Desktop Bridge, and Holodeck', icon: Radio, group: 'Navigation', action: () => navigate('/runtime-hub'), keywords: ['runtime hub', 'live synapse', 'desktop bridge', 'holodeck', 'runtime tools'] },
+        { id: 'nav-ext-tools', title: 'FO4 External Integrations Hub', subtitle: 'MO2, ComfyUI, Upscayl, and auto-connect desktop tools', icon: Package, group: 'Navigation', action: () => navigate('/ext-tools'), keywords: ['external integrations', 'external tools', 'mo2', 'comfyui', 'upscayl', 'mod organizer 2', 'xedit', 'creation kit', 'blender', 'loot', 'nifskope', 'bodyslide'] },
+        { id: 'nav-cosmos', title: 'FO4 Automation Studio', subtitle: 'Cosmos integration workspace', icon: Hexagon, group: 'Navigation', action: () => navigate('/tools/cosmos'), keywords: ['automation studio', 'cosmos', 'workflow', 'transfer2.5', 'predict2.5', 'knowledge roots'] },
+        { id: 'nav-mod-builder', title: 'FO4 Mod Builder Hub', subtitle: 'Blueprint to documentation workflow', icon: Hammer, group: 'Navigation', action: () => navigate('/mod-builder'), keywords: ['mod builder', 'blueprint', 'workshop', 'devtools', 'scribe'] },
 
         // System Actions
         { id: 'sys-deploy', title: 'Deploy / Release', subtitle: 'Build Project & Invite Testers', icon: Rocket, group: 'System', action: () => navigate('/monitor'), keywords: ['deploy', 'release', 'build', 'testers'] },
