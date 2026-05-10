@@ -4,7 +4,17 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.55] — Latest
+## [5.4.56] — Latest
+
+### Improved — Platform 13: Automation Studio Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 13 labels now use **FO4 Automation Studio** in sidebar, hub header, locale nav key, command palette navigation, and global search discovery.
+- **Operations verified end-to-end**: `/tools/cosmos` KeepAlive route and core workflow (local repo detection, Knowledge Search root registration, integration doc access, and index/query validation) confirmed against the active hub implementation.
+- **Context wiring refreshed**: `tutorialContext` entry `cosmos-workflow` now uses FO4 Automation Studio naming and purpose language aligned to actual in-app operations.
+- **Discovery text refreshed**: global search entry for `/tools/cosmos` now describes the real integration workflow rather than legacy generic Cosmos wording.
+
+---
+
+## [5.4.55]
 
 ### Improved — Platform 12: Guides Hub Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 12 labels now use **FO4 Guides Hub** in sidebar, hub header, locale nav key, and global search discovery.
