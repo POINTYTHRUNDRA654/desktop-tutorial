@@ -547,20 +547,32 @@ FO4 System & Diagnostics Hub is the system-health platform. It combines diagnost
 ![Page 22 - Settings](visual-guide-images/page-49-settings.png)
 
 **What this page is for**
-Settings is where you control how Mossy behaves for you. It covers preferences, quality-of-life adjustments, and configuration that should be stable across sessions.
+Settings is where you configure everything that affects how Mossy behaves across all 22 platforms. It is organized as a nine-step accordion flow so you always know what to configure and in what order. Changes made here — especially tool paths and AI engine settings — affect every other hub in the app.
 
 **How to use it**
-1. Open the category that matches the thing you want to change.
-2. Adjust one setting at a time when possible.
-3. Confirm the effect of the change in the relevant workflow.
-4. Return here when you need to fine-tune how Mossy behaves.
+1. Work through the steps in order on first use: Privacy → Language → AI Engine → External Tools → Backup.
+2. Open Step 4 (External Tools) and run Auto-Detect All to find your installed FO4 tools automatically.
+3. Click Browse or enter a path manually for any tool that was not detected.
+4. Click Test Launch to confirm each critical tool (xEdit, Creation Kit, F4SE) opens correctly.
+5. Save settings after verifying paths — Mossy validates all paths before committing.
+6. Export a backup snapshot in Step 5 immediately after a clean setup.
+7. Use Step 7 (Internet Access Test) to confirm Mossy can reach online knowledge sources.
 
 **What you will find here**
-- App preferences and configuration
-- Behavior and quality-of-life settings
-- Settings that affect multiple hubs at once
-- A central place to tune the app to your workflow
+- Step 1: Privacy & Security — analytics opt-out, data-sharing toggles, and security defaults
+- Step 2: Language — UI language selection and translation contribution link
+- Step 3: AI Engine — Groq model selector (Llama 3.1 8B, Llama 3.3 70B, DeepSeek R1, Gemma 2, Mixtral), max response tokens (512–4096), self-critique loop toggle
+- Step 3b: Local LLM — Ollama endpoint configuration for fully offline AI assistance
+- Step 4: External Tools — browse/test-launch paths for xEdit (FO4Edit), Creation Kit, Fallout 4 game root, Papyrus compiler, F4SE, Archive2, LOOT, Mod Organizer 2, Wrye Bash, NifSkope, Blender, BodySlide, Upscayl, GIMP, and more
+- Step 5: Backup & Restore — export or import a full settings snapshot as JSON
+- Step 6: Tutorial & Onboarding — reset and replay first-run guided experience
+- Step 7: Internet Access Test — live connectivity check for Fallout Wiki, Fandom, DuckDuckGo, and Wikipedia with per-provider latency
+- Credits & Acknowledgments — searchable open-source library and license list
+- Version Info — always-visible app version, build date, and update status
 
 **Helpful tips**
-- Change only what you understand, then test the result.
-- If a workflow suddenly feels different, Settings is one of the first places to check.
+- Set the Fallout 4 root path to the folder containing Fallout4.exe, not the Data subfolder.
+- Use llama-3.3-70b-versatile for complex Papyrus scripting help; switch to llama-3.1-8b-instant for real-time voice and quick lookups.
+- The xEdit path must point to FO4Edit.exe specifically, not a Skyrim or other game version.
+- Run the Internet Access Test whenever AI web-search results feel empty or outdated.
+- If a workflow in another hub suddenly stops working, check Settings first — a changed or missing path is often the cause.
