@@ -927,7 +927,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                         </div>
                         <div>
                             <h2 className="text-lg lg:text-xl font-bold text-white flex items-center gap-2">
-                                Memory Vault
+                                FO4 Memory Vault
                                 <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30 font-mono">ENHANCED RAG</span>
                             </h2>
                             <p className="text-xs text-slate-400 hidden sm:block">Upload tutorials, snippets, and lore for Mossy to digest into her long-term memory.</p>
@@ -935,7 +935,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
-                        to="/reference"
+                        to="/knowledge-hub"
                         className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/20 transition-colors hidden sm:inline-flex"
                         title="Open help"
                       >
