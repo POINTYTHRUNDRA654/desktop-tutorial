@@ -12038,6 +12038,107 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   const pluginStorage = new Map<string, any>();
   const pluginManagerSettings = { autoUpdate: true, marketplaceSources: [], installDirectory: '~/.mossy/plugins', allowUnsigned: false, enableTelemetry: true };
 
+  const expandUserPath = (rawPath: string): string => {
+    if (!rawPath || typeof rawPath !== 'string') return '';
+    if (rawPath.startsWith('~/')) return path.join(os.homedir(), rawPath.slice(2));
+    return rawPath;
+  };
+
+  const getPluginInstallDirectory = (): string => {
+    const configured = expandUserPath(String(pluginManagerSettings.installDirectory || '').trim());
+    if (configured) return path.resolve(configured);
+    return path.join(app.getPath('userData'), 'plugins');
+  };
+
+  const readJsonFileSafe = (filePath: string): any | null => {
+    try {
+      if (!fs.existsSync(filePath)) return null;
+      const raw = fs.readFileSync(filePath, 'utf8');
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
+
+  const readPluginManifestFromDirectory = (pluginDir: string): any | null => {
+    const candidates = [
+      'mossy-plugin.json',
+      'plugin.json',
+      'manifest.json',
+      'package.json',
+    ];
+
+    for (const candidate of candidates) {
+      const candidatePath = path.join(pluginDir, candidate);
+      const parsed = readJsonFileSafe(candidatePath);
+      if (!parsed) continue;
+
+      if (candidate === 'package.json' && parsed.mossyPlugin && typeof parsed.mossyPlugin === 'object') {
+        return {
+          ...parsed.mossyPlugin,
+          id: parsed.mossyPlugin.id || parsed.name,
+          name: parsed.mossyPlugin.name || parsed.displayName || parsed.name,
+          version: parsed.mossyPlugin.version || parsed.version,
+          description: parsed.mossyPlugin.description || parsed.description,
+          author: parsed.mossyPlugin.author || parsed.author,
+        };
+      }
+
+      return parsed;
+    }
+
+    return null;
+  };
+
+  const normalizePluginFromManifest = (pluginDir: string, manifest: any, existing?: any): any => {
+    const dirName = path.basename(pluginDir);
+    const rawId = String(manifest?.id || dirName).trim();
+    const pluginId = rawId || dirName;
+
+    const normalized: any = {
+      id: pluginId,
+      name: String(manifest?.name || dirName),
+      version: String(manifest?.version || '1.0.0'),
+      description: String(manifest?.description || 'Community plugin'),
+      author: String(manifest?.author || 'Community'),
+      path: pluginDir,
+      enabled: existing?.enabled ?? true,
+      installed: true,
+      permissions: Array.isArray(manifest?.permissions) ? manifest.permissions : [],
+      dependencies: manifest?.dependencies && typeof manifest.dependencies === 'object'
+        ? Object.keys(manifest.dependencies)
+        : [],
+      manifest,
+      created: existing?.created ?? Date.now(),
+      modified: Date.now(),
+      homepage: typeof manifest?.homepage === 'string' ? manifest.homepage : undefined,
+      license: typeof manifest?.license === 'string' ? manifest.license : undefined,
+      mossyBridge: manifest?.mossyBridge,
+      mossyBridges: Array.isArray(manifest?.mossyBridges) ? manifest.mossyBridges : undefined,
+    };
+
+    return normalized;
+  };
+
+  const discoverPluginsFromInstallDirectory = () => {
+    try {
+      const installDir = getPluginInstallDirectory();
+      if (!fs.existsSync(installDir)) return;
+      const entries = fs.readdirSync(installDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const pluginDir = path.join(installDir, entry.name);
+        const manifest = readPluginManifestFromDirectory(pluginDir);
+        if (!manifest) continue;
+        const existing = pluginStorage.get(String(manifest.id || entry.name));
+        const normalized = normalizePluginFromManifest(pluginDir, manifest, existing);
+        pluginStorage.set(normalized.id, normalized);
+      }
+    } catch (err) {
+      console.warn('[Main] Failed to discover plugins from install directory:', err);
+    }
+  };
+
   function loadPluginsFromDisk() {
     try {
       const settings = loadSettings();
@@ -12049,6 +12150,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       if (settings.pluginManagerSettings) {
         Object.assign(pluginManagerSettings, settings.pluginManagerSettings);
       }
+      discoverPluginsFromInstallDirectory();
     } catch (err) {
       console.warn('[Main] Failed to load plugins from disk:', err);
     }
@@ -12070,6 +12172,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   ipcMain.handle('plugin-manager:list-installed', async (_event) => {
     const startTime = Date.now();
     try {
+      discoverPluginsFromInstallDirectory();
       const plugins = Array.from(pluginStorage.values());
       auditLogger.log({
         operation: 'plugin-listing',
@@ -12090,6 +12193,70 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         status: 'error',
         duration: Date.now() - startTime,
         error: errMsg
+      });
+      return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('plugin-manager:install-from-path', async (_event, pluginPath: string) => {
+    const startTime = Date.now();
+    try {
+      if (!pluginPath || typeof pluginPath !== 'string') {
+        throw new Error('A valid plugin folder path is required');
+      }
+
+      const sourcePath = path.resolve(expandUserPath(pluginPath.trim()));
+      if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isDirectory()) {
+        throw new Error('Plugin path must be an existing folder');
+      }
+
+      const manifest = readPluginManifestFromDirectory(sourcePath);
+      if (!manifest) {
+        throw new Error('No plugin manifest found (expected mossy-plugin.json, plugin.json, manifest.json, or package.json with mossyPlugin)');
+      }
+
+      const installDir = getPluginInstallDirectory();
+      fs.mkdirSync(installDir, { recursive: true });
+
+      const pluginId = String(manifest.id || path.basename(sourcePath)).trim();
+      if (!pluginId) throw new Error('Plugin manifest must include a valid id');
+
+      const targetDir = path.join(installDir, pluginId);
+      const sourceReal = fs.realpathSync(sourcePath);
+      const targetRealParent = fs.realpathSync(installDir);
+      const targetReal = path.join(targetRealParent, pluginId);
+      if (sourceReal !== targetReal) {
+        fs.mkdirSync(targetDir, { recursive: true });
+        fs.cpSync(sourcePath, targetDir, { recursive: true, force: true });
+      }
+
+      const finalManifest = readPluginManifestFromDirectory(targetDir) || manifest;
+      const existing = pluginStorage.get(pluginId);
+      const normalized = normalizePluginFromManifest(targetDir, finalManifest, existing);
+      pluginStorage.set(pluginId, normalized);
+      savePluginsToDisk();
+
+      auditLogger.log({
+        operation: 'plugin-installation',
+        tool: 'plugin-manager',
+        action: 'install-from-path',
+        status: 'success',
+        duration: Date.now() - startTime,
+        result: { pluginId, sourcePath, targetDir }
+      });
+
+      return { success: true, plugin: normalized };
+    } catch (error: any) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error('[Main] plugin-manager:install-from-path error:', errMsg);
+      auditLogger.log({
+        operation: 'plugin-installation',
+        tool: 'plugin-manager',
+        action: 'install-from-path',
+        status: 'error',
+        duration: Date.now() - startTime,
+        error: errMsg,
+        details: { pluginPath }
       });
       return { success: false, error: errMsg };
     }
@@ -31322,4 +31489,3 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason) => {
   console.error('[CRITICAL] Unhandled Rejection:', reason);
 });
-

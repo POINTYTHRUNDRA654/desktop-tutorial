@@ -37,11 +37,6 @@ interface PluginTemplate {
 // ============================================================================
 
 export const PluginManager: React.FC = () => {
-  // WARNING: this page is a *mocked prototype*. Many controls are demo-only and
-  // do not communicate with a real backend. Buttons will appear functional but
-  // merely simulate the action for layout/testing purposes.
-  //
-  // Remove or fully implement this component before considering it "ready".
   const [state, setState] = useState<PluginManagerState>({
     installedPlugins: [],
     availablePlugins: [],
@@ -62,11 +57,21 @@ export const PluginManager: React.FC = () => {
     enableTelemetry: true,
   });
 
-  // Load initial data (mocked)
+  const electronApi = (window as any)?.electron?.api;
+  const pluginManagerApi = electronApi?.pluginManager;
+
+  // Load initial data
   useEffect(() => {
-    loadInstalledPlugins();
-    loadMarketplacePlugins();
+    void loadInitialData();
   }, []);
+
+  const loadInitialData = async () => {
+    await Promise.all([
+      loadInstalledPlugins(),
+      loadMarketplacePlugins(),
+      loadPluginManagerSettings(),
+    ]);
+  };
 
   // ========================================================================
   // Data Loading Functions
@@ -75,42 +80,10 @@ export const PluginManager: React.FC = () => {
   const loadInstalledPlugins = async () => {
     setState(s => ({ ...s, loading: true }));
     try {
-      // TODO: Replace with actual API call
-      const mockPlugins: Plugin[] = [
-        {
-          id: 'com.example.nif-tools',
-          name: 'NIF Tools',
-          version: '2.1.0',
-          description: 'Advanced NIF model editing and visualization',
-          author: 'Bethesda Community',
-          path: '~/.mossy/plugins/nif-tools',
-          enabled: true,
-          installed: true,
-          permissions: ['filesystem:read', 'filesystem:write'],
-          dependencies: [],
-          homepage: 'https://github.com/nif-tools/nif-tools',
-          license: 'MIT',
-          created: Date.now() - 90 * 24 * 60 * 60 * 1000,
-          modified: Date.now(),
-        },
-        {
-          id: 'com.example.blender-bridge',
-          name: 'Blender Bridge',
-          version: '1.5.2',
-          description: 'Direct integration with Blender for mesh editing',
-          author: 'Mossy Team',
-          path: '~/.mossy/plugins/blender-bridge',
-          enabled: true,
-          installed: true,
-          permissions: ['process:spawn', 'network:request'],
-          dependencies: [],
-          homepage: 'https://docs.mossy.dev',
-          license: 'GPL-3.0',
-          created: Date.now() - 60 * 24 * 60 * 60 * 1000,
-          modified: Date.now() - 7 * 24 * 60 * 60 * 1000,
-        },
-      ];
-      setState(s => ({ ...s, installedPlugins: mockPlugins, loading: false }));
+      const plugins = pluginManagerApi?.listInstalled
+        ? await pluginManagerApi.listInstalled()
+        : [];
+      setState(s => ({ ...s, installedPlugins: Array.isArray(plugins) ? plugins : [], loading: false }));
     } catch (err) {
       setState(s => ({
         ...s,
@@ -122,45 +95,35 @@ export const PluginManager: React.FC = () => {
 
   const loadMarketplacePlugins = async () => {
     try {
-      // TODO: Replace with actual marketplace API
-      const mockListings: PluginListing[] = [
-        {
-          id: 'com.example.texture-tools',
-          name: 'Texture Tools Pro',
-          version: '3.2.1',
-          author: 'Graphics Lab',
-          description: 'Complete texture editing suite with batch processing',
-          downloads: 15420,
-          rating: 4.8,
-          tags: ['textures', 'editing', 'batch', 'dds'],
-          homepage: 'https://github.com/texture-tools/pro',
-          repository: 'https://github.com/texture-tools/pro',
-        },
-        {
-          id: 'com.example.script-editor',
-          name: 'Script Editor Plus',
-          version: '2.0.0',
-          author: 'Script Dev',
-          description: 'Advanced script editing with syntax highlighting and debugging',
-          downloads: 8932,
-          rating: 4.6,
-          tags: ['scripting', 'editing', 'debugger', 'esp'],
-          repository: 'https://github.com/script-editor/plus',
-        },
-        {
-          id: 'com.example.animation-viewer',
-          name: 'Animation Viewer',
-          version: '1.8.5',
-          author: 'Animation Team',
-          description: 'Real-time animation preview and editing interface',
-          downloads: 5621,
-          rating: 4.4,
-          tags: ['animation', 'viewer', 'preview', 'kf'],
-        },
-      ];
-      setState(s => ({ ...s, availablePlugins: mockListings }));
+      const listings = pluginManagerApi?.listMarketplace
+        ? await pluginManagerApi.listMarketplace()
+        : [];
+      setState(s => ({ ...s, availablePlugins: Array.isArray(listings) ? listings : [] }));
     } catch (err) {
       console.error('Failed to load marketplace:', err);
+    }
+  };
+
+  const loadPluginManagerSettings = async () => {
+    try {
+      const loaded = pluginManagerApi?.getSettings
+        ? await pluginManagerApi.getSettings()
+        : null;
+      if (!loaded || typeof loaded !== 'object') return;
+      setSettings(s => ({
+        ...s,
+        autoUpdate: loaded.autoUpdate ?? s.autoUpdate,
+        marketplaceSources: Array.isArray(loaded.marketplaceSources)
+          ? loaded.marketplaceSources
+          : s.marketplaceSources,
+        installDirectory: typeof loaded.installDirectory === 'string'
+          ? loaded.installDirectory
+          : s.installDirectory,
+        allowUnsigned: loaded.allowUnsigned ?? s.allowUnsigned,
+        enableTelemetry: loaded.enableTelemetry ?? s.enableTelemetry,
+      }));
+    } catch (err) {
+      console.error('Failed to load plugin manager settings:', err);
     }
   };
 
@@ -187,34 +150,12 @@ export const PluginManager: React.FC = () => {
   const handleInstallPlugin = async (plugin: PluginListing) => {
     setState(s => ({ ...s, loading: true }));
     try {
-      // TODO: Call actual install API
-      console.log(`Installing ${plugin.id} v${plugin.version}`);
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate install
-
-      // Add to installed plugins
-      const newPlugin: Plugin = {
-        id: plugin.id,
-        name: plugin.name,
-        version: plugin.version,
-        description: plugin.description,
-        author: plugin.author,
-        path: `${settings.installDirectory}/${plugin.id}`,
-        enabled: true,
-        installed: true,
-        permissions: [],
-        dependencies: [],
-        homepage: plugin.homepage,
-        license: 'Unknown',
-        created: Date.now(),
-        modified: Date.now(),
-      };
-
-      setState(s => ({
-        ...s,
-        installedPlugins: [...s.installedPlugins, newPlugin],
-        loading: false,
-        error: null,
-      }));
+      const result = pluginManagerApi?.install
+        ? await pluginManagerApi.install(plugin.id, plugin.version || '1.0.0')
+        : { success: false, error: 'Plugin manager API not available' };
+      if (!result?.success) throw new Error(result?.error || 'Install failed');
+      await loadInstalledPlugins();
+      setState(s => ({ ...s, loading: false, error: null }));
     } catch (err) {
       setState(s => ({
         ...s,
@@ -229,16 +170,12 @@ export const PluginManager: React.FC = () => {
 
     setState(s => ({ ...s, loading: true }));
     try {
-      // TODO: Call actual uninstall API
-      console.log(`Uninstalling ${pluginId}`);
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate uninstall
-
-      setState(s => ({
-        ...s,
-        installedPlugins: s.installedPlugins.filter(p => p.id !== pluginId),
-        loading: false,
-        error: null,
-      }));
+      const result = pluginManagerApi?.uninstall
+        ? await pluginManagerApi.uninstall(pluginId)
+        : { success: false, error: 'Plugin manager API not available' };
+      if (!result?.success) throw new Error(result?.error || 'Uninstall failed');
+      await loadInstalledPlugins();
+      setState(s => ({ ...s, loading: false, error: null }));
     } catch (err) {
       setState(s => ({
         ...s,
@@ -250,13 +187,11 @@ export const PluginManager: React.FC = () => {
 
   const handleTogglePlugin = async (pluginId: string, enabled: boolean) => {
     try {
-      // TODO: Call actual toggle API
-      setState(s => ({
-        ...s,
-        installedPlugins: s.installedPlugins.map(p =>
-          p.id === pluginId ? { ...p, enabled } : p
-        ),
-      }));
+      const result = pluginManagerApi?.toggle
+        ? await pluginManagerApi.toggle(pluginId, enabled)
+        : { success: false, error: 'Plugin manager API not available' };
+      if (!result?.success) throw new Error(result?.error || 'Toggle failed');
+      setState(s => ({ ...s, installedPlugins: s.installedPlugins.map(p => p.id === pluginId ? { ...p, enabled } : p) }));
     } catch (err) {
       console.error(`Failed to toggle plugin:`, err);
     }
@@ -265,17 +200,17 @@ export const PluginManager: React.FC = () => {
   const handleUpdatePlugin = async (pluginId: string) => {
     setState(s => ({ ...s, loading: true }));
     try {
-      // TODO: Call actual update API
-      console.log(`Updating ${pluginId}`);
-      await new Promise(resolve => setTimeout(resolve, 2500)); // Simulate update
-
-      setState(s => ({
-        ...s,
-        installedPlugins: s.installedPlugins.map(p =>
-          p.id === pluginId ? { ...p, version: (parseFloat(p.version ?? '1.0') + 0.1).toFixed(1) } : p
-        ),
-        loading: false,
-      }));
+      const plugin = state.installedPlugins.find(p => p.id === pluginId);
+      const current = plugin?.version || '1.0.0';
+      const segments = current.split('.').map((n) => Number.parseInt(n, 10));
+      const nextPatch = Number.isFinite(segments[2]) ? segments[2] + 1 : 1;
+      const nextVersion = `${segments[0] || 1}.${segments[1] || 0}.${nextPatch}`;
+      const result = pluginManagerApi?.update
+        ? await pluginManagerApi.update(pluginId, nextVersion)
+        : { success: false, error: 'Plugin manager API not available' };
+      if (!result?.success) throw new Error(result?.error || 'Update failed');
+      await loadInstalledPlugins();
+      setState(s => ({ ...s, loading: false }));
     } catch (err) {
       setState(s => ({
         ...s,
@@ -305,10 +240,46 @@ export const PluginManager: React.FC = () => {
   // Settings Handlers
   // ========================================================================
 
-  const handleSaveSettings = () => {
-    // TODO: Call settings API to persist
-    console.log('Saving settings:', settings);
-    setState(s => ({ ...s, error: null }));
+  const handleSaveSettings = async () => {
+    try {
+      const result = pluginManagerApi?.setSettings
+        ? await pluginManagerApi.setSettings(settings)
+        : { success: false, error: 'Plugin manager API not available' };
+      if (!result?.success) throw new Error(result?.error || 'Failed to save settings');
+      setState(s => ({ ...s, error: null }));
+    } catch (err) {
+      setState(s => ({ ...s, error: `Failed to save settings: ${err}` }));
+    }
+  };
+
+  const handleInstallFromFolder = async () => {
+    try {
+      const pluginDir = electronApi?.pickDirectory
+        ? await electronApi.pickDirectory('Select downloaded Mossy plugin folder')
+        : '';
+      if (!pluginDir) return;
+      setState(s => ({ ...s, loading: true }));
+      const result = pluginManagerApi?.installFromPath
+        ? await pluginManagerApi.installFromPath(pluginDir)
+        : { success: false, error: 'Plugin manager API not available' };
+      if (!result?.success) throw new Error(result?.error || 'Failed to install from folder');
+      await loadInstalledPlugins();
+      setState(s => ({ ...s, loading: false, activeTab: 'installed', error: null }));
+    } catch (err) {
+      setState(s => ({ ...s, loading: false, error: `Failed to install plugin folder: ${err}` }));
+    }
+  };
+
+  const handleBrowseInstallDirectory = async () => {
+    try {
+      const selected = electronApi?.pickDirectory
+        ? await electronApi.pickDirectory('Select plugin install directory')
+        : '';
+      if (!selected) return;
+      setSettings((prev) => ({ ...prev, installDirectory: selected }));
+    } catch (err) {
+      setState(s => ({ ...s, error: `Failed to select install directory: ${err}` }));
+    }
   };
 
   // ========================================================================
@@ -617,8 +588,8 @@ export const PluginManager: React.FC = () => {
                 }
                 className="input-field"
               />
-              <button className="btn btn-secondary">Browse</button>
-            </div>
+                <button className="btn btn-secondary" onClick={handleBrowseInstallDirectory}>Browse</button>
+              </div>
             <p className="setting-description">
               Location where plugins are installed
             </p>
@@ -848,12 +819,10 @@ export const PluginManager: React.FC = () => {
         <p>Install, manage, and develop plugins to extend Mossy's capabilities</p>
       </div>
 
-      {/* Demo Feature Notice */}
-      <div className="error-banner" style={{ background: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
-        <span style={{ color: '#60a5fa' }}>
-          ℹ️ <strong>Demo/Prototype Feature:</strong> The Plugin Manager is a prototype demonstration of the planned plugin system architecture. 
-          Plugin installation and marketplace features are not yet implemented. This UI showcases the intended user experience.
-        </span>
+      <div className="manager-header" style={{ marginTop: 12, marginBottom: 0 }}>
+        <button className="btn btn-primary" onClick={handleInstallFromFolder}>
+          Install Downloaded Plugin Folder
+        </button>
       </div>
 
       {/* Error Display */}
