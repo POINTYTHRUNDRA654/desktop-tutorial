@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MessageSquare, Radio, Image, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, FileDigit, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Archive, Eye, Save, FileCode as FileCodeIcon, Bot, Box, Gauge, Clock, Share2, Github, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy, Star, Brain, Target, ExternalLink, Database, Wand2, Zap, Download } from 'lucide-react';
+import { MessageSquare, Radio, Image, Layers, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, FileDigit, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Archive, Eye, Save, FileCode as FileCodeIcon, Bot, Box, Gauge, Clock, Share2, Github, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy, Star, Brain, Target, ExternalLink, Database, Wand2, Zap, Download } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { useI18n } from './i18n';
 import TourLauncher from './TourLauncher';
@@ -87,8 +87,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/wizards', icon: Wrench, label: t('nav.wizards', 'Wizards') },
     { to: '/crash-triage', icon: Bug, label: t('nav.crashTriage', 'Crash Triage') },
     { to: '/ck-crash-prevention?tab=audit', icon: ShieldCheck, label: t('nav.ckCrashPrevention', 'CK Safety') },
-    { to: '/dds-converter', icon: Image, label: t('nav.ddsConverter', 'DDS Converter') },
-    { to: '/texture-generator', icon: Wand2, label: t('nav.textureGenerator', 'Texture Generator') },
+    { to: '/textures', icon: Layers, label: t('nav.texturesMaterials', 'Textures & Materials') },
     { to: '/packaging-release', icon: Archive, label: t('nav.packagingRelease', 'Packaging & Release') },
     { to: '/animation-guide', icon: Book, label: t('nav.animationGuide', 'Animation Guide') },
     { to: '/quest-authoring', icon: BookOpen, label: t('nav.questModAuthoring', 'Quest Mod Authoring') },
@@ -120,7 +119,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/capabilities', icon: Gauge, label: t('nav.localCapabilities', 'Local Capabilities') },
 
     // === CONTENT CREATION ===
-    { to: '/images', icon: Image, label: t('nav.imageStudio', 'Image Studio') },
 
     // === INTEGRATION & SUPPORT ===
     { to: '/live', icon: Radio, label: t('nav.liveSynapse', 'Live Synapse') },

@@ -147,6 +147,7 @@ const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
 const POST_ONBOARDING_NAV_DELAY_MS = 150;
 const DDSConverter = React.lazy(() => import('./DDSConverter').then(module => ({ default: module.DDSConverter })));
 const TextureGenerator = React.lazy(() => import('./TextureGenerator').then(module => ({ default: module.TextureGenerator })));
+const TextureMaterialsHub = React.lazy(() => import('./TextureMaterialsHub'));
 
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
@@ -208,7 +209,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/dev/orchestrator', '/dev/workflow-runner', '/dev/workflow-recorder',
   '/dev/plugin-manager', '/dev/load-order', '/media', '/media/images', '/test',
   '/test/holo', '/test/notification-test', '/test/bridge', '/learn', '/reference',
-  '/knowledge', '/lore', '/memory-vault', '/ck-crash-prevention', '/dds-converter',
+  '/knowledge', '/lore', '/memory-vault', '/ck-crash-prevention', '/textures', '/dds-converter',
   '/texture-generator', '/guides', '/guides/blender', '/guides/blender/animation',
   '/guides/creation-kit', '/guides/creation-kit/quest-authoring', '/guides/papyrus/guide',
   '/guides/physics', '/guides/mods', '/guides/mods/bodyslide', '/guides/mods/sim-settlements',
@@ -1394,7 +1395,8 @@ const App: React.FC = () => {
                 <Route path="/vault" element={<Navigate to="/tools/vault" replace />} />
                 <Route path="/neural-link" element={<Navigate to="/live" replace />} />
                 <Route path="/workshop" element={<Navigate to="/dev/workshop" replace />} />
-                <Route path="/images" element={<Navigate to="/media/images" replace />} />
+                <Route path="/images" element={<Navigate to="/textures" replace />} />
+                <Route path="/media/images" element={<Navigate to="/textures" replace />} />
                 <Route path="/tts" element={<Navigate to="/live" replace />} />
                 <Route path="/bridge" element={<Navigate to="/test/bridge" replace />} />
                 <Route path="/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
@@ -1495,6 +1497,9 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/lore"><ErrorBoundary><Lorekeeper /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/memory-vault"><ErrorBoundary><MossyMemoryVault /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/ck-crash-prevention"><ErrorBoundary><CKCrashPrevention /></ErrorBoundary></KeepAlivePanel>
+              {/* Textures & Materials Hub — unified platform for all texture/material work */}
+              <KeepAlivePanel path="/textures"><ErrorBoundary><TextureMaterialsHub /></ErrorBoundary></KeepAlivePanel>
+              {/* Legacy individual panels kept alive for backward compatibility */}
               <KeepAlivePanel path="/dds-converter"><ErrorBoundary><DDSConverter /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/texture-generator"><ErrorBoundary><TextureGenerator /></ErrorBoundary></KeepAlivePanel>
               {/* Guides */}
