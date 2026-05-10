@@ -4,7 +4,17 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.49] — Latest
+## [5.4.50] — Latest
+
+### Improved — Platform 7: Memory Vault Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 7 labels now use **FO4 Memory Vault** in sidebar and key discovery surfaces.
+- **Handler/wiring verified**: `/memory-vault` KeepAlive route and ingestion/search/share controls were verified as connected to the active Memory Vault panel.
+- **Context gap fixed**: tutorial context entry now points to `/memory-vault` and reflects actual Memory Vault behavior (ingest flow, trust filters, shared/export workflows) instead of legacy vault staging metadata.
+- **Help routing aligned**: Memory Vault Help shortcut now opens the consolidated in-app FO4 Knowledge Hub.
+
+---
+
+## [5.4.49]
 
 ### Improved — Platform 6: Knowledge Hub Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 6 labels now use **FO4 Knowledge Hub** in sidebar and key hub references.

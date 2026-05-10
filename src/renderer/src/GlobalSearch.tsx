@@ -65,7 +65,7 @@ const searchIndex: SearchItem[] = [
   { id: 'workflow-runner', label: 'Workflow Runner', path: '/workflow-runner', category: 'Workflow', description: 'Run automated workflows' },
   { id: 'holodeck', label: 'The Holodeck', path: '/holo', category: 'Testing', description: 'Testing and simulation environment' },
   { id: 'vault', label: 'The Vault', path: '/vault', category: 'Assets', description: 'Asset management and storage' },
-  { id: 'memory-vault', label: 'Memory Vault', path: '/memory-vault', category: 'AI', description: 'AI memory and knowledge storage' },
+  { id: 'memory-vault', label: 'FO4 Memory Vault', path: '/memory-vault', category: 'AI', description: 'AI memory and knowledge storage' },
   { id: 'neural-link', label: 'Neural Link', path: '/neural-link', category: 'Integration', description: 'Tool integration and monitoring' },
   { id: 'workflow-recorder', label: 'Workflow Recorder', path: '/dev/workflow-recorder', category: 'Development', description: 'Record and replay workflows' },
   { id: 'plugin-manager', label: 'Plugin Manager', path: '/dev/plugin-manager', category: 'Development', description: 'Manage plugins and extensions' },
