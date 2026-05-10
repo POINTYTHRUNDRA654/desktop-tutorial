@@ -2210,6 +2210,81 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
+  'asset-analysis': {
+    pageId: 'asset-analysis',
+    pageName: 'FO4 Asset Analysis Hub',
+    visualGuidePage: 19,
+    route: '/asset-analysis',
+    purpose: 'FO4 Asset Analysis Hub centralizes quality workflows for Fallout 4 assets: mining dependency data, conflict/performance analysis, duplicate reduction, and in-app optimization guidance.',
+    features: [
+      'Four-tab workflow: Mining Dashboard, Advanced Analysis, Asset Deduplicator, and FO4 Asset Guide',
+      'Session tab persistence via `asset_hub_tab` so the last active tab restores automatically',
+      'Lazy-loaded analysis panels for heavy workflows while keeping the hub responsive',
+      'Unified QA flow from scan/mining insights to dedupe cleanup and optimization reference',
+    ],
+    controls: [
+      {
+        name: 'Mining Dashboard tab',
+        type: 'tab',
+        description: 'Opens the dependency/mining workspace for plugin and asset visibility',
+        whenToUse: 'Start here to map relationships, coverage, or data patterns before deeper analysis',
+      },
+      {
+        name: 'Advanced Analysis tab',
+        type: 'tab',
+        description: 'Loads deeper conflict, performance, and memory-oriented analysis views',
+        whenToUse: 'Use when diagnosing stability/performance issues or validating high-risk asset sets',
+      },
+      {
+        name: 'Asset Deduplicator tab',
+        type: 'tab',
+        description: 'Opens duplicate detection and consolidation workflow',
+        whenToUse: 'Switch here when reducing repeated assets and trimming VRAM/storage waste',
+      },
+      {
+        name: 'FO4 Asset Guide tab',
+        type: 'tab',
+        description: 'Built-in Fallout 4 reference covering budgets, conflicts, and optimization practices',
+        whenToUse: 'Use as the authoritative in-app reference while triaging and fixing asset issues',
+      },
+    ],
+    commonMistakes: [
+      'Only running one tab workflow and missing issues visible in the other analysis tabs',
+      'Skipping deduplication after analysis, leaving avoidable VRAM and archive bloat',
+      'Forgetting that active tab state persists in session storage under `asset_hub_tab`',
+      'Treating guide recommendations as optional when troubleshooting severe performance conflicts',
+    ],
+    guides: [
+      {
+        title: 'End-to-end asset QA pass',
+        steps: [
+          'Open Mining Dashboard to map plugin/assets and identify suspicious hotspots',
+          'Switch to Advanced Analysis to inspect conflicts, memory pressure, and performance warnings',
+          'Use Asset Deduplicator to consolidate repeated files and reduce runtime overhead',
+          'Review FO4 Asset Guide thresholds before final packaging and release checks',
+        ],
+      },
+      {
+        title: 'Resume a prior analysis session',
+        steps: [
+          'Return to `/asset-analysis` and confirm the expected tab restores from `asset_hub_tab`',
+          'If the wrong tab appears, switch to the relevant stage manually',
+          'Continue from the remaining QA stage instead of rerunning completed steps',
+        ],
+      },
+    ],
+    tutorialSections: [
+      'FO4 Asset Analysis Hub - Quality Workflow',
+      'Mining, Analysis, Deduplication & FO4 Guide',
+    ],
+    suggestedQuestions: [
+      'Which tab should I start with in FO4 Asset Analysis Hub?',
+      'When do I use Mining Dashboard versus Advanced Analysis?',
+      'How does Asset Deduplicator help with VRAM and archive size?',
+      'Why does FO4 Asset Analysis Hub reopen on the previous tab?',
+    ],
+  },
+
   'workflow-runner': {
     pageId: 'workflow-runner',
     pageName: 'Workflow Runner',

@@ -1625,7 +1625,7 @@ export const ChatInterface: React.FC = () => {
                     "• Creation Kit Hub (/ck-tools): CK safety tooling, crash prevention workflows, and FO4 CK references.",
                     "• Textures & Materials Hub (/textures): DDS format decisions and FO4 material pipeline guidance.",
                     "• Plugin & Load Order Hub (/plugin-tools): xEdit conflict checks, load order workflows, and PRP-aware patching.",
-                    "• Asset Analysis Hub (/asset-analysis): Asset auditing, dedupe checks, and pipeline diagnostics.",
+                    "• FO4 Asset Analysis Hub (/asset-analysis): Mining Dashboard, Advanced Analysis, Asset Deduplicator, and FO4 asset optimization guidance.",
                     "• FO4 Mod Builder Hub (/mod-builder): Blueprint, Workshop, Devtools, and Scribe workflows for building complete mods.",
                     "• Packaging & Release Hub (/packaging-release): BA2 and FOMOD packaging/release checks.",
                     "• Runtime Hub (/runtime-hub): Live Synapse, Desktop Bridge status, and in-session runtime tooling.",
