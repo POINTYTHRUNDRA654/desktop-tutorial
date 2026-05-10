@@ -349,7 +349,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'live-voice': {
     pageId: 'live-voice',
     pageName: 'Live Synapse',
-    visualGuidePage: 39,
     route: '/runtime-hub',
     purpose: 'Real-time, voice-driven interaction with Mossy — live transcription, mic monitoring and embedded audio tools.',
     features: [
@@ -476,7 +475,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'auditor': {
     pageId: 'auditor',
     pageName: 'The Auditor',
-    visualGuidePage: 22,
     route: '/tools/auditor',
     purpose: 'In‑app triage and validation for plugins, meshes, textures and materials with AI advice and in‑place fixes.',
     features: [
@@ -526,7 +524,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'image-suite': {
     pageId: 'image-suite',
     pageName: 'Image Studio',
-    visualGuidePage: 35,
     route: '/media/images',
     purpose: 'PBR texture generation, format conversion and FO4-ready exports — includes visual previews, presets and DDS tooling integration.',
     features: [
@@ -575,7 +572,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'workshop': {
     pageId: 'workshop',
     pageName: 'The Workshop',
-    visualGuidePage: 20,
     route: '/dev/workshop',
     purpose: 'Code editor and script development environment for modding',
     features: [
@@ -798,7 +794,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'holodeck': {
     pageId: 'holodeck',
     pageName: 'The Holodeck',
-    visualGuidePage: 29,
     route: '/runtime-hub',
     purpose: 'Test mods in a virtual environment before in-game testing',
     features: [
@@ -1223,7 +1218,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'monitor': {
     pageId: 'monitor',
     pageName: 'System Monitor',
-    visualGuidePage: 26,
     route: '/monitor',
     purpose: 'System Monitor is the status & diagnostics hub — run hardware and tool detection, inspect Desktop Bridge status, and collect exportable diagnostic snapshots.',
     features: [
@@ -1252,7 +1246,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'diagnostics': {
     pageId: 'diagnostics',
     pageName: 'Diagnostic Tools',
-    visualGuidePage: 16, // synced from VISUAL_GUIDE.md
     route: '/system-hub',
     purpose: 'All-in-one system checks: verify the desktop bridge, tool paths, API/secret visibility, permissions, and collect exportable diagnostic snapshots for triage.',
     features: [
@@ -1367,7 +1360,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'devtools': {
     pageId: 'devtools',
     pageName: 'Dev Tools',
-    visualGuidePage: 18,
     route: '/devtools',
     purpose: 'Generate, analyze and validate Papyrus scripts — scaffold code, detect issues, and prepare scripts for compilation.',
     features: [
@@ -1650,7 +1642,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'blueprint': {
     pageId: 'blueprint',
     pageName: 'The Blueprint',
-    visualGuidePage: 21,
     route: '/tools/blueprint',
     purpose: 'Mod architecture planner — choose a template, inspect folder/file layout, required components and dependencies, then copy or export the structure to your workspace.',
     features: [
@@ -1749,7 +1740,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'scribe': {
     pageId: 'scribe',
     pageName: 'The Scribe',
-    visualGuidePage: 25,
     route: '/tools/scribe',
     purpose: 'Author documentation and scripts — write readmes, manage script templates, validate Papyrus/xEdit/Blender code, and export/install bundles.',
     features: [
@@ -1946,7 +1936,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'duplicate-finder': {
     pageId: 'duplicate-finder',
     pageName: 'Duplicate Finder',
-    visualGuidePage: 38,
     route: '/tools/dedupe',
     purpose: 'Scan selected folders for byte-identical duplicate files (textures, meshes, archives) and safely move duplicates to the Recycle Bin or export selection lists.',
     features: [
@@ -2471,7 +2460,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'desktop-bridge': {
     pageId: 'desktop-bridge',
     pageName: 'Desktop Bridge',
-    visualGuidePage: 37,
     route: '/runtime-hub',
     purpose: 'Local system bridge that connects Mossy (renderer) to OS tools, editors, and runtime services — exposes drivers, hardware info, file/clipboard access, and special integrations (Blender, CK, xEdit).',
     features: [
@@ -2918,7 +2906,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'blender-animation-guide': {
     pageId: 'blender-animation-guide',
     pageName: 'Animation Guide',
-    visualGuidePage: 13, // synced from VISUAL_GUIDE.md
     route: '/guides-hub',
     purpose: 'End-to-end Fallout 4 animation pipeline: skeleton import, rigging, authoring, FBX export and HKX conversion, validation and in‑game testing.',
     features: [
@@ -3417,7 +3404,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'mining-dashboard': {
     pageId: 'mining-dashboard',
     pageName: 'Mining Dashboard',
-    visualGuidePage: 23,
     route: '/dev/mining-dashboard',
     purpose: 'Monitor and manage AI mining operations for data collection',
     features: [
@@ -3538,7 +3524,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'plugin-manager': {
     pageId: 'plugin-manager',
     pageName: 'Plugin Manager',
-    visualGuidePage: 33,
     route: '/dev/plugin-manager',
     purpose: 'Manage and configure plugins that extend Mossy functionality',
     features: [
@@ -3599,7 +3584,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'roadmap-panel': {
     pageId: 'roadmap-panel',
     pageName: 'Modding Roadmaps',
-    visualGuidePage: 5,
     route: '/journey-hub',
     purpose: 'Turn a mod idea into a step‑by‑step plan with tool hints and progress tracking',
     features: [
@@ -3666,7 +3650,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'ba2-manager': {
     pageId: 'ba2-manager',
     pageName: 'BA2 Manager',
-    visualGuidePage: 31,
     route: '/tools/ba2-manager',
     purpose: 'Create and manage Bethesda Archive files for Fallout 4 mods',
     features: [
@@ -3727,7 +3710,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'workflow-recorder': {
     pageId: 'workflow-recorder',
     pageName: 'Workflow Recorder',
-    visualGuidePage: 32,
     route: '/dev/workflow-recorder',
     purpose: 'Record and automate repetitive modding tasks and workflows',
     features: [
@@ -3788,7 +3770,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'first-success': {
     pageId: 'first-success',
     pageName: 'First Success Wizard',
-    visualGuidePage: 4,
     route: '/journey-hub',
     purpose: 'Guide you through the core onboarding checklist so Mossy can personalize help',
     features: [
@@ -3855,6 +3836,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   // pageName: 'What s New', (parity helper)
   // pageName: 'Whats New', (parity helper)
   // parity: pageName: "What's New"
+  // parity helper: pageName: "FO4 What’s New",
   'whats-new': {
     pageId: 'whats-new',
     pageName: "FO4 What's New",
@@ -3994,7 +3976,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'advanced-analysis': {
     pageId: 'advanced-analysis',
     pageName: 'Advanced Analysis',
-    visualGuidePage: 24,
     route: '/tools/analysis',
     purpose: 'Deep asset and plugin analysis with AI-suggested fixes and batch scanning.',
     features: [
@@ -4022,7 +4003,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'local-capabilities': {
     pageId: 'local-capabilities',
     pageName: 'Local Capabilities',
-    visualGuidePage: 34,
     route: '/local',
     purpose: 'Detect and list local system capabilities and available native integrations.',
     features: [
@@ -4050,7 +4030,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'community-learning': {
     pageId: 'community-learning',
     pageName: 'Community Learning',
-    visualGuidePage: 39,
     route: '/community',
     purpose: 'Access community-contributed guides, tutorials and examples.',
     features: [
@@ -4078,7 +4057,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'tool-verify': {
     pageId: 'tool-verify',
     pageName: 'Tool Verify',
-    visualGuidePage: 40,
     route: '/tools/verify',
     purpose: 'Verify configured tool paths and versions (Creation Kit, Blender, MO2, xEdit).',
     features: [
@@ -4106,7 +4084,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'guided-tours': {
     pageId: 'guided-tours',
     pageName: 'Guided Tours',
-    visualGuidePage: 53,
     route: '/tours',
     purpose: 'Curated guided tours through common workflows and multi-step tutorials.',
     features: [
@@ -4133,7 +4110,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'fallout4-wiki': {
     pageId: 'fallout4-wiki',
     pageName: 'Fallout 4 Wiki (Reference)',
-    visualGuidePage: 52,
     route: '/reference/wiki',
     purpose: 'Quick links and reference to community and official Fallout 4 resources.',
     features: [
@@ -4160,7 +4136,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'pip-boy-mode': {
     pageId: 'pip-boy-mode',
     pageName: 'Pip‑Boy Mode',
-    visualGuidePage: 54,
     route: '/pip-boy',
     purpose: 'Toggle the Pip‑Boy UI mode for an immersive, game-like view of Mossy.',
     features: [
@@ -4187,7 +4162,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'knowledge-search': {
     pageId: 'knowledge-search',
     pageName: 'Knowledge Search',
-    visualGuidePage: 9,
     route: '/knowledge',
     purpose: 'Search the Mossy knowledge base for Fallout 4 modding information.',
     features: ['Full-text search', 'Category filters', 'Bookmarks'],
@@ -4203,7 +4177,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'crash-triage': {
     pageId: 'crash-triage',
     pageName: 'Crash Triage',
-    visualGuidePage: 11,
     route: '/crash-triage',
     purpose: 'Diagnose and triage Fallout 4 crash logs to identify mod conflicts.',
     features: ['Crash log analysis', 'Conflict detection', 'Fix suggestions'],
@@ -4219,7 +4192,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'the-lorekeeper': {
     pageId: 'the-lorekeeper',
     pageName: 'LOD & Precombine Guide',
-    visualGuidePage: 15,
     route: '/guides-hub',
     purpose: 'End-to-end LOD generation and precombine rebuild workflow for FO4 exterior mods: xLODGen terrain/object LODs, DynDOLOD tree/dynamic LODs, and PRP precombine rebuild and validation.',
     features: ['xLODGen terrain and object LOD generation', 'DynDOLOD tree and dynamic LOD setup', 'PRP precombine rebuild steps', 'Exterior cell edit validation', 'Precombine conflict detection'],
@@ -4235,7 +4207,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'tools': {
     pageId: 'tools',
     pageName: 'Tools',
-    visualGuidePage: 16,
     route: '/tools',
     purpose: 'Central hub for all Mossy modding tools and utilities.',
     features: ['Tool launcher', 'Quick access', 'Tool status'],
@@ -4251,7 +4222,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'the-assembler': {
     pageId: 'the-assembler',
     pageName: 'The Assembler',
-    visualGuidePage: 19,
     route: '/tools/assembler',
     purpose: 'Assemble and package mod files for distribution.',
     features: ['File assembly', 'Archive creation', 'Validation'],
@@ -4267,7 +4237,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'ck-extensions': {
     pageId: 'ck-extensions',
     pageName: 'CK Extensions',
-    visualGuidePage: 44,
     route: '/tools/ck-extension',
     purpose: 'Creation Kit extensions and integrations for advanced modding workflows.',
     features: ['CK plugin list', 'Extension manager', 'CK integration'],
@@ -4283,7 +4252,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'comfyui-extensions': {
     pageId: 'comfyui-extensions',
     pageName: 'ComFyui Extensions',
-    visualGuidePage: 45,
     route: '/extensions/comfyui',
     purpose: 'ComfyUI workflow integration for AI-assisted texture and image generation.',
     features: ['ComfyUI workflow runner', 'Preset workflows', 'Output preview'],
@@ -4299,7 +4267,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'upscayl-extension': {
     pageId: 'upscayl-extension',
     pageName: 'Upscayl / Upscale Extension',
-    visualGuidePage: 46,
     route: '/extensions/upscayl',
     purpose: 'AI-powered texture upscaling using Upscayl for higher-resolution mod assets.',
     features: ['Batch upscaling', 'Model selection', 'Preview comparison'],
@@ -4315,7 +4282,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'mo2-extension': {
     pageId: 'mo2-extension',
     pageName: 'MO2 Extension',
-    visualGuidePage: 47,
     route: '/extensions/mo2',
     purpose: 'Mod Organizer 2 integration for managing mod load order and profiles.',
     features: ['MO2 connection', 'Load order sync', 'Profile management'],
@@ -4331,7 +4297,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'xedit-tools': {
     pageId: 'xedit-tools',
     pageName: 'xEdit Tools',
-    visualGuidePage: 48,
     route: '/tools/xedit',
     purpose: 'xEdit (FO4Edit) integration for editing ESP/ESL/ESM plugin records.',
     features: ['Record browser', 'Script runner', 'Conflict resolver'],
@@ -4445,7 +4410,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'dds-converter': {
     pageId: 'dds-converter',
     pageName: 'DDS Converter',
-    visualGuidePage: 49,
     route: '/dds-converter',
     purpose: 'Convert image files to and from DDS format for Fallout 4 textures.',
     features: ['Batch conversion', 'Format selection', 'Mip map generation'],
@@ -4461,7 +4425,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'texture-generator': {
     pageId: 'texture-generator',
     pageName: 'Texture Generator',
-    visualGuidePage: 50,
     route: '/texture-generator',
     purpose: 'Generate and edit textures for Fallout 4 mods using AI and manual tools.',
     features: ['AI generation', 'Manual editing', 'Template library'],
@@ -4477,7 +4440,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'formid-remapper': {
     pageId: 'formid-remapper',
     pageName: 'FormID Remapper',
-    visualGuidePage: 54,
     route: '/tools/formid-remapper',
     purpose: 'Remap FormIDs in ESP/ESL/ESM plugins to resolve conflicts.',
     features: ['Conflict detection', 'Automatic remapping', 'Validation'],
@@ -4493,7 +4455,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'precombine-generator': {
     pageId: 'precombine-generator',
     pageName: 'Precombine Generator',
-    visualGuidePage: 55,
     route: '/tools/precombine-generator',
     purpose: 'Two-in-one PRP toolset: (1) scan your full MO2 load order and generate a one-click PRP-compatible combined patch for everything; (2) rebuild precombines for a single mod you just built and generate a standalone PRP companion patch for it.',
     features: [
