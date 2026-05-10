@@ -4,7 +4,23 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.34] — Latest
+## [5.4.42] — Latest
+
+### Added
+- **Textures & Materials Hub** — DDS Converter, Texture Generator, and Image Studio are now unified under a single sidebar entry (`Textures & Materials`). A new **FO4 Texture Guide** tab is included with a comprehensive, up-to-date reference covering: format selection table (BC1/BC3/BC5/BC7/BC4/BC6H), FO4 channel conventions (_d, _n, _s, _g, _h, _rmaos, _m, .bgsm), mipmap & resolution rules, PBR pipeline notes (Community Shaders + ENB), common mistakes to avoid, and a tools reference list.
+- Old sidebar entries for DDS Converter, Texture Generator, and Image Studio have been removed; navigating to their old URLs redirects to the new `/textures` hub automatically.
+
+---
+
+## [5.4.41]
+
+### Added
+- **Changelog-driven What's New** — What's New now renders from CHANGELOG.md by app version, with fallback to the latest entry if the current version is missing.
+- **Critical Progress Backup** — User-authored progress (mod projects, chat history, knowledge vault, roadmap, workflow state) is now backed up to durable local storage and restored on startup if missing, ensuring data survives updates and rescans.
+
+---
+
+## [5.4.34]
 
 ### Added
 - **Tutorial reordered** — the Guided Tour welcome sequence now matches the updated sidebar lineup, with Mod Projects and Modding Roadmaps steps inserted after the First Success Wizard
