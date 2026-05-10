@@ -2293,7 +2293,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'workflow-runner': {
     pageId: 'workflow-runner',
-    pageName: 'Workflow Runner',
+    pageName: 'FO4 Automation Runner',
     visualGuidePage: 28,
     route: '/dev/workflow-runner',
     purpose: 'Author, save, run and inspect repeatable automation workflows (commands, program launches, URLs, file reveals). Workflows persist to app settings and are intended for desktop automation runs.',
@@ -2381,7 +2381,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       },
     ],
     tutorialSections: [
-      'Workflow Runner - Execution Engine',
+      'FO4 Automation Runner - Execution Engine',
       'Authoring & Troubleshooting Workflows',
     ],
     suggestedQuestions: [

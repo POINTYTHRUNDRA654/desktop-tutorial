@@ -1628,6 +1628,7 @@ export const ChatInterface: React.FC = () => {
                     "• FO4 Asset Analysis Hub (/asset-analysis): Mining Dashboard, Advanced Analysis, Asset Deduplicator, and FO4 asset optimization guidance.",
                     "• FO4 Mod Builder Hub (/mod-builder): Blueprint, Workshop, Devtools, and Scribe workflows for building complete mods.",
                     "• FO4 Automation Orchestrator (/orchestrator): Type-based asset pipelines, step-by-step run logs, storage stats, and BA2 staging queue.",
+                    "• FO4 Automation Runner (/workflow-runner): Typed step workflows, desktop execution, run history logs, and JSON import/export sharing.",
                     "• Packaging & Release Hub (/packaging-release): BA2 and FOMOD packaging/release checks.",
                     "• Runtime Hub (/runtime-hub): Live Synapse, Desktop Bridge status, and in-session runtime tooling.",
                     "• External Integrations Hub (/ext-tools): MO2, ComfyUI, and Upscayl integration guidance.",
