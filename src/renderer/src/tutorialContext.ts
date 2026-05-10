@@ -653,7 +653,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'orchestrator': {
     pageId: 'orchestrator',
     pageName: 'FO4 Automation Orchestrator',
-    visualGuidePage: 27,
+    visualGuidePage: 16,
     route: '/dev/orchestrator',
     purpose: 'FO4 Automation Orchestrator centralizes type-aware asset pipelines so mesh, texture, audio, and script processing can be run from one panel with reproducible logs and BA2 staging output.',
     features: [
@@ -869,7 +869,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'packaging': {
     pageId: 'packaging',
     pageName: 'FO4 Packaging & Release',
-    visualGuidePage: 12, // synced from VISUAL_GUIDE.md
+    visualGuidePage: 11, // synced from VISUAL_GUIDE.md
     route: '/packaging-release',
     purpose: 'Unified FO4 release pipeline for packaging and validation: BA2 archive prep, release checklist, conflict analysis, mod comparison, and FOMOD installer export.',
     features: [
@@ -950,7 +950,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'learning-hub': {
     pageId: 'knowledge-hub',
     pageName: 'FO4 Knowledge Hub',
-    visualGuidePage: 8,
+    visualGuidePage: 6,
     route: '/knowledge-hub',
     purpose: 'Unified FO4 knowledge workspace for quick references, semantic search, and community learning notes.',
     features: [
@@ -1020,7 +1020,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'settings': {
     pageId: 'settings',
     pageName: 'Settings',
-    visualGuidePage: 41,
+    visualGuidePage: 22,
     route: '/settings',
     purpose: 'Configure Mossy preferences and system integration',
     features: [
@@ -1095,8 +1095,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'project-hub': {
     pageId: 'project-hub',
-    pageName: 'Mod Projects',
-    visualGuidePage: 7,
+    pageName: 'FO4 Mod Journey Hub',
+    visualGuidePage: 4,
     route: '/journey-hub',
     purpose: 'Create, organize and track mod projects end-to-end (planning → implementation → release).',
     features: [
@@ -1467,7 +1467,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'wizards': {
     pageId: 'wizards',
     pageName: 'FO4 Setup Wizards',
-    visualGuidePage: 10, // synced from VISUAL_GUIDE.md
+    visualGuidePage: 8, // synced from VISUAL_GUIDE.md
     route: '/wizards',
     purpose: 'All-in-one FO4 setup flow for selecting a platform path, completing install verification checklists, and generating PRP compatibility planning output.',
     features: [
@@ -1560,7 +1560,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'ck-tools': {
     pageId: 'ck-tools',
     pageName: 'FO4 Creation Kit Hub',
-    visualGuidePage: 44,
+    visualGuidePage: 9,
     route: '/ck-tools',
     purpose: 'Unified Creation Kit workspace for safety checks, extension tooling, and an embedded FO4 CK reference guide.',
     features: [
@@ -1854,7 +1854,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'vault': {
     pageId: 'memory-vault',
     pageName: 'FO4 Memory Vault',
-    visualGuidePage: 30,
+    visualGuidePage: 7,
     route: '/memory-vault',
     purpose: 'Long-term FO4 knowledge memory hub for ingesting notes/files, searching trusted memory, and sharing curated community packs.',
     features: [
@@ -2062,7 +2062,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'cosmos-workflow': {
     pageId: 'cosmos-workflow',
     pageName: 'FO4 Automation Studio',
-    visualGuidePage: 17,
+    visualGuidePage: 13,
     route: '/tools/cosmos',
     purpose: 'FO4 Automation Studio for Cosmos integrations: verify local repo detection, register knowledge roots, open integration docs, and validate searchable workflow coverage in Knowledge Search.',
     features: [
@@ -2144,7 +2144,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'mod-builder': {
     pageId: 'mod-builder',
     pageName: 'FO4 Mod Builder Hub',
-    visualGuidePage: 18,
+    visualGuidePage: 14,
     route: '/mod-builder',
     purpose: 'FO4 Mod Builder Hub unifies the authoring workflow for planning a mod, working with project files, generating scripts, and producing documentation inside one four-tab workspace.',
     features: [
@@ -2219,7 +2219,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'asset-analysis': {
     pageId: 'asset-analysis',
     pageName: 'FO4 Asset Analysis Hub',
-    visualGuidePage: 19,
+    visualGuidePage: 15,
     route: '/asset-analysis',
     purpose: 'FO4 Asset Analysis Hub centralizes quality workflows for Fallout 4 assets: mining dependency data, conflict/performance analysis, duplicate reduction, and in-app optimization guidance.',
     features: [
@@ -2294,7 +2294,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'workflow-runner': {
     pageId: 'workflow-runner',
     pageName: 'FO4 Automation Runner',
-    visualGuidePage: 28,
+    visualGuidePage: 17,
     route: '/dev/workflow-runner',
     purpose: 'Author, save, run and inspect repeatable automation workflows (commands, program launches, URLs, file reveals). Workflows persist to app settings and are intended for desktop automation runs.',
     features: [
@@ -2395,7 +2395,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'runtime-hub': {
     pageId: 'runtime-hub',
     pageName: 'FO4 Runtime Hub',
-    visualGuidePage: 39,
+    visualGuidePage: 18,
     route: '/runtime-hub',
     purpose: 'Three-tab runtime operations hub for live voice sessions, desktop bridge connectivity, and in-app testing workflows.',
     features: [
@@ -2594,7 +2594,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'ext-tools': {
     pageId: 'ext-tools',
     pageName: 'FO4 External Integrations Hub',
-    visualGuidePage: 41,
+    visualGuidePage: 19,
     route: '/ext-tools',
     purpose: 'Three-tab external integrations hub for connecting Fallout 4 workflows to Mod Organizer 2, ComfyUI, and Upscayl.',
     features: [
@@ -3857,7 +3857,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   // parity: pageName: "What's New"
   'whats-new': {
     pageId: 'whats-new',
-    pageName: "FO4 What's New", // VISUAL_GUIDE title: What's New
+    pageName: "FO4 What's New",
+    visualGuidePage: 5,
     route: '/whats-new',
     purpose: 'Changelog-driven FO4 release notes page showing current-version highlights, fallback behavior, and version-aware dismissal settings.',
     features: [
@@ -4346,7 +4347,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'textures': {
     pageId: 'textures',
     pageName: 'FO4 Textures & Materials',
-    visualGuidePage: 49,
+    visualGuidePage: 10,
     route: '/textures',
     purpose: 'Unified platform for all texture and material work in Fallout 4 modding — DDS conversion, procedural generation, image processing, and an embedded FO4 texture reference guide.',
     features: [
