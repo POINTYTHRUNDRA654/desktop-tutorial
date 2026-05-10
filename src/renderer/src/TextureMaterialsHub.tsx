@@ -339,7 +339,7 @@ const TextureMaterialsHub: React.FC = () => {
             <Image className="h-5 w-5 text-emerald-300" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight">Textures &amp; Materials</h1>
+            <h1 className="text-xl font-black text-white tracking-tight">FO4 Textures &amp; Materials</h1>
             <p className="text-xs text-slate-400">Convert · Generate · Reference — all texture work in one place</p>
           </div>
         </div>

@@ -4,7 +4,17 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.52] — Latest
+## [5.4.53] — Latest
+
+### Improved — Platform 10: Textures & Materials Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 10 labels now use **FO4 Textures & Materials** in sidebar, hub header, locale nav key, and global search discovery.
+- **Operations verified end-to-end**: `/textures` KeepAlive route, four-tab workflow (DDS Converter, Texture Generator, Image Studio, FO4 Texture Guide), and session tab persistence confirmed against current hub implementation.
+- **Context gap fixed**: added a dedicated `/textures` tutorial context entry mapping real 4-tab operations — DDS batch conversion with format/mipmap controls, PBR generation, image processing, and the embedded texture format reference guide.
+- **Discovery text refreshed**: global search now includes a consolidated FO4 Textures & Materials entry pointing to `/textures`; stale `/images` redirect entry updated to canonical route.
+
+---
+
+## [5.4.52]
 
 ### Improved — Platform 9: Creation Kit Hub Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 9 labels now use **FO4 Creation Kit Hub** in sidebar, hub header, locale nav key, and global search discovery.

@@ -3778,6 +3778,104 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     suggestedQuestions: ['How do I resolve record conflicts in xEdit?'],
   },
 
+  'textures': {
+    pageId: 'textures',
+    pageName: 'FO4 Textures & Materials',
+    visualGuidePage: 49,
+    route: '/textures',
+    purpose: 'Unified platform for all texture and material work in Fallout 4 modding — DDS conversion, procedural generation, image processing, and an embedded FO4 texture reference guide.',
+    features: [
+      'Four-tab consolidated workflow: DDS Converter, Texture Generator, Image Studio, FO4 Texture Guide',
+      'Session tab persistence via sessionStorage (restores last active tab)',
+      'Embedded FO4 Texture Guide: format picker, channel conventions (BC1/BC3/BC5/BC7), mipmap rules, PBR pipeline notes, and common mistakes',
+      'Lazy-loaded tool panels for fast startup',
+      'DDS Converter: batch BC1/BC3/BC5/BC7 conversion with mipmap control',
+      'Texture Generator: PBR and procedural texture generation',
+      'Image Studio: PBR map prep, format conversion, preview',
+    ],
+    controls: [
+      {
+        name: 'DDS Converter Tab',
+        type: 'button',
+        description: 'Opens the batch DDS conversion panel with format and mipmap controls',
+        whenToUse: 'When converting source images (PNG/TGA/etc.) to game-ready DDS before packaging',
+      },
+      {
+        name: 'Texture Generator Tab',
+        type: 'button',
+        description: 'Opens the PBR and procedural texture generation tools',
+        whenToUse: 'When you need to generate new diffuse, normal, or specular maps from scratch',
+      },
+      {
+        name: 'Image Studio Tab',
+        type: 'button',
+        description: 'Opens the image processing panel for PBR map prep, channel splitting, and format conversion',
+        whenToUse: 'When preparing or adjusting existing textures before export to DDS',
+      },
+      {
+        name: 'FO4 Texture Guide Tab',
+        type: 'button',
+        description: 'Shows in-app reference covering format picker, channel conventions, mipmap rules, PBR pipeline, and common mistakes',
+        whenToUse: 'When verifying format choices, channel packing, or PBR/ENB pipeline compatibility before release',
+      },
+      {
+        name: 'Tab Memory Restore',
+        type: 'button',
+        description: 'Remembers and restores your last active texture hub tab in-session',
+        whenToUse: 'When returning to texture work mid-session without losing your place',
+      },
+    ],
+    commonMistakes: [
+      'Using non-power-of-2 texture dimensions (causes black textures or crash)',
+      'Using BC1/DXT1 for normal maps — destroys quality; always use BC5 or DXT5nm',
+      'Skipping mipmap generation on in-game textures',
+      'Shipping uncompressed 32-bit DDS in a BA2 archive',
+      'OpenGL normal handedness instead of DX (flip G channel for FO4)',
+      'Ignoring the FO4 Texture Guide tab when choosing PBR vs vanilla format paths',
+    ],
+    guides: [
+      {
+        title: 'Convert and package textures for FO4',
+        steps: [
+          'Open FO4 Textures & Materials and select the DDS Converter tab',
+          'Add source images and confirm target format (BC1/BC3/BC5/BC7 per use case)',
+          'Enable mipmap generation and run conversion',
+          'Verify output using Image Studio or NifSkope before packaging into BA2',
+        ],
+      },
+      {
+        title: 'Generate new PBR textures',
+        steps: [
+          'Switch to the Texture Generator tab',
+          'Select a PBR or procedural preset matching your asset type',
+          'Adjust parameters and generate the texture set (diffuse, normal, specular)',
+          'Export outputs then convert via DDS Converter before game use',
+        ],
+      },
+      {
+        title: 'Check format and channel rules before release',
+        steps: [
+          'Open the FO4 Texture Guide tab',
+          'Confirm format selection in the Quick Format Picker for each texture type',
+          'Verify channel conventions match your shader pipeline (vanilla vs CShaders PBR)',
+          'Check the Common Mistakes list before packaging',
+        ],
+      },
+    ],
+    tutorialSections: [
+      'DDS Converter (BC1/BC3/BC5/BC7)',
+      'Texture Generator (PBR & Procedural)',
+      'Image Studio (PBR Map Prep)',
+      'FO4 Texture Guide (Formats, Channels, Mipmaps)',
+    ],
+    suggestedQuestions: [
+      'What DDS format should I use for diffuse vs normal textures?',
+      'How do I set up PBR textures for Community Shaders?',
+      'Why does my normal map look inverted in FO4?',
+      'When should I use BC7 vs DXT5 for specular maps?',
+    ],
+  },
+
   'dds-converter': {
     pageId: 'dds-converter',
     pageName: 'DDS Converter',
