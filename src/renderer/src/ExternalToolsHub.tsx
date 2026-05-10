@@ -31,6 +31,13 @@ type AutoConnectStatus = AutoConnectTool & {
   running: boolean;
 };
 
+type DetectedProgram = {
+  name?: string;
+  displayName?: string;
+  path?: string;
+  version?: string;
+};
+
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'mo2', icon: Package, label: 'MO2 Integration', sublabel: 'Mod Organizer 2' },
   { id: 'comfyui', icon: Network, label: 'ComfyUI', sublabel: 'AI Image Generation' },
@@ -85,6 +92,92 @@ const AUTO_CONNECT_TOOLS: AutoConnectTool[] = [
   { id: 'upscayl', label: 'Upscayl', match: ['upscayl'] },
 ];
 
+const SETTINGS_AUTO_MAP: Array<{ key: string; match: string[] }> = [
+  { key: 'mo2Path', match: ['mod organizer', 'modorganizer', 'mo2'] },
+  { key: 'xeditPath', match: ['xedit', 'fo4edit'] },
+  { key: 'creationKitPath', match: ['creation kit'] },
+  { key: 'blenderPath', match: ['blender'] },
+  { key: 'lootPath', match: ['loot'] },
+  { key: 'nifSkopePath', match: ['nifskope'] },
+  { key: 'bodySlidePath', match: ['bodyslide'] },
+  { key: 'outfitStudioPath', match: ['outfit studio'] },
+  { key: 'upscaylPath', match: ['upscayl'] },
+  { key: 'vortexPath', match: ['vortex'] },
+  { key: 'wryeBashPath', match: ['wrye bash'] },
+];
+
+const matchesNeedle = (value: string, needles: string[]) => needles.some((needle) => value.includes(needle));
+
+const toSearchText = (prog: DetectedProgram) =>
+  `${prog.displayName || ''} ${prog.name || ''} ${prog.path || ''}`.toLowerCase();
+
+const promoteDetectedPrograms = (installedPrograms: DetectedProgram[]) => {
+  const existing = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+  const merged = Array.isArray(existing) ? [...existing] : [];
+
+  installedPrograms.forEach((prog) => {
+    const search = toSearchText(prog);
+    if (!AUTO_CONNECT_TOOLS.some((tool) => matchesNeedle(search, tool.match))) return;
+
+    const displayName = prog.displayName || prog.name || 'Detected Tool';
+    const existingIndex = merged.findIndex((app: any) =>
+      (app.displayName || app.name || '').toLowerCase() === displayName.toLowerCase()
+    );
+
+    const normalized = {
+      id: `auto-${displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      name: prog.name || displayName,
+      displayName,
+      category: 'Tool',
+      checked: true,
+      path: prog.path,
+      version: prog.version,
+    };
+
+    if (existingIndex === -1) {
+      merged.push(normalized);
+      return;
+    }
+
+    merged[existingIndex] = {
+      ...merged[existingIndex],
+      ...normalized,
+      path: merged[existingIndex].path || normalized.path,
+      version: merged[existingIndex].version || normalized.version,
+    };
+  });
+
+  localStorage.setItem('mossy_apps', JSON.stringify(merged));
+  window.dispatchEvent(new CustomEvent('mossy-apps-updated', { detail: merged }));
+};
+
+const autoRegisterToolPaths = async (bridge: any, installedPrograms: DetectedProgram[]) => {
+  if (!bridge?.getSettings || !bridge?.setSettings) return;
+
+  const settings = await bridge.getSettings().catch(() => null);
+  if (!settings) return;
+
+  const updates: Record<string, string> = {};
+
+  SETTINGS_AUTO_MAP.forEach(({ key, match }) => {
+    if (typeof settings[key] === 'string' && settings[key].trim()) return;
+
+    const detected = installedPrograms.find((prog) => {
+      const search = toSearchText(prog);
+      return !!prog.path && matchesNeedle(search, match);
+    });
+
+    if (detected?.path) {
+      updates[key] = detected.path;
+    }
+  });
+
+  if (Object.keys(updates).length === 0) return;
+
+  await bridge.setSettings(updates);
+  window.dispatchEvent(new CustomEvent('mossy-settings-updated', { detail: { ...settings, ...updates } }));
+};
+
 const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <Suspense
     fallback={
@@ -120,6 +213,9 @@ const ExternalToolsHub: React.FC = () => {
         bridge?.detectPrograms?.().catch(() => []),
         bridge?.getRunningProcesses?.().catch(() => []),
       ]);
+
+      promoteDetectedPrograms(installedPrograms ?? []);
+      await autoRegisterToolPaths(bridge, installedPrograms ?? []);
 
       const activeToolsRaw = localStorage.getItem('mossy_active_tools');
       let activeTools: any[] = [];
