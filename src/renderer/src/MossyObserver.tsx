@@ -401,6 +401,15 @@ const QUIPS: Record<string, string[]> = {
         "Critical severity tests prevent CTDs and data loss - run these before any release. Major severity tests affect functionality.",
         "Re-run tests after fixing issues to confirm your changes worked - the Holodeck tracks all test runs for comparison."
     ],
+    '/runtime-hub': [
+        "FO4 Runtime Hub unifies three live runtime surfaces: Live Synapse for voice sessions, Desktop Bridge for local integrations, and Holodeck for scenario testing.",
+        "Use the tab bar to switch runtime context without leaving the hub; your last tab is restored from session storage on reload.",
+        "Live Synapse is the voice-first entry point when you need hands-free guidance, live transcription, or tool-aware conversation flow.",
+        "Desktop Bridge is where you verify desktop-only connectivity before relying on local scans, file actions, or external program integrations.",
+        "Holodeck inside Runtime Hub is your pre-release sandbox for scenario validation before testing in-game.",
+        "If a desktop action fails from chat, open FO4 Runtime Hub and confirm the Desktop Bridge path is active before retrying.",
+        "Treat Runtime Hub as the operational status page for live audio, local bridge health, and runtime QA in one place."
+    ],
     '/paperscript': [
         "PaperScript is a modern scripting language for Fallout 4 - a cleaner, more powerful alternative to Papyrus.",
         "Get started in 15 minutes with the Quick Start Guide - covers setup, syntax, and your first script.",

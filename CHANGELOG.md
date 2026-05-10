@@ -4,7 +4,16 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.60] — Latest
+## [5.4.61] — Latest
+
+### Improved — Platform 18: Runtime Hub Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 18 labels now use **FO4 Runtime Hub** across sidebar, hub header, locale nav key, command palette, search, and discovery references.
+- **Hub workflow coverage clarified**: tutorial and discovery copy now reflect the real 3-tab runtime flow — **Live Synapse**, **Desktop Bridge**, and **Holodeck** — including session-persisted tab selection and bridge dependency for desktop-only actions.
+- **Runtime discovery wiring refreshed**: added a dedicated `runtime-hub` tutorial context entry and expanded observer/chat/search metadata so runtime routing matches the actual in-app workspace.
+
+---
+
+## [5.4.60]
 
 ### Improved — Platform 17: Automation Runner Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 17 labels now use **FO4 Automation Runner** across sidebar, runner header, locale nav key, command palette, search, and discovery references.

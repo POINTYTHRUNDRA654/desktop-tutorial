@@ -1630,7 +1630,7 @@ export const ChatInterface: React.FC = () => {
                     "• FO4 Automation Orchestrator (/orchestrator): Type-based asset pipelines, step-by-step run logs, storage stats, and BA2 staging queue.",
                     "• FO4 Automation Runner (/workflow-runner): Typed step workflows, desktop execution, run history logs, and JSON import/export sharing.",
                     "• Packaging & Release Hub (/packaging-release): BA2 and FOMOD packaging/release checks.",
-                    "• Runtime Hub (/runtime-hub): Live Synapse, Desktop Bridge status, and in-session runtime tooling.",
+                    "• FO4 Runtime Hub (/runtime-hub): Live Synapse voice workflows, Desktop Bridge connectivity, and Holodeck runtime testing.",
                     "• External Integrations Hub (/ext-tools): MO2, ComfyUI, and Upscayl integration guidance.",
                     "• System Hub (/system-hub): diagnostics, security posture, and local capability checks.",
                     "• FO4 Knowledge Hub (/knowledge-hub): in-app FO4 docs/reference search."
