@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw, Settings as SettingsIcon, Wifi, Wrench, Check, Brain } from 'lucide-react';
+import { ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw, Settings as SettingsIcon, Wifi, Wrench, Check, Brain, Zap } from 'lucide-react';
 import type { ElectronAPI } from '../../electron/types';
 import PrivacySettings from './PrivacySettings';
 import LanguageSettings from './LanguageSettings';
 import ExternalToolsSettings from './ExternalToolsSettings';
 import AIEngineSettings from './AIEngineSettings';
+import OllamaSettings from './OllamaSettings';
 import { SettingsImportExport } from './SettingsImportExport';
 import TutorialResetSettings from './TutorialResetSettings';
 import VersionInfo from './VersionInfo';
@@ -396,6 +397,13 @@ const SettingsHub: React.FC = () => {
       description: 'Choose the Groq model, response length, and self-critique mode.',
       icon: Brain,
       content: <AIEngineSettings embedded />,
+    },
+    {
+      id: 'ollama',
+      title: 'Step 3b: Local LLM (Ollama - Optional)',
+      description: 'Run open-source models locally for offline AI assistance.',
+      icon: Zap,
+      content: <OllamaSettings embedded />,
     },
     {
       id: 'external-tools',

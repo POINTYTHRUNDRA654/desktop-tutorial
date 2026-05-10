@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Sparkles, CheckCircle } from 'lucide-react';
 import packageJson from '../../../package.json';
-import { getWhatsNewReleaseData } from './services/whatsNewReleaseNotes';
 
 interface WhatsNewDialogProps {
   isOpen: boolean;
@@ -10,22 +9,82 @@ interface WhatsNewDialogProps {
 
 export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose }) => {
   const [dontShowAgain, setDontShowAgain] = useState(false);
-  const releaseData = getWhatsNewReleaseData(packageJson.version);
+  const [entry, setEntry] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const features = releaseData.features.map((feature, index) => ({
-    ...feature,
-    icon: index % 2 === 0 ? '✨' : '🛠️',
-  }));
+  // Load current version's What's New entry from server
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const loadWhatsNew = async () => {
+      try {
+        setLoading(true);
+        const result = await window.electron.api.invoke('whats-new-get-current');
+        
+        if (result?.ok && result.entry) {
+          setEntry(result.entry);
+          // Mark current version as seen
+          await window.electron.api.invoke('whats-new-mark-seen', { 
+            version: packageJson.version 
+          }).catch(err => console.warn('[WhatsNewDialog] Failed to mark as seen:', err));
+        }
+      } catch (err) {
+        console.warn('[WhatsNewDialog] Failed to load What\'s New:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadWhatsNew();
+  }, [isOpen]);
+
+  const defaultFeatures = [
+    {
+      title: "Enhanced AI Chat",
+      description: "Improved conversation memory and context awareness for better assistance.",
+      icon: "🤖"
+    },
+    {
+      title: "Project Management",
+      description: "Create, switch, and manage multiple modding projects with ease.",
+      icon: "📁"
+    },
+    {
+      title: "Neural Link Integration",
+      description: "Real-time monitoring of Blender, Creation Kit, and other modding tools.",
+      icon: "🧠"
+    },
+    {
+      title: "Advanced Asset Analysis",
+      description: "Comprehensive NIF, DDS, and ESP file validation with performance warnings.",
+      icon: "🔍"
+    },
+    {
+      title: "Global Search",
+      description: "Search across all modules and features with Ctrl+K shortcut.",
+      icon: "🔎"
+    },
+    {
+      title: "Favorites System",
+      description: "Bookmark frequently used tools for quick access.",
+      icon: "⭐"
+    }
+  ];
+
+  const features = entry?.features || defaultFeatures;
 
   const handleClose = () => {
     if (dontShowAgain) {
       try {
-        // Store the current version as dismissed so the dialog re-appears on the next release
+        // Dismiss this version via backend
+        window.electron.api.invoke('whats-new-dismiss', { 
+          version: packageJson.version 
+        }).catch(err => console.warn('[WhatsNewDialog] Failed to dismiss:', err));
+        
+        // Also store locally as fallback
         localStorage.setItem('mossy_whats_new_dismissed_version', packageJson.version);
-        // Migrate: remove old boolean flag so version-based check takes over
         localStorage.removeItem('mossy_whats_new_dismissed');
       } catch (err) {
-        // Don't block closing the dialog if storage is unavailable
         console.warn('[WhatsNewDialog] could not persist dismissal:', err);
       }
     }
@@ -53,11 +112,6 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose 
 
         {/* Content */}
         <div className="p-6">
-          {!releaseData.hasExactMatch && releaseData.renderedVersion && (
-            <div className="mb-4 rounded-lg border border-amber-700/40 bg-amber-900/20 p-3 text-xs text-amber-200">
-              No changelog entry was found for v{releaseData.requestedVersion} yet. Showing latest notes from v{releaseData.renderedVersion}.
-            </div>
-          )}
           <div className="grid gap-4">
             {features.map((feature, index) => (
               <div key={index} className="flex items-start gap-4 p-4 bg-slate-800/50 rounded-lg">

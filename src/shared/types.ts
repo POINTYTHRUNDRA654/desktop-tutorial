@@ -124,6 +124,32 @@ export interface Roadmap {
 }
 
 /**
+ * What's New: Release notes and changelog for each version
+ */
+export interface WhatsNewFeature {
+  title: string;
+  description: string;
+  icon: string; // emoji or icon name
+  category?: string; // e.g., 'ai-chat', 'tools', 'performance'
+}
+
+export interface WhatsNewEntry {
+  id: string; // e.g., 'whats-new-5.4.41'
+  version: string; // e.g., '5.4.41'
+  releaseDate: number; // timestamp in milliseconds
+  title: string; // e.g., 'What\'s New in Mossy v5.4.41'
+  features: WhatsNewFeature[];
+  highlights?: string[]; // key highlights/bullet points
+  breakingChanges?: string[]; // breaking changes from previous version
+  deprecations?: string[]; // deprecated features
+  bugFixes?: string[]; // list of fixed bugs
+  knownIssues?: string[]; // known problems in this release
+  upgradeGuide?: string; // markdown-formatted upgrade notes
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
  * Project Wizard: Guided flows for common modding tasks (Phase 3)
  */
 export interface WizardStep {
@@ -661,6 +687,190 @@ export interface Settings {
 
   // Advanced Analytics
   analytics: AnalyticsConfig;
+
+  // Platform 6: Modding Roadmaps
+  roadmaps?: Roadmap[];
+
+  // Platform 7: What's New
+  whatsNewEntries?: WhatsNewEntry[];
+  whatsNewSeenVersions?: string[];
+  whatsNewDismissedVersions?: string[];
+
+  // Platform 8: Mod Browser
+  nexusAuthToken?: string;
+  modBrowserCollections?: Collection[];
+
+  // Platform 9: Load Order Management
+  loadOrders?: LoadOrder[];
+  currentLoadOrderId?: string;
+  pluginCacheExpiry?: number;
+
+  // Platform 10: Conflict Resolution
+  conflictResolutionRules?: any[];
+  lastConflictAnalysis?: any;
+
+  // Platform 11: Plugin Manager
+  installedPlugins?: any[];
+  pluginManagerSettings?: { autoUpdate?: boolean; marketplaceSources?: string[]; installDirectory?: string; allowUnsigned?: boolean; enableTelemetry?: boolean };
+
+  // Platform 12: Team Workspace
+  teamWorkspaces?: any[];
+  teamTasks?: any[];
+
+  // Platform 13: Mining Pipeline
+  miningPipelines?: any[];
+  miningCache?: any[];
+
+  // Platform 14: Testing Suite
+  testingSuites?: any[];
+  testResults?: any[];
+
+  // Platform 15: Advanced Workflow Automation
+  workflowAutomation?: any[];
+  workflowHistory?: any[];
+
+  // Platform 16: Advanced Analytics & Reporting
+  analyticsEvents?: any[];
+  metricsHistory?: any[];
+  analyticsConfig?: any;
+
+  // Platform 17: Git Integration
+  gitRepositories?: any[];
+  gitHistory?: any[];
+
+  // Platform 18: Nexus Mods Auto-Uploader
+  nexusMods?: any[];
+  uploadHistory?: any[];
+  nexusConfig?: any;
+
+  // Platform 19: Interactive Tutorial System
+  tutorialSessions?: any[];
+  tutorialProgress?: any[];
+
+  // Platform 20: AI Texture Enhancement
+  upscaleSessions?: any[];
+  upscaleHistory?: any[];
+  upscaleConfig?: any;
+
+  // Platform 21: AI Voice Generation
+  voiceSessions?: any[];
+  voiceHistory?: any[];
+  voiceGenerationConfig?: any;
+
+  // Platform 22: Mod Dependency Manager
+  modDependencies?: any[];
+  dependencyConflicts?: any[];
+  dependencyConfig?: any;
+
+  // Platform 23: Release Automation
+  releasePackages?: any[];
+  releaseHistory?: any[];
+  releaseConfig?: any;
+
+  // Platform 24: Asset Integrity Auditor
+  assetAudits?: any[];
+  auditReports?: any[];
+  auditConfig?: any;
+
+  // Platform 25: Scripting Assistant & Code Generation
+  scriptTemplates?: any[];
+  generatedScripts?: any[];
+  scriptingConfig?: any;
+
+  // Platform 26: Performance Profiler & Memory Optimizer
+  performanceMetrics?: any[];
+  optimizationReports?: any[];
+  performanceConfig?: any;
+
+  // Platform 27: Modlist Manager
+  modlists?: any[];
+  modlistHistory?: any[];
+  modlistConfig?: any;
+
+  // Platform 28: Conflict Resolution Engine
+  conflictDetections?: any[];
+  resolutionRecords?: any[];
+  conflictConfig?: any;
+
+  // Platform 29: Advanced Troubleshooting & Diagnostics Suite
+  diagnosticsData?: any[];
+  troubleshootingRecords?: any[];
+  diagnosticsConfig?: any;
+
+  // Platform 30: Load Order Optimizer
+  loadOrderOptimizations?: any[];
+  loadOrderHistory?: any[];
+  loadOrderConfig?: any;
+
+  // Platform 31: Papyrus Compiler Integration
+  papyrusCompilations?: any[];
+  papyrusScriptLibrary?: any[];
+  papyrusCompilerConfig?: any;
+
+  // Platform 33: Archive Manager
+  archiveProjects?: any[];
+  archiveHistory?: any[];
+  archiveManagerConfig?: any;
+
+  // Platform 34: ENB/ReShade Preset Manager
+  enbPresets?: any[];
+  enbPresetHistory?: any[];
+  enbPresetConfig?: any;
+
+  // Platform 35: Community Mod Rating & Reviews System
+  communityRatings?: any[];
+  communityReviews?: any[];
+  communityRatingsConfig?: any;
+
+  // Platform 36: Mesh & 3D Model Optimizer
+  meshOptimizations?: any[];
+  meshHistory?: any[];
+  meshOptimizerConfig?: any;
+
+  // Platform 37: Animation & Skeleton Retargeting System
+  animationRetargeting?: any[];
+  skeletonHistory?: any[];
+  animationRetargetingConfig?: any;
+
+  // Platform 38: Dialogue System Manager
+  dialogueTrees?: any[];
+  dialogueHistory?: any[];
+  dialogueManagerConfig?: any;
+
+  // Platform 39: Texture & Material Management System
+  textureManagement?: any[];
+  materialHistory?: any[];
+  textureManagerConfig?: any;
+
+  // Platform 40: ESP/ESM Plugin Manager
+  pluginManagement?: any[];
+  pluginHistory?: any[];
+  pluginManagerConfig?: any;
+
+  // Platform 41: Script & Papyrus Code Generator
+  scriptGeneration?: any[];
+  codeTemplates?: any[];
+  scriptGeneratorConfig?: any;
+
+  // Platform 42: Form & Object Reference Manager
+  formReferences?: any[];
+  entityStates?: any[];
+  formManagerConfig?: any;
+
+  // Platform 43: Asset Streaming & Memory Manager
+  assetStreams?: any[];
+  memoryProfiles?: any[];
+  streamingManagerConfig?: any;
+
+  // Platform 44: Compiled Script Cache Manager
+  scriptCache?: any[];
+  cacheStatistics?: any[];
+  scriptCacheConfig?: any;
+
+  // Platform 45: FormID Collision Detector & Manager
+  formIDMappings?: any[];
+  collisionReports?: any[];
+  formIDDetectorConfig?: any;
 }
 
 /**
@@ -1269,6 +1479,21 @@ export interface DownloadResult {
 }
 
 export interface AuthResult { success: boolean; provider?: string; token?: string; expiresAt?: number; error?: string }
+
+// Platform 9: Load Order Management
+export interface LoadOrder {
+  id: string;
+  name: string;
+  description?: string;
+  plugins: any[];
+  createdAt: number;
+  updatedAt: number;
+  modManagerType?: 'mo2' | 'vortex' | 'manual';
+  validated?: boolean;
+  conflictCount?: number;
+  missingMasters?: string[];
+  notes?: string;
+}
 
 // Performance Metrics
 export interface PerformanceMetric {

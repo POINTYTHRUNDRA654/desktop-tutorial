@@ -293,19 +293,427 @@ const electronAPI: ElectronAPI = {
 
   // Testing Suite (renderer -> main)
   testingSuite: {
-    createTestSuite: (name: string, type: string) => ipcRenderer.invoke('testing:create-suite', name, type),
-    runTests: (suiteId: string) => ipcRenderer.invoke('testing:run-tests', suiteId),
-    runSingleTest: (testId: string) => ipcRenderer.invoke('testing:run-single-test', testId),
-    testLoadOrder: (plugins: string[]) => ipcRenderer.invoke('testing:test-load-order', plugins),
-    testSaveGameCompatibility: (savePath: string, modList: string[]) => ipcRenderer.invoke('testing:test-save-compat', savePath, modList),
-    testScriptCompilation: (scripts: string[]) => ipcRenderer.invoke('testing:test-scripts', scripts),
-    testAssetIntegrity: (assets: string[]) => ipcRenderer.invoke('testing:test-assets', assets),
-    benchmarkModPerformance: (mod: string) => ipcRenderer.invoke('testing:benchmark', mod),
-    createBaseline: (modVersion: string) => ipcRenderer.invoke('testing:create-baseline', modVersion),
-    compareToBaseline: (current: any, baseline: any) => ipcRenderer.invoke('testing:compare-baseline', current, baseline),
-    generateTestReport: (results: any) => ipcRenderer.invoke('testing:generate-report', results),
-    exportTestResults: (results: any, format: 'json' | 'html' | 'pdf' | 'junit' | 'markdown') => ipcRenderer.invoke('testing:export-results', results, format),
+    createTestSuite: (suiteName: string, config?: any) => ipcRenderer.invoke('testing:create-test-suite', suiteName, config),
+    runAllTests: (suiteId: string) => ipcRenderer.invoke('testing:run-all-tests', suiteId),
+    runSingleTest: (suiteId: string, testId: string) => ipcRenderer.invoke('testing:run-single-test', suiteId, testId),
+    testLoadOrder: (loadOrderPath: string) => ipcRenderer.invoke('testing:test-load-order', loadOrderPath),
+    testScriptCompilation: (scriptPath: string) => ipcRenderer.invoke('testing:test-script-compilation', scriptPath),
+    testAssetIntegrity: (assetPath: string) => ipcRenderer.invoke('testing:test-asset-integrity', assetPath),
+    benchmarkPerformance: (profileName?: string) => ipcRenderer.invoke('testing:benchmark-performance', profileName),
+    generateTestReport: (resultId: string) => ipcRenderer.invoke('testing:generate-test-report', resultId),
+    getTestHistory: (suiteId: string, limit?: number) => ipcRenderer.invoke('testing:get-test-history', suiteId, limit),
+    saveTestResults: (testData: any) => ipcRenderer.invoke('testing:save-test-results', testData),
   },
+
+  // Platform 15: Advanced Workflow Automation API
+  workflowAutomation: {
+    createWorkflow: (workflowName: string, description?: string, tags?: string[]) => ipcRenderer.invoke('workflow:create-workflow', workflowName, description, tags),
+    saveWorkflow: (workflowId: string, updates: any) => ipcRenderer.invoke('workflow:save-workflow', workflowId, updates),
+    loadWorkflow: (workflowId: string) => ipcRenderer.invoke('workflow:load-workflow', workflowId),
+    deleteWorkflow: (workflowId: string) => ipcRenderer.invoke('workflow:delete-workflow', workflowId),
+    runWorkflow: (workflowId: string) => ipcRenderer.invoke('workflow:run-workflow', workflowId),
+    getWorkflows: () => ipcRenderer.invoke('workflow:get-workflows'),
+    exportWorkflow: (workflowId: string) => ipcRenderer.invoke('workflow:export-workflow', workflowId),
+    importWorkflow: (importJson: string) => ipcRenderer.invoke('workflow:import-workflow', importJson),
+    getWorkflowHistory: (workflowId?: string, limit?: number) => ipcRenderer.invoke('workflow:get-workflow-history', workflowId, limit),
+    validateWorkflow: (workflowId: string) => ipcRenderer.invoke('workflow:validate-workflow', workflowId),
+  },
+
+  // Platform 16: Advanced Analytics & Reporting API
+  analyticsReporting: {
+    trackEvent: (eventName: string, category?: string, properties?: Record<string, any>) => ipcRenderer.invoke('analytics:track-event', eventName, category, properties),
+    getMetricsSummary: () => ipcRenderer.invoke('analytics:get-metrics-summary'),
+    getBuildStatistics: () => ipcRenderer.invoke('analytics:build-statistics'),
+    getAssetUsageReport: () => ipcRenderer.invoke('analytics:asset-usage-report'),
+    getPerformanceHistory: () => ipcRenderer.invoke('analytics:performance-history'),
+    generateReport: (reportType?: string, timeRange?: any) => ipcRenderer.invoke('analytics:generate-report', reportType, timeRange),
+    getDashboardData: () => ipcRenderer.invoke('analytics:get-dashboard-data'),
+    exportReport: (reportId: string, format?: string) => ipcRenderer.invoke('analytics:export-report', reportId, format),
+    getAnalyticsConfig: () => ipcRenderer.invoke('analytics:get-analytics-config'),
+    updateAnalyticsConfig: (updates: any) => ipcRenderer.invoke('analytics:update-analytics-config', updates),
+  },
+
+  // Platform 17: Git Integration API
+  gitIntegration: {
+    initRepo: (repoPath: string, repoName?: string) => ipcRenderer.invoke('git:init-repo', repoPath, repoName),
+    commit: (repoId: string, message: string, author?: string) => ipcRenderer.invoke('git:commit', repoId, message, author),
+    push: (repoId: string, remoteName?: string, branch?: string) => ipcRenderer.invoke('git:push', repoId, remoteName, branch),
+    pull: (repoId: string, remoteName?: string, branch?: string) => ipcRenderer.invoke('git:pull', repoId, remoteName, branch),
+    createBranch: (repoId: string, branchName: string, baseBranch?: string) => ipcRenderer.invoke('git:create-branch', repoId, branchName, baseBranch),
+    switchBranch: (repoId: string, branchName: string) => ipcRenderer.invoke('git:switch-branch', repoId, branchName),
+    getBranches: (repoId?: string) => ipcRenderer.invoke('git:get-branches', repoId),
+    getDiff: (repoId: string, fromCommit?: string, toCommit?: string) => ipcRenderer.invoke('git:get-diff', repoId, fromCommit, toCommit),
+    mergeBranch: (repoId: string, sourceBranch: string, targetBranch?: string) => ipcRenderer.invoke('git:merge-branch', repoId, sourceBranch, targetBranch),
+    getHistory: (repoId?: string, limit?: number) => ipcRenderer.invoke('git:get-history', repoId, limit),
+  },
+
+  // Platform 18: Nexus Mods Auto-Uploader API
+  nexusUploader: {
+    initConfig: (apiKey?: string, apiUrl?: string) => ipcRenderer.invoke('nexus:init-config', apiKey, apiUrl),
+    authenticate: (apiKey: string) => ipcRenderer.invoke('nexus:authenticate', apiKey),
+    getGameInfo: (gameName?: string) => ipcRenderer.invoke('nexus:get-game-info', gameName),
+    createMod: (modName: string, description?: string, category?: string) => ipcRenderer.invoke('nexus:create-mod', modName, description, category),
+    updateMod: (modId: string, updates: any) => ipcRenderer.invoke('nexus:update-mod', modId, updates),
+    uploadFile: (modId: string, filePath: string, version?: string) => ipcRenderer.invoke('nexus:upload-file', modId, filePath, version),
+    publishMod: (modId: string, publishNow?: boolean) => ipcRenderer.invoke('nexus:publish-mod', modId, publishNow),
+    getUploadHistory: (modId?: string, limit?: number) => ipcRenderer.invoke('nexus:get-upload-history', modId, limit),
+    getModStats: (modId: string) => ipcRenderer.invoke('nexus:get-mod-stats', modId),
+    generateChangelog: (modId: string, fromVersion?: string, toVersion?: string) => ipcRenderer.invoke('nexus:generate-changelog', modId, fromVersion, toVersion),
+  },
+
+  // Platform 19: Interactive Tutorial System API
+  interactiveTutorials: {
+    createSession: (tutorialId: string, title?: string) => ipcRenderer.invoke('tutorial:create-session', tutorialId, title),
+    getProgress: (sessionId: string) => ipcRenderer.invoke('tutorial:get-progress', sessionId),
+    completeStep: (sessionId: string, stepNumber: number) => ipcRenderer.invoke('tutorial:complete-step', sessionId, stepNumber),
+    getTutorials: () => ipcRenderer.invoke('tutorial:get-tutorials'),
+    getTutorialContent: (tutorialId: string) => ipcRenderer.invoke('tutorial:get-tutorial-content', tutorialId),
+    skipTutorial: (sessionId: string) => ipcRenderer.invoke('tutorial:skip-tutorial', sessionId),
+    getRecommendations: (userLevel?: string) => ipcRenderer.invoke('tutorial:get-recommendations', userLevel),
+    saveProgress: (sessionId: string) => ipcRenderer.invoke('tutorial:save-progress', sessionId),
+    resetProgress: (sessionId?: string) => ipcRenderer.invoke('tutorial:reset-progress', sessionId),
+    getTutorialStats: (tutorialId?: string) => ipcRenderer.invoke('tutorial:get-tutorial-stats', tutorialId),
+  },
+
+  aiTextureEnhancer: {
+    initEnhancer: (filterName?: string, gpuEnabled?: boolean) => ipcRenderer.invoke('enhance:init-enhancer', filterName, gpuEnabled),
+    loadFilters: () => ipcRenderer.invoke('enhance:load-filters'),
+    getFilterInfo: (filterId: string) => ipcRenderer.invoke('enhance:get-filter-info', filterId),
+    startEnhance: (inputPath: string, outputPath?: string, filterId?: string) => ipcRenderer.invoke('enhance:start-enhance', inputPath, outputPath, filterId),
+    enhanceBatch: (inputPaths: string[], filterId?: string) => ipcRenderer.invoke('enhance:enhance-batch', inputPaths, filterId),
+    getEnhancementProgress: (sessionId: string) => ipcRenderer.invoke('enhance:get-enhancement-progress', sessionId),
+    cancelEnhancement: (sessionId: string) => ipcRenderer.invoke('enhance:cancel-enhancement', sessionId),
+    getEnhancementHistory: (limit?: number) => ipcRenderer.invoke('enhance:get-enhancement-history', limit),
+    compareEnhancements: (beforePath: string, afterPath: string) => ipcRenderer.invoke('enhance:compare-enhancements', beforePath, afterPath),
+    exportEnhanced: (sessionId: string, format?: string) => ipcRenderer.invoke('enhance:export-enhanced', sessionId, format),
+  },
+
+  aiVoiceGeneration: {
+    initTts: (voiceProfile?: string, gpuEnabled?: boolean) => ipcRenderer.invoke('voice:init-tts', voiceProfile, gpuEnabled),
+    loadVoiceProfiles: () => ipcRenderer.invoke('voice:load-voice-profiles'),
+    getVoiceProfileInfo: (profileId: string) => ipcRenderer.invoke('voice:get-voice-profile-info', profileId),
+    generateVoice: (text: string, profileId?: string, emotion?: string) => ipcRenderer.invoke('voice:generate-voice', text, profileId, emotion),
+    generateBatchDialogue: (dialogueList: Array<{text: string, profileId?: string}>) => ipcRenderer.invoke('voice:generate-batch-dialogue', dialogueList),
+    getGenerationProgress: (sessionId: string) => ipcRenderer.invoke('voice:get-generation-progress', sessionId),
+    cloneVoiceProfile: (audioSamplePath: string, profileName: string) => ipcRenderer.invoke('voice:clone-voice-profile', audioSamplePath, profileName),
+    generateLipsync: (sessionId: string, animationFormat?: string) => ipcRenderer.invoke('voice:generate-lipsync', sessionId, animationFormat),
+    getVoiceHistory: (limit?: number) => ipcRenderer.invoke('voice:get-voice-history', limit),
+    exportVoiceAudio: (sessionId: string, format?: string) => ipcRenderer.invoke('voice:export-voice-audio', sessionId, format),
+  },
+
+  modDependencyManager: {
+    addModDependency: (modName: string, dependencies: Array<{name: string, version?: string}>) => ipcRenderer.invoke('deps:add-mod-dependency', modName, dependencies),
+    getModDependencies: (modName: string) => ipcRenderer.invoke('deps:get-mod-dependencies', modName),
+    detectConflicts: () => ipcRenderer.invoke('deps:detect-conflicts'),
+    resolveConflict: (conflictId: string, resolution: string) => ipcRenderer.invoke('deps:resolve-conflict', conflictId, resolution),
+    getConflictReport: (limit?: number) => ipcRenderer.invoke('deps:get-conflict-report', limit),
+    optimizeLoadOrder: (modList: string[]) => ipcRenderer.invoke('deps:optimize-load-order', modList),
+    validateDependencies: (modName: string) => ipcRenderer.invoke('deps:validate-dependencies', modName),
+    exportDependencyList: (format?: string) => ipcRenderer.invoke('deps:export-dependency-list', format),
+    importDependencyList: (importPath: string, format?: string) => ipcRenderer.invoke('deps:import-dependency-list', importPath, format),
+    getDependencyStats: () => ipcRenderer.invoke('deps:get-dependency-stats'),
+  },
+
+  releaseAutomation: {
+    createReleasePackage: (modName: string, version: string, files: string[]) => ipcRenderer.invoke('release:create-release-package', modName, version, files),
+    generateChangelog: (modName: string, version: string, changes: string[]) => ipcRenderer.invoke('release:generate-changelog', modName, version, changes),
+    bumpVersion: (modName: string, currentVersion: string, bumpType?: string) => ipcRenderer.invoke('release:bump-version', modName, currentVersion, bumpType),
+    createReleaseNotes: (modName: string, version: string, changelog: string, highlights?: string[]) => ipcRenderer.invoke('release:create-release-notes', modName, version, changelog, highlights),
+    validateRelease: (packageId: string) => ipcRenderer.invoke('release:validate-release', packageId),
+    publishToNexus: (packageId: string, nexusModId: string, releaseNotes?: string) => ipcRenderer.invoke('release:publish-to-nexus', packageId, nexusModId, releaseNotes),
+    getReleaseHistory: (modName: string, limit?: number) => ipcRenderer.invoke('release:get-release-history', modName, limit),
+    manageReleaseTags: (packageId: string, tags: string[], action?: string) => ipcRenderer.invoke('release:manage-release-tags', packageId, tags, action),
+    exportRelease: (packageId: string, format?: string) => ipcRenderer.invoke('release:export-release', packageId, format),
+    scheduleRelease: (packageId: string, releaseDate: number, timezone?: string) => ipcRenderer.invoke('release:schedule-release', packageId, releaseDate, timezone),
+  },
+
+  assetIntegrityAuditor: {
+    scanNifMesh: (filePath: string, modName?: string) => ipcRenderer.invoke('audit:scan-nif-mesh', filePath, modName),
+    scanDdsTexture: (filePath: string, modName?: string) => ipcRenderer.invoke('audit:scan-dds-texture', filePath, modName),
+    scanEspPlugin: (filePath: string, modName?: string) => ipcRenderer.invoke('audit:scan-esp-plugin', filePath, modName),
+    validatePapyrusScripts: (scriptContent: string, modName?: string) => ipcRenderer.invoke('audit:validate-papyrus-scripts', scriptContent, modName),
+    checkAudioCompatibility: (filePath: string, modName?: string) => ipcRenderer.invoke('audit:check-audio-compatibility', filePath, modName),
+    generateReport: (modName: string, auditIds: string[]) => ipcRenderer.invoke('audit:generate-report', modName, auditIds),
+    getAuditHistory: (modName: string, limit?: number) => ipcRenderer.invoke('audit:get-audit-history', modName, limit),
+    exportAuditData: (reportId: string, format?: string) => ipcRenderer.invoke('audit:export-audit-data', reportId, format),
+    compareVersions: (modName: string, version1Id: string, version2Id: string) => ipcRenderer.invoke('audit:compare-versions', modName, version1Id, version2Id),
+    batchScanAssets: (modName: string, assetPaths: string[], assetTypes?: string[]) => ipcRenderer.invoke('audit:batch-scan-assets', modName, assetPaths, assetTypes),
+  },
+
+  scriptingAssistant: {
+    getTemplate: (templateType: string) => ipcRenderer.invoke('codeGenerator:get-template', templateType),
+    generateStub: (functionName: string, parameters?: any[], returnType?: string) => ipcRenderer.invoke('codeGenerator:generate-stub', functionName, parameters, returnType),
+    validateSyntax: (scriptContent: string) => ipcRenderer.invoke('codeGenerator:validate-syntax', scriptContent),
+    getSnippets: (category?: string) => ipcRenderer.invoke('codeGenerator:get-snippets', category),
+    generateEventHandlers: (scriptType: string, events?: string[]) => ipcRenderer.invoke('codeGenerator:generate-event-handlers', scriptType, events),
+    formatScript: (scriptContent: string) => ipcRenderer.invoke('codeGenerator:format-script', scriptContent),
+    getDocumentation: (functionName: string, category?: string) => ipcRenderer.invoke('codeGenerator:get-documentation', functionName, category),
+    generateFromSpec: (specification: string, scriptType?: string) => ipcRenderer.invoke('codeGenerator:generate-from-spec', specification, scriptType),
+    optimizeScript: (scriptContent: string) => ipcRenderer.invoke('codeGenerator:optimize-script', scriptContent),
+    testInSandbox: (scriptContent: string, testParams?: any) => ipcRenderer.invoke('codeGenerator:test-in-sandbox', scriptContent, testParams),
+  },
+
+  performanceProfiler: {
+    startMonitoring: (sessionName?: string) => ipcRenderer.invoke('perf:start-monitoring', sessionName),
+    getFpsMetrics: (sessionId: string) => ipcRenderer.invoke('perf:get-fps-metrics', sessionId),
+    analyzeMemory: (sessionId: string, threshold?: number) => ipcRenderer.invoke('perf:analyze-memory', sessionId, threshold),
+    measureLoadTime: (modPath: string) => ipcRenderer.invoke('perf:measure-load-time', modPath),
+    detectBottlenecks: (sessionId: string) => ipcRenderer.invoke('perf:detect-bottlenecks', sessionId),
+    suggestOptimizations: (sessionId: string) => ipcRenderer.invoke('perf:suggest-optimizations', sessionId),
+    compareSessions: (session1Id: string, session2Id: string) => ipcRenderer.invoke('perf:compare-sessions', session1Id, session2Id),
+    exportReport: (sessionId: string, format?: string) => ipcRenderer.invoke('perf:export-report', sessionId, format),
+    stopMonitoring: (sessionId: string) => ipcRenderer.invoke('perf:stop-monitoring', sessionId),
+    getSessionHistory: (limit?: number) => ipcRenderer.invoke('perf:get-session-history', limit),
+  },
+
+  modlistManager: {
+    createModlist: (listName: string, description?: string) => ipcRenderer.invoke('modlist:create-modlist', listName, description),
+    addModToList: (modlistId: string, modEntry: any) => ipcRenderer.invoke('modlist:add-mod-to-list', modlistId, modEntry),
+    removeModFromList: (modlistId: string, modId: string) => ipcRenderer.invoke('modlist:remove-mod-from-list', modlistId, modId),
+    getModlist: (modlistId: string) => ipcRenderer.invoke('modlist:get-modlist', modlistId),
+    exportModlist: (modlistId: string, format?: string) => ipcRenderer.invoke('modlist:export-modlist', modlistId, format),
+    importModlist: (importPath: string, listName?: string) => ipcRenderer.invoke('modlist:import-modlist', importPath, listName),
+    validateModlist: (modlistId: string) => ipcRenderer.invoke('modlist:validate-modlist', modlistId),
+    getModlistStats: (modlistId: string) => ipcRenderer.invoke('modlist:get-modlist-stats', modlistId),
+    shareModlist: (modlistId: string, platform?: string) => ipcRenderer.invoke('modlist:share-modlist', modlistId, platform),
+    compareModlists: (modlist1Id: string, modlist2Id: string) => ipcRenderer.invoke('modlist:compare-modlists', modlist1Id, modlist2Id),
+  },
+
+  conflictResolutionEngine: {
+    scanForConflicts: (modlistId: string) => ipcRenderer.invoke('conflict:scan-for-conflicts', modlistId),
+    detectPluginConflicts: (modlistId: string) => ipcRenderer.invoke('conflict:detect-plugin-conflicts', modlistId),
+    detectAssetConflicts: (modlistId: string) => ipcRenderer.invoke('conflict:detect-asset-conflicts', modlistId),
+    detectScriptConflicts: (modlistId: string) => ipcRenderer.invoke('conflict:detect-script-conflicts', modlistId),
+    suggestConflictResolution: (conflictId: string) => ipcRenderer.invoke('conflict:suggest-conflict-resolution', conflictId),
+    autoResolveConflicts: (conflictId: string, strategy?: string) => ipcRenderer.invoke('conflict:auto-resolve-conflicts', conflictId, strategy),
+    generatePatch: (conflictId: string, patchType?: string) => ipcRenderer.invoke('conflict:generate-patch', conflictId, patchType),
+    validateResolution: (resolutionId: string) => ipcRenderer.invoke('conflict:validate-resolution', resolutionId),
+    getConflictReport: (scanId: string) => ipcRenderer.invoke('conflict:get-conflict-report', scanId),
+    exportConflictData: (scanId: string, format?: string) => ipcRenderer.invoke('conflict:export-conflict-data', scanId, format),
+  },
+
+  advancedTroubleshooting: {
+    analyzeCrashLog: (logPath: string) => ipcRenderer.invoke('diag:analyze-crash-log', logPath),
+    diagnoseCTDIssues: (modlistId: string) => ipcRenderer.invoke('diag:diagnose-ctd-issues', modlistId),
+    checkModCompatibility: (mod1: string, mod2: string) => ipcRenderer.invoke('diag:check-mod-compatibility', mod1, mod2),
+    generateDiagnosticsReport: (modlistId: string) => ipcRenderer.invoke('diag:generate-diagnostics-report', modlistId),
+    suggestTroubleshootingSteps: (issue: string) => ipcRenderer.invoke('diag:suggest-troubleshooting-steps', issue),
+    testGameStability: (modlistId: string, duration?: number) => ipcRenderer.invoke('diag:test-game-stability', modlistId, duration),
+    debugScriptErrors: (scriptContent: string, modName?: string) => ipcRenderer.invoke('diag:debug-script-errors', scriptContent, modName),
+    analyzeLoadOrderIssues: (loadOrder: string[]) => ipcRenderer.invoke('diag:analyze-load-order-issues', loadOrder),
+    runSystemDiagnostics: () => ipcRenderer.invoke('diag:run-system-diagnostics'),
+    generateTroubleshootingGuide: (issue: string, modlistId?: string) => ipcRenderer.invoke('diag:generate-troubleshooting-guide', issue, modlistId),
+  },
+
+  loadOrderOptimizer: {
+    analyzeLoadOrder: (loadOrder: string[]) => ipcRenderer.invoke('loadorder:analyze-load-order', loadOrder),
+    suggestOptimalOrder: (loadOrder: string[], conflictMap?: any) => ipcRenderer.invoke('loadorder:suggest-optimal-order', loadOrder, conflictMap),
+    detectMasterDependencies: (pluginName: string) => ipcRenderer.invoke('loadorder:detect-master-dependencies', pluginName),
+    prioritizePlugins: (loadOrder: string[], priorityMap?: any) => ipcRenderer.invoke('loadorder:prioritize-plugins', loadOrder, priorityMap),
+    validateLoadOrderIntegrity: (loadOrder: string[]) => ipcRenderer.invoke('loadorder:validate-load-order-integrity', loadOrder),
+    compareLoadOrders: (loadOrder1: string[], loadOrder2: string[]) => ipcRenderer.invoke('loadorder:compare-load-orders', loadOrder1, loadOrder2),
+    exportLoadOrder: (loadOrder: string[], format?: string) => ipcRenderer.invoke('loadorder:export-load-order', loadOrder, format),
+    importLoadOrder: (filePath: string, mergeMode?: string) => ipcRenderer.invoke('loadorder:import-load-order', filePath, mergeMode),
+    autoOptimizeLoadOrder: (loadOrder: string[], strategy?: string) => ipcRenderer.invoke('loadorder:auto-optimize-load-order', loadOrder, strategy),
+    getLoadOrderStatistics: (loadOrder: string[]) => ipcRenderer.invoke('loadorder:get-load-order-statistics', loadOrder),
+  },
+
+  papyrusCompiler: {
+    compileScript: (scriptPath: string, flags?: string) => ipcRenderer.invoke('papyrus:compile-script', scriptPath, flags),
+    batchCompile: (scriptFolder: string, flags?: string) => ipcRenderer.invoke('papyrus:batch-compile', scriptFolder, flags),
+    validateSyntax: (scriptContent: string) => ipcRenderer.invoke('papyrus:validate-syntax', scriptContent),
+    generateDebugInfo: (scriptPath: string) => ipcRenderer.invoke('papyrus:generate-debug-info', scriptPath),
+    profileScriptPerformance: (scriptPath: string) => ipcRenderer.invoke('papyrus:profile-script-performance', scriptPath),
+    detectScriptIssues: (scriptContent: string) => ipcRenderer.invoke('papyrus:detect-script-issues', scriptContent),
+    getCompilerVersion: () => ipcRenderer.invoke('papyrus:get-compiler-version'),
+    configureCompiler: (config: any) => ipcRenderer.invoke('papyrus:configure-compiler', config),
+    analyzeCompilationReport: (reportPath: string) => ipcRenderer.invoke('papyrus:analyze-compilation-report', reportPath),
+    exportCompilationStats: (format?: string) => ipcRenderer.invoke('papyrus:export-compilation-stats', format),
+  },
+
+  archiveManager: {
+    createArchive: (archivePath: string, fileList: string[], archiveType?: string) => ipcRenderer.invoke('archive:create-archive', archivePath, fileList, archiveType),
+    extractArchive: (archivePath: string, extractPath?: string) => ipcRenderer.invoke('archive:extract-archive', archivePath, extractPath),
+    listArchiveContents: (archivePath: string) => ipcRenderer.invoke('archive:list-archive-contents', archivePath),
+    validateArchiveIntegrity: (archivePath: string) => ipcRenderer.invoke('archive:validate-archive-integrity', archivePath),
+    addFilesToArchive: (archivePath: string, filePaths: string[]) => ipcRenderer.invoke('archive:add-files-to-archive', archivePath, filePaths),
+    removeFilesFromArchive: (archivePath: string, fileNames: string[]) => ipcRenderer.invoke('archive:remove-files-from-archive', archivePath, fileNames),
+    convertArchiveFormat: (archivePath: string, targetFormat: string) => ipcRenderer.invoke('archive:convert-archive-format', archivePath, targetFormat),
+    compressArchive: (archivePath: string, compressionLevel?: number) => ipcRenderer.invoke('archive:compress-archive', archivePath, compressionLevel),
+    getArchiveStatistics: (archivePath: string) => ipcRenderer.invoke('archive:get-archive-statistics', archivePath),
+    optimizeArchive: (archivePath: string, strategy?: string) => ipcRenderer.invoke('archive:optimize-archive', archivePath, strategy),
+  },
+
+  enbPresetManager: {
+    createPreset: (presetName: string, settings: any) => ipcRenderer.invoke('enb:create-preset', presetName, settings),
+    loadPreset: (presetId: string) => ipcRenderer.invoke('enb:load-preset', presetId),
+    exportPreset: (presetId: string, exportPath?: string) => ipcRenderer.invoke('enb:export-preset', presetId, exportPath),
+    importPreset: (filePath: string, presetName?: string) => ipcRenderer.invoke('enb:import-preset', filePath, presetName),
+    validatePreset: (presetId: string) => ipcRenderer.invoke('enb:validate-preset', presetId),
+    applyPresetSettings: (presetId: string) => ipcRenderer.invoke('enb:apply-preset-settings', presetId),
+    comparePresets: (presetId1: string, presetId2: string) => ipcRenderer.invoke('enb:compare-presets', presetId1, presetId2),
+    deletePreset: (presetId: string) => ipcRenderer.invoke('enb:delete-preset', presetId),
+    optimizePresetPerformance: (presetId: string) => ipcRenderer.invoke('enb:optimize-preset-performance', presetId),
+    getInstalledPresets: () => ipcRenderer.invoke('enb:get-installed-presets'),
+  },
+
+  communityRatings: {
+    fetchModRatings: (modId: string) => ipcRenderer.invoke('community:fetch-mod-ratings', modId),
+    getReviewsForMod: (modId: string, limit?: number) => ipcRenderer.invoke('community:get-reviews-for-mod', modId, limit),
+    submitRating: (modId: string, rating: number, userId?: string) => ipcRenderer.invoke('community:submit-rating', modId, rating, userId),
+    submitReview: (modId: string, reviewText: string, rating?: number) => ipcRenderer.invoke('community:submit-review', modId, reviewText, rating),
+    getTrendingMods: (limit?: number, category?: string) => ipcRenderer.invoke('community:get-trending-mods', limit, category),
+    analyzeRatingTrends: (modId: string, timeframe?: string) => ipcRenderer.invoke('community:analyze-rating-trends', modId, timeframe),
+    filterReviewsByCriteria: (modId: string, criteria: any) => ipcRenderer.invoke('community:filter-reviews-by-criteria', modId, criteria),
+    getPopularEndorsements: (limit?: number) => ipcRenderer.invoke('community:get-popular-endorsements', limit),
+    compareModRatings: (modId1: string, modId2: string) => ipcRenderer.invoke('community:compare-mod-ratings', modId1, modId2),
+    exportRatingData: (modId: string, format?: string) => ipcRenderer.invoke('community:export-rating-data', modId, format),
+  },
+
+  meshOptimizer: {
+    analyzeNifFile: (filePath: string) => ipcRenderer.invoke('mesh:analyze-nif-file', filePath),
+    reducePolygonCount: (filePath: string, reductionPercentage?: number) => ipcRenderer.invoke('mesh:reduce-polygon-count', filePath, reductionPercentage),
+    optimizeVertexData: (filePath: string, options?: any) => ipcRenderer.invoke('mesh:optimize-vertex-data', filePath, options),
+    generateLodMeshes: (filePath: string, lodLevels?: number) => ipcRenderer.invoke('mesh:generate-lod-meshes', filePath, lodLevels),
+    removeUnusedData: (filePath: string) => ipcRenderer.invoke('mesh:remove-unused-data', filePath),
+    batchOptimizeMeshes: (filePaths: string[], options?: any) => ipcRenderer.invoke('mesh:batch-optimize-meshes', filePaths, options),
+    compareOptimizationResults: (beforePath: string, afterPath: string) => ipcRenderer.invoke('mesh:compare-optimization-results', beforePath, afterPath),
+    validateMeshIntegrity: (filePath: string) => ipcRenderer.invoke('mesh:validate-mesh-integrity', filePath),
+    exportOptimizationReport: (filePath: string, format?: string) => ipcRenderer.invoke('mesh:export-optimization-report', filePath, format),
+    getAnalysisSummary: (limit?: number) => ipcRenderer.invoke('mesh:get-analysis-summary', limit),
+  },
+
+  animationRetargeting: {
+    importAnimationFile: (filePath: string, format?: string) => ipcRenderer.invoke('animation:import-animation-file', filePath, format),
+    retargetSkeleton: (animationId: string, targetSkeleton: string) => ipcRenderer.invoke('animation:retarget-skeleton', animationId, targetSkeleton),
+    validateBoneStructure: (filePath: string) => ipcRenderer.invoke('animation:validate-bone-structure', filePath),
+    blendAnimations: (animationIds: string[], blendMode?: string) => ipcRenderer.invoke('animation:blend-animations', animationIds, blendMode),
+    createCustomAnimation: (name: string, frameCount: number, boneData?: any) => ipcRenderer.invoke('animation:create-custom-animation', name, frameCount, boneData),
+    exportAnimation: (animationId: string, outputPath: string, format?: string) => ipcRenderer.invoke('animation:export-animation', animationId, outputPath, format),
+    batchRetargetAnimations: (animationIds: string[], targetSkeleton: string) => ipcRenderer.invoke('animation:batch-retarget-animations', animationIds, targetSkeleton),
+    compareAnimations: (animationId1: string, animationId2: string) => ipcRenderer.invoke('animation:compare-animations', animationId1, animationId2),
+    getRetargetingSummary: (limit?: number) => ipcRenderer.invoke('animation:get-retargeting-summary', limit),
+    optimizeKeyframes: (animationId: string, tolerance?: number) => ipcRenderer.invoke('animation:optimize-keyframes', animationId, tolerance),
+  },
+
+  dialogueManager: {
+    createDialogueTree: (npcId: string, dialogueName: string) => ipcRenderer.invoke('dialogue:create-dialogue-tree', npcId, dialogueName),
+    addDialogueNode: (treeId: string, nodeData: any) => ipcRenderer.invoke('dialogue:add-dialogue-node', treeId, nodeData),
+    addVoiceLine: (nodeId: string, voicePath: string, voiceActor?: string) => ipcRenderer.invoke('dialogue:add-voice-line', nodeId, voicePath, voiceActor),
+    setDialogueConditions: (nodeId: string, conditions: any[]) => ipcRenderer.invoke('dialogue:set-dialogue-conditions', nodeId, conditions),
+    exportDialogueTree: (treeId: string, format?: string) => ipcRenderer.invoke('dialogue:export-dialogue-tree', treeId, format),
+    importDialogueFile: (filePath: string, npcId?: string) => ipcRenderer.invoke('dialogue:import-dialogue-file', filePath, npcId),
+    validateDialogueTree: (treeId: string) => ipcRenderer.invoke('dialogue:validate-dialogue-tree', treeId),
+    batchImportDialogues: (filePaths: string[]) => ipcRenderer.invoke('dialogue:batch-import-dialogues', filePaths),
+    getDialogueSystemStats: (limit?: number) => ipcRenderer.invoke('dialogue:get-dialogue-system-stats', limit),
+    compareDialogueTrees: (treeId1: string, treeId2: string) => ipcRenderer.invoke('dialogue:compare-dialogue-trees', treeId1, treeId2),
+  },
+
+  textureManager: {
+    createMaterialDefinition: (materialName: string, properties?: any) => ipcRenderer.invoke('texture:create-material-definition', materialName, properties),
+    createTextureAtlas: (atlasName: string, textureList: string[]) => ipcRenderer.invoke('texture:create-texture-atlas', atlasName, textureList),
+    applyMaterialProperties: (materialId: string, properties: any) => ipcRenderer.invoke('texture:apply-material-properties', materialId, properties),
+    manageTextureReplacements: (sourceTexture: string, replacementTexture: string) => ipcRenderer.invoke('texture:manage-texture-replacements', sourceTexture, replacementTexture),
+    validateMaterialCompatibility: (materialId: string, targetEngine?: string) => ipcRenderer.invoke('texture:validate-material-compatibility', materialId, targetEngine),
+    optimizeMaterialPerformance: (materialId: string, targetMemory?: number) => ipcRenderer.invoke('texture:optimize-material-performance', materialId, targetMemory),
+    batchProcessMaterials: (materialIds: string[], operation: string) => ipcRenderer.invoke('texture:batch-process-materials', materialIds, operation),
+    exportMaterialPackage: (materialId: string, format?: string) => ipcRenderer.invoke('texture:export-material-package', materialId, format),
+    getMaterialStatistics: (limit?: number) => ipcRenderer.invoke('texture:get-material-statistics', limit),
+    importMaterialPackage: (filePath: string, materialName?: string) => ipcRenderer.invoke('texture:import-material-package', filePath, materialName),
+  },
+
+  pluginAnalyzer: {
+    analyzePluginFile: (filePath: string) => ipcRenderer.invoke('plugin:analyze-plugin-file', filePath),
+    validatePluginReferences: (pluginPath: string) => ipcRenderer.invoke('plugin:validate-plugin-references', pluginPath),
+    mergePlugins: (pluginPaths: string[], outputPath: string) => ipcRenderer.invoke('plugin:merge-plugins', pluginPaths, outputPath),
+    analyzePluginDependencies: (pluginPath: string) => ipcRenderer.invoke('plugin:analyze-plugin-dependencies', pluginPath),
+    detectPluginConflicts: (pluginPaths: string[]) => ipcRenderer.invoke('plugin:detect-plugin-conflicts', pluginPaths),
+    optimizePluginLoadOrder: (pluginPaths: string[]) => ipcRenderer.invoke('plugin:optimize-plugin-load-order', pluginPaths),
+    generateCompatibilityReport: (pluginPaths: string[], format?: string) => ipcRenderer.invoke('plugin:generate-compatibility-report', pluginPaths, format),
+    batchValidatePlugins: (filePaths: string[]) => ipcRenderer.invoke('plugin:batch-validate-plugins', filePaths),
+    getPluginManagementStats: (limit?: number) => ipcRenderer.invoke('plugin:get-plugin-management-stats', limit),
+    exportPluginAnalysis: (analysisId: string, format?: string) => ipcRenderer.invoke('plugin:export-plugin-analysis', analysisId, format),
+  },
+
+  scriptGenerator: {
+    generatePapyrusScript: (scriptName: string, scriptType?: string) => ipcRenderer.invoke('papyrusGen:generate-papyrus-script', scriptName, scriptType),
+    createEventHandler: (eventName: string, parameters?: string[]) => ipcRenderer.invoke('papyrusGen:create-event-handler', eventName, parameters),
+    generatePropertyDefinition: (propertyName: string, propertyType?: string) => ipcRenderer.invoke('papyrusGen:generate-property-definition', propertyName, propertyType),
+    createValidationHelper: (helperName: string, validationType?: string) => ipcRenderer.invoke('papyrusGen:create-validation-helper', helperName, validationType),
+    generateOptimizationPattern: (patternName: string, optimizationType?: string) => ipcRenderer.invoke('papyrusGen:generate-optimization-pattern', patternName, optimizationType),
+    generateDocumentation: (scriptId: string, format?: string) => ipcRenderer.invoke('papyrusGen:generate-documentation', scriptId, format),
+    batchGenerateScripts: (scriptConfigs: any[]) => ipcRenderer.invoke('papyrusGen:batch-generate-scripts', scriptConfigs),
+    validatePapyrusSyntax: (code: string) => ipcRenderer.invoke('papyrusGen:validate-papyrus-syntax', code),
+    applyTypeSafetyPatterns: (scriptId: string) => ipcRenderer.invoke('papyrusGen:apply-type-safety-patterns', scriptId),
+    getGeneratorStatistics: (limit?: number) => ipcRenderer.invoke('papyrusGen:get-generator-statistics', limit),
+  },
+
+  formManager: {
+    createFormReference: (formId: string, formData?: any) => ipcRenderer.invoke('form:create-form-reference', formId, formData),
+    getFormProperties: (referenceId: string) => ipcRenderer.invoke('form:get-form-properties', referenceId),
+    updateEntityState: (entityId: string, stateData: any) => ipcRenderer.invoke('form:update-entity-state', entityId, stateData),
+    registerEventListener: (referenceId: string, eventType: string) => ipcRenderer.invoke('form:register-event-listener', referenceId, eventType),
+    serializeReference: (referenceId: string, format?: string) => ipcRenderer.invoke('form:serialize-reference', referenceId, format),
+    validateReferenceIntegrity: (referenceId: string) => ipcRenderer.invoke('form:validate-reference-integrity', referenceId),
+    batchUpdateReferences: (referenceUpdates: any[]) => ipcRenderer.invoke('form:batch-update-references', referenceUpdates),
+    optimizeReferencePerformance: (referenceId: string) => ipcRenderer.invoke('form:optimize-reference-performance', referenceId),
+    getReferenceManagerStatistics: (limit?: number) => ipcRenderer.invoke('form:get-reference-manager-statistics', limit),
+    deserializeReference: (serializedData: string, format?: string) => ipcRenderer.invoke('form:deserialize-reference', serializedData, format),
+  },
+
+  assetManager: {
+    streamLargeAsset: (assetPath: string, chunkSize?: number) => ipcRenderer.invoke('asset:stream-large-asset', assetPath, chunkSize),
+    manageMemoryEfficiently: (strategy?: string) => ipcRenderer.invoke('asset:manage-memory-efficiently', strategy),
+    loadResource: (resourceId: string, priority?: number) => ipcRenderer.invoke('asset:load-resource', resourceId, priority),
+    unloadResource: (resourceId: string) => ipcRenderer.invoke('asset:unload-resource', resourceId),
+    optimizeCachePerformance: (cacheStrategy?: string) => ipcRenderer.invoke('asset:optimize-cache-performance', cacheStrategy),
+    handleMemoryPressure: (pressureLevel?: string) => ipcRenderer.invoke('asset:handle-memory-pressure', pressureLevel),
+    getMemoryDiagnostics: (detailed?: boolean) => ipcRenderer.invoke('asset:get-memory-diagnostics', detailed),
+    batchStreamAssets: (assetPaths: string[]) => ipcRenderer.invoke('asset:batch-stream-assets', assetPaths),
+    getStreamingStatistics: (limit?: number) => ipcRenderer.invoke('asset:get-streaming-statistics', limit),
+    validateResourceIntegrity: (resourceId: string) => ipcRenderer.invoke('asset:validate-resource-integrity', resourceId),
+  },
+
+  scriptCacheManager: {
+    loadCachedScript: (scriptId: string, forceRecompile?: boolean) => ipcRenderer.invoke('scriptCache:load-cached-script', scriptId, forceRecompile),
+    saveScriptCache: (scriptId: string, compiledData: any, compressionLevel?: number) => ipcRenderer.invoke('scriptCache:save-script-cache', scriptId, compiledData, compressionLevel),
+    validateCacheIntegrity: (cacheId: string) => ipcRenderer.invoke('scriptCache:validate-cache-integrity', cacheId),
+    optimizeCacheStructure: (optimization?: string) => ipcRenderer.invoke('scriptCache:optimize-cache-structure', optimization),
+    clearCacheEntry: (cacheId: string) => ipcRenderer.invoke('scriptCache:clear-cache-entry', cacheId),
+    getCacheStatistics: (limit?: number) => ipcRenderer.invoke('scriptCache:get-cache-statistics', limit),
+    batchUpdateCache: (updates: any[]) => ipcRenderer.invoke('scriptCache:batch-update-cache', updates),
+    analyzeScriptPerformance: (scriptId: string) => ipcRenderer.invoke('scriptCache:analyze-script-performance', scriptId),
+    generateCacheReport: (reportFormat?: string) => ipcRenderer.invoke('scriptCache:generate-cache-report', reportFormat),
+    monitorCacheHealth: (detailedMetrics?: boolean) => ipcRenderer.invoke('scriptCache:monitor-cache-health', detailedMetrics),
+  },
+
+  formID: {
+    scanForCollisions: (modPaths: string[]) => ipcRenderer.invoke('formID:scan-for-collisions', modPaths),
+    detectCollision: (formID: string, affectedMods: string[]) => ipcRenderer.invoke('formID:detect-collision', formID, affectedMods),
+    generateFormIDMapping: (modPath: string, baseFormID?: string) => ipcRenderer.invoke('formID:generate-formid-mapping', modPath, baseFormID),
+    validateFormIDIntegrity: (modPath: string) => ipcRenderer.invoke('formID:validate-formid-integrity', modPath),
+    remapConflictingFormIDs: (collisionId: string, targetModID: string) => ipcRenderer.invoke('formID:remap-conflicting-formids', collisionId, targetModID),
+    getCollisionReport: (reportId: string) => ipcRenderer.invoke('formID:get-collision-report', reportId),
+    batchScanMods: (modPaths: string[]) => ipcRenderer.invoke('formID:batch-scan-mods', modPaths),
+    monitorFormIDHealth: (modPath: string) => ipcRenderer.invoke('formID:monitor-formid-health', modPath),
+    getFormIDStatistics: (limit?: number) => ipcRenderer.invoke('formID:get-formid-statistics', limit),
+  },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   // System info and program detection
   getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
@@ -366,10 +774,18 @@ const electronAPI: ElectronAPI = {
   // Roadmap Support
   roadmapGetAll: () => ipcRenderer.invoke('roadmap-get-all'),
   roadmapGetActive: () => ipcRenderer.invoke('roadmap-get-active'),
-  roadmapCreate: (roadmap: any) => ipcRenderer.invoke('roadmap-create', roadmap),
-  roadmapUpdateStep: (roadmapId: string, stepId: string, status: string) => ipcRenderer.invoke('roadmap-update-step', roadmapId, stepId, status),
-  roadmapDelete: (id: string) => ipcRenderer.invoke('roadmap-delete', id),
-  roadmapGenerateAI: (prompt: string, projectId: string) => ipcRenderer.invoke('roadmap-generate-ai', prompt, projectId),
+  roadmapCreate: (name: string, description?: string, projectId?: string) => ipcRenderer.invoke('roadmap-create', { name, description, projectId }),
+  roadmapUpdateStep: (roadmapId: string, stepId: string, status: string) => ipcRenderer.invoke('roadmap-update-step', { roadmapId, stepId, status }),
+  roadmapDelete: (roadmapId: string) => ipcRenderer.invoke('roadmap-delete', roadmapId),
+  roadmapGenerateAI: (prompt: string, projectId: string) => ipcRenderer.invoke('roadmap-generate-ai', { prompt, projectId }),
+
+  // What's New (Platform 7)
+  whatsNewGetAll: () => ipcRenderer.invoke('whats-new-get-all'),
+  whatsNewGetCurrent: () => ipcRenderer.invoke('whats-new-get-current'),
+  whatsNewGetChangelog: () => ipcRenderer.invoke('whats-new-get-changelog'),
+  whatsNewMarkSeen: (version: string) => ipcRenderer.invoke('whats-new-mark-seen', { version }),
+  whatsNewDismiss: (version: string) => ipcRenderer.invoke('whats-new-dismiss', { version }),
+  whatsNewReset: () => ipcRenderer.invoke('whats-new-reset'),
 
   // Collaboration Features
   initGitRepository: (projectId: string, config: any) => ipcRenderer.invoke('collaboration-git-init', projectId, config),
@@ -455,6 +871,76 @@ const electronAPI: ElectronAPI = {
     shareCollection: (collectionId: string) => ipcRenderer.invoke('mod-browser:share-collection', collectionId),
     endorseMod: (modId: string) => ipcRenderer.invoke('mod-browser:endorse-mod', modId),
     getTrendingMods: (timeframe?: string) => ipcRenderer.invoke('mod-browser:trending', timeframe),
+  },
+
+  // Platform 9: Load Order Management API
+  loadOrder: {
+    getAll: () => ipcRenderer.invoke('load-order:get-all'),
+    getCurrent: () => ipcRenderer.invoke('load-order:get-current'),
+    create: (name: string, description?: string) => ipcRenderer.invoke('load-order:create', name, description),
+    updateOrder: (loadOrderId: string, plugins: any[]) => ipcRenderer.invoke('load-order:update-order', loadOrderId, plugins),
+    validate: (loadOrderId: string) => ipcRenderer.invoke('load-order:validate', loadOrderId),
+    analyzeConflicts: (loadOrderId: string) => ipcRenderer.invoke('load-order:analyze-conflicts', loadOrderId),
+    optimize: (loadOrderId: string) => ipcRenderer.invoke('load-order:optimize', loadOrderId),
+    export: (loadOrderId: string, format: string) => ipcRenderer.invoke('load-order:export', loadOrderId, format),
+    import: (name: string, content: string, format: string) => ipcRenderer.invoke('load-order:import', name, content, format),
+    delete: (loadOrderId: string) => ipcRenderer.invoke('load-order:delete', loadOrderId),
+  },
+
+  // Platform 10: Conflict Resolution API
+  conflictResolver: {
+    analyze: (pluginPaths: string[]) => ipcRenderer.invoke('conflict-resolver:analyze', pluginPaths),
+    detect: (plugin1: string, plugin2: string) => ipcRenderer.invoke('conflict-resolver:detect', plugin1, plugin2),
+    resolve: (conflicts: any[], strategy: string) => ipcRenderer.invoke('conflict-resolver:resolve', conflicts, strategy),
+    generatePatch: (conflicts: any[], patchName: string) => ipcRenderer.invoke('conflict-resolver:generate-patch', conflicts, patchName),
+    addRule: (ruleData: any) => ipcRenderer.invoke('conflict-resolver:add-rule', ruleData),
+    getRules: () => ipcRenderer.invoke('conflict-resolver:get-rules'),
+    deleteRule: (ruleId: string) => ipcRenderer.invoke('conflict-resolver:delete-rule', ruleId),
+    applyRules: (conflicts: any[], ruleIds?: string[]) => ipcRenderer.invoke('conflict-resolver:apply-rules', conflicts, ruleIds),
+    exportAnalysis: (analysis: any, format: string) => ipcRenderer.invoke('conflict-resolver:export-analysis', analysis, format),
+    importRules: (content: string, format: string) => ipcRenderer.invoke('conflict-resolver:import-rules', content, format),
+  },
+
+  // Platform 11: Plugin Manager API
+  pluginManager: {
+    listInstalled: () => ipcRenderer.invoke('plugin-manager:list-installed'),
+    listMarketplace: () => ipcRenderer.invoke('plugin-manager:list-marketplace'),
+    install: (pluginId: string, version: string) => ipcRenderer.invoke('plugin-manager:install', pluginId, version),
+    uninstall: (pluginId: string) => ipcRenderer.invoke('plugin-manager:uninstall', pluginId),
+    toggle: (pluginId: string, enabled: boolean) => ipcRenderer.invoke('plugin-manager:toggle', pluginId, enabled),
+    update: (pluginId: string, newVersion: string) => ipcRenderer.invoke('plugin-manager:update', pluginId, newVersion),
+    getSettings: () => ipcRenderer.invoke('plugin-manager:get-settings'),
+    setSettings: (settings: any) => ipcRenderer.invoke('plugin-manager:set-settings', settings),
+    getDetails: (pluginId: string) => ipcRenderer.invoke('plugin-manager:get-details', pluginId),
+    validate: (pluginId: string) => ipcRenderer.invoke('plugin-manager:validate', pluginId),
+  },
+
+  // Platform 12: Team Workspace API
+  teamWorkspace: {
+    createWorkspace: (name: string, description?: string) => ipcRenderer.invoke('team-workspace:create-workspace', name, description),
+    listWorkspaces: () => ipcRenderer.invoke('team-workspace:list-workspaces'),
+    getWorkspace: (workspaceId: string) => ipcRenderer.invoke('team-workspace:get-workspace', workspaceId),
+    joinWorkspace: (workspaceId: string, userId: string) => ipcRenderer.invoke('team-workspace:join-workspace', workspaceId, userId),
+    leaveWorkspace: (workspaceId: string, userId: string) => ipcRenderer.invoke('team-workspace:leave-workspace', workspaceId, userId),
+    assignTask: (workspaceId: string, taskData: any) => ipcRenderer.invoke('team-workspace:assign-task', workspaceId, taskData),
+    updateProgress: (taskId: string, progressData: any) => ipcRenderer.invoke('team-workspace:update-progress', taskId, progressData),
+    addComment: (taskId: string, comment: string, userId: string) => ipcRenderer.invoke('team-workspace:add-comment', taskId, comment, userId),
+    getComments: (taskId: string) => ipcRenderer.invoke('team-workspace:get-comments', taskId),
+    lockFile: (workspaceId: string, filePath: string, userId: string) => ipcRenderer.invoke('team-workspace:lock-file', workspaceId, filePath, userId),
+  },
+
+  // Platform 13: Mining Pipeline API
+  miningPipeline: {
+    executePipeline: (sources: any[]) => ipcRenderer.invoke('mining:execute-pipeline', sources),
+    parseESP: (filePath: string) => ipcRenderer.invoke('mining:parse-esp', filePath),
+    buildDependencyGraph: (espData: any) => ipcRenderer.invoke('mining:build-dependency-graph', espData),
+    extractForms: (espDataId: string) => ipcRenderer.invoke('mining:extract-forms', espDataId),
+    analyzeConflicts: (espDataIds: string[]) => ipcRenderer.invoke('mining:analyze-conflicts', espDataIds),
+    generateReport: (pipelineId: string) => ipcRenderer.invoke('mining:generate-report', pipelineId),
+    validateMaster: (masterPath: string, dependencyPaths: string[]) => ipcRenderer.invoke('mining:validate-master', masterPath, dependencyPaths),
+    scanAssetReferences: (espDataId: string) => ipcRenderer.invoke('mining:scan-asset-references', espDataId),
+    cacheMiningData: (dataId: string, data: any) => ipcRenderer.invoke('mining:cache-mining-data', dataId, data),
+    getCachedData: (cacheKey: string) => ipcRenderer.invoke('mining:get-cached-data', cacheKey),
   },
 
   // Security / Scanning API (preload -> main)
@@ -608,3 +1094,4 @@ contextBridge.exposeInMainWorld('electronAPI', electronAPI);
  * - Always sanitize user input before processing
  * - Never trust data from the renderer process
  */
+
