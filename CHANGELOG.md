@@ -9,6 +9,7 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 ### Improved — Platform 19: External Integrations Hub Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 19 labels now use **FO4 External Integrations Hub** across sidebar, hub header, locale nav key, command palette, search, and discovery references.
 - **Hub workflow coverage clarified**: tutorial and discovery copy now reflect the real 3-tab integrations flow — **MO2**, **ComfyUI**, and **Upscayl** — including session-persisted tab selection and FO4-specific routing guidance.
+- **Setup-time tool coverage added**: the hub now includes an auto-connect panel that detects install-downloaded desktop tools such as **xEdit**, **Creation Kit**, **Blender**, **LOOT**, **NifSkope**, and **BodySlide / Outfit Studio**, alongside live-running status where available.
 - **Integrations discovery wiring refreshed**: added a dedicated `ext-tools` tutorial context entry and expanded observer/chat/search metadata so the integrations hub maps to the actual in-app workspace.
 
 ---

@@ -2601,6 +2601,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Three-tab consolidated layout: MO2, ComfyUI, and Upscayl',
       'Session-persistent tab selection via sessionStorage key `ext_hub_tab`',
       'Contextual FO4 tips panel describing the active integration and best-use guidance',
+      'Auto-connect coverage for install-downloaded desktop tools via detectPrograms() and running-process checks',
       'MO2 integration for profile awareness, plugin/load-order context, and conflict-first workflow tips',
       'ComfyUI integration guidance for concept art, texture references, and AI-assisted visual iteration',
       'Upscayl guidance for texture upscaling before DDS conversion and final compression',
@@ -2617,6 +2618,12 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         type: 'panel',
         description: 'Shows the active tool description and Fallout 4-specific tips for using that integration well',
         whenToUse: 'When deciding how to use the current tool in your FO4 asset or mod workflow',
+      },
+      {
+        name: 'Auto-connect desktop tools panel',
+        type: 'panel',
+        description: 'Shows installed/live-link status for setup-time desktop tools like xEdit, Creation Kit, Blender, LOOT, NifSkope, and BodySlide/Outfit Studio',
+        whenToUse: 'When verifying that Mossy can see the desktop tools you installed during setup',
       },
       {
         name: 'MO2 tab',
@@ -2658,6 +2665,14 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
           'Generate or refine source imagery in the ComfyUI tab',
           'Upscale the result in the Upscayl tab if the source resolution is too low',
           'Continue into the Textures & Materials hub for DDS conversion and Fallout-ready compression',
+        ],
+      },
+      {
+        title: 'Verify setup-time tools are visible to Mossy',
+        steps: [
+          'Open FO4 External Integrations Hub and review the Auto-connect desktop tools panel',
+          'Confirm your installed tools show as detected after setup or downloads complete',
+          'Launch a tool like xEdit, Blender, or Creation Kit and refresh to confirm the live link becomes active',
         ],
       },
     ],
