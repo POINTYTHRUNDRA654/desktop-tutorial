@@ -34,14 +34,23 @@ const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 const KnowledgeHub: React.FC = () => {
   const [activeTab, setActiveTab] = useState<HubTab>('reference');
+  const tabStorageKey = 'knowledge_hub_tab';
 
   useEffect(() => {
-    const saved = sessionStorage.getItem('knowledge_hub_tab') as HubTab | null;
-    if (saved && TAB_DEFS.some((t) => t.id === saved)) setActiveTab(saved);
+    try {
+      const saved = sessionStorage.getItem(tabStorageKey) as HubTab | null;
+      if (saved && TAB_DEFS.some((t) => t.id === saved)) setActiveTab(saved);
+    } catch {
+      // ignore storage access failures in restricted environments
+    }
   }, []);
 
   useEffect(() => {
-    sessionStorage.setItem('knowledge_hub_tab', activeTab);
+    try {
+      sessionStorage.setItem(tabStorageKey, activeTab);
+    } catch {
+      // ignore storage access failures in restricted environments
+    }
   }, [activeTab]);
 
   return (
@@ -53,7 +62,7 @@ const KnowledgeHub: React.FC = () => {
             <Book className="h-5 w-5 text-emerald-300" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight">Knowledge</h1>
+            <h1 className="text-xl font-black text-white tracking-tight">FO4 Knowledge Hub</h1>
             <p className="text-xs text-slate-400">Quick Reference · Semantic Search · Community Learning</p>
           </div>
         </div>

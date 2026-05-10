@@ -1631,7 +1631,7 @@ export const ChatInterface: React.FC = () => {
                     "• Runtime Hub (/runtime-hub): Live Synapse, Desktop Bridge status, and in-session runtime tooling.",
                     "• External Integrations Hub (/ext-tools): MO2, ComfyUI, and Upscayl integration guidance.",
                     "• System Hub (/system-hub): diagnostics, security posture, and local capability checks.",
-                    "• Knowledge Hub (/knowledge-hub): in-app FO4 docs/reference search."
+                    "• FO4 Knowledge Hub (/knowledge-hub): in-app FO4 docs/reference search."
                 ].join('\n');
 
             return `
@@ -2374,7 +2374,7 @@ export const ChatInterface: React.FC = () => {
                     ]}
                     shortcuts={[
                         { label: 'Runtime Hub', to: '/runtime-hub' },
-                        { label: 'Knowledge Hub', to: '/knowledge-hub' },
+                        { label: 'FO4 Knowledge Hub', to: '/knowledge-hub' },
                         { label: 'Plugin & Load Order', to: '/plugin-tools' },
                         { label: 'Creation Kit Hub', to: '/ck-tools' },
                         { label: 'System Hub', to: '/system-hub' },

@@ -78,7 +78,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/whats-new', icon: Star, label: t('nav.whatsNew', 'FO4 What\'s New') },
 
     // === CORE LEARNING: GUIDES & REFERENCES ===
-    { to: '/knowledge-hub', icon: Book, label: t('nav.knowledgeHub', 'Knowledge Hub') },
+    { to: '/knowledge-hub', icon: Book, label: t('nav.knowledgeHub', 'FO4 Knowledge Hub') },
     { to: '/memory-vault', icon: Brain, label: t('nav.memoryVault', 'Memory Vault') },
     { to: '/wizards', icon: Wrench, label: t('nav.wizards', 'Setup Wizards') },
     { to: '/ck-tools', icon: ShieldCheck, label: t('nav.ckTools', 'Creation Kit Hub') },

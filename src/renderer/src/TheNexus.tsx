@@ -267,13 +267,13 @@ const TheNexus: React.FC = () => {
           troubleshooting={[
             'If Electron shows WARN/BAD, you may be running web mode or preload failed.',
             'If Mic/TTS show WARN, check permissions in your OS and retry.',
-            'If Vault shows 0, open Knowledge Hub and run the indexer.',
+            'If Vault shows 0, open FO4 Knowledge Hub and run the indexer.',
           ]}
           shortcuts={[
             { label: 'AI Chat', to: '/chat' },
             { label: 'Setup Wizards', to: '/wizards' },
             { label: 'System Hub', to: '/system-hub' },
-            { label: 'Knowledge Hub', to: '/knowledge-hub' },
+            { label: 'FO4 Knowledge Hub', to: '/knowledge-hub' },
             { label: 'FO4 Mod Journey Hub', to: '/journey-hub' },
           ]}
         />
@@ -329,7 +329,7 @@ const TheNexus: React.FC = () => {
             </Link>
             <Link to="/knowledge-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Brain size={20} className="text-emerald-400" />
-              <span className="font-bold">Knowledge Hub</span>
+              <span className="font-bold">FO4 Knowledge Hub</span>
               <span className="text-slate-500 text-[9px]">Docs · Search · Reference</span>
             </Link>
             <Link to="/system-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
