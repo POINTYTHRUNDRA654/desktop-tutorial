@@ -15,6 +15,7 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 ### Changed
 - Sidebar reduced further from **33 to 22 platforms** (below the 24-target), with old routes still accessible.
 - Platform names were clarified for discoverability (examples: Setup Wizards, Creation Kit Hub, Automation Studio, Automation Orchestrator, Automation Runner, External Integrations Hub, Plugin & Load Order Hub, Asset Analysis Hub).
+- Initial install/tutorial flows were updated to use the new consolidated platform routes (`/journey-hub`, `/runtime-hub`, `/system-hub`, `/guides-hub`) so onboarding navigation matches the current sidebar.
 
 ---
 

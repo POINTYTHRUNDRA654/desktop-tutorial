@@ -338,7 +338,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'live-voice',
     pageName: 'Live Synapse',
     visualGuidePage: 39,
-    route: '/live',
+    route: '/runtime-hub',
     purpose: 'Real-time, voice-driven interaction with Mossy — live transcription, mic monitoring and embedded audio tools.',
     features: [
       'Real-time voice conversation with live transcription preview',
@@ -781,7 +781,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'holodeck',
     pageName: 'The Holodeck',
     visualGuidePage: 29,
-    route: '/test/holo',
+    route: '/runtime-hub',
     purpose: 'Test mods in a virtual environment before in-game testing',
     features: [
       'Virtual game world simulation',
@@ -1070,7 +1070,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'project-hub',
     pageName: 'Mod Projects',
     visualGuidePage: 7,
-    route: '/project',
+    route: '/journey-hub',
     purpose: 'Create, organize and track mod projects end-to-end (planning → implementation → release).',
     features: [
       'Create and save mod project plans (type, author, description)',
@@ -1226,7 +1226,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'diagnostics',
     pageName: 'Diagnostic Tools',
     visualGuidePage: 16, // synced from VISUAL_GUIDE.md
-    route: '/diagnostics',
+    route: '/system-hub',
     purpose: 'All-in-one system checks: verify the desktop bridge, tool paths, API/secret visibility, permissions, and collect exportable diagnostic snapshots for triage.',
     features: [
       'System health & telemetry checks (bridge, storage, permissions)',
@@ -1738,7 +1738,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'vault',
     pageName: 'The Vault',
     visualGuidePage: 30,
-    route: '/tools/vault',
+    route: '/system-hub',
     purpose: 'Asset & knowledge vault for documentation, media, and tool-ready assets — stage, verify, and persist files with optional tool conversions and manifests.',
     features: [
       'Asset staging (mesh/texture/audio/script/ui) with tags and privacy (local/shared)',
@@ -2148,7 +2148,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'desktop-bridge',
     pageName: 'Desktop Bridge',
     visualGuidePage: 37,
-    route: '/test/bridge',
+    route: '/runtime-hub',
     purpose: 'Local system bridge that connects Mossy (renderer) to OS tools, editors, and runtime services — exposes drivers, hardware info, file/clipboard access, and special integrations (Blender, CK, xEdit).',
     features: [
       'Bridge heartbeat & connection status (online/offline)',
@@ -2271,7 +2271,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'blender-animation-guide',
     pageName: 'Animation Guide',
     visualGuidePage: 13, // synced from VISUAL_GUIDE.md
-    route: '/guides/blender/animation',
+    route: '/guides-hub',
     purpose: 'End-to-end Fallout 4 animation pipeline: skeleton import, rigging, authoring, FBX export and HKX conversion, validation and in‑game testing.',
     features: [
       'Reference & skeleton import (preserve vanilla bone names)',
@@ -2383,7 +2383,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'quest-authoring-guide': {
     pageId: 'quest-authoring-guide',
     pageName: 'Quest Authoring Guide (Quest Mod Authorizing)', // VISUAL_GUIDE title: Quest Mod Authorizing
-    route: '/guides/creation-kit/quest-authoring',
+    route: '/guides-hub',
     purpose: 'Authoritative Creation Kit hub: install/verify CK toolchain, author quests & dialogue, manage leveled lists, precombine exteriors, validate, and publish.',
     features: [
       'Tools & install verification (CK, FO4Edit, mod manager, Archive2)',
@@ -2709,7 +2709,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'support': {
     pageId: 'support',
     pageName: 'Support Mossy',
-    route: '/support',
+    route: '/system-hub',
     purpose: 'Support the development of Mossy and access premium features',
     features: [
       'Donation options',
@@ -2952,7 +2952,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'roadmap-panel',
     pageName: 'Modding Roadmaps',
     visualGuidePage: 5,
-    route: '/roadmap',
+    route: '/journey-hub',
     purpose: 'Turn a mod idea into a step‑by‑step plan with tool hints and progress tracking',
     features: [
       'AI‑generated step lists from a short goal',
@@ -3141,7 +3141,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'first-success',
     pageName: 'First Success Wizard',
     visualGuidePage: 4,
-    route: '/first-success',
+    route: '/journey-hub',
     purpose: 'Guide you through the core onboarding checklist so Mossy can personalize help',
     features: [
       'System scan checklist',
@@ -3181,8 +3181,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         title: 'Finishing the First Success Checklist',
         steps: [
-          'Run a System Monitor scan to detect installed tools',
-          'Verify detected tools in Tool Verify',
+          'Open System Hub and run a Diagnostics scan to detect installed tools',
+          'Verify detected tools and paths in System Hub → Diagnostics',
           'Index built-in guides in Knowledge Search',
           'Add at least one note to the Memory Vault',
           '(Optional) Run the Spriggit plugin digest: select Spriggit.CLI.exe and your Fallout 4 Data folder — Mossy will serialize and ingest your plugins',
@@ -3583,7 +3583,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'the-lorekeeper',
     pageName: 'The LoreKeeper',
     visualGuidePage: 15,
-    route: '/lore',
+    route: '/guides-hub',
     purpose: 'Browse and search Fallout 4 lore, world-building references and modding lore docs.',
     features: ['Lore search', 'Reference cards', 'Bookmarks'],
     controls: [
