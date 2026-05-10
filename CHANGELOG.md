@@ -4,7 +4,22 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.43] — Latest
+## [5.4.44] — Latest
+
+### Improved — Platform 1: Mossy.Space (Home Dashboard)
+- **Quick Hub Access grid** replaces the old "Quick Tools" grid. All 12 entries now link to the correct consolidated hub pages matching the current 22-platform sidebar.
+- **Stale routes removed**: old `/tools/xedit`, `/tools/security`, `/tools/mining`, `/tools/blueprint`, etc. replaced with hub-aware links (`/plugin-tools`, `/system-hub`, `/asset-analysis`, `/mod-builder`, etc.).
+- **FO4 "Where to Start" section**: 6 step-cards give new Fallout 4 modders a clear on-ramp covering setup, goals, load order, asset pipeline, stability, and packaging.
+- **Active project banner**: when a mod project is loaded, a banner now appears on the home screen with a direct "Open" link to Journey Hub.
+- **Bridge status polling**: added a 2 s polling interval (matching the Sidebar pattern) so the UPLINK badge updates without a page reload.
+- **Version string**: no longer hardcoded — reads from `package.json` via import.
+- **Help link**: updated from stale `/reference` route to `/knowledge-hub`.
+- **ToolsInstallVerifyPanel**: updated text references and added in-app shortcuts (AI Chat, Setup Wizards, System Hub, Knowledge Hub, Journey Hub).
+- **tutorialContext `nexus` entry**: fully updated with accurate features, controls, guides, mistakes, and suggested questions reflecting the new dashboard.
+
+---
+
+## [5.4.43]
 
 ### Added
 - **Journey Hub** (`/journey-hub`) — consolidated First Success, Mod Projects, Modding Roadmaps, and Mod Browser into one platform.
