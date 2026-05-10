@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v5.4.41** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v5.4.62** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 > 🔄 **For Contributors:** If you have this repository cloned and want to update your local copy with recent bug fixes, see [GIT_UPDATE_GUIDE.md](GIT_UPDATE_GUIDE.md)
 > 
@@ -8,9 +8,9 @@
 
 ---
 
-## 🚀 Onboarding & Installer Notes (v5.4.41)
+## 🚀 Onboarding & Installer Notes (v5.4.62)
 
-**New in v5.4.41 (Latest):**
+**New in v5.4.62 (Latest):**
 - ✅ **Bethel Integration** - Automatic mod enhancement system! Upload any Fallout 4 mod → Auto-enhance textures → Export as ZIP or FOMOD
   - 4x/8x/16x AI upscaling with neural networks
   - Intelligent texture classification (diffuse, normal, specular, roughness, metallic, AO)
