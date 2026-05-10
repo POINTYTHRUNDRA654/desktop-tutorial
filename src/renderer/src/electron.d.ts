@@ -24,6 +24,7 @@ declare global {
       api: ElectronAPIType;
       invoke: (channel: string, ...args: any[]) => Promise<any>;
     };
+    electronAPI?: ElectronAPIType;
     automationAPI?: {
       automation: {
         getSettings: () => Promise<any>;

@@ -567,17 +567,20 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // watchdog: if we remain in processing state for too long, restart the link
+  // Cloud LLM APIs can take 30-40+ seconds, so use 50s threshold
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
     if (mode === 'processing' && isActive) {
+      const PROCESSING_TIMEOUT = 50000; // 50 seconds for LLM response (allows slow networks/APIs)
+      const CHECK_INTERVAL = 51000;     // Check after timeout + 1s buffer
       timer = setTimeout(() => {
-        if (Date.now() - processingStartRef.current > 25000) {
+        if (Date.now() - processingStartRef.current > PROCESSING_TIMEOUT) {
           setStatus('Processing taking too long, restarting link...');
-          console.warn('[LiveContext] Voice AI stuck; reconnecting');
+          console.warn('[LiveContext] Voice AI stuck; reconnecting (exceeded 50s timeout)');
           disconnect();
           setTimeout(() => connect().catch(() => { }), 1000);
         }
-      }, 26000);
+      }, CHECK_INTERVAL);
     }
     return () => {
       if (timer) clearTimeout(timer);
