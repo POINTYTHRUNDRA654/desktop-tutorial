@@ -1,7 +1,7 @@
 /**
- * External Tools Hub
+ * FO4 External Integrations Hub
  *
- * Unified interface for all external tool integrations.
+ * Unified interface for Fallout 4 external tool integrations.
  * Consolidates: MO2 Extension · ComfyUI Extension · Upscayl Extension
  */
 
@@ -95,8 +95,8 @@ const ExternalToolsHub: React.FC = () => {
             <Package className="h-5 w-5 text-emerald-300" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight">External Tools</h1>
-            <p className="text-xs text-slate-400">MO2 · ComfyUI · Upscayl — third-party integrations</p>
+            <h1 className="text-xl font-black text-white tracking-tight">FO4 External Integrations Hub</h1>
+            <p className="text-xs text-slate-400">MO2 · ComfyUI · Upscayl workflows for Fallout 4 modding</p>
           </div>
         </div>
 
