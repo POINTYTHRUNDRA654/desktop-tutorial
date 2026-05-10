@@ -18,7 +18,20 @@ interface CriticalProgressSnapshot {
   values: Record<string, string>;
 }
 
-const getApi = () => (window as any).electron?.api || (window as any).electronAPI;
+interface PanelDataApi {
+  savePanelData?: (panelId: string, data: unknown) => Promise<{ ok: boolean; panelId: string; error?: string }>;
+  loadPanelData?: (panelId: string) => Promise<{ ok: boolean; data: unknown; panelId: string; error?: string }>;
+}
+
+interface WindowWithElectronApi extends Window {
+  electron?: { api?: PanelDataApi };
+  electronAPI?: PanelDataApi;
+}
+
+const getApi = (): PanelDataApi | undefined => {
+  const host = window as WindowWithElectronApi;
+  return host.electron?.api ?? host.electronAPI;
+};
 
 const collectCriticalValues = (): Record<string, string> => {
   const values: Record<string, string> = {};
@@ -49,7 +62,7 @@ export const backupCriticalProgressToDisk = async (): Promise<void> => {
   }
 };
 
-export const restoreCriticalProgressFromDiskIfMissing = async (): Promise<number> => {
+export const restoreMissingCriticalProgress = async (): Promise<number> => {
   const api = getApi();
   if (!api?.loadPanelData) return 0;
 
@@ -75,4 +88,3 @@ export const restoreCriticalProgressFromDiskIfMissing = async (): Promise<number
     return 0;
   }
 };
-
