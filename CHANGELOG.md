@@ -4,7 +4,16 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.47] — Latest
+## [5.4.48] — Latest
+
+### Improved — Platform 5: What's New Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 5 labels now use **FO4 What's New** in sidebar and release-note headers.
+- **Handler/wiring verified**: `/whats-new` route, one-time redirect flow, and version-aware dismissal (`mossy_whats_new_dismissed_version` + session flag) confirmed as connected and functional.
+- **Context gap fixed**: `tutorialContext` entry for Platform 5 now matches actual page behavior (back navigation, fallback notice, auto-open toggle behavior) instead of outdated placeholder controls.
+
+---
+
+## [5.4.47]
 
 ### Improved — Platform 4: Journey Hub Deep Scan
 - **Platform naming aligned to purpose**: user-facing Platform 4 labels now use **FO4 Mod Journey Hub** so the platform name clearly reflects Fallout 4 mod-building workflow intent.
