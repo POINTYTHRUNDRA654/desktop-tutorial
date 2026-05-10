@@ -2681,10 +2681,86 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'MO2, ComfyUI, and Upscayl Workflow Selection',
     ],
     suggestedQuestions: [
-      'When should I use MO2 versus Plugin & Load Order Hub?',
+      'When should I use MO2 versus FO4 Plugin & Load Order Hub?',
       'Should I start in ComfyUI or Upscayl for texture work?',
       'Does FO4 External Integrations Hub remember my last tab?',
       'What should I do after generating or upscaling an image here?',
+    ],
+  },
+
+  'plugin-tools': {
+    pageId: 'plugin-tools',
+    pageName: 'FO4 Plugin & Load Order Hub',
+    visualGuidePage: 20,
+    route: '/plugin-tools',
+    purpose: 'Four-tab plugin workflow hub for xEdit operations, PRP compatibility patching, load-order verification, and FO4 plugin reference guidance.',
+    features: [
+      'Four-tab consolidated layout: xEdit Tools, PRP Patch Tools, Load Order, FO4 Plugin Guide',
+      'Session-persistent tab selection via sessionStorage key `plugin_hub_tab`',
+      'xEdit Tools surface for cleaning, conflict inspection, and workflow execution',
+      'PRP Patch Tools workflow for precombine/previs-safe patch generation',
+      'Load Order analysis and optimization workflow with LOOT-aware checks',
+      'In-hub FO4 plugin reference covering ESL limits, conflict strategy, and release-safe practices',
+    ],
+    controls: [
+      {
+        name: 'Hub tab strip',
+        type: 'tabs',
+        description: 'Switch between xEdit Tools, PRP Patch Tools, Load Order, and FO4 Plugin Guide in one workspace',
+        whenToUse: 'Move between cleaning, patching, ordering, and reference tasks without leaving the hub',
+      },
+      {
+        name: 'xEdit Tools tab',
+        type: 'panel',
+        description: 'Open xEdit-focused workflows for plugin cleaning and conflict diagnostics',
+        whenToUse: 'When validating plugin health, dependencies, and override behavior',
+      },
+      {
+        name: 'PRP Patch Tools tab',
+        type: 'panel',
+        description: 'Open guided PRP compatibility workflows for precombine/previs patching',
+        whenToUse: 'When preparing exterior-edit mods for PRP-safe load-order integration',
+      },
+      {
+        name: 'Load Order tab',
+        type: 'panel',
+        description: 'Open load-order scanning, conflict checks, and optimization workflows',
+        whenToUse: 'When stabilizing a profile after adding/removing mods or patches',
+      },
+      {
+        name: 'FO4 Plugin Guide tab',
+        type: 'panel',
+        description: 'Read integrated FO4 plugin rules, ESL limits, and conflict-resolution best practices',
+        whenToUse: 'When you need a quick reference before shipping a plugin update',
+      },
+    ],
+    commonMistakes: [
+      'Treating xEdit and load-order checks as separate workflows instead of one integrated verification pass',
+      'Applying ESL flags before FormID compaction validation',
+      'Generating PRP-related patches without confirming final load-order placement',
+      'Assuming conflict-free scan output means release-ready without final in-game verification',
+    ],
+    guides: [
+      {
+        title: 'Run a full plugin validation loop',
+        steps: [
+          'Open FO4 Plugin & Load Order Hub',
+          'Use xEdit Tools to clean and inspect conflicts for your target plugin(s)',
+          'Switch to Load Order and run analysis/sort checks for profile stability',
+          'If exterior edits are involved, complete PRP Patch Tools workflow',
+          'Review FO4 Plugin Guide limits/rules before packaging and release',
+        ],
+      },
+    ],
+    tutorialSections: [
+      'FO4 Plugin & Load Order Hub - Unified Plugin Workflow',
+      'xEdit, PRP Patch, and Load Order Validation',
+    ],
+    suggestedQuestions: [
+      'When should I run xEdit cleaning versus load-order analysis first?',
+      'How does FO4 Plugin & Load Order Hub handle PRP-related plugin patching?',
+      'What are the key ESL/FormID limits I should validate before release?',
+      'Which tab should I use when tracking down a plugin conflict chain?',
     ],
   },
 
