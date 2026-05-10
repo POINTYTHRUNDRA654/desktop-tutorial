@@ -410,6 +410,14 @@ const QUIPS: Record<string, string[]> = {
         "If a desktop action fails from chat, open FO4 Runtime Hub and confirm the Desktop Bridge path is active before retrying.",
         "Treat Runtime Hub as the operational status page for live audio, local bridge health, and runtime QA in one place."
     ],
+    '/ext-tools': [
+        "FO4 External Integrations Hub consolidates three third-party workflows: MO2 profile awareness, ComfyUI image generation, and Upscayl texture enhancement.",
+        "Use the tab bar to move between MO2, ComfyUI, and Upscayl without leaving the hub; your current tab is restored during the session.",
+        "MO2 is the profile and load-order context tab — use it when you need Mossy to understand active mods, profiles, and file-priority behavior.",
+        "ComfyUI is the concept-art and texture-iteration tab — best for reference generation before committing assets into the FO4 texture pipeline.",
+        "Upscayl is the finishing tab for low-resolution source textures that still need DDS conversion and Fallout-friendly compression afterward.",
+        "If you are unsure which external tool to open, start in FO4 External Integrations Hub and route to the tab matching your current workflow stage."
+    ],
     '/paperscript': [
         "PaperScript is a modern scripting language for Fallout 4 - a cleaner, more powerful alternative to Papyrus.",
         "Get started in 15 minutes with the Quick Start Guide - covers setup, syntax, and your first script.",

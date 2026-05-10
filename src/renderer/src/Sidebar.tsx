@@ -105,7 +105,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/runtime-hub', icon: Radio, label: t('nav.runtimeHub', 'FO4 Runtime Hub') },
 
     // === TOOL EXTENSIONS ===
-    { to: '/ext-tools', icon: Package, label: t('nav.externalTools', 'External Integrations Hub') },
+    { to: '/ext-tools', icon: Package, label: t('nav.externalTools', 'FO4 External Integrations Hub') },
     { to: '/plugin-tools', icon: Database, label: t('nav.pluginTools', 'Plugin & Load Order Hub') },
 
     { to: '/system-hub', icon: Wrench, label: t('nav.systemHub', 'System Hub') },

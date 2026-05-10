@@ -2591,6 +2591,88 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
+  'ext-tools': {
+    pageId: 'ext-tools',
+    pageName: 'FO4 External Integrations Hub',
+    visualGuidePage: 41,
+    route: '/ext-tools',
+    purpose: 'Three-tab external integrations hub for connecting Fallout 4 workflows to Mod Organizer 2, ComfyUI, and Upscayl.',
+    features: [
+      'Three-tab consolidated layout: MO2, ComfyUI, and Upscayl',
+      'Session-persistent tab selection via sessionStorage key `ext_hub_tab`',
+      'Contextual FO4 tips panel describing the active integration and best-use guidance',
+      'MO2 integration for profile awareness, plugin/load-order context, and conflict-first workflow tips',
+      'ComfyUI integration guidance for concept art, texture references, and AI-assisted visual iteration',
+      'Upscayl guidance for texture upscaling before DDS conversion and final compression',
+    ],
+    controls: [
+      {
+        name: 'Integration tab strip',
+        type: 'tabs',
+        description: 'Switch between MO2, ComfyUI, and Upscayl inside one integrations workspace',
+        whenToUse: 'Move between profile management, image generation, and upscaling workflows',
+      },
+      {
+        name: 'FO4 tips panel',
+        type: 'panel',
+        description: 'Shows the active tool description and Fallout 4-specific tips for using that integration well',
+        whenToUse: 'When deciding how to use the current tool in your FO4 asset or mod workflow',
+      },
+      {
+        name: 'MO2 tab',
+        type: 'panel',
+        description: 'Opens the Mod Organizer 2 integration surface for profile and plugin awareness',
+        whenToUse: 'When checking active mod context, profiles, or mod-manager-driven troubleshooting',
+      },
+      {
+        name: 'ComfyUI tab',
+        type: 'panel',
+        description: 'Loads the ComfyUI integration for AI image and texture-reference workflows',
+        whenToUse: 'When generating concept art, references, or source imagery for texture work',
+      },
+      {
+        name: 'Upscayl tab',
+        type: 'panel',
+        description: 'Loads the Upscayl integration for enhancing low-resolution source images and textures',
+        whenToUse: 'When preparing texture sources for later DDS export and compression',
+      },
+    ],
+    commonMistakes: [
+      'Treating the hub as generic settings instead of a 3-tab workflow hub',
+      'Using ComfyUI or Upscayl outputs directly in-game without routing them through the FO4 texture pipeline afterward',
+      'Forgetting that tab persistence is session-based and not a permanent saved preference',
+    ],
+    guides: [
+      {
+        title: 'Choose the right external integration',
+        steps: [
+          'Open FO4 External Integrations Hub',
+          'Use MO2 when you need profile, active-mod, or load-order context',
+          'Switch to ComfyUI for concept art, texture references, or visual ideation',
+          'Use Upscayl when you need to enhance source textures before DDS conversion',
+        ],
+      },
+      {
+        title: 'Move from ideation to usable texture output',
+        steps: [
+          'Generate or refine source imagery in the ComfyUI tab',
+          'Upscale the result in the Upscayl tab if the source resolution is too low',
+          'Continue into the Textures & Materials hub for DDS conversion and Fallout-ready compression',
+        ],
+      },
+    ],
+    tutorialSections: [
+      'FO4 External Integrations Hub - Unified Tool Routing',
+      'MO2, ComfyUI, and Upscayl Workflow Selection',
+    ],
+    suggestedQuestions: [
+      'When should I use MO2 versus Plugin & Load Order Hub?',
+      'Should I start in ComfyUI or Upscayl for texture work?',
+      'Does FO4 External Integrations Hub remember my last tab?',
+      'What should I do after generating or upscaling an image here?',
+    ],
+  },
+
   'guides-hub': {
     pageId: 'guides-hub',
     pageName: 'FO4 Guides Hub',
