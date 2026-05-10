@@ -298,7 +298,7 @@ const CKToolsHub: React.FC = () => {
             <Shield className="h-5 w-5 text-emerald-300" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight">CK Tools</h1>
+            <h1 className="text-xl font-black text-white tracking-tight">FO4 Creation Kit Hub</h1>
             <p className="text-xs text-slate-400">Creation Kit safety, auto-save, script compilation, and FO4 CK reference — all in one place</p>
           </div>
         </div>
