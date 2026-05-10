@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle, Sparkles } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import packageJson from '../../../package.json';
@@ -11,8 +11,35 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [entry, setEntry] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const features = useMemo(
+  // Load current version's What's New entry from server
+  useEffect(() => {
+    const loadWhatsNew = async () => {
+      try {
+        setLoading(true);
+        const result = await window.electron.api.invoke('whats-new-get-current');
+        
+        if (result?.ok && result.entry) {
+          setEntry(result.entry);
+          // Mark current version as seen
+          await window.electron.api.invoke('whats-new-mark-seen', { 
+            version: packageJson.version 
+          });
+        }
+      } catch (err) {
+        console.warn('[WhatsNewPage] Failed to load What\'s New:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadWhatsNew();
+  }, []);
+
+  // Fallback features if no data from server
+  const defaultFeatures = useMemo(
     () => [
       {
         title: 'Enhanced AI Chat',
@@ -48,19 +75,24 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
     []
   );
 
+  const features = entry?.features || defaultFeatures;
+
   const handleBack = () => {
     if (dontShowAgain) {
       try {
-        // Store the current version as dismissed so it re-appears on the next release
+        // Dismiss this version via backend
+        window.electron.api.invoke('whats-new-dismiss', { 
+          version: packageJson.version 
+        }).catch(err => console.warn('[WhatsNewPage] Failed to dismiss:', err));
+        
+        // Also store locally as fallback
         localStorage.setItem('mossy_whats_new_dismissed_version', packageJson.version);
         localStorage.removeItem('mossy_whats_new_dismissed');
       } catch (err) {
-        // Don't block navigation if storage fails
         console.warn('[WhatsNewPage] could not persist dismissal:', err);
       }
     }
 
-    // Notify parent/hook (will at minimum set a session-dismiss flag)
     onDismiss?.();
 
     const from = (location.state as { from?: string } | null)?.from;

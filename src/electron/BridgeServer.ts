@@ -292,6 +292,72 @@ export class BridgeServer {
         });
     }
 
+    /**
+     * Execute texture enhancement script via Blender (Neural Link)
+     * Routes Python script to Blender addon on addonPort
+     */
+    async executeBlenderScript(payload: {
+        script: string;
+        jobId: string;
+    }): Promise<{ success: boolean; message: string }> {
+        return new Promise((resolve, reject) => {
+            const net = require('net');
+            const socket = new net.Socket();
+            const timeoutMs = 30000; // 30 sec for texture processing
+            let finished = false;
+
+            socket.setTimeout(timeoutMs);
+
+            socket.on('connect', () => {
+                console.log('[Bridge] Blender addon connected');
+                try {
+                    socket.write(JSON.stringify({
+                        type: 'texture_enhance',
+                        jobId: payload.jobId,
+                        script: payload.script,
+                    }));
+                } catch (e) {
+                    console.error('[Bridge] Socket write error:', e);
+                    finished = true;
+                    socket.destroy();
+                    reject(e);
+                }
+            });
+
+            socket.on('data', (data) => {
+                if (finished) return;
+                finished = true;
+                const response = data.toString();
+                console.log('[Bridge] Blender response:', response);
+                socket.destroy();
+                resolve({ success: true, message: response });
+            });
+
+            socket.on('timeout', () => {
+                if (finished) return;
+                finished = true;
+                console.log('[Bridge] Blender texture enhancement timed out');
+                socket.destroy();
+                reject(new Error('Blender texture enhancement timed out'));
+            });
+
+            socket.on('error', (err: any) => {
+                if (finished) return;
+                finished = true;
+                console.error('[Bridge] Blender socket error:', err);
+                socket.destroy();
+                reject(err);
+            });
+
+            socket.on('close', () => {
+                console.log('[Bridge] Blender socket closed');
+            });
+
+            // Connect to Blender addon
+            socket.connect(this.addonPort, 'localhost');
+        });
+    }
+
     stop() {
         if (this.server) {
             this.server.close();

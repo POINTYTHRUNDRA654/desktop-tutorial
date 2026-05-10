@@ -211,7 +211,7 @@
     "publish": {
       "provider": "github",
       "owner": "POINTYTHRUNDRA654",
-      "repo": "mossy-ai",
+      "repo": "desktop-tutorial",
       "releaseType": "prerelease",
       "timeout": 600000,
       "requestHeaders": {

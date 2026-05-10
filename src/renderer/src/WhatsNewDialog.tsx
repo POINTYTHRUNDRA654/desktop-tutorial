@@ -9,8 +9,36 @@ interface WhatsNewDialogProps {
 
 export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose }) => {
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [entry, setEntry] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const features = [
+  // Load current version's What's New entry from server
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const loadWhatsNew = async () => {
+      try {
+        setLoading(true);
+        const result = await window.electron.api.invoke('whats-new-get-current');
+        
+        if (result?.ok && result.entry) {
+          setEntry(result.entry);
+          // Mark current version as seen
+          await window.electron.api.invoke('whats-new-mark-seen', { 
+            version: packageJson.version 
+          }).catch(err => console.warn('[WhatsNewDialog] Failed to mark as seen:', err));
+        }
+      } catch (err) {
+        console.warn('[WhatsNewDialog] Failed to load What\'s New:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadWhatsNew();
+  }, [isOpen]);
+
+  const defaultFeatures = [
     {
       title: "Enhanced AI Chat",
       description: "Improved conversation memory and context awareness for better assistance.",
@@ -43,15 +71,20 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose 
     }
   ];
 
+  const features = entry?.features || defaultFeatures;
+
   const handleClose = () => {
     if (dontShowAgain) {
       try {
-        // Store the current version as dismissed so the dialog re-appears on the next release
+        // Dismiss this version via backend
+        window.electron.api.invoke('whats-new-dismiss', { 
+          version: packageJson.version 
+        }).catch(err => console.warn('[WhatsNewDialog] Failed to dismiss:', err));
+        
+        // Also store locally as fallback
         localStorage.setItem('mossy_whats_new_dismissed_version', packageJson.version);
-        // Migrate: remove old boolean flag so version-based check takes over
         localStorage.removeItem('mossy_whats_new_dismissed');
       } catch (err) {
-        // Don't block closing the dialog if storage is unavailable
         console.warn('[WhatsNewDialog] could not persist dismissal:', err);
       }
     }

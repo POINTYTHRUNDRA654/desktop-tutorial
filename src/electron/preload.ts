@@ -11,6 +11,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
+import type { IpcResponse, IpcErrorCode, SimpleResponse, FilePathResponse, ArrayResponse, ItemResponse } from './types/ipcErrors';
 
 // tests rely on boot/onboarding flags being present before React loads.  Preload
 // runs before any renderer scripts, so we can safely mutate localStorage here
@@ -38,6 +39,24 @@ interface InstalledProgram {
   icon?: string;
   version?: string;
   publisher?: string;
+}
+
+// Auditor-specific response types
+interface AuditorAnalysisResult {
+  fileSize?: number;
+  recordCount?: number;
+  issues?: any[];
+}
+
+interface AuditorBinaryResult {
+  data?: string; // base64-encoded
+}
+
+interface AuditorFixResult {
+  message?: string;
+  backedUpTo?: string | null;
+  scriptPath?: string;
+  scriptContent?: string;
 }
 
 const IPC_CHANNELS = {
@@ -125,6 +144,12 @@ const IPC_CHANNELS = {
   LOAD_ORDER_WRITE_USERDATA_FILE: 'load-order-write-userdata-file',
   LOAD_ORDER_LAUNCH_XEDIT: 'load-order-launch-xedit',
 
+  // Script Installation & Execution
+  INSTALL_SCRIPT: 'install-script',
+  XEDIT_SCRIPT_EXECUTE_SCRIPT: 'xedit-script-execute-script',
+  CK_PLUGIN_VALIDATE: 'ck-plugin-validate',
+  CK_LAUNCH_WITH_PLUGIN: 'ck-launch-with-plugin',
+
   // Generic file helpers
   PICK_JSON_FILE: 'pick-json-file',
   PICK_DIRECTORY: 'pick-directory',
@@ -175,6 +200,14 @@ const IPC_CHANNELS = {
   ROADMAP_UPDATE_STEP: 'roadmap-update-step',
   ROADMAP_DELETE: 'roadmap-delete',
   ROADMAP_GENERATE_AI: 'roadmap-generate-ai',
+
+  // What's New (Platform 7)
+  WHATS_NEW_GET_ALL: 'whats-new-get-all',
+  WHATS_NEW_GET_CURRENT: 'whats-new-get-current',
+  WHATS_NEW_GET_CHANGELOG: 'whats-new-get-changelog',
+  WHATS_NEW_MARK_SEEN: 'whats-new-mark-seen',
+  WHATS_NEW_DISMISS: 'whats-new-dismiss',
+  WHATS_NEW_RESET: 'whats-new-reset',
 
   // Proactive Observer (Neural Link+)
   OBSERVER_NOTIFY: 'observer-notify',
@@ -351,25 +384,30 @@ const IPC_CHANNELS = {
  */
 const electronAPI = {
   /**
-   * Detect installed programs on the host machine
-   * @returns Promise resolving to array of installed programs
+   * All API methods now return IpcResponse<T> for consistent error handling
+   * 
+   * Success: { success: true, data: T, timestamp: number }
+   * Error:   { success: false, error: string, code: IpcErrorCode, timestamp: number }
+   * 
+   * Always check response.success before accessing response.data
    */
-  detectPrograms: (): Promise<InstalledProgram[]> => {
+  detectPrograms: (): Promise<IpcResponse<InstalledProgram[]>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.DETECT_PROGRAMS);
   },
 
   /**
    * Get currently running modding tools
-   * @returns Promise resolving to array of running processes
+   * @returns Promise resolving to IpcResponse with array of running processes
    */
-  getRunningProcesses: (): Promise<any[]> => {
+  getRunningProcesses: (): Promise<IpcResponse<any[]>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.GET_RUNNING_PROCESSES);
   },
 
   /**
    * Get settings from Electron store
+   * @returns Promise resolving to IpcResponse with settings object
    */
-  getSettings: (): Promise<any> => {
+  getSettings: (): Promise<IpcResponse<any>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS);
   },
 
@@ -592,6 +630,57 @@ const electronAPI = {
   },
 
   /**
+   * AI Assistant: Generate script for given context
+   * Generates Papyrus, XML, Python, or JSON code from natural language description
+   * Tries Groq first (faster), falls back to OpenAI
+   */
+  aiGenerateScript: (request: any): Promise<any> => {
+    return ipcRenderer.invoke('ai-generate-script', request);
+  },
+
+  /**
+   * AI Assistant: Plan workflow based on user request
+   */
+  aiPlanWorkflow: (request: any): Promise<any> => {
+    return ipcRenderer.invoke('ai:plan-workflow', request);
+  },
+
+  /**
+   * AI Assistant: Explain modding concepts
+   */
+  aiExplain: (request: any): Promise<any> => {
+    return ipcRenderer.invoke('ai:explain', request);
+  },
+
+  /**
+   * AI Assistant: Diagnose error from context
+   */
+  aiDiagnoseError: (context: any): Promise<any> => {
+    return ipcRenderer.invoke('ai:diagnose-error', context);
+  },
+
+  /**
+   * AI Assistant: Suggest names for entities
+   */
+  aiSuggestNames: (context: any): Promise<any> => {
+    return ipcRenderer.invoke('ai:suggest-names', context);
+  },
+
+  /**
+   * AI Assistant: Generate script body
+   */
+  aiGenerateScriptBody: (context: any): Promise<any> => {
+    return ipcRenderer.invoke('ai:generate-script-body', context);
+  },
+
+  /**
+   * Get startup diagnostics (token status, backend URL, etc)
+   */
+  getDiagnostics: (): Promise<any> => {
+    return ipcRenderer.invoke('app:get-diagnostics');
+  },
+
+  /**
    * Vault: Read DDS dimensions from file header
    */
   getDdsDimensions: (filePath: string): Promise<{ width: number; height: number }> => {
@@ -612,8 +701,9 @@ const electronAPI = {
 
   /**
    * Auditor: Analyze ESP/ESM file
+   * @returns IpcResponse with analysis results (fileSize, recordCount, issues)
    */
-  analyzeEsp: (filePath: string): Promise<{ success: boolean; fileSize?: number; recordCount?: number; issues?: any[]; error?: string }> => {
+  analyzeEsp: (filePath: string): Promise<IpcResponse<AuditorAnalysisResult>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_ANALYZE_ESP, filePath);
   },
 
@@ -621,8 +711,9 @@ const electronAPI = {
    * Auditor: Read any mod asset file (ESP/ESM/ESL/NIF/DDS/BGSM) as raw binary.
    * Returns base64-encoded file data so the renderer worker can parse the true
    * binary format without going through a lossy UTF-8 text codec.
+   * @returns IpcResponse with base64-encoded binary data
    */
-  readBinaryFile: (filePath: string): Promise<{ success: boolean; data?: string; error?: string }> => {
+  readBinaryFile: (filePath: string): Promise<IpcResponse<AuditorBinaryResult>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_READ_BINARY_FILE, filePath);
   },
 
@@ -630,8 +721,9 @@ const electronAPI = {
    * Auditor: Apply an auto-fix to an ESP/ESM/ESL plugin.
    * fixType: 'set_esl_flag' | 'generate_udr_script' | 'generate_itm_script'
    * Always creates a .bak backup before any in-place modification.
+   * @returns IpcResponse with fix result (message, backedUpTo, scriptPath, etc.)
    */
-  applyEspFix: (filePath: string, fixType: string): Promise<{ success: boolean; message?: string; backedUpTo?: string | null; scriptPath?: string; scriptContent?: string; error?: string }> => {
+  applyEspFix: (filePath: string, fixType: string): Promise<IpcResponse<AuditorFixResult>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.AUDITOR_APPLY_ESP_FIX, filePath, fixType);
   },
 
@@ -2016,6 +2108,34 @@ const electronAPI = {
   },
 
   /**
+   * Install Script: Install xEdit (.pas) or Papyrus (.psc) scripts to their target directories
+   */
+  installScript: (type: 'xedit' | 'papyrus', name: string, content: string): Promise<{ success: boolean; path?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.INSTALL_SCRIPT, type, name, content);
+  },
+
+  /**
+   * xEdit Script: Execute xEdit script with optional plugin parameter
+   */
+  xeditRunScriptWithPlugin: (scriptPath: string, pluginPath?: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.XEDIT_SCRIPT_EXECUTE_SCRIPT, scriptPath, pluginPath || '');
+  },
+
+  /**
+   * CK Plugin: Validate ESP/ESM plugin file format
+   */
+  ckValidatePlugin: (espPath: string): Promise<{ success: boolean; issues?: Array<{ type: string; message: string }>; validationPassed?: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_PLUGIN_VALIDATE, espPath);
+  },
+
+  /**
+   * CK Plugin: Launch Creation Kit with specific plugin loaded
+   */
+  ckLaunchWithPlugin: (pluginPath: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_LAUNCH_WITH_PLUGIN, pluginPath);
+  },
+
+  /**
    * AI Chat: OpenAI-powered chat completion
    * Main process manages API key; renderer never sees it
    */
@@ -3099,25 +3219,1007 @@ const electronAPI = {
       ipcRenderer.invoke('mod-browser:trending', timeframe),
   },
 
-  security: {
-    pickFile: (): Promise<string | null> =>
-      ipcRenderer.invoke('security:pick-file'),
-    scanFile: (path: string): Promise<any> =>
-      ipcRenderer.invoke('security:scan-file', path),
-    scanArchive: (path: string): Promise<any> =>
-      ipcRenderer.invoke('security:scan-archive', path),
-    scanScript: (path: string): Promise<any> =>
-      ipcRenderer.invoke('security:scan-script', path),
-    analyzePapyrusScript: (code: string): Promise<any> =>
-      ipcRenderer.invoke('security:analyze-papyrus', code),
-    generateChecksum: (path: string, algorithm: 'md5' | 'sha256' = 'sha256'): Promise<any> =>
-      ipcRenderer.invoke('security:generate-checksum', path, algorithm),
-    verifyChecksum: (path: string, expectedHash: string): Promise<any> =>
-      ipcRenderer.invoke('security:verify-checksum', path, expectedHash),
-    updateThreatDatabase: (): Promise<any> =>
-      ipcRenderer.invoke('security:update-db'),
-    checkAgainstDatabase: (hash: string): Promise<any> =>
-      ipcRenderer.invoke('security:check-db', hash),
+  // Platform 9: Load Order Management API
+  loadOrder: {
+    getAll: (): Promise<any[]> =>
+      ipcRenderer.invoke('load-order:get-all'),
+    getCurrent: (): Promise<any> =>
+      ipcRenderer.invoke('load-order:get-current'),
+    create: (name: string, description?: string): Promise<any> =>
+      ipcRenderer.invoke('load-order:create', name, description),
+    updateOrder: (loadOrderId: string, plugins: any[]): Promise<any> =>
+      ipcRenderer.invoke('load-order:update-order', loadOrderId, plugins),
+    validate: (loadOrderId: string): Promise<any> =>
+      ipcRenderer.invoke('load-order:validate', loadOrderId),
+    analyzeConflicts: (loadOrderId: string): Promise<any[]> =>
+      ipcRenderer.invoke('load-order:analyze-conflicts', loadOrderId),
+    optimize: (loadOrderId: string): Promise<any> =>
+      ipcRenderer.invoke('load-order:optimize', loadOrderId),
+    export: (loadOrderId: string, format: string): Promise<any> =>
+      ipcRenderer.invoke('load-order:export', loadOrderId, format),
+    import: (name: string, content: string, format: string): Promise<any> =>
+      ipcRenderer.invoke('load-order:import', name, content, format),
+    delete: (loadOrderId: string): Promise<any> =>
+      ipcRenderer.invoke('load-order:delete', loadOrderId),
+  },
+
+  // Platform 10: Conflict Resolution API
+  conflictResolver: {
+    analyze: (pluginPaths: string[]): Promise<any> =>
+      ipcRenderer.invoke('conflict-resolver:analyze', pluginPaths),
+    detect: (plugin1: string, plugin2: string): Promise<any[]> =>
+      ipcRenderer.invoke('conflict-resolver:detect', plugin1, plugin2),
+    resolve: (conflicts: any[], strategy: string): Promise<any> =>
+      ipcRenderer.invoke('conflict-resolver:resolve', conflicts, strategy),
+    generatePatch: (conflicts: any[], patchName: string): Promise<any> =>
+      ipcRenderer.invoke('conflict-resolver:generate-patch', conflicts, patchName),
+    addRule: (ruleData: any): Promise<any> =>
+      ipcRenderer.invoke('conflict-resolver:add-rule', ruleData),
+    getRules: (): Promise<any[]> =>
+      ipcRenderer.invoke('conflict-resolver:get-rules'),
+    deleteRule: (ruleId: string): Promise<any> =>
+      ipcRenderer.invoke('conflict-resolver:delete-rule', ruleId),
+    applyRules: (conflicts: any[], ruleIds?: string[]): Promise<any> =>
+      ipcRenderer.invoke('conflict-resolver:apply-rules', conflicts, ruleIds),
+    exportAnalysis: (analysis: any, format: string): Promise<any> =>
+      ipcRenderer.invoke('conflict-resolver:export-analysis', analysis, format),
+    importRules: (content: string, format: string): Promise<any> =>
+      ipcRenderer.invoke('conflict-resolver:import-rules', content, format),
+  },
+
+  // Platform 11: Plugin Manager API
+  pluginManager: {
+    listInstalled: (): Promise<any[]> =>
+      ipcRenderer.invoke('plugin-manager:list-installed'),
+    listMarketplace: (): Promise<any[]> =>
+      ipcRenderer.invoke('plugin-manager:list-marketplace'),
+    install: (pluginId: string, version: string): Promise<any> =>
+      ipcRenderer.invoke('plugin-manager:install', pluginId, version),
+    uninstall: (pluginId: string): Promise<any> =>
+      ipcRenderer.invoke('plugin-manager:uninstall', pluginId),
+    toggle: (pluginId: string, enabled: boolean): Promise<any> =>
+      ipcRenderer.invoke('plugin-manager:toggle', pluginId, enabled),
+    update: (pluginId: string, newVersion: string): Promise<any> =>
+      ipcRenderer.invoke('plugin-manager:update', pluginId, newVersion),
+    getSettings: (): Promise<any> =>
+      ipcRenderer.invoke('plugin-manager:get-settings'),
+    setSettings: (settings: any): Promise<any> =>
+      ipcRenderer.invoke('plugin-manager:set-settings', settings),
+    getDetails: (pluginId: string): Promise<any> =>
+      ipcRenderer.invoke('plugin-manager:get-details', pluginId),
+    validate: (pluginId: string): Promise<any> =>
+      ipcRenderer.invoke('plugin-manager:validate', pluginId),
+  },
+
+  // Platform 12: Team Workspace API
+  teamWorkspace: {
+    createWorkspace: (name: string, description?: string): Promise<any> =>
+      ipcRenderer.invoke('team-workspace:create-workspace', name, description),
+    listWorkspaces: (): Promise<any[]> =>
+      ipcRenderer.invoke('team-workspace:list-workspaces'),
+    getWorkspace: (workspaceId: string): Promise<any> =>
+      ipcRenderer.invoke('team-workspace:get-workspace', workspaceId),
+    joinWorkspace: (workspaceId: string, userId: string): Promise<any> =>
+      ipcRenderer.invoke('team-workspace:join-workspace', workspaceId, userId),
+    leaveWorkspace: (workspaceId: string, userId: string): Promise<any> =>
+      ipcRenderer.invoke('team-workspace:leave-workspace', workspaceId, userId),
+    assignTask: (workspaceId: string, taskData: any): Promise<any> =>
+      ipcRenderer.invoke('team-workspace:assign-task', workspaceId, taskData),
+    updateProgress: (taskId: string, progressData: any): Promise<any> =>
+      ipcRenderer.invoke('team-workspace:update-progress', taskId, progressData),
+    addComment: (taskId: string, comment: string, userId: string): Promise<any> =>
+      ipcRenderer.invoke('team-workspace:add-comment', taskId, comment, userId),
+    getComments: (taskId: string): Promise<any[]> =>
+      ipcRenderer.invoke('team-workspace:get-comments', taskId),
+    lockFile: (workspaceId: string, filePath: string, userId: string): Promise<any> =>
+      ipcRenderer.invoke('team-workspace:lock-file', workspaceId, filePath, userId),
+  },
+
+  // Platform 13: Mining Pipeline API
+  miningPipeline: {
+    executePipeline: (sources: any[]): Promise<any> =>
+      ipcRenderer.invoke('mining:execute-pipeline', sources),
+    parseESP: (filePath: string): Promise<any> =>
+      ipcRenderer.invoke('mining:parse-esp', filePath),
+    buildDependencyGraph: (espData: any): Promise<any> =>
+      ipcRenderer.invoke('mining:build-dependency-graph', espData),
+    extractForms: (espDataId: string): Promise<any> =>
+      ipcRenderer.invoke('mining:extract-forms', espDataId),
+    analyzeConflicts: (espDataIds: string[]): Promise<any> =>
+      ipcRenderer.invoke('mining:analyze-conflicts', espDataIds),
+    generateReport: (pipelineId: string): Promise<any> =>
+      ipcRenderer.invoke('mining:generate-report', pipelineId),
+    validateMaster: (masterPath: string, dependencyPaths: string[]): Promise<any> =>
+      ipcRenderer.invoke('mining:validate-master', masterPath, dependencyPaths),
+    scanAssetReferences: (espDataId: string): Promise<any> =>
+      ipcRenderer.invoke('mining:scan-asset-references', espDataId),
+    cacheMiningData: (dataId: string, data: any): Promise<any> =>
+      ipcRenderer.invoke('mining:cache-mining-data', dataId, data),
+    getCachedData: (cacheKey: string): Promise<any> =>
+      ipcRenderer.invoke('mining:get-cached-data', cacheKey),
+  },
+
+  // Platform 14: Testing Suite API
+  testingSuite: {
+    createTestSuite: (suiteName: string, config?: any): Promise<any> =>
+      ipcRenderer.invoke('testing:create-test-suite', suiteName, config),
+    runAllTests: (suiteId: string): Promise<any> =>
+      ipcRenderer.invoke('testing:run-all-tests', suiteId),
+    runSingleTest: (suiteId: string, testId: string): Promise<any> =>
+      ipcRenderer.invoke('testing:run-single-test', suiteId, testId),
+    testLoadOrder: (loadOrderPath: string): Promise<any> =>
+      ipcRenderer.invoke('testing:test-load-order', loadOrderPath),
+    testScriptCompilation: (scriptPath: string): Promise<any> =>
+      ipcRenderer.invoke('testing:test-script-compilation', scriptPath),
+    testAssetIntegrity: (assetPath: string): Promise<any> =>
+      ipcRenderer.invoke('testing:test-asset-integrity', assetPath),
+    benchmarkPerformance: (profileName?: string): Promise<any> =>
+      ipcRenderer.invoke('testing:benchmark-performance', profileName),
+    generateTestReport: (resultId: string): Promise<any> =>
+      ipcRenderer.invoke('testing:generate-test-report', resultId),
+    getTestHistory: (suiteId: string, limit?: number): Promise<any> =>
+      ipcRenderer.invoke('testing:get-test-history', suiteId, limit),
+    saveTestResults: (testData: any): Promise<any> =>
+      ipcRenderer.invoke('testing:save-test-results', testData),
+  },
+
+  // Platform 15: Advanced Workflow Automation API
+  workflowAutomation: {
+    createWorkflow: (workflowName: string, description?: string, tags?: string[]): Promise<any> =>
+      ipcRenderer.invoke('workflow:create-workflow', workflowName, description, tags),
+    saveWorkflow: (workflowId: string, updates: any): Promise<any> =>
+      ipcRenderer.invoke('workflow:save-workflow', workflowId, updates),
+    loadWorkflow: (workflowId: string): Promise<any> =>
+      ipcRenderer.invoke('workflow:load-workflow', workflowId),
+    deleteWorkflow: (workflowId: string): Promise<any> =>
+      ipcRenderer.invoke('workflow:delete-workflow', workflowId),
+    runWorkflow: (workflowId: string): Promise<any> =>
+      ipcRenderer.invoke('workflow:run-workflow', workflowId),
+    getWorkflows: (): Promise<any> =>
+      ipcRenderer.invoke('workflow:get-workflows'),
+    exportWorkflow: (workflowId: string): Promise<any> =>
+      ipcRenderer.invoke('workflow:export-workflow', workflowId),
+    importWorkflow: (importJson: string): Promise<any> =>
+      ipcRenderer.invoke('workflow:import-workflow', importJson),
+    getWorkflowHistory: (workflowId?: string, limit?: number): Promise<any> =>
+      ipcRenderer.invoke('workflow:get-workflow-history', workflowId, limit),
+    validateWorkflow: (workflowId: string): Promise<any> =>
+      ipcRenderer.invoke('workflow:validate-workflow', workflowId),
+  },
+
+  // Platform 16: Advanced Analytics & Reporting API
+  analyticsReporting: {
+    trackEvent: (eventName: string, category?: string, properties?: Record<string, any>): Promise<any> =>
+      ipcRenderer.invoke('analytics:track-event', eventName, category, properties),
+    getMetricsSummary: (): Promise<any> =>
+      ipcRenderer.invoke('analytics:get-metrics-summary'),
+    getBuildStatistics: (): Promise<any> =>
+      ipcRenderer.invoke('analytics:build-statistics'),
+    getAssetUsageReport: (): Promise<any> =>
+      ipcRenderer.invoke('analytics:asset-usage-report'),
+    getPerformanceHistory: (): Promise<any> =>
+      ipcRenderer.invoke('analytics:performance-history'),
+    generateReport: (reportType?: string, timeRange?: any): Promise<any> =>
+      ipcRenderer.invoke('analytics:generate-report', reportType, timeRange),
+    getDashboardData: (): Promise<any> =>
+      ipcRenderer.invoke('analytics:get-dashboard-data'),
+    exportReport: (reportId: string, format?: string): Promise<any> =>
+      ipcRenderer.invoke('analytics:export-report', reportId, format),
+    getAnalyticsConfig: (): Promise<any> =>
+      ipcRenderer.invoke('analytics:get-analytics-config'),
+    updateAnalyticsConfig: (updates: any): Promise<any> =>
+      ipcRenderer.invoke('analytics:update-analytics-config', updates),
+  },
+
+  // Platform 17: Git Integration API
+  gitIntegration: {
+    initRepo: (repoPath: string, repoName?: string): Promise<any> =>
+      ipcRenderer.invoke('git:init-repo', repoPath, repoName),
+    commit: (repoId: string, message: string, author?: string): Promise<any> =>
+      ipcRenderer.invoke('git:commit', repoId, message, author),
+    push: (repoId: string, remoteName?: string, branch?: string): Promise<any> =>
+      ipcRenderer.invoke('git:push', repoId, remoteName, branch),
+    pull: (repoId: string, remoteName?: string, branch?: string): Promise<any> =>
+      ipcRenderer.invoke('git:pull', repoId, remoteName, branch),
+    createBranch: (repoId: string, branchName: string, baseBranch?: string): Promise<any> =>
+      ipcRenderer.invoke('git:create-branch', repoId, branchName, baseBranch),
+    switchBranch: (repoId: string, branchName: string): Promise<any> =>
+      ipcRenderer.invoke('git:switch-branch', repoId, branchName),
+    getBranches: (repoId?: string): Promise<any> =>
+      ipcRenderer.invoke('git:get-branches', repoId),
+    getDiff: (repoId: string, fromCommit?: string, toCommit?: string): Promise<any> =>
+      ipcRenderer.invoke('git:get-diff', repoId, fromCommit, toCommit),
+    mergeBranch: (repoId: string, sourceBranch: string, targetBranch?: string): Promise<any> =>
+      ipcRenderer.invoke('git:merge-branch', repoId, sourceBranch, targetBranch),
+    getHistory: (repoId?: string, limit?: number): Promise<any> =>
+      ipcRenderer.invoke('git:get-history', repoId, limit),
+  },
+
+  // Platform 18: Nexus Mods Auto-Uploader API
+  nexusUploader: {
+    initConfig: (apiKey?: string, apiUrl?: string): Promise<any> =>
+      ipcRenderer.invoke('nexus:init-config', apiKey, apiUrl),
+    authenticate: (apiKey: string): Promise<any> =>
+      ipcRenderer.invoke('nexus:authenticate', apiKey),
+    getGameInfo: (gameName?: string): Promise<any> =>
+      ipcRenderer.invoke('nexus:get-game-info', gameName),
+    createMod: (modName: string, description?: string, category?: string): Promise<any> =>
+      ipcRenderer.invoke('nexus:create-mod', modName, description, category),
+    updateMod: (modId: string, updates: any): Promise<any> =>
+      ipcRenderer.invoke('nexus:update-mod', modId, updates),
+    uploadFile: (modId: string, filePath: string, version?: string): Promise<any> =>
+      ipcRenderer.invoke('nexus:upload-file', modId, filePath, version),
+    publishMod: (modId: string, publishNow?: boolean): Promise<any> =>
+      ipcRenderer.invoke('nexus:publish-mod', modId, publishNow),
+    getUploadHistory: (modId?: string, limit?: number): Promise<any> =>
+      ipcRenderer.invoke('nexus:get-upload-history', modId, limit),
+    getModStats: (modId: string): Promise<any> =>
+      ipcRenderer.invoke('nexus:get-mod-stats', modId),
+    generateChangelog: (modId: string, fromVersion?: string, toVersion?: string): Promise<any> =>
+      ipcRenderer.invoke('nexus:generate-changelog', modId, fromVersion, toVersion),
+  },
+
+  // Platform 19: Interactive Tutorial System API
+  interactiveTutorials: {
+    createSession: (tutorialId: string, title?: string): Promise<any> =>
+      ipcRenderer.invoke('tutorial:create-session', tutorialId, title),
+    getProgress: (sessionId: string): Promise<any> =>
+      ipcRenderer.invoke('tutorial:get-progress', sessionId),
+    completeStep: (sessionId: string, stepNumber: number): Promise<any> =>
+      ipcRenderer.invoke('tutorial:complete-step', sessionId, stepNumber),
+    getTutorials: (): Promise<any> =>
+      ipcRenderer.invoke('tutorial:get-tutorials'),
+    getTutorialContent: (tutorialId: string): Promise<any> =>
+      ipcRenderer.invoke('tutorial:get-tutorial-content', tutorialId),
+    skipTutorial: (sessionId: string): Promise<any> =>
+      ipcRenderer.invoke('tutorial:skip-tutorial', sessionId),
+    getRecommendations: (userLevel?: string): Promise<any> =>
+      ipcRenderer.invoke('tutorial:get-recommendations', userLevel),
+    saveProgress: (sessionId: string): Promise<any> =>
+      ipcRenderer.invoke('tutorial:save-progress', sessionId),
+    resetProgress: (sessionId?: string): Promise<any> =>
+      ipcRenderer.invoke('tutorial:reset-progress', sessionId),
+    getTutorialStats: (tutorialId?: string): Promise<any> =>
+      ipcRenderer.invoke('tutorial:get-tutorial-stats', tutorialId),
+  },
+
+aiTextureEnhancer: {
+      initEnhancer: (filterName?: string, gpuEnabled?: boolean): Promise<any> =>
+        ipcRenderer.invoke('enhance:init-enhancer', filterName, gpuEnabled),
+      loadFilters: (): Promise<any> =>
+        ipcRenderer.invoke('enhance:load-filters'),
+      getFilterInfo: (filterId: string): Promise<any> =>
+        ipcRenderer.invoke('enhance:get-filter-info', filterId),
+      startEnhance: (inputPath: string, outputPath?: string, filterId?: string): Promise<any> =>
+        ipcRenderer.invoke('enhance:start-enhance', inputPath, outputPath, filterId),
+      enhanceBatch: (inputPaths: string[], filterId?: string): Promise<any> =>
+        ipcRenderer.invoke('enhance:enhance-batch', inputPaths, filterId),
+      getEnhancementProgress: (sessionId: string): Promise<any> =>
+        ipcRenderer.invoke('enhance:get-enhancement-progress', sessionId),
+      cancelEnhancement: (sessionId: string): Promise<any> =>
+        ipcRenderer.invoke('enhance:cancel-enhancement', sessionId),
+      getEnhancementHistory: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('enhance:get-enhancement-history', limit),
+      compareEnhancements: (beforePath: string, afterPath: string): Promise<any> =>
+        ipcRenderer.invoke('enhance:compare-enhancements', beforePath, afterPath),
+      exportEnhanced: (sessionId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('enhance:export-enhanced', sessionId, format),
+  },
+    aiVoiceGeneration: {
+      initTts: (voiceProfile?: string, gpuEnabled?: boolean): Promise<any> =>
+        ipcRenderer.invoke('voice:init-tts', voiceProfile, gpuEnabled),
+      loadVoiceProfiles: (): Promise<any> =>
+        ipcRenderer.invoke('voice:load-voice-profiles'),
+      getVoiceProfileInfo: (profileId: string): Promise<any> =>
+        ipcRenderer.invoke('voice:get-voice-profile-info', profileId),
+      generateVoice: (text: string, profileId?: string, emotion?: string): Promise<any> =>
+        ipcRenderer.invoke('voice:generate-voice', text, profileId, emotion),
+      generateBatchDialogue: (dialogueList: Array<{text: string, profileId?: string}>): Promise<any> =>
+        ipcRenderer.invoke('voice:generate-batch-dialogue', dialogueList),
+      getGenerationProgress: (sessionId: string): Promise<any> =>
+        ipcRenderer.invoke('voice:get-generation-progress', sessionId),
+      cloneVoiceProfile: (audioSamplePath: string, profileName: string): Promise<any> =>
+        ipcRenderer.invoke('voice:clone-voice-profile', audioSamplePath, profileName),
+      generateLipsync: (sessionId: string, animationFormat?: string): Promise<any> =>
+        ipcRenderer.invoke('voice:generate-lipsync', sessionId, animationFormat),
+      getVoiceHistory: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('voice:get-voice-history', limit),
+      exportVoiceAudio: (sessionId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('voice:export-voice-audio', sessionId, format),
+    },
+    modDependencyManager: {
+      addModDependency: (modName: string, dependencies: Array<{name: string, version?: string}>): Promise<any> =>
+        ipcRenderer.invoke('deps:add-mod-dependency', modName, dependencies),
+      getModDependencies: (modName: string): Promise<any> =>
+        ipcRenderer.invoke('deps:get-mod-dependencies', modName),
+      detectConflicts: (): Promise<any> =>
+        ipcRenderer.invoke('deps:detect-conflicts'),
+      resolveConflict: (conflictId: string, resolution: string): Promise<any> =>
+        ipcRenderer.invoke('deps:resolve-conflict', conflictId, resolution),
+      getConflictReport: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('deps:get-conflict-report', limit),
+      optimizeLoadOrder: (modList: string[]): Promise<any> =>
+        ipcRenderer.invoke('deps:optimize-load-order', modList),
+      validateDependencies: (modName: string): Promise<any> =>
+        ipcRenderer.invoke('deps:validate-dependencies', modName),
+      exportDependencyList: (format?: string): Promise<any> =>
+        ipcRenderer.invoke('deps:export-dependency-list', format),
+      importDependencyList: (importPath: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('deps:import-dependency-list', importPath, format),
+      getDependencyStats: (): Promise<any> =>
+        ipcRenderer.invoke('deps:get-dependency-stats'),
+    },
+    releaseAutomation: {
+      createReleasePackage: (modName: string, version: string, files: string[]): Promise<any> =>
+        ipcRenderer.invoke('release:create-release-package', modName, version, files),
+      generateChangelog: (modName: string, version: string, changes: string[]): Promise<any> =>
+        ipcRenderer.invoke('release:generate-changelog', modName, version, changes),
+      bumpVersion: (modName: string, currentVersion: string, bumpType?: string): Promise<any> =>
+        ipcRenderer.invoke('release:bump-version', modName, currentVersion, bumpType),
+      createReleaseNotes: (modName: string, version: string, changelog: string, highlights?: string[]): Promise<any> =>
+        ipcRenderer.invoke('release:create-release-notes', modName, version, changelog, highlights),
+      validateRelease: (packageId: string): Promise<any> =>
+        ipcRenderer.invoke('release:validate-release', packageId),
+      publishToNexus: (packageId: string, nexusModId: string, releaseNotes?: string): Promise<any> =>
+        ipcRenderer.invoke('release:publish-to-nexus', packageId, nexusModId, releaseNotes),
+      getReleaseHistory: (modName: string, limit?: number): Promise<any> =>
+        ipcRenderer.invoke('release:get-release-history', modName, limit),
+      manageReleaseTags: (packageId: string, tags: string[], action?: string): Promise<any> =>
+        ipcRenderer.invoke('release:manage-release-tags', packageId, tags, action),
+      exportRelease: (packageId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('release:export-release', packageId, format),
+      scheduleRelease: (packageId: string, releaseDate: number, timezone?: string): Promise<any> =>
+        ipcRenderer.invoke('release:schedule-release', packageId, releaseDate, timezone),
+    },
+    assetIntegrityAuditor: {
+      scanNifMesh: (filePath: string, modName?: string): Promise<any> =>
+        ipcRenderer.invoke('audit:scan-nif-mesh', filePath, modName),
+      scanDdsTexture: (filePath: string, modName?: string): Promise<any> =>
+        ipcRenderer.invoke('audit:scan-dds-texture', filePath, modName),
+      scanEspPlugin: (filePath: string, modName?: string): Promise<any> =>
+        ipcRenderer.invoke('audit:scan-esp-plugin', filePath, modName),
+      validatePapyrusScripts: (scriptContent: string, modName?: string): Promise<any> =>
+        ipcRenderer.invoke('audit:validate-papyrus-scripts', scriptContent, modName),
+      checkAudioCompatibility: (filePath: string, modName?: string): Promise<any> =>
+        ipcRenderer.invoke('audit:check-audio-compatibility', filePath, modName),
+      generateReport: (modName: string, auditIds: string[]): Promise<any> =>
+        ipcRenderer.invoke('audit:generate-report', modName, auditIds),
+      getAuditHistory: (modName: string, limit?: number): Promise<any> =>
+        ipcRenderer.invoke('audit:get-audit-history', modName, limit),
+      exportAuditData: (reportId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('audit:export-audit-data', reportId, format),
+      compareVersions: (modName: string, version1Id: string, version2Id: string): Promise<any> =>
+        ipcRenderer.invoke('audit:compare-versions', modName, version1Id, version2Id),
+      batchScanAssets: (modName: string, assetPaths: string[], assetTypes?: string[]): Promise<any> =>
+        ipcRenderer.invoke('audit:batch-scan-assets', modName, assetPaths, assetTypes),
+    },
+    scriptingAssistant: {
+      getTemplate: (templateType: string): Promise<any> =>
+        ipcRenderer.invoke('codeGenerator:get-template', templateType),
+      generateStub: (functionName: string, parameters?: any[], returnType?: string): Promise<any> =>
+        ipcRenderer.invoke('codeGenerator:generate-stub', functionName, parameters, returnType),
+      validateSyntax: (scriptContent: string): Promise<any> =>
+        ipcRenderer.invoke('codeGenerator:validate-syntax', scriptContent),
+      getSnippets: (category?: string): Promise<any> =>
+        ipcRenderer.invoke('codeGenerator:get-snippets', category),
+      generateEventHandlers: (scriptType: string, events?: string[]): Promise<any> =>
+        ipcRenderer.invoke('codeGenerator:generate-event-handlers', scriptType, events),
+      formatScript: (scriptContent: string): Promise<any> =>
+        ipcRenderer.invoke('codeGenerator:format-script', scriptContent),
+      getDocumentation: (functionName: string, category?: string): Promise<any> =>
+        ipcRenderer.invoke('codeGenerator:get-documentation', functionName, category),
+      generateFromSpec: (specification: string, scriptType?: string): Promise<any> =>
+        ipcRenderer.invoke('codeGenerator:generate-from-spec', specification, scriptType),
+      optimizeScript: (scriptContent: string): Promise<any> =>
+        ipcRenderer.invoke('codeGenerator:optimize-script', scriptContent),
+      testInSandbox: (scriptContent: string, testParams?: any): Promise<any> =>
+        ipcRenderer.invoke('codeGenerator:test-in-sandbox', scriptContent, testParams),
+    },
+    performanceProfiler: {
+      startMonitoring: (sessionName?: string): Promise<any> =>
+        ipcRenderer.invoke('perf:start-monitoring', sessionName),
+      getFpsMetrics: (sessionId: string): Promise<any> =>
+        ipcRenderer.invoke('perf:get-fps-metrics', sessionId),
+      analyzeMemory: (sessionId: string, threshold?: number): Promise<any> =>
+        ipcRenderer.invoke('perf:analyze-memory', sessionId, threshold),
+      measureLoadTime: (modPath: string): Promise<any> =>
+        ipcRenderer.invoke('perf:measure-load-time', modPath),
+      detectBottlenecks: (sessionId: string): Promise<any> =>
+        ipcRenderer.invoke('perf:detect-bottlenecks', sessionId),
+      suggestOptimizations: (sessionId: string): Promise<any> =>
+        ipcRenderer.invoke('perf:suggest-optimizations', sessionId),
+      compareSessions: (session1Id: string, session2Id: string): Promise<any> =>
+        ipcRenderer.invoke('perf:compare-sessions', session1Id, session2Id),
+      exportReport: (sessionId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('perf:export-report', sessionId, format),
+      stopMonitoring: (sessionId: string): Promise<any> =>
+        ipcRenderer.invoke('perf:stop-monitoring', sessionId),
+      getSessionHistory: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('perf:get-session-history', limit),
+    },
+    modlistManager: {
+      createModlist: (listName: string, description?: string): Promise<any> =>
+        ipcRenderer.invoke('modlist:create-modlist', listName, description),
+      addModToList: (modlistId: string, modEntry: any): Promise<any> =>
+        ipcRenderer.invoke('modlist:add-mod-to-list', modlistId, modEntry),
+      removeModFromList: (modlistId: string, modId: string): Promise<any> =>
+        ipcRenderer.invoke('modlist:remove-mod-from-list', modlistId, modId),
+      getModlist: (modlistId: string): Promise<any> =>
+        ipcRenderer.invoke('modlist:get-modlist', modlistId),
+      exportModlist: (modlistId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('modlist:export-modlist', modlistId, format),
+      importModlist: (importPath: string, listName?: string): Promise<any> =>
+        ipcRenderer.invoke('modlist:import-modlist', importPath, listName),
+      validateModlist: (modlistId: string): Promise<any> =>
+        ipcRenderer.invoke('modlist:validate-modlist', modlistId),
+      getModlistStats: (modlistId: string): Promise<any> =>
+        ipcRenderer.invoke('modlist:get-modlist-stats', modlistId),
+      shareModlist: (modlistId: string, platform?: string): Promise<any> =>
+        ipcRenderer.invoke('modlist:share-modlist', modlistId, platform),
+      compareModlists: (modlist1Id: string, modlist2Id: string): Promise<any> =>
+        ipcRenderer.invoke('modlist:compare-modlists', modlist1Id, modlist2Id),
+    },
+    conflictResolutionEngine: {
+      scanForConflicts: (modlistId: string): Promise<any> =>
+        ipcRenderer.invoke('conflict:scan-for-conflicts', modlistId),
+      detectPluginConflicts: (modlistId: string): Promise<any> =>
+        ipcRenderer.invoke('conflict:detect-plugin-conflicts', modlistId),
+      detectAssetConflicts: (modlistId: string): Promise<any> =>
+        ipcRenderer.invoke('conflict:detect-asset-conflicts', modlistId),
+      detectScriptConflicts: (modlistId: string): Promise<any> =>
+        ipcRenderer.invoke('conflict:detect-script-conflicts', modlistId),
+      suggestConflictResolution: (conflictId: string): Promise<any> =>
+        ipcRenderer.invoke('conflict:suggest-conflict-resolution', conflictId),
+      autoResolveConflicts: (conflictId: string, strategy?: string): Promise<any> =>
+        ipcRenderer.invoke('conflict:auto-resolve-conflicts', conflictId, strategy),
+      generatePatch: (conflictId: string, patchType?: string): Promise<any> =>
+        ipcRenderer.invoke('conflict:generate-patch', conflictId, patchType),
+      validateResolution: (resolutionId: string): Promise<any> =>
+        ipcRenderer.invoke('conflict:validate-resolution', resolutionId),
+      getConflictReport: (scanId: string): Promise<any> =>
+        ipcRenderer.invoke('conflict:get-conflict-report', scanId),
+      exportConflictData: (scanId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('conflict:export-conflict-data', scanId, format),
+    },
+
+    advancedTroubleshooting: {
+      analyzeCrashLog: (logPath: string): Promise<any> =>
+        ipcRenderer.invoke('diag:analyze-crash-log', logPath),
+      diagnoseCTDIssues: (modlistId: string): Promise<any> =>
+        ipcRenderer.invoke('diag:diagnose-ctd-issues', modlistId),
+      checkModCompatibility: (mod1: string, mod2: string): Promise<any> =>
+        ipcRenderer.invoke('diag:check-mod-compatibility', mod1, mod2),
+      generateDiagnosticsReport: (modlistId: string): Promise<any> =>
+        ipcRenderer.invoke('diag:generate-diagnostics-report', modlistId),
+      suggestTroubleshootingSteps: (issue: string): Promise<any> =>
+        ipcRenderer.invoke('diag:suggest-troubleshooting-steps', issue),
+      testGameStability: (modlistId: string, duration?: number): Promise<any> =>
+        ipcRenderer.invoke('diag:test-game-stability', modlistId, duration),
+      debugScriptErrors: (scriptContent: string, modName?: string): Promise<any> =>
+        ipcRenderer.invoke('diag:debug-script-errors', scriptContent, modName),
+      analyzeLoadOrderIssues: (loadOrder: string[]): Promise<any> =>
+        ipcRenderer.invoke('diag:analyze-load-order-issues', loadOrder),
+      runSystemDiagnostics: (): Promise<any> =>
+        ipcRenderer.invoke('diag:run-system-diagnostics'),
+      generateTroubleshootingGuide: (issue: string, modlistId?: string): Promise<any> =>
+        ipcRenderer.invoke('diag:generate-troubleshooting-guide', issue, modlistId),
+    },
+
+    loadOrderOptimizer: {
+      analyzeLoadOrder: (loadOrder: string[]): Promise<any> =>
+        ipcRenderer.invoke('loadorder:analyze-load-order', loadOrder),
+      suggestOptimalOrder: (loadOrder: string[], conflictMap?: any): Promise<any> =>
+        ipcRenderer.invoke('loadorder:suggest-optimal-order', loadOrder, conflictMap),
+      detectMasterDependencies: (pluginName: string): Promise<any> =>
+        ipcRenderer.invoke('loadorder:detect-master-dependencies', pluginName),
+      prioritizePlugins: (loadOrder: string[], priorityMap?: any): Promise<any> =>
+        ipcRenderer.invoke('loadorder:prioritize-plugins', loadOrder, priorityMap),
+      validateLoadOrderIntegrity: (loadOrder: string[]): Promise<any> =>
+        ipcRenderer.invoke('loadorder:validate-load-order-integrity', loadOrder),
+      compareLoadOrders: (loadOrder1: string[], loadOrder2: string[]): Promise<any> =>
+        ipcRenderer.invoke('loadorder:compare-load-orders', loadOrder1, loadOrder2),
+      exportLoadOrder: (loadOrder: string[], format?: string): Promise<any> =>
+        ipcRenderer.invoke('loadorder:export-load-order', loadOrder, format),
+      importLoadOrder: (filePath: string, mergeMode?: string): Promise<any> =>
+        ipcRenderer.invoke('loadorder:import-load-order', filePath, mergeMode),
+      autoOptimizeLoadOrder: (loadOrder: string[], strategy?: string): Promise<any> =>
+        ipcRenderer.invoke('loadorder:auto-optimize-load-order', loadOrder, strategy),
+      getLoadOrderStatistics: (loadOrder: string[]): Promise<any> =>
+        ipcRenderer.invoke('loadorder:get-load-order-statistics', loadOrder),
+    },
+
+    papyrusCompiler: {
+      compileScript: (scriptPath: string, flags?: string): Promise<any> =>
+        ipcRenderer.invoke('papyrus:compile-script', scriptPath, flags),
+      batchCompile: (scriptFolder: string, flags?: string): Promise<any> =>
+        ipcRenderer.invoke('papyrus:batch-compile', scriptFolder, flags),
+      validateSyntax: (scriptContent: string): Promise<any> =>
+        ipcRenderer.invoke('papyrus:validate-syntax', scriptContent),
+      generateDebugInfo: (scriptPath: string): Promise<any> =>
+        ipcRenderer.invoke('papyrus:generate-debug-info', scriptPath),
+      profileScriptPerformance: (scriptPath: string): Promise<any> =>
+        ipcRenderer.invoke('papyrus:profile-script-performance', scriptPath),
+      detectScriptIssues: (scriptContent: string): Promise<any> =>
+        ipcRenderer.invoke('papyrus:detect-script-issues', scriptContent),
+      getCompilerVersion: (): Promise<any> =>
+        ipcRenderer.invoke('papyrus:get-compiler-version'),
+      configureCompiler: (config: any): Promise<any> =>
+        ipcRenderer.invoke('papyrus:configure-compiler', config),
+      analyzeCompilationReport: (reportPath: string): Promise<any> =>
+        ipcRenderer.invoke('papyrus:analyze-compilation-report', reportPath),
+      exportCompilationStats: (format?: string): Promise<any> =>
+        ipcRenderer.invoke('papyrus:export-compilation-stats', format),
+    },
+
+    archiveManager: {
+      createArchive: (archivePath: string, fileList: string[], archiveType?: string): Promise<any> =>
+        ipcRenderer.invoke('archive:create-archive', archivePath, fileList, archiveType),
+      extractArchive: (archivePath: string, extractPath?: string): Promise<any> =>
+        ipcRenderer.invoke('archive:extract-archive', archivePath, extractPath),
+      listArchiveContents: (archivePath: string): Promise<any> =>
+        ipcRenderer.invoke('archive:list-archive-contents', archivePath),
+      validateArchiveIntegrity: (archivePath: string): Promise<any> =>
+        ipcRenderer.invoke('archive:validate-archive-integrity', archivePath),
+      addFilesToArchive: (archivePath: string, filePaths: string[]): Promise<any> =>
+        ipcRenderer.invoke('archive:add-files-to-archive', archivePath, filePaths),
+      removeFilesFromArchive: (archivePath: string, fileNames: string[]): Promise<any> =>
+        ipcRenderer.invoke('archive:remove-files-from-archive', archivePath, fileNames),
+      convertArchiveFormat: (archivePath: string, targetFormat: string): Promise<any> =>
+        ipcRenderer.invoke('archive:convert-archive-format', archivePath, targetFormat),
+      compressArchive: (archivePath: string, compressionLevel?: number): Promise<any> =>
+        ipcRenderer.invoke('archive:compress-archive', archivePath, compressionLevel),
+      getArchiveStatistics: (archivePath: string): Promise<any> =>
+        ipcRenderer.invoke('archive:get-archive-statistics', archivePath),
+      optimizeArchive: (archivePath: string, strategy?: string): Promise<any> =>
+        ipcRenderer.invoke('archive:optimize-archive', archivePath, strategy),
+    },
+
+    enbPresetManager: {
+      createPreset: (presetName: string, settings: any): Promise<any> =>
+        ipcRenderer.invoke('enb:create-preset', presetName, settings),
+      loadPreset: (presetId: string): Promise<any> =>
+        ipcRenderer.invoke('enb:load-preset', presetId),
+      exportPreset: (presetId: string, exportPath?: string): Promise<any> =>
+        ipcRenderer.invoke('enb:export-preset', presetId, exportPath),
+      importPreset: (filePath: string, presetName?: string): Promise<any> =>
+        ipcRenderer.invoke('enb:import-preset', filePath, presetName),
+      validatePreset: (presetId: string): Promise<any> =>
+        ipcRenderer.invoke('enb:validate-preset', presetId),
+      applyPresetSettings: (presetId: string): Promise<any> =>
+        ipcRenderer.invoke('enb:apply-preset-settings', presetId),
+      comparePresets: (presetId1: string, presetId2: string): Promise<any> =>
+        ipcRenderer.invoke('enb:compare-presets', presetId1, presetId2),
+      deletePreset: (presetId: string): Promise<any> =>
+        ipcRenderer.invoke('enb:delete-preset', presetId),
+      optimizePresetPerformance: (presetId: string): Promise<any> =>
+        ipcRenderer.invoke('enb:optimize-preset-performance', presetId),
+      getInstalledPresets: (): Promise<any> =>
+        ipcRenderer.invoke('enb:get-installed-presets'),
+    },
+
+    communityRatings: {
+      fetchModRatings: (modId: string): Promise<any> =>
+        ipcRenderer.invoke('community:fetch-mod-ratings', modId),
+      getReviewsForMod: (modId: string, limit?: number): Promise<any> =>
+        ipcRenderer.invoke('community:get-reviews-for-mod', modId, limit),
+      submitRating: (modId: string, rating: number, userId?: string): Promise<any> =>
+        ipcRenderer.invoke('community:submit-rating', modId, rating, userId),
+      submitReview: (modId: string, reviewText: string, rating?: number): Promise<any> =>
+        ipcRenderer.invoke('community:submit-review', modId, reviewText, rating),
+      getTrendingMods: (limit?: number, category?: string): Promise<any> =>
+        ipcRenderer.invoke('community:get-trending-mods', limit, category),
+      analyzeRatingTrends: (modId: string, timeframe?: string): Promise<any> =>
+        ipcRenderer.invoke('community:analyze-rating-trends', modId, timeframe),
+      filterReviewsByCriteria: (modId: string, criteria: any): Promise<any> =>
+        ipcRenderer.invoke('community:filter-reviews-by-criteria', modId, criteria),
+      getPopularEndorsements: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('community:get-popular-endorsements', limit),
+      compareModRatings: (modId1: string, modId2: string): Promise<any> =>
+        ipcRenderer.invoke('community:compare-mod-ratings', modId1, modId2),
+      exportRatingData: (modId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('community:export-rating-data', modId, format),
+    },
+
+    meshOptimizer: {
+      analyzeNifFile: (filePath: string): Promise<any> =>
+        ipcRenderer.invoke('mesh:analyze-nif-file', filePath),
+      reducePolygonCount: (filePath: string, reductionPercentage?: number): Promise<any> =>
+        ipcRenderer.invoke('mesh:reduce-polygon-count', filePath, reductionPercentage),
+      optimizeVertexData: (filePath: string, options?: any): Promise<any> =>
+        ipcRenderer.invoke('mesh:optimize-vertex-data', filePath, options),
+      generateLodMeshes: (filePath: string, lodLevels?: number): Promise<any> =>
+        ipcRenderer.invoke('mesh:generate-lod-meshes', filePath, lodLevels),
+      removeUnusedData: (filePath: string): Promise<any> =>
+        ipcRenderer.invoke('mesh:remove-unused-data', filePath),
+      batchOptimizeMeshes: (filePaths: string[], options?: any): Promise<any> =>
+        ipcRenderer.invoke('mesh:batch-optimize-meshes', filePaths, options),
+      compareOptimizationResults: (beforePath: string, afterPath: string): Promise<any> =>
+        ipcRenderer.invoke('mesh:compare-optimization-results', beforePath, afterPath),
+      validateMeshIntegrity: (filePath: string): Promise<any> =>
+        ipcRenderer.invoke('mesh:validate-mesh-integrity', filePath),
+      exportOptimizationReport: (filePath: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('mesh:export-optimization-report', filePath, format),
+      getAnalysisSummary: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('mesh:get-analysis-summary', limit),
+    },
+
+    animationRetargeting: {
+      importAnimationFile: (filePath: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('animation:import-animation-file', filePath, format),
+      retargetSkeleton: (animationId: string, targetSkeleton: string): Promise<any> =>
+        ipcRenderer.invoke('animation:retarget-skeleton', animationId, targetSkeleton),
+      validateBoneStructure: (filePath: string): Promise<any> =>
+        ipcRenderer.invoke('animation:validate-bone-structure', filePath),
+      blendAnimations: (animationIds: string[], blendMode?: string): Promise<any> =>
+        ipcRenderer.invoke('animation:blend-animations', animationIds, blendMode),
+      createCustomAnimation: (name: string, frameCount: number, boneData?: any): Promise<any> =>
+        ipcRenderer.invoke('animation:create-custom-animation', name, frameCount, boneData),
+      exportAnimation: (animationId: string, outputPath: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('animation:export-animation', animationId, outputPath, format),
+      batchRetargetAnimations: (animationIds: string[], targetSkeleton: string): Promise<any> =>
+        ipcRenderer.invoke('animation:batch-retarget-animations', animationIds, targetSkeleton),
+      compareAnimations: (animationId1: string, animationId2: string): Promise<any> =>
+        ipcRenderer.invoke('animation:compare-animations', animationId1, animationId2),
+      getRetargetingSummary: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('animation:get-retargeting-summary', limit),
+      optimizeKeyframes: (animationId: string, tolerance?: number): Promise<any> =>
+        ipcRenderer.invoke('animation:optimize-keyframes', animationId, tolerance),
+    },
+
+    dialogueManager: {
+      createDialogueTree: (npcId: string, dialogueName: string): Promise<any> =>
+        ipcRenderer.invoke('dialogue:create-dialogue-tree', npcId, dialogueName),
+      addDialogueNode: (treeId: string, nodeData: any): Promise<any> =>
+        ipcRenderer.invoke('dialogue:add-dialogue-node', treeId, nodeData),
+      addVoiceLine: (nodeId: string, voicePath: string, voiceActor?: string): Promise<any> =>
+        ipcRenderer.invoke('dialogue:add-voice-line', nodeId, voicePath, voiceActor),
+      setDialogueConditions: (nodeId: string, conditions: any[]): Promise<any> =>
+        ipcRenderer.invoke('dialogue:set-dialogue-conditions', nodeId, conditions),
+      exportDialogueTree: (treeId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('dialogue:export-dialogue-tree', treeId, format),
+      importDialogueFile: (filePath: string, npcId?: string): Promise<any> =>
+        ipcRenderer.invoke('dialogue:import-dialogue-file', filePath, npcId),
+      validateDialogueTree: (treeId: string): Promise<any> =>
+        ipcRenderer.invoke('dialogue:validate-dialogue-tree', treeId),
+      batchImportDialogues: (filePaths: string[]): Promise<any> =>
+        ipcRenderer.invoke('dialogue:batch-import-dialogues', filePaths),
+      getDialogueSystemStats: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('dialogue:get-dialogue-system-stats', limit),
+      compareDialogueTrees: (treeId1: string, treeId2: string): Promise<any> =>
+        ipcRenderer.invoke('dialogue:compare-dialogue-trees', treeId1, treeId2),
+    },
+
+    textureManager: {
+      createMaterialDefinition: (materialName: string, properties?: any): Promise<any> =>
+        ipcRenderer.invoke('texture:create-material-definition', materialName, properties),
+      createTextureAtlas: (atlasName: string, textureList: string[]): Promise<any> =>
+        ipcRenderer.invoke('texture:create-texture-atlas', atlasName, textureList),
+      applyMaterialProperties: (materialId: string, properties: any): Promise<any> =>
+        ipcRenderer.invoke('texture:apply-material-properties', materialId, properties),
+      manageTextureReplacements: (sourceTexture: string, replacementTexture: string): Promise<any> =>
+        ipcRenderer.invoke('texture:manage-texture-replacements', sourceTexture, replacementTexture),
+      validateMaterialCompatibility: (materialId: string, targetEngine?: string): Promise<any> =>
+        ipcRenderer.invoke('texture:validate-material-compatibility', materialId, targetEngine),
+      optimizeMaterialPerformance: (materialId: string, targetMemory?: number): Promise<any> =>
+        ipcRenderer.invoke('texture:optimize-material-performance', materialId, targetMemory),
+      batchProcessMaterials: (materialIds: string[], operation: string): Promise<any> =>
+        ipcRenderer.invoke('texture:batch-process-materials', materialIds, operation),
+      exportMaterialPackage: (materialId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('texture:export-material-package', materialId, format),
+      getMaterialStatistics: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('texture:get-material-statistics', limit),
+      importMaterialPackage: (filePath: string, materialName?: string): Promise<any> =>
+        ipcRenderer.invoke('texture:import-material-package', filePath, materialName),
+    },
+
+    pluginAnalyzer: {
+      analyzePluginFile: (filePath: string): Promise<any> =>
+        ipcRenderer.invoke('plugin:analyze-plugin-file', filePath),
+      validatePluginReferences: (pluginPath: string): Promise<any> =>
+        ipcRenderer.invoke('plugin:validate-plugin-references', pluginPath),
+      mergePlugins: (pluginPaths: string[], outputPath: string): Promise<any> =>
+        ipcRenderer.invoke('plugin:merge-plugins', pluginPaths, outputPath),
+      analyzePluginDependencies: (pluginPath: string): Promise<any> =>
+        ipcRenderer.invoke('plugin:analyze-plugin-dependencies', pluginPath),
+      detectPluginConflicts: (pluginPaths: string[]): Promise<any> =>
+        ipcRenderer.invoke('plugin:detect-plugin-conflicts', pluginPaths),
+      optimizePluginLoadOrder: (pluginPaths: string[]): Promise<any> =>
+        ipcRenderer.invoke('plugin:optimize-plugin-load-order', pluginPaths),
+      generateCompatibilityReport: (pluginPaths: string[], format?: string): Promise<any> =>
+        ipcRenderer.invoke('plugin:generate-compatibility-report', pluginPaths, format),
+      batchValidatePlugins: (filePaths: string[]): Promise<any> =>
+        ipcRenderer.invoke('plugin:batch-validate-plugins', filePaths),
+      getPluginManagementStats: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('plugin:get-plugin-management-stats', limit),
+      exportPluginAnalysis: (analysisId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('plugin:export-plugin-analysis', analysisId, format),
+    },
+
+    scriptGenerator: {
+      generatePapyrusScript: (scriptName: string, scriptType?: string): Promise<any> =>
+        ipcRenderer.invoke('papyrusGen:generate-papyrus-script', scriptName, scriptType),
+      createEventHandler: (eventName: string, parameters?: string[]): Promise<any> =>
+        ipcRenderer.invoke('papyrusGen:create-event-handler', eventName, parameters),
+      generatePropertyDefinition: (propertyName: string, propertyType?: string): Promise<any> =>
+        ipcRenderer.invoke('papyrusGen:generate-property-definition', propertyName, propertyType),
+      createValidationHelper: (helperName: string, validationType?: string): Promise<any> =>
+        ipcRenderer.invoke('papyrusGen:create-validation-helper', helperName, validationType),
+      generateOptimizationPattern: (patternName: string, optimizationType?: string): Promise<any> =>
+        ipcRenderer.invoke('papyrusGen:generate-optimization-pattern', patternName, optimizationType),
+      generateDocumentation: (scriptId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('papyrusGen:generate-documentation', scriptId, format),
+      batchGenerateScripts: (scriptConfigs: any[]): Promise<any> =>
+        ipcRenderer.invoke('papyrusGen:batch-generate-scripts', scriptConfigs),
+      validatePapyrusSyntax: (code: string): Promise<any> =>
+        ipcRenderer.invoke('papyrusGen:validate-papyrus-syntax', code),
+      applyTypeSafetyPatterns: (scriptId: string): Promise<any> =>
+        ipcRenderer.invoke('papyrusGen:apply-type-safety-patterns', scriptId),
+      getGeneratorStatistics: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('papyrusGen:get-generator-statistics', limit),
+    },
+
+    formManager: {
+      createFormReference: (formId: string, formData?: any): Promise<any> =>
+        ipcRenderer.invoke('form:create-form-reference', formId, formData),
+      getFormProperties: (referenceId: string): Promise<any> =>
+        ipcRenderer.invoke('form:get-form-properties', referenceId),
+      updateEntityState: (entityId: string, stateData: any): Promise<any> =>
+        ipcRenderer.invoke('form:update-entity-state', entityId, stateData),
+      registerEventListener: (referenceId: string, eventType: string): Promise<any> =>
+        ipcRenderer.invoke('form:register-event-listener', referenceId, eventType),
+      serializeReference: (referenceId: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('form:serialize-reference', referenceId, format),
+      validateReferenceIntegrity: (referenceId: string): Promise<any> =>
+        ipcRenderer.invoke('form:validate-reference-integrity', referenceId),
+      batchUpdateReferences: (referenceUpdates: any[]): Promise<any> =>
+        ipcRenderer.invoke('form:batch-update-references', referenceUpdates),
+      optimizeReferencePerformance: (referenceId: string): Promise<any> =>
+        ipcRenderer.invoke('form:optimize-reference-performance', referenceId),
+      getReferenceManagerStatistics: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('form:get-reference-manager-statistics', limit),
+      deserializeReference: (serializedData: string, format?: string): Promise<any> =>
+        ipcRenderer.invoke('form:deserialize-reference', serializedData, format),
+    },
+
+    assetManager: {
+      streamLargeAsset: (assetPath: string, chunkSize?: number): Promise<any> =>
+        ipcRenderer.invoke('asset:stream-large-asset', assetPath, chunkSize),
+      manageMemoryEfficiently: (strategy?: string): Promise<any> =>
+        ipcRenderer.invoke('asset:manage-memory-efficiently', strategy),
+      loadResource: (resourceId: string, priority?: number): Promise<any> =>
+        ipcRenderer.invoke('asset:load-resource', resourceId, priority),
+      unloadResource: (resourceId: string): Promise<any> =>
+        ipcRenderer.invoke('asset:unload-resource', resourceId),
+      optimizeCachePerformance: (cacheStrategy?: string): Promise<any> =>
+        ipcRenderer.invoke('asset:optimize-cache-performance', cacheStrategy),
+      handleMemoryPressure: (pressureLevel?: string): Promise<any> =>
+        ipcRenderer.invoke('asset:handle-memory-pressure', pressureLevel),
+      getMemoryDiagnostics: (detailed?: boolean): Promise<any> =>
+        ipcRenderer.invoke('asset:get-memory-diagnostics', detailed),
+      batchStreamAssets: (assetPaths: string[]): Promise<any> =>
+        ipcRenderer.invoke('asset:batch-stream-assets', assetPaths),
+      getStreamingStatistics: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('asset:get-streaming-statistics', limit),
+      validateResourceIntegrity: (resourceId: string): Promise<any> =>
+        ipcRenderer.invoke('asset:validate-resource-integrity', resourceId),
+    },
+
+    scriptCacheManager: {
+      loadCachedScript: (scriptId: string, forceRecompile?: boolean): Promise<any> =>
+        ipcRenderer.invoke('scriptCache:load-cached-script', scriptId, forceRecompile),
+      saveScriptCache: (scriptId: string, compiledData: any, compressionLevel?: number): Promise<any> =>
+        ipcRenderer.invoke('scriptCache:save-script-cache', scriptId, compiledData, compressionLevel),
+      validateCacheIntegrity: (cacheId: string): Promise<any> =>
+        ipcRenderer.invoke('scriptCache:validate-cache-integrity', cacheId),
+      optimizeCacheStructure: (optimization?: string): Promise<any> =>
+        ipcRenderer.invoke('scriptCache:optimize-cache-structure', optimization),
+      clearCacheEntry: (cacheId: string): Promise<any> =>
+        ipcRenderer.invoke('scriptCache:clear-cache-entry', cacheId),
+      getCacheStatistics: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('scriptCache:get-cache-statistics', limit),
+      batchUpdateCache: (updates: any[]): Promise<any> =>
+        ipcRenderer.invoke('scriptCache:batch-update-cache', updates),
+      analyzeScriptPerformance: (scriptId: string): Promise<any> =>
+        ipcRenderer.invoke('scriptCache:analyze-script-performance', scriptId),
+      generateCacheReport: (reportFormat?: string): Promise<any> =>
+        ipcRenderer.invoke('scriptCache:generate-cache-report', reportFormat),
+      monitorCacheHealth: (detailedMetrics?: boolean): Promise<any> =>
+        ipcRenderer.invoke('scriptCache:monitor-cache-health', detailedMetrics),
+    },
+
+    formID: {
+      scanForCollisions: (modPaths: string[]): Promise<any> =>
+        ipcRenderer.invoke('formID:scan-for-collisions', modPaths),
+      detectCollision: (formID: string, affectedMods: string[]): Promise<any> =>
+        ipcRenderer.invoke('formID:detect-collision', formID, affectedMods),
+      generateFormIDMapping: (modPath: string, baseFormID?: string): Promise<any> =>
+        ipcRenderer.invoke('formID:generate-formid-mapping', modPath, baseFormID),
+      validateFormIDIntegrity: (modPath: string): Promise<any> =>
+        ipcRenderer.invoke('formID:validate-formid-integrity', modPath),
+      remapConflictingFormIDs: (collisionId: string, targetModID: string): Promise<any> =>
+        ipcRenderer.invoke('formID:remap-conflicting-formids', collisionId, targetModID),
+      getCollisionReport: (reportId: string): Promise<any> =>
+        ipcRenderer.invoke('formID:get-collision-report', reportId),
+      batchScanMods: (modPaths: string[]): Promise<any> =>
+        ipcRenderer.invoke('formID:batch-scan-mods', modPaths),
+      monitorFormIDHealth: (modPath: string): Promise<any> =>
+        ipcRenderer.invoke('formID:monitor-formid-health', modPath),
+      getFormIDStatistics: (limit?: number): Promise<any> =>
+        ipcRenderer.invoke('formID:get-formid-statistics', limit),
+    },
+
+  // Diagnostics - listen for startup diagnostics from main process
+  onDiagnostics: (callback: (diagnostics: any) => void): (() => void) => {
+    const listener = (_event: any, diagnostics: any) => {
+      console.log('[Preload] Received diagnostics from main:', diagnostics);
+      callback(diagnostics);
+    };
+    ipcRenderer.on('main:diagnostics', listener);
+    return () => ipcRenderer.removeListener('main:diagnostics', listener);
+  },
+
+  // Transcription logs - listen for transcription debug logs from main process
+  onTranscriptionLog: (callback: (log: any) => void): (() => void) => {
+    const listener = (_event: any, log: any) => {
+      console.log(log.msg, log.data);
+      callback(log);
+    };
+    ipcRenderer.on('transcription-log', listener);
+    return () => ipcRenderer.removeListener('transcription-log', listener);
+  },
+
+  // Texture Enhancer listeners
+  onEnhancerProgress: (callback: (data: any) => void): (() => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('enhancer:progress', listener);
+    return () => ipcRenderer.removeListener('enhancer:progress', listener);
+  },
+
+  onEnhancerComplete: (callback: (data: any) => void): (() => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('enhancer:complete', listener);
+    return () => ipcRenderer.removeListener('enhancer:complete', listener);
+  },
+
+  onEnhancerError: (callback: (data: any) => void): (() => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('enhancer:error', listener);
+    return () => ipcRenderer.removeListener('enhancer:error', listener);
+  },
+
+  onEnhancerJobStarted: (callback: (data: any) => void): (() => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('enhancer:job-started', listener);
+    return () => ipcRenderer.removeListener('enhancer:job-started', listener);
+  },
+
+  // Bethel Integration API
+  bethel: {
+    createSession: (): Promise<any> =>
+      ipcRenderer.invoke('bethel:create-session'),
+    analyzeUploadedMod: (jobId: string): Promise<any> =>
+      ipcRenderer.invoke('bethel:analyze', jobId),
+    enhanceMod: (jobId: string, enhancementLevel?: 4 | 8 | 16): Promise<any> =>
+      ipcRenderer.invoke('bethel:enhance', jobId, enhancementLevel || 4),
+    exportEnhancedMod: (jobId: string, format?: 'zip' | 'fomod' | 'default'): Promise<any> =>
+      ipcRenderer.invoke('bethel:export', jobId, format || 'zip'),
+    getJob: (jobId: string): Promise<any> =>
+      ipcRenderer.invoke('bethel:get-job', jobId),
+    listJobs: (limit?: number): Promise<any> =>
+      ipcRenderer.invoke('bethel:list-jobs', limit || 50),
+  },
+
+  // Bethel event listeners
+  onBethelAnalyzed: (callback: (data: any) => void): (() => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('bethel:analyzed', listener);
+    return () => ipcRenderer.removeListener('bethel:analyzed', listener);
+  },
+
+  onBethelEnhancementComplete: (callback: (data: any) => void): (() => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('bethel:enhancement-complete', listener);
+    return () => ipcRenderer.removeListener('bethel:enhancement-complete', listener);
+  },
+
+  onBethelExportComplete: (callback: (data: any) => void): (() => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('bethel:export-complete', listener);
+    return () => ipcRenderer.removeListener('bethel:export-complete', listener);
+  },
+
+  // Mining Pipeline API (gated by MOSSY_MINING_ENABLED environment variable)
+  mining: {
+    executePipeline: (sources: any[]): Promise<any> =>
+      ipcRenderer.invoke('mining:execute-pipeline', sources),
+    parseESP: (filePath: string): Promise<any> =>
+      ipcRenderer.invoke('mining:parse-esp', filePath),
+    buildDependencyGraph: (espData: any): Promise<any> =>
+      ipcRenderer.invoke('mining:build-dependency-graph', espData),
+  },
+
+  // Panel Data Persistence API
+  panels: {
+    saveData: (panelId: string, data: any): Promise<any> =>
+      ipcRenderer.invoke('panel:save-data', panelId, data),
+    loadData: (panelId: string): Promise<any> =>
+      ipcRenderer.invoke('panel:load-data', panelId),
+    deleteData: (panelId: string): Promise<any> =>
+      ipcRenderer.invoke('panel:delete-data', panelId),
+  },
+
+  // ML/LLM API
+  ml: {
+    getOllamaStatus: (baseUrl?: string): Promise<any> =>
+      ipcRenderer.invoke('ml:get-ollama-status', baseUrl),
+    ollamaPull: (modelName: string, opts?: any): Promise<any> =>
+      ipcRenderer.invoke('ml:ollama-pull', modelName, opts),
+    getOpenAICompatStatus: (baseUrl?: string): Promise<any> =>
+      ipcRenderer.invoke('ml:get-openai-compat-status', baseUrl),
+  },
+
+  // ============================================================================
+  // Platform #4: Asset Pipeline API
+  // ============================================================================
+
+  // DDS Converter API
+  dds: {
+    convert: (params: { inputPath: string; outputPath: string; format: string; textureType?: string; generateMipmaps?: boolean; quality?: string }): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('dds-convert', params),
+    detectFormat: (filePath: string): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('dds-detect-format', filePath),
+    pickFiles: (): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('dds-pick-files'),
+    getAllPresets: (): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('dds-get-all-presets'),
+  },
+
+  // Material Editor API
+  material: {
+    loadManifest: (filePath: string): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('material:load-manifest', filePath),
+    saveManifest: (params: { filePath: string; manifest: any }): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('material:save-manifest', params),
+  },
+
+  // Asset Validator API
+  assetValidator: {
+    validateMod: (modPath: string): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('asset-validator:validate-mod', modPath),
+    validateFile: (filePath: string): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('asset-validator:validate-file', filePath),
+  },
+
+  // Image Suite API
+  imageSuite: {
+    generatePBR: (params: { sourceImagePath: string; mapsToGenerate: string[] }): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('image-suite:generate-pbr', params),
+    convertFormat: (params: { inputPath: string; outputPath: string; format: string }): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('image-suite:convert-format', params),
+  },
+
+  // Asset Optimizer API
+  optimizer: {
+    startJob: (params: { inputPath: string; outputPath: string; optimizationType: string; settings: any }): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('optimizer:start-job', params),
+    getProgress: (jobId: string): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('optimizer:get-progress', jobId),
+  },
+
+  // 3D Viewer API
+  assetViewer3D: {
+    loadAsset: (assetPath: string): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('3d-viewer:load-asset', assetPath),
+  },
+
+  // Platform #5: Neural Link API
+  neuralLink: {
+    installScript: (type: string, name: string, code: string): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('install-script', { type, name, code }),
+    executeScriptInXEdit: (scriptPath: string, pluginPath?: string): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('xedit-script-execute', { scriptPath, pluginPath }),
+    validateCKPlugin: (pluginPath: string): Promise<IpcResponse<any>> =>
+      ipcRenderer.invoke('ck-plugin-validate', pluginPath),
   },
 };
 
@@ -3131,6 +4233,19 @@ contextBridge.exposeInMainWorld('electron', {
 });
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+
+/**
+ * Auto-log diagnostics when received from main process
+ */
+ipcRenderer.on('main:diagnostics', (_event, diagnostics) => {
+  console.log('[Main Process Diagnostics]', diagnostics);
+  if (diagnostics.backendTokenLoaded) {
+    console.log('[✓] Backend token loaded (length:', diagnostics.backendTokenLength, ')');
+  } else {
+    console.warn('[✗] Backend token NOT loaded');
+  }
+  console.log('[Backend URL]', diagnostics.backendUrl);
+});
 
 /**
  * Security Notes:
@@ -3147,4 +4262,5 @@ contextBridge.exposeInMainWorld('electronAPI', electronAPI);
  * - Always sanitize user input before processing
  * - Never trust data from the renderer process
  */
+
 
