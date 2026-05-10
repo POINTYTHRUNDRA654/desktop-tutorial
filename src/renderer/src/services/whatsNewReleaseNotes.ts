@@ -125,4 +125,3 @@ export const getWhatsNewReleaseData = (version: string = packageJson.version): W
     features: toFeatures(rendered),
   };
 };
-

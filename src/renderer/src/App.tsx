@@ -32,7 +32,11 @@ import AvatarCore from './AvatarCore';
 import { GlobalSearch } from './GlobalSearch';
 import { useWhatsNew } from './WhatsNewDialog';
 import WhatsNewPage from './WhatsNewPage';
-import { backupCriticalProgressToDisk, restoreMissingCriticalProgress } from './services/criticalProgressBackup';
+import {
+  backupCriticalProgressSnapshotSync,
+  backupCriticalProgressToDisk,
+  restoreMissingCriticalProgress,
+} from './services/criticalProgressBackup';
 
 
 // Import new performance & reliability managers
@@ -591,6 +595,7 @@ const App: React.FC = () => {
   // never wipe project/chat/vault progress data stored in localStorage.
   useEffect(() => {
     const persistBackup = () => {
+      backupCriticalProgressSnapshotSync();
       void backupCriticalProgressToDisk();
     };
 

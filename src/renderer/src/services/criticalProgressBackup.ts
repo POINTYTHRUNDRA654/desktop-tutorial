@@ -1,6 +1,7 @@
 import packageJson from '../../../../package.json';
 
 const BACKUP_PANEL_ID = 'critical-progress-backup';
+const LOCAL_BACKUP_STORAGE_KEY = 'mossy_critical_progress_backup';
 
 // Keys that represent user-authored progress/state and should survive updates/rescans.
 const CRITICAL_PROGRESS_KEYS = [
@@ -42,18 +43,33 @@ const collectCriticalValues = (): Record<string, string> => {
   return values;
 };
 
-export const backupCriticalProgressToDisk = async (): Promise<void> => {
-  const api = getApi();
-  if (!api?.savePanelData) return;
-
+/**
+ * Creates a synchronous local snapshot of critical progress keys.
+ * This is used as a last-resort backup path for visibility/unload boundaries.
+ */
+export const backupCriticalProgressSnapshotSync = (): void => {
   const values = collectCriticalValues();
   if (Object.keys(values).length === 0) return;
-
   const snapshot: CriticalProgressSnapshot = {
     savedAt: Date.now(),
     appVersion: packageJson.version,
     values,
   };
+  localStorage.setItem(LOCAL_BACKUP_STORAGE_KEY, JSON.stringify(snapshot));
+};
+
+/**
+ * Snapshots critical user-authored local progress and persists it to durable
+ * disk storage via panel data APIs. Failures are non-fatal by design.
+ */
+export const backupCriticalProgressToDisk = async (): Promise<void> => {
+  const api = getApi();
+  backupCriticalProgressSnapshotSync();
+  if (!api?.savePanelData) return;
+
+  const rawSnapshot = localStorage.getItem(LOCAL_BACKUP_STORAGE_KEY);
+  if (!rawSnapshot) return;
+  const snapshot = JSON.parse(rawSnapshot) as CriticalProgressSnapshot;
 
   try {
     await api.savePanelData(BACKUP_PANEL_ID, snapshot);
@@ -62,16 +78,29 @@ export const backupCriticalProgressToDisk = async (): Promise<void> => {
   }
 };
 
+/**
+ * Restores only missing critical progress keys from durable backup storage.
+ * Returns the number of localStorage keys restored in this call.
+ */
 export const restoreMissingCriticalProgress = async (): Promise<number> => {
   const api = getApi();
-  if (!api?.loadPanelData) return 0;
 
   const missingKeys = CRITICAL_PROGRESS_KEYS.filter((key) => localStorage.getItem(key) === null);
   if (missingKeys.length === 0) return 0;
 
   try {
-    const response = await api.loadPanelData(BACKUP_PANEL_ID);
-    const snapshot = response?.data as CriticalProgressSnapshot | null;
+    let snapshot: CriticalProgressSnapshot | null = null;
+
+    if (api?.loadPanelData) {
+      const response = await api.loadPanelData(BACKUP_PANEL_ID);
+      snapshot = (response?.data as CriticalProgressSnapshot | null) ?? null;
+    }
+
+    if (!snapshot) {
+      const localRaw = localStorage.getItem(LOCAL_BACKUP_STORAGE_KEY);
+      snapshot = localRaw ? (JSON.parse(localRaw) as CriticalProgressSnapshot) : null;
+    }
+
     if (!snapshot?.values || typeof snapshot.values !== 'object') return 0;
 
     let restoredCount = 0;
