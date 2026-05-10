@@ -96,7 +96,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/asset-analysis', icon: Binary, label: t('nav.assetAnalysis', 'FO4 Asset Analysis Hub') },
 
     // === EXECUTION & COLLABORATION ===
-    { to: '/orchestrator', icon: GitBranch, label: t('nav.orchestrator', 'Automation Orchestrator') },
+    { to: '/orchestrator', icon: GitBranch, label: t('nav.orchestrator', 'FO4 Automation Orchestrator') },
     { to: '/workflow-runner', icon: Workflow, label: t('nav.workflowRunner', 'Automation Runner') },
 
     // === CONTENT CREATION ===

@@ -342,7 +342,7 @@ const QUIPS: Record<string, string[]> = {
         "Automation sequences for repetitive tasks."
     ],
     '/orchestrator': [
-        "The Orchestrator is your single asset-processing pipeline to avoid duplicate work across mods.",
+        "FO4 Automation Orchestrator is your single asset-processing pipeline to avoid duplicate work across mods.",
         "Pick an asset once and run the matching pipeline: meshes, textures, audio, or scripts — no parallel tool hopping.",
         "Mesh pipeline order matters: validate NIF → regenerate physics → generate LOD → stage to Data/ for BA2 packing.",
         "Texture pipeline enforces correct formats: BC1 for albedo, BC5 for normals, BC3 for alpha. No mixed compression.",
