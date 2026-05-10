@@ -27,6 +27,7 @@ const searchIndex: SearchItem[] = [
   { id: 'knowledge', label: 'Knowledge Search', path: '/knowledge', category: 'Learning', description: 'Search through modding knowledge base' },
   { id: 'install-wizard', label: 'FO4 Setup Wizards', path: '/wizards', category: 'Setup', description: 'All-in-one setup flow: platform selection, install checks, and PRP planning' },
   { id: 'platforms', label: 'FO4 Platform Selector', path: '/wizards', category: 'Learning', description: 'Choose the right setup workflow before running install/PRP steps' },
+  { id: 'ck-tools-hub', label: 'FO4 Creation Kit Hub', path: '/ck-tools', category: 'Learning', description: 'Unified CK safety, extension tools, and FO4 Creation Kit reference tabs' },
   { id: 'crash-triage', label: 'Crash Triage', path: '/crash-triage', category: 'Debugging', description: 'Diagnose and fix game crashes' },
   { id: 'packaging', label: 'Packaging & Release', path: '/packaging-release', category: 'Publishing', description: 'Package and release your mods' },
   { id: 'quest-dialogue', label: 'CK Quest & Dialogue', path: '/ck-quest-dialogue', category: 'Content', description: 'Creation Kit quest and dialogue guides' },

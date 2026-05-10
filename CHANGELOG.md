@@ -4,7 +4,17 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.51] — Latest
+## [5.4.52] — Latest
+
+### Improved — Platform 9: Creation Kit Hub Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 9 labels now use **FO4 Creation Kit Hub** in sidebar, hub header, locale nav key, and global search discovery.
+- **Operations verified end-to-end**: `/ck-tools` KeepAlive route, tab switching (Safety/Extension/Guide), session tab persistence, and `?tab=` deep-link behavior were validated against current hub implementation.
+- **Context gap fixed**: added a dedicated `/ck-tools` tutorial context entry reflecting real consolidated CK operations instead of relying on legacy `/tools/ck-extension` metadata.
+- **Discovery text refreshed**: global search now includes FO4 Creation Kit Hub with descriptions aligned to the unified safety/extension/reference workflow.
+
+---
+
+## [5.4.51]
 
 ### Improved — Platform 8: Setup Wizards Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 8 labels now use **FO4 Setup Wizards** in sidebar, hub header, locale text, and global discovery entries.

@@ -1542,6 +1542,96 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
   },
 
+  'ck-tools': {
+    pageId: 'ck-tools',
+    pageName: 'FO4 Creation Kit Hub',
+    visualGuidePage: 44,
+    route: '/ck-tools',
+    purpose: 'Unified Creation Kit workspace for safety checks, extension tooling, and an embedded FO4 CK reference guide.',
+    features: [
+      'Three-tab consolidated workflow: CK Safety, CK Extension, FO4 CK Guide',
+      'Session tab persistence via sessionStorage (restores last active tab)',
+      'Deep-link support with query param routing (/ck-tools?tab=safety|extension|guide)',
+      'Embedded FO4 Creation Kit reference: crash causes, best practices, Papyrus tips, and ESL/FormID rules',
+      'Integrated tool references for CK Platform Extended, Buffout 4, CLASSIC, xEdit, and related utilities',
+    ],
+    controls: [
+      {
+        name: 'CK Safety Tab',
+        type: 'button',
+        description: 'Opens crash-prevention and validation workflows for CK editing stability',
+        whenToUse: 'Use first when preparing a CK session or troubleshooting reproducible editor/game crashes',
+      },
+      {
+        name: 'CK Extension Tab',
+        type: 'button',
+        description: 'Opens extension utilities for auto-save and script-compilation support',
+        whenToUse: 'Use while actively authoring to reduce data loss risk and keep compile loops consistent',
+      },
+      {
+        name: 'FO4 CK Guide Tab',
+        type: 'button',
+        description: 'Shows in-app CK reference content (pitfalls, practices, tooling, ESL/FormID quick reference)',
+        whenToUse: 'Use when confirming workflow rules before editing cells, navmesh, scripts, or load-order dependencies',
+      },
+      {
+        name: 'Tab Memory Restore',
+        type: 'button',
+        description: 'Remembers and restores your last active CK hub tab in-session',
+        whenToUse: 'Use when returning to CK work and you want to continue exactly where you left off',
+      },
+      {
+        name: 'Deep Link Tab Query',
+        type: 'button',
+        description: 'Directly opens a specific tab using URL query (e.g., ?tab=extension)',
+        whenToUse: 'Use for support handoff links or repeat workflows that should start on a specific tab',
+      },
+    ],
+    commonMistakes: [
+      'Editing CK data without first checking safety/crash prevention guidance',
+      'Skipping extension setup and losing progress during unstable CK sessions',
+      'Ignoring master/plugin dependency order before script or cell edits',
+      'Treating the FO4 CK Guide as optional and missing ESL/FormID or precombine rules',
+    ],
+    guides: [
+      {
+        title: 'Start with CK Safety before editing',
+        steps: [
+          'Open FO4 Creation Kit Hub and select the CK Safety tab',
+          'Run through crash-prevention checks and confirm your working profile is stable',
+          'Only then move into active CK editing tasks',
+        ],
+      },
+      {
+        title: 'Use CK Extension during active authoring',
+        steps: [
+          'Switch to the CK Extension tab',
+          'Configure auto-save and script-compilation helpers for your current project',
+          'Keep extension support active while iterating on scripts/cell edits',
+        ],
+      },
+      {
+        title: 'Reference FO4 CK Guide for release-safe workflows',
+        steps: [
+          'Open the FO4 CK Guide tab before packaging/releasing edits',
+          'Validate ESL/FormID boundaries, crash-risk patterns, and toolchain prerequisites',
+          'Apply the checklist to final QA before handing off to packaging/load-order stages',
+        ],
+      },
+    ],
+    tutorialSections: [
+      'CK Safety (Crash Prevention)',
+      'CK Extension (Auto-save & Script Compile)',
+      'FO4 CK Guide (Best Practices & Tooling)',
+    ],
+    suggestedQuestions: [
+      'When should I use CK Safety versus CK Extension?',
+      'How do I deep-link directly to the CK Extension tab?',
+      'What does the FO4 CK Guide cover before release?',
+      'Why does the CK hub reopen on the last tab I used?',
+    ],
+  },
+
   'blueprint': {
     pageId: 'blueprint',
     pageName: 'The Blueprint',
