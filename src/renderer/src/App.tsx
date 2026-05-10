@@ -150,6 +150,7 @@ const TextureGenerator = React.lazy(() => import('./TextureGenerator').then(modu
 const TextureMaterialsHub = React.lazy(() => import('./TextureMaterialsHub'));
 const CKToolsHub = React.lazy(() => import('./CKToolsHub'));
 const AssetAnalysisHub = React.lazy(() => import('./AssetAnalysisHub'));
+const PluginLoadOrderHub = React.lazy(() => import('./PluginLoadOrderHub'));
 
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
@@ -216,7 +217,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/guides/creation-kit', '/guides/creation-kit/quest-authoring', '/guides/papyrus/guide',
   '/guides/physics', '/guides/mods', '/guides/mods/bodyslide', '/guides/mods/sim-settlements',
   '/wizards', '/devtools', '/settings', '/project', '/support', '/assembler', '/diagnostics',
-  '/community', '/capabilities', '/asset-analysis', '/packaging-release', '/extensions/mo2',
+  '/community', '/capabilities', '/asset-analysis', '/plugin-tools', '/packaging-release', '/extensions/mo2',
   '/extensions/comfyui', '/extensions/upscayl',
   // Special routes rendered directly inside <Routes>
   '/tutorial', '/whats-new',
@@ -1460,6 +1461,8 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/tools/ini-config"><ErrorBoundary><IniConfigManager /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/asset-deduplicator"><ErrorBoundary><AssetDeduplicator /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/log-monitor"><ErrorBoundary><GameLogMonitor /></ErrorBoundary></KeepAlivePanel>
+              {/* Plugin & Load Order Hub */}
+              <KeepAlivePanel path="/plugin-tools"><ErrorBoundary><PluginLoadOrderHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/xedit"><ErrorBoundary><XEditTools /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/ck-extension"><ErrorBoundary><CKExtension /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/project-templates"><ErrorBoundary><ProjectTemplates /></ErrorBoundary></KeepAlivePanel>
