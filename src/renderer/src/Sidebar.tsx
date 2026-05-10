@@ -74,7 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/', icon: LayoutDashboard, label: t('nav.home', 'Mossy.Space') },
     { to: '/chat', icon: MessageSquare, label: t('nav.chat', 'AI Chat') },
     { to: '/ai-mod-assistant', icon: Code, label: t('nav.aiModAssistant', 'AI Mod Assistant') },
-    { to: '/journey-hub', icon: Sparkles, label: t('nav.journeyHub', 'Journey Hub') },
+    { to: '/journey-hub', icon: Sparkles, label: t('nav.journeyHub', 'FO4 Mod Journey Hub') },
     { to: '/whats-new', icon: Star, label: t('nav.whatsNew', "What's New") },
 
     // === CORE LEARNING: GUIDES & REFERENCES ===

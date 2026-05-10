@@ -4,7 +4,15 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.46] — Latest
+## [5.4.47] — Latest
+
+### Improved — Platform 4: Journey Hub Deep Scan
+- **Platform naming aligned to purpose**: user-facing Platform 4 labels now use **FO4 Mod Journey Hub** so the platform name clearly reflects Fallout 4 mod-building workflow intent.
+- Updated Platform 4 wording in key surfaces: sidebar, home dashboard shortcuts/cards, AI Chat dynamic platform map, and tutorial context copy that references the hub.
+
+---
+
+## [5.4.46]
 
 ### Improved — Platform 3: AI Mod Assistant Deep Scan
 - **Quick-action hub routing updated** in `AIModAssistant` so legacy panel aliases now navigate to current consolidated hubs (Memory Vault, Asset Analysis Hub, Mod Builder, Runtime Hub, etc.).
