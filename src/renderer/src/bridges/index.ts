@@ -20,11 +20,60 @@
  */
 
 import { BridgeRegistry } from './BridgeRegistry';
+import { HttpPluginBridge } from './HttpPluginBridge';
 import { Mo2Bridge } from './Mo2Bridge';
 
 // ── Register bridges here ────────────────────────────────────────────────────
 
 BridgeRegistry.register(new Mo2Bridge());
+
+const normalizePluginBridgeConfigs = (plugin: any): any[] => {
+    const manifestBridge = plugin?.manifest?.mossyBridge;
+    const manifestBridges = Array.isArray(plugin?.manifest?.mossyBridges)
+        ? plugin.manifest.mossyBridges
+        : [];
+    const rootBridge = plugin?.mossyBridge;
+    const rootBridges = Array.isArray(plugin?.mossyBridges)
+        ? plugin.mossyBridges
+        : [];
+
+    return [
+        ...manifestBridges,
+        ...rootBridges,
+        ...(manifestBridge ? [manifestBridge] : []),
+        ...(rootBridge ? [rootBridge] : []),
+    ].filter((config) => config && typeof config.healthUrl === 'string' && config.healthUrl.length > 0);
+};
+
+const registerInstalledPluginBridges = async () => {
+    try {
+        const api = (window as any).electron?.api;
+        const pluginManager = api?.pluginManager;
+        if (!pluginManager?.listInstalled) return;
+
+        const plugins = await pluginManager.listInstalled();
+        if (!Array.isArray(plugins)) return;
+
+        for (const plugin of plugins) {
+            if (plugin?.enabled === false) continue;
+            const configs = normalizePluginBridgeConfigs(plugin);
+            for (const config of configs) {
+                const bridge = new HttpPluginBridge(
+                    String(plugin.id || 'community-plugin'),
+                    String(plugin.name || plugin.id || 'Community Plugin'),
+                    plugin.version ? String(plugin.version) : undefined,
+                    config,
+                );
+                BridgeRegistry.register(bridge);
+                void bridge.connect();
+            }
+        }
+    } catch (error) {
+        console.warn('[bridges] Failed to auto-register plugin bridges:', error);
+    }
+};
+
+void registerInstalledPluginBridges();
 
 // Example of adding more:
 //   import { XEditBridge } from './XEditBridge';

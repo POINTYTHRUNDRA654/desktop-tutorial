@@ -3271,6 +3271,8 @@ const electronAPI = {
   pluginManager: {
     listInstalled: (): Promise<any[]> =>
       ipcRenderer.invoke('plugin-manager:list-installed'),
+    installFromPath: (pluginPath: string): Promise<any> =>
+      ipcRenderer.invoke('plugin-manager:install-from-path', pluginPath),
     listMarketplace: (): Promise<any[]> =>
       ipcRenderer.invoke('plugin-manager:list-marketplace'),
     install: (pluginId: string, version: string): Promise<any> =>
@@ -4262,5 +4264,4 @@ ipcRenderer.on('main:diagnostics', (_event, diagnostics) => {
  * - Always sanitize user input before processing
  * - Never trust data from the renderer process
  */
-
 
