@@ -285,7 +285,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     features: [
       'Two-pane workflow: chat assistant + code preview panel',
       'Generate Papyrus/script output directly from Smart Actions',
-      'Quick action routing to key hubs (Runtime, Asset Analysis, Mod Builder, Memory Vault, etc.)',
+      'Quick action routing to key hubs (Runtime, Asset Analysis, FO4 Mod Builder Hub, Memory Vault, etc.)',
       'Optional learning mode toggle for guided practice messaging',
       'Voice start/stop hooks when STT bridge APIs are available',
       'FO4-constrained system instruction context through MossyBrain',
@@ -2132,6 +2132,81 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'What if the repo status shows "not detected"?',
       'How do I build the Knowledge Search index after adding roots?',
       'Does this page enable running Cosmos models locally? (No — it only indexes docs)',
+    ],
+  },
+
+  'mod-builder': {
+    pageId: 'mod-builder',
+    pageName: 'FO4 Mod Builder Hub',
+    visualGuidePage: 18,
+    route: '/mod-builder',
+    purpose: 'FO4 Mod Builder Hub unifies the authoring workflow for planning a mod, working with project files, generating scripts, and producing documentation inside one four-tab workspace.',
+    features: [
+      'Four-tab workflow: Blueprint, Workshop, Devtools, and Scribe',
+      'Session tab persistence via `builder_hub_tab` so the last active tab restores automatically',
+      'Lazy-loaded panels keep heavyweight builder tools responsive inside the unified hub',
+      'Combines planning, file/compile workflows, script tooling, and documentation authoring in one route',
+    ],
+    controls: [
+      {
+        name: 'Blueprint tab',
+        type: 'tab',
+        description: 'Opens the planning workspace for mod architecture and project structure',
+        whenToUse: 'Start here when you want to map features, content scope, or implementation order before building assets/scripts',
+      },
+      {
+        name: 'Workshop tab',
+        type: 'tab',
+        description: 'Loads the file-browser and compile-oriented workspace',
+        whenToUse: 'Use when you need to inspect project files, perform hands-on editing tasks, or run build/compile flows',
+      },
+      {
+        name: 'Devtools tab',
+        type: 'tab',
+        description: 'Opens the Papyrus/script tooling workspace',
+        whenToUse: 'Switch here for script generation, analysis, or iteration on developer-focused tooling',
+      },
+      {
+        name: 'Scribe tab',
+        type: 'tab',
+        description: 'Loads the documentation authoring workspace',
+        whenToUse: 'Use after planning/building to write guides, notes, changelogs, or release-facing documentation',
+      },
+    ],
+    commonMistakes: [
+      'Treating the hub as a single page instead of switching to the tab that matches your current task',
+      'Skipping Blueprint and jumping straight into implementation without defining structure first',
+      'Forgetting that the active tab is persisted in session storage under `builder_hub_tab`',
+      'Packaging directly from builder steps without reviewing Packaging & Release afterward',
+    ],
+    guides: [
+      {
+        title: 'Plan to implementation workflow',
+        steps: [
+          'Open Blueprint and outline the mod architecture or feature breakdown',
+          'Switch to Workshop to inspect project files and carry out build-focused tasks',
+          'Move to Devtools for Papyrus/script generation or analysis as needed',
+          'Finish in Scribe to document the workflow, setup, or release notes',
+        ],
+      },
+      {
+        title: 'Resume a previous builder session',
+        steps: [
+          'Return to `/mod-builder` and confirm the expected tab restores from `builder_hub_tab`',
+          'If the wrong tab opens, switch to the correct workspace manually',
+          'Continue the workflow from the appropriate stage rather than duplicating work in the wrong tab',
+        ],
+      },
+    ],
+    tutorialSections: [
+      'FO4 Mod Builder Hub - Four Tab Workflow',
+      'Blueprint, Workshop, Devtools & Scribe',
+    ],
+    suggestedQuestions: [
+      'Which Mod Builder tab should I use first for a new Fallout 4 mod?',
+      'What is the difference between Blueprint, Workshop, Devtools, and Scribe?',
+      'Why did Mod Builder reopen on the same tab as last time?',
+      'When should I move from Mod Builder to Packaging & Release?',
     ],
   },
 

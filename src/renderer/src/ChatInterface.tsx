@@ -1626,7 +1626,7 @@ export const ChatInterface: React.FC = () => {
                     "• Textures & Materials Hub (/textures): DDS format decisions and FO4 material pipeline guidance.",
                     "• Plugin & Load Order Hub (/plugin-tools): xEdit conflict checks, load order workflows, and PRP-aware patching.",
                     "• Asset Analysis Hub (/asset-analysis): Asset auditing, dedupe checks, and pipeline diagnostics.",
-                    "• Mod Builder Hub (/mod-builder): Blueprint + Workshop + Scribe workflows for building complete mods.",
+                    "• FO4 Mod Builder Hub (/mod-builder): Blueprint, Workshop, Devtools, and Scribe workflows for building complete mods.",
                     "• Packaging & Release Hub (/packaging-release): BA2 and FOMOD packaging/release checks.",
                     "• Runtime Hub (/runtime-hub): Live Synapse, Desktop Bridge status, and in-session runtime tooling.",
                     "• External Integrations Hub (/ext-tools): MO2, ComfyUI, and Upscayl integration guidance.",

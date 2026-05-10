@@ -88,7 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
 
     // === BUILDING TOOLS: CREATE & GENERATE ===
     { to: '/tools/cosmos', icon: Hexagon, label: t('nav.cosmosWorkflow', 'FO4 Automation Studio') },
-    { to: '/mod-builder', icon: Hammer, label: t('nav.modBuilder', 'Mod Builder') },
+    { to: '/mod-builder', icon: Hammer, label: t('nav.modBuilder', 'FO4 Mod Builder Hub') },
 
     // === ENHANCEMENT: ADVANCED SPECIALIZATION ===
 

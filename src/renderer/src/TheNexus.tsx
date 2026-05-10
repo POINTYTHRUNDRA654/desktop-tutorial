@@ -314,7 +314,7 @@ const TheNexus: React.FC = () => {
             </Link>
             <Link to="/mod-builder" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Hammer size={20} className="text-emerald-400" />
-              <span className="font-bold">Mod Builder</span>
+              <span className="font-bold">FO4 Mod Builder Hub</span>
               <span className="text-slate-500 text-[9px]">Blueprint · Workshop · Docs</span>
             </Link>
             <Link to="/packaging-release" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
@@ -389,7 +389,7 @@ const TheNexus: React.FC = () => {
                 icon: BookOpen,
                 step: '6',
                 title: 'Build & Package Your Mod',
-                body: 'Use Mod Builder to draft architecture, write scripts in Workshop, and document in Scribe. Then go to Packaging & Release to create a BA2 and build your FOMOD installer.',
+                body: 'Use FO4 Mod Builder Hub to draft architecture, work in Workshop, build scripts in Devtools, and document in Scribe. Then go to Packaging & Release to create a BA2 and build your FOMOD installer.',
                 to: '/mod-builder',
               },
             ].map(({ icon: Icon, step, title, body, to }) => (

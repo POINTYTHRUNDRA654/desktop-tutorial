@@ -1,5 +1,5 @@
 /**
- * Mod Builder Hub
+ * FO4 Mod Builder Hub
  *
  * Unified platform for mod creation workflow:
  * Blueprint (planning) · Workshop (file browser + compile) · Devtools (scripts) · Scribe (docs)
@@ -55,9 +55,9 @@ const ModBuilderHub: React.FC = () => {
             <Hammer className="h-5 w-5 text-amber-300" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight">Mod Builder</h1>
+            <h1 className="text-xl font-black text-white tracking-tight">FO4 Mod Builder Hub</h1>
             <p className="text-xs text-slate-400">
-              Plan · Build · Script · Document — complete mod creation workflow
+              Blueprint · Workshop · Devtools · Scribe — complete Fallout 4 mod creation workflow
             </p>
           </div>
         </div>
