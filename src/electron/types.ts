@@ -150,6 +150,12 @@ export const IPC_CHANNELS = {
   XEDIT_SCRIPT_GET_PLUGIN_LIST: 'xedit-script-get-plugin-list',
   XEDIT_SCRIPT_EXECUTE: 'xedit-script-execute',
 
+  // Script Installation (xEdit + Papyrus)
+  INSTALL_SCRIPT: 'install-script',
+  XEDIT_SCRIPT_EXECUTE_SCRIPT: 'xedit-script-execute-script',
+  CK_PLUGIN_VALIDATE: 'ck-plugin-validate',
+  CK_LAUNCH_WITH_PLUGIN: 'ck-launch-with-plugin',
+
   // Project Templates
   PROJECT_TEMPLATE_BROWSE_PATH: 'project-template-browse-path',
   PROJECT_TEMPLATE_CREATE: 'project-template-create',

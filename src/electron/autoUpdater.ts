@@ -236,8 +236,18 @@ export class AutoUpdaterService {
       console.log('[AutoUpdater] Manual check for updates triggered');
       await this.autoUpdater.checkForUpdates();
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      
+      // Suppress 404 errors gracefully - happens when no GitHub release exists yet
+      // This is normal in development/pre-release and shouldn't alarm the user
+      if (errorMsg.includes('404') || errorMsg.includes('Cannot find latest.yml')) {
+        console.log('[AutoUpdater] No release found on GitHub yet (expected in dev) - skipping');
+        this.status.error = null; // Don't show error to user for missing releases
+        return;
+      }
+      
       console.error('[AutoUpdater] Error checking for updates:', err);
-      this.status.error = err instanceof Error ? err.message : String(err);
+      this.status.error = errorMsg;
       this.sendStatusToRenderer();
     }
   }

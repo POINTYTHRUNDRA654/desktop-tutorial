@@ -1,39 +1,98 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle, Sparkles } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import packageJson from '../../../package.json';
-import { getWhatsNewReleaseData } from './services/whatsNewReleaseNotes';
 
 interface WhatsNewPageProps {
   onDismiss?: () => void;
 }
 
-const CURRENT_RELEASE_DATA = getWhatsNewReleaseData(packageJson.version);
-
 const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [entry, setEntry] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const releaseData = CURRENT_RELEASE_DATA;
-  const features = useMemo(
-    () => releaseData.features.map((feature, index) => ({ ...feature, icon: index % 2 === 0 ? '✨' : '🛠️' })),
-    [releaseData.features]
+  // Load current version's What's New entry from server
+  useEffect(() => {
+    const loadWhatsNew = async () => {
+      try {
+        setLoading(true);
+        const result = await window.electron.api.invoke('whats-new-get-current');
+        
+        if (result?.ok && result.entry) {
+          setEntry(result.entry);
+          // Mark current version as seen
+          await window.electron.api.invoke('whats-new-mark-seen', { 
+            version: packageJson.version 
+          });
+        }
+      } catch (err) {
+        console.warn('[WhatsNewPage] Failed to load What\'s New:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadWhatsNew();
+  }, []);
+
+  // Fallback features if no data from server
+  const defaultFeatures = useMemo(
+    () => [
+      {
+        title: 'Enhanced AI Chat',
+        description: 'Improved conversation memory and context awareness for better assistance.',
+        icon: '🤖',
+      },
+      {
+        title: 'Project Management',
+        description: 'Create, switch, and manage multiple modding projects with ease.',
+        icon: '📁',
+      },
+      {
+        title: 'Neural Link Integration',
+        description: 'Real-time monitoring of Blender, Creation Kit, and other modding tools.',
+        icon: '🧠',
+      },
+      {
+        title: 'Advanced Asset Analysis',
+        description: 'Comprehensive NIF, DDS, and ESP file validation with performance warnings.',
+        icon: '🔍',
+      },
+      {
+        title: 'Global Search',
+        description: 'Search across all modules and features with Ctrl+K shortcut.',
+        icon: '🔎',
+      },
+      {
+        title: 'Favorites System',
+        description: 'Bookmark frequently used tools for quick access.',
+        icon: '⭐',
+      },
+    ],
+    []
   );
+
+  const features = entry?.features || defaultFeatures;
 
   const handleBack = () => {
     if (dontShowAgain) {
       try {
-        // Store the current version as dismissed so it re-appears on the next release
+        // Dismiss this version via backend
+        window.electron.api.invoke('whats-new-dismiss', { 
+          version: packageJson.version 
+        }).catch(err => console.warn('[WhatsNewPage] Failed to dismiss:', err));
+        
+        // Also store locally as fallback
         localStorage.setItem('mossy_whats_new_dismissed_version', packageJson.version);
         localStorage.removeItem('mossy_whats_new_dismissed');
       } catch (err) {
-        // Don't block navigation if storage fails
         console.warn('[WhatsNewPage] could not persist dismissal:', err);
       }
     }
 
-    // Notify parent/hook (will at minimum set a session-dismiss flag)
     onDismiss?.();
 
     const from = (location.state as { from?: string } | null)?.from;
@@ -70,11 +129,6 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
                 <p className="text-xs uppercase tracking-[0.35em] text-emerald-300">FO4 Release Notes</p>
                 <h1 className="text-3xl font-black text-white">FO4 What's New in Mossy</h1>
                 <p className="text-sm text-emerald-100/70">v{packageJson.version} — Fallout 4 modding updates in this release.</p>
-                {!releaseData.hasExactMatch && releaseData.renderedVersion && (
-                  <p className="text-xs text-amber-300/90 mt-1">
-                    No changelog entry was found for v{releaseData.requestedVersion} yet. Showing latest notes from v{releaseData.renderedVersion}.
-                  </p>
-                )}
               </div>
             </div>
             <button

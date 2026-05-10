@@ -11,6 +11,20 @@
 ## 🚀 Onboarding & Installer Notes (v5.4.41)
 
 **New in v5.4.41 (Latest):**
+- ✅ **Bethel Integration** - Automatic mod enhancement system! Upload any Fallout 4 mod → Auto-enhance textures → Export as ZIP or FOMOD
+  - 4x/8x/16x AI upscaling with neural networks
+  - Intelligent texture classification (diffuse, normal, specular, roughness, metallic, AO)
+  - Professional ZIP and FOMOD export packages with auto-generated installers
+  - Real-time progress tracking with persistent job registry
+  - 7-day auto-cleanup with error recovery
+  - See [BETHEL_INTEGRATION_GUIDE.md](BETHEL_INTEGRATION_GUIDE.md) for complete documentation
+- ✅ **Phase 1B: RTX Remix Texture Enhancement** - Neural texture upscaling engine
+  - LANCZOS resampling for artifact-free upscaling
+  - Normal map detail sharpening with unsharp masks
+  - Material manifest preservation (.mossy_material.json)
+  - Real PIL/Pillow processing with progress events
+  - GPU-accelerated via Blender BridgeServer
+  - See [TEXTURE_ENHANCER_IMPLEMENTATION.md](TEXTURE_ENHANCER_IMPLEMENTATION.md) for technical details
 - ✅ **Multi-Language Support** - Mossy now supports 12 languages! Choose your preferred language in Settings → Language Settings
   - Languages: English, Spanish, French, German, Russian, Chinese (Simplified), Portuguese (BR), Japanese, Korean, Italian, Polish, Turkish
   - See [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md) to help translate
@@ -257,7 +271,33 @@ Your support helps:
 - Ambient Occlusion map from luminance variance
 - Real image processing via sharp library
 
-#### 🛠️ **Workshop** (Development Tools)
+#### � **Phase 1B: RTX Remix Texture Enhancement** (Neural Upscaling)
+- **AI-Powered Texture Upscaling** - 4x, 8x, 16x resolution enhancement via neural networks
+- **Intelligent Material Analysis** - Automatic classification of diffuse, normal, specular, roughness, metallic, AO textures
+- **Normal Map Sharpening** - Unsharp mask detail enhancement for surface topology
+- **Real PIL/Pillow Processing** - LANCZOS resampling for artifact-free upscaling
+- **Material Manifest** - Preserves PBR metadata and texture definitions (.mossy_material.json)
+- **Blender Pipeline Integration** - GPU-accelerated enhancement via BridgeServer
+- **Progress Tracking** - Real-time job status and texture processing updates
+- See [TEXTURE_ENHANCER_IMPLEMENTATION.md](TEXTURE_ENHANCER_IMPLEMENTATION.md) for technical details
+
+#### 📦 **Bethel** (Bethesda Enhanced Texture Enhancement Layer)
+- **Automatic Mod Enhancement Workflow** - Drag-drop upload → Analyze → Enhance → Export
+- **Job Registry System** - Persistent storage with 7-day auto-cleanup and progress tracking
+- **Multiple Export Formats**:
+  - 📦 **ZIP Package** - Compressed archive with textures and README (optimal for mod managers)
+  - 🎯 **FOMOD Installer** - Professional Fallout Mod Organizer package with installer UI
+  - 📂 **Default Format** - Raw directory structure for manual installation
+- **Real-Time Progress Streaming** - WebContents event system for live job updates
+- **Texture Statistics** - Automatic analysis of texture counts, types, and sizes
+- **Material Preservation** - Includes material manifest and metadata in exports
+- **Error Recovery** - Automatic retry logic and cleanup for failed jobs
+- **UI Integration** - Drag-drop interface with job history and download management
+- **Archiver Support** - Professional-grade ZIP creation with max compression (level 9)
+- **FOMOD Config Generation** - Auto-generates ModuleConfig.xml and Info.xml for proper installer UI
+- See [BETHEL_INTEGRATION_GUIDE.md](BETHEL_INTEGRATION_GUIDE.md) for complete guide
+
+#### �🛠️ **Workshop** (Development Tools)
 - Papyrus script compilation
 - File browser and management
 - Tool path configuration
@@ -320,6 +360,9 @@ Your support helps:
 - ✅ **Modern Standards** - Built-in support for Blender 4.1 metrics (1.0 scale, 30 FPS)
 - ✅ **Production Asset Analysis** - Real binary format reading for NIF/DDS/ESP
 - ✅ **Advanced Image Processing** - Real Sobel operators and image algorithms
+- ✅ **Neural Texture Enhancement** - 4x/8x/16x AI upscaling with LANCZOS resampling and normal map sharpening
+- ✅ **Bethel Auto-Enhancement** - One-click mod upload → enhance → export workflow with job persistence
+- ✅ **Professional Packaging** - ZIP and FOMOD export formats with auto-generated installers
 - ✅ **Gradio Python Assistant** - Interactive web UI for Python code writing with templates, formatting, and validation
 - ✅ **Zero Fake Features** - Everything is functional and tested
 - ✅ **Real IPC Bridge** - Direct Electron API access for system operations
