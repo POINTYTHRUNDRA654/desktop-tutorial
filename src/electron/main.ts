@@ -30054,8 +30054,7 @@ ${steps}
       // Determine format from extension and metadata
       let format = ext.slice(1) || 'UNKNOWN';
       if (format === '.DDS') format = 'DDS';
-      else if (['PNG', 'JPG', 'JPEG', 'BMP', 'TGA'].includes(format)) format = format;
-      else format = 'UNKNOWN';
+      else if (!['PNG', 'JPG', 'JPEG', 'BMP', 'TGA'].includes(format)) format = 'UNKNOWN';
 
       const size = fs.statSync(filePath).size;
       const megabytes = (size / (1024 * 1024)).toFixed(2);
