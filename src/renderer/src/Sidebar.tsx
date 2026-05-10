@@ -105,8 +105,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
 
     // === QUALITY ASSURANCE: VALIDATE & VERIFY ===
     { to: '/tools/security', icon: ShieldCheck, label: t('nav.securityScanner', 'Blacklist Manager') },
-    { to: '/tools/mining', icon: Binary, label: t('nav.miningDashboard', 'Mining Dashboard') },
-    { to: '/tools/advanced-analysis', icon: Brain, label: t('nav.advancedAnalysis', 'Advanced Analysis') },
+    { to: '/asset-analysis', icon: Binary, label: t('nav.assetAnalysis', 'Asset Analysis') },
     { to: '/scribe', icon: Feather, label: t('nav.scribe', 'The Scribe') },
     { to: '/monitor', icon: Activity, label: t('nav.systemMonitor', 'System Monitor') },
 
@@ -115,7 +114,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/workflow-runner', icon: Workflow, label: t('nav.workflowRunner', 'Workflow Runner') },
     { to: '/holo', icon: Gamepad2, label: t('nav.holodeck', 'The Holodeck') },
     { to: '/vault', icon: Container, label: t('nav.vault', 'The Vault') },
-    { to: '/tools/ba2-manager', icon: Archive, label: t('nav.ba2Manager', 'BA2 Manager') },
     { to: '/capabilities', icon: Gauge, label: t('nav.localCapabilities', 'Local Capabilities') },
 
     // === CONTENT CREATION ===
@@ -131,7 +129,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/extensions/comfyui', icon: Network, label: t('nav.comfyuiExtension', 'ComfyUI Extension') },
     { to: '/extensions/upscayl', icon: Aperture, label: t('nav.upscaylExtension', 'Upscayl Extension') },
 
-    { to: '/tools/asset-deduplicator', icon: Copy, label: t('nav.duplicateFinder', 'Asset Deduplicator') },
     { to: '/community', icon: Github, label: t('nav.communityLearning', 'Community Learning') },
     { to: '/tool-verify', icon: CheckCircle2, label: t('nav.toolVerify', 'Tool Verify') },
     { to: '/settings', icon: Settings, label: t('nav.settings', 'Settings') },
