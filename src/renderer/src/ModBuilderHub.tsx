@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { DraftingCompass, Hammer, Code, Feather } from 'lucide-react';
+import { DraftingCompass, Hammer, Code, Feather, FolderPlus } from 'lucide-react';
 
 const TheBlueprint = React.lazy(() => import('./TheBlueprint'));
 const Workshop = React.lazy(() => import('./Workshop'));
@@ -14,14 +14,18 @@ const DevtoolsHub = React.lazy(() => import('./DevtoolsHub'));
 const TheScribe = React.lazy(() =>
   import('./TheScribeEnhanced').then((m) => ({ default: m.TheScribe }))
 );
+const ProjectCreator = React.lazy(() =>
+  import('./ProjectCreator').then((m) => ({ default: m.ProjectCreator }))
+);
 
-type HubTab = 'blueprint' | 'workshop' | 'devtools' | 'scribe';
+type HubTab = 'blueprint' | 'workshop' | 'devtools' | 'scribe' | 'creator';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'blueprint', icon: DraftingCompass, label: 'Blueprint', sublabel: 'Mod architecture planner' },
   { id: 'workshop', icon: Hammer, label: 'Workshop', sublabel: 'File browser · Compile' },
   { id: 'devtools', icon: Code, label: 'Devtools', sublabel: 'Papyrus scripts' },
   { id: 'scribe', icon: Feather, label: 'Scribe', sublabel: 'Documentation generator' },
+  { id: 'creator', icon: FolderPlus, label: 'Project Creator', sublabel: 'New mod scaffold' },
 ];
 
 const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -103,6 +107,11 @@ const ModBuilderHub: React.FC = () => {
         {activeTab === 'scribe' && (
           <PanelLoader>
             <TheScribe />
+          </PanelLoader>
+        )}
+        {activeTab === 'creator' && (
+          <PanelLoader>
+            <ProjectCreator />
           </PanelLoader>
         )}
       </div>

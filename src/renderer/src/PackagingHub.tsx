@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Archive, ChevronDown, ChevronUp, Package, Search, GitCompare, Database } from 'lucide-react';
+import { Archive, ChevronDown, ChevronUp, Package, Search, GitCompare, Database, Layers, GitBranch, Upload } from 'lucide-react';
 import PackagingReleaseWizard from './PackagingReleaseWizard';
 import TheAssembler from './TheAssembler';
 import ModConflictVisualizer from './ModConflictVisualizer';
 import ModComparisonTool from './ModComparisonTool';
 import { BA2Manager } from './BA2Manager';
+import ConflictResolver from './ConflictResolver';
+import { ConflictGraph } from './ConflictGraph';
+import { BethelUploader } from './BethelUploader';
 
 type HubSection = {
   id: string;
@@ -60,6 +63,27 @@ const PackagingHub: React.FC = () => {
       description: 'Build and export a FOMOD installer for your release package.',
       icon: Package,
       content: <TheAssembler embedded />,
+    },
+    {
+      id: 'conflict-resolver',
+      title: 'Conflict Resolver',
+      description: 'Resolve plugin record conflicts and generate patch recommendations.',
+      icon: Layers,
+      content: <ConflictResolver embedded />,
+    },
+    {
+      id: 'conflict-graph',
+      title: 'Conflict Dependency Graph',
+      description: 'Visualize mod conflict relationships as an interactive dependency graph.',
+      icon: GitBranch,
+      content: <ConflictGraph />,
+    },
+    {
+      id: 'bethel-uploader',
+      title: 'Bethesda.net Publisher',
+      description: 'Package and upload mods directly to Bethesda.net (Creation Club compatible).',
+      icon: Upload,
+      content: <BethelUploader />,
     },
   ];
 
