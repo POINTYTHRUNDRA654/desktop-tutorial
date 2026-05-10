@@ -97,7 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
 
     // === EXECUTION & COLLABORATION ===
     { to: '/orchestrator', icon: GitBranch, label: t('nav.orchestrator', 'FO4 Automation Orchestrator') },
-    { to: '/workflow-runner', icon: Workflow, label: t('nav.workflowRunner', 'Automation Runner') },
+    { to: '/workflow-runner', icon: Workflow, label: t('nav.workflowRunner', 'FO4 Automation Runner') },
 
     // === CONTENT CREATION ===
 

@@ -4,7 +4,16 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.59] — Latest
+## [5.4.60] — Latest
+
+### Improved — Platform 17: Automation Runner Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 17 labels now use **FO4 Automation Runner** across sidebar, runner header, locale nav key, command palette, search, and discovery references.
+- **Operations verified end-to-end**: `/workflow-runner` redirect flow to `/dev/workflow-runner` and the active workflow behavior were validated: typed steps (Run Tool/Open Program/Open External/Reveal In Folder), desktop-only execution, live logs, saved run history (latest 50), and JSON import/export flows.
+- **Context/discovery wiring refreshed**: updated runner page naming in tutorial context and expanded observer/chat discovery text to reflect real execution constraints and troubleshooting paths.
+
+---
+
+## [5.4.59]
 
 ### Improved — Platform 16: Automation Orchestrator Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 16 labels now use **FO4 Automation Orchestrator** across sidebar, orchestrator header, locale nav key, command palette, search, and discovery references.

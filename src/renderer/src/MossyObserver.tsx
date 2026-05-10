@@ -358,6 +358,15 @@ const QUIPS: Record<string, string[]> = {
         "After pipeline runs, stage assets for Archive2/BA2 packing — no manual drag-and-drop required.",
         "Re-run the pipeline after fixes to confirm issues are cleared; the log history will confirm successful stages."
     ],
+    '/workflow-runner': [
+        "FO4 Automation Runner executes reusable workflow steps in sequence: run tool commands, open programs, open external links, and reveal files.",
+        "Use New Workflow to create repeatable task chains, then save and run from one panel instead of retyping commands each session.",
+        "Step types require specific fields: runTool needs cmd/args/cwd; openProgram/openExternal/revealInFolder rely on target paths or URLs.",
+        "Run History keeps the latest 50 runs with success/fail state and full log lines for troubleshooting.",
+        "Export Workflows creates JSON snapshots you can share with teammates; Import merges by workflow id to avoid accidental loss.",
+        "When Electron APIs are unavailable, editing/import/export still works but execution is disabled in web mode.",
+        "Use log export/copy after a failed run to capture exact step output and speed up debugging."
+    ],
     '/hyperterminal': [
         "HyperTerminal provides pre-built command templates for all major Fallout 4 modding tools - xEdit, Papyrus, meshes, textures, and utilities.",
         "xEdit commands handle plugin maintenance: cleaning masters, rebuilding leveled lists, exporting FormID references.",
