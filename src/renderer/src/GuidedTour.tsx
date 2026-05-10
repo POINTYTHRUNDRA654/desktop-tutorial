@@ -353,11 +353,11 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
 
                   <div className="mt-3"><strong>1) Run a system scan</strong></div>
                   <div className="text-slate-400">Detect installed tools so Mossy can personalize her guidance.</div>
-                  <div className="text-slate-500 italic">Open the System Monitor from the sidebar and run the scan once.</div>
+                  <div className="text-slate-500 italic">Open System Hub → Diagnostics and run the scan once.</div>
 
                   <div className="mt-3"><strong>2) Verify your tools</strong></div>
                   <div className="text-slate-400">Confirm key modding tools are detected and configured.</div>
-                  <div className="text-slate-500 italic">Use the Tool Verify page to confirm paths and versions.</div>
+                  <div className="text-slate-500 italic">Use System Hub → Diagnostics to confirm paths and versions.</div>
 
                   <div className="mt-3"><strong>3) Index your guides</strong></div>
                   <div className="text-slate-400">Build the knowledge index or add your own notes to the Memory Vault.</div>
@@ -381,7 +381,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
             ),
             data: {
               stepId: 'page-first-success',
-              route: '/first-success',
+              route: '/journey-hub',
               narration: 'The First Success Wizard is a fast onboarding checklist. Run a system scan, verify your tools, index your guides, optionally digest your plugins with Spriggit, and ask your first question to get started.'
             } satisfies TourStepData,
           },
@@ -401,7 +401,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
             ),
             data: {
               stepId: 'page-mod-projects',
-              route: '/project',
+              route: '/journey-hub',
               narration: 'Mod Projects is your project manager — create a project, set goals, and track progress from first idea all the way to release.'
             } satisfies TourStepData,
           },
@@ -421,7 +421,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
             ),
             data: {
               stepId: 'page-roadmap',
-              route: '/roadmap',
+              route: '/journey-hub',
               narration: 'Modding Roadmaps give you curated step-by-step learning paths — from beginner basics to advanced topics — so you always know what to do next.'
             } satisfies TourStepData,
           },
@@ -441,8 +441,8 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
             ),
             data: {
               stepId: 'page-live',
-              route: '/live',
-              narration: 'Here is Live Voice. Use your microphone to talk to me and hear spoken responses.'
+              route: '/runtime-hub',
+              narration: 'Here is the Runtime Hub. Open Live Synapse to talk with your microphone and hear spoken responses, then use Desktop Bridge and Holodeck from the same hub.'
             } satisfies TourStepData,
           },
           {
@@ -712,5 +712,4 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
 };
 
 export default GuidedTour;
-
 
