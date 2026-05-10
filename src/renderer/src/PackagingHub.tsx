@@ -68,7 +68,7 @@ const PackagingHub: React.FC = () => {
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col gap-3 mb-8">
           <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor • Packaging</div>
-          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">Packaging Hub (All-in-One)</h1>
+          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">FO4 Packaging &amp; Release Hub</h1>
           <p className="text-sm font-medium text-slate-300 max-w-2xl">
             Complete workflow for packaging, conflict analysis, comparison, and FOMOD installers. Follow the steps in order for best results.
           </p>

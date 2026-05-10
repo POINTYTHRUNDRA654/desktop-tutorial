@@ -4,7 +4,17 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.53] — Latest
+## [5.4.54] — Latest
+
+### Improved — Platform 11: Packaging & Release Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 11 labels now use **FO4 Packaging & Release** in sidebar, hub header, locale nav key, and global search discovery.
+- **Operations verified end-to-end**: `/packaging-release` KeepAlive route and 5-stage consolidated flow (BA2 Archive Manager, Packaging Checklist, Conflict Analysis, Mod Comparison, FOMOD Installer) validated against the active hub implementation.
+- **Context wiring refreshed**: tutorial context for `/packaging-release` now reflects actual consolidated operations and section deep-link behavior (`?section=`) instead of legacy generic packaging metadata.
+- **Discovery text refreshed**: global search packaging entry now describes the real release pipeline and compatibility-validation workflow.
+
+---
+
+## [5.4.53]
 
 ### Improved — Platform 10: Textures & Materials Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 10 labels now use **FO4 Textures & Materials** in sidebar, hub header, locale nav key, and global search discovery.
