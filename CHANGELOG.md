@@ -4,7 +4,20 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.44] — Latest
+## [5.4.45] — Latest
+
+### Improved — Platform 2: AI Chat Deep Scan
+- **Help route fixed** on AI Chat toolbar: `/reference` → `/knowledge-hub`.
+- **System-context module map refreshed** inside `ChatInterface` so Mossy references the current 22-platform hub architecture (Journey/CK/Textures/Plugin/Asset/Mod Builder/Packaging/Runtime/External/System/Knowledge hubs) instead of deprecated legacy module routes.
+- **Bridge/IPC scan wiring hardened**: deep-scan handlers now consistently support both `window.electron.api` and `window.electronAPI` for `getSettings`, `detectPrograms`, and `getRunningProcesses`.
+- **Bridge status refresh parity**: AI Chat now includes a 2-second polling fallback (matching other platform health checks) so runtime status updates reliably in-session.
+- **Tools panel improved**: updated AI Chat panel copy to reflect Runtime Hub/Desktop Bridge flow and added in-app shortcuts to key hubs.
+- **Blender offline guidance updated**: now points users to `Runtime Hub → Desktop Bridge` for Mossy Link setup.
+- **tutorialContext `ai-chat` entry updated** with current controls/features and FO4-focused usage guidance.
+
+---
+
+## [5.4.44]
 
 ### Improved — Platform 1: Mossy.Space (Home Dashboard)
 - **Quick Hub Access grid** replaces the old "Quick Tools" grid. All 12 entries now link to the correct consolidated hub pages matching the current 22-platform sidebar.

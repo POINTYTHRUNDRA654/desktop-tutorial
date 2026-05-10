@@ -915,6 +915,7 @@ export const ChatInterface: React.FC = () => {
         window.addEventListener('mossy-blender-linked', checkState);
         window.addEventListener('mossy-monitoring-toggle', checkState);
         window.addEventListener('storage', checkState);
+        const bridgePoll = setInterval(checkState, 2000);
 
         // Initial Load
         const loadInitialState = async () => {
@@ -1005,6 +1006,7 @@ export const ChatInterface: React.FC = () => {
             window.removeEventListener('mossy-blender-linked', checkState);
             window.removeEventListener('mossy-monitoring-toggle', checkState);
             window.removeEventListener('storage', checkState);
+            clearInterval(bridgePoll);
 
             // MEMORY LEAK FIX: Clean up audio resources on unmount
             if (activeSourceRef.current) {
@@ -1553,7 +1555,7 @@ export const ChatInterface: React.FC = () => {
                 : '';
             const blenderContext = isBlenderLinked
                 ? `**BLENDER LINK: ACTIVE (Mossy Link v6 — Fallout 4 Edition)**\nYou are co-piloting the user's Blender session. You can see their scene context, execute Python scripts, and run FO4 automation presets.\nIMPORTANT: Tell the user they MUST click the 'Run Command' button that appears in the chat to execute any script.${blenderAddonKnowledge ? '\n' + blenderAddonKnowledge : ''}`
-                : "**BLENDER LINK: OFFLINE**\n(If the user asks to control Blender, tell them to go to the Desktop Bridge and install the 'Mossy Link v6' add-on first.)";
+                : "**BLENDER LINK: OFFLINE**\n(If the user asks to control Blender, tell them to go to Runtime Hub → Desktop Bridge and install the 'Mossy Link v6' add-on first.)";
             const toolAck = localStorage.getItem('mossy_tool_connection_ack') === 'true';
             const toolAckLine = `**Tool Connection Notice:** ${toolAck ? 'ACKNOWLEDGED (do not repeat unless asked)' : 'NOT ACKNOWLEDGED'}`;
             const monitoringLine = `**Monitoring Status:** ${isMonitoringPaused ? 'PAUSED' : 'ACTIVE'}`;
@@ -1616,16 +1618,20 @@ export const ChatInterface: React.FC = () => {
                 }).join('\n')
                 : "\n**FALLOUT 4 NOT DETECTED** - User may need to manually specify game folder in External Tools Settings.";
 
-            // Expose first-class app modules so Mossy "knows herself"
-            const appFeatures = `\n**OMNIFORGE MODULES (Built-in):**\n` +
+            // Expose current hub architecture so Mossy stays aligned with the 22-platform UI
+            const appFeatures = `\n**MOSSY PLATFORMS (Current):**\n` +
                 [
-                    "• Image Studio (/images): PBR Map Synthesizer and Format Converter. Fallout 4 profile uses: _d → BC7, _n → BC5, _s → BC5.",
-                    "• The Auditor (/auditor): Scans ESP/ESM, NIF, DDS, BGSM with native file pickers; reports issues and basic auto-fixes.",
-                    "• The Vault (/vault): Asset library + BA2 staging, presets, and external tool paths (texconv, xWMAEncode, PapyrusCompiler, gfxexport, splicer).",
-                    "• Workshop (/workshop): Real file browser and editor; Papyrus compile via configured compiler path.",
-                    "• Holodeck (/holodeck): Automated mod validator; integrates with Neural Link to monitor live gameplay.",
-                    "• System Monitor (/system): Hardware and tools scan, Desktop Bridge status, launch helpers.",
-                    "• The Scribe (/scribe): Documentation and readme assistant (AI-backed)."
+                    "• Journey Hub (/journey-hub): Project flow, First Success, mod browser, and roadmap planning.",
+                    "• Creation Kit Hub (/ck-tools): CK safety tooling, crash prevention workflows, and FO4 CK references.",
+                    "• Textures & Materials Hub (/textures): DDS format decisions and FO4 material pipeline guidance.",
+                    "• Plugin & Load Order Hub (/plugin-tools): xEdit conflict checks, load order workflows, and PRP-aware patching.",
+                    "• Asset Analysis Hub (/asset-analysis): Asset auditing, dedupe checks, and pipeline diagnostics.",
+                    "• Mod Builder Hub (/mod-builder): Blueprint + Workshop + Scribe workflows for building complete mods.",
+                    "• Packaging & Release Hub (/packaging-release): BA2 and FOMOD packaging/release checks.",
+                    "• Runtime Hub (/runtime-hub): Live Synapse, Desktop Bridge status, and in-session runtime tooling.",
+                    "• External Integrations Hub (/ext-tools): MO2, ComfyUI, and Upscayl integration guidance.",
+                    "• System Hub (/system-hub): diagnostics, security posture, and local capability checks.",
+                    "• Knowledge Hub (/knowledge-hub): in-app FO4 docs/reference search."
                 ].join('\n');
 
             return `
@@ -1679,7 +1685,9 @@ export const ChatInterface: React.FC = () => {
 
             // 0. Pull from manual settings first
             try {
-                const settings = await window.electronAPI.getSettings();
+                const api = (window as any).electron?.api || (window as any).electronAPI;
+                const settings = await api?.getSettings?.();
+                if (!settings) throw new Error('Settings API unavailable');
                 const settingTools = [
                     { name: 'xEdit', path: settings.xeditPath, cat: 'Tool' },
                     { name: 'NifSkope', path: settings.nifSkopePath, cat: 'Tool' },
@@ -1721,8 +1729,9 @@ export const ChatInterface: React.FC = () => {
                 'fallout', 'morrowind', 'oblivion', 'skyrim', 'starfield', 'game', 'mod'
             ];
 
-            if (typeof window.electron?.api?.detectPrograms === 'function') {
-                const installed = await window.electronAPI.detectPrograms();
+            const bridgeApi = (window as any).electron?.api || (window as any).electronAPI;
+            if (typeof bridgeApi?.detectPrograms === 'function') {
+                const installed = await bridgeApi.detectPrograms();
 
                 installed.forEach((prog: any) => {
                     const nameLower = prog.name.toLowerCase();
@@ -1756,8 +1765,8 @@ export const ChatInterface: React.FC = () => {
             }
 
             // 2. Cross-reference with currently running processes
-            if (typeof window.electron?.api?.getRunningProcesses === 'function') {
-                const running = await window.electron.api.getRunningProcesses();
+            if (typeof bridgeApi?.getRunningProcesses === 'function') {
+                const running = await bridgeApi.getRunningProcesses();
                 running.forEach((p: any) => {
                     const nameLower = p.name.toLowerCase();
                     if (moddingKeywords.some((kw: string) => nameLower.includes(kw))) {
@@ -2199,7 +2208,7 @@ export const ChatInterface: React.FC = () => {
                 <div className="flex gap-2 items-center flex-shrink-0 flex-wrap">
                     <button
                         type="button"
-                        onClick={() => navigate('/reference')}
+                        onClick={() => navigate('/knowledge-hub')}
                         className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all bg-emerald-900/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/40"
                         title="Open Help"
                     >
@@ -2349,7 +2358,7 @@ export const ChatInterface: React.FC = () => {
             <div className="px-4 pt-4">
                 <ToolsInstallVerifyPanel
                     accentClassName="text-emerald-300"
-                    description="Chat is the main interface. Optional features (voice, Blender scripts, desktop actions) require the relevant integrations to be active."
+                    description="AI Chat is your primary command and guidance console for Fallout 4 workflows. Voice, tool execution, and desktop actions depend on Runtime Hub / Desktop Bridge connectivity."
                     tools={[]}
                     verify={[
                         'Send a short message and confirm you receive a response.',
@@ -2361,7 +2370,14 @@ export const ChatInterface: React.FC = () => {
                     ]}
                     troubleshooting={[
                         'If responses fail, check Settings for API key/model configuration.',
-                        'If desktop actions fail, confirm Desktop Bridge/Electron API is available.',
+                        'If desktop actions fail, open Runtime Hub and verify Desktop Bridge is online.',
+                    ]}
+                    shortcuts={[
+                        { label: 'Runtime Hub', to: '/runtime-hub' },
+                        { label: 'Knowledge Hub', to: '/knowledge-hub' },
+                        { label: 'Plugin & Load Order', to: '/plugin-tools' },
+                        { label: 'Creation Kit Hub', to: '/ck-tools' },
+                        { label: 'System Hub', to: '/system-hub' },
                     ]}
                 />
             </div>
