@@ -86,7 +86,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/memory-vault', icon: Brain, label: t('nav.memoryVault', 'Memory Vault') },
     { to: '/wizards', icon: Wrench, label: t('nav.wizards', 'Wizards') },
     { to: '/crash-triage', icon: Bug, label: t('nav.crashTriage', 'Crash Triage') },
-    { to: '/ck-crash-prevention?tab=audit', icon: ShieldCheck, label: t('nav.ckCrashPrevention', 'CK Safety') },
+    { to: '/ck-tools', icon: ShieldCheck, label: t('nav.ckTools', 'CK Tools') },
     { to: '/textures', icon: Layers, label: t('nav.texturesMaterials', 'Textures & Materials') },
     { to: '/packaging-release', icon: Archive, label: t('nav.packagingRelease', 'Packaging & Release') },
     { to: '/animation-guide', icon: Book, label: t('nav.animationGuide', 'Animation Guide') },
@@ -127,7 +127,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     // === TOOL EXTENSIONS ===
     { to: '/extensions/mo2', icon: Package, label: t('nav.mo2Extension', 'MO2 Extension') },
     { to: '/tools/xedit', icon: Database, label: t('nav.xeditTools', 'xEdit Tools') },
-    { to: '/tools/ck-extension', icon: Wrench, label: t('nav.ckExtension', 'CK Extension') },
     { to: '/tools/precombine-generator', icon: Zap, label: t('nav.prpPatchTools', 'PRP Patch Tools') },
     { to: '/extensions/comfyui', icon: Network, label: t('nav.comfyuiExtension', 'ComfyUI Extension') },
     { to: '/extensions/upscayl', icon: Aperture, label: t('nav.upscaylExtension', 'Upscayl Extension') },

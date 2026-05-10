@@ -148,6 +148,7 @@ const POST_ONBOARDING_NAV_DELAY_MS = 150;
 const DDSConverter = React.lazy(() => import('./DDSConverter').then(module => ({ default: module.DDSConverter })));
 const TextureGenerator = React.lazy(() => import('./TextureGenerator').then(module => ({ default: module.TextureGenerator })));
 const TextureMaterialsHub = React.lazy(() => import('./TextureMaterialsHub'));
+const CKToolsHub = React.lazy(() => import('./CKToolsHub'));
 
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
@@ -209,7 +210,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/dev/orchestrator', '/dev/workflow-runner', '/dev/workflow-recorder',
   '/dev/plugin-manager', '/dev/load-order', '/media', '/media/images', '/test',
   '/test/holo', '/test/notification-test', '/test/bridge', '/learn', '/reference',
-  '/knowledge', '/lore', '/memory-vault', '/ck-crash-prevention', '/textures', '/dds-converter',
+  '/knowledge', '/lore', '/memory-vault', '/ck-tools', '/ck-crash-prevention', '/textures', '/dds-converter',
   '/texture-generator', '/guides', '/guides/blender', '/guides/blender/animation',
   '/guides/creation-kit', '/guides/creation-kit/quest-authoring', '/guides/papyrus/guide',
   '/guides/physics', '/guides/mods', '/guides/mods/bodyslide', '/guides/mods/sim-settlements',
@@ -1407,6 +1408,7 @@ const App: React.FC = () => {
                 <Route path="/install-wizard" element={<Navigate to="/wizards" replace />} />
                 <Route path="/platforms" element={<Navigate to="/wizards" replace />} />
                 <Route path="/crash-triage" element={<Navigate to="/diagnostics" replace />} />
+                <Route path="/tools/ck-extension" element={<Navigate to="/ck-tools" replace />} />
                 <Route path="/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
                 <Route path="/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
                 <Route path="/animation-guide" element={<Navigate to="/guides/blender/animation" replace />} />
@@ -1496,6 +1498,8 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/knowledge"><ErrorBoundary><KnowledgeSearch /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/lore"><ErrorBoundary><Lorekeeper /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/memory-vault"><ErrorBoundary><MossyMemoryVault /></ErrorBoundary></KeepAlivePanel>
+              {/* CK Tools Hub — unified Creation Kit platform */}
+              <KeepAlivePanel path="/ck-tools"><ErrorBoundary><CKToolsHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/ck-crash-prevention"><ErrorBoundary><CKCrashPrevention /></ErrorBoundary></KeepAlivePanel>
               {/* Textures & Materials Hub — unified platform for all texture/material work */}
               <KeepAlivePanel path="/textures"><ErrorBoundary><TextureMaterialsHub /></ErrorBoundary></KeepAlivePanel>
