@@ -44,6 +44,7 @@ const searchIndex: SearchItem[] = [
   // Building Tools
   { id: 'tools', label: 'Tools', path: '/tools', category: 'Tools', description: 'General tools and utilities' },
   { id: 'cosmos-workflow', label: 'FO4 Automation Studio', path: '/tools/cosmos', category: 'Tools', description: 'Cosmos integration workspace: repo detection, Knowledge Search root wiring, local docs access, and index/query validation' },
+  { id: 'mod-builder', label: 'FO4 Mod Builder Hub', path: '/mod-builder', category: 'Tools', description: 'Four-tab build hub: Blueprint planning, Workshop file/compile flow, Devtools scripting, and Scribe documentation' },
   { id: 'devtools', label: 'Devtools', path: '/devtools', category: 'Tools', description: 'Script generation and analysis tools' },
   { id: 'template-generator', label: 'Template Generator', path: '/devtools', category: 'Tools', description: 'Generate templates for mods' },
   { id: 'script-analyzer', label: 'Script Analyzer', path: '/devtools', category: 'Tools', description: 'Analyze Papyrus scripts' },

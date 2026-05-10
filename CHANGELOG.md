@@ -4,8 +4,17 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.56] — Latest
+## [5.4.57] — Latest
 
+### Improved — Platform 14: Mod Builder Hub Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 14 labels now use **FO4 Mod Builder Hub** in sidebar, hub header, locale nav key, command palette navigation, and key discovery surfaces.
+- **Operations verified end-to-end**: `/mod-builder` KeepAlive route and 4-tab workflow (Blueprint, Workshop, Devtools, Scribe) validated against the active hub implementation; session tab persistence via `builder_hub_tab` confirmed.
+- **Context wiring added**: introduced a dedicated `mod-builder` tutorial context entry describing real tab behavior, tab persistence, and the expected plan → build → script → document workflow.
+- **Discovery text refreshed**: global search, hub cards, and assistant platform summaries now describe the real consolidated Mod Builder workflow rather than generic legacy wording.
+
+---
+
+## [5.4.56]
 ### Improved — Platform 13: Automation Studio Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 13 labels now use **FO4 Automation Studio** in sidebar, hub header, locale nav key, command palette navigation, and global search discovery.
 - **Operations verified end-to-end**: `/tools/cosmos` KeepAlive route and core workflow (local repo detection, Knowledge Search root registration, integration doc access, and index/query validation) confirmed against the active hub implementation.
