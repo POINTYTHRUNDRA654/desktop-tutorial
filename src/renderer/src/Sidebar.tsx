@@ -124,8 +124,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
 
     // === TOOL EXTENSIONS ===
     { to: '/extensions/mo2', icon: Package, label: t('nav.mo2Extension', 'MO2 Extension') },
-    { to: '/tools/xedit', icon: Database, label: t('nav.xeditTools', 'xEdit Tools') },
-    { to: '/tools/precombine-generator', icon: Zap, label: t('nav.prpPatchTools', 'PRP Patch Tools') },
+    { to: '/plugin-tools', icon: Database, label: t('nav.pluginTools', 'Plugin & Load Order') },
     { to: '/extensions/comfyui', icon: Network, label: t('nav.comfyuiExtension', 'ComfyUI Extension') },
     { to: '/extensions/upscayl', icon: Aperture, label: t('nav.upscaylExtension', 'Upscayl Extension') },
 
