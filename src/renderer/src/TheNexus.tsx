@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Zap, Wrench, Database, Mic, Volume2, Activity, AlertCircle, CheckCircle2, Archive, Brain, Binary, Network, Code, Hammer, DraftingCompass, Feather, Container, Gamepad2, Gauge } from 'lucide-react';
+import { Zap, Wrench, Database, Mic, Volume2, Activity, AlertCircle, CheckCircle2, Archive, Brain, Binary, Code, Hammer, Layers, BookOpen, Package, Radio, ShieldCheck, Sparkles, Target, Settings, Star } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import packageJson from '../../../package.json';
 
 interface Insight {
   id: string;
@@ -43,7 +44,7 @@ const HealthBadge: React.FC<{
 
 const TheNexus: React.FC = () => {
   const [greeting, setGreeting] = useState("Initializing Link...");
-  const [activeProject, setActiveProject] = useState<any>(null);
+  const [activeProject, setActiveProject] = useState<{ name?: string; description?: string } | null>(null);
   const [bridgeStatus, setBridgeStatus] = useState(false);
   const [health, setHealth] = useState(() => ({
     electron: 'warn' as HealthStatus,
@@ -69,10 +70,18 @@ const TheNexus: React.FC = () => {
 
     // 2. Load Local State
     const savedProject = localStorage.getItem('mossy_project');
-    if (savedProject) setActiveProject(JSON.parse(savedProject));
+    if (savedProject) {
+      try { setActiveProject(JSON.parse(savedProject)); } catch { /* ignore */ }
+    }
 
-    const bridge = localStorage.getItem('mossy_bridge_active') === 'true';
-    setBridgeStatus(bridge);
+    const checkBridge = () => {
+      const isConnected = localStorage.getItem('mossy_bridge_active') === 'true';
+      setBridgeStatus(isConnected);
+    };
+    checkBridge();
+    window.addEventListener('storage', checkBridge);
+    window.addEventListener('mossy-bridge-connected', checkBridge);
+    const bridgePoll = setInterval(checkBridge, 2000);
 
     const runHealth = async () => {
       // Electron API
@@ -168,6 +177,9 @@ const TheNexus: React.FC = () => {
     }
 
     return () => {
+      window.removeEventListener('storage', checkBridge);
+      window.removeEventListener('mossy-bridge-connected', checkBridge);
+      clearInterval(bridgePoll);
       window.removeEventListener('mossy-knowledge-updated', onVaultUpdate);
       try {
         synth?.removeEventListener?.('voiceschanged', onVoicesChanged);
@@ -195,11 +207,11 @@ const TheNexus: React.FC = () => {
             <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase italic">
               Mossy<span className="text-emerald-400">.Space</span>
             </h1>
-            <p className="text-emerald-400 text-xs tracking-[0.3em] font-bold mt-2">NEURAL ENVIRONMENT • 1.0.4-STABLE</p>
+            <p className="text-emerald-400 text-xs tracking-[0.3em] font-bold mt-2">NEURAL ENVIRONMENT • v{packageJson.version}</p>
           </div>
           <div className="flex items-center gap-3">
             <Link
-              to="/reference"
+              to="/knowledge-hub"
               className="px-3 py-2 border border-emerald-500/30 text-[10px] font-black uppercase tracking-widest text-emerald-300 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
             >
               Help
@@ -209,6 +221,23 @@ const TheNexus: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Active Project Banner */}
+        {activeProject && (
+          <div className="flex items-center gap-3 mb-6 px-4 py-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
+            <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Active Project</span>
+              <p className="text-sm font-bold text-white truncate">{activeProject.name ?? 'Unnamed Project'}</p>
+              {activeProject.description && (
+                <p className="text-xs text-slate-400 truncate">{activeProject.description}</p>
+              )}
+            </div>
+            <Link to="/journey-hub" className="shrink-0 px-3 py-1 text-[10px] font-bold text-emerald-300 border border-emerald-500/30 rounded hover:bg-emerald-500/10 transition-colors uppercase tracking-wider">
+              Open
+            </Link>
+          </div>
+        )}
 
         {/* Quick Health Strip */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-10">
@@ -224,75 +253,159 @@ const TheNexus: React.FC = () => {
 
         <ToolsInstallVerifyPanel
           accentClassName="text-emerald-300"
-          description="The Nexus is your home dashboard: it shows health signals (Electron, storage, bridge, mic/tts) and keeps you oriented."
+          description="The Nexus is your home dashboard: it shows health signals (Electron, storage, bridge, mic/tts) and keeps you oriented. All 22 platforms are accessible from the sidebar on the left."
           tools={[]}
           verify={[
             'Confirm health badges render and reflect your environment.',
-            'Open Diagnostics and return back without navigation errors.',
+            'Open System Hub and return back without navigation errors.',
           ]}
           firstTestLoop={[
-            'Run Install Wizard once to detect tools and set up paths.',
-            'Open Chat and confirm you can send a message and receive a response.',
-            'Open Desktop Bridge and confirm ONLINE if you use local features.',
+            'Run Setup Wizards once to detect tools and set up paths.',
+            'Open AI Chat and confirm you can send a message and receive a response.',
+            'Open Runtime Hub → Desktop Bridge and confirm ONLINE if you use local features.',
           ]}
           troubleshooting={[
             'If Electron shows WARN/BAD, you may be running web mode or preload failed.',
             'If Mic/TTS show WARN, check permissions in your OS and retry.',
+            'If Vault shows 0, open Knowledge Hub and run the indexer.',
+          ]}
+          shortcuts={[
+            { label: 'AI Chat', to: '/chat' },
+            { label: 'Setup Wizards', to: '/wizards' },
+            { label: 'System Hub', to: '/system-hub' },
+            { label: 'Knowledge Hub', to: '/knowledge-hub' },
+            { label: 'Journey Hub', to: '/journey-hub' },
           ]}
         />
 
-        {/* Tools Navigation Grid */}
-        <div className="mb-12">
-          <h2 className="text-lg font-black text-emerald-300 uppercase tracking-widest mb-4">Quick Tools Access</h2>
+        {/* Hub Navigation Grid */}
+        <div className="mb-8">
+          <h2 className="text-lg font-black text-emerald-300 uppercase tracking-widest mb-4">Quick Hub Access</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            <Link to="/tools/xedit" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
-              <Database size={20} className="text-emerald-400" />
-              <span className="font-bold">xEdit Tools</span>
-            </Link>
-            <Link to="/tools/security" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
-              <Wrench size={20} className="text-emerald-400" />
-              <span className="font-bold">Security Scanner</span>
-            </Link>
-            <Link to="/tools/mining" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
-              <Binary size={20} className="text-emerald-400" />
-              <span className="font-bold">Mining Dashboard</span>
-            </Link>
-            <Link to="/tools/advanced-analysis" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/chat" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Brain size={20} className="text-emerald-400" />
-              <span className="font-bold">Advanced Analysis</span>
+              <span className="font-bold">AI Chat</span>
+              <span className="text-slate-500 text-[9px]">Ask Mossy anything</span>
             </Link>
-            <Link to="/tools/ck-extension" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/journey-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Sparkles size={20} className="text-emerald-400" />
+              <span className="font-bold">Journey Hub</span>
+              <span className="text-slate-500 text-[9px]">Projects · Roadmaps</span>
+            </Link>
+            <Link to="/ck-tools" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Code size={20} className="text-emerald-400" />
-              <span className="font-bold">CK Extension</span>
+              <span className="font-bold">Creation Kit Hub</span>
+              <span className="text-slate-500 text-[9px]">CK · Scripts · Crash Fix</span>
             </Link>
-            <Link to="/tools/precombine-generator" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
-              <Zap size={20} className="text-emerald-400" />
-              <span className="font-bold">PRP Patch Tools</span>
-            </Link>
-            <Link to="/tools/asset-deduplicator" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/plugin-tools" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Database size={20} className="text-emerald-400" />
-              <span className="font-bold">Asset Deduplicator</span>
+              <span className="font-bold">Plugin & Load Order</span>
+              <span className="text-slate-500 text-[9px]">xEdit · Load Order · PRP</span>
             </Link>
-            <Link to="/tools/ba2-manager" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/textures" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Layers size={20} className="text-emerald-400" />
+              <span className="font-bold">Textures & Materials</span>
+              <span className="text-slate-500 text-[9px]">DDS · PBR · BC formats</span>
+            </Link>
+            <Link to="/asset-analysis" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Binary size={20} className="text-emerald-400" />
+              <span className="font-bold">Asset Analysis Hub</span>
+              <span className="text-slate-500 text-[9px]">Scan · Dedupe · Mining</span>
+            </Link>
+            <Link to="/mod-builder" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Hammer size={20} className="text-emerald-400" />
+              <span className="font-bold">Mod Builder</span>
+              <span className="text-slate-500 text-[9px]">Blueprint · Workshop · Docs</span>
+            </Link>
+            <Link to="/packaging-release" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Archive size={20} className="text-emerald-400" />
-              <span className="font-bold">BA2 Manager</span>
+              <span className="font-bold">Packaging & Release</span>
+              <span className="text-slate-500 text-[9px]">BA2 · FOMOD · Checklist</span>
             </Link>
-            <Link to="/tools/cosmos" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
-              <Network size={20} className="text-emerald-400" />
-              <span className="font-bold">Cosmos Workflow</span>
+            <Link to="/guides-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <BookOpen size={20} className="text-emerald-400" />
+              <span className="font-bold">Guides Hub</span>
+              <span className="text-slate-500 text-[9px]">Animation · Quests · LOD</span>
             </Link>
-            <Link to="/tools/blueprint" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
-              <DraftingCompass size={20} className="text-emerald-400" />
-              <span className="font-bold">The Blueprint</span>
+            <Link to="/knowledge-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Brain size={20} className="text-emerald-400" />
+              <span className="font-bold">Knowledge Hub</span>
+              <span className="text-slate-500 text-[9px]">Docs · Search · Reference</span>
             </Link>
-            <Link to="/tools/scribe" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
-              <Feather size={20} className="text-emerald-400" />
-              <span className="font-bold">The Scribe</span>
+            <Link to="/system-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <ShieldCheck size={20} className="text-emerald-400" />
+              <span className="font-bold">System Hub</span>
+              <span className="text-slate-500 text-[9px]">Diagnostics · Security</span>
             </Link>
-            <Link to="/tools/vault" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
-              <Container size={20} className="text-emerald-400" />
-              <span className="font-bold">The Vault</span>
+            <Link to="/runtime-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+              <Radio size={20} className="text-emerald-400" />
+              <span className="font-bold">Runtime Hub</span>
+              <span className="text-slate-500 text-[9px]">Live · Bridge · Holodeck</span>
             </Link>
+          </div>
+        </div>
+
+        {/* FO4 New User Tips */}
+        <div className="mb-10">
+          <h2 className="text-lg font-black text-emerald-300 uppercase tracking-widest mb-4">Fallout 4 Modding — Where to Start</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {[
+              {
+                icon: Settings,
+                step: '1',
+                title: 'Run Setup Wizards',
+                body: 'Detect F4SE, xEdit, MO2/Vortex, Creation Kit, and other tools. Mossy customizes her advice to what is actually installed.',
+                to: '/wizards',
+              },
+              {
+                icon: Target,
+                step: '2',
+                title: 'Pick a Modding Goal',
+                body: 'Open Journey Hub → Roadmaps and generate a step-by-step plan. Whether you are adding weapons, quests, or worldspaces — start with a clear goal.',
+                to: '/journey-hub',
+              },
+              {
+                icon: Package,
+                step: '3',
+                title: 'Know the Load Order Rules',
+                body: 'Fallout 4 has a 255 plugin cap (ESM+ESP+ESL). ESL-flagged plugins share a 2,048 FormID pool. Use Plugin & Load Order Hub to manage and validate.',
+                to: '/plugin-tools',
+              },
+              {
+                icon: Star,
+                step: '4',
+                title: 'Learn the Asset Pipeline',
+                body: 'Textures use BC formats (BC1/BC3/BC7). Meshes are NIF files with Havok collision. BA2 archives hold compressed assets. Textures Hub and Guides Hub cover all of this.',
+                to: '/textures',
+              },
+              {
+                icon: ShieldCheck,
+                step: '5',
+                title: 'Keep Your Game Stable',
+                body: 'Install F4SE + Address Library + Addictol (Buffout 4 successor). Use Creation Kit Hub for crash prevention monitoring when editing in the CK.',
+                to: '/ck-tools',
+              },
+              {
+                icon: BookOpen,
+                step: '6',
+                title: 'Build & Package Your Mod',
+                body: 'Use Mod Builder to draft architecture, write scripts in Workshop, and document in Scribe. Then go to Packaging & Release to create a BA2 and build your FOMOD installer.',
+                to: '/mod-builder',
+              },
+            ].map(({ icon: Icon, step, title, body, to }) => (
+              <Link
+                key={step}
+                to={to}
+                className="p-4 border border-slate-700/60 rounded-lg hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all group"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">STEP {step}</span>
+                  <Icon className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                </div>
+                <div className="text-sm font-bold text-white mb-1">{title}</div>
+                <div className="text-xs text-slate-400 leading-relaxed">{body}</div>
+              </Link>
+            ))}
           </div>
         </div>
 
