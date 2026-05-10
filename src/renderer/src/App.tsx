@@ -32,7 +32,7 @@ import AvatarCore from './AvatarCore';
 import { GlobalSearch } from './GlobalSearch';
 import { useWhatsNew } from './WhatsNewDialog';
 import WhatsNewPage from './WhatsNewPage';
-import { backupCriticalProgressToDisk, restoreCriticalProgressFromDiskIfMissing } from './services/criticalProgressBackup';
+import { backupCriticalProgressToDisk, restoreMissingCriticalProgress } from './services/criticalProgressBackup';
 
 
 // Import new performance & reliability managers
@@ -590,17 +590,30 @@ const App: React.FC = () => {
   // Keep a durable local backup of user-authored progress so updates or rescans
   // never wipe project/chat/vault progress data stored in localStorage.
   useEffect(() => {
-    void (async () => {
-      await restoreCriticalProgressFromDiskIfMissing();
-      await backupCriticalProgressToDisk();
-    })();
-
-    const onBeforeUnload = () => {
+    const persistBackup = () => {
       void backupCriticalProgressToDisk();
     };
 
+    void (async () => {
+      await restoreMissingCriticalProgress();
+      await backupCriticalProgressToDisk();
+    })();
+
+    const intervalId = window.setInterval(persistBackup, 30000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') persistBackup();
+    };
+    const onBeforeUnload = () => {
+      persistBackup();
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
   }, []);
 
   useEffect(() => {
