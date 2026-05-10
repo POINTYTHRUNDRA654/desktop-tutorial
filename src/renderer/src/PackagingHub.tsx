@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Archive, ChevronDown, ChevronUp, Package, Search, GitCompare } from 'lucide-react';
+import { Archive, ChevronDown, ChevronUp, Package, Search, GitCompare, Database } from 'lucide-react';
 import PackagingReleaseWizard from './PackagingReleaseWizard';
 import TheAssembler from './TheAssembler';
 import ModConflictVisualizer from './ModConflictVisualizer';
 import ModComparisonTool from './ModComparisonTool';
+import { BA2Manager } from './BA2Manager';
 
 type HubSection = {
   id: string;
@@ -25,6 +26,13 @@ const PackagingHub: React.FC = () => {
   };
 
   const sections: HubSection[] = [
+    {
+      id: 'ba2',
+      title: 'Step 0: BA2 Archive Manager',
+      description: 'List, extract, pack, and merge BA2 archives before packaging.',
+      icon: Database,
+      content: <BA2Manager />,
+    },
     {
       id: 'checklist',
       title: 'Step 1: Packaging Checklist',
@@ -69,6 +77,7 @@ const PackagingHub: React.FC = () => {
         <div className="mb-6 rounded-lg border border-emerald-700/30 bg-emerald-900/10 p-4 text-xs font-medium text-slate-300">
           <div className="font-bold text-slate-200">Flow (Read in Order)</div>
           <ol className="list-decimal list-inside mt-2 space-y-1 text-slate-300">
+            <li>Manage BA2 archives (pack, extract, merge)</li>
             <li>Run the packaging checklist</li>
             <li>Check for conflicts with other mods</li>
             <li>Compare with similar mods for compatibility</li>

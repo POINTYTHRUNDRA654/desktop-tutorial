@@ -149,6 +149,7 @@ const DDSConverter = React.lazy(() => import('./DDSConverter').then(module => ({
 const TextureGenerator = React.lazy(() => import('./TextureGenerator').then(module => ({ default: module.TextureGenerator })));
 const TextureMaterialsHub = React.lazy(() => import('./TextureMaterialsHub'));
 const CKToolsHub = React.lazy(() => import('./CKToolsHub'));
+const AssetAnalysisHub = React.lazy(() => import('./AssetAnalysisHub'));
 
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
@@ -215,7 +216,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/guides/creation-kit', '/guides/creation-kit/quest-authoring', '/guides/papyrus/guide',
   '/guides/physics', '/guides/mods', '/guides/mods/bodyslide', '/guides/mods/sim-settlements',
   '/wizards', '/devtools', '/settings', '/project', '/support', '/assembler', '/diagnostics',
-  '/community', '/capabilities', '/packaging-release', '/extensions/mo2',
+  '/community', '/capabilities', '/asset-analysis', '/packaging-release', '/extensions/mo2',
   '/extensions/comfyui', '/extensions/upscayl',
   // Special routes rendered directly inside <Routes>
   '/tutorial', '/whats-new',
@@ -1327,8 +1328,8 @@ const App: React.FC = () => {
                 {/* Redirect routes */}
                 <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/tools/auditor" element={<Navigate to="/ck-crash-prevention?tab=audit" replace />} />
-                <Route path="/tools/asset-scanner" element={<Navigate to="/tools/asset-deduplicator" replace />} />
-                <Route path="/tools/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
+                <Route path="/tools/asset-scanner" element={<Navigate to="/asset-analysis" replace />} />
+                <Route path="/tools/dedupe" element={<Navigate to="/asset-analysis" replace />} />
                 <Route path="/tools/xedit-executor" element={<Navigate to="/tools/xedit" replace />} />
                 <Route path="/tools/xedit-extension" element={<Navigate to="/tools/xedit" replace />} />
                 <Route path="/tools/conflict-visualizer" element={<Navigate to="/packaging-release?section=conflicts" replace />} />
@@ -1336,7 +1337,7 @@ const App: React.FC = () => {
                 <Route path="/tools/assembler" element={<Navigate to="/assembler" replace />} />
                 <Route path="/tools/ck-safety" element={<Navigate to="/tools/ck-crash-prevention" replace />} />
                 <Route path="/dev/neural-link" element={<Navigate to="/live" replace />} />
-                <Route path="/dev/mining-dashboard" element={<Navigate to="/tools/mining-hub?tab=dashboard" replace />} />
+                <Route path="/dev/mining-dashboard" element={<Navigate to="/asset-analysis" replace />} />
                 <Route path="/learn/lore" element={<Navigate to="/lore" replace />} />
                 <Route path="/learn/reference" element={<Navigate to="/reference" replace />} />
                 <Route path="/learn/knowledge" element={<Navigate to="/knowledge" replace />} />
@@ -1400,7 +1401,7 @@ const App: React.FC = () => {
                 <Route path="/media/images" element={<Navigate to="/textures" replace />} />
                 <Route path="/tts" element={<Navigate to="/live" replace />} />
                 <Route path="/bridge" element={<Navigate to="/test/bridge" replace />} />
-                <Route path="/dedupe" element={<Navigate to="/tools/asset-deduplicator" replace />} />
+                <Route path="/dedupe" element={<Navigate to="/asset-analysis" replace />} />
                 <Route path="/cosmos" element={<Navigate to="/tools/cosmos" replace />} />
                 <Route path="/tool-verify" element={<Navigate to="/diagnostics" replace />} />
                 <Route path="/script-analyzer" element={<Navigate to="/devtools" replace />} />
@@ -1467,6 +1468,8 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/tools/voice-commands"><ErrorBoundary><VoiceCommands /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/automation"><ErrorBoundary><AutomationManager /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/ck-crash-prevention"><ErrorBoundary><CKCrashPrevention /></ErrorBoundary></KeepAlivePanel>
+              {/* Asset Analysis Hub */}
+              <KeepAlivePanel path="/asset-analysis"><ErrorBoundary><AssetAnalysisHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/security"><ErrorBoundary><SecurityValidator /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/mining"><ErrorBoundary><MiningPanel /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/advanced-analysis"><ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary></KeepAlivePanel>
