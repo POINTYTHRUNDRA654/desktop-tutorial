@@ -4,7 +4,17 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.58] — Latest
+## [5.4.59] — Latest
+
+### Improved — Platform 16: Automation Orchestrator Deep Scan
+- **Platform naming aligned to Fallout 4 context**: user-facing Platform 16 labels now use **FO4 Automation Orchestrator** across sidebar, orchestrator header, locale nav key, command palette, search, and discovery references.
+- **Operations verified end-to-end**: `/orchestrator` redirect flow to `/dev/orchestrator` and the actual orchestration behavior were validated against the active implementation: asset-first selection, type-matched pipelines (mesh/texture/audio/script), step execution output, run logs/history, storage stats, and BA2 queue staging.
+- **Context wiring refreshed**: updated the `orchestrator` tutorial context to reflect real controls and workflows (asset selection, run pipeline, step cards, log/history troubleshooting, BA2 queue export) rather than generic workflow-builder copy.
+- **Discovery text refreshed**: assistant summaries, search metadata, and observer guidance now describe the consolidated Orchestrator pipeline workflow and reproducible run logging.
+
+---
+
+## [5.4.58]
 
 ### Improved — Platform 15: Asset Analysis Hub Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 15 labels now use **FO4 Asset Analysis Hub** across sidebar, hub header, locale nav key, command palette, search, and discovery references.

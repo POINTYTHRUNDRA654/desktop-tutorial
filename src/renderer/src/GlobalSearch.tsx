@@ -64,7 +64,7 @@ const searchIndex: SearchItem[] = [
   { id: 'monitor', label: 'System Monitor', path: '/monitor', category: 'System', description: 'Monitor system performance' },
 
   // Execution & Collaboration
-  { id: 'orchestrator', label: 'The Orchestrator', path: '/orchestrator', category: 'Workflow', description: 'Workflow orchestration' },
+  { id: 'orchestrator', label: 'FO4 Automation Orchestrator', path: '/orchestrator', category: 'Workflow', description: 'Unified asset pipeline orchestration with step logs, storage stats, and BA2 queue staging' },
   { id: 'workflow-runner', label: 'Workflow Runner', path: '/workflow-runner', category: 'Workflow', description: 'Run automated workflows' },
   { id: 'holodeck', label: 'The Holodeck', path: '/holo', category: 'Testing', description: 'Testing and simulation environment' },
   { id: 'vault', label: 'The Vault', path: '/vault', category: 'Assets', description: 'Asset management and storage' },
