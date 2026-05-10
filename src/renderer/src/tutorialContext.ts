@@ -2055,10 +2055,10 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'cosmos-workflow': {
     pageId: 'cosmos-workflow',
-    pageName: 'Cosmos Workflow',
+    pageName: 'FO4 Automation Studio',
     visualGuidePage: 17,
     route: '/tools/cosmos',
-    purpose: 'Local Knowledge Search integration for Cosmos Transfer2.5 / Predict2.5 — add repo roots, verify repo detection, and wire integration docs into Mossy for searchable workflow guidance.',
+    purpose: 'FO4 Automation Studio for Cosmos integrations: verify local repo detection, register knowledge roots, open integration docs, and validate searchable workflow coverage in Knowledge Search.',
     features: [
       'Detects local Cosmos repos (Transfer, Predict, Cookbook, RL, etc.)',
       'Add repo folders to Knowledge Search roots (persisted in localStorage)',
@@ -2124,7 +2124,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       },
     ],
     tutorialSections: [
-      'Cosmos Workflow - Knowledge Integration',
+      'FO4 Automation Studio - Knowledge Integration',
       'Indexing & Local Docs',
     ],
     suggestedQuestions: [

@@ -76,7 +76,7 @@ const CommandPalette: React.FC = () => {
         { id: 'nav-scribe', title: 'The Scribe', subtitle: 'Documentation & Publishing', icon: Feather, group: 'Navigation', action: () => navigate('/scribe'), keywords: ['scribe', 'documentation', 'publishing', 'write'] },
         { id: 'nav-assembler', title: 'The Assembler', subtitle: 'FOMOD Installer Creator', icon: Package, group: 'Navigation', action: () => navigate('/assembler'), keywords: ['assembler', 'fomod', 'installer', 'package'] },
         { id: 'nav-orchestrator', title: 'The Orchestrator', subtitle: 'Automated Workflow Pipelines', icon: GitBranch, group: 'Navigation', action: () => navigate('/orchestrator'), keywords: ['orchestrator', 'workflow', 'pipeline', 'automation'] },
-        { id: 'nav-cosmos', title: 'Cosmos Workflow', subtitle: 'Cosmos Transfer2.5 hub', icon: Hexagon, group: 'Navigation', action: () => navigate('/tools/cosmos'), keywords: ['cosmos', 'workflow', 'transfer2.5', 'ai', 'ml'] },
+        { id: 'nav-cosmos', title: 'FO4 Automation Studio', subtitle: 'Cosmos integration workspace', icon: Hexagon, group: 'Navigation', action: () => navigate('/tools/cosmos'), keywords: ['automation studio', 'cosmos', 'workflow', 'transfer2.5', 'predict2.5', 'knowledge roots'] },
 
         // System Actions
         { id: 'sys-deploy', title: 'Deploy / Release', subtitle: 'Build Project & Invite Testers', icon: Rocket, group: 'System', action: () => navigate('/monitor'), keywords: ['deploy', 'release', 'build', 'testers'] },
