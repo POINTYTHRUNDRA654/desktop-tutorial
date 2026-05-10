@@ -151,6 +151,9 @@ const TextureMaterialsHub = React.lazy(() => import('./TextureMaterialsHub'));
 const CKToolsHub = React.lazy(() => import('./CKToolsHub'));
 const AssetAnalysisHub = React.lazy(() => import('./AssetAnalysisHub'));
 const PluginLoadOrderHub = React.lazy(() => import('./PluginLoadOrderHub'));
+const ExternalToolsHub = React.lazy(() => import('./ExternalToolsHub'));
+const KnowledgeHub = React.lazy(() => import('./KnowledgeHub'));
+const ModBuilderHub = React.lazy(() => import('./ModBuilderHub'));
 
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
@@ -1483,6 +1486,8 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/tools/cosmos"><ErrorBoundary><CosmosWorkflow /></ErrorBoundary></KeepAlivePanel>
               {/* Development & Workflow */}
               <KeepAlivePanel path="/dev"><ErrorBoundary><TheNexus /></ErrorBoundary></KeepAlivePanel>
+              {/* Mod Builder Hub */}
+              <KeepAlivePanel path="/mod-builder"><ErrorBoundary><ModBuilderHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/dev/workshop"><ErrorBoundary><Workshop /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/mods"><ErrorBoundary><ModBrowser /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/dev/orchestrator"><ErrorBoundary><WorkflowOrchestrator /></ErrorBoundary></KeepAlivePanel>
@@ -1500,6 +1505,8 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/test/bridge"><ErrorBoundary><DesktopBridge /></ErrorBoundary></KeepAlivePanel>
               {/* Knowledge & Learning */}
               <KeepAlivePanel path="/learn"><ErrorBoundary><LearningHub /></ErrorBoundary></KeepAlivePanel>
+              {/* Knowledge Hub — Quick Reference + Search + Community */}
+              <KeepAlivePanel path="/knowledge-hub"><ErrorBoundary><KnowledgeHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/reference"><ErrorBoundary><QuickReference /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/knowledge"><ErrorBoundary><KnowledgeSearch /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/lore"><ErrorBoundary><Lorekeeper /></ErrorBoundary></KeepAlivePanel>
@@ -1535,6 +1542,8 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/capabilities"><ErrorBoundary><LocalCapabilities /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/packaging-release"><ErrorBoundary><PackagingHub /></ErrorBoundary></KeepAlivePanel>
               {/* Extensions */}
+              {/* External Tools Hub */}
+              <KeepAlivePanel path="/ext-tools"><ErrorBoundary><ExternalToolsHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/extensions/mo2"><ErrorBoundary><MO2Extension /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/extensions/comfyui"><ErrorBoundary><ComfyUIExtension /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/extensions/upscayl"><ErrorBoundary><UpscaylExtension /></ErrorBoundary></KeepAlivePanel>
