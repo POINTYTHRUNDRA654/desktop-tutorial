@@ -1451,47 +1451,47 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
 
   'wizards': {
     pageId: 'wizards',
-    pageName: 'Wizards',
+    pageName: 'FO4 Setup Wizards',
     visualGuidePage: 10, // synced from VISUAL_GUIDE.md
     route: '/wizards',
-    purpose: 'Guided, checklist-driven workflows for platform setup, installs, patch building and other repeatable modding tasks (Install Wizard, PRP Patch Builder, platform selector).',
+    purpose: 'All-in-one FO4 setup flow for selecting a platform path, completing install verification checklists, and generating PRP compatibility planning output.',
     features: [
-      'Platform selection and workflow mapping (PlatformsHub)',
-      'Install Wizard for xEdit / SS2 / PRP / patch prerequisites',
-      'PRP Patch Builder to generate a patch plan and README',
-      'Persistent checklist state and first‑test loops',
-      'Exportable wizard outputs and trusted links',
+      'Collapsible 3-step flow (Platform Selector → Install Wizard → PRP Patch Builder)',
+      'Install Wizard for xEdit / SS2 / PRP / patch prerequisites with trusted source links',
+      'Knowledge Vault link ingestion + optional JSON/bundled vault import for setup references',
+      'Persistent checklist state and first‑test loops for repeatable machine setup',
+      'PRP Patch Builder generates copy-ready README/Nexus blocks for compatibility handoff',
     ],
     controls: [
       {
-        name: 'Platform Cards (PlatformsHub)',
+        name: 'Step 1: Choose a Platform',
         type: 'button',
-        description: 'Pick the platform or workflow that matches your goal',
-        whenToUse: 'When deciding which wizard to run (e.g., Install Wizard, PRP patch)',
+        description: 'Use embedded platform workflow cards to choose the correct setup path before running install tasks',
+        whenToUse: 'Use first when deciding your setup flow for the current modding goal',
       },
       {
-        name: 'Install Wizard Checklist',
+        name: 'Step 2: Install Wizard',
         type: 'button',
-        description: 'Step‑by‑step install/verify checklist for required tools and paths',
+        description: 'Run topic-based prerequisite/download/install/verify checklists with persistent progress',
         whenToUse: 'Run this first when setting up a new machine or after installing tools',
       },
       {
-        name: 'Run PRP Patch Builder',
+        name: 'Step 3: PRP Patch Builder',
         type: 'button',
-        description: 'Generate a PRP patch plan and README to guide preprocessing/PRP workflows',
+        description: 'Generate and copy README + optional Nexus block for PRP compatibility patch planning',
         whenToUse: 'When preparing precombined/previs content or optimizing assets',
       },
       {
-        name: 'Reset / Export Wizard Progress',
+        name: 'Reset + Persistence Controls',
         type: 'button',
-        description: 'Reset progress or export wizard results for sharing',
-        whenToUse: 'When you want to re-run a wizard from scratch or provide diagnostics to support',
+        description: 'Reset Install Wizard or PRP state and re-run clean verification loops',
+        whenToUse: 'When you want to restart setup from a known clean state',
       },
       {
-        name: 'Trusted Links / Send to Chat',
+        name: 'Trusted Links + Vault Sources',
         type: 'button',
-        description: 'Open vendor/trusted links or copy checklist to Chat for guidance',
-        whenToUse: 'When following a recommended download or asking Mossy for help',
+        description: 'Open built-in trusted download links plus topic-matched links from your local Knowledge Vault',
+        whenToUse: 'When validating sources or pulling setup references directly from your saved vault data',
       },
     ],
     commonMistakes: [
@@ -1504,7 +1504,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         title: 'Run the Install Wizard (recommended first step)',
         steps: [
-          'Open Wizards → choose Install Wizard from the list',
+          'Open FO4 Setup Wizards → expand Step 2: Install Wizard',
           'Pick the topic that matches your workflow (xEdit, SS2, PRP, Patching)',
           'Follow each checklist item and open trusted links when instructed',
           'Mark steps complete and re-run the verification checks',
@@ -1514,16 +1514,16 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         title: 'Generate a PRP Patch Plan',
         steps: [
-          'Open Wizards → PRP Patch Builder',
+          'Open FO4 Setup Wizards → expand Step 3: PRP Patch Builder',
           'Fill in the target project details and choose assets to include',
-          'Click Generate to create a README and patch plan',
-          'Save or export the generated plan and follow the PRP workflow',
+          'Use copy buttons to capture the generated README / Nexus block',
+          'Follow the PRP workflow with the copied plan in your release notes or handoff docs',
         ],
       },
       {
         title: 'Choose the right wizard via PlatformsHub',
         steps: [
-          'Open Wizards and review the platform workflow map',
+          'Open FO4 Setup Wizards and expand Step 1: Choose a Platform',
           'Select the platform card that matches your task (Install, Packaging, PRP)',
           'Start the recommended wizard and complete the minimal verification loop',
         ],
@@ -1537,7 +1537,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     suggestedQuestions: [
       'Which wizard should I run first for a fresh install?',
       'How do I reset the Install Wizard progress?',
-      'What does the PRP Patch Builder export contain?',
+      'What does the PRP Patch Builder generated README contain?',
       'Why does a wizard checklist not persist after refresh?',
     ],
   },

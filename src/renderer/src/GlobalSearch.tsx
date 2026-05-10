@@ -25,8 +25,8 @@ const searchIndex: SearchItem[] = [
   // Learning & Reference
   { id: 'reference', label: 'Quick Reference', path: '/reference', category: 'Learning', description: 'Quick reference guides and documentation' },
   { id: 'knowledge', label: 'Knowledge Search', path: '/knowledge', category: 'Learning', description: 'Search through modding knowledge base' },
-  { id: 'install-wizard', label: 'Install Wizard', path: '/wizards', category: 'Setup', description: 'Installation and setup wizard' },
-  { id: 'platforms', label: 'Platforms', path: '/wizards', category: 'Learning', description: 'Platform-specific guides and tools' },
+  { id: 'install-wizard', label: 'FO4 Setup Wizards', path: '/wizards', category: 'Setup', description: 'All-in-one setup flow: platform selection, install checks, and PRP planning' },
+  { id: 'platforms', label: 'FO4 Platform Selector', path: '/wizards', category: 'Learning', description: 'Choose the right setup workflow before running install/PRP steps' },
   { id: 'crash-triage', label: 'Crash Triage', path: '/crash-triage', category: 'Debugging', description: 'Diagnose and fix game crashes' },
   { id: 'packaging', label: 'Packaging & Release', path: '/packaging-release', category: 'Publishing', description: 'Package and release your mods' },
   { id: 'quest-dialogue', label: 'CK Quest & Dialogue', path: '/ck-quest-dialogue', category: 'Content', description: 'Creation Kit quest and dialogue guides' },
@@ -35,7 +35,7 @@ const searchIndex: SearchItem[] = [
   { id: 'rigging-mistakes', label: 'Rigging Mistakes', path: '/rigging-mistakes', category: 'Animation', description: 'Common rigging mistakes and fixes' },
   { id: 'quest-authoring', label: 'Quest Mod Authoring', path: '/quest-authoring', category: 'Content', description: 'Create and author quest mods' },
   { id: 'precombine-prp', label: 'Precombine & PRP Guide', path: '/precombine-prp', category: 'Optimization', description: 'LOD and precombine optimization guides' },
-  { id: 'prp-patch-builder', label: 'PRP Patch Builder', path: '/wizards', category: 'Tools', description: 'Build PRP patches for optimization' },
+  { id: 'prp-patch-builder', label: 'PRP Patch Builder Wizard', path: '/wizards', category: 'Tools', description: 'Generate PRP patch README/plan and copy-ready compatibility notes' },
   { id: 'leveled-list-injection', label: 'Leveled List Injection', path: '/leveled-list-injection', category: 'Content', description: 'Inject items into leveled lists' },
   { id: 'lorekeeper', label: 'The Lorekeeper', path: '/lore', category: 'Reference', description: 'Comprehensive Fallout 4 lore and references' },
 

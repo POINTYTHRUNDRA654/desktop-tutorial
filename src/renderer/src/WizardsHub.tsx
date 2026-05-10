@@ -47,8 +47,8 @@ const WizardsHub: React.FC = () => {
     <div className="min-h-full bg-[#0b0f0b] text-slate-100 p-6 md:p-10">
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col gap-3 mb-8">
-          <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor - Wizards</div>
-          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">Wizards Hub (All-in-One)</h1>
+          <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor - FO4 Setup Wizards</div>
+          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">FO4 Setup Wizards Hub (All-in-One)</h1>
           <p className="text-sm font-medium text-slate-300 max-w-2xl">
             A single flow for platform selection, install steps, and PRP patch building.
           </p>
