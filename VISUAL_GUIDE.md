@@ -267,7 +267,7 @@ Mod Projects is your project hub. It organizes mod plans, progress, and collabor
 - Tips panel: quick best practices for testing and iteration.
 - Create First Mod button: shortcut when you have no projects yet.
 
-## Page 08 - Quick Reference
+## Page 08 - FO4 Knowledge Hub
 
 ![Page 08 - Quick Reference](visual-guide-images/page-8-quick-reference.png)
 
@@ -316,7 +316,7 @@ Knowledge Search is the built-in library browser. It lets you search the guides,
 - If results feel noisy, add the tool name ("xEdit", "CK", "Blender").
 - Save your top 3 references so you can return in one click.
 
-## Page 10 - Wizards
+## Page 10 - FO4 Setup Wizards
 
 ![Page 10 - Wizards](visual-guide-images/page-11-wizards.png)
 
@@ -368,7 +368,7 @@ Crash Triage is the stability first-aid station. It helps you confirm system hea
 - Green status means safe to continue; yellow means fix soon; red means stop and repair.
 - If a tool shows "not detected", confirm install path in Tool Verify.
 
-## Page 12 - Packaging and Release
+## Page 12 - FO4 Packaging & Release
 
 ![Page 12 - Packaging and Release](visual-guide-images/page-16-packaging-release.png)
 
@@ -447,7 +447,7 @@ Quest Mod Authorizing is the all-in-one workflow hub for building a quest mod. I
 - Test in a clean profile so you know your plugin is the only variable.
 - If the quest never starts, check stage indexes and confirm the plugin is enabled.
 
-## Page 15 - The LoreKeeper
+## Page 15 - LOD & Precombine Guide
 
 ![Page 15 - The LoreKeeper](visual-guide-images/page-19-the-lorekeeper.png)
 
@@ -501,7 +501,7 @@ Tools is your command center for launching and verifying the modding apps Mossy 
 - Keep tools in stable locations to avoid broken paths.
 - If a tool is missing, install it before starting any wizard.
 
-## Page 17 - Cosmos Workflow
+## Page 17 - FO4 Automation Studio
 
 ![Page 17 - Cosmos Workflow](visual-guide-images/page-21-cosmos-workflow.png)
 
@@ -744,7 +744,7 @@ The Scribe is your writing and documentation workspace. It helps you draft quest
 - Yellow means fix soon; red means stop and repair before continuing.
 - If the bridge is offline, restart Mossy before troubleshooting deeper.
 
-## Page 27 - The Orchestrator
+## Page 27 - FO4 Automation Orchestrator
 
 ![Page 27 - The Orchestrator](visual-guide-images/page-30-the-orchestrator.png)
 
@@ -770,7 +770,7 @@ The Orchestrator coordinates complex, multi-tool workflows. It keeps long proces
 - Do not skip failed steps; fix and resume to keep results clean.
 - Keep logs from successful runs so you can repeat them later.
 
-## Page 28 - Workflow Runner
+## Page 28 - FO4 Automation Runner
 
 ![Page 28 - Workflow Runner](visual-guide-images/page-31-workflow-runner.png)
 
@@ -822,7 +822,7 @@ The Holodeck is your safe test space. It lets you simulate workflows, preview ou
 - Treat warnings as signals to improve stability.
 - Keep test inputs close to your real setup for accurate results.
 
-## Page 30 - The Vault
+## Page 30 - FO4 Memory Vault
 
 ![Page 30 - The Vault](visual-guide-images/page-33-the-vault.png)
 
