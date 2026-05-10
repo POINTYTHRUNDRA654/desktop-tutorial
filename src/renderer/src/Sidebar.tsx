@@ -84,7 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
     { to: '/ck-tools', icon: ShieldCheck, label: t('nav.ckTools', 'FO4 Creation Kit Hub') },
     { to: '/textures', icon: Layers, label: t('nav.texturesMaterials', 'FO4 Textures & Materials') },
     { to: '/packaging-release', icon: Archive, label: t('nav.packagingRelease', 'FO4 Packaging & Release') },
-    { to: '/guides-hub', icon: Book, label: t('nav.guidesHub', 'Guides Hub') },
+    { to: '/guides-hub', icon: Book, label: t('nav.guidesHub', 'FO4 Guides Hub') },
 
     // === BUILDING TOOLS: CREATE & GENERATE ===
     { to: '/tools/cosmos', icon: Hexagon, label: t('nav.cosmosWorkflow', 'Automation Studio') },
