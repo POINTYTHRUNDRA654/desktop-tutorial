@@ -1,7 +1,7 @@
 {
   "name": "mossy-ai",
   "private": true,
-  "version": "5.4.52",
+  "version": "5.4.53",
   "description": "Mossy v5.4.41 - Professional Fallout 4 modding assistant with AI, full OG/NG/AE/Creations Menu version awareness, and professional asset optimization",
   "main": "dist-electron/electron/main.js",
   "author": "POINTYTHRUNDRA654",

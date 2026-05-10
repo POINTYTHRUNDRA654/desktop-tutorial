@@ -73,7 +73,8 @@ const searchIndex: SearchItem[] = [
   { id: 'local-capabilities', label: 'Local Capabilities', path: '/capabilities', category: 'System', description: 'Local system capabilities' },
 
   // Content Creation
-  { id: 'image-studio', label: 'Image Studio', path: '/images', category: 'Content', description: 'Image processing and PBR texture generation' },
+  { id: 'textures-hub', label: 'FO4 Textures & Materials', path: '/textures', category: 'Content', description: 'Unified texture hub: DDS conversion, PBR generation, Image Studio, and FO4 texture format reference' },
+  { id: 'image-studio', label: 'Image Studio', path: '/textures', category: 'Content', description: 'Image processing and PBR texture generation' },
   { id: 'audio-studio', label: 'Audio Studio', path: '/tts', category: 'Content', description: 'Text-to-speech and audio tools' },
 
   // Integration & Support
