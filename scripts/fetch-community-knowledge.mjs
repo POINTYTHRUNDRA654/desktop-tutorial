@@ -25,9 +25,9 @@ const OWNER = 'POINTYTHRUNDRA654';
 const REPO = 'mossy-knowledge';
 const COMMUNITY_PATH = 'community-knowledge';
 
-/** Perform an HTTPS GET and return the response body as a string. */
+/** Perform an HTTPS GET and return the response body as a string, or null on any error. */
 function httpsGet(url) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const opts = new URL(url);
     const req = https.get(
       {
@@ -41,7 +41,7 @@ function httpsGet(url) {
       (res) => {
         // Follow a single redirect (GitHub raw content uses 302)
         if (res.statusCode === 301 || res.statusCode === 302) {
-          httpsGet(res.headers.location).then(resolve).catch(reject);
+          httpsGet(res.headers.location).then(resolve);
           res.resume();
           return;
         }
@@ -51,19 +51,20 @@ function httpsGet(url) {
           return;
         }
         if (res.statusCode !== 200) {
-          reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+          resolve(null); // Treat any unexpected HTTP status as "skip gracefully"
           res.resume();
           return;
         }
         const chunks = [];
         res.on('data', (c) => chunks.push(c));
         res.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
-        res.on('error', reject);
+        res.on('error', () => resolve(null));
       }
     );
-    req.on('error', reject);
+    req.on('error', () => resolve(null));
     req.setTimeout(10000, () => {
-      req.destroy(new Error(`Timeout after 10 s fetching ${url}. Check network connectivity.`));
+      req.destroy();
+      resolve(null);
     });
   });
 }
@@ -196,7 +197,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  // Non-zero exit would fail the build — log the error but exit cleanly so an
-  // unreachable community repo never blocks a release.
-  console.error('[fetch-community-knowledge] Unexpected error (non-blocking):', err);
+  // Non-blocking: never fail CI/build if community knowledge is unreachable.
+  console.warn('[fetch-community-knowledge] Unexpected error (non-blocking):', err?.message ?? err);
+  process.exitCode = 0;
 });

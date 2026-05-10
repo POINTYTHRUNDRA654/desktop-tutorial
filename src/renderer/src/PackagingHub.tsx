@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
-import { Archive, ChevronDown, ChevronUp, Package, Search, GitCompare } from 'lucide-react';
+import { Archive, ChevronDown, ChevronUp, Package, Search, GitCompare, Database, Layers, GitBranch, Upload } from 'lucide-react';
 import PackagingReleaseWizard from './PackagingReleaseWizard';
 import TheAssembler from './TheAssembler';
 import ModConflictVisualizer from './ModConflictVisualizer';
 import ModComparisonTool from './ModComparisonTool';
+import { BA2Manager } from './BA2Manager';
+import ConflictResolver from './ConflictResolver';
+import { ConflictGraph } from './ConflictGraph';
+import { BethelUploader } from './BethelUploader';
 
 type HubSection = {
   id: string;
@@ -25,6 +29,13 @@ const PackagingHub: React.FC = () => {
   };
 
   const sections: HubSection[] = [
+    {
+      id: 'ba2',
+      title: 'Step 0: BA2 Archive Manager',
+      description: 'List, extract, pack, and merge BA2 archives before packaging.',
+      icon: Database,
+      content: <BA2Manager />,
+    },
     {
       id: 'checklist',
       title: 'Step 1: Packaging Checklist',
@@ -53,6 +64,27 @@ const PackagingHub: React.FC = () => {
       icon: Package,
       content: <TheAssembler embedded />,
     },
+    {
+      id: 'conflict-resolver',
+      title: 'Conflict Resolver',
+      description: 'Resolve plugin record conflicts and generate patch recommendations.',
+      icon: Layers,
+      content: <ConflictResolver embedded />,
+    },
+    {
+      id: 'conflict-graph',
+      title: 'Conflict Dependency Graph',
+      description: 'Visualize mod conflict relationships as an interactive dependency graph.',
+      icon: GitBranch,
+      content: <ConflictGraph />,
+    },
+    {
+      id: 'bethel-uploader',
+      title: 'Bethesda.net Publisher',
+      description: 'Package and upload mods directly to Bethesda.net (Creation Club compatible).',
+      icon: Upload,
+      content: <BethelUploader />,
+    },
   ];
 
   return (
@@ -60,7 +92,7 @@ const PackagingHub: React.FC = () => {
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col gap-3 mb-8">
           <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor • Packaging</div>
-          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">Packaging Hub (All-in-One)</h1>
+          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">FO4 Packaging &amp; Release Hub</h1>
           <p className="text-sm font-medium text-slate-300 max-w-2xl">
             Complete workflow for packaging, conflict analysis, comparison, and FOMOD installers. Follow the steps in order for best results.
           </p>
@@ -69,6 +101,7 @@ const PackagingHub: React.FC = () => {
         <div className="mb-6 rounded-lg border border-emerald-700/30 bg-emerald-900/10 p-4 text-xs font-medium text-slate-300">
           <div className="font-bold text-slate-200">Flow (Read in Order)</div>
           <ol className="list-decimal list-inside mt-2 space-y-1 text-slate-300">
+            <li>Manage BA2 archives (pack, extract, merge)</li>
             <li>Run the packaging checklist</li>
             <li>Check for conflicts with other mods</li>
             <li>Compare with similar mods for compatibility</li>

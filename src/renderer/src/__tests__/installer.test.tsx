@@ -124,10 +124,9 @@ describe('Desktop Bridge Tests', () => {
 
 // Prototype banner tests
 describe('Prototype banner tests', () => {
-  test('PluginManager shows prototype warning', () => {
+  test('PluginManager shows install-from-folder action', () => {
     render(<PluginManager />, { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter> });
-    // look for the banner text exactly
-    expect(screen.getByText(/Demo\/Prototype Feature/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Install Downloaded Plugin Folder/i })).toBeInTheDocument();
   });
 
   test('AdvancedAnalysisPanel shows prototype warning', () => {

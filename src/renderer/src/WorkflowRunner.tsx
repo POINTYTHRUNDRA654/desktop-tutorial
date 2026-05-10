@@ -508,7 +508,7 @@ const WorkflowRunner: React.FC = () => {
       <div className="max-w-6xl mx-auto">
         <div className="flex items-start justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-white">Workflow Runner</h1>
+            <h1 className="text-3xl font-bold text-white">FO4 Automation Runner</h1>
             <p className="text-slate-400 mt-1 text-sm">
               Save and run repeatable steps (launch tools, run commands, open links). Designed for quicker iteration.
             </p>

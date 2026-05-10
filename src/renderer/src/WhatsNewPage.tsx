@@ -126,9 +126,9 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
                 <Sparkles className="h-6 w-6 text-emerald-300" />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.35em] text-emerald-300">Release Notes</p>
-                <h1 className="text-3xl font-black text-white">What's New in Mossy</h1>
-                <p className="text-sm text-emerald-100/70">v{packageJson.version} — what's changed in this release.</p>
+                <p className="text-xs uppercase tracking-[0.35em] text-emerald-300">FO4 Release Notes</p>
+                <h1 className="text-3xl font-black text-white">FO4 What's New in Mossy</h1>
+                <p className="text-sm text-emerald-100/70">v{packageJson.version} — Fallout 4 modding updates in this release.</p>
               </div>
             </div>
             <button
@@ -168,11 +168,11 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
 
             <section className="space-y-6">
               <div className="rounded-3xl border border-emerald-500/20 bg-black/50 p-6">
-                <h2 className="text-lg font-semibold text-emerald-200">Navigation Tips</h2>
+                <h2 className="text-lg font-semibold text-emerald-200">FO4 Workflow Tips</h2>
                 <ul className="mt-4 space-y-3 text-sm text-emerald-100/70">
-                  <li>Use the sidebar to jump between tools and guides quickly.</li>
-                  <li>Press Ctrl+K to open Global Search across modules.</li>
-                  <li>Pin your favorite tools so they stay one click away.</li>
+                  <li>Use the sidebar to jump quickly between FO4 hubs (CK, Plugin, Asset, Runtime, and Packaging).</li>
+                  <li>Press Ctrl+K to search routes, hubs, and tools by Fallout 4 workflow intent.</li>
+                  <li>After updates, run your normal verify loop (load order, assets, packaging) before publishing a mod build.</li>
                 </ul>
               </div>
 
