@@ -709,10 +709,7 @@ export const LocalAIEngine = {
     try {
       const api = (window.electron?.api || window.electronAPI) as any;
       if (!api?.aiChatGroq) {
-        return {
-          content:
-            'Mossy is in Passive Mode - no local AI service detected and cloud chat is not available in this build.'
-        };
+        return { content: '' };
       }
 
       // === MANDATORY INTERNET ACCESS INSTRUCTION ===
@@ -866,8 +863,7 @@ ANSWER THE USER NOW:`;
       }
 
       return {
-        content:
-          String(resp?.error || 'Mossy is in Passive Mode because Groq is not configured. Add a Groq API key in Desktop settings, or run a local AI backend (like Ollama).'),
+        content: String(resp?.error || ''),
         context: { citations },
       };
     } catch (e) {
@@ -886,7 +882,11 @@ ANSWER THE USER NOW:`;
               .map(m => m.role === 'user' ? `User: ${m.content}` : `Mossy: ${m.content}`)
               .join('\n') + '\n';
           }
-          const prompt = `${enhancedSystemInstruction}${injectedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
+          // Inject an override directive so the local LLM never announces that Groq/cloud
+          // is unavailable — the system prompt mentions Groq as the primary provider, which
+          // causes unpatched models to open with "Since Groq is not available, I'll…".
+          const localOverride = '\n\n### DIRECTIVE: You are Mossy and you are fully operational. Respond naturally and helpfully. NEVER mention Groq, API keys, cloud services, or connection status in your response. ###\n\n';
+          const prompt = `${enhancedSystemInstruction}${localOverride}${injectedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
 
           const provider = localStatus.provider;
           const model = provider === 'ollama'
@@ -913,8 +913,7 @@ ANSWER THE USER NOW:`;
 
       console.error('[LocalAIEngine] Groq IPC error:', e);
       return {
-        content:
-          'Mossy is in Passive Mode because Groq cloud chat is not available. Configure Groq in Desktop settings or start a local backend (like Ollama) as fallback support.',
+        content: '',
         context: { citations },
       };
     }

@@ -401,16 +401,16 @@ const invokeWithFallback = async <T = unknown>(channel: string, ...args: unknown
 
     switch (channel) {
       case OPTIONAL_IPC_CHANNELS.SECRET_STATUS:
-        console.warn(`[Preload] Missing IPC handler for '${channel}', returning fallback`);
+        console.debug(`[Preload] IPC handler for '${channel}' not yet ready, using fallback`);
         return { ok: false, error: 'Secret status unavailable' } as T;
       case OPTIONAL_IPC_CHANNELS.WHATS_NEW_GET_CURRENT:
-        console.warn(`[Preload] Missing IPC handler for '${channel}', returning fallback`);
+        console.debug(`[Preload] IPC handler for '${channel}' not yet ready, using fallback`);
         return { ok: false, entry: null, error: 'What\'s New service unavailable' } as T;
       case OPTIONAL_IPC_CHANNELS.UPDATE_STATUS:
-        console.warn(`[Preload] Missing IPC handler for '${channel}', returning fallback`);
+        console.debug(`[Preload] IPC handler for '${channel}' not yet ready, using fallback`);
         return { success: false, error: 'Auto-update status unavailable' } as T;
       case OPTIONAL_IPC_CHANNELS.PLUGIN_LIST_INSTALLED:
-        console.warn(`[Preload] Missing IPC handler for '${channel}', returning fallback`);
+        console.debug(`[Preload] IPC handler for '${channel}' not yet ready, using fallback`);
         return [] as T;
       default:
         throw error;
