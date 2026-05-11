@@ -311,12 +311,12 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
 
   const visualMaxClass = (() => {
     if (isPipBoyMode) {
-      return ['ai-chat', 'first-success'].includes(currentStep.id)
+      return ['ai-chat', 'project-hub'].includes(currentStep.id)
         ? 'max-h-[26vh]'
         : 'max-h-[34vh] md:max-h-[42vh]';
     }
 
-    return ['ai-chat', 'first-success'].includes(currentStep.id)
+    return ['ai-chat', 'project-hub'].includes(currentStep.id)
       ? 'max-h-[30vh]'
       : 'max-h-[44vh] md:max-h-[52vh]';
   })();
