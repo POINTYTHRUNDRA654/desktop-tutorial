@@ -2184,10 +2184,73 @@ const electronAPI = {
 
   /**
    * AI Chat: Groq-powered chat completion (lower latency, real-time)
-   * Main process manages API key; renderer never sees it
+   * Main process manages API key; renderer never sees it.
+   * Falls back to a direct Render-backend call when the IPC handler is not
+   * registered (e.g. during a cold startup or partial handler registration).
    */
-  aiChatGroq: (prompt: string, systemPrompt?: string, model?: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<{ success: boolean; content?: string; error?: string }> => {
-    return ipcRenderer.invoke('ai-chat-groq', { prompt, systemPrompt, model, conversationHistory });
+  aiChatGroq: async (prompt: string, systemPrompt?: string, model?: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<{ success: boolean; content?: string; error?: string }> => {
+    try {
+      return await ipcRenderer.invoke('ai-chat-groq', { prompt, systemPrompt, model, conversationHistory });
+    } catch (ipcErr: unknown) {
+      if (!isNoHandlerRegisteredError(ipcErr)) {
+        throw ipcErr;
+      }
+
+      // IPC handler is not registered – call the Render backend directly.
+      // The preload runs in Node context so process.env is available.
+      const backendUrl = String(process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').replace(/\/+$/, '');
+      const backendToken = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
+
+      if (!backendUrl) {
+        console.warn('[Preload] aiChatGroq: no backend URL configured');
+        return { success: false, error: 'No backend URL configured. Set MOSSY_BACKEND_URL.' };
+      }
+
+      try {
+        const resolvedSystemPrompt = systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
+        const resolvedModel = model || 'llama-3.1-8b-instant';
+        const history = Array.isArray(conversationHistory)
+          ? conversationHistory
+              .filter((e) => e != null && (e.role === 'user' || e.role === 'assistant') && typeof e.content === 'string' && e.content.trim() !== '')
+              .slice(-20)
+          : [];
+        const messages = [
+          { role: 'system' as const, content: resolvedSystemPrompt },
+          ...history,
+          { role: 'user' as const, content: String(prompt || '') },
+        ];
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        let res: Response;
+        try {
+          res = await fetch(`${backendUrl}/v1/chat`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(backendToken ? { Authorization: `Bearer ${backendToken}` } : {}),
+            },
+            body: JSON.stringify({ provider: 'groq', model: resolvedModel, messages, maxTokens: 1024 }),
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
+
+        interface BackendChatResponse { ok?: boolean; text?: string; message?: string; error?: string; }
+        const json: BackendChatResponse = await res.json().catch(() => ({}));
+        if (res.ok && json?.ok) {
+          return { success: true, content: String(json?.text || '') };
+        }
+        const errMsg = String(json?.message || json?.error || `HTTP ${res.status}`);
+        console.warn('[Preload] aiChatGroq backend fallback failed:', errMsg);
+        return { success: false, error: errMsg };
+      } catch (fetchErr: unknown) {
+        const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr ?? 'Backend request failed');
+        console.warn('[Preload] aiChatGroq backend fallback error:', msg);
+        return { success: false, error: msg };
+      }
+    }
   },
 
   /**
