@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Mic, MicOff, PhoneOff, AlertCircle, Radio, Power, ChevronDown, Send } from 'lucide-react';
 import { useLive } from './LiveContext';
-import AvatarCore from './AvatarCore';
 import { Link } from 'react-router-dom';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import VoiceSettings from './VoiceSettings';
@@ -109,11 +108,9 @@ const VoiceChat: React.FC = () => {
         </div>
       )}
 
-      {/* Status Indicator / Avatar */}
+      {/* Status Indicator */}
       <div className="mb-8 text-center flex flex-col items-center">
-        <div className={`relative group mb-6 transition-transform duration-500 ${isActive ? 'scale-110' : 'scale-100 hover:scale-105'}`}>
-          <AvatarCore className="w-48 h-48 border-4 shadow-[0_0_50px_rgba(59,130,246,0.3)] mb-4" />
-
+        <div className="mb-6">
           <h2 className={`text-sm font-black tracking-[0.2em] font-mono uppercase ${getStatusColor()}`}>{getStatusText()}</h2>
         </div>
 

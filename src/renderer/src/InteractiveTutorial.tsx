@@ -126,119 +126,19 @@ export function buildTutorialText(context: TutorialPageContext, pageIndex: numbe
 }
 
 // Return tutorial contexts ordered to match VISUAL_GUIDE page numbers when available.
+// Only includes contexts that are explicitly defined and marked as active.
 export function getOrderedTutorialContexts(allContexts: Record<string, TutorialPageContext>) {
-  const contexts = Object.values(allContexts);
-  const contextsById = Object.fromEntries(contexts.map((c) => [c.pageId, c] as const));
-
-  // Manual overrides take priority over image filenames for ordering
-  const manualPageOverride: Record<string, number> = {
-    'fallout4-wiki': 52,
-    'guided-tours': 53,
-    'pip-boy-mode': 54,
-  };
-
-  const aliasToImage: Record<string, keyof typeof imageMap> = {
-    nexus: 'mossy-space',
-    'live-voice': 'live-synapse',
-    auditor: 'the-auditor',
-    workshop: 'the-workshop',
-    blueprint: 'the-blueprint',
-    assembler: 'the-assembler',
-    vault: 'the-vault',
-    'learning-hub': 'quick-reference',
-    'roadmap-panel': 'modding-roadmaps',
-    'mining-dashboard': 'mining-and-analysis-hub',
-    'mining-panel': 'mining-and-analysis-hub',
-    'advanced-analysis-panel': 'mining-and-analysis-hub',
-    'advanced-analysis': 'mining-and-analysis-hub',
-    'image-suite': 'image-studio',
-    packaging: 'packaging-release',
-    diagnostics: 'diagnostic-tools',
-    support: 'support-mossy',
-    'fallout4-wiki': 'fallout-4-wiki',
-    'pip-boy-mode': 'pip-boy-on-off',
-    monitor: 'system-monitor',
-    orchestrator: 'the-orchestrator',
-    holodeck: 'the-holodeck',
-    'project-hub': 'mod-projects',
-    scribe: 'the-scribe',
-    'blender-animation-guide': 'animation-guide',
-    'quest-authoring-guide': 'quest-mod-authorizing',
-    'animation-suite': 'animation-guide',
-    'upscayl-extension': 'upscale-extension',
-    'load-order': 'the-workshop',
-    'bodyslide-guide': 'tools',
-    'sim-settlements-guide': 'tools',
-    'paperscript-guide': 'tools',
-    'formid-remapper': 'the-workshop',
-  };
-
-  const imageToContext: Record<string, string> = Object.fromEntries(
-    Object.entries(aliasToImage).map(([ctxId, imageId]) => [imageId, ctxId])
-  );
-
-  const parsePageNumber = (filename: string | undefined) => {
-    if (!filename) return null;
-    const match = filename.match(/page-(\d+)/i);
-    return match ? parseInt(match[1], 10) : null;
-  };
-
-  // Build a list from the generated map plus known manual entries
-  const imageEntries: { key: string; filename?: string; page: number | null }[] = [
-    ...Object.entries(imageMap).map(([key, filename]) => ({ key, filename, page: parsePageNumber(filename) })),
-    { key: 'guided-tours', filename: 'page-54-guided-tours.png', page: 54 },
-  ];
-
-  const seenPages = new Set<number>();
-
-  const ordered = imageEntries
-    .filter((entry) => entry.page != null)
+  // Get all defined contexts and filter to only ACTIVE pages (those with visualGuidePage set)
+  const activeContexts = Object.values(allContexts)
+    .filter((ctx) => ctx.visualGuidePage !== undefined && ctx.visualGuidePage !== null)
     .sort((a, b) => {
-      if (a.page! !== b.page!) return a.page! - b.page!;
-      return a.key.localeCompare(b.key);
-    })
-    .map((entry) => {
-      const ctxId = contextsById[entry.key]
-        ? entry.key
-        : imageToContext[entry.key]
-          ? imageToContext[entry.key]
-          : entry.key;
+      const pageA = a.visualGuidePage ?? 999;
+      const pageB = b.visualGuidePage ?? 999;
+      if (pageA !== pageB) return pageA - pageB;
+      return a.pageId.localeCompare(b.pageId);
+    });
 
-      const ctx = contextsById[ctxId];
-      const manualOverride = manualPageOverride[ctxId];
-      const visualGuidePage = manualOverride ?? entry.page ?? (ctx as any)?.visualGuidePage ?? null;
-
-      if (seenPages.has(visualGuidePage ?? -1)) return null;
-      if (visualGuidePage != null) seenPages.add(visualGuidePage);
-
-      if (ctx) {
-        return { ...ctx, visualGuidePage: visualGuidePage ?? (ctx as any).visualGuidePage ?? undefined } as TutorialPageContext;
-      }
-
-      const fallbackName = ctxId
-        .split('-')
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(' ');
-
-      const placeholder: TutorialPageContext = {
-        pageId: ctxId,
-        pageName: fallbackName,
-        visualGuidePage: visualGuidePage ?? undefined,
-        route: '/',
-        purpose: 'Placeholder tutorial step (context not yet defined).',
-        features: [],
-        controls: [],
-        commonMistakes: [],
-        guides: [],
-        tutorialSections: [],
-        suggestedQuestions: [],
-      };
-
-      return placeholder;
-    })
-    .filter(Boolean) as TutorialPageContext[];
-
-  return ordered;
+  return activeContexts;
 }
 
 interface InteractiveTutorialProps {

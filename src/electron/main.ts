@@ -6,6 +6,21 @@
  */
 
 import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, screen, net } from 'electron';
+
+// File-based logging to debug main process startup
+const mainProcessLogPath = `${process.env.APPDATA || process.env.HOME}/.mossy-desktop/main-process.log`;
+const writeMainLog = (msg: string) => {
+  try {
+    const dir = require('path').dirname(mainProcessLogPath);
+    if (!require('fs').existsSync(dir)) {
+      require('fs').mkdirSync(dir, { recursive: true });
+    }
+    require('fs').appendFileSync(mainProcessLogPath, `[${new Date().toISOString()}] ${msg}\n`);
+  } catch (e) {
+    // Ignore log failures
+  }
+};
+writeMainLog('═══ MAIN PROCESS MODULE LOADED ═══');
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
@@ -1562,11 +1577,17 @@ function registerBethelHandlers(
 function setupIpcHandlers() {
   // Check if handlers are already registered
   if ((global as any).__ipcHandlersRegistered) {
-    console.log('[Main] IPC handlers already registered, skipping');
+    console.log('[Main] ⚠️ IPC handlers already registered, skipping');
     return;
   }
 
-  console.log('[Main] Registering IPC handlers...');
+  // Set flag IMMEDIATELY to prevent double-registration attempts
+  (global as any).__ipcHandlersRegistered = true;
+  writeMainLog('Set __ipcHandlersRegistered flag to true');
+
+  console.log('[Main] ✅ STARTING IPC HANDLER REGISTRATION');
+  console.log('[Main] ipcMain is available:', !!ipcMain);
+  console.log('[Main] mainWindow is:', mainWindow ? 'set (will be populated after createWindow)' : 'null (expected - we run before createWindow)');
 
   // Variables for observer functionality
   let activeWatcher: any = null;
@@ -1587,19 +1608,30 @@ function setupIpcHandlers() {
   // Helper function to register handler safely
   const registerHandler = (channel: string, handler: any) => {
     if (registeredHandlers.has(channel)) {
-      console.log(`[Main] Handler for '${channel}' already registered, skipping`);
+      console.log(`[Main] ⚠️ Handler for '${channel}' already registered, skipping`);
       return;
     }
     try {
       ipcMain.handle(channel, handler);
       registeredHandlers.add(channel);
-      console.log(`[Main] Registered handler for '${channel}'`);
+      console.log(`[Main] ✅ Registered handler for '${channel}'`);
     } catch (error: any) {
       if (error.message.includes('Attempted to register a second handler')) {
-        console.log(`[Main] Handler for '${channel}' already exists, skipping`);
+        console.log(`[Main] ⚠️ Handler for '${channel}' already exists, skipping`);
       } else {
-        console.error(`[Main] Error registering handler for '${channel}':`, error);
+        console.error(`[Main] ❌ Error registering handler for '${channel}':`, error?.message || error);
       }
+    }
+  };
+
+  // Helper for direct ipcMain.handle() with try-catch
+  const safeHandle = (channel: string, handler: any) => {
+    try {
+      console.log(`[Main] 📝 Registering handler for '${channel}'...`);
+      ipcMain.handle(channel, handler);
+      console.log(`[Main] ✅ Registered handler for '${channel}'`);
+    } catch (error: any) {
+      console.error(`[Main] ❌ FAILED to register '${channel}':`, error?.message || error);
     }
   };
 
@@ -1631,7 +1663,7 @@ function setupIpcHandlers() {
   // APP DIAGNOSTICS HANDLER
   // ============================================================================
 
-  ipcMain.handle('app:get-diagnostics', async () => {
+  safeHandle('app:get-diagnostics', async () => {
     const token = process.env.MOSSY_BACKEND_TOKEN;
     const diagnostics = {
       backendUrl: process.env.MOSSY_BACKEND_URL || 'not set',
@@ -2233,14 +2265,15 @@ function setupIpcHandlers() {
   });
 
   // Get running processes handler
-  registerHandler(IPC_CHANNELS.GET_RUNNING_PROCESSES, async () => {
+  // TEMPORARILY DISABLED FOR DEBUGGING
+  /*registerHandler(IPC_CHANNELS.GET_RUNNING_PROCESSES, async () => {
     try {
       return await getRunningModdingTools();
     } catch (error) {
       console.error('Error getting running processes:', error);
       return [];
     }
-  });
+  });*/
 
   // Open program handler
   registerHandler(IPC_CHANNELS.OPEN_PROGRAM, async (event, programPath: string) => {
@@ -2552,6 +2585,40 @@ function setupIpcHandlers() {
 
     saveSettings(next);
     return;
+  });
+
+  // --- Chat History Persistence ---
+  const getChatHistoryFilePath = () => {
+    const userData = app.getPath('userData');
+    return path.join(userData, 'chat-history.json');
+  };
+
+  ipcMain.handle('save-chat-history', async (_event, messages: any[]) => {
+    try {
+      const filePath = getChatHistoryFilePath();
+      fs.writeFileSync(filePath, JSON.stringify(messages, null, 2));
+      console.log('[Main] Chat history saved:', filePath);
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[Main] Failed to save chat history:', e);
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  ipcMain.handle('load-chat-history', async () => {
+    try {
+      const filePath = getChatHistoryFilePath();
+      if (!fs.existsSync(filePath)) {
+        return [];
+      }
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const messages = JSON.parse(content);
+      console.log('[Main] Chat history loaded from file:', filePath);
+      return Array.isArray(messages) ? messages : [];
+    } catch (e: any) {
+      console.error('[Main] Failed to load chat history:', e);
+      return [];
+    }
   });
 
   // Prefer settings-based backend config when available; env vars remain supported.
@@ -3516,46 +3583,6 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         computerName: 'Local PC',
         error: error instanceof Error ? error.message : 'Unknown error'
       };
-    }
-  });
-
-  // Get running processes for Neural Link monitoring
-  ipcMain.handle('get-running-processes', async () => {
-    try {
-      const { exec } = require('child_process');
-      const util = require('util');
-      const execAsync = util.promisify(exec);
-
-      const platform = require('os').platform();
-      let processes: any[] = [];
-
-      if (platform === 'win32') {
-        // Use tasklist command on Windows
-        const { stdout } = await execAsync('tasklist /FO CSV /NH', { encoding: 'utf-8' });
-        const lines = stdout.split('\n').filter((line: string) => line.trim());
-
-        processes = lines.map((line: string) => {
-          const parts = line.split('","').map((p: string) => p.replace(/"/g, ''));
-          if (parts.length >= 5) {
-            return {
-              name: parts[0],
-              pid: parseInt(parts[1], 10),
-              sessionName: parts[2],
-              sessionNumber: parseInt(parts[3], 10),
-              memoryUsage: parts[4]
-            };
-          }
-          return null;
-        }).filter(Boolean);
-      } else {
-        // For other platforms, return empty array for now
-        processes = [];
-      }
-
-      return processes;
-    } catch (error) {
-      console.error('[Main] Error getting running processes:', error);
-      return [];
     }
   });
 
@@ -8606,14 +8633,16 @@ end.
   });
 
   // Secrets presence only (no values). Renderer can use this to show setup state safely.
-  ipcMain.handle('secret-status', async () => {
+  safeHandle('secret-status', async () => {
     try {
       const s = loadSettings();
       const openai = Boolean(getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY'));
       const groq = Boolean(getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY'));
       const backendToken = Boolean(getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
+      console.log('[Main] secret-status: openai=%s, groq=%s, backendToken=%s', openai, groq, backendToken);
       return { ok: true, openai, groq, backendToken };
     } catch (e: any) {
+      console.error('[Main] secret-status error:', e?.message || e);
       return { ok: false, error: String(e?.message || e) };
     }
   });
@@ -31026,9 +31055,11 @@ ${steps}
     }
   });
 
-  // Mark handlers as registered
-  (global as any).__ipcHandlersRegistered = true;
-  console.log('[Main] IPC handlers registration complete');
+  // Flag already set at START of function to prevent double-registration
+  console.log('[Main] ✅ IPC HANDLERS REGISTRATION COMPLETE - All handlers should now be available to renderer');
+  console.log('[Main] Total handlers registered in this session:', registeredHandlers.size);
+  console.log('[Main] Guard flag set:', (global as any).__ipcHandlersRegistered);
+  writeMainLog('IPC handler registration completed successfully');
 
   // Initialize Mossy Brain features
   try {
@@ -31044,8 +31075,14 @@ ${steps}
 
 
 app.whenReady().then(() => {
+  writeMainLog('═══ app.whenReady() FIRED ═══');
+  console.log('[Main] ═════════════════════════════════════════════════════════════');
+  console.log('[Main] APP READY - Starting initialization sequence...');
+  console.log('[Main] ═════════════════════════════════════════════════════════════');
+  
   // Handle second instance (ensure single instance) - DO THIS FIRST
   const isTestMode = process.env.ELECTRON_IS_TEST === 'true';
+  writeMainLog(`isTestMode: ${isTestMode}`);
 
   if (isTestMode) {
     console.log('[Main] ELECTRON_IS_TEST=true - skipping single-instance lock for tests');
@@ -31122,9 +31159,30 @@ app.whenReady().then(() => {
     }
   }
 
+  // ── Register IPC handlers EARLY (app.whenReady() before renderer loads) ────────────
+  // This ensures all handlers are available before the renderer starts making requests
+  writeMainLog('About to call setupIpcHandlers()');
+  console.log('[Main] ─── About to call setupIpcHandlers() ───');
+  console.log('[Main] Global flag before:', (global as any).__ipcHandlersRegistered);
+  try {
+    console.log('[Main] Calling setupIpcHandlers()...');
+    writeMainLog('Calling setupIpcHandlers()...');
+    setupIpcHandlers();
+    console.log('[Main] IPC handlers registered successfully');
+    console.log('[Main] Global flag after:', (global as any).__ipcHandlersRegistered);
+    writeMainLog('setupIpcHandlers() completed successfully');
+  } catch (err: any) {
+    console.error('[Main] ERROR: Failed to register IPC handlers:', err);
+    console.error('[Main] Stack:', err?.stack);
+    writeMainLog(`ERROR in setupIpcHandlers: ${err?.message || err}`);
+    writeMainLog(`Stack: ${err?.stack || 'no stack'}`);
+    // Continue anyway - maybe app will still start
+  }
+  console.log('[Main] ─── setupIpcHandlers() complete ───');
+  writeMainLog('setupIpcHandlers() call complete, moving to createWindow()');
+
   // Continue normal startup
   createWindow();
-  setupIpcHandlers();
   bridge.start();
 
   // Register Texture Enhancer handlers (uses BridgeServer for Blender integration)

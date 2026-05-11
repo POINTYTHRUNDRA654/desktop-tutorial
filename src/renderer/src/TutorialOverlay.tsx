@@ -353,7 +353,7 @@ const TutorialOverlay: React.FC = () => {
             `}>
                 
                 {/* The Card */}
-                <div className="bg-[#0f172a] border border-slate-700/80 rounded-2xl shadow-2xl w-[450px] overflow-hidden flex flex-col animate-scale-in relative">
+                <div className="bg-[#0f172a] border border-slate-700/80 rounded-2xl shadow-2xl w-[450px] overflow-hidden flex flex-col relative" style={{animation: 'fadeIn 0.2s ease-out'}}>
                     
                     {/* Decorative Header Line */}
                     <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-blue-500 to-purple-500"></div>

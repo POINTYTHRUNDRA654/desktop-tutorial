@@ -55,6 +55,7 @@ body {
   color: var(--text-primary);
   text-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
   position: relative;
+  transform: none !important;
 }
 
 body:not(.pip-boy-mode) {
@@ -173,6 +174,11 @@ body.pip-boy-mode::after {
   50% { opacity: 0.98; }
 }
 
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
 @keyframes crt-glow {
   0% { opacity: 0.8; }
   100% { opacity: 1; }
@@ -230,6 +236,8 @@ body.pip-boy-mode textarea:focus {
   overflow: hidden;
   background: linear-gradient(135deg, #0a0e0a 0%, #1a1f1a 100%);
   position: relative;
+  transform: none !important;
+  scale: 1 !important;
 }
 
 /* Enhanced Pip-Boy Screen Effect with CRT curvature */

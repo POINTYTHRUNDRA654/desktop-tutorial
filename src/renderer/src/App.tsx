@@ -271,32 +271,43 @@ const WhatsNewRedirect: React.FC<{ enabled: boolean }> = ({ enabled }) => {
 const AskMossyButton: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isLoading, setIsLoading] = useState(false);
 
   if (location.pathname === '/chat') return null;
 
-  const handleClick = () => {
-    const panelName = location.pathname.replace(/^\//, '').replace(/-/g, ' ') || 'home';
-    navigate('/chat', {
-      state: { prefill: `I'm currently on the ${panelName} panel. Can you help me with what I'm working on here?` }
-    });
+  const handleClick = async () => {
+    try {
+      setIsLoading(true);
+      const panelName = location.pathname.replace(/^\//, '').replace(/-/g, ' ') || 'home';
+      navigate('/chat', {
+        state: { prefill: `I'm currently on the ${panelName} panel. Can you help me with what I'm working on here?` }
+      });
+      setTimeout(() => setIsLoading(false), 1500);
+    } catch (error) {
+      console.error('Ask Mossy error:', error);
+      toast.error('Failed to open chat. Check your API connection in Settings.');
+      setIsLoading(false);
+    }
   };
 
   return (
-    <button
-      onClick={handleClick}
-      title="Ask Mossy about this panel"
-      aria-label="Ask Mossy"
-      style={{
-        position: 'fixed',
-        bottom: 60, // above the Pip-Boy toggle button (bottom: 16 + ~40px height)
-        left: 8,
-        zIndex: 9990,
-      }}
-      className="flex items-center gap-2 px-4 py-2 bg-green-700/90 hover:bg-green-600 text-white text-sm font-bold rounded-full shadow-lg border border-green-500/50 transition-all focus-visible"
-    >
-      <MessageSquare className="w-4 h-4" />
-      Ask Mossy
-    </button>
+    <div title="Click to open chat. If no response appears, check your API connection in Settings.">
+      <button
+        onClick={handleClick}
+        disabled={isLoading}
+        aria-label="Ask Mossy"
+        style={{
+          position: 'fixed',
+          bottom: 60,
+          left: 8,
+          zIndex: 9990,
+        }}
+        className="flex items-center gap-2 px-4 py-2 bg-green-700/90 hover:bg-green-600 text-white text-sm font-bold rounded-full shadow-lg border border-green-500/50 transition-all focus-visible disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <MessageSquare className="w-4 h-4" />
+        {isLoading ? 'Opening...' : 'Ask Mossy'}
+      </button>
+    </div>
   );
 };
 
@@ -1580,7 +1591,7 @@ const App: React.FC = () => {
             />
           )}
           <AvatarOverlay />
-          <AskMossyButton />
+
         </div>
       </HashRouter>
     );
