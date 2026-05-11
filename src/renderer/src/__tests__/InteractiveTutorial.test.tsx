@@ -69,8 +69,15 @@ describe('InteractiveTutorial layout & navigation', () => {
   it('uses a smaller visual guide height for AI (chat) and startup (first-success) pages', async () => {
     // Determine the numeric step indices for the pages we want to assert
     const ordered = getOrderedTutorialContexts(tutorialContexts);
-    const chatStep = 1 + ordered.findIndex((c) => c.pageId === 'ai-chat'); // +1 for the initial welcome step
-    const firstSuccessStep = 1 + ordered.findIndex((c) => c.pageId === 'first-success');
+    const chatIndex = ordered.findIndex((c) => c.pageId === 'ai-chat');
+    expect(chatIndex).toBeGreaterThanOrEqual(0);
+
+    const firstSuccessIndex = ordered.findIndex((c) => c.pageId === 'first-success');
+    expect(firstSuccessIndex).toBeGreaterThanOrEqual(0);
+
+    const chatStep = 1 + chatIndex; // +1 for the initial welcome step
+    const firstSuccessStep = 1 + firstSuccessIndex;
+    const firstSuccessTitle = tutorialContexts['first-success'].pageName;
 
     // Render the tutorial directly at the AI Chat step by restoring saved progress
     localStorage.setItem('mossy_tutorial_step', chatStep.toString());
@@ -100,7 +107,7 @@ describe('InteractiveTutorial layout & navigation', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(document.body.textContent).toContain('First Success'));
+    await waitFor(() => expect(document.body.textContent).toContain(firstSuccessTitle));
     const finalHeroImg = document.querySelector('img[alt$="screenshot"]') as HTMLImageElement | null;
     expect(finalHeroImg).toBeTruthy();
     let finalWrapper: Element | null = finalHeroImg?.parentElement ?? null;
@@ -156,7 +163,7 @@ describe('InteractiveTutorial layout & navigation', () => {
         <InteractiveTutorial onComplete={() => {}} onSkip={() => {}} testPipMode={true} />
       </MemoryRouter>
     );
-    await waitFor(() => expect(document.body.textContent).toContain('First Success'));
+    await waitFor(() => expect(document.body.textContent).toContain(firstSuccessTitle));
     const pipFinalHeroImg = document.querySelector('img[alt$="screenshot"]') as HTMLImageElement | null;
     expect(pipFinalHeroImg).toBeTruthy();
     let pipFinalWrapper: Element | null = pipFinalHeroImg?.parentElement ?? null;
