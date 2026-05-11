@@ -1635,6 +1635,18 @@ function setupIpcHandlers() {
     }
   };
 
+  // Helper for critical channels that must be present; replaces existing handler if needed.
+  const forceHandle = (channel: string, handler: any) => {
+    try {
+      ipcMain.removeHandler(channel);
+      console.log(`[Main] ♻️ Re-registering critical handler for '${channel}'...`);
+      ipcMain.handle(channel, handler);
+      console.log(`[Main] ✅ Force-registered handler for '${channel}'`);
+    } catch (error: any) {
+      console.error(`[Main] ❌ FAILED to force-register '${channel}':`, error?.message || error);
+    }
+  };
+
   // Global mining state tracker - used by mining handlers
   let miningState: {
     active: boolean;
@@ -2265,15 +2277,14 @@ function setupIpcHandlers() {
   });
 
   // Get running processes handler
-  // TEMPORARILY DISABLED FOR DEBUGGING
-  /*registerHandler(IPC_CHANNELS.GET_RUNNING_PROCESSES, async () => {
+  registerHandler(IPC_CHANNELS.GET_RUNNING_PROCESSES, async () => {
     try {
       return await getRunningModdingTools();
     } catch (error) {
       console.error('Error getting running processes:', error);
       return [];
     }
-  });*/
+  });
 
   // Open program handler
   registerHandler(IPC_CHANNELS.OPEN_PROGRAM, async (event, programPath: string) => {
@@ -8442,7 +8453,7 @@ end.
    * AI Chat Handler - OpenAI
    * Renderer calls this with a prompt; main process handles API key
    */
-  ipcMain.handle('ai-chat-openai', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
+  forceHandle('ai-chat-openai', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
     try {
       const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
       const model = payload.model || 'gpt-4o-mini';
@@ -8542,7 +8553,7 @@ end.
   /**
    * AI Chat Handler - Groq (for voice and real-time)
    */
-  ipcMain.handle('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{ role: string; content: string }> }) => {
+  forceHandle('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{ role: string; content: string }> }) => {
     try {
       // Allow up to ~12,500 tokens for the system prompt so the full MossyBrain
       // identity, FORBIDDEN STATEMENTS block, tool-capability descriptions, and
@@ -9890,7 +9901,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Get current version's What's New entry
-  ipcMain.handle('whats-new-get-current', async (_event) => {
+  forceHandle('whats-new-get-current', async (_event) => {
     const startTime = Date.now();
     try {
       const currentVersion = require('../../package.json').version;
@@ -12198,7 +12209,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadPluginsFromDisk();
 
-  ipcMain.handle('plugin-manager:list-installed', async (_event) => {
+  forceHandle('plugin-manager:list-installed', async (_event) => {
     const startTime = Date.now();
     try {
       discoverPluginsFromInstallDirectory();
@@ -27583,7 +27594,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('get-update-status', async () => {
+  forceHandle('get-update-status', async () => {
     try {
       return { success: true, status: autoUpdaterService.getStatus() };
     } catch (error) {
