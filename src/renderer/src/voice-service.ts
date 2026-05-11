@@ -530,23 +530,13 @@ export class VoiceService {
               }
             } else {
               const errorMsg = result?.error || 'Unknown transcription error';
-              // If it's an authorization error, silently disable voice for this session
-              // instead of showing user-facing errors
-              if (errorMsg?.toLowerCase?.().includes('unauthorized') || errorMsg?.toLowerCase?.().includes('forbidden')) {
-                console.warn('[VoiceService] ⚠️  Voice transcription unavailable (backend not configured). User can still type. Error:', errorMsg);
-                // Log debug info if available
-                if (result?.debug) {
-                  console.error('[VoiceService] DEBUG INFO:', JSON.stringify(result.debug, null, 2));
-                }
-                // Don't call onError - just silently skip this transcription
-                return;
-              }
-              console.warn('Backend transcription failed:', errorMsg);
+              // Always show the error to the user so they know voice isn't working
+              console.warn('[VoiceService] Transcription error:', errorMsg);
               // Log debug info if available
               if (result?.debug) {
                 console.error('[VoiceService] DEBUG INFO:', JSON.stringify(result.debug, null, 2));
               }
-              throw new Error(errorMsg); // Re-throw other errors
+              throw new Error(errorMsg);
             }
           } catch (error: any) {
             console.error('Transcription error:', error);
@@ -554,13 +544,9 @@ export class VoiceService {
 
             if (!this.shouldStop) {
               const errorMessage = error?.message || 'Unknown error';
-              // Don't show "unauthorized" errors to user - voice just won't work until backend is configured
-              if (!errorMessage.toLowerCase().includes('unauthorized') && !errorMessage.toLowerCase().includes('forbidden')) {
-                console.error(`[VoiceService] ❌ Transcription failed: ${errorMessage}. Duration: ${recordingDuration}ms, Size: ${fileSizeKB} KB`);
-                this.onError?.(`Speech recognition failed: ${errorMessage}`);
-              } else {
-                console.log('[VoiceService] ℹ️ Voice transcription not available (backend not configured). User can still type.');
-              }
+              console.error(`[VoiceService] ❌ Transcription failed: ${errorMessage}. Duration: ${recordingDuration}ms, Size: ${fileSizeKB} KB`);
+              // Show error to user for all failures (including auth errors) so they know what's wrong
+              this.onError?.(`Speech recognition failed: ${errorMessage}`);
               this.hadRecentTranscriptionError = true; // Flag for delayed restart
             }
           }

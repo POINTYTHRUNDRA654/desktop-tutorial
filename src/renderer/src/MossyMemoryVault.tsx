@@ -1361,7 +1361,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                         }
                     }}
                 >
-                    <div className="bg-[#141814] border border-emerald-500/30 w-full max-w-2xl rounded-2xl shadow-2xl shadow-emerald-500/10 overflow-hidden transform animate-scale-in">
+                    <div className="bg-[#141814] border border-emerald-500/30 w-full max-w-2xl rounded-2xl shadow-2xl shadow-emerald-500/10 overflow-hidden transform" style={{animation: 'fadeIn 0.2s ease-out'}}>
                         <div className="p-6 border-b border-emerald-900/30 flex justify-between items-center bg-[#1a1f1a]">
                             <div className="flex items-center gap-3">
                                 <Plus className="text-emerald-400 w-5 h-5" />
@@ -1582,7 +1582,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                         }
                     }}
                 >
-                    <div className="bg-[#141814] border border-blue-500/30 w-full max-w-4xl rounded-2xl shadow-2xl shadow-blue-500/10 overflow-hidden transform animate-scale-in max-h-[80vh] flex flex-col">
+                    <div className="bg-[#141814] border border-blue-500/30 w-full max-w-4xl rounded-2xl shadow-2xl shadow-blue-500/10 overflow-hidden transform max-h-[80vh] flex flex-col" style={{animation: 'fadeIn 0.2s ease-out'}}>
                         <div className="p-6 border-b border-blue-900/30 flex justify-between items-center bg-[#1a1f1a]">
                             <div className="flex items-center gap-3">
                                 <Files className="text-blue-400 w-5 h-5" />
