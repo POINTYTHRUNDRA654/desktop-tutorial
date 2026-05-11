@@ -66,11 +66,11 @@ describe('InteractiveTutorial layout & navigation', () => {
     });
   });
 
-  it('uses a smaller visual guide height for AI (chat) and startup (first-success) pages', async () => {
+  it('uses a smaller visual guide height for AI (chat) and Journey Hub (project-hub) pages', async () => {
     // Determine the numeric step indices for the pages we want to assert
     const ordered = getOrderedTutorialContexts(tutorialContexts);
     const chatStep = 1 + ordered.findIndex((c) => c.pageId === 'ai-chat'); // +1 for the initial welcome step
-    const firstSuccessStep = 1 + ordered.findIndex((c) => c.pageId === 'first-success');
+    const projectHubStep = 1 + ordered.findIndex((c) => c.pageId === 'project-hub');
 
     // Render the tutorial directly at the AI Chat step by restoring saved progress
     localStorage.setItem('mossy_tutorial_step', chatStep.toString());
@@ -90,17 +90,17 @@ describe('InteractiveTutorial layout & navigation', () => {
     expect(wrapper).toBeTruthy();
     expect(wrapper?.className).toContain('max-h-[30vh]');
 
-    // Unmount the first instance and render the First Success step (non-pip)
+    // Unmount the first instance and render the Journey Hub (project-hub) step (non-pip)
     unmount();
-    localStorage.setItem('mossy_tutorial_step', firstSuccessStep.toString());
+    localStorage.setItem('mossy_tutorial_step', projectHubStep.toString());
 
-    const { unmount: unmountFs } = render(
+    const { unmount: unmountPh } = render(
       <MemoryRouter initialEntries={["/tutorial"]}>
         <InteractiveTutorial onComplete={() => {}} onSkip={() => {}} />
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(document.body.textContent).toContain('First Success'));
+    await waitFor(() => expect(document.body.textContent).toContain('FO4 Mod Journey Hub'));
     const finalHeroImg = document.querySelector('img[alt$="screenshot"]') as HTMLImageElement | null;
     expect(finalHeroImg).toBeTruthy();
     let finalWrapper: Element | null = finalHeroImg?.parentElement ?? null;
@@ -109,11 +109,10 @@ describe('InteractiveTutorial layout & navigation', () => {
     expect(finalWrapper?.className).toContain('max-h-[30vh]');
 
     // Cleanup the non-pip instance before starting Pip‑Boy checks
-    unmountFs();
+    unmountPh();
 
     // Now assert the even-more-compact sizing when Pip‑Boy frame is active
     // (render each step while `body.pip-boy-mode` is set)
-    unmount();
     document.body.classList.add('pip-boy-mode');
     localStorage.setItem('mossy_pip_mode', 'true');
 
@@ -139,7 +138,6 @@ describe('InteractiveTutorial layout & navigation', () => {
     let pipWrapper: Element | null = pipHeroImg?.parentElement ?? null;
     while (pipWrapper && !/max-h-/.test(pipWrapper.className)) pipWrapper = pipWrapper.parentElement;
     expect(pipWrapper).toBeTruthy();
-    // component should detect pip mode
     // component should detect pip mode (these four should be consistent)
     expect(pipWrapper?.getAttribute('data-prop-test-pip')).toBe('true');
     expect(pipWrapper?.getAttribute('data-pip-mode')).toBe('true');
@@ -148,15 +146,15 @@ describe('InteractiveTutorial layout & navigation', () => {
     expect(pipWrapper?.className).toContain('max-h-[26vh]');
     unmount2();
 
-    // First Success step inside Pip‑Boy
+    // Journey Hub (project-hub) step inside Pip‑Boy
     document.body.classList.add('pip-boy-mode');
-    localStorage.setItem('mossy_tutorial_step', firstSuccessStep.toString());
+    localStorage.setItem('mossy_tutorial_step', projectHubStep.toString());
     render(
       <MemoryRouter initialEntries={["/tutorial"]}>
         <InteractiveTutorial onComplete={() => {}} onSkip={() => {}} testPipMode={true} />
       </MemoryRouter>
     );
-    await waitFor(() => expect(document.body.textContent).toContain('First Success'));
+    await waitFor(() => expect(document.body.textContent).toContain('FO4 Mod Journey Hub'));
     const pipFinalHeroImg = document.querySelector('img[alt$="screenshot"]') as HTMLImageElement | null;
     expect(pipFinalHeroImg).toBeTruthy();
     let pipFinalWrapper: Element | null = pipFinalHeroImg?.parentElement ?? null;
