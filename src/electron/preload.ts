@@ -384,25 +384,32 @@ const isNoHandlerRegisteredError = (error: unknown): boolean => {
   return message.includes('No handler registered for');
 };
 
-const invokeWithFallback = async (channel: string, ...args: any[]): Promise<any> => {
+const OPTIONAL_IPC_CHANNELS = {
+  UPDATE_STATUS: 'get-update-status',
+  PLUGIN_LIST_INSTALLED: 'plugin-manager:list-installed',
+} as const;
+
+const invokeWithFallback = async <T = unknown>(channel: string, ...args: unknown[]): Promise<T> => {
   try {
-    return await ipcRenderer.invoke(channel, ...args);
+    return await ipcRenderer.invoke(channel, ...args) as T;
   } catch (error: unknown) {
     if (!isNoHandlerRegisteredError(error)) {
       throw error;
     }
 
-    console.warn(`[Preload] Missing IPC handler for '${channel}', returning fallback`);
-
     switch (channel) {
       case IPC_CHANNELS.SECRET_STATUS:
-        return { ok: false, error: 'Secret status unavailable' };
+        console.warn(`[Preload] Missing IPC handler for '${channel}', returning fallback`);
+        return { ok: false, error: 'Secret status unavailable' } as T;
       case IPC_CHANNELS.WHATS_NEW_GET_CURRENT:
-        return { ok: false, entry: null, error: 'What\'s New service unavailable' };
-      case 'get-update-status':
-        return { success: false, error: 'Auto-update status unavailable' };
-      case 'plugin-manager:list-installed':
-        return [];
+        console.warn(`[Preload] Missing IPC handler for '${channel}', returning fallback`);
+        return { ok: false, entry: null, error: 'What\'s New service unavailable' } as T;
+      case OPTIONAL_IPC_CHANNELS.UPDATE_STATUS:
+        console.warn(`[Preload] Missing IPC handler for '${channel}', returning fallback`);
+        return { success: false, error: 'Auto-update status unavailable' } as T;
+      case OPTIONAL_IPC_CHANNELS.PLUGIN_LIST_INSTALLED:
+        console.warn(`[Preload] Missing IPC handler for '${channel}', returning fallback`);
+        return [] as T;
       default:
         throw error;
     }
@@ -2392,7 +2399,7 @@ const electronAPI = {
    * Auto-Updater: Get current update status
    */
   getUpdateStatus: (): Promise<{ success: boolean; status?: any; error?: string }> => {
-    return invokeWithFallback('get-update-status');
+    return invokeWithFallback(OPTIONAL_IPC_CHANNELS.UPDATE_STATUS);
   },
 
   /**
@@ -3300,7 +3307,7 @@ const electronAPI = {
   // Platform 11: Plugin Manager API
   pluginManager: {
     listInstalled: (): Promise<any[]> =>
-      invokeWithFallback('plugin-manager:list-installed'),
+      invokeWithFallback(OPTIONAL_IPC_CHANNELS.PLUGIN_LIST_INSTALLED),
     installFromPath: (pluginPath: string): Promise<any> =>
       ipcRenderer.invoke('plugin-manager:install-from-path', pluginPath),
     listMarketplace: (): Promise<any[]> =>
