@@ -1624,11 +1624,16 @@ function setupIpcHandlers() {
     }
   };
 
-  // Helper for direct ipcMain.handle() with try-catch
+  // Helper for direct ipcMain.handle() with try-catch - also tracks in registeredHandlers Set
   const safeHandle = (channel: string, handler: any) => {
+    if (registeredHandlers.has(channel)) {
+      console.log(`[Main] ⚠️ Handler for '${channel}' already registered (safeHandle), skipping`);
+      return;
+    }
     try {
       console.log(`[Main] 📝 Registering handler for '${channel}'...`);
       ipcMain.handle(channel, handler);
+      registeredHandlers.add(channel);
       console.log(`[Main] ✅ Registered handler for '${channel}'`);
     } catch (error: any) {
       console.error(`[Main] ❌ FAILED to register '${channel}':`, error?.message || error);
@@ -2649,79 +2654,6 @@ function setupIpcHandlers() {
 
   registerHandler(IPC_CHANNELS.PROJECT_CREATE, async (_event, project: ModProject) => {
     saveProject(project);
-    return { ok: true };
-  });
-
-  registerHandler(IPC_CHANNELS.ROADMAP_GET_ALL, async (_event, projectId?: string) => {
-    return getRoadmaps(projectId);
-  });
-
-  registerHandler(IPC_CHANNELS.ROADMAP_CREATE, async (_event, roadmap: Roadmap) => {
-    saveRoadmap(roadmap);
-    return { ok: true };
-  });
-
-  registerHandler(IPC_CHANNELS.ROADMAP_GENERATE_AI, async (_event, payload: { prompt: string, projectId: string }) => {
-    try {
-      // For the demo/tester release, we use a template-based "AI" approach 
-      // if the prompt contains "rifle" or "weapon", or a generic one otherwise.
-      // In production, this would call the LLM with a schema-output prompt.
-
-      const prompt = payload.prompt.toLowerCase();
-      let steps: any[] = [];
-      let title = "Modding Roadmap";
-      let goal = payload.prompt;
-
-      if (prompt.includes('rifle') || prompt.includes('weapon') || prompt.includes('gun')) {
-        title = "standalone weapon creation";
-        steps = [
-          { id: '1', title: 'Conceptualize & Reference', description: 'Gather reference images and plan the weapon stats.', status: 'not-started', order: 1 },
-          { id: '2', title: 'High-Poly Modeling', description: 'Create detailed mesh in Blender.', status: 'not-started', tool: 'blender', order: 2 },
-          { id: '3', title: 'Low-Poly & UV Mapping', description: 'Optimize for game performance.', status: 'not-started', tool: 'blender', order: 3 },
-          { id: '4', title: 'Texture Generation', description: 'Create PBR textures (Albedo, Normal, MS).', status: 'not-started', tool: 'image-suite', order: 4 },
-          { id: '5', title: 'NIF Export & Setup', description: 'Export to NIF and setup nodes in NifSkope.', status: 'not-started', tool: 'nifskope', order: 5 },
-          { id: '6', title: 'ESP Implementation', description: 'Add weapon records to Fallout 4.', status: 'not-started', tool: 'ck', order: 6 },
-          { id: '7', title: 'Scripting & Effects', description: 'Add custom firing logic or reload animations.', status: 'not-started', tool: 'scribe', order: 7 }
-        ];
-      } else {
-        title = "Mod Development Roadmap";
-        steps = [
-          { id: '1', title: 'Setup Project', description: 'Initialize folders and resources.', status: 'in-progress', order: 1 },
-          { id: '2', title: 'Asset Creation', description: 'Create models and textures.', status: 'not-started', tool: 'blender', order: 2 },
-          { id: '3', title: 'Game Integration', description: 'Import assets into the game engine.', status: 'not-started', tool: 'ck', order: 3 },
-          { id: '4', title: 'Testing & Refinement', description: 'Verify in-game and fix issues.', status: 'not-started', order: 4 }
-        ];
-      }
-
-      const roadmap: Roadmap = {
-        id: `rm-${Date.now()}`,
-        projectId: payload.projectId,
-        title,
-        goal,
-        steps,
-        currentStepId: steps[0].id,
-        isCustom: true,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      };
-
-      saveRoadmap(roadmap);
-      return { ok: true, roadmap };
-    } catch (e: any) {
-      return { ok: false, error: String(e?.message || e) };
-    }
-  });
-
-  registerHandler(IPC_CHANNELS.ROADMAP_UPDATE_STEP, async (_event, payload: { roadmapId: string, stepId: string, status: string }) => {
-    const roadmaps = getRoadmaps();
-    const roadmap = roadmaps.find(r => r.id === payload.roadmapId);
-    if (!roadmap) return { ok: false, error: 'Roadmap not found' };
-
-    const step = roadmap.steps.find(s => s.id === payload.stepId);
-    if (!step) return { ok: false, error: 'Step not found' };
-
-    step.status = payload.status as any;
-    saveRoadmap(roadmap);
     return { ok: true };
   });
 
@@ -4964,34 +4896,6 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
-  // --- Chat History: Persist conversation to userData/chat-history.json ---
-  // Ensures the user's chat history with Mossy survives reinstalls and
-  // localStorage clears, using the same dual-persistence pattern.
-  registerHandler(IPC_CHANNELS.SAVE_CHAT_HISTORY, async (_event, messages: unknown) => {
-    try {
-      const file = path.join(app.getPath('userData'), 'chat-history.json');
-      const data = Array.isArray(messages) ? messages : [];
-      fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
-      return { ok: true };
-    } catch (e: any) {
-      console.error('[Main] save-chat-history error:', e);
-      return { ok: false, error: String(e?.message || e) };
-    }
-  });
-
-  registerHandler(IPC_CHANNELS.LOAD_CHAT_HISTORY, async () => {
-    try {
-      const file = path.join(app.getPath('userData'), 'chat-history.json');
-      if (!fs.existsSync(file)) return [];
-      const raw = fs.readFileSync(file, 'utf-8');
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e: any) {
-      console.error('[Main] load-chat-history error:', e);
-      return [];
-    }
-  });
-
   // --- Vault: Get DDS width/height (read header) ---
   registerHandler(IPC_CHANNELS.VAULT_GET_DDS_DIMENSIONS, async (_event, filePathStr: string) => {
     try {
@@ -5161,22 +5065,6 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     });
     if (result.canceled || !result.filePaths?.length) return [];
     return result.filePaths;
-  });
-
-  // --- DDS Converter: Pick texture file(s) via native dialog ---
-  registerHandler(IPC_CHANNELS.DDS_CONVERTER_PICK_FILES, async (_event) => {
-    const result = await dialog.showOpenDialog({
-      title: 'Select Texture File(s)',
-      properties: ['openFile', 'multiSelections'],
-      filters: [
-        { name: 'Texture Files', extensions: ['dds', 'png', 'tga', 'bmp', 'jpg', 'jpeg'] },
-        { name: 'DDS Files', extensions: ['dds'] },
-        { name: 'PNG Files', extensions: ['png'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
-    });
-    if (result.canceled || !result.filePaths?.length) return { success: false };
-    return { success: true, paths: result.filePaths };
   });
 
   // --- DDS Converter: Convert single texture ---
@@ -6613,114 +6501,6 @@ end.
     }
   });
 
-  // --- Install Script: xEdit .pas or Papyrus .psc ---
-  registerHandler(IPC_CHANNELS.INSTALL_SCRIPT, async (_event, type: string, name: string, content: string) => {
-    const startTime = Date.now();
-    try {
-      const settings = loadSettings() || {};
-      let targetDir = '';
-      let toolName = '';
-      
-      if (type === 'xedit') {
-        toolName = 'xEdit';
-        if (!settings?.xeditPath) {
-          const error = new Error('xEdit path not configured in settings');
-          auditLogger.log({
-            operation: 'script-installation',
-            tool: 'xedit',
-            action: 'install-script',
-            status: 'error',
-            duration: Date.now() - startTime,
-            error: error.message,
-            details: { scriptName: name, scriptType: type }
-          });
-          throw error;
-        }
-        const xeditDir = path.dirname(settings.xeditPath);
-        const scriptsDir = path.join(xeditDir, 'Edit Scripts');
-        
-        // Ensure directory exists
-        if (!fs.existsSync(scriptsDir)) {
-          fs.mkdirSync(scriptsDir, { recursive: true });
-        }
-        
-        targetDir = path.join(scriptsDir, `${name}.pas`);
-        fs.writeFileSync(targetDir, content, 'utf-8');
-        console.log(`[install-script] ${toolName} script installed:`, targetDir);
-        
-        auditLogger.log({
-          operation: 'script-installation',
-          tool: 'xedit',
-          action: 'install-script',
-          status: 'success',
-          duration: Date.now() - startTime,
-          result: { path: targetDir, size: content.length },
-          details: { scriptName: name, scriptType: type }
-        });
-        
-      } else if (type === 'papyrus') {
-        toolName = 'Papyrus (CK)';
-        if (!settings?.creationKitPath) {
-          const error = new Error('Creation Kit path not configured in settings');
-          auditLogger.log({
-            operation: 'script-installation',
-            tool: 'ck',
-            action: 'install-script',
-            status: 'error',
-            duration: Date.now() - startTime,
-            error: error.message,
-            details: { scriptName: name, scriptType: type }
-          });
-          throw error;
-        }
-        const ckDir = path.dirname(settings.creationKitPath);
-        const scriptsDir = path.join(ckDir, 'Data', 'Scripts', 'Source');
-        
-        // Ensure directory exists
-        if (!fs.existsSync(scriptsDir)) {
-          fs.mkdirSync(scriptsDir, { recursive: true });
-        }
-        
-        targetDir = path.join(scriptsDir, `${name}.psc`);
-        fs.writeFileSync(targetDir, content, 'utf-8');
-        console.log(`[install-script] ${toolName} script installed:`, targetDir);
-        
-        auditLogger.log({
-          operation: 'script-installation',
-          tool: 'ck',
-          action: 'install-script',
-          status: 'success',
-          duration: Date.now() - startTime,
-          result: { path: targetDir, size: content.length },
-          details: { scriptName: name, scriptType: type }
-        });
-        
-      } else {
-        throw new Error(`Unknown script type: ${type}`);
-      }
-      
-      return { success: true, path: targetDir };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[install-script] Error:', errMsg);
-      
-      // Only log if not already logged above
-      if (error.message && !error.message.includes('configured in settings')) {
-        auditLogger.log({
-          operation: 'script-installation',
-          tool: type || 'unknown',
-          action: 'install-script',
-          status: 'error',
-          duration: Date.now() - startTime,
-          error: errMsg,
-          details: { scriptName: name, scriptType: type }
-        });
-      }
-      
-      return { success: false, error: errMsg };
-    }
-  });
-
   // --- FS: Stat path (exists/isFile/isDirectory) ---
   ipcMain.handle('fs-stat', async (_event, targetPath: string) => {
     try {
@@ -6736,29 +6516,6 @@ end.
       return { exists: true, isFile: st.isFile(), isDirectory: st.isDirectory() };
     } catch {
       return { exists: false, isFile: false, isDirectory: false };
-    }
-  });
-
-  // --- FS: Pick directory (native dialog) ---
-  ipcMain.handle('pick-directory', async (_event, title?: string) => {
-    try {
-      if (!mainWindow) {
-        return '';
-      }
-
-      const result = await dialog.showOpenDialog(mainWindow, {
-        title: title || 'Select a folder',
-        properties: ['openDirectory', 'createDirectory']
-      });
-
-      if (result.canceled || result.filePaths.length === 0) {
-        return '';
-      }
-
-      return result.filePaths[0];
-    } catch (e: any) {
-      console.error('[pick-directory] Dialog error:', e);
-      return '';
     }
   });
 
@@ -7368,72 +7125,6 @@ end.
     } catch (err) {
       console.error('Script parse error:', err);
       return { imports: [], references: [] };
-    }
-  });
-
-  // --- Image Suite: Get image info ---
-  registerHandler(IPC_CHANNELS.IMAGE_GET_INFO, async (_event, filePath: string) => {
-    try {
-      // For real implementation, would use image-size library
-      // For now, return basic PNG/JPG dimensions via buffer inspection
-      const buffer = fs.readFileSync(filePath);
-
-      let width = 0, height = 0, format = 'unknown';
-      const colorSpace = 'RGB';
-
-      // Simple PNG detection: PNG signature is 89 50 4E 47
-      if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
-        format = 'PNG';
-        // PNG width/height at bytes 16-24 (big-endian)
-        width = buffer.readUInt32BE(16);
-        height = buffer.readUInt32BE(20);
-      }
-      // JPEG detection: FF D8 FF
-      else if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
-        format = 'JPEG';
-        // For JPEG, do a more complex scan for SOF0 marker
-        let offset = 2;
-        while (offset < buffer.length - 9) {
-          if (buffer[offset] === 0xFF) {
-            const marker = buffer[offset + 1];
-            // SOF0 (0xC0), SOF1 (0xC1), SOF2 (0xC2)
-            if (marker === 0xC0 || marker === 0xC1 || marker === 0xC2) {
-              height = buffer.readUInt16BE(offset + 5);
-              width = buffer.readUInt16BE(offset + 7);
-              break;
-            }
-            // Skip this segment
-            const segmentLength = buffer.readUInt16BE(offset + 2);
-            offset += segmentLength + 2;
-          } else {
-            offset++;
-          }
-        }
-      }
-      // TGA detection: check for TGA footer
-      else if (buffer.length > 18 && buffer.toString('ascii', buffer.length - 18).includes('TRUEVISION')) {
-        format = 'TGA';
-        // TGA width at byte 12, height at byte 14 (little-endian)
-        width = buffer.readUInt16LE(12);
-        height = buffer.readUInt16LE(14);
-      }
-      // DDS detection: DDS signature is 'DDS '
-      else if (buffer[0] === 0x44 && buffer[1] === 0x44 && buffer[2] === 0x53 && buffer[3] === 0x20) {
-        format = 'DDS';
-        // DDS width at byte 16, height at byte 12 (little-endian)
-        height = buffer.readUInt32LE(12);
-        width = buffer.readUInt32LE(16);
-      }
-
-      return {
-        width,
-        height,
-        format,
-        colorSpace
-      };
-    } catch (err) {
-      console.error('Image info error:', err);
-      return null;
     }
   });
 
@@ -27797,66 +27488,6 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  // Execute script
-  registerHandler(IPC_CHANNELS.XEDIT_SCRIPT_EXECUTE, async (event, xEditPath: string, plugin: string, scriptId: string) => {
-    const startTime = Date.now();
-
-    return new Promise((resolve) => {
-      try {
-        const xedit = spawn(xEditPath, ['-quickautoclean', '-autoload', plugin]);
-
-        let output = '';
-        let errors: string[] = [];
-        let warnings: string[] = [];
-
-        xedit.stdout?.on('data', (data) => {
-          const text = data.toString();
-          output += text;
-          event.sender.send('xedit-progress', {
-            progress: 50,
-            text: 'Processing...'
-          });
-
-          if (text.toLowerCase().includes('warning')) {
-            warnings.push(text.trim());
-          }
-        });
-
-        xedit.stderr?.on('data', (data) => {
-          errors.push(data.toString());
-        });
-
-        xedit.on('close', (code) => {
-          resolve({
-            success: code === 0,
-            output,
-            errors,
-            warnings,
-            duration: (Date.now() - startTime) / 1000
-          });
-        });
-
-        xedit.on('error', (err) => {
-          resolve({
-            success: false,
-            output: '',
-            errors: [err.message],
-            warnings: [],
-            duration: (Date.now() - startTime) / 1000
-          });
-        });
-      } catch (error) {
-        resolve({
-          success: false,
-          output: '',
-          errors: [error instanceof Error ? error.message : String(error)],
-          warnings: [],
-          duration: (Date.now() - startTime) / 1000
-        });
-      }
-    });
-  });
-
   // =========================================================================
   // PROJECT TEMPLATES HANDLERS (Feature 5)
   // =========================================================================
@@ -29877,14 +29508,6 @@ ${steps}
     return { ok: true };
   });
 
-  // ── CK path pickers (missing one) ────────────────────────────────────────
-
-  ipcMain.handle('ck-pick-fallout4-folder', async () => {
-    const result = await dialog.showOpenDialog({ title: 'Select Fallout 4 Folder', properties: ['openDirectory'] });
-    if (result.canceled || !result.filePaths?.length) return '';
-    return result.filePaths[0];
-  });
-
   // ── Load Order vortex profile dir ─────────────────────────────────────────
 
   registerHandler(IPC_CHANNELS.LOAD_ORDER_PICK_VORTEX_PROFILE_DIR, async () => {
@@ -31004,53 +30627,6 @@ ${steps}
       });
     } catch (error) {
       console.error('[xEdit Script Execute] Error:', error);
-      return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
-    }
-  });
-
-  registerHandler('ck-plugin-validate', async (_event, pluginPath: string) => {
-    try {
-      const validation = IpcValidation.isValidFilePath(pluginPath);
-      if (!validation.valid) return IpcResponseBuilder.error(validation.error, IpcErrorCode.EINVAL);
-      if (!fs.existsSync(pluginPath)) {
-        return IpcResponseBuilder.error('Plugin file not found', IpcErrorCode.ENOENT);
-      }
-
-      const stat = fs.statSync(pluginPath);
-      const ext = path.extname(pluginPath).toLowerCase();
-      
-      // Basic validation: check if it's a valid ESP/ESM/ESL
-      if (!['.esp', '.esm', '.esl'].includes(ext)) {
-        return IpcResponseBuilder.error('Invalid plugin extension. Must be .esp, .esm, or .esl', IpcErrorCode.INVALID_ASSET);
-      }
-
-      // File size validation (CK can have issues with extremely large files)
-      const fileSizeMB = stat.size / (1024 * 1024);
-      const warnings: string[] = [];
-      
-      if (fileSizeMB > 100) {
-        warnings.push(`Large file (${fileSizeMB.toFixed(2)}MB) - may cause CK to slow down`);
-      }
-      if (stat.size === 0) {
-        return IpcResponseBuilder.error('Plugin file is empty', IpcErrorCode.INVALID_ASSET);
-      }
-      if (stat.size < 100) {
-        warnings.push('Very small plugin - may not have proper TES4 header');
-      }
-
-      console.log(`[CK Plugin Validate] ${path.basename(pluginPath)}: ${fileSizeMB.toFixed(2)}MB, warnings=${warnings.length}`);
-
-      return IpcResponseBuilder.success({
-        valid: true,
-        path: pluginPath,
-        size: stat.size,
-        sizeMB: fileSizeMB,
-        extension: ext.slice(1),
-        warnings,
-        canOpenInCK: warnings.length === 0 && stat.size > 0,
-      });
-    } catch (error) {
-      console.error('[CK Plugin Validate] Error:', error);
       return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
     }
   });
