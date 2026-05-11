@@ -379,6 +379,36 @@ const IPC_CHANNELS = {
   SYSTEM_METRICS_SUBSCRIBE: 'system-metrics-subscribe',
 } as const;
 
+const isNoHandlerRegisteredError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return message.includes('No handler registered for');
+};
+
+const invokeWithFallback = async (channel: string, ...args: any[]): Promise<any> => {
+  try {
+    return await ipcRenderer.invoke(channel, ...args);
+  } catch (error: unknown) {
+    if (!isNoHandlerRegisteredError(error)) {
+      throw error;
+    }
+
+    console.warn(`[Preload] Missing IPC handler for '${channel}', returning fallback`);
+
+    switch (channel) {
+      case IPC_CHANNELS.SECRET_STATUS:
+        return { ok: false, error: 'Secret status unavailable' };
+      case IPC_CHANNELS.WHATS_NEW_GET_CURRENT:
+        return { ok: false, entry: null, error: 'What\'s New service unavailable' };
+      case 'get-update-status':
+        return { success: false, error: 'Auto-update status unavailable' };
+      case 'plugin-manager:list-installed':
+        return [];
+      default:
+        throw error;
+    }
+  }
+};
+
 /**
  * Exposed API that will be available on window.electron.api
  */
@@ -2272,7 +2302,7 @@ const electronAPI = {
     | { ok: true; openai: boolean; groq: boolean; backendToken: boolean }
     | { ok: false; error: string }
   > => {
-    return ipcRenderer.invoke(IPC_CHANNELS.SECRET_STATUS);
+    return invokeWithFallback(IPC_CHANNELS.SECRET_STATUS);
   },
 
   /**
@@ -2362,7 +2392,7 @@ const electronAPI = {
    * Auto-Updater: Get current update status
    */
   getUpdateStatus: (): Promise<{ success: boolean; status?: any; error?: string }> => {
-    return ipcRenderer.invoke('get-update-status');
+    return invokeWithFallback('get-update-status');
   },
 
   /**
@@ -2823,7 +2853,7 @@ const electronAPI = {
    * Generic IPC: Invoke a command in the main process
    */
   invoke: (channel: string, ...args: any[]): Promise<any> => {
-    return ipcRenderer.invoke(channel, ...args);
+    return invokeWithFallback(channel, ...args);
   },
 
   /**
@@ -3270,7 +3300,7 @@ const electronAPI = {
   // Platform 11: Plugin Manager API
   pluginManager: {
     listInstalled: (): Promise<any[]> =>
-      ipcRenderer.invoke('plugin-manager:list-installed'),
+      invokeWithFallback('plugin-manager:list-installed'),
     installFromPath: (pluginPath: string): Promise<any> =>
       ipcRenderer.invoke('plugin-manager:install-from-path', pluginPath),
     listMarketplace: (): Promise<any[]> =>
@@ -4264,4 +4294,3 @@ ipcRenderer.on('main:diagnostics', (_event, diagnostics) => {
  * - Always sanitize user input before processing
  * - Never trust data from the renderer process
  */
-
