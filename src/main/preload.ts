@@ -44,13 +44,41 @@ const IPC_CHANNELS = {
   BRIDGE_ACTIVITY: 'bridge-activity',
 } as const;
 
+const isNoHandlerRegisteredError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return message.includes('No handler registered for');
+};
+
+const invokeWithFallback = async (channel: string, ...args: any[]): Promise<any> => {
+  try {
+    return await ipcRenderer.invoke(channel, ...args);
+  } catch (error: unknown) {
+    if (!isNoHandlerRegisteredError(error)) {
+      throw error;
+    }
+
+    switch (channel) {
+      case 'plugin-manager:list-installed':
+        return [];
+      case 'whats-new-get-current':
+        return { ok: false, entry: null, error: 'What\'s New service unavailable' };
+      case 'get-update-status':
+        return { success: false, error: 'Auto-update status unavailable' };
+      case 'secret-status':
+        return { ok: false, error: 'Secret status unavailable' };
+      default:
+        throw error;
+    }
+  }
+};
+
 /**
  * Exposed API that will be available on window.electronAPI
  * Only use contextBridge and ipcRenderer. No Node.js require/import allowed.
  */
 const electronAPI: ElectronAPI = {
     // Generic IPC
-    invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
+    invoke: (channel: string, ...args: any[]) => invokeWithFallback(channel, ...args),
     send: (channel: string, ...args: any[]) => ipcRenderer.send(channel, ...args),
     on: (channel: string, callback: (...args: any[]) => void) => {
       const subscription = (_event: any, ...args: any[]) => callback(...args);
@@ -781,7 +809,7 @@ const electronAPI: ElectronAPI = {
 
   // What's New (Platform 7)
   whatsNewGetAll: () => ipcRenderer.invoke('whats-new-get-all'),
-  whatsNewGetCurrent: () => ipcRenderer.invoke('whats-new-get-current'),
+  whatsNewGetCurrent: () => invokeWithFallback('whats-new-get-current'),
   whatsNewGetChangelog: () => ipcRenderer.invoke('whats-new-get-changelog'),
   whatsNewMarkSeen: (version: string) => ipcRenderer.invoke('whats-new-mark-seen', { version }),
   whatsNewDismiss: (version: string) => ipcRenderer.invoke('whats-new-dismiss', { version }),
@@ -903,7 +931,7 @@ const electronAPI: ElectronAPI = {
 
   // Platform 11: Plugin Manager API
   pluginManager: {
-    listInstalled: () => ipcRenderer.invoke('plugin-manager:list-installed'),
+    listInstalled: () => invokeWithFallback('plugin-manager:list-installed'),
     listMarketplace: () => ipcRenderer.invoke('plugin-manager:list-marketplace'),
     install: (pluginId: string, version: string) => ipcRenderer.invoke('plugin-manager:install', pluginId, version),
     uninstall: (pluginId: string) => ipcRenderer.invoke('plugin-manager:uninstall', pluginId),
@@ -1094,4 +1122,3 @@ contextBridge.exposeInMainWorld('electronAPI', electronAPI);
  * - Always sanitize user input before processing
  * - Never trust data from the renderer process
  */
-
