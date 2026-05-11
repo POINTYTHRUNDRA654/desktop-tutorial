@@ -385,6 +385,8 @@ const isNoHandlerRegisteredError = (error: unknown): boolean => {
 };
 
 const OPTIONAL_IPC_CHANNELS = {
+  SECRET_STATUS: IPC_CHANNELS.SECRET_STATUS,
+  WHATS_NEW_GET_CURRENT: IPC_CHANNELS.WHATS_NEW_GET_CURRENT,
   UPDATE_STATUS: 'get-update-status',
   PLUGIN_LIST_INSTALLED: 'plugin-manager:list-installed',
 } as const;
@@ -398,10 +400,10 @@ const invokeWithFallback = async <T = unknown>(channel: string, ...args: unknown
     }
 
     switch (channel) {
-      case IPC_CHANNELS.SECRET_STATUS:
+      case OPTIONAL_IPC_CHANNELS.SECRET_STATUS:
         console.warn(`[Preload] Missing IPC handler for '${channel}', returning fallback`);
         return { ok: false, error: 'Secret status unavailable' } as T;
-      case IPC_CHANNELS.WHATS_NEW_GET_CURRENT:
+      case OPTIONAL_IPC_CHANNELS.WHATS_NEW_GET_CURRENT:
         console.warn(`[Preload] Missing IPC handler for '${channel}', returning fallback`);
         return { ok: false, entry: null, error: 'What\'s New service unavailable' } as T;
       case OPTIONAL_IPC_CHANNELS.UPDATE_STATUS:
