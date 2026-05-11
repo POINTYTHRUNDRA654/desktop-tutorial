@@ -3866,6 +3866,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'first-success': {
     pageId: 'first-success',
     pageName: 'First Success Wizard',
+    visualGuidePage: 4,
     route: '/journey-hub',
     purpose: 'Guide you through the core onboarding checklist so Mossy can personalize help',
     features: [
