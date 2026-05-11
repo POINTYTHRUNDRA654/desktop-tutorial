@@ -49,23 +49,30 @@ const isNoHandlerRegisteredError = (error: unknown): boolean => {
   return message.includes('No handler registered for');
 };
 
-const invokeWithFallback = async (channel: string, ...args: any[]): Promise<any> => {
+const OPTIONAL_IPC_CHANNELS = {
+  UPDATE_STATUS: 'get-update-status',
+  PLUGIN_LIST_INSTALLED: 'plugin-manager:list-installed',
+  WHATS_NEW_GET_CURRENT: 'whats-new-get-current',
+  SECRET_STATUS: 'secret-status',
+} as const;
+
+const invokeWithFallback = async <T = unknown>(channel: string, ...args: unknown[]): Promise<T> => {
   try {
-    return await ipcRenderer.invoke(channel, ...args);
+    return await ipcRenderer.invoke(channel, ...args) as T;
   } catch (error: unknown) {
     if (!isNoHandlerRegisteredError(error)) {
       throw error;
     }
 
     switch (channel) {
-      case 'plugin-manager:list-installed':
-        return [];
-      case 'whats-new-get-current':
-        return { ok: false, entry: null, error: 'What\'s New service unavailable' };
-      case 'get-update-status':
-        return { success: false, error: 'Auto-update status unavailable' };
-      case 'secret-status':
-        return { ok: false, error: 'Secret status unavailable' };
+      case OPTIONAL_IPC_CHANNELS.PLUGIN_LIST_INSTALLED:
+        return [] as T;
+      case OPTIONAL_IPC_CHANNELS.WHATS_NEW_GET_CURRENT:
+        return { ok: false, entry: null, error: 'What\'s New service unavailable' } as T;
+      case OPTIONAL_IPC_CHANNELS.UPDATE_STATUS:
+        return { success: false, error: 'Auto-update status unavailable' } as T;
+      case OPTIONAL_IPC_CHANNELS.SECRET_STATUS:
+        return { ok: false, error: 'Secret status unavailable' } as T;
       default:
         throw error;
     }
@@ -809,7 +816,7 @@ const electronAPI: ElectronAPI = {
 
   // What's New (Platform 7)
   whatsNewGetAll: () => ipcRenderer.invoke('whats-new-get-all'),
-  whatsNewGetCurrent: () => invokeWithFallback('whats-new-get-current'),
+  whatsNewGetCurrent: () => invokeWithFallback(OPTIONAL_IPC_CHANNELS.WHATS_NEW_GET_CURRENT),
   whatsNewGetChangelog: () => ipcRenderer.invoke('whats-new-get-changelog'),
   whatsNewMarkSeen: (version: string) => ipcRenderer.invoke('whats-new-mark-seen', { version }),
   whatsNewDismiss: (version: string) => ipcRenderer.invoke('whats-new-dismiss', { version }),
@@ -931,7 +938,7 @@ const electronAPI: ElectronAPI = {
 
   // Platform 11: Plugin Manager API
   pluginManager: {
-    listInstalled: () => invokeWithFallback('plugin-manager:list-installed'),
+    listInstalled: () => invokeWithFallback(OPTIONAL_IPC_CHANNELS.PLUGIN_LIST_INSTALLED),
     listMarketplace: () => ipcRenderer.invoke('plugin-manager:list-marketplace'),
     install: (pluginId: string, version: string) => ipcRenderer.invoke('plugin-manager:install', pluginId, version),
     uninstall: (pluginId: string) => ipcRenderer.invoke('plugin-manager:uninstall', pluginId),
