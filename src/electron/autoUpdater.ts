@@ -126,10 +126,19 @@ export class AutoUpdaterService {
     });
 
     this.autoUpdater.on('error', (err) => {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      if (errorMsg.includes('404') || errorMsg.includes('Cannot find latest.yml')) {
+        console.log('[AutoUpdater] No release found on GitHub yet (expected in dev) - skipping');
+        this.status.checking = false;
+        this.status.downloading = false;
+        this.status.error = null;
+        this.sendStatusToRenderer();
+        return;
+      }
       console.error('[AutoUpdater] Error:', err);
       this.status.checking = false;
       this.status.downloading = false;
-      this.status.error = err.message;
+      this.status.error = errorMsg;
       this.sendStatusToRenderer();
     });
 
