@@ -481,10 +481,16 @@ body.pip-boy-mode textarea:focus {
   top: -60px;
   left: 50%;
   transform: translateX(-50%);
-  opacity: 0.6;
+  opacity: 0.28;
   pointer-events: none;
   filter: drop-shadow(0 0 24px rgba(16, 185, 129, 0.35));
-  z-index: 0;
+  z-index: -2;
+}
+
+body.pip-boy-mode .mossy-face-prop {
+  opacity: 0.14;
+  z-index: -4;
+  filter: saturate(0.8) brightness(0.7) drop-shadow(0 0 18px rgba(230, 176, 74, 0.2));
 }
 
 /* Force hide mossy face during tutorial and guided tours */
