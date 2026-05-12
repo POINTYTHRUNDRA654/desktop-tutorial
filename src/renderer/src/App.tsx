@@ -32,6 +32,7 @@ import AvatarCore from './AvatarCore';
 import { GlobalSearch } from './GlobalSearch';
 import { useWhatsNew } from './WhatsNewDialog';
 import WhatsNewPage from './WhatsNewPage';
+import { getPublicAssetUrl } from './utils/publicAssetUrl';
 import {
   backupCriticalProgressSnapshotSync,
   backupCriticalProgressToDisk,
@@ -818,8 +819,7 @@ const App: React.FC = () => {
       }
 
       try {
-        const base = import.meta.env.BASE_URL || './';
-        const resp = await fetch(`${base}bundled-knowledge/core-tutorials.json`, { cache: 'no-cache' });
+        const resp = await fetch(getPublicAssetUrl('bundled-knowledge/core-tutorials.json'), { cache: 'no-cache' });
         if (!resp.ok) return;
         const data = await resp.json();
         const seedItems = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
