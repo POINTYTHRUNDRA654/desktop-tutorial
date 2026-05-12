@@ -199,6 +199,97 @@ const sendDiagnosticsToRenderer = (webContents: any) => {
   webContents.send('main:diagnostics', diagnostics);
 }
 
+const getDdsConversionPresets = () => [
+  {
+    id: 'fo4-diffuse-2k',
+    name: 'Fallout 4 Diffuse (2K)',
+    format: 'DDS',
+    compression: 'BC1/DXT1',
+    width: 2048,
+    height: 2048,
+    mipmaps: true,
+    colorSpace: 'sRGB',
+    description: 'Standard 2K diffuse/albedo texture for Fallout 4'
+  },
+  {
+    id: 'fo4-diffuse-4k',
+    name: 'Fallout 4 Diffuse (4K)',
+    format: 'DDS',
+    compression: 'BC1/DXT1',
+    width: 4096,
+    height: 4096,
+    mipmaps: true,
+    colorSpace: 'sRGB',
+    description: 'High-quality 4K diffuse/albedo texture for Fallout 4'
+  },
+  {
+    id: 'fo4-normal-2k',
+    name: 'Fallout 4 Normal Map (2K)',
+    format: 'DDS',
+    compression: 'BC5/DXT5',
+    width: 2048,
+    height: 2048,
+    mipmaps: true,
+    colorSpace: 'Linear',
+    description: 'Standard 2K normal map for Fallout 4'
+  },
+  {
+    id: 'fo4-normal-4k',
+    name: 'Fallout 4 Normal Map (4K)',
+    format: 'DDS',
+    compression: 'BC5/DXT5',
+    width: 4096,
+    height: 4096,
+    mipmaps: true,
+    colorSpace: 'Linear',
+    description: 'High-quality 4K normal map for Fallout 4'
+  },
+  {
+    id: 'fo4-roughness-2k',
+    name: 'Fallout 4 Roughness (2K)',
+    format: 'DDS',
+    compression: 'BC4',
+    width: 2048,
+    height: 2048,
+    mipmaps: true,
+    colorSpace: 'Linear',
+    description: 'Standard 2K roughness map for Fallout 4'
+  },
+  {
+    id: 'fo4-roughness-4k',
+    name: 'Fallout 4 Roughness (4K)',
+    format: 'DDS',
+    compression: 'BC4',
+    width: 4096,
+    height: 4096,
+    mipmaps: true,
+    colorSpace: 'Linear',
+    description: 'High-quality 4K roughness map for Fallout 4'
+  },
+  {
+    id: 'generic-png',
+    name: 'Generic PNG',
+    format: 'PNG',
+    compression: 'None',
+    width: 2048,
+    height: 2048,
+    mipmaps: false,
+    colorSpace: 'sRGB',
+    description: 'Standard PNG texture (no compression)'
+  },
+  {
+    id: 'generic-tga',
+    name: 'Generic TGA',
+    format: 'TGA',
+    compression: 'None',
+    width: 2048,
+    height: 2048,
+    mipmaps: false,
+    colorSpace: 'sRGB',
+    description: 'Standard TGA texture (no compression)'
+  }
+];
+
 console.log('[Main] OPENAI_API_KEY loaded:', !!process.env.OPENAI_API_KEY);
 console.log('[Main] GROQ_API_KEY loaded:', !!process.env.GROQ_API_KEY);
 console.log('[Main] MOSSY_BACKEND_URL:', process.env.MOSSY_BACKEND_URL || '(not set)');
@@ -1646,6 +1737,61 @@ function setupIpcHandlers() {
       console.error(`[Main] ❌ FAILED to force-register '${channel}':`, error?.message || error);
     }
   };
+
+  const loadStoredXEditPath = () => {
+    try {
+      const settingsPath = path.join(app.getPath('userData'), 'xedit-settings.json');
+      if (!fs.existsSync(settingsPath)) {
+        return null;
+      }
+
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+      return typeof settings.xEditPath === 'string' ? settings.xEditPath : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const getKnownFallout4Plugins = () => {
+    try {
+      const dataPath = path.join(process.env.USERPROFILE || process.env.HOME || '', 'Documents', 'My Games', 'Fallout4');
+      if (!fs.existsSync(dataPath)) {
+        return [];
+      }
+
+      const files = fs.readdirSync(dataPath);
+      return files.filter(f => f.endsWith('.esp') || f.endsWith('.esm') || f.endsWith('.esl'));
+    } catch {
+      return [];
+    }
+  };
+
+  forceHandle('dds-converter:get-all-presets', async () => {
+    try {
+      const presets = getDdsConversionPresets();
+      console.log('[DDS Converter] Returning', presets.length, 'conversion presets');
+      return {
+        success: true,
+        presets,
+        count: presets.length
+      };
+    } catch (e: any) {
+      console.error('[DDS Converter] Get presets error:', e);
+      return { success: false, presets: [], error: e?.message || 'Failed to get presets' };
+    }
+  });
+
+  forceHandle('get-app-version', async () => {
+    try {
+      return { success: true, version: autoUpdaterService.getCurrentVersion() };
+    } catch (error) {
+      console.error('[Main] get-app-version error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.XEDIT_SCRIPT_GET_XEDIT_PATH, async () => loadStoredXEditPath());
+  registerHandler(IPC_CHANNELS.XEDIT_SCRIPT_GET_PLUGIN_LIST, async () => getKnownFallout4Plugins());
 
   // Global mining state tracker - used by mining handlers
   let miningState: {
@@ -5344,100 +5490,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // --- DDS Converter: Get all conversion presets ---
-  ipcMain.handle('dds-converter:get-all-presets', async () => {
+  forceHandle('dds-converter:get-all-presets', async () => {
     try {
-      // Standard DDS/texture conversion presets for Fallout 4 modding
-      const presets = [
-        {
-          id: 'fo4-diffuse-2k',
-          name: 'Fallout 4 Diffuse (2K)',
-          format: 'DDS',
-          compression: 'BC1/DXT1',
-          width: 2048,
-          height: 2048,
-          mipmaps: true,
-          colorSpace: 'sRGB',
-          description: 'Standard 2K diffuse/albedo texture for Fallout 4'
-        },
-        {
-          id: 'fo4-diffuse-4k',
-          name: 'Fallout 4 Diffuse (4K)',
-          format: 'DDS',
-          compression: 'BC1/DXT1',
-          width: 4096,
-          height: 4096,
-          mipmaps: true,
-          colorSpace: 'sRGB',
-          description: 'High-quality 4K diffuse/albedo texture for Fallout 4'
-        },
-        {
-          id: 'fo4-normal-2k',
-          name: 'Fallout 4 Normal Map (2K)',
-          format: 'DDS',
-          compression: 'BC5/DXT5',
-          width: 2048,
-          height: 2048,
-          mipmaps: true,
-          colorSpace: 'Linear',
-          description: 'Standard 2K normal map for Fallout 4'
-        },
-        {
-          id: 'fo4-normal-4k',
-          name: 'Fallout 4 Normal Map (4K)',
-          format: 'DDS',
-          compression: 'BC5/DXT5',
-          width: 4096,
-          height: 4096,
-          mipmaps: true,
-          colorSpace: 'Linear',
-          description: 'High-quality 4K normal map for Fallout 4'
-        },
-        {
-          id: 'fo4-roughness-2k',
-          name: 'Fallout 4 Roughness (2K)',
-          format: 'DDS',
-          compression: 'BC4',
-          width: 2048,
-          height: 2048,
-          mipmaps: true,
-          colorSpace: 'Linear',
-          description: 'Standard 2K roughness map for Fallout 4'
-        },
-        {
-          id: 'fo4-roughness-4k',
-          name: 'Fallout 4 Roughness (4K)',
-          format: 'DDS',
-          compression: 'BC4',
-          width: 4096,
-          height: 4096,
-          mipmaps: true,
-          colorSpace: 'Linear',
-          description: 'High-quality 4K roughness map for Fallout 4'
-        },
-        {
-          id: 'generic-png',
-          name: 'Generic PNG',
-          format: 'PNG',
-          compression: 'None',
-          width: 2048,
-          height: 2048,
-          mipmaps: false,
-          colorSpace: 'sRGB',
-          description: 'Standard PNG texture (no compression)'
-        },
-        {
-          id: 'generic-tga',
-          name: 'Generic TGA',
-          format: 'TGA',
-          compression: 'None',
-          width: 2048,
-          height: 2048,
-          mipmaps: false,
-          colorSpace: 'sRGB',
-          description: 'Standard TGA texture (no compression)'
-        }
-      ];
-
+      const presets = getDdsConversionPresets();
       console.log('[DDS Converter] Returning', presets.length, 'conversion presets');
       return {
         success: true,
@@ -27603,7 +27658,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('get-app-version', async () => {
+  forceHandle('get-app-version', async () => {
     try {
       return { success: true, version: autoUpdaterService.getCurrentVersion() };
     } catch (error) {
