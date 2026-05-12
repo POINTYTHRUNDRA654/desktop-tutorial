@@ -255,13 +255,19 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
     setVaultImportBusy(true);
     setVaultImportStatus('');
     try {
-      const resp = await fetch('/knowledge/seed-vault.json', { cache: 'no-cache' });
+      const base = import.meta.env.BASE_URL || './';
+      const resp = await fetch(`${base}bundled-knowledge/core-tutorials.json`, { cache: 'no-cache' });
       if (!resp.ok) {
         setVaultImportStatus('Bundled vault not found.');
         return;
       }
-      const text = await resp.text();
-      await importVaultJson(text);
+      const data = await resp.json();
+      const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+      if (!Array.isArray(items) || items.length === 0) {
+        setVaultImportStatus('Bundled vault is empty.');
+        return;
+      }
+      await importVaultJson(JSON.stringify(items));
     } finally {
       setVaultImportBusy(false);
     }
