@@ -4,6 +4,7 @@ import { CheckCircle2, ExternalLink, FolderOpen, Hammer, Wrench, ShieldCheck, Ar
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useI18n } from './i18n';
 import { openExternal } from './utils/openExternal';
+import { getPublicAssetUrl } from './utils/publicAssetUrl';
 
 type WizardTopic = 'xedit' | 'ss2' | 'prp' | 'patching';
 
@@ -67,6 +68,14 @@ const uniq = (xs: string[]) => {
     out.push(k);
   }
   return out;
+};
+
+const extractVaultItems = (data: unknown): unknown[] => {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object' && Array.isArray((data as { items?: unknown[] }).items)) {
+    return (data as { items: unknown[] }).items;
+  }
+  return [];
 };
 
 const loadVault = (): KnowledgeVaultItem[] => {
@@ -255,13 +264,18 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
     setVaultImportBusy(true);
     setVaultImportStatus('');
     try {
-      const resp = await fetch('/knowledge/seed-vault.json', { cache: 'no-cache' });
+      const resp = await fetch(getPublicAssetUrl('bundled-knowledge/core-tutorials.json'), { cache: 'no-cache' });
       if (!resp.ok) {
         setVaultImportStatus('Bundled vault not found.');
         return;
       }
-      const text = await resp.text();
-      await importVaultJson(text);
+      const data = await resp.json();
+      const items = extractVaultItems(data);
+      if (!Array.isArray(items) || items.length === 0) {
+        setVaultImportStatus('Bundled vault is empty.');
+        return;
+      }
+      await importVaultJson(JSON.stringify(items));
     } finally {
       setVaultImportBusy(false);
     }

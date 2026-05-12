@@ -32,6 +32,7 @@ import AvatarCore from './AvatarCore';
 import { GlobalSearch } from './GlobalSearch';
 import { useWhatsNew } from './WhatsNewDialog';
 import WhatsNewPage from './WhatsNewPage';
+import { getPublicAssetUrl } from './utils/publicAssetUrl';
 import {
   backupCriticalProgressSnapshotSync,
   backupCriticalProgressToDisk,
@@ -818,11 +819,12 @@ const App: React.FC = () => {
       }
 
       try {
-        const resp = await fetch('/knowledge/seed-vault.json', { cache: 'no-cache' });
+        const resp = await fetch(getPublicAssetUrl('bundled-knowledge/core-tutorials.json'), { cache: 'no-cache' });
         if (!resp.ok) return;
         const data = await resp.json();
-        if (!Array.isArray(data) || data.length === 0) return;
-        localStorage.setItem('mossy_knowledge_vault', JSON.stringify(data));
+        const seedItems = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+        if (!Array.isArray(seedItems) || seedItems.length === 0) return;
+        localStorage.setItem('mossy_knowledge_vault', JSON.stringify(seedItems));
         window.dispatchEvent(new Event('mossy-knowledge-updated'));
       } catch {
         // ignore
