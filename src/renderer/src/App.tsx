@@ -268,49 +268,6 @@ const WhatsNewRedirect: React.FC<{ enabled: boolean }> = ({ enabled }) => {
   return null;
 };
 
-// Floating "Ask Mossy" button — available on every panel except /chat itself
-const AskMossyButton: React.FC = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [isLoading, setIsLoading] = useState(false);
-
-  if (location.pathname === '/chat') return null;
-
-  const handleClick = async () => {
-    try {
-      setIsLoading(true);
-      const panelName = location.pathname.replace(/^\//, '').replace(/-/g, ' ') || 'home';
-      navigate('/chat', {
-        state: { prefill: `I'm currently on the ${panelName} panel. Can you help me with what I'm working on here?` }
-      });
-      setTimeout(() => setIsLoading(false), 1500);
-    } catch (error) {
-      console.error('Ask Mossy error:', error);
-      toast.error('Failed to open chat. Check your API connection in Settings.');
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <div title="Click to open chat. If no response appears, check your API connection in Settings.">
-      <button
-        onClick={handleClick}
-        disabled={isLoading}
-        aria-label="Ask Mossy"
-        style={{
-          position: 'fixed',
-          bottom: 60,
-          left: 8,
-          zIndex: 9990,
-        }}
-        className="flex items-center gap-2 px-4 py-2 bg-green-700/90 hover:bg-green-600 text-white text-sm font-bold rounded-full shadow-lg border border-green-500/50 transition-all focus-visible disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <MessageSquare className="w-4 h-4" />
-        {isLoading ? 'Opening...' : 'Ask Mossy'}
-      </button>
-    </div>
-  );
-};
 
 const App: React.FC = () => {
   const devBuildId = '2026-01-27-1227-debug-probe';
@@ -1325,6 +1282,11 @@ const App: React.FC = () => {
             role="main"
             aria-label="Main content"
           >
+            {/* Decorative background avatar — purely visual, never intercepts clicks */}
+            <div className="mossy-face-prop" aria-hidden="true">
+              <AvatarCore className="w-44 h-44" showRings={false} />
+            </div>
+
             <div className="relative z-10">
               <MossyObserver />
 
