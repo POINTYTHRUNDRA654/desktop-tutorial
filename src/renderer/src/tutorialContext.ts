@@ -51,7 +51,9 @@ export interface TutorialPageContext {
       | 'text'
       | 'card'
       | 'controls'
-      | 'input/button';
+      | 'input/button'
+      | 'tab'
+      | 'tabs';
     description: string;
     whenToUse: string;
   }[];
