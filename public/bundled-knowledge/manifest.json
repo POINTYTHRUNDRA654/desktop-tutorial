@@ -1,15 +1,15 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "lastUpdated": "2026-05-13",
   "description": "Bundled knowledge packs that are auto-imported on first run",
   "packs": [
     {
       "id": "core-tutorials-v1",
       "name": "Core Tutorials",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "file": "core-tutorials.json",
       "description": "Essential getting started tutorials for Mossy",
-      "itemCount": 5,
+      "itemCount": 6,
       "auto-import": true
     },
     {

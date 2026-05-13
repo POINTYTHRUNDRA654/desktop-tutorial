@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "1.2.0",
+  "packVersion": "1.3.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -61,6 +61,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "stability", "optimization", "formid", "esl", "precombine", "previs", "creation-kit", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-high-to-low-poly-baking-workflow",
+      "title": "FO4 High-to-Low Poly Baking Workflow",
+      "content": "This lesson defines a production baking workflow for Fallout 4 assets using explicit _high/_low naming, cage-driven projection control, and MikkTSpace-compatible tangent baking.\n\nCore setup: maintain sharp edges across UV seams, apply weighted normals before baking, and keep high/low meshes perfectly aligned with matching pivots and transforms.\n\nRecommended bake profile: 2048 maps for item-scale assets, 4096 for large structures, 4x4 or 8x8 anti-aliasing, and at least 16px dilation padding.\n\nTroubleshooting focus: wavy normals are usually ray-direction or normal-basis issues (fix with averaged normals or custom cage control); black seams and missing detail usually indicate insufficient ray distances or incomplete sharp-edge seam setup.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "baking", "high-poly", "low-poly", "normal-map", "substance-painter", "marmoset", "mikkts", "blender", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
