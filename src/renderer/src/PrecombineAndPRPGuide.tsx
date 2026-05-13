@@ -518,12 +518,12 @@ If you tell Mossy your mod type (settlement overhaul / landscape / world edits) 
 3. Include precombines in package
    - Meshes\Precombined\ folder
    - Document in README
-   - Note PRP version used
+   - Note PRP version used (v81.5+ supports OG 1.10.163, NG 1.10.980–984, and AE/1.11.x)
 
 **Documentation:**
 
 Include in your README:
-✓ "Rebuilt precombines with PRP v[version]"
+✓ "Rebuilt precombines with PRP v81.5+"
 ✓ "Compatible with other PRP-rebuilt mods"
 ✓ "Do not load with non-PRP precombine patches"
 ✓ Load order position (usually after landscape mods)

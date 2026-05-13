@@ -3031,6 +3031,10 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Exporting animations with renamed deform bones (breaks in-game rigging)',
       'Editing exterior cells without running precombines afterward',
       'Confusing the Animation tab with the LOD tab when looking for Havok vs xLODGen guides',
+      'Using RegisterForUpdate() as a polling loop in Papyrus — use event-driven handlers (RegisterForRemoteEvent, RegisterForCustomEvent) instead',
+      'Using the OG Creation Kit (1.10.163 build) on a NG/AE installation — install the NG CK + CKPE 0.5+ for 1.10.980+/1.11.x',
+      'Installing standalone Buffout 4 on NG/AE — use Addictol (Nexus #84214) which bundles Buffout 4, X-Cell, and Papyrus VM patches',
+      'Not specifying runtime target (OG 1.10.163 / NG 1.10.980–984 / AE 1.11.x) before writing F4SE scripts or DLL plugins',
     ],
     guides: [
       {
@@ -3052,6 +3056,10 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'How do I start a quest smoke test in the CK?',
       'What is the correct order for LOD generation and PRP precombine rebuilds?',
       'How do I switch between Animation, Quest, and LOD guides without losing my place?',
+      'What version of CKPE do I need for NG (1.10.980+) vs OG (1.10.163)?',
+      'Why should I avoid RegisterForUpdate() in Papyrus scripts?',
+      'Do I need Addictol or standalone Buffout 4 for NG/AE?',
+      'What PRP version supports NG/AE precombine rebuilds?',
     ],
   },
 
