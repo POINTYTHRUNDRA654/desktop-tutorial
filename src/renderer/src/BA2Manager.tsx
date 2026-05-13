@@ -85,7 +85,16 @@ export const BA2Manager: React.FC = () => {
     setCurrentMergeJob(job);
 
     try {
-      const result = await window.electronAPI.mergeBA2(inputArchives, outputArchive, archiveType);
+      // Route through Desktop Bridge (consistent with extract/pack/list operations above)
+      const response = await fetch('http://localhost:21337/ba2/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inputArchives, outputArchive, archiveType }),
+      });
+
+      const result = response.ok
+        ? await response.json()
+        : { success: false, message: `Server error: ${response.status} ${response.statusText}` };
       
       setMergeJobs(prev => prev.map(j => 
         j.id === job.id 
@@ -290,6 +299,20 @@ export const BA2Manager: React.FC = () => {
               />
             </div>
 
+            {/* NG/AE BA2 header version warning */}
+            <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-slate-300">
+                  <p className="font-bold text-amber-300 mb-1">⚠️ BA2 Header Version (NG/AE)</p>
+                  <p>• <strong>Pre-NG (1.10.163):</strong> BA2 Header V1 — compatible with all versions</p>
+                  <p>• <strong>NG/AE (1.10.984+, 1.11.x):</strong> requires BA2 Header V2 — V1 archives CTD on NG</p>
+                  <p>• Build V2 archives with <strong>CAO (Cathedral Assets Optimizer)</strong> or <strong>Archive2 v2+</strong></p>
+                  <p>• If targeting both OG and NG, document the requirement in your mod page</p>
+                </div>
+              </div>
+            </div>
+
             {/* Info */}
             <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3">
               <div className="flex items-start gap-2">
@@ -298,7 +321,7 @@ export const BA2Manager: React.FC = () => {
                   <p className="font-bold text-blue-300 mb-1">BA2 Merging:</p>
                   <p>• Merges multiple BA2 archives of the same type into one</p>
                   <p>• Helps stay within Fallout 4's engine limits (256 General, 255 Texture)</p>
-                  <p>• Requires BSArch tool (install from Nexus)</p>
+                  <p>• Requires Desktop Bridge (ba2toolkit) or BSArch</p>
                   <p>• Remember to update your ESP files to reference the new archive names</p>
                 </div>
               </div>
