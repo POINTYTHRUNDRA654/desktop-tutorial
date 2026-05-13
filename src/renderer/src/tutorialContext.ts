@@ -137,6 +137,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Missing the Ctrl+K command palette for fast navigation across all 22 platforms',
       'Clicking "Help" and expecting it to open external docs — it opens the in-app FO4 Knowledge Hub',
       'Not checking the UPLINK badge before expecting local tool integrations to work',
+      'Starting the Stability step (Step 5) without knowing your game version — OG (1.10.163), NG (1.10.980–984), and AE/1.11.x all require different F4SE, Address Library, and crash tool builds',
     ],
     guides: [
       {
@@ -171,6 +172,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'How do I start my first Fallout 4 mod?',
       'What is the difference between the hubs?',
       'How do I open the command palette?',
+      'How do I find out which game version I am running?',
+      'What is the difference between NG and AE for my mod setup?',
     ],
   },
   
@@ -182,7 +185,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     purpose: 'Primary Fallout 4 command-and-guidance console with chat, voice input, live tool telemetry, and citations',
     features: [
       'FO4-locked assistant with content guard for non-FO4 prompts',
-      'Quick FO4 prompt chips (load order, ESL, BA2, FOMOD, precombines, DDS formats, crash triage, etc.)',
+      'Quick FO4 prompt chips (load order, ESL, BA2 V1/V2, FOMOD, precombines, DDS formats, crash triage, deprecated frameworks, game version check, etc.)',
       'Live citations panel on assistant answers ("Explain why")',
       'Voice input via microphone and optional TTS playback',
       'Desktop Bridge + Blender Link awareness for tool execution',
@@ -233,6 +236,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Keeping monitoring paused and expecting live tool-aware guidance',
       'Sending broad prompts instead of FO4-specific records/files/goals',
       'Ignoring the 👍/👎 buttons — rating responses builds a free training dataset you can use to fine-tune Mossy later',
+      'Not specifying your game version (OG 1.10.163 / NG 1.10.980–984 / AE 1.11.x) — version changes everything for F4SE, BA2 headers, Address Library, and crash tools',
+      'Using AWKCR, Armorsmith Extended, or DEF_UI on NG/AE — these are deprecated and cause CTDs. Use ECO/NEO, LEO, and FallUI Suite instead.',
     ],
     guides: [
       {
@@ -275,6 +280,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'How do I use citations to verify an answer?',
       'What should I include in a good FO4 troubleshooting prompt?',
       'How do I export my training data from the chat ratings?',
+      'I have AWKCR installed — is it safe on my version of the game?',
+      'What is the difference between BA2 Header V1 and V2 and which do I need?',
+      'How do I read an X-Cell crash log to find the broken mod?',
     ],
   },
 
@@ -953,7 +961,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     features: [
       'Three-tab layout: Quick Reference, Knowledge Search, and Community Learning',
       'Tab selection persists for the session via sessionStorage key `knowledge_hub_tab`',
-      'Quick Reference for Papyrus, FormIDs, and practical FO4 cheatsheets',
+      'Quick Reference for Papyrus, FormIDs, CK hotkeys, xEdit shortcuts, and practical FO4 cheatsheets — now includes Deprecated Frameworks (AWKCR/DEF_UI/Armorsmith) and NG/AE version guidance',
       'Knowledge Search for semantic retrieval and indexed in-app docs',
       'Community Learning for shared tips and curated knowledge',
     ],
@@ -988,6 +996,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Ignoring tab context and expecting Quick Reference content while Search/Community tab is active',
       'Assuming search is external-only instead of using in-app FO4 indexed knowledge first',
       'Forgetting that tab state restores from session storage between visits',
+      'Installing AWKCR, Armorsmith Extended, or DEF_UI on NG/AE — check the Deprecated Frameworks section of Quick Reference for safe replacements',
     ],
     guides: [
       {
@@ -1011,6 +1020,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Why did the hub reopen on the same tab I used earlier?',
       'Where can I find in-app FO4 references before asking chat?',
       'How do I search indexed knowledge from this hub?',
+      'Where can I look up which frameworks are deprecated on NG/AE?',
+      'What is the ESL FormID limit and why does it matter?',
     ],
   },
 
@@ -1604,6 +1615,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Assuming the wizard installs external apps for you (it verifies and links only)',
       'Marking steps complete without performing the verification steps',
       'Not saving or exporting wizard progress before resetting',
+      'Not identifying your game version first (OG 1.10.163 / NG 1.10.980–984 / AE 1.11.x) — the correct F4SE build, Address Library build, and BA2 header version all depend on this',
+      'Installing Buffout 4 standalone on NG/AE — use X-Cell (Addictol successor) instead',
     ],
     guides: [
       {
@@ -1644,6 +1657,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'How do I reset the Install Wizard progress?',
       'What does the PRP Patch Builder generated README contain?',
       'Why does a wizard checklist not persist after refresh?',
+      'How do I know if I should install the NG or AE build of Address Library?',
+      'My game is v1.11.191 — what version of F4SE and Address Library do I need?',
+      'What BA2 header version do I need for NG/AE?',
     ],
   },
 
