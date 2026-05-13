@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "1.7.0",
+  "packVersion": "1.8.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -121,6 +121,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "companion", "ai-packages", "papyrus", "leveled-list", "injection", "projectile", "shader", "nifskope", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-fomod-f4se-and-git-workflows",
+      "title": "FO4 FOMOD Installer Architecture, F4SE C++ Plugin Setup, and Git Team Workflow",
+      "content": "This lesson introduces three advanced delivery and engineering tracks for Fallout 4 mod teams.\n\nFOMOD track: build mod-manager-friendly graphical installers with valid info.xml and ModuleConfig.xml files, selection-driven file mapping, and dependency checks for missing masters.\n\nF4SE track: establish a C++ plugin environment with proper SDK/toolchain setup, safe query/load handshakes, and controlled initialization hooks after game load.\n\nVersion control track: implement a practical .gitignore policy and Git LFS tracking strategy so large binary assets are managed safely without bloating repository history.\n\nTroubleshooting emphasis: installer launch failures usually stem from incorrect fomod folder placement/casing, XML crashes usually stem from invalid ModuleConfig syntax, plugin load failures usually stem from version/interface mismatches, and oversized repos usually indicate missing LFS tracking patterns.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "fomod", "moduleconfig", "mo2", "vortex", "f4se", "c++", "git", "git-lfs", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
