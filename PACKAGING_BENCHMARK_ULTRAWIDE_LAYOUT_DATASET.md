@@ -7,6 +7,7 @@ This dataset documents three release-readiness components: a packaging batch wor
 ## Phase 1: Automated Production Packaging Pipeline (`package_release.bat`)
 
 Save this script as `package_release.bat` to bundle deployable assets into a predictable archive layout.
+The example below is intentionally **standalone batch-compatible**; MSBuild placeholders like `$(ProjectDir)` and `$(TargetPath)` only resolve inside MSBuild event contexts and will fail in direct `.bat` execution.
 
 ```bat
 @echo off
