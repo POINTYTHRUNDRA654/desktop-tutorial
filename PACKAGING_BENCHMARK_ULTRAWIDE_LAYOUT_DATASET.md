@@ -14,8 +14,9 @@ echo =======================================================
 echo   RUNNING AUTOMATED MOD DISTRIBUTION BUILD PACKAGER
 echo =======================================================
 
-set ARCHIVE_DIR=$(ProjectDir)BuildArchive
-set OUTPUT_ZIP=$(ProjectDir)EngineTelemetryToolkit_v1.0.0.zip
+set PROJECT_DIR=%~dp0
+set ARCHIVE_DIR=%PROJECT_DIR%BuildArchive
+set OUTPUT_ZIP=%PROJECT_DIR%EngineTelemetryToolkit_v1.0.0.zip
 
 :: Clean previous build artifacts safely
 if exist "%ARCHIVE_DIR%" rmdir /S /Q "%ARCHIVE_DIR%"
@@ -27,11 +28,11 @@ mkdir "%ARCHIVE_DIR%\Interface\EDI" 2>nul
 mkdir "%ARCHIVE_DIR%\Scripts" 2>nul
 
 :: Copy core binaries and configurations into the layout folder
-xcopy /Y "$(TargetPath)" "%ARCHIVE_DIR%\F4SE\Plugins\"
-xcopy /Y "$(ProjectDir)Interface\EDI\*.swf" "%ARCHIVE_DIR%\Interface\EDI\"
-xcopy /Y "$(ProjectDir)Interface\EDI\*.xml" "%ARCHIVE_DIR%\Interface\EDI\"
-xcopy /Y "$(ProjectDir)Scripts\*.pex" "%ARCHIVE_DIR%\Scripts\"
-xcopy /Y "$(ProjectDir)fomod\ModuleConfig.xml" "%ARCHIVE_DIR%\fomod\"
+xcopy /Y "%PROJECT_DIR%bin\EngineTelemetryToolkit.dll" "%ARCHIVE_DIR%\F4SE\Plugins\"
+xcopy /Y "%PROJECT_DIR%Interface\EDI\*.swf" "%ARCHIVE_DIR%\Interface\EDI\"
+xcopy /Y "%PROJECT_DIR%Interface\EDI\*.xml" "%ARCHIVE_DIR%\Interface\EDI\"
+xcopy /Y "%PROJECT_DIR%Scripts\*.pex" "%ARCHIVE_DIR%\Scripts\"
+xcopy /Y "%PROJECT_DIR%fomod\ModuleConfig.xml" "%ARCHIVE_DIR%\fomod\"
 
 :: Generate release archive file using built-in compression engine tools
 tar -a -c -f "%OUTPUT_ZIP%" -C "%ARCHIVE_DIR%" fomod F4SE Interface Scripts
@@ -43,7 +44,7 @@ pause
 
 **Key points:**
 - Keep packaging paths deterministic so mod managers receive stable archive structure every release.
-- Ensure script variable syntax matches your execution context (batch `%VAR%` vs MSBuild property expansion).
+- Use standalone batch variables (`%~dp0`, `%PROJECT_DIR%`) unless this is explicitly embedded in an MSBuild post-build event.
 - Clean build archives before copy to avoid stale artifact bleed-through.
 - Include only runtime-required folders in the ZIP root (`fomod`, `F4SE`, `Interface`, `Scripts`) unless source distribution is intentional.
 - Validate output ZIP contents after packaging to catch missing dependency copies.
@@ -132,4 +133,3 @@ Use relative positioning and adaptive scaling flags to keep menu geometry consis
 - **Benchmark logs always over threshold:** Measured scope includes unrelated expensive work; isolate only actor extraction and filter logic.
 - **Benchmark logs missing:** Compile flags or logger macros may differ between Debug/Release runtime.
 - **Ultra-wide menu clipping:** Relative anchor values plus font size exceed safe viewport bounds; reduce spacing or shift origin inward.
-
