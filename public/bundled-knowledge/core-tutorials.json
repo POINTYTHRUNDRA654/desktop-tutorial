@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "2.0.0",
+  "packVersion": "2.1.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -157,6 +157,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "edi", "dialogue", "f4se", "c++", "rva", "memory-hooks", "behavior-graph", "havok", "hkx", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-skill-assessment-framework",
+      "title": "FO4 Developer Skill Assessment Framework: C++, Papyrus, and Integration Entry Points",
+      "content": "This lesson provides a structured skill-routing framework for Fallout 4 mod developers across three proficiency dimensions.\n\nC++ proficiency track: measures readiness for F4SE plugin development, memory hook creation, and RVA-based engine address targeting.\n\nPapyrus skill track: measures ability to handle complex game-world logic, event handling, and UI data passing through quest-driven scripting.\n\nIntegration capacity track: measures ability to bind native C++ functions to Papyrus using the F4SE VirtualMachine interface.\n\nEntry point for C++ experts with limited Papyrus: focus on F4SE plugin infrastructure, learn the Fallout 4 object hierarchy, then use VirtualMachine binding to expose native functions to Papyrus callers.\n\nEntry point for Papyrus experts with limited C++: focus on EDI dialogue layout, xEdit record manipulation, and existing F4SE API consumption without writing native memory hooks.\n\nEntry point for beginners in both: start with Creation Kit quests and scripts, consume community APIs before writing hooks, and edit existing .hkx behavior graph states rather than creating new nodes.\n\nTroubleshooting emphasis: C++ experts struggling with Papyrus object access should study the F4SE RE type hierarchy; Papyrus experts with EDI failures should verify XML layout paths and installation order; beginners with silent quest scripts should confirm Papyrus logging flags and quest start conditions.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "assessment", "skill-routing", "c++", "papyrus", "f4se", "edi", "integration", "entry-point", "beginner", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
