@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "2.6.0",
+  "packVersion": "2.7.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -229,6 +229,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "papyrus", "telemetry", "custom-event", "edi", "xml", "layout", "virtualprotect", "memory-write", "f4se", "c++", "dialogue", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-pointer-validation-release-archive-async-logger",
+      "title": "FO4 Pointer Validation & Crash Prevention, Release Archive Deployment Structure, and Async Telemetry Logger",
+      "content": "This lesson covers three production-readiness topics for F4SE plugin development.\n\nPhase 1 — pointer validation and crash prevention: use VirtualQuery to fill MEMORY_BASIC_INFORMATION and check page state before any memory write. Reject pages where State != MEM_COMMIT, where Protect includes PAGE_GUARD or PAGE_NOACCESS, or where Protect lacks a writable flag. Wrap raw pointer dereferences in Windows SEH __try/__except(EXCEPTION_EXECUTE_HANDLER) to catch hardware faults that C++ try/catch misses. GetModuleHandle(NULL) returns the Fallout4.exe base address at runtime for manual RVA resolution.\n\nPhase 2 — release archive deployment: mod manager archives root directly to Data/ so do not include a Data/ prefix. Place the compiled DLL and optional INI in F4SE/Plugins/. Place compiled .pex scripts in Scripts/. Place .psc source files in Source/Scripts/ for community transparency. Place EDI XML in Interface/EDI/. All paths are case-sensitive on some virtual filesystems.\n\nPhase 3 — async buffered telemetry logger: AsyncTelemetryLogger batches log entries in a std::vector<std::string> behind a std::mutex and flushes to disk only when the batch reaches flushThreshold. std::ios::app keeps entries across sessions. logFile.flush() commits the OS write buffer after each batch. The destructor acquires the lock and calls FlushBuffer() to drain remaining entries before file close. Initialize with a path in Documents/My Games/Fallout4/F4SE/ to co-locate with other plugin logs.\n\nTroubleshooting emphasis: IsPointerSafeToModify false for known-good address means page protection changed in new patch; SEH fires means RVA is stale; DLL not found means archive has extra Data/ prefix; pex scripts missing means Scripts/ path depth wrong in archive; missing log entries after crash means flushThreshold too high for debug; interleaved log entries means FlushBuffer called without mutex.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "pointer-validation", "virtualquery", "seh", "crash-prevention", "release-archive", "mod-manager", "deployment", "async-logger", "mutex", "f4se", "c++", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
