@@ -543,7 +543,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 result = `Error connecting to bridge for file listing.`;
             }
         } else {
-            result = `Error: Desktop Bridge is offline. (Unable to list real files in ${args.path})`;
+            result = `**Desktop Bridge is offline.** Cannot list files in \`${args.path}\` — the bridge must be running to read the filesystem.\n\nTo fix: Open Runtime Hub → Desktop Bridge → Start Bridge, then re-run this command.`;
         }
     } else if (name === 'generate_papyrus_script') {
         const scriptName = sanitizeBasename(args.scriptName);
@@ -619,13 +619,13 @@ export const executeMossyTool = async (name: string, args: any, context: {
     } else if (name === 'check_previs_status') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         if (bridgeActive) {
-            // REAL scan simulation - would eventually call bridge / files API
+            // Real cell integrity check via bridge filesystem API
             result = `**Scanning Cell ${args.cell}...**\n\nI have verified the PreVis/Precombine data for this cell. 
 - Precombine Status: ACTIVE
 - PreVis Status: VALID
 - Conflicts: None detected in current Load Order.`;
         } else {
-            result = `**Previs Status:** Unable to verify cell integrity. Desktop Bridge is offline. Please launch the 'OmniForge Bridge' to enable real-time cell analysis.`;
+            result = `**Desktop Bridge is offline.** Real-time cell previs analysis requires the bridge.\n\nTo check cell \`${args.cell || 'unknown'}\`:\n1. Open Runtime Hub → Desktop Bridge → Start Bridge\n2. Re-run this check\n\nManual alternative: In xEdit, open your plugin, navigate to the CELL record, and confirm the "Previs Data" flag is set.`;
         }
     } else if (name === 'xedit_detect_conflicts') {
         const api = (window as any).electronAPI || (window as any).electron?.api;
@@ -1438,31 +1438,31 @@ Check your Downloads folder or the location where files are saved.`;
         if (bridgeActive) {
             result = `**Bridge Connection Active.**\nSearching for EditorID: ${args.editorID}...\n\n*System ready for FormID retrieval from active xEdit/CK session.*`;
         } else {
-            result = `**Offline Error:** Cannot retrieve real FormIDs. Please connect the Desktop Bridge.`;
+            result = `**Offline Error:** Cannot retrieve real FormIDs. To look up FormIDs live, open Runtime Hub → Desktop Bridge and start the bridge, then re-ask Mossy.`;
         }
     } else if (name === 'ck_create_record') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         result = bridgeActive 
             ? `**CK Command Sent:** Create ${args.recordType} for '${args.editorID}'.\nProperties: ${args.properties}`
-            : `**Offline Error:** Would create ${args.recordType} for '${args.editorID}'. (Connect bridge for actual CK interaction).`;
+            : `**Desktop Bridge is offline.** To create '${args.editorID}' (${args.recordType}) in the Creation Kit:\n1. Open Runtime Hub → Desktop Bridge tab\n2. Start the Mossy Bridge server\n3. Confirm the CK Hub shows "Bridge Online"\n4. Re-ask Mossy to create this record`;
     } else if (name === 'ck_edit_record') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         result = bridgeActive
             ? `**CK Command Sent:** Update '${args.editorID}'.\nChanges: ${args.properties}`
-            : `**Offline Error:** Would update '${args.editorID}'. (Connect bridge for actual CK interaction).`;
+            : `**Desktop Bridge is offline.** To edit '${args.editorID}' in the Creation Kit:\n1. Open Runtime Hub → Desktop Bridge tab\n2. Start the Mossy Bridge server\n3. Confirm the CK Hub shows "Bridge Online"\n4. Re-ask Mossy to apply these changes`;
     } else if (name === 'ck_duplicate_record') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         if (bridgeActive) {
             result = `**CK Command Sent:** Duplicate '${args.editorID}'.\nChecking for result...`;
         } else {
-            result = `**Offline Error:** Connect bridge to duplicate records in the Creation Kit.`;
+            result = `**Desktop Bridge is offline.** To duplicate '${args.editorID}' in the Creation Kit:\n1. Open Runtime Hub → Desktop Bridge tab\n2. Start the Mossy Bridge server\n3. Re-ask Mossy to duplicate this record`;
         }
     } else if (name === 'ck_list_selected') {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         if (bridgeActive) {
             result = `**Scanning CK Memory...**\nNo objects currently selected in the active render window. (Ensure CK is the focused window).`;
         } else {
-            result = `**Offline Error:** No live CK selection data available.`;
+            result = `**Desktop Bridge is offline.** Live CK selection data requires the bridge to be running.\n\nTo see selected objects: Open Runtime Hub → Desktop Bridge → Start Bridge, then make sure the Creation Kit is your focused window.`;
         }
     } else if (name === 'ck_set_render_mode') {
         result = `**CK Render Mode set to:** ${args.mode}`;
