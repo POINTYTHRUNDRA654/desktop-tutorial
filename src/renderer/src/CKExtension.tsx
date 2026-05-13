@@ -73,6 +73,11 @@ export const CKExtension: React.FC = () => {
     return () => clearInterval(saveInterval);
   }, [isConnected, autoSaveEnabled, autoSaveInterval, performAutoSave]);
 
+  const performAutoSave = useCallback(() => {
+    setLastAutoSave(new Date());
+    setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save timestamp logged (CK IPC save bridge not yet wired — use File > Save in CK manually)`]);
+  }, []);
+
   const loadCKData = async () => {
     // Try to load recently compiled scripts from settings if the IPC is available
     const api: any = (window as any).electron?.api || (window as any).electronAPI;
@@ -89,9 +94,9 @@ export const CKExtension: React.FC = () => {
   const performAutoSave = useCallback(() => {
     setLastAutoSave(new Date());
     setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save timestamp logged (CK IPC save bridge not yet wired — use File > Save in CK manually)`]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const toggleAutoSave = () => {
     const newValue = !autoSaveEnabled;
     setAutoSaveEnabled(newValue);
     localStorage.setItem('ck_autosave_enabled', newValue.toString());
