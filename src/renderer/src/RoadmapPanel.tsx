@@ -62,13 +62,17 @@ const RoadmapPanel: React.FC = () => {
     }
   };
 
+  const resolveProjectId = (payload: any): string | null => {
+    if (!payload) return null;
+    if (typeof payload?.id === 'string' && payload.id.trim()) return payload.id;
+    if (typeof payload?.project?.id === 'string' && payload.project.id.trim()) return payload.project.id;
+    return null;
+  };
+
   const loadCurrentProject = async () => {
     try {
       const currentProject = await window.electronAPI?.getCurrentProject?.();
-      const project = currentProject?.ok && currentProject?.project
-        ? currentProject.project
-        : currentProject;
-      setCurrentProjectId(project?.id || null);
+      setCurrentProjectId(resolveProjectId(currentProject));
     } catch (error) {
       console.error('Failed to load current project:', error);
       setCurrentProjectId(null);
