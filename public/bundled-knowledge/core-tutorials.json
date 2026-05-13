@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "1.8.0",
+  "packVersion": "1.9.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -133,6 +133,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "fomod", "moduleconfig", "mo2", "vortex", "f4se", "c++", "git", "git-lfs", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-papyrus-testing-water-shader-and-havok-cloth",
+      "title": "FO4 Automated Papyrus Testing, Water BGEM Shader Workflow, and Havok Cloth Constraints",
+      "content": "This lesson introduces three advanced implementation tracks for Fallout 4 creators.\n\nPapyrus testing track: build quest-driven automated test runners, isolate runtime dependencies with script mocks, and write structured pass/fail output into filtered user logs.\n\nWater shader track: author flow-aware textures and configure BGEM material properties for reflection/refraction behavior, depth blending, and stable shoreline transitions.\n\nHavok cloth track: build helper bone chains, paint controlled deformation gradients, and tune cloth damping/angle constraints for responsive but stable movement in-game.\n\nTroubleshooting emphasis: missing test output usually points to Papyrus logging initialization issues, broken water visuals usually indicate invalid material flags or texture wiring, and unstable cloth motion usually indicates incorrect constraints or node hierarchy setup.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "papyrus", "testing", "mocking", "quest-runner", "bgem", "water-shader", "havok", "cloth", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
