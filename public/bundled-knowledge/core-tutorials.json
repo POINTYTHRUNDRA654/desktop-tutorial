@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "2.9.0",
+  "packVersion": "3.0.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -265,6 +265,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "dashboard", "html", "javascript", "websocket", "telemetry", "vs2022", "build-config", "preprocessor", "developer-debug", "havok", "setanimationvariable", "behavior-graph", "f4se", "papyrus", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-relay-bridge-actor-telemetry-post-build-deploy",
+      "title": "FO4 Node.js TCP-to-WebSocket Relay Bridge, Live Actor Health and Coordinates Capture, and VS2022 Post-Build Archive Deployment",
+      "content": "This lesson covers three integration and deployment topics for the complete F4SE telemetry pipeline.\n\nPhase 1 — Node.js relay bridge: server.js runs two servers: a raw TCP server on port 8080 for the C++ plugin (net.createServer) and a WebSocket server on port 8081 for the browser dashboard (WebSocketServer). socket.on('data') trims the buffer, logs it, and forwards to the active WebSocket client if readyState === 1. Install the ws package with npm install ws. Start order: node server.js first, then browser, then game. Update dashboard HTML to ws://127.0.0.1:8081.\n\nPhase 2 — actor telemetry capture: CaptureActorTelemetry() dereferences (*g_player) and null-checks before accessing pos.x/y/z and actorValueOwner. GetValue(*g_healthAV) returns current health, GetBaseValue returns base. Call only from AddTask lambda after world loads, never from F4SEPlugin_Load. Serialises to JSON with newline terminator stripped by relay trim().\n\nPhase 3 — VS2022 post-build deployment: post-build batch script uses mkdir with 2>nul to create BuildArchive folder structure silently. xcopy /Y copies DLL and EDI XML. Windows built-in tar with -a -c -f zips the archive; -C sets working directory so zip contains relative paths not absolute. Apply only to Release configuration. Add Source folder to tar args for Developer Debug builds.\n\nTroubleshooting emphasis: ws not found means npm install ws missing; dashboard connects but no data means WebSocket client opened after game launched; CaptureActorTelemetry returns empty braces means g_player null before world load; health reads 0.0 means actorValueOwner not yet initialised; tar cannot stat means mkdir missing for that folder; zip has absolute paths means -C flag missing or wrong directory.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "nodejs", "relay", "tcp", "websocket", "bridge", "actor-telemetry", "player-health", "coordinates", "f4se", "c++", "post-build", "deployment", "tar", "xcopy", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
