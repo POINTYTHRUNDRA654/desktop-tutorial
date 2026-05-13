@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "3.3.0",
+  "packVersion": "3.4.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -313,6 +313,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["engine", "memory-offsets", "vtable", "address-library", "rel-id", "cal", "c++", "f4se", "papyrus", "anniversary-edition", "plugin-installed", "game-ispluginstalled", "ba2", "downgrade", "version-1", "steam-depot", "xedit", "hedr", "module-8", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-deprecated-frameworks-ci-crash-log",
+      "title": "Deprecated Frameworks, Multi-Target CI, and Crash Log Diagnostics",
+      "content": "This lesson covers three advanced topics for Fallout 4 modders targeting the AE and NG engine.\n\nPart 1 — Deprecated mod frameworks (Module 9): Several long-standing frameworks are completely obsolete in modern AE/NG load orders. AWKCR (Armor and Weapon Keywords Community Resource) — CRITICAL DEPRECATION, DO NOT USE. It bloats save files with thousands of unused keywords causing workbench menu lag and is incompatible with modern 2025/2026 scripts. Replace with ECO (Equipment and Crafting Overhaul) or NEO (New Equipment Overhaul). Armorsmith Extended — DEPRECATED. It relies entirely on AWKCR and hard-overwrites vanilla armor slots, breaking modern body meshes and dynamically assigned armor slot mods. Replace with LEO (Legendary Effect Overhaul) and RobCo Scripter configurations. DEF_UI and DEF_HUD — CRITICAL ENGINE INCOMPATIBILITY. These hardcode Interface .swf Flash container files from 2015. The Next-Gen and Anniversary updates overhauled the Creations store UI, making these old interface files cause instant crashes when the player opens the pause menu or map. Replace with FallUI Suite (FallUI - HUD and FallUI - Inventory). Workbench CTD resolution: strip all AWKCR master references in xEdit and re-map recipe forms to vanilla crafting keywords or ECO keywords.\n\nPart 2 — Multi-target C++ CI pipeline (GitHub Actions): To support both AE and pre-NG users, use a GitHub Actions workflow on windows-2022 with two MSBuild configurations. Release_PreNG links against the pre-NG CommonAddressLibrary .bin and defines PLUGIN_TARGET_PRENG. Release_Anniversary links against the AE CAL .bin and defines PLUGIN_TARGET_AE. Guard address IDs in code with these defines: #if defined(PLUGIN_TARGET_AE) REL::ID applyDamageID(26104) else REL::ID applyDamageID(12431). Use actions/checkout@v4 with submodules: recursive, microsoft/setup-msbuild@v2, and actions/upload-artifact@v4. Artifacts go to a distribution/ folder with PreNG/ and Anniversary/ subdirectories so a FOMOD installer can pick the correct DLL.\n\nPart 3 — Crash log diagnostics: X-Cell is the primary crash logger for NG/AE; Buffout 4 alone is insufficient for accurate modern crash reports. Reading a call stack: entry [1] pointing to F4SE_Plugin_Custom.dll identifies a custom plugin as the fault origin. Entry [0] Fallout4.exe+12410A4 is the precise instruction offset where the fault occurred. Version mismatch diagnosis: if the user runs AE (v1.10.984) but the crash offset maps to a pre-NG (v1.10.163) layout, the plugin is pointing to a nonexistent address — this is an Access Violation Exception (0xC0000005). Fix: replace BaseAddress + 0x12410A4 hardcoded offsets with REL::Relocation<uintptr_t>(REL::ID(58319)).address() so the CAL resolves the correct address for whatever build version the player is running. Diagnostic checklist: identify faulting module, extract hex offset, cross-reference against the CAL .bin for the reported game version, check for AWKCR and DEF_UI masters in the load order, confirm X-Cell is installed, and always request the full log not a screenshot.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["deprecated", "awkcr", "armorsmith-extended", "def-ui", "def-hud", "fallui", "eco", "neo", "leo", "keywords", "workbench-crash", "ci", "github-actions", "msbuild", "multi-target", "dll", "f4se", "c++", "crash-log", "x-cell", "buffout", "call-stack", "access-violation", "rel-id", "address-library", "module-9", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
