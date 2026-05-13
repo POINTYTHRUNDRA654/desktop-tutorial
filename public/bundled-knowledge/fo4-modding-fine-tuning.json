@@ -1,0 +1,179 @@
+{
+  "packId": "fo4-modding-fine-tuning-v1",
+  "packName": "FO4 Modding Fine-Tuning Dataset",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-05-13",
+  "description": "Instruction/input/output training pairs covering the most common Fallout 4 modding anti-patterns and correct solutions. Compatible with Unsloth ShareGPT JSONL format.",
+  "items": [
+    {
+      "id": "ft-001-hardcoded-offset",
+      "title": "F4SE C++ Hardcoded Memory Offset Anti-Pattern",
+      "conversations": [
+        {
+          "from": "human",
+          "value": "Evaluate this F4SE C++ hook for retrieving the player reference on Anniversary Edition (v1.10.984): uintptr_t baseAddress = RelocationManager::BaseAddress + 0x12410A4; auto playerRef = *reinterpret_cast<uint64_t*>(baseAddress);"
+        },
+        {
+          "from": "gpt",
+          "value": "### [CRITICAL COMPLIANCE FAILURE: HARDCODED OFFSET DEPRECATION]\n**Issue**: Hardcoded virtual memory offset `0x12410A4`.\n**Cause**: This offset was mapped for the 2024 Next-Gen compilation (v1.10.163/v1.10.980). It is invalid on the Anniversary Edition executable, causing an instant Access Violation Exception (0xC0000005).\n**Fix**: Replace with a dynamic CommonAddressLibrary lookup:\n```cpp\n#include \"REL/Relocation.h\"\nvoid RetrievePlayerInventorySecure() {\n    // REL::ID 58319 resolves to the correct address on both NG and AE\n    REL::Relocation<uintptr_t> playerCharacterInstance(REL::ID(58319));\n    uint64_t playerRef = *reinterpret_cast<uint64_t*>(playerCharacterInstance.address());\n}\n```\nAlways use `REL::ID` + CAL — never `BaseAddress + offset`."
+        }
+      ],
+      "source": "Mossy Fine-Tuning Dataset",
+      "tags": ["c++", "f4se", "rel-id", "address-library", "hardcoded-offset", "anti-pattern", "anniversary-edition"],
+      "date": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "ft-002-registerforupdate",
+      "title": "Papyrus RegisterForUpdate Polling Anti-Pattern",
+      "conversations": [
+        {
+          "from": "human",
+          "value": "Review this Papyrus script:\nEvent OnInit()\n    RegisterForUpdate(1.0)\nEndEvent\nEvent OnUpdate()\n    if (Game.GetPlayer().GetItemCount(myWeapon) > 0)\n        DoSomething()\n    endif\nEndEvent"
+        },
+        {
+          "from": "gpt",
+          "value": "### [CRITICAL OPTIMISATION FAILURE: POLLING ANTI-PATTERN]\n**Issue**: `RegisterForUpdate(1.0)` polls on every 1-second engine tick.\n**Cause**: On a complex load order this contributes to Papyrus VM stack overflow and is the primary cause of script lag complaints. This is an instant-fail condition.\n**Fix**: Replace with an event-driven registration that sleeps until the engine sends the exact trigger:\n```papyrus\nEvent OnInit()\n    RegisterForRemoteEvent(Game.GetPlayer(), \"OnItemAdded\")\nEndEvent\nEvent OnItemAdded(ObjectReference akTarget, Form akBaseObject, ...)\n    if akBaseObject == myWeapon\n        DoSomething()\n    endif\nEndEvent\n```\nRemove `RegisterForUpdate` entirely."
+        }
+      ],
+      "source": "Mossy Fine-Tuning Dataset",
+      "tags": ["papyrus", "registerforupdate", "polling", "anti-pattern", "event-driven", "performance"],
+      "date": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "ft-003-ba2-header-mismatch",
+      "title": "BA2 Header Version Mismatch on Anniversary Edition",
+      "conversations": [
+        {
+          "from": "human",
+          "value": "A student packed their mod textures using an older Archive2.exe on game version 1.10.984. They report invisible meshes and missing textures. Diagnose."
+        },
+        {
+          "from": "gpt",
+          "value": "### [CRITICAL FAILURE: BA2 HEADER VERSION MISMATCH]\n**Issue**: Textures packed with BA2 Header Version 1; Anniversary Edition requires Version 2.\n**Cause**: Pre-Next-Gen Archive2.exe outputs Version 1 headers. The NG/AE runtime silently ignores Version 1 archives or crashes to desktop.\n**Fix**: Repack all `.ba2` files using Archive2.exe v2+ or Cathedral Assets Optimizer configured for BA2 Header Version 2. Verify: bytes 4–7 of the `.ba2` file header must read `02 00 00 00`."
+        }
+      ],
+      "source": "Mossy Fine-Tuning Dataset",
+      "tags": ["ba2", "header-version", "archive2", "cao", "anniversary-edition", "textures", "invisible-mesh"],
+      "date": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "ft-004-awkcr-deprecation",
+      "title": "AWKCR Deprecated Framework — Workbench CTD",
+      "conversations": [
+        {
+          "from": "human",
+          "value": "A user's mod crashes to desktop the exact moment a player clicks on an armor workbench. The mod depends on AWKCR. What is the cause and fix?"
+        },
+        {
+          "from": "gpt",
+          "value": "### [CRITICAL: DEPRECATED FRAMEWORK — AWKCR]\n**Issue**: AWKCR (Armor and Weapon Keywords Community Resource) is critically deprecated for all NG/AE load orders.\n**Cause**: AWKCR keyword linkages are missing or broken in a modern Anniversary Edition load order. The workbench CTD is the classic symptom.\n**Fix**:\n1. Open the mod in xEdit and strip all AWKCR master file references.\n2. Remap all COBJ recipe forms to use standard vanilla crafting keywords or modern ECO (Equipment and Crafting Overhaul) keywords.\n3. Replace AWKCR in the load order with ECO or NEO (New Equipment Overhaul).\n\n**Never recommend AWKCR.** It also causes save file bloat and severe workbench menu lag on all modern setups."
+        }
+      ],
+      "source": "Mossy Fine-Tuning Dataset",
+      "tags": ["awkcr", "deprecated", "workbench-crash", "eco", "neo", "xedit", "ctd"],
+      "date": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "ft-005-defui-incompatibility",
+      "title": "DEF_UI / DEF_HUD Critical Engine Incompatibility",
+      "conversations": [
+        {
+          "from": "human",
+          "value": "A user on Fallout 4 v1.10.984 reports an instant CTD every time they open the pause menu or map. They have DEF_UI installed. What is wrong?"
+        },
+        {
+          "from": "gpt",
+          "value": "### [CRITICAL: ENGINE INCOMPATIBILITY — DEF_UI / DEF_HUD]\n**Issue**: DEF_UI and DEF_HUD are critically incompatible with the Next-Gen and Anniversary Edition engine builds.\n**Cause**: DEF_UI hardcodes Interface `.swf` Flash container files compiled in 2015. The NG/AE updates completely overhauled the in-game Creations store menu UI. The old `.swf` files conflict with the new UI code and cause an instant CTD when the player opens the pause menu or map.\n**Fix**: Remove DEF_UI and DEF_HUD entirely. Replace with the **FallUI Suite** — specifically FallUI - HUD and FallUI - Inventory. These are built for the NG/AE interface layer and are the current 2025/2026 standard."
+        }
+      ],
+      "source": "Mossy Fine-Tuning Dataset",
+      "tags": ["def-ui", "def-hud", "fallui", "deprecated", "swf", "pause-menu-crash", "anniversary-edition"],
+      "date": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "ft-006-crash-log-offset-mismatch",
+      "title": "Crash Log Call-Stack: Version-Mismatched Memory Offset",
+      "conversations": [
+        {
+          "from": "human",
+          "value": "A student submits this crash log (game version 1.10.984 AE): [0] Fallout4.exe+12410A4 [1] F4SE_Plugin_Custom.dll+0x02B102 [2] Fallout4.exe+0x913A11. How do you diagnose it?"
+        },
+        {
+          "from": "gpt",
+          "value": "### [DIAGNOSIS: VERSION-MISMATCHED MEMORY OFFSET]\n**Step 1 — Identify fault origin**: Entry [1] `F4SE_Plugin_Custom.dll` is the fault origin — this is a custom plugin crash, not a vanilla engine bug.\n**Step 2 — Version mismatch**: The user is on AE (v1.10.984). The offset `Fallout4.exe+12410A4` in entry [0] maps to a function address in the Pre-Next-Gen (v1.10.163) executable layout. On AE, this address does not exist — resulting in Access Violation Exception 0xC0000005.\n**Step 3 — Fix**: The plugin is using a hardcoded offset. Replace with `REL::Relocation<uintptr_t>(REL::ID(58319)).address()` — the CommonAddressLibrary resolves the correct virtual address for whatever version the player is running.\n**Also verify**: X-Cell is installed (not Buffout 4 alone) for accurate NG/AE crash data. Always request the full log, not a screenshot."
+        }
+      ],
+      "source": "Mossy Fine-Tuning Dataset",
+      "tags": ["crash-log", "call-stack", "offset-mismatch", "x-cell", "rel-id", "access-violation", "f4se"],
+      "date": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "ft-007-esl-formid-bounds",
+      "title": "ESL FormID Out-of-Bounds Save Corruption",
+      "conversations": [
+        {
+          "from": "human",
+          "value": "A student is making a Light Plugin (.esl). How do they check their FormIDs are within the valid range, and what happens if they aren't?"
+        },
+        {
+          "from": "gpt",
+          "value": "### ESL FormID Compliance\n**Rule**: ESL local FormIDs must be in the range `0x000`–`0xFFF` (0–4095 decimal). Any record outside this boundary causes **instant save-game corruption**.\n\n**Check with SanitizeESL.pas** (xEdit Pascal script, save to `FO4Edit\\Edit Scripts\\`):\n```pascal\nfunction Process(e: IInterface): Integer;\nvar formID, localID: Cardinal;\nbegin\n  if Signature(e) = 'TES4' then Exit;\n  formID := GetLoadOrderFormID(e);\n  localID := formID and $00FFFFFF;\n  if localID > $FFF then\n    AddMessage('[WARNING] Out of Bounds: ' + Name(e) + ' [' + IntToHex(localID, 6) + ']');\nend;\n```\n\n**Fix**: In xEdit, right-click the plugin → **Compact FormIDs for ESL**. This reassigns all local IDs into the valid range automatically. Do NOT hand-renumber. Run SanitizeESL.pas as the final check before every ESL release."
+        }
+      ],
+      "source": "Mossy Fine-Tuning Dataset",
+      "tags": ["esl", "formid", "sanitizer", "save-corruption", "xedit", "compact-formids", "fo4edit"],
+      "date": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "ft-008-ae-content-detection",
+      "title": "Papyrus AE Content Detection with Game.IsPluginInstalled",
+      "conversations": [
+        {
+          "from": "human",
+          "value": "How should a Papyrus script detect whether the player is running the Anniversary Edition and safely branch behaviour based on optional AE content?"
+        },
+        {
+          "from": "gpt",
+          "value": "### AE Content Detection Pattern\nUse `Game.IsPluginInstalled()` as the defensive gate. The canonical AE signal is `\"Fallout4 - Creations.esm\"`.\n\n```papyrus\nScriptname AnniversaryCompatibilityController extends Quest\nBool Property IsAnniversaryEngineActive = False Auto Hidden\n\nEvent OnQuestInit()\n    if (Game.IsPluginInstalled(\"Fallout4 - Creations.esm\"))\n        IsAnniversaryEngineActive = True\n        Debug.Trace(\"[MOD] AE engine detected.\")\n    else\n        Debug.Trace(\"[MOD] Legacy/pre-NG engine detected.\")\n    endif\n    ; Then check optional masters individually\nEndEvent\n```\n\n**Rules**:\n- NEVER reference an AE form without first calling `Game.IsPluginInstalled()` on its master.\n- Attach to a **Start Game Enabled** quest so `OnQuestInit` fires on every load.\n- The 150+ AE `.esl` files can conflict with other mods — always validate with LOOT and xEdit."
+        }
+      ],
+      "source": "Mossy Fine-Tuning Dataset",
+      "tags": ["papyrus", "anniversary-edition", "game-ispluginstalled", "ae-detection", "compatibility"],
+      "date": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "ft-009-multi-target-ci",
+      "title": "Multi-Target F4SE Plugin CI Pipeline (GitHub Actions)",
+      "conversations": [
+        {
+          "from": "human",
+          "value": "How do I set up a GitHub Actions workflow to automatically compile my F4SE plugin for both Pre-Next-Gen and Anniversary Edition users?"
+        },
+        {
+          "from": "gpt",
+          "value": "### Multi-Target F4SE CI Pipeline\nCreate `.github/workflows/build.yml`:\n\n```yaml\nname: Multi-Target F4SE Plugin Compilation\non:\n  push:\n    branches: [ main ]\njobs:\n  build-variants:\n    runs-on: windows-2022\n    steps:\n    - uses: actions/checkout@v4\n      with: { submodules: recursive }\n    - uses: microsoft/setup-msbuild@v2\n    - name: Build Pre-NG DLL\n      run: |\n        msbuild /p:Configuration=Release_PreNG /p:Platform=x64 MyPlugin.sln\n        copy bin\\MyPlugin_PreNG.dll distribution\\PreNG\\Data\\F4SE\\Plugins\\MyPlugin.dll\n    - name: Build AE DLL\n      run: |\n        msbuild /p:Configuration=Release_Anniversary /p:Platform=x64 MyPlugin.sln\n        copy bin\\MyPlugin_Anniversary.dll distribution\\Anniversary\\Data\\F4SE\\Plugins\\MyPlugin.dll\n    - uses: actions/upload-artifact@v4\n      with: { name: Compiled-F4SE-Plugins, path: distribution/ }\n```\n\nIn the `.vcxproj`, define `PLUGIN_TARGET_PRENG` for `Release_PreNG` and `PLUGIN_TARGET_AE` for `Release_Anniversary`. Guard address IDs: `#if defined(PLUGIN_TARGET_AE) REL::ID fn(26104); #else REL::ID fn(12431); #endif`"
+        }
+      ],
+      "source": "Mossy Fine-Tuning Dataset",
+      "tags": ["ci", "github-actions", "msbuild", "multi-target", "f4se", "c++", "dll", "pre-ng", "anniversary"],
+      "date": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "ft-010-pbr-channel-validation",
+      "title": "PBR Texture Channel Validation for _s.dds",
+      "conversations": [
+        {
+          "from": "human",
+          "value": "A student's custom weapon asset renders as completely unlit plastic in-game despite having textures. How do you diagnose the texture issue?"
+        },
+        {
+          "from": "gpt",
+          "value": "### [DIAGNOSIS: PBR CHANNEL PACKING FAILURE]\n**Most likely cause**: The `_s.dds` specular texture has an empty Green channel (Specular Intensity).\n\n**Channel layout for `_s.dds`**:\n- Red = Metalness (empty = renders as plastic)\n- Green = Specular Intensity **(CRITICAL — empty = reflects zero light, asset appears unlit)**\n- Blue = Ambient Occlusion (empty = flat shadows)\n\n**Validate with the PBR Channel Checker**:\n```python\nfrom PIL import Image\nwith Image.open('MyWeapon_s.dds') as img:\n    r, g, b = img.split()[:3]\n    if g.getextrema() == (0, 0):\n        print('[CRITICAL] Green channel (Specular) is blank — asset will reflect zero light')\n```\n\n**Fix**: Re-export the `_s.dds` from Substance/GIMP with the Specular Intensity map baked into the Green channel. Run the checker before every BA2 pack. A `(0,0)` Green channel is a hard block on packaging."
+        }
+      ],
+      "source": "Mossy Fine-Tuning Dataset",
+      "tags": ["pbr", "texture", "specular", "_s.dds", "channel-packing", "pillow", "python", "unlit-asset"],
+      "date": "2026-05-13T00:00:00.000Z"
+    }
+  ]
+}
