@@ -199,6 +199,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
   const refreshVault = () => {
     setVault(loadVault());
   };
+  const lastDownloadPath = (localStorage.getItem('mossy_last_download_path') || '').trim();
 
   const mergeVault = (incoming: KnowledgeVaultItem[]) => {
     const current = loadVault();
@@ -230,11 +231,12 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
   const importVaultJson = async (rawText: string) => {
     try {
       const parsed = JSON.parse(rawText);
-      if (!Array.isArray(parsed)) {
-        setVaultImportStatus('Import failed: JSON must be an array of items.');
+      const items = extractVaultItems(parsed);
+      if (!Array.isArray(items)) {
+        setVaultImportStatus('Import failed: JSON must be an array or an object with an "items" array.');
         return;
       }
-      const normalized = normalizeVaultItems(parsed);
+      const normalized = normalizeVaultItems(items);
       if (normalized.length === 0) {
         setVaultImportStatus('Import skipped: No usable items found.');
         return;
@@ -966,11 +968,15 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
                 <button
                   type="button"
                   onClick={() => {
-                    const downloads = (localStorage.getItem('mossy_last_download_path') || '').trim();
-                    if (downloads) revealPath(downloads);
+                    if (lastDownloadPath) revealPath(lastDownloadPath);
                   }}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/40 border border-slate-800 text-xs font-bold text-slate-200 hover:border-slate-600 transition-colors"
-                  title={t('installWizard.openLastLocationTitle', '(Optional) Open last saved location if available')}
+                  disabled={!lastDownloadPath}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/40 border border-slate-800 text-xs font-bold text-slate-200 hover:border-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={
+                    lastDownloadPath
+                      ? t('installWizard.openLastLocationTitle', '(Optional) Open last saved location if available')
+                      : t('installWizard.openLastLocationUnavailableTitle', 'No recent saved location found yet')
+                  }
                 >
                   <FolderOpen className="w-4 h-4" />
                   {t('installWizard.openLastLocation', 'Open last location')}
