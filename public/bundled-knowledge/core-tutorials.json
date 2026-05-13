@@ -1,8 +1,8 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "1.0.0",
-  "exportDate": "2026-02-13",
+  "packVersion": "1.1.0",
+  "exportDate": "2026-05-13",
   "items": [
     {
       "id": "welcome-to-mossy",
@@ -14,6 +14,30 @@
       "trustLevel": "official",
       "tags": ["getting-started", "tutorial", "memory-vault", "basics"],
       "date": "2026-02-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "advanced-nif-pipeline",
+      "title": "Advanced Fallout 4 NIF Export Pipeline",
+      "content": "This lesson teaches a modern Fallout 4 asset pipeline built around Blender, Substance Painter, Material Editor, and NifSkope.\n\nStep 1: Build a high-poly source, then bake detail onto a clean low-poly mesh. Keep smooth shading, clean UVs, and controlled hard edges before baking.\n\nStep 2: Export Fallout 4-ready texture outputs using a PBR metallic-roughness workflow. Required maps should include _d.dds for base color, _n.dds for normal data with gloss or smoothness packed into alpha, and _s.dds for specular or auxiliary packed surface response.\n\nStep 3: Import a similar reference NIF with Blender NifTools, then align your custom mesh to the expected hierarchy, weights, and vertex color behavior.\n\nStep 4: Build a BGSM in Material Editor with relative paths to the exported textures and verify the required shader flags such as Specular, Specular_Lighting, Receive_Shadows, Cast_Shadows, and Double Sided where needed.\n\nStep 5: Open the exported NIF in NifSkope, locate the BSTriShape or NiTriShape and its BSLightingShaderProperty, connect the relative BGSM path, then sanitize the file with Spells -> Optimize -> Clean Nifty String Index Table before testing.\n\nCommon teaching checks: black assets usually point to bad relative paths, empty packed alpha channels, or shader mismatch; instant CTDs often point to corrupted string tables or invalid material hookups.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "nif", "nifskope", "bgsm", "blender", "pbr", "dds", "substance-painter", "asset-pipeline", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "event-driven-papyrus-principles",
+      "title": "Event-Driven Papyrus Performance Principles",
+      "content": "This lesson teaches modern Papyrus architecture for low-latency, low-bloat Fallout 4 scripting.\n\nRule 1: Avoid RegisterForUpdate() and RegisterForSingleUpdate() as default polling patterns. Prefer event-driven hooks such as RegisterForAnimationEvent(), RegisterForCustomEvent(), and RegisterForRemoteEvent() so the script sleeps until the engine sends an exact trigger.\n\nRule 2: Use Papyrus states instead of large repeated if/else chains. Put baseline behavior in an Auto State, switch into focused processing with GoToState(\"Active\"), run the one-shot logic, then return to the idle state.\n\nRule 3: Practice strict array and memory discipline. Repeated runtime resizing is expensive, so prefer pre-planned arrays and F4SE-assisted native structures when the design needs heavier data handling.\n\nRule 4: Use short-lived quest orchestration for transient logic. Scripts attached to persistent actors or world objects remain in save data longer, so teaching should prefer quest-driven processing that starts, does the work, and stops cleanly.\n\nCommon teaching checks: if scripts stop responding, verify they are not trapped in a custom state; if stack dumping appears, move heavy work out of loops and remove polling-based architecture.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "papyrus", "f4se", "event-driven", "states", "performance", "quest-scripting", "save-bloat", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
   ]
