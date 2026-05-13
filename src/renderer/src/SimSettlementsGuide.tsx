@@ -337,7 +337,7 @@ export default function SimSettlementsGuide() {
           <div>
             <h4 className="text-[#00d000] font-bold mb-2">Step 1: Prepare Installation</h4>
             <div className="text-xs space-y-1 ml-2">
-              <p>✓ Install Fallout 4 (version 1.10.163.0+)</p>
+              <p>✓ Install Fallout 4 (version 1.10.163.0+ — SS2 is compatible with OG, NG, and AE; use the matching F4SE build for your runtime)</p>
               <p>✓ Set up Vortex, MO2, or use Xbox Mods</p>
               <p>✓ Download HUD Framework and Workshop Framework</p>
               <p>✓ Download Sim Settlements 2</p>
