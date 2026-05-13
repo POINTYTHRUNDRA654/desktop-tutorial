@@ -62,6 +62,11 @@ export const CKExtension: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const performAutoSave = useCallback(() => {
+    setLastAutoSave(new Date());
+    setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save timestamp logged (CK IPC save bridge not yet wired — use File > Save in CK manually)`]);
+  }, []);
+
   // Auto-save timer
   useEffect(() => {
     if (!isConnected || !autoSaveEnabled) return;
@@ -72,11 +77,6 @@ export const CKExtension: React.FC = () => {
 
     return () => clearInterval(saveInterval);
   }, [isConnected, autoSaveEnabled, autoSaveInterval, performAutoSave]);
-
-  const performAutoSave = useCallback(() => {
-    setLastAutoSave(new Date());
-    setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save timestamp logged (CK IPC save bridge not yet wired — use File > Save in CK manually)`]);
-  }, []);
 
   const loadCKData = async () => {
     // Try to load recently compiled scripts from settings if the IPC is available
@@ -92,6 +92,11 @@ export const CKExtension: React.FC = () => {
   };
 
   const toggleAutoSave = () => {
+    const next = !autoSaveEnabled;
+    setAutoSaveEnabled(next);
+    localStorage.setItem('ck_autosave_enabled', next.toString());
+    setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save ${next ? 'enabled' : 'disabled'}`]);
+  };
 
   const updateAutoSaveInterval = (minutes: number) => {
     setAutoSaveInterval(minutes);
