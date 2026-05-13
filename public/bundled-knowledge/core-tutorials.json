@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "1.9.0",
+  "packVersion": "2.0.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -145,6 +145,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "papyrus", "testing", "mocking", "quest-runner", "bgem", "water-shader", "havok", "cloth", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-edi-f4se-hooks-and-behavior-graphs",
+      "title": "FO4 Extended Dialogue Interface, F4SE Memory Hooks, and Custom Behavior Graphs",
+      "content": "This lesson introduces three advanced engineering tracks for Fallout 4 mod creators.\n\nEDI track: bypass the hardcoded four-choice dialogue cap using Extended Dialogue Interface, build and bind XML layout configurations for custom screen layouts, and control button state at runtime with conditional Papyrus logic.\n\nF4SE hooks track: configure a Visual Studio 2022 C++ environment, link against the correct F4SE SDK version pair, apply RVA-based memory addressing for engine function targeting, and use IDA Pro or Ghidra for reverse engineering address discovery.\n\nBehavior graph track: author Havok .hkx state machines using 3ds Max and Havok Content Tools, wire graph variable triggers to Papyrus events, and configure rigid body constraints for collision-safe movement.\n\nTroubleshooting emphasis: missing EDI dialogue entries usually indicate XML layout misconfiguration or incomplete FOMOD installation, F4SE plugin load failures usually indicate SDK version mismatch, and stalled behavior transitions usually indicate Papyrus event name mismatches against .hkx variable identifiers.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "edi", "dialogue", "f4se", "c++", "rva", "memory-hooks", "behavior-graph", "havok", "hkx", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
