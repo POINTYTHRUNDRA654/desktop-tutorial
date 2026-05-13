@@ -16,6 +16,7 @@ echo   RUNNING AUTOMATED MOD DISTRIBUTION BUILD PACKAGER
 echo =======================================================
 
 set PROJECT_DIR=%~dp0
+:: NOTE: This variable model is for standalone .bat execution; in Visual Studio Post-Build events use MSBuild macros like $(ProjectDir).
 set ARCHIVE_DIR=%PROJECT_DIR%BuildArchive
 set OUTPUT_ZIP=%PROJECT_DIR%EngineTelemetryToolkit_v1.0.0.zip
 
