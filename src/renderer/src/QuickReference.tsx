@@ -154,7 +154,7 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
         },
         {
           name: 'Engine stability first',
-          description: 'Install crash logging and engine-fix foundations before heavy content packs, then test in small batches.',
+          description: 'Install crash logging and engine-fix foundations (current X-Cell-era stack) before heavy content packs, then test in small batches.',
           category: 'Stability',
         },
         {
