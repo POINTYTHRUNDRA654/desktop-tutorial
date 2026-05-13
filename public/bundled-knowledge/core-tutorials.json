@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "2.2.0",
+  "packVersion": "2.3.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -181,6 +181,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "getting-started", "checklist", "f4se", "c++", "papyrus", "hello-world", "template", "architecture", "creation-kit", "havok", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-vs2022-f4se-project-setup",
+      "title": "FO4 Visual Studio 2022 F4SE C++ DLL Project Setup: Properties, Paths, and Linker Configuration",
+      "content": "This lesson walks through the complete Visual Studio 2022 project configuration required to build a valid F4SE plugin DLL for Fallout 4.\n\nProject creation: create a new C++ DLL project, set configuration to Release and platform to x64. F4SE only loads x64 DLLs.\n\nGeneral settings: set C++ Language Standard to ISO C++17 (/std:c++17), configure output directory to keep DLL builds organized, and match Target Name to your plugin identifier.\n\nInclude and library paths: set Include Directories to the F4SE SDK include/ folder, set Library Directories to the F4SE SDK lib/x64/Release/ folder.\n\nPreprocessor definitions: add WIN32_LEAN_AND_MEAN and NOMINMAX to prevent Windows header macro conflicts.\n\nCode generation: set Runtime Library to Multi-threaded (/MT) to statically link the CRT and avoid runtime dependency issues in the game process.\n\nLinker input: add f4se_common.lib to Additional Dependencies to enable _MESSAGE, _ERROR, and _FATALERROR logging.\n\nPost-build event: optionally add an xcopy command to automatically deploy the built DLL to Data/F4SE/Plugins/ after each successful build.\n\nVerification: build with Ctrl+Shift+B, confirm .dll exists in output, launch game with F4SE, and check the plugin log in Documents/My Games/Fallout4/F4SE/.\n\nTroubleshooting emphasis: LNK2019 usually means wrong library directory or missing lib in Additional Dependencies; C++17 errors usually mean language standard set incorrectly in wrong configuration; DLL not loaded usually means wrong folder, runtime version mismatch, or x86 output.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "vs2022", "visual-studio", "f4se", "c++", "dll", "project-setup", "linker", "include-paths", "build-configuration", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
