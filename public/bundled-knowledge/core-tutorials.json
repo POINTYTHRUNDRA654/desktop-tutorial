@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "1.5.0",
+  "packVersion": "1.6.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -97,6 +97,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "ba2", "archive2", "compression", "lod", "xlodgen", "mcm", "papyrus", "packaging", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-omod-fuz-and-havok-workflows",
+      "title": "FO4 OMOD Slot Architecture, FUZ Lip-Sync, and Havok Collision Workflows",
+      "content": "This lesson teaches three advanced production tracks for Fallout 4 mod delivery.\n\nOMOD track: implement the CO + OMOD + MISC triad, enforce AP/MA keyword mapping, and apply model/stat properties safely so workbench attachments mount and filter correctly.\n\nVoice track: prepare clean dialogue WAV sources, generate .lip timing metadata, convert to .xwm, then compile both into .fuz payloads for in-game voiced lines with facial sync.\n\nPhysics track: create simplified collision hulls, assign Havok material behavior, and wire bhk collision nodes in NIF structures so world objects maintain valid physical interaction.\n\nTroubleshooting emphasis: missing workbench entries usually indicate keyword/category mismatch, invisible attachments indicate bad model binding targets, silent lips indicate failed lip generation pairing, and ground-clipping objects indicate missing or malformed collision data.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "omod", "xedit", "workbench", "fuz", "lip-sync", "xwm", "havok", "collision", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
