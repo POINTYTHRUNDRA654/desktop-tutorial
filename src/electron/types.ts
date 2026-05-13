@@ -995,6 +995,31 @@ export interface ElectronAPI {
   systemMetricsPoll: () => Promise<SystemMetricsResponse>;
   systemMetricsGet: () => Promise<SystemMetricsResponse>;
   onSystemMetricsUpdate: (callback: (metrics: SystemMetrics) => void) => (() => void);
+
+  // TextureEnhancer IPC listeners
+  onEnhancerProgress?: (callback: (data: any) => void) => (() => void);
+  onEnhancerComplete?: (callback: (data: any) => void) => (() => void);
+  onEnhancerError?: (callback: (data: any) => void) => (() => void);
+  onEnhancerJobStarted?: (callback: (data: any) => void) => (() => void);
+  selectDirectory?: () => Promise<string | null>;
+
+  // BethelUploader IPC listeners & API
+  onBethelAnalyzed?: (callback: (job: any) => void) => (() => void);
+  onBethelEnhancementComplete?: (callback: (job: any) => void) => (() => void);
+  onBethelExportComplete?: (callback: (job: any) => void) => (() => void);
+  bethel?: {
+    listJobs?: (limit?: number) => Promise<{ success: boolean; jobs?: any[]; error?: string }>;
+    createSession?: () => Promise<{ success: boolean; job?: any; error?: string }>;
+    analyzeUploadedMod?: (jobId: string) => Promise<{ success: boolean; job?: any; error?: string }>;
+    enhanceMod?: (jobId: string, level: number) => Promise<{ success: boolean; job?: any; error?: string }>;
+    exportEnhancedMod?: (jobId: string, format: string) => Promise<{ success: boolean; job?: any; error?: string }>;
+  };
+
+  // OllamaSettings (legacy ml namespace — wraps the flat mlLlmStatus/mlLlmGenerate API)
+  ml?: {
+    getOllamaStatus?: (baseUrl?: string) => Promise<{ ok: boolean; baseUrl?: string; models?: string[]; error?: string }>;
+    ollamaPull?: (model: string, opts?: { baseUrl?: string }) => Promise<{ ok: boolean; error?: string }>;
+  };
 }
 
 export interface VoiceChatPayload {

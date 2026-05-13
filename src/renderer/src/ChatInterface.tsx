@@ -258,7 +258,7 @@ const QuickPromptChips: React.FC<{ onSelect: (prompt: string) => void }> = ({ on
 );
 
 // Memoized Message Item to prevent re-rendering list on typing
-const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (msgId: string, rating: 'good' | 'bad') => void }) => {
+const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (msgId: string, rating: 'good' | 'bad', editedAnswer?: string) => void }) => {
     MessageItem.displayName = 'MessageItem';
     const [showCitations, setShowCitations] = useState(false);
     const [rating, setRating] = useState<'good' | 'bad' | null>(null);
@@ -394,15 +394,17 @@ const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (m
                             title="Bad answer — save to training dataset to improve"
                             aria-label="Rate response bad"
                             onClick={() => {
+                                // `rating` is set immediately for UI feedback (button highlight).
+                                // The training-data save is deferred — it happens when the user
+                                // confirms via the "Save correction" button below.
                                 setRating('bad');
                                 setShowEditBox(true);
-                                onRate?.(msg.id, 'bad');
                             }}
                             className={`px-2 py-0.5 rounded text-xs transition-colors ${rating === 'bad' ? 'bg-red-800/60 text-red-200 border border-red-700' : 'bg-slate-800/60 text-slate-400 hover:text-red-300 border border-slate-700'}`}
                         >
                             👎
                         </button>
-                        {rating && <span className="text-[10px] text-slate-500">{rating === 'good' ? 'Saved to training data ✓' : 'Saved — edit to improve:'}</span>}
+                        {rating && <span className="text-[10px] text-slate-500">{rating === 'good' ? 'Saved to training data ✓' : 'Edit the correct answer below and click Save:'}</span>}
                         {showEditBox && (
                             <div className="w-full mt-1 space-y-1">
                                 <textarea
@@ -415,12 +417,15 @@ const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (m
                                 <div className="flex gap-2">
                                     <button
                                         type="button"
-                                        onClick={() => { onRate?.(msg.id, 'bad'); setShowEditBox(false); }}
+                                        onClick={() => {
+                                            onRate?.(msg.id, 'bad', editedAnswer || msg.content);
+                                            setShowEditBox(false);
+                                        }}
                                         className="text-xs px-2 py-1 rounded bg-emerald-800 hover:bg-emerald-700 text-white"
                                     >
                                         Save correction
                                     </button>
-                                    <button type="button" onClick={() => setShowEditBox(false)} className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">Cancel</button>
+                                    <button type="button" onClick={() => { setShowEditBox(false); setRating(null); }} className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">Cancel</button>
                                 </div>
                             </div>
                         )}
@@ -1863,7 +1868,7 @@ export const ChatInterface: React.FC = () => {
     };
 
     // ── Training data: rate a message 👍/👎 ──────────────────────────────────
-    const handleRateMessage = React.useCallback(async (msgId: string, rating: 'good' | 'bad') => {
+    const handleRateMessage = React.useCallback(async (msgId: string, rating: 'good' | 'bad', editedAnswer?: string) => {
         const api = (window as any).electron?.api;
         if (!api?.trainingDataAddPair) return;
         // Find the Q&A pair: the user message just before this assistant message
@@ -1887,6 +1892,10 @@ export const ChatInterface: React.FC = () => {
             await api.trainingDataAddPair({
                 question: userMsg.content,
                 answer: assistantMsg.content,
+                // If the user provided a correction, save it as editedAnswer so the
+                // IPC handler writes that text into the training pair instead of the
+                // original (possibly wrong) answer.
+                editedAnswer: editedAnswer && editedAnswer !== assistantMsg.content ? editedAnswer : undefined,
                 rating,
                 topic,
             });

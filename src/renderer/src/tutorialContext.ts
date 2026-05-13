@@ -51,7 +51,9 @@ export interface TutorialPageContext {
       | 'text'
       | 'card'
       | 'controls'
-      | 'input/button';
+      | 'input/button'
+      | 'tab'
+      | 'tabs';
     description: string;
     whenToUse: string;
   }[];
@@ -256,7 +258,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         steps: [
           'Chat normally and click 👍 on responses you want to keep',
           'Click 👎 on responses that were wrong or unhelpful',
-          'Open Settings → Local AI → Export Training Data to download the JSONL file',
+          'Open System Hub → Capabilities tab → Training Data → click "Export JSONL" to download the file',
           'Use the JSONL with Unsloth to fine-tune your own local model',
         ],
       },

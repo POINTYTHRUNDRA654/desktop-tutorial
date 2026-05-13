@@ -7,6 +7,12 @@ interface WhatsNewDialogProps {
   onClose: () => void;
 }
 
+interface WhatsNewFeature {
+  title: string;
+  description: string;
+  icon: string;
+}
+
 export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose }) => {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [entry, setEntry] = useState<any>(null);
@@ -71,7 +77,7 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose 
     }
   ];
 
-  const features = entry?.features || defaultFeatures;
+  const features: WhatsNewFeature[] = entry?.features || defaultFeatures;
 
   const handleClose = () => {
     if (dontShowAgain) {
