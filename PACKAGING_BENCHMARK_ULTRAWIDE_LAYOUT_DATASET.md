@@ -46,6 +46,7 @@ pause
 **Key points:**
 - Keep packaging paths deterministic so mod managers receive stable archive structure every release.
 - Use standalone batch variables (`%~dp0`, `%PROJECT_DIR%`) unless this is explicitly embedded in an MSBuild post-build event.
+- In **Visual Studio Post-Build Event** commands, prefer MSBuild macros (`$(ProjectDir)`, `$(TargetPath)`); in standalone `.bat` execution, use batch variables (`%~dp0`, `%PROJECT_DIR%`).
 - Clean build archives before copy to avoid stale artifact bleed-through.
 - Include only runtime-required folders in the ZIP root (`fomod`, `F4SE`, `Interface`, `Scripts`) unless source distribution is intentional.
 - Validate output ZIP contents after packaging to catch missing dependency copies.
