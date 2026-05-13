@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "2.4.0",
+  "packVersion": "2.5.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -205,6 +205,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "f4se", "c++", "papyrus", "argument-bridging", "tesform", "vmarray", "event-listener", "bstevent-sink", "rva", "relocation", "memory-access", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-ida-pro-rva-edi-controller-telemetry",
+      "title": "FO4 IDA Pro RVA Pattern Scanner, EDI Papyrus Dialogue Controller, and Thread-Safe Telemetry Dispatcher",
+      "content": "This lesson covers three advanced engineering topics across F4SE reverse engineering and Papyrus integration.\n\nPhase 1 — IDA Pro Python RVA discovery: use idc.find_binary() with wildcard byte patterns to locate engine functions in IDA Pro 7.x/8.x/9.x. Subtract idc.get_imagebase() from the match address to get the RVA for RelocPtr. Wildcard bytes must cover address-dependent immediates that change between patches. Re-run against each new binary to verify RVA stability.\n\nPhase 2 — EDI dialogue controller: import the ExtendedDialogueInterface namespace in a Quest script, register a custom dialogue handler via EDI_API:GetAPI().RegisterCustomDialogueHandler(Self) in OnInit, and respond to OnCustomDialogueRequest with a String[] options array of any size passed to DisplayExtendedOptions. The dialogue node ID in aiDialogueNodeId maps to the block ID defined in the EDI XML layout file. This bypasses the vanilla 4-choice engine cap.\n\nPhase 3 — thread-safe telemetry dispatcher: use std::atomic<bool> for a lock-free stop signal, std::lock_guard<std::mutex> for scoped memory read protection, and F4SETaskInterface::AddTask() to queue Papyrus VM calls back onto the main game thread. Never call Papyrus VM functions directly from a worker thread. Call StopTelemetrySystem() and join the thread before DLL unload to prevent crash on game exit.\n\nTroubleshooting emphasis: IDA BADADDR means pattern changed in new patch; EDI options not displaying means handler not registered before dialogue fires; EDI node ID collision means another mod uses the same block ID; crash on exit means thread not joined before unload; Papyrus events not firing from AddTask means g_gameVM not yet valid.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "ida-pro", "rva", "pattern-scan", "edi", "extended-dialogue", "papyrus", "f4se", "threading", "mutex", "telemetry", "tasking", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
