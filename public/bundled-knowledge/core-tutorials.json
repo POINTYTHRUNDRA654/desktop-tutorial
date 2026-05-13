@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "1.6.0",
+  "packVersion": "1.7.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -109,6 +109,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "omod", "xedit", "workbench", "fuz", "lip-sync", "xwm", "havok", "collision", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-companion-ai-injection-and-projectile-shaders",
+      "title": "FO4 Companion AI Frameworks, Leveled List Injection, and Projectile Shader Workflows",
+      "content": "This lesson introduces three advanced gameplay systems for Fallout 4 mods.\n\nCompanion track: build follower package stacks with conditional transitions, script-compatible companion setup, and reliable follow/sandbox/combat behavior switching.\n\nInjection track: avoid hard record conflicts by using startup-quest Papyrus injection patterns that add custom forms to leveled lists at runtime.\n\nProjectile track: build modern glowing projectile visuals with effect shader properties, emissive tuning, UV animation controllers, and correctly configured projectile forms in Creation Kit.\n\nTroubleshooting emphasis: non-responsive followers usually indicate bad package conditions or alias setup, missing loot additions usually indicate broken property binding on injection scripts, and non-glowing/non-animated projectiles usually indicate missing shader blocks or controller mappings.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "companion", "ai-packages", "papyrus", "leveled-list", "injection", "projectile", "shader", "nifskope", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
