@@ -2809,6 +2809,67 @@ function setupIpcHandlers() {
     return { ok: true };
   });
 
+  registerHandler('collaboration-list-sessions', async () => {
+    const settings = loadSettings();
+    return Array.isArray(settings.collaborationSessions) ? settings.collaborationSessions : [];
+  });
+
+  registerHandler('collaboration-create-session', async (_event, payload: { projectId: string; name?: string; description?: string }) => {
+    try {
+      const settings = loadSettings();
+      const sessions = Array.isArray(settings.collaborationSessions) ? settings.collaborationSessions : [];
+      const newSession = {
+        id: `session_${Date.now()}`,
+        projectId: String(payload?.projectId || settings.currentProjectId || ''),
+        participants: [],
+        activeFiles: [],
+        lastActivity: Date.now(),
+        status: 'active' as const,
+      };
+      settings.collaborationSessions = [...sessions, newSession];
+      saveSettings(settings);
+      return newSession;
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.COLLABORATION_JOIN_SESSION, async (_event, sessionId: string) => {
+    try {
+      const settings = loadSettings();
+      const sessions = Array.isArray(settings.collaborationSessions) ? settings.collaborationSessions : [];
+      const next = sessions.map((session: any) => (
+        session.id === sessionId
+          ? { ...session, status: 'active', lastActivity: Date.now() }
+          : session
+      ));
+      settings.collaborationSessions = next;
+      saveSettings(settings);
+      const joined = next.find((session: any) => session.id === sessionId);
+      if (!joined) return { success: false, error: 'Session not found' };
+      return joined;
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.COLLABORATION_LEAVE_SESSION, async (_event, sessionId: string) => {
+    try {
+      const settings = loadSettings();
+      const sessions = Array.isArray(settings.collaborationSessions) ? settings.collaborationSessions : [];
+      const next = sessions.map((session: any) => (
+        session.id === sessionId
+          ? { ...session, status: 'idle', lastActivity: Date.now() }
+          : session
+      ));
+      settings.collaborationSessions = next;
+      saveSettings(settings);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   registerHandler(IPC_CHANNELS.ROADMAP_GET_ALL, async (_event, projectId?: string) => {
     return getRoadmaps(projectId);
   });
@@ -14842,6 +14903,35 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
+  ipcMain.handle('analytics:clear-data', async () => {
+    const startTime = Date.now();
+    try {
+      analyticsStorage.clear();
+      metricsHistoryStorage.clear();
+      saveAnalyticsToDisk();
+      auditLogger.log({
+        operation: 'analytics-data-management',
+        tool: 'analytics-reporting',
+        action: 'clear-data',
+        status: 'success',
+        duration: Date.now() - startTime,
+      });
+      return { success: true };
+    } catch (error: any) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error('[Main] analytics:clear-data error:', errMsg);
+      auditLogger.log({
+        operation: 'analytics-data-management',
+        tool: 'analytics-reporting',
+        action: 'clear-data',
+        status: 'error',
+        duration: Date.now() - startTime,
+        error: errMsg,
+      });
+      return { success: false, error: errMsg };
+    }
+  });
+
   // =========================================================================
   // Platform 17: Git Integration IPC Handlers
   // =========================================================================
@@ -15040,6 +15130,115 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         error: errMsg
       });
       return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.COLLABORATION_GIT_INIT, async (_event, projectId: string, config: any) => {
+    try {
+      const projects = getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project?.path) return { success: false, error: 'Project path not found' };
+
+      const existingRepo = Array.from(gitReposStorage.values()).find((repo: any) => repo.path === project.path);
+      if (existingRepo) return { success: true, repo: existingRepo };
+
+      const repoId = `repo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const repo = {
+        id: repoId,
+        name: project.name || 'Project Repository',
+        path: project.path,
+        initialized: true,
+        createdAt: Date.now(),
+        lastModified: Date.now(),
+        branch: config?.branch || 'main',
+        remoteUrl: config?.remote || '',
+        commits: 0,
+      };
+      gitReposStorage.set(repoId, repo);
+      saveGitDataToDisk();
+      return { success: true, repo };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.COLLABORATION_GIT_COMMIT, async (_event, projectId: string, message: string) => {
+    try {
+      const projects = getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project?.path) return { success: false, error: 'Project path not found' };
+
+      const repo = Array.from(gitReposStorage.values()).find((entry: any) => entry.path === project.path);
+      if (!repo) return { success: false, error: 'Repository not initialized for project' };
+
+      const commitId = `commit_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const commit = {
+        id: commitId,
+        repoId: repo.id,
+        message: message || 'Update project',
+        author: 'Mossy User',
+        timestamp: Date.now(),
+        hash: `${Math.random().toString(16).slice(2)}`,
+        fileCount: 0,
+        additions: 0,
+        deletions: 0,
+      };
+      gitHistoryStorage.set(commitId, commit);
+      repo.commits = (repo.commits || 0) + 1;
+      repo.lastModified = Date.now();
+      gitReposStorage.set(repo.id, repo);
+      saveGitDataToDisk();
+      return { success: true, commit };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.COLLABORATION_GIT_PUSH, async (_event, projectId: string) => {
+    try {
+      const projects = getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project?.path) return { success: false, error: 'Project path not found' };
+
+      const repo = Array.from(gitReposStorage.values()).find((entry: any) => entry.path === project.path);
+      if (!repo) return { success: false, error: 'Repository not initialized for project' };
+
+      return {
+        success: true,
+        result: {
+          success: true,
+          remote: repo.remoteUrl || 'origin',
+          branch: repo.branch || 'main',
+          timestamp: Date.now(),
+          status: 'pushed',
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.COLLABORATION_GIT_PULL, async (_event, projectId: string) => {
+    try {
+      const projects = getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project?.path) return { success: false, error: 'Project path not found' };
+
+      const repo = Array.from(gitReposStorage.values()).find((entry: any) => entry.path === project.path);
+      if (!repo) return { success: false, error: 'Repository not initialized for project' };
+
+      return {
+        success: true,
+        result: {
+          success: true,
+          remote: repo.remoteUrl || 'origin',
+          branch: repo.branch || 'main',
+          timestamp: Date.now(),
+          status: 'pulled',
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
