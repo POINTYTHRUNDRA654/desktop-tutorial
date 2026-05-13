@@ -6,10 +6,10 @@
     {
       "id": "core-tutorials-v1",
       "name": "Core Tutorials",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "file": "core-tutorials.json",
       "description": "Essential getting started tutorials for Mossy",
-      "itemCount": 24,
+      "itemCount": 25,
       "auto-import": true
     },
     {
