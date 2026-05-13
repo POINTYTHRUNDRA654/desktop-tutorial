@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "3.1.0",
+  "packVersion": "3.2.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -289,6 +289,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "trampoline", "hook", "write5branch", "f4se", "c++", "damage-intercept", "canvas", "grid-layout", "coordinate-tracking", "papyrus", "unit-test", "debug-trace", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-nextgen-vs-anniversary-engine-guide",
+      "title": "Navigating Next-Gen and Anniversary Engine Updates",
+      "content": "This lesson defines the critical technical differences between the 2024 Next-Gen patch and the 2025 Anniversary Edition update for Fallout 4 mod creators.\n\nCore distinction: The Next-Gen Patch (April 2024) was a forced, free engine overhaul that changed the game compilation format, memory addressing, native 4K console support, and BA2 archive headers. The Anniversary Edition (late 2025) is a content bundle and UI upgrade built on top of the Next-Gen engine. It adds the Creations menu, bundles official Creation Club DLCs, and includes an engine bug-fix pass.\n\nBA2 Header Version rule: Pre-Next-Gen tools output BA2 Header Version 1. The Next-Gen and Anniversary runtimes require BA2 Header Version 2. Packing with an outdated tool causes the modern engine to silently ignore the archive or crash to desktop. Always configure Archive2.exe or Cathedral Assets Optimizer to target Version 2 headers unless deliberately targeting the legacy community.\n\nFace-Gen stutter fix: The initial 2024 Next-Gen patch introduced a severe engine bug where any mod altering an NPC facial data record via a plugin caused violent multi-frame stutter every time that NPC loaded into the current cell. The 2025 Anniversary engine update completely removed this bug. Instruct companion and custom character modders that face-data stripping workarounds are no longer needed provided end-users run the Anniversary-era engine.\n\nCreation ID master constraints: The Anniversary Edition natively injects dozens of new .esl and .esp official master records into every player's game. Scripts must use defensive validation with Game.IsPluginInstalled() before referencing vanilla or bundled Creation properties to prevent FormID conflicts. Example: if Game.IsPluginInstalled(\"ccXXXFO4001-PipBoy(Black).esl\") ... endIf.\n\nF4SE address library compatibility: F4SE C++ plugins that target memory offsets mapped for the 2024 Next-Gen branch break on the 2025 Anniversary compilation update because offsets shift. Always update the plugin's Address Library target headers to match the current build version or use CommonAddressLibrary (CAL) database offsets. Never hard-code version-specific memory addresses without an address library abstraction.\n\nDiagnostic checklist for invisible textures and CTDs on modern installs: verify Archive2 or CAO is configured for BA2 Version 2; confirm game version is 1.10.980 or newer; test with loose files to isolate the archive from the content; check xEdit for FormID conflicts with AE injected masters.\n\nModule 8 schema reference: ba2_header_rule — Next-Gen and Anniversary runtimes require BA2 Header Format Version 2; standard pre-Next-Gen tools output Version 1 causing texture masking and mesh invisible loading errors. resolved_engine_bugs — Anniversary patch fixes the Next-Gen FaceGen runtime performance stutter and restores standard VATS accuracy logic fields.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["engine", "next-gen", "anniversary-edition", "ba2", "header-version", "face-gen", "stutter", "f4se", "address-library", "creation-id", "plugin-installed", "archive2", "cao", "module-8", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
