@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "2.8.0",
+  "packVersion": "2.9.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -253,6 +253,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "havok", "behavior-graph", "playanimation", "hkx", "websocket", "tcp", "winsock", "telemetry", "fomod", "installer", "mod-manager", "f4se", "papyrus", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-telemetry-dashboard-vs-configs-havok-variables",
+      "title": "FO4 HTML/JS Telemetry Dashboard, VS2022 Developer Debug Configuration, and Havok Graph Variable States",
+      "content": "This lesson covers three developer experience and animation integration topics.\n\nPhase 1 — HTML/JS WebSocket telemetry dashboard: standalone index.html connects via new WebSocket('ws://127.0.0.1:8080') to a Node.js relay that bridges the C++ raw TCP stream. socket.onmessage parses JSON telemetry frames and updates the display with toFixed(4). socket.onclose shows a disconnected state. Open directly in a browser via file:// — no web server needed on the client side.\n\nPhase 2 — VS2022 Developer Debug configuration: open Configuration Manager, create a new configuration named Developer Debug by copying settings from Release. Add _DEVELOPER_DEBUG to Preprocessor Definitions only for this configuration. Use #ifdef _DEVELOPER_DEBUG in C++ to gate heavy features (BroadcastTelemetryData) out of the Release binary at compile time. Set a separate Output Directory for Developer Debug to prevent overwriting the Release DLL. Never add the macro to Release.\n\nPhase 3 — Havok behavior graph variable states: SetAnimationVariableFloat writes to named float variable slots in the .hkx graph to drive blend speeds and rotation targets. SetAnimationVariableInt writes to integer slots to drive conditional branch selectors and direction flags. Variable names are case-sensitive and must match the slot names declared in Autodesk 3ds Max / Havok Content Tools. Always set variables before calling PlayAnimation so transition nodes read correct values at the moment the event fires. Variables persist until overwritten.\n\nTroubleshooting emphasis: WebSocket onopen never fires means relay not running; dashboard shows 0.00 means relay connected but not forwarding data; BroadcastTelemetryData in Release means macro added to wrong config; DLL outputs overwrite means Developer Debug output directory not separated; SetAnimationVariableFloat no effect means variable name mismatch or no graph bound; wrong speed on activation means variables set after PlayAnimation call.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "dashboard", "html", "javascript", "websocket", "telemetry", "vs2022", "build-config", "preprocessor", "developer-debug", "havok", "setanimationvariable", "behavior-graph", "f4se", "papyrus", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
