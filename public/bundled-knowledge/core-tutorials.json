@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "2.5.0",
+  "packVersion": "2.6.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -217,6 +217,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "ida-pro", "rva", "pattern-scan", "edi", "extended-dialogue", "papyrus", "f4se", "threading", "mutex", "telemetry", "tasking", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-telemetry-receiver-edi-xml-memory-writer",
+      "title": "FO4 Papyrus Telemetry Receiver, EDI XML Layout Configuration, and VirtualProtect Memory Writer",
+      "content": "This lesson covers the final integration layer: receiving C++ telemetry in Papyrus, configuring the EDI XML layout for extended menus, and writing live engine memory from an EDI button selection.\n\nPhase 1 — Papyrus telemetry receiver: a persistent Quest script declares CustomEvent OnTelemetryUpdate and a ReceiveEngineData(Float) function called from the C++ AddTask lambda. It broadcasts the value via SendCustomEvent to all external listener scripts. The Quest must be Start Game Enabled and not Run Once to keep the event channel open across sessions. Cast akArgs[0] as Float to retrieve the value in listener handlers.\n\nPhase 2 — EDI XML layout: place ExtendedDialogueInterface.xml in Interface\\EDI\\ inside the mod archive. MaxVisibleItems sets the button count before scroll appears. VerticalSpacing controls row gap in pixels. PositionX/PositionY are screen-space coordinates. FontName uses Fallout 4 font tokens ($FontDF_B for bold). Color values are hex ARGB with 0x prefix.\n\nPhase 3 — VirtualProtect memory writer: RegisterFunction binds CommitMemoryWrite as NativeFunction1 accepting a float. WriteEngineMemoryValue calls VirtualProtect to temporarily set PAGE_EXECUTE_READWRITE around the target float address, writes the value, then immediately restores original protection via the saved oldProtect value. The EDI OnCustomDialogueSelection event maps aiSelectionIndex (zero-based) to CommitMemoryWrite calls with specific float values.\n\nTroubleshooting emphasis: CustomEvent not firing means Quest not persistent or VM null in AddTask; EDI showing only 4 items means XML file path wrong; VirtualProtect failure means guard page or insufficient permissions; crash after write means RVA pointed to code not data; wrong EDI selection index means off-by-one in ElseIf chain.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "papyrus", "telemetry", "custom-event", "edi", "xml", "layout", "virtualprotect", "memory-write", "f4se", "c++", "dialogue", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
