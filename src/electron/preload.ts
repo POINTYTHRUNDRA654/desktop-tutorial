@@ -2811,13 +2811,6 @@ const electronAPI = {
     return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_GENERATE_PLAN, validation);
   },
 
-  /**
-   * CK Crash Prevention: Pick log file via dialog
-   */
-  ckCrashPickLog: (): Promise<any> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_PICK_LOG);
-  },
-
   // =========================================================================
   // CLOUD SYNC API
   // =========================================================================
