@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "2.3.0",
+  "packVersion": "2.4.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -193,6 +193,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "vs2022", "visual-studio", "f4se", "c++", "dll", "project-setup", "linker", "include-paths", "build-configuration", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-complex-bridge-event-listeners-rva-memory",
+      "title": "FO4 Advanced F4SE: Complex C++/Papyrus Argument Bridging, Engine Event Listeners, and RVA Live Memory Access",
+      "content": "This lesson covers three advanced F4SE plugin development phases.\n\nPhase 1 — complex argument bridging: extend the native function bridge to accept TESForm* (game object pointer), BSFixedString (interned string), and VMArray<SInt32> (Papyrus integer array). Always null-check TESForm* before accessing formID. Use NativeFunction3 template matching the Papyrus argument count. The Papyrus script declares the function native with no body; the matching script name and function name must exactly match the RegisterFunction binding.\n\nPhase 2 — C++ event listeners dispatching to Papyrus: implement BSTEventSink<MenuOpenCloseEvent> to intercept Pip-Boy and other menu state changes. Register the sink via g_ui->menuOpenCloseEventSource.AddEventSink(). Get the VirtualMachine instance from g_gameVM to dispatch custom Papyrus events back to listening scripts. Define CustomEvent and SendCustomEvent in a Quest script to broadcast payloads to external script listeners.\n\nPhase 3 — RVA live memory read and write: use RelocPtr<T> with a compile-time RVA offset to resolve the runtime-relocated engine address. Always null-check GetPtr() before dereferencing. Write only to verified data variables, never to code segments. RVAs must be re-verified against new game binaries after every patch using IDA Pro, Ghidra, or pattern scanning.\n\nTroubleshooting emphasis: null TESForm* crashes mean Papyrus passed None and the C++ side must guard; silent VM call drops mean script name or function name mismatch in RegisterFunction; event sink not firing means InitializeEventListeners called before interface pointers populated; access violation on RVA means offset is stale for the current game version.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "f4se", "c++", "papyrus", "argument-bridging", "tesform", "vmarray", "event-listener", "bstevent-sink", "rva", "relocation", "memory-access", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
