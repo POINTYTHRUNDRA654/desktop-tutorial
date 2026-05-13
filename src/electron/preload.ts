@@ -1973,6 +1973,13 @@ const electronAPI = {
   },
 
   /**
+   * Legacy alias for folder picker used by some renderer modules.
+   */
+  selectDirectory: (title?: string): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PICK_DIRECTORY, title);
+  },
+
+  /**
    * Creation Kit Link - Pick CreationKit.exe file
    */
   pickCreationKitExe: (): Promise<string> => {
