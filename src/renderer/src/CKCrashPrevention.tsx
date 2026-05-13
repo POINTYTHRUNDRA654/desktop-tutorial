@@ -103,10 +103,10 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
 
   const pickSpriggitCli = async () => {
     const a = api();
-    if (!a?.ckPickPlugin) { toast.error('File picker not available'); return; }
+    if (!a?.spriggitPickCli) { toast.error('File picker not available'); return; }
     try {
-      const result = await a.ckPickPlugin();
-      if (result?.success && result.path) setSpriggitCliPath(result.path);
+      const result = await a.spriggitPickCli();
+      if (result) setSpriggitCliPath(result);
     } catch (e) { console.error('File picker error:', e); }
   };
 
@@ -160,7 +160,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
     setConvertMsg('');
     setConvertError('');
     try {
-      const result = await a.spriggitSerialize({ spriggitPath: spriggitCliPath, dataPath: spriggitDataPath });
+      const result = await a.spriggitSerialize({ cliPath: spriggitCliPath, dataPath: spriggitDataPath, outputPath: '' });
       if (result?.ok === false) {
         setConvertError(result.error || 'Serialization failed');
         toast.error(result.error || 'Serialization failed');
@@ -184,8 +184,9 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
     const a = api();
     if (!a?.getRunningProcesses) return;
     try {
-      const procs: any[] = await a.getRunningProcesses();
-      const ck = (procs || []).filter((p: any) => {
+      const rawProcs = await a.getRunningProcesses();
+      const procs: any[] = (rawProcs as any)?.data ?? (Array.isArray(rawProcs) ? rawProcs : []);
+      const ck = procs.filter((p: any) => {
         const name = String(p?.name || p?.processName || '').toLowerCase();
         return name.includes('creationkit') || name.includes('ck.exe');
       });
