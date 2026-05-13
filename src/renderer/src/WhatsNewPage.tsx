@@ -150,7 +150,7 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
                 )}
                 {features.map((feature, index) => (
                   <div
-                    key={`${feature.title}-${index}`}
+                    key={index}
                     className="group flex items-start gap-4 rounded-2xl border border-emerald-500/10 bg-gradient-to-br from-emerald-500/10 via-transparent to-transparent p-4 transition-transform hover:-translate-y-1"
                   >
                     <div className="text-2xl">{feature.icon}</div>
@@ -167,7 +167,7 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
                   <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">Release Highlights</p>
                   <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-emerald-100/80">
                     {highlights.map((line, index) => (
-                      <li key={`${line}-${index}`}>{line}</li>
+                      <li key={index}>{line}</li>
                     ))}
                   </ul>
                 </div>

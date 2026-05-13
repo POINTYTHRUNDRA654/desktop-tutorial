@@ -23,6 +23,7 @@ const searchIndex: SearchItem[] = [
   { id: 'projects', label: 'Mod Projects', path: '/project', category: 'Projects', description: 'Manage your Fallout 4 mod projects' },
 
   // Learning & Reference
+  { id: 'knowledge-hub', label: 'FO4 Knowledge Hub', path: '/knowledge-hub', category: 'Learning', description: 'Unified knowledge workspace with Quick Reference, Knowledge Search, and Community Learning tabs' },
   { id: 'reference', label: 'Quick Reference', path: '/reference', category: 'Learning', description: 'Quick reference guides and documentation' },
   { id: 'knowledge', label: 'Knowledge Search', path: '/knowledge', category: 'Learning', description: 'Search through modding knowledge base' },
   { id: 'install-wizard', label: 'FO4 Setup Wizards', path: '/wizards', category: 'Setup', description: 'All-in-one setup flow: platform selection, install checks, and PRP planning' },
