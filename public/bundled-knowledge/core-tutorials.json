@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "2.1.0",
+  "packVersion": "2.2.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -169,6 +169,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "assessment", "skill-routing", "c++", "papyrus", "f4se", "edi", "integration", "entry-point", "beginner", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-getting-started-checklist-and-templates",
+      "title": "FO4 Getting Started Checklist, F4SE Hello World Template, and Architecture Overview",
+      "content": "This lesson provides a practical getting started checklist and two working code templates that demonstrate the F4SE-to-Papyrus integration architecture.\n\nSetup checklist: install Visual Studio 2022 with the C++ Desktop workload, download the correct F4SE SDK and align it to the target game version, install the Creation Kit and extract Base.zip source scripts, and configure Autodesk 3ds Max with Havok Content Tools for .hkx behavior graph export.\n\nF4SE C++ template: implements the minimum viable plugin with F4SEPlugin_Version metadata struct and F4SEPlugin_Load entrypoint. Uses _MESSAGE for log output and targets a specific RUNTIME_VERSION. DLL must be placed in Data/F4SE/Plugins/ for discovery.\n\nPapyrus event script template: a minimal ObjectReference script demonstrating OnActivate event handling with a player identity check and Debug.MessageBox confirmation. Compiled .pex output goes to Data/Scripts/.\n\nArchitecture overview: F4SE C++ plugins hook engine memory via RVAs and expose custom native functions upward through VirtualMachine::RegisterFunction. Papyrus scripts receive engine events and call down into registered natives. Creation Kit and EDI define the data layer that fires the events Papyrus responds to.\n\nTroubleshooting emphasis: missing F4SE load usually means wrong plugin folder path or RUNTIME_VERSION mismatch; silent Papyrus events usually mean missing compiled .pex or script not attached in CK; missing MessageBox output usually means unreachable conditional branch or logging flags disabled.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "getting-started", "checklist", "f4se", "c++", "papyrus", "hello-world", "template", "architecture", "creation-kit", "havok", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
