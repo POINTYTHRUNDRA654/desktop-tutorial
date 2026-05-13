@@ -9938,6 +9938,85 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // In-memory cache with persistent storage to disk
   const whatsNewStorage = new Map<string, any>();
 
+  const compareSemverDesc = (a: string, b: string): number => {
+    const aParts = a.split('.').map((part) => Number.parseInt(part, 10) || 0);
+    const bParts = b.split('.').map((part) => Number.parseInt(part, 10) || 0);
+    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+      const diff = (bParts[i] || 0) - (aParts[i] || 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  };
+
+  const findChangelogPath = (): string | null => {
+    const candidates = [
+      path.join(app.getAppPath(), 'CHANGELOG.md'),
+      path.join(app.getAppPath(), '..', 'CHANGELOG.md'),
+      path.join(app.getAppPath(), '..', '..', 'CHANGELOG.md'),
+      path.join(process.resourcesPath, 'CHANGELOG.md'),
+      path.join(process.cwd(), 'CHANGELOG.md'),
+    ];
+    return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+  };
+
+  const toFeature = (rawLine: string) => {
+    const cleaned = rawLine
+      .replace(/^-\s+/, '')
+      .replace(/\*\*/g, '')
+      .trim();
+    if (!cleaned) return null;
+    const [left, ...rest] = cleaned.split(':');
+    const description = rest.join(':').trim();
+    return {
+      title: description ? left.trim() : cleaned.slice(0, 72),
+      description: description || cleaned,
+      icon: '✨',
+    };
+  };
+
+  const parseWhatsNewEntriesFromChangelog = (): any[] => {
+    try {
+      const changelogPath = findChangelogPath();
+      if (!changelogPath) return [];
+      const markdown = fs.readFileSync(changelogPath, 'utf-8');
+      const versionMatches = Array.from(markdown.matchAll(/^##\s+\[(\d+\.\d+\.\d+)\][^\n]*$/gm));
+      if (versionMatches.length === 0) return [];
+
+      const parsedEntries: any[] = [];
+      for (let index = 0; index < versionMatches.length; index++) {
+        const version = versionMatches[index][1];
+        const sectionStart = versionMatches[index].index ?? 0;
+        const sectionEnd = versionMatches[index + 1]?.index ?? markdown.length;
+        const section = markdown.slice(sectionStart, sectionEnd);
+        const bulletLines = section
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line.startsWith('- '));
+
+        const features = bulletLines
+          .map(toFeature)
+          .filter(Boolean)
+          .slice(0, 24);
+
+        parsedEntries.push({
+          id: `whats-new-${version}`,
+          version,
+          releaseDate: Date.now() - (index * 24 * 60 * 60 * 1000),
+          title: `What's New in Mossy v${version}`,
+          features,
+          highlights: bulletLines.slice(0, 12).map((line) => line.replace(/^-\s+/, '').trim()),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+
+      return parsedEntries;
+    } catch (error) {
+      console.warn('[WhatsNew] Failed to parse CHANGELOG.md:', error);
+      return [];
+    }
+  };
+
   // Load What's New entries from persistent storage
   const loadWhatsNewFromDisk = (): Map<string, any> => {
     try {
@@ -9975,6 +10054,13 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   const initialWhatsNewEntries = loadWhatsNewFromDisk();
   for (const [id, entry] of initialWhatsNewEntries) {
     whatsNewStorage.set(id, entry);
+  }
+  const changelogEntries = parseWhatsNewEntriesFromChangelog();
+  for (const entry of changelogEntries) {
+    whatsNewStorage.set(entry.id, entry);
+  }
+  if (changelogEntries.length > 0) {
+    saveWhatsNewToDisk(whatsNewStorage);
   }
 
   // Get all What's New entries
@@ -10022,7 +10108,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     try {
       const currentVersion = require('../../package.json').version;
       const entryId = `whats-new-${currentVersion}`;
-      const entry = whatsNewStorage.get(entryId);
+      const directEntry = whatsNewStorage.get(entryId);
+      let entry = directEntry || null;
+      let fallbackUsed = false;
+      let fallbackVersion: string | null = null;
+      if (!entry) {
+        const candidates = Array.from(whatsNewStorage.values())
+          .filter((item: any) => typeof item?.version === 'string');
+        candidates.sort((a: any, b: any) => compareSemverDesc(a.version, b.version));
+        entry = candidates[0] || null;
+        fallbackUsed = !!entry;
+        fallbackVersion = entry?.version || null;
+      }
 
       auditLogger.log({
         operation: 'whats-new-retrieval',
@@ -10030,13 +10127,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         action: 'get-current',
         status: 'success',
         duration: Date.now() - startTime,
-        result: { found: !!entry, version: currentVersion }
+        result: { found: !!entry, version: currentVersion, fallbackUsed, fallbackVersion }
       });
 
       return {
         ok: true,
         entry: entry || null,
-        version: currentVersion
+        version: currentVersion,
+        fallback: {
+          used: fallbackUsed,
+          requestedVersion: currentVersion,
+          resolvedVersion: entry?.version || null,
+        },
       };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
