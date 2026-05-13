@@ -661,10 +661,10 @@ const electronAPI = {
     return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_SWITCH, projectId);
   },
   joinCollaborationSession: (sessionId: string): Promise<any> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.COLLABORATION_JOIN_SESSION, sessionId);
+    return ipcRenderer.invoke('collaboration-join-session', sessionId);
   },
   leaveCollaborationSession: (sessionId: string): Promise<any> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.COLLABORATION_LEAVE_SESSION, sessionId);
+    return ipcRenderer.invoke('collaboration-leave-session', sessionId);
   },
   listCollaborationSessions: (): Promise<any[]> => {
     return ipcRenderer.invoke('collaboration-list-sessions');
@@ -673,16 +673,16 @@ const electronAPI = {
     return ipcRenderer.invoke('collaboration-create-session', payload);
   },
   initGitRepository: (projectId: string, config: any): Promise<any> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.COLLABORATION_GIT_INIT, projectId, config);
+    return ipcRenderer.invoke('collaboration-git-init', projectId, config);
   },
   gitCommit: (projectId: string, message: string): Promise<any> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.COLLABORATION_GIT_COMMIT, projectId, message);
+    return ipcRenderer.invoke('collaboration-git-commit', projectId, message);
   },
   gitPush: (projectId: string): Promise<any> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.COLLABORATION_GIT_PUSH, projectId);
+    return ipcRenderer.invoke('collaboration-git-push', projectId);
   },
   gitPull: (projectId: string): Promise<any> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.COLLABORATION_GIT_PULL, projectId);
+    return ipcRenderer.invoke('collaboration-git-pull', projectId);
   },
 
   /**
@@ -3558,7 +3558,7 @@ const electronAPI = {
       featuresUsed: Array.isArray(summary.topFeatures) ? summary.topFeatures.map((item: any) => item.feature) : [],
       filesProcessed: summary.assetsCreated || 0,
       errorsEncountered: summary.errorsEncountered || 0,
-      toolsLaunched: Array.isArray(summary.topFeatures) ? summary.topFeatures.map((item: any) => item.feature) : [],
+      toolsLaunched: [],
     };
   },
   exportAnalyticsData: async (): Promise<string> => {

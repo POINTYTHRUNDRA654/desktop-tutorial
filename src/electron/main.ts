@@ -2834,7 +2834,7 @@ function setupIpcHandlers() {
     }
   });
 
-  registerHandler(IPC_CHANNELS.COLLABORATION_JOIN_SESSION, async (_event, sessionId: string) => {
+  registerHandler('collaboration-join-session', async (_event, sessionId: string) => {
     try {
       const settings = loadSettings();
       const sessions = Array.isArray(settings.collaborationSessions) ? settings.collaborationSessions : [];
@@ -2853,7 +2853,7 @@ function setupIpcHandlers() {
     }
   });
 
-  registerHandler(IPC_CHANNELS.COLLABORATION_LEAVE_SESSION, async (_event, sessionId: string) => {
+  registerHandler('collaboration-leave-session', async (_event, sessionId: string) => {
     try {
       const settings = loadSettings();
       const sessions = Array.isArray(settings.collaborationSessions) ? settings.collaborationSessions : [];
@@ -15133,7 +15133,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.COLLABORATION_GIT_INIT, async (_event, projectId: string, config: any) => {
+  ipcMain.handle('collaboration-git-init', async (_event, projectId: string, config: any) => {
     try {
       const projects = getProjects();
       const project = projects.find((p) => p.id === projectId);
@@ -15162,7 +15162,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.COLLABORATION_GIT_COMMIT, async (_event, projectId: string, message: string) => {
+  ipcMain.handle('collaboration-git-commit', async (_event, projectId: string, message: string) => {
     try {
       const projects = getProjects();
       const project = projects.find((p) => p.id === projectId);
@@ -15194,7 +15194,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.COLLABORATION_GIT_PUSH, async (_event, projectId: string) => {
+  ipcMain.handle('collaboration-git-push', async (_event, projectId: string) => {
     try {
       const projects = getProjects();
       const project = projects.find((p) => p.id === projectId);
@@ -15218,7 +15218,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.COLLABORATION_GIT_PULL, async (_event, projectId: string) => {
+  ipcMain.handle('collaboration-git-pull', async (_event, projectId: string) => {
     try {
       const projects = getProjects();
       const project = projects.find((p) => p.id === projectId);

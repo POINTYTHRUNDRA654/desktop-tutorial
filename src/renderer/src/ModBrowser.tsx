@@ -3,7 +3,21 @@ import toast from 'react-hot-toast';
 import { Search, Download, Star, Users, ExternalLink, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ModListing, ModDetails, SearchFilters, Review, Collection } from '../../shared/types';
 
-const bridge: any = (window as any).electron?.api || (window as any).electronAPI;
+type ModBrowserBridge = {
+  modBrowser?: {
+    searchMods: (query: string, filters: SearchFilters) => Promise<unknown>;
+    getModDetails: (id: string) => Promise<ModDetails | { success: false; error?: string }>;
+    getModReviews: (id: string) => Promise<Review[] | unknown>;
+    downloadMod: (id: string, destination: string) => Promise<any>;
+    rateMod: (id: string, rating: number, review: string) => Promise<any>;
+    createCollection: (name: string, mods: string[], description?: string) => Promise<Collection>;
+    authenticateNexus: (apiKey: string) => Promise<any>;
+    endorseMod: (id: string) => Promise<void>;
+  };
+  openExternal?: (url: string) => Promise<any>;
+};
+
+const bridge = ((window as any).electron?.api || (window as any).electronAPI) as ModBrowserBridge;
 
 const DEFAULT_FILTERS: SearchFilters = { game: 'fallout4', sortBy: 'trending', nsfw: false } as any;
 

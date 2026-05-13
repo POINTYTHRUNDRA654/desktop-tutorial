@@ -6,6 +6,12 @@ import { URL } from 'url';
 
 function now() { return Date.now(); }
 function makeId(prefix = 'id') { return `${prefix}_${Math.floor(Math.random() * 90000) + 10000}`; }
+function cloneDeep<T>(value: T): T {
+  if (typeof globalThis.structuredClone === 'function') {
+    return globalThis.structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+}
 
 interface NexusModResponse {
   mod_id: number;
@@ -56,12 +62,12 @@ export class ModBrowserEngine {
   private extractNexusModId(modId: string): number {
     if (!modId) throw new Error('Missing mod id');
     const normalized = String(modId).trim();
+    let parsed: number;
     if (normalized.startsWith('nx_')) {
-      const parsed = Number.parseInt(normalized.slice(3), 10);
-      if (!Number.isFinite(parsed)) throw new Error('Invalid Nexus mod id');
-      return parsed;
+      parsed = Number.parseInt(normalized.slice(3), 10);
+    } else {
+      parsed = Number.parseInt(normalized, 10);
     }
-    const parsed = Number.parseInt(normalized, 10);
     if (!Number.isFinite(parsed)) throw new Error('Invalid Nexus mod id');
     return parsed;
   }
@@ -189,7 +195,7 @@ export class ModBrowserEngine {
     this.ensureAuthenticated();
 
     if (this.details[modId]) {
-      return JSON.parse(JSON.stringify(this.details[modId]));
+      return cloneDeep(this.details[modId]);
     }
 
     const game = 'fallout4';
@@ -224,7 +230,7 @@ export class ModBrowserEngine {
 
     this.details[listing.id] = details;
     this.listings[listing.id] = listing;
-    return JSON.parse(JSON.stringify(details));
+    return cloneDeep(details);
   }
 
   async getTrendingMods(_timeframe = 'week'): Promise<ModListing[]> {
@@ -275,7 +281,11 @@ export class ModBrowserEngine {
       const request = https.get(downloadUrl, (response) => {
         if ((response.statusCode || 500) >= 400) {
           fileStream.close();
-          fs.rmSync(outputPath, { force: true });
+          try {
+            fs.rmSync(outputPath, { force: true });
+          } catch (cleanupError) {
+            console.error('Failed to clean up partial download:', cleanupError);
+          }
           reject(new Error(`Download failed with status ${response.statusCode}`));
           return;
         }
@@ -289,7 +299,11 @@ export class ModBrowserEngine {
 
       request.on('error', (error) => {
         fileStream.close();
-        fs.rmSync(outputPath, { force: true });
+        try {
+          fs.rmSync(outputPath, { force: true });
+        } catch (cleanupError) {
+          console.error('Failed to clean up partial download:', cleanupError);
+        }
         reject(error);
       });
     });
