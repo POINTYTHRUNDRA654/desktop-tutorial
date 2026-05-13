@@ -4695,12 +4695,16 @@ export interface ElectronAPI {
   versionControlResolveConflict?: (file: string, resolution: 'ours' | 'theirs' | 'manual') => Promise<any>;
   joinCollaborationSession?: (sessionId: string) => Promise<CollaborationSession>;
   leaveCollaborationSession?: (sessionId: string) => Promise<void>;
+  listCollaborationSessions?: () => Promise<CollaborationSession[]>;
+  createCollaborationSession?: (payload: { projectId: string; name?: string; description?: string }) => Promise<CollaborationSession>;
 
   // Advanced Analytics
   trackAnalyticsEvent: (event: any) => Promise<any>;
   getAnalyticsMetrics: () => Promise<any>;
   exportAnalyticsData: () => Promise<any>;
   exportAnalyticsReport?: (format: string) => Promise<any>;
+  getAnalyticsConfig?: () => Promise<any>;
+  clearAnalyticsData?: () => Promise<any>;
 
   // AI Assistant helpers
   aiGenerateScript?: (request: any) => Promise<any>;

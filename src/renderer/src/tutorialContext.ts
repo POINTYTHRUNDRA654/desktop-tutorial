@@ -1658,7 +1658,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Session tab persistence via sessionStorage (restores last active tab)',
       'Deep-link support with query param routing (/ck-tools?tab=safety|extension|guide)',
       'Embedded FO4 Creation Kit reference: crash causes, best practices, Papyrus tips, and ESL/FormID rules',
-      'Integrated tool references for CK Platform Extended, Buffout 4, CLASSIC, xEdit, and related utilities',
+      'Integrated tool references for CK Platform Extended, X-Cell-era stability tooling, CLASSIC, xEdit, and related utilities',
     ],
     controls: [
       {

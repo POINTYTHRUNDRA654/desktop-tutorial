@@ -137,6 +137,45 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
       ]
     },
     {
+      id: 'modern-fo4-baseline',
+      title: 'Modern FO4 Baseline (2025+)',
+      icon: Zap,
+      items: [
+        {
+          name: 'Match your runtime branch',
+          description: 'Keep game version, F4SE build, and plugin stack on the same Fallout 4 branch (legacy vs next-gen).',
+          example: 'Validate runtime + F4SE + plugin compatibility before adding mods.',
+          category: 'Core',
+        },
+        {
+          name: 'Address Library + script extender compatibility',
+          description: 'Treat Address Library/F4SE compatibility as a hard requirement for native plugin-based fixes and frameworks.',
+          category: 'Core',
+        },
+        {
+          name: 'Engine stability first',
+          description: 'Install crash logging and engine-fix foundations (current X-Cell-era stack) before heavy content packs, then test in small batches.',
+          category: 'Stability',
+        },
+        {
+          name: 'High-FPS safety',
+          description: 'Use a high-FPS/physics fix configuration when targeting uncapped frame rates to avoid simulation breakage.',
+          category: 'Stability',
+        },
+        {
+          name: 'Previs/precombine discipline',
+          description: 'Use PRP-aware workflows and never ship worldspace edits that break precombines/previs without proper rebuilds/patches.',
+          category: 'Optimization',
+        },
+        {
+          name: 'Modern graphics stack sequencing',
+          description: 'Layer graphics upgrades deliberately: texture/material pipeline, lighting/weather stack, then optional upscalers/post-processing.',
+          example: 'Validate baseline visuals first, then add ENB/Community Shaders/upscaler stack incrementally.',
+          category: 'Graphics',
+        },
+      ],
+    },
+    {
       id: 'formids',
       title: 'FormID Ranges',
       icon: Hash,
