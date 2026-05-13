@@ -91,17 +91,7 @@ export const CKExtension: React.FC = () => {
     // Active cell is only knowable via a live CK IPC; leave as null until connected
   };
 
-  const performAutoSave = useCallback(() => {
-    setLastAutoSave(new Date());
-    setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save timestamp logged (CK IPC save bridge not yet wired — use File > Save in CK manually)`]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-    const newValue = !autoSaveEnabled;
-    setAutoSaveEnabled(newValue);
-    localStorage.setItem('ck_autosave_enabled', newValue.toString());
-    setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save ${newValue ? 'enabled' : 'disabled'}`]);
-  };
+  const toggleAutoSave = () => {
 
   const updateAutoSaveInterval = (minutes: number) => {
     setAutoSaveInterval(minutes);
