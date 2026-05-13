@@ -70,7 +70,13 @@ const CosmosWorkflow: React.FC = () => {
   const [roots, setRoots] = useState<string[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const hasRoot = useMemo(() => new Set(roots), [roots]);
+  const normalizePath = (value: string) =>
+    String(value || '')
+      .replace(/\\/g, '/')
+      .replace(/\/+$/, '')
+      .toLowerCase();
+
+  const hasRoot = useMemo(() => new Set(roots.map(normalizePath)), [roots]);
 
   const refreshRoots = () => {
     try {
@@ -141,7 +147,9 @@ const CosmosWorkflow: React.FC = () => {
       const raw = localStorage.getItem(ROOTS_KEY);
       const parsed = raw ? JSON.parse(raw) : [];
       const existing = Array.isArray(parsed) ? parsed : [];
-      if (existing.includes(target)) {
+      const normalizedTarget = normalizePath(target);
+      const isDuplicate = existing.some((root: string) => normalizePath(root) === normalizedTarget);
+      if (isDuplicate) {
         toast.error(`${repo.label} is already in Knowledge Search roots.`);
         return;
       }
@@ -222,7 +230,12 @@ const CosmosWorkflow: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {COSMOS_REPOS.map((repo) => {
           const exists = rootStatus[repo.id];
-          const isRootAdded = hasRoot.has(repo.root);
+          const normalizedRepoRoot = normalizePath(repo.root);
+          const repoFolderName = normalizedRepoRoot.split('/').pop() || '';
+          const isRootAdded = Array.from(hasRoot).some((root) =>
+            root === normalizedRepoRoot ||
+            (repoFolderName ? root.endsWith(`/${repoFolderName}`) : false)
+          );
           const isBusy = busyId === repo.id;
 
           return (
