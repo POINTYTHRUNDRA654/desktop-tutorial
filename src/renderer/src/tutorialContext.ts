@@ -2364,10 +2364,10 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     route: '/asset-analysis',
     purpose: 'FO4 Asset Analysis Hub centralizes quality workflows for Fallout 4 assets: mining dependency data, conflict/performance analysis, duplicate reduction, and in-app optimization guidance.',
     features: [
-      'Four-tab workflow: Mining Dashboard, Advanced Analysis, Asset Deduplicator, and FO4 Asset Guide',
+      'Five-tab workflow: Mining Dashboard, Advanced Analysis, Asset Deduplicator, FO4 Asset Guide, and 3D Viewer',
       'Session tab persistence via `asset_hub_tab` so the last active tab restores automatically',
       'Lazy-loaded analysis panels for heavy workflows while keeping the hub responsive',
-      'Unified QA flow from scan/mining insights to dedupe cleanup and optimization reference',
+      'Unified QA flow from scan/mining insights to dedupe cleanup, optimization reference, and NIF preview',
     ],
     controls: [
       {
@@ -2394,6 +2394,12 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         description: 'Built-in Fallout 4 reference covering budgets, conflicts, and optimization practices',
         whenToUse: 'Use as the authoritative in-app reference while triaging and fixing asset issues',
       },
+      {
+        name: '3D Viewer tab',
+        type: 'tab',
+        description: 'Load and preview NIF meshes with collision, wireframe, and bounds overlays; shows vertex/triangle counts and material slots',
+        whenToUse: 'Use to quickly inspect a mesh before or after optimization — verify poly counts, collision presence, and LOD availability without leaving Mossy',
+      },
     ],
     commonMistakes: [
       'Only running one tab workflow and missing issues visible in the other analysis tabs',
@@ -2409,6 +2415,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
           'Switch to Advanced Analysis to inspect conflicts, memory pressure, and performance warnings',
           'Use Asset Deduplicator to consolidate repeated files and reduce runtime overhead',
           'Review FO4 Asset Guide thresholds before final packaging and release checks',
+          'Open the 3D Viewer to spot-check optimized NIF meshes — confirm poly counts and collision are within budget',
         ],
       },
       {
@@ -2422,13 +2429,15 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
     tutorialSections: [
       'FO4 Asset Analysis Hub - Quality Workflow',
-      'Mining, Analysis, Deduplication & FO4 Guide',
+      'Mining, Analysis, Deduplication, FO4 Guide & 3D Viewer',
     ],
     suggestedQuestions: [
       'Which tab should I start with in FO4 Asset Analysis Hub?',
       'When do I use Mining Dashboard versus Advanced Analysis?',
       'How does Asset Deduplicator help with VRAM and archive size?',
       'Why does FO4 Asset Analysis Hub reopen on the previous tab?',
+      'How do I preview a NIF mesh in the 3D Viewer?',
+      'What does the 3D Viewer show about my mesh?',
     ],
   },
 
