@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "1.3.0",
+  "packVersion": "1.4.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -73,6 +73,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "baking", "high-poly", "low-poly", "normal-map", "substance-painter", "marmoset", "mikkts", "blender", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-ck-ingestion-form-setup-and-bgsm",
+      "title": "FO4 Creation Kit Ingestion, Form Setup, and BGSM Workflow",
+      "content": "This lesson teaches end-to-end Creation Kit asset registration for custom meshes and materials. It defines the canonical folder layout under Data\\Meshes, Data\\Textures, and Data\\Materials, and details form setup patterns for Statics, Weapons, and Armor records.\n\nIt also introduces Material Swap records as a runtime-friendly way to remap source and target .bgsm files without duplicating meshes.\n\nBGSM workflow requirements: create new BGSM files in Material Editor, use relative texture paths only, configure smoothness/specular defaults for Fallout 4 shading behavior, and enable required shader flags such as Specular_Lighting and Receive/Cast Shadows.\n\nAssessment rubric for tutor scoring: geometry budget compliance, texel density consistency, UV packing efficiency, and strict relative path sanity across all materials and mesh references.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "creation-kit", "material-editor", "bgsm", "material-swap", "asset-registration", "forms", "rubric", "optimization", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
