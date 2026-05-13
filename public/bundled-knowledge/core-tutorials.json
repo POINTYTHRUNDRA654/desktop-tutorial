@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "3.0.0",
+  "packVersion": "3.1.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -277,6 +277,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "nodejs", "relay", "tcp", "websocket", "bridge", "actor-telemetry", "player-health", "coordinates", "f4se", "c++", "post-build", "deployment", "tar", "xcopy", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-trampoline-hooks-grid-dashboard-papyrus-tests",
+      "title": "FO4 F4SE Trampoline Memory Hooks, Grid Dashboard with Coordinate Canvas, and Papyrus Automated Test Suite",
+      "content": "This lesson covers three advanced topics: 5-byte trampoline hook injection, a live coordinate-tracking HTML dashboard, and a Papyrus unit test runner.\n\nPhase 1 — F4SE trampoline hooks: query F4SETrampolineInterface from QueryInterface(kInterface_Trampoline) in F4SEPlugin_Load. AllocateFromCodePage reserves executable memory. Write5Branch overwrites 5 bytes at the target RVA with a relative JMP and returns a stub pointer to the original bytes for calling back. Store the original as a typed function pointer and always call it at the end of the hook to preserve engine execution. Never skip the original call. Re-verify RVAs after every game patch.\n\nPhase 2 — grid dashboard with canvas: CSS grid-template-columns splits the layout into a metrics panel and a canvas panel. Canvas width/height attributes set internal resolution independently of CSS display size. Scale Fallout 4 world coordinates to canvas pixels by dividing by 200 and offsetting by half canvas dimensions to centre the origin. fillRect with rgba(0,255,0,0.1) creates a fade trail; clearRect gives a clean single-dot display. Y axis is inverted: subtract from canvas.height/2 to match screen space.\n\nPhase 3 — Papyrus test suite: Debug.Trace writes to the Papyrus log file requiring bEnableLogging=1 and bEnableTrace=1 in Fallout4.ini [Papyrus] section. Debug.Notification shows on-screen summaries. Attach to a Start Game Enabled Quest so OnInit fires on every load. Call RunAutomatedValidationSuite from a registered hotkey. Extend with additional TestXxx() functions for each data layer.\n\nTroubleshooting emphasis: AllocateFromCodePage null means pool exhausted by other plugins; crash on hook call means typedef signature mismatch or original not called; canvas dots off-screen means scale divisor too small; CSS height mismatch means attribute vs CSS size confusion; Debug.Trace missing means Papyrus logging not enabled in ini; OnInit not firing means Quest not Start Game Enabled.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "trampoline", "hook", "write5branch", "f4se", "c++", "damage-intercept", "canvas", "grid-layout", "coordinate-tracking", "papyrus", "unit-test", "debug-trace", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
