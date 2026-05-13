@@ -39,10 +39,12 @@ const RoadmapPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [newGoal, setNewGoal] = useState('');
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const goalInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadRoadmaps();
+    loadCurrentProject();
   }, []);
 
   const loadRoadmaps = async () => {
@@ -60,14 +62,31 @@ const RoadmapPanel: React.FC = () => {
     }
   };
 
+  const loadCurrentProject = async () => {
+    try {
+      const currentProject = await window.electronAPI?.getCurrentProject?.();
+      const project = currentProject?.ok && currentProject?.project
+        ? currentProject.project
+        : currentProject;
+      setCurrentProjectId(project?.id || null);
+    } catch (error) {
+      console.error('Failed to load current project:', error);
+      setCurrentProjectId(null);
+    }
+  };
+
   const handleGenerateAI = async () => {
     if (!newGoal.trim()) return;
+    if (!currentProjectId) {
+      console.error('Cannot generate roadmap: no active project selected');
+      return;
+    }
     
     try {
       setGenerating(true);
       const result = await window.electron.api.invoke('roadmap-generate-ai', { 
         prompt: newGoal,
-        projectId: 'default' // For demo
+        projectId: currentProjectId
       });
       
       if (result.ok) {
