@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "3.2.0",
+  "packVersion": "3.3.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -301,6 +301,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["engine", "next-gen", "anniversary-edition", "ba2", "header-version", "face-gen", "stutter", "f4se", "address-library", "creation-id", "plugin-installed", "archive2", "cao", "module-8", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-memory-offsets-ae-compat-downgrade",
+      "title": "Memory Offset Mapping, Anniversary Compatibility Checks, and BA2 Downgrade Pipeline",
+      "content": "This lesson covers three advanced topics for Fallout 4 C++ and Papyrus modders targeting both the 2024 Next-Gen (v1.10.980–v1.10.984) and 2025/2026 Anniversary Edition builds.\n\nPart 1 — Shifted engine memory offsets: Each Bethesda recompile moves virtual function addresses. VTables for Actor, PlayerCharacter, and TESObjectREFR all shift. Never hardcode raw virtual addresses; always use structural Address IDs from the CommonAddressLibrary (CAL). Key address ID shifts: PlayerCharacter::UpdateCombat pre-NG 41253 → NG2024 56122 → AE2025/2026 58319. Actor::ApplyDamage pre-NG 12431 → NG2024 24901 → AE2025/2026 26104. BGSAnimationSystem::ProcessEvents pre-NG 89124 → NG2024 91043 → AE2025/2026 93152. Use REL::ID(26104).address() pattern instead of REL::Offset(0x5E1A40). Re-verify IDs after every patch against the build-specific CAL .bin file. Symptom: F4SE log shows 'Failed to locate critical memory address' or silent crash on boot — replace hardcoded addresses with REL::ID lookups.\n\nPart 2 — Scripted Anniversary content checks (Papyrus): The AE injects master files and CC bundles into every load order. Scripts must use Game.IsPluginInstalled() as a defensive gate before referencing any optional AE form. The AnniversaryCompatibilityController.psc pattern: extend Quest, define a ContentPack Struct with MasterName and MinimumVersion, expose AnniversaryPacks as a Const property, set IsAnniversaryEngineActive based on Game.IsPluginInstalled(\"Fallout4 - Creations.esm\"), then loop through AnniversaryPacks calling InitializeContentBridge on each present master. Attach to a Start Game Enabled quest so OnQuestInit fires on every load.\n\nPart 3 — Backward-compatibility downgrade pipeline: To test against pre-NG binaries, use the Steam Console to fetch legacy files: download_depot 377160 377161 4875416049448831327 for the core pre-NG executable (v1.10.163), and download_depot 377160 377163 1034440628283526848 for the asset configuration profile. To down-convert BA2 archives from Version 2 to Version 1, use a Python script that calls Archive2 twice: first with -x to extract loose files, then with -c and -f H1 to repack into a Version 1 archive. To downgrade a plugin, open it in xEdit, locate the HEDR - Version field in File Header, and change the value from 1.0 (Next-Gen/AE format) to 0.95 (Pre-Next-Gen format). Restore HEDR to 1.0 and repack BA2 as Version 2 before publishing for modern AE audiences.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["engine", "memory-offsets", "vtable", "address-library", "rel-id", "cal", "c++", "f4se", "papyrus", "anniversary-edition", "plugin-installed", "game-ispluginstalled", "ba2", "downgrade", "version-1", "steam-depot", "xedit", "hedr", "module-8", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
