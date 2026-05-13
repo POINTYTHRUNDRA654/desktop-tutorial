@@ -3,20 +3,21 @@ import toast from 'react-hot-toast';
 import { Search, Download, Star, Users, ExternalLink, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ModListing, ModDetails, SearchFilters, Review, Collection } from '../../shared/types';
 
-// prefer preload API when available, otherwise fall back to in-memory engine for dev
-let bridge: any = (window as any).electron?.api || (window as any).electronAPI;
-try {
-  if (!bridge?.modBrowser) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const local = require('../../mining/modBrowser');
-    // Spread the existing bridge so preload methods (detectPrograms, openExternal, etc.) are
-    // preserved. Previously `bridge || { modBrowser: local }` would silently discard all preload
-    // methods when bridge was truthy but lacked modBrowser, causing TypeErrors in mod search.
-    bridge = { ...(bridge || {}), modBrowser: local.modBrowser || local.default };
-  }
-} catch (err) {
-  // ignore; UI will still render but actions will fail gracefully
-}
+type ModBrowserBridge = {
+  modBrowser?: {
+    searchMods: (query: string, filters: SearchFilters) => Promise<unknown>;
+    getModDetails: (id: string) => Promise<ModDetails | { success: false; error?: string }>;
+    getModReviews: (id: string) => Promise<Review[] | unknown>;
+    downloadMod: (id: string, destination: string) => Promise<any>;
+    rateMod: (id: string, rating: number, review: string) => Promise<any>;
+    createCollection: (name: string, mods: string[], description?: string) => Promise<Collection>;
+    authenticateNexus: (apiKey: string) => Promise<any>;
+    endorseMod: (id: string) => Promise<void>;
+  };
+  openExternal?: (url: string) => Promise<any>;
+};
+
+const bridge = ((window as any).electron?.api || (window as any).electronAPI) as ModBrowserBridge;
 
 const DEFAULT_FILTERS: SearchFilters = { game: 'fallout4', sortBy: 'trending', nsfw: false } as any;
 
@@ -42,23 +43,32 @@ const ModBrowser: React.FC = () => {
   const doSearch = async () => {
     setLoading(true);
     try {
-      const res: ModListing[] = await bridge.modBrowser.searchMods(query, filters);
-      setResults(res || []);
+      const res = await bridge?.modBrowser?.searchMods(query, filters);
+      if (!Array.isArray(res)) {
+        const errMsg = typeof res?.error === 'string' ? res.error : 'Search failed';
+        throw new Error(errMsg);
+      }
+      setResults(res);
     } catch (err) {
       console.error('Search failed', err);
       setResults([]);
+      toast.error(err instanceof Error ? err.message : 'Search failed');
     }
     setLoading(false);
   };
 
   const openDetails = async (id: string) => {
     try {
-      const d: ModDetails = await bridge.modBrowser.getModDetails(id);
+      const d: ModDetails = await bridge?.modBrowser?.getModDetails(id);
+      if (!d || (d as any).success === false) {
+        throw new Error((d as any)?.error || 'Details failed');
+      }
       setSelected(d);
-      const revs = await bridge.modBrowser.getModReviews(id);
-      setReviews(revs || []);
+      const revs = await bridge?.modBrowser?.getModReviews(id);
+      setReviews(Array.isArray(revs) ? revs : []);
     } catch (err) {
       console.error('Details failed', err);
+      toast.error(err instanceof Error ? err.message : 'Details failed');
     }
   };
 
