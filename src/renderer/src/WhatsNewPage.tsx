@@ -7,6 +7,12 @@ interface WhatsNewPageProps {
   onDismiss?: () => void;
 }
 
+interface WhatsNewFeatureItem {
+  title: string;
+  description: string;
+  icon: string;
+}
+
 const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -75,7 +81,7 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
     []
   );
 
-  const features = entry?.features || defaultFeatures;
+  const features: WhatsNewFeatureItem[] = entry?.features || defaultFeatures;
 
   const handleBack = () => {
     if (dontShowAgain) {

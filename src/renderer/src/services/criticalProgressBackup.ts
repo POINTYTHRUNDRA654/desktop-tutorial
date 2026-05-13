@@ -24,7 +24,7 @@ interface PanelDataApi {
   loadPanelData?: (panelId: string) => Promise<{ ok: boolean; data: unknown; panelId: string; error?: string }>;
 }
 
-interface WindowWithElectronApi extends Window {
+interface WindowWithElectronApi {
   electron?: { api?: PanelDataApi };
   electronAPI?: PanelDataApi;
 }
@@ -105,7 +105,7 @@ export const restoreMissingCriticalProgress = async (): Promise<number> => {
 
     let restoredCount = 0;
     missingKeys.forEach((key) => {
-      const value = snapshot.values[key];
+      const value = (snapshot as CriticalProgressSnapshot).values[key];
       if (typeof value === 'string') {
         localStorage.setItem(key, value);
         restoredCount += 1;

@@ -394,9 +394,11 @@ const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (m
                             title="Bad answer — save to training dataset to improve"
                             aria-label="Rate response bad"
                             onClick={() => {
+                                // `rating` is set immediately for UI feedback (button highlight).
+                                // The training-data save is deferred — it happens when the user
+                                // confirms via the "Save correction" button below.
                                 setRating('bad');
                                 setShowEditBox(true);
-                                // Do NOT save yet — wait for the user to edit and confirm via "Save correction"
                             }}
                             className={`px-2 py-0.5 rounded text-xs transition-colors ${rating === 'bad' ? 'bg-red-800/60 text-red-200 border border-red-700' : 'bg-slate-800/60 text-slate-400 hover:text-red-300 border border-slate-700'}`}
                         >
