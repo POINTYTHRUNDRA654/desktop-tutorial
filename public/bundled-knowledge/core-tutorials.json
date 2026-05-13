@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "1.1.0",
+  "packVersion": "1.2.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -37,6 +37,30 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "papyrus", "f4se", "event-driven", "states", "performance", "quest-scripting", "save-bloat", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-json-lesson-dataset",
+      "title": "FO4 JSON Lesson Dataset: Asset + Papyrus Modules",
+      "content": "This entry defines a structured JSON blueprint for advanced Fallout 4 teaching. Module 1 covers high-to-low geometry targets, UV requirements, custom _d/_n/_s channel packing, BGSM flags, and expected NIF node hierarchy. Module 2 covers event-driven Papyrus architecture, anti-polling design, state transitions, and memory management constraints.\n\nUse this schema to drive lesson generation, tutoring prompts, and consistency checks across assets and scripting instruction.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "json", "dataset", "curriculum", "nif", "papyrus", "lesson-blueprint", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-engine-stability-optimization-manual",
+      "title": "FO4 Engine Stability & Optimization Manual",
+      "content": "This lesson codifies two core stability tracks for modern Fallout 4 mod releases.\n\nTrack 1: FormID and plugin boundaries. Teach full-plugin slot limits, ESL usage strategy, and strict ESL-safe record ranges (0x000-0xFFF) to avoid overflow and corruption risks.\n\nTrack 2: Precombine and previs discipline. Teach that editing statics can invalidate optimization for entire cells, causing severe frame drops, and that world-edit releases must regenerate and ship valid precombine (.ucb) and previs (.uvd) outputs from Creation Kit.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "stability", "optimization", "formid", "esl", "precombine", "previs", "creation-kit", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
