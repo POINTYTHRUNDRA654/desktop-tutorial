@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "1.4.0",
+  "packVersion": "1.5.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -85,6 +85,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "creation-kit", "material-editor", "bgsm", "material-swap", "asset-registration", "forms", "rubric", "optimization", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-ba2-packaging-lod-and-mcm",
+      "title": "FO4 BA2 Packaging, LOD Generation, and MCM Integration",
+      "content": "This lesson covers advanced Fallout 4 distribution packaging and runtime configuration patterns.\n\nBA2 packaging track: separate General and Textures archives correctly, preserve plugin-name-aligned BA2 prefixes, and maintain strict root folder structure so resources mount automatically.\n\nLOD track: generate distance-tier object LOD with xLODGen, build texture atlas outputs, and deploy resulting Meshes\\\\LOD and Textures\\\\LOD resources into the release pipeline.\n\nMCM track: define configuration schema under Data\\\\MCM\\\\Config\\\\<ModName>\\\\config.json, bind controls to Papyrus-backed properties, and process setting updates through stable event-driven script handlers.\n\nTroubleshooting emphasis: wrong archive type, wrong BA2 naming, or bad folder root structure can cause missing assets or streaming instability.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "ba2", "archive2", "compression", "lod", "xlodgen", "mcm", "papyrus", "packaging", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
