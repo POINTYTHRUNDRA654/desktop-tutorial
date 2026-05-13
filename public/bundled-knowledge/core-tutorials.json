@@ -1,7 +1,7 @@
 {
   "packId": "core-tutorials-v1",
   "packName": "Core Tutorials",
-  "packVersion": "2.7.0",
+  "packVersion": "2.8.0",
   "exportDate": "2026-05-13",
   "items": [
     {
@@ -241,6 +241,18 @@
       "creditUrl": "",
       "trustLevel": "official",
       "tags": ["advanced", "pointer-validation", "virtualquery", "seh", "crash-prevention", "release-archive", "mod-manager", "deployment", "async-logger", "mutex", "f4se", "c++", "tutorial"],
+      "date": "2026-05-13T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-havok-injection-websocket-telemetry-fomod",
+      "title": "FO4 Havok Behavior Graph Injection, Live WebSocket Telemetry Stream, and FOMOD Installer Configuration",
+      "content": "This lesson covers three integration and distribution topics for advanced Fallout 4 mod development.\n\nPhase 1 — Havok behavior graph injection via Papyrus: Self.PlayAnimation(asEventName) sends a named event to the Havok state machine on the ObjectReference. The string must exactly match a transition event node identifier in the .hkx graph. OnMemoryWriteSuccess is a CustomEvent dispatched from the C++ AddTask lambda after SafelyWriteFloat returns true. The object reference must have a bound behavior graph assigned in Creation Kit. Define separate event node names for each mechanical state transition (Stage_Open, Stage_Close, etc.).\n\nPhase 2 — live local WebSocket telemetry stream: BroadcastTelemetryData spawns a detached std::thread per call that initialises Winsock 2.2, opens a TCP socket to 127.0.0.1:8080, sends a JSON newline-delimited payload, then closes. WSAStartup must be matched with WSACleanup on all exit paths. Link ws2_32.lib via #pragma comment or VS2022 linker Additional Dependencies. For high-frequency calls consider a persistent socket on the worker thread instead of reconnecting every call.\n\nPhase 3 — FOMOD ModuleConfig.xml: place fomod/ModuleConfig.xml at the archive root (not inside Data/). type=SelectExactlyOne forces a single selection; SelectAtLeastOne or SelectAny allow multiple choices. source is relative to archive root, destination is relative to Data/. priority controls conflict resolution between options. A companion info.xml provides mod metadata for the installer header. Add moduleDependencies to check for required mods before installation.\n\nTroubleshooting emphasis: PlayAnimation no effect means no bound hkx graph or event name mismatch; OnMemoryWriteSuccess never fires means C++ side not dispatching after confirmed write; TCP connect fails means no listener running on target port; ws2_32 LNK2019 means library not linked; FOMOD not triggered means fomod/ folder not at archive root; files installed wrong means source path mismatch or extra Data/ prefix in destination.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["advanced", "havok", "behavior-graph", "playanimation", "hkx", "websocket", "tcp", "winsock", "telemetry", "fomod", "installer", "mod-manager", "f4se", "papyrus", "tutorial"],
       "date": "2026-05-13T00:00:00.000Z",
       "status": "learned"
     }
