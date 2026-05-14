@@ -80,12 +80,40 @@ export const UpscaylExtension: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const browseForImages = async () => {
+    const bridge: any = (window as any).electron?.api;
+    try {
+      const folderPath: string | undefined =
+        await bridge?.pickDirectory?.('Select image folder') ||
+        await bridge?.assetScanner?.browseFolder?.();
+      if (!folderPath) return;
+      setBatchMode(true);
+      setStatusMsg(`Scanning folder: ${folderPath}`);
+      // List image files in selected folder
+      const entries: Array<{ name: string; path: string; type: string }> =
+        (await bridge?.browseDirectory?.(folderPath)) ?? [];
+      const images = entries
+        .filter((e) => /\.(png|jpg|jpeg|bmp|tiff|tga|webp)$/i.test(e.name))
+        .map((e) => e.path);
+      if (images.length === 0) {
+        setStatusMsg('No image files found in selected folder.');
+        return;
+      }
+      setSelectedFiles(images);
+      setStatusMsg(`${images.length} image(s) selected from ${folderPath}`);
+    } catch (e: any) {
+      setStatusMsg(`Browse failed: ${e?.message || e}`);
+    }
+  };
+
   const startUpscale = () => {
-    const mockFiles = batchMode 
+    const filesToProcess = selectedFiles.length > 0
+      ? selectedFiles.map((p) => p.replace(/.*[/\\]/, ''))
+      : batchMode
       ? ['texture_diffuse.png', 'texture_normal.png', 'texture_specular.png']
       : ['fallout4_screenshot.png'];
 
-    mockFiles.forEach((fileName, index) => {
+    filesToProcess.forEach((fileName, index) => {
       setTimeout(() => {
         const job: UpscaleJob = {
           id: `${Date.now()}-${index}`,
@@ -323,9 +351,11 @@ export const UpscaylExtension: React.FC = () => {
                 <div className="space-y-4">
                   <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
                     <h4 className="text-sm font-bold text-white mb-3">File Selection</h4>
-                    <button className="w-full px-4 py-3 bg-blue-900/20 border border-blue-500/30 text-blue-300 rounded-lg hover:bg-blue-900/30 transition-colors flex items-center justify-center gap-2 mb-3">
+                    <button
+                      onClick={browseForImages}
+                      className="w-full px-4 py-3 bg-blue-900/20 border border-blue-500/30 text-blue-300 rounded-lg hover:bg-blue-900/30 transition-colors flex items-center justify-center gap-2 mb-3">
                       <Upload className="w-4 h-4" />
-                      Select Images
+                      {selectedFiles.length > 0 ? `${selectedFiles.length} image(s) selected` : 'Select Images'}
                     </button>
                     <div className="flex items-center gap-2 mb-3">
                       <input
