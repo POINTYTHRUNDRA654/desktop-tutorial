@@ -1,5 +1,7 @@
 # Jungle Navmesh and Precombines/Previs Optimization Guide
 
+> **Note:** This is a Mossy-authored overview guide for dense-worldspace modding. For authoritative precombine/previs details, file formats, and workflow refer to PJM's documentation: see `PRECOMBINE_PREVIS_DEEP_DIVE.md`, `PJM_FO4CHECK_SCRIPT_GUIDE.md`, and `PJM_GENERATING_PREVISBINES_FOR_MOD.md` (all sourced from PJMail, Nexus #69978).
+
 To maintain high frame rates in a dense fungus jungle, mastering Navmesh and Precombines/Previs is non-negotiable. Fallout 4's Creation Engine relies heavily on these systems to prevent CPU and GPU bottlenecks.
 
 ---
@@ -30,8 +32,8 @@ This is the most critical step for an environmental mod. Without this, your jung
 
 ### Definitions
 
-- **Precombines (`.ucp`):** Merges hundreds of individual 3D static meshes (trees, rocks, fungi) in a cell into one single mesh. This drastically reduces Draw Calls sent to the GPU.
-- **Previs (`.uvp`):** A visibility system that determines exactly which geometry is hidden behind walls or terrain, preventing the engine from rendering what the player cannot see.
+- **Precombines (`.nif` meshes + XCRI/PCMB cell fields):** Merges hundreds of individual 3D static meshes (trees, rocks, fungi) in a cell into one single mesh. This drastically reduces Draw Calls sent to the GPU.
+- **Previs (`.uvd` files + VISI/XPRI cell fields):** A visibility system that determines exactly which geometry is hidden behind walls or terrain, preventing the engine from rendering what the player cannot see.
 
 ### Breaking the System
 
@@ -42,9 +44,9 @@ This is the most critical step for an environmental mod. Without this, your jung
 
 1. **Finalize Asset Placement:** Do not generate precombines until every mushroom, vine, and spore pod is permanently placed.
 2. **Select Cells:** In the Creation Kit Cell View window, highlight all modified Glowing Sea cells.
-3. **Generate Precombines:** Go to **World → Precombine Geometry for Current Cells**.
+3. **Generate Precombines:** In the CK go to **World → Precombine Geometry for Current Cell** (one cell at a time). See `PJM_FO4CHECK_SCRIPT_GUIDE.md` for the recommended automated approach using `GeneratePrevisibines.bat`.
 4. **Generate Previs:** Go to **World → Generate Previs for Current Cells**.
-5. **Pack Files:** Ensure the generated `.ucp` and `.uvp` files inside your `Meshes/Precombined` and `Vis/` folders are packed directly into your mod's main BA2 archive.
+5. **Pack Files:** Ensure the generated `.nif` (precombine meshes) under `Meshes/Precombined/` and `.uvd` (previs) files under `Vis/` are packed into your mod's main BA2 archive.
 
 ---
 
