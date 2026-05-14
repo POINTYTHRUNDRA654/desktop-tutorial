@@ -1,6 +1,8 @@
 # Creating Lighting and Environment Patches
 
-Total views: 3.0k
+**Source:** PJM's Precombine - Previs Patching Scripts, Nexus #69978  
+**Author:** PJMail  
+**Total views:** 3.0k
 
 ## The Issue
 

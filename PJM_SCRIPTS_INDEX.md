@@ -1,29 +1,33 @@
 # PJM Scripts Index + Setup
 
+**Source:** PJM's Precombine - Previs Patching Scripts, Nexus #69978  
+**Author:** PJMail — https://www.nexusmods.com/fallout4/mods/69978
+
 This is a consolidated index of the PJM xEdit scripts and the automated builder, with quick install notes and cross-links to the workflow guides in this repo.
 
-Note: The scripts currently reside in your SteamLibrary path (outside this workspace). Installation should be done into the `Edit Scripts` directory under your xEdit/FO4Edit installation.
+Note: Install the scripts manually into the `Edit Scripts` directory under your xEdit/FO4Edit installation. Do **not** install the archive with a mod manager.
 
 ---
 
 ## Quick Installation
 
-- Copy all `*.pas` files from your PJM archive into `Edit Scripts` under your xEdit directory.
-- Place `GeneratePrevisibines.bat` alongside your xEdit executable for best results.
-- Ensure CKPE is installed and `steam_appid.txt` contains `1946160` where applicable (see deep dive).
+- Download the latest **PJMScripts V4.9** archive and extract all `*.pas` files into `Edit Scripts` under your xEdit directory.
+- Download the newest **Updated Files** too, then overwrite the extracted versions.
+- Place `GeneratePrevisibines.bat` alongside your xEdit executable.
+- Ensure CKPE is installed and `steam_appid.txt` contains `1946160` where applicable.
 
 Example (PowerShell, adjust paths):
 
 ```powershell
 # Source: PJM archive directory
-$src = 'D:\SteamLibrary\PJMScripts-69978-4-6-1741525513\Edit Scripts'
+$src = 'D:\SteamLibrary\PJMScripts-69978-V4.9\Edit Scripts'
 # Destination: your xEdit installation's Edit Scripts
 $dst = 'C:\Tools\FO4Edit\Edit Scripts'
 # Copy scripts (overwrite existing)
 Copy-Item -Path "$src\*.pas" -Destination $dst -Force
 
 # Copy automated builder next to xEdit
-Copy-Item 'D:\SteamLibrary\PJMScripts-69978-4-6-1741525513\GeneratePrevisibines.bat' 'C:\Tools\FO4Edit' -Force
+Copy-Item 'D:\SteamLibrary\PJMScripts-69978-V4.9\GeneratePrevisibines.bat' 'C:\Tools\FO4Edit' -Force
 ```
 
 ---
@@ -79,6 +83,7 @@ Copy-Item 'D:\SteamLibrary\PJMScripts-69978-4-6-1741525513\GeneratePrevisibines.
 ## Notes
 
 - Run the builder and scripts via MO2 when applicable; ensure Steam is running to avoid prompts.
+- If using Steam CK through MO2, register both `CreationKit.exe` and `GeneratePrevisibines.bat` with **AppID 1946160**.
 - For `clean` builds, avoid spaces/hyphens in plugin names (CK `.cdx/.csg` naming quirks).
 - Disable ENB/DXGI wrappers during CK operations (the batch script temporarily renames them).
 - Always archive precombines (`meshes/precombined`) and vis files (`vis`) to the patch’s `- Main.ba2` to keep CK handle counts manageable.
