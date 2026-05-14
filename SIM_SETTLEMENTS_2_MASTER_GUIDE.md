@@ -5,6 +5,7 @@ Centralized entry for Sim Settlements 2 documentation. Use this page for onboard
 ## Quick links
 - Complete guide: `SIM_SETTLEMENTS_2_COMPLETE_GUIDE.md`
 - Add-on creator & toolkits: `SIM_SETTLEMENTS_2_ADDON_CREATOR_GUIDE.md`, `SIM_SETTLEMENTS_2_ADDON_TOOLKITS_GUIDE.md`
+- Creator toolkit programs (2026 update): `SIM_SETTLEMENTS_2_CREATOR_TOOLKITS_2026_GUIDE.md`
 - City planning & HQ: `SIM_SETTLEMENTS_2_CITY_PLANS_GUIDE.md`, `SIM_SETTLEMENTS_2_HQ_GUIDE.md`
 
 ## Workflows
