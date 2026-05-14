@@ -610,6 +610,26 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               details: <>Open <code>CreationKitPlatformExtended.toml</code> and follow its instructions, or replace it with a pre-configured copy from CKPE’s Optional Files. If on a downgraded CK (before V0.6), also set <code>bOwnArchiveLoader=false</code> and <code>bBSPointerHandleExtremly=true</code> in <code>CreationKitPlatformExtended.ini</code>.</>,
             },
             {
+              id: 'ckpe-faq',
+              title: 'CKPE Official Troubleshooting FAQ — credit: Nuukem / perchik71 (Nexus #51165)',
+              details: (
+                <div className="space-y-3 text-sm">
+                  <p className="italic text-yellow-400">All entries sourced from the official CKPE FAQ post on Nexus #51165 by Nuukem (perchik71). Full credits on the mod page: Nuukem, Darkfox127, pra, BenRierimanu, yarrmateys, muucow, and community testers.</p>
+                  <div><b>P: CK doesn&apos;t start — memory problems.</b><br /><b>S:</b> Minimum 8 GB RAM required (at least 2 GB free at launch). Hardware released before 2010 may not meet this baseline. Some CK functions are unavailable below the threshold.</div>
+                  <div><b>P: Log shows &quot;composite failed / Error Opening File Shaders&quot;; render window is black or red. (Not relevant CKPE v0.4+)</b><br /><b>S:</b> Your <code>Fallout4 - Shaders.ba2</code> is from a different game version (OG vs NG) than your editor. Match your CK version to your game version — they are not cross-compatible.</div>
+                  <div><b>P: Load error V:0000065432 when opening CK through MO2.</b><br /><b>S:</b> MO2 issue — configure your startup via Steam directly (relevant for CK 1.10.162.0 Steam). Two Steam applications in the Fallout 4 root folder causes a conflict; launching directly through Steam resolves it.</div>
+                  <div><b>P: Fatal error 0x5041524D.</b><br /><b>S:</b> Fix your Data folder — shorten file paths to loose files (keep under 260 characters including terminal zero; each <code>\</code> separator counts as two bytes). Pack loose files into an archive if needed. CK only reads from the Data folder — mod manager virtual mounts are ignored.</div>
+                  <div><b>P: NPC face generation takes a very long time.</b><br /><b>S:</b> For fast DDS compression set <code>bD3D11Patch=true</code>. In CKPE v0.6+ this patch is mandatory and automatic — if issues persist, disable the iGPU. Face generation uses the GPU.</div>
+                  <div><b>P: Cannot save a mod in CK. (Not relevant CKPE v0.4 build 625+)</b><br /><b>S:</b> Set <code>bAllowSaveESM=false</code> in your CKPE config.</div>
+                  <div><b>P: Steam CK via MO2 does not see MO2&apos;s load order, or cannot save a new plugin.</b><br /><b>S:</b> For the &quot;Override Steam AppID&quot; field in MO2 use <code>1946160</code>. Other AppID values may let CK launch but will not expose the plugin list.</div>
+                  <div><b>P: CK launch error — &quot;Can&apos;t find entry point&quot; or missing Steam API function.</b><br /><b>S:</b> See the CKPE GitHub page. This is a Steam Deck / new Steam API incompatibility — a workaround exists in the CKPE releases.</div>
+                  <div><b>P: CK crashes to desktop in the Data window.</b><br /><b>S:</b> Launch the Creation Kit with <b>Administrator rights</b>. The crash originates in <code>comctrl32.dll</code> — antivirus blocking is also possible.</div>
+                  <div><b>P: CK window does not fit on screen.</b><br /><b>S:</b> Full HD (1920×1080) monitor required. The CK is not adapted for DPI scaling above 100% — return Windows display scaling to 100% for the CK session.</div>
+                  <div><b>P: Not all items from a location are loaded.</b><br /><b>S:</b> Default budgets are 177 MB (interiors) / 157 MB (exteriors). To raise to 512 MB, add to <code>CreationKit.ini</code>:<br /><code>[BudgetCaps]</code><br /><code>uLoadedAreaNonActorMemoryBudgetCap=536870912</code><br />Formula: N × 1024 × 1024.</div>
+                </div>
+              ),
+            },
+            {
               id: 'mo2-empty-mod',
               title: state.modManager === 'mo2' ? 'MO2: Create empty mod to receive generated files' : 'Non-MO2: keep Data/vis and Data/meshes/Precombined empty before each run',
               details: state.modManager === 'mo2'
