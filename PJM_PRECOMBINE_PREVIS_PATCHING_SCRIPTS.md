@@ -1,5 +1,8 @@
 # PJM's Precombine - Previs Patching Scripts
 
+**Source:** Nexus #69978 — https://www.nexusmods.com/fallout4/mods/69978  
+**Author:** PJMail
+
 For experienced patch mod creators who want to:
 - Find/fix flickering (occlusion) issues in-game
 - Merge Lighting/Weather/etc changes without breaking Previs (see article)

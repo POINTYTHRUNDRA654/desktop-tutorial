@@ -1,7 +1,9 @@
 # Resolving Creation Kit Crashes when generating Precombines
 
-Total views
-1.2k
+**Source:** PJM's Precombine - Previs Patching Scripts, Nexus #69978  
+**Author:** PJMail  
+**Total views:** 1.2k  
+**Created:** Jun 2025
 
 The most common failure while the Creation Kit is building Precombines is **Access violation 0xc000005** (or similar), normally due to a corrupt/incompatible mesh on a precombineable reference (REFR with base type STAT or SCOL). Below is a guide to finding and resolving these.
 
