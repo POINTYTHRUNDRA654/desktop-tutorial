@@ -2918,22 +2918,24 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 System & Diagnostics Hub',
     visualGuidePage: 21,
     route: '/system-hub',
-    purpose: 'Five-tab system hub for runtime diagnostics, local AI/hardware capability checks, blacklist/security rule management, asset vault manifest verification, and Mossy development support.',
+    purpose: 'Seven-tab system hub for runtime diagnostics, local AI/hardware capability checks, blacklist/security rule management, asset vault manifest verification, Mossy development support, backup snapshot management, and context-aware file watching.',
     features: [
-      'Five-tab layout: Diagnostics, Capabilities, Blacklist Manager, Asset Vault, Support Mossy',
+      'Seven-tab layout: Diagnostics, Capabilities, Blacklist Manager, Asset Vault, Support Mossy, Backup Manager, File Watcher',
       'Session-persistent tab selection via sessionStorage key `system_hub_tab`',
       'Diagnostics — full runtime check suite: bridge, storage, mic, secrets, TTS voices, and exportable diagnostic snapshots',
-      'Capabilities — local AI runtime detection: Ollama, GPU, RAM, voice model availability',
-      'Blacklist Manager — safety rule management for flagged mods, authors, and pattern-based content filters',
-      'Asset Vault — manifest-driven asset registry with integrity verification and deduplication checks',
+      'Capabilities — local AI runtime detection: Ollama, Cosmos, OpenAI-compat, GGUF import, and LoRA fine-tune launcher',
+      'Blacklist Manager — safety rule management for flagged mods, programs, and a do-not-touch whitelist',
+      'Asset Vault — manifest-driven asset registry with integrity verification, tool path config, and BA2 staging',
       'Support Mossy — development support links, donation options, and community entry points',
+      'Backup Manager — snapshot creation (auto/manual/pre-compile/pre-launch), git commit/push integration, workspace path config',
+      'File Watcher — context-aware live folder monitoring with smart suggestions for scripts, meshes, textures, and plugins',
     ],
     controls: [
       {
         name: 'Hub tab strip',
         type: 'tabs',
-        description: 'Switch between Diagnostics, Capabilities, Blacklist Manager, Asset Vault, and Support in one workspace',
-        whenToUse: 'Move between system checks, capability scans, security rules, vault operations, and support without leaving the hub',
+        description: 'Switch between all seven system tabs in one workspace',
+        whenToUse: 'Move between system checks, capability scans, security rules, vault, support, backups, and file watching without leaving the hub',
       },
       {
         name: 'Diagnostics tab',
@@ -2944,19 +2946,19 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'Capabilities tab',
         type: 'panel',
-        description: 'Scan local hardware and AI runtime availability (Ollama, GPU, RAM, voice models)',
-        whenToUse: 'When evaluating whether local AI workflows or offline voice features can be enabled',
+        description: 'Scan local hardware and AI runtime availability; import GGUF models; launch LoRA fine-tune',
+        whenToUse: 'When evaluating whether local AI workflows or offline voice features can be enabled, or to fine-tune Mossy on your own data',
       },
       {
         name: 'Blacklist Manager tab',
         type: 'panel',
-        description: 'Add, review, and remove safety rules for flagged mods, authors, or content patterns',
+        description: 'Add, review, and remove safety rules for flagged mods, programs, or do-not-touch whitelist entries',
         whenToUse: 'When configuring content filters or investigating why a mod is being excluded',
       },
       {
         name: 'Asset Vault tab',
         type: 'panel',
-        description: 'Inspect the asset manifest, run integrity verification, and identify duplicate entries',
+        description: 'Inspect the asset manifest, run integrity verification, configure tool paths, and stage assets for BA2',
         whenToUse: 'When verifying tracked assets before packaging or after a deduplication pass',
       },
       {
@@ -2965,12 +2967,26 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         description: 'Access donation links, premium feature info, and Mossy community resources',
         whenToUse: 'When you want to contribute to the project or connect with the community',
       },
+      {
+        name: 'Backup Manager tab',
+        type: 'panel',
+        description: 'Create named snapshots, manage auto-backup interval, commit/push via git integration, and set workspace path',
+        whenToUse: 'Before major script compilations or game launches, or to recover work from a previous snapshot',
+      },
+      {
+        name: 'File Watcher tab',
+        type: 'panel',
+        description: 'Point to your Data folder and start live monitoring; get smart next-step suggestions as files change',
+        whenToUse: 'During active mod authoring sessions to get automatic Mossy prompts when scripts, meshes, textures, or plugins are saved',
+      },
     ],
     commonMistakes: [
       'Not running Diagnostics after a tool installation or Desktop Bridge reconnect',
       'Assuming Capabilities scan reflects real-time state without re-running it after hardware changes',
       'Adding blacklist rules without understanding pattern-matching scope',
       'Skipping Asset Vault verification before a BA2 packaging or release pass',
+      'Forgetting to set a workspace path in Backup Manager before taking snapshots',
+      'Not stopping the File Watcher before closing the hub (interval keeps running in background)',
     ],
     guides: [
       {
@@ -2983,16 +2999,28 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
           'Open Asset Vault and run manifest verification before your next packaging session',
         ],
       },
+      {
+        title: 'Set up live file monitoring',
+        steps: [
+          'Open the File Watcher tab',
+          'Click the Browse button and select your Fallout 4 Data folder',
+          'Click Start Watching — Mossy will begin polling for file changes',
+          'Save a script, mesh, or plugin; a smart suggestion will appear on the left panel',
+          'Click the suggestion action to jump directly to the relevant Mossy tool',
+        ],
+      },
     ],
     tutorialSections: [
-      'FO4 System & Diagnostics Hub - 5-Tab System Workflow',
-      'Diagnostics, Capabilities, Blacklist, Vault, and Support',
+      'FO4 System & Diagnostics Hub - 7-Tab System Workflow',
+      'Diagnostics, Capabilities, Blacklist, Vault, Support, Backup, and File Watcher',
     ],
     suggestedQuestions: [
       'How do I run a full diagnostic check and export the report?',
       'Why is my local Ollama / GPU capability not detected?',
       'How do I add or remove blacklist rules for specific mods?',
       'What does Asset Vault manifest verification check for?',
+      'How do I create a snapshot before compiling my Papyrus scripts?',
+      'How does the File Watcher suggest next steps when I save a .nif file?',
     ],
   },
 

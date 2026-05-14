@@ -232,6 +232,7 @@ export const XEditTools: React.FC = () => {
         const path = await api.xEditScriptExecutor.browseXEdit();
         if (path) {
           setXEditPath(path);
+          await api.xEditScriptExecutor.saveXEditPath?.(path);
           setMessage('xEdit path updated successfully');
         }
       }
@@ -241,16 +242,13 @@ export const XEditTools: React.FC = () => {
     }
   };
 
-  const browseForPlugin = async () => {
+  const saveXEditPathManual = async () => {
+    if (!xEditPath.trim()) return;
     try {
-      if (api?.xEditScriptExecutor?.browsePlugin) {
-        const plugin = await api.xEditScriptExecutor.browsePlugin();
-        if (plugin) {
-          setSelectedPlugin(plugin);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to browse for plugin:', error);
+      await api?.xEditScriptExecutor?.saveXEditPath?.(xEditPath);
+      setMessage('xEdit path saved');
+    } catch {
+      setMessage('Failed to save xEdit path');
     }
   };
 
@@ -277,19 +275,32 @@ export const XEditTools: React.FC = () => {
     setScriptOutput([]);
 
     try {
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setProgress(prev => Math.min(prev + 10, 90));
-      }, 500);
+      // Subscribe to real IPC progress events if available
+      let unsubscribeProgress: (() => void) | undefined;
+      if (api?.xEditScriptExecutor?.onProgress) {
+        unsubscribeProgress = api.xEditScriptExecutor.onProgress(
+          (data: { progress: number; text: string }) => {
+            setProgress(data.progress);
+            setProgressText(data.text);
+          }
+        );
+      } else {
+        // Fallback: simulated progress while waiting for result
+        const progressInterval = setInterval(() => {
+          setProgress(prev => Math.min(prev + 10, 90));
+        }, 500);
+        unsubscribeProgress = () => clearInterval(progressInterval);
+      }
 
       if (api?.xEditScriptExecutor?.executeScript) {
-        const result = await api.xEditScriptExecutor.executeScript({
-          scriptId: selectedScript.id,
-          pluginPath: selectedPlugin,
-          xEditPath: xEditPath
-        });
+        // Pass the three required separate arguments (not an object)
+        const result = await api.xEditScriptExecutor.executeScript(
+          xEditPath,
+          selectedPlugin,
+          selectedScript.id
+        );
 
-        clearInterval(progressInterval);
+        unsubscribeProgress?.();
         setProgress(100);
         setProgressText('Complete');
         setExecutionResult(result);
@@ -308,8 +319,8 @@ export const XEditTools: React.FC = () => {
           setMessage(`Script failed: ${result.errors.join(', ')}`);
         }
       } else {
+        unsubscribeProgress?.();
         // xEdit IPC not available — report the real situation
-        clearInterval(progressInterval);
         setProgress(0);
         setProgressText('');
         setExecutionResult({
@@ -333,6 +344,19 @@ export const XEditTools: React.FC = () => {
       });
     } finally {
       setIsExecuting(false);
+    }
+  };
+
+  const browseForPlugin = async () => {
+    try {
+      if (api?.xEditScriptExecutor?.browsePlugin) {
+        const plugin = await api.xEditScriptExecutor.browsePlugin();
+        if (plugin) {
+          setSelectedPlugin(plugin);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to browse for plugin:', error);
     }
   };
 
@@ -646,6 +670,13 @@ export const XEditTools: React.FC = () => {
                     className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded font-bold text-sm"
                   >
                     Browse
+                  </button>
+                  <button
+                    onClick={saveXEditPathManual}
+                    disabled={!xEditPath.trim()}
+                    className="px-4 py-2 bg-slate-600 hover:bg-slate-500 disabled:opacity-40 rounded font-bold text-sm"
+                  >
+                    Save
                   </button>
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
