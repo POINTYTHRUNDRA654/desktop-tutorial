@@ -204,6 +204,16 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         required: false,
         ifMissing: 'Vanilla .ba2 archives cannot be inspected or extracted. Asset comparison and base-game texture/mesh work will require an alternative tool.',
     },
+    {
+        name: 'HkxTools (created by Bingle, uploaded by jarari)',
+        description: 'Standalone C++ utilities for quick HKX animation edits. Includes HkxConverter for hkx↔xml conversion so animations can be edited as text, plus HkxSpeed for fast playback-speed tweaks (for example 2.0 = 2× faster). Supports simple drag-and-drop workflows for hkx/xml files. Credit: Dexesttp for hkx class structures.',
+        detectKeywords: ['hkxtools', 'hkxconverter', 'hkxspeed'],
+        url: 'https://www.nexusmods.com/fallout4/mods/103687',
+        urlLabel: 'Nexus Mods #103687',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Quick hkx/xml conversion and animation playback-speed iteration will require manual Havok tooling outside Mossy.',
+    },
     // ── Visual enhancement ────────────────────────────────────────────────────
     {
         name: 'ENB Series (by Boris Vorontsov)',
@@ -282,6 +292,17 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         category: 'modding',
         required: false,
         ifMissing: 'Mods requiring raycasting, physics queries, advanced inventory manipulation, or silent console commands from Papyrus will fail. Complex environmental scripting (e.g. Glowing Sea mutation logic) will be limited.',
+        hasExecutable: false,
+    },
+    {
+        name: 'Hydra (by SoleVaultBoy)',
+        description: 'Papyrus framework and extender built from scratch as a modern alternative to Papyrus Common Library. Supports Old-Gen, Next-Gen, and Anniversary Edition; adds 2,800+ Papyrus functions; introduces advanced script types like hash maps, hash sets, mutexes, and 64-bit numeric types; restores Editor IDs; and ships runners/utilities for console commands, menus, misc stats, requirements, file caches, script functions/objects/reflections, and translations. Also includes experimental Papyrus performance patches. ⚠️ Install via mod manager (MO2/Vortex) and follow the mod page documentation.',
+        detectKeywords: ['hydra', 'papyrus common library', 'hydra papyrus'],
+        url: 'https://www.nexusmods.com/fallout4/mods/104159',
+        urlLabel: 'Nexus Mods #104159',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Mods built around Hydra\'s extended Papyrus APIs, runner system, restored Editor IDs, or experimental Papyrus performance patches will not function correctly.',
         hasExecutable: false,
     },
     // ── C++ / F4SE plugin development ─────────────────────────────────────────
@@ -1692,8 +1713,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {[
                                 { label: 'Core', color: 'amber', items: ['Electron v35', 'React v18', 'TypeScript v5', 'Vite v7'] },
                                 { label: 'AI', color: 'emerald', items: ['OpenAI SDK', 'Groq SDK', 'Anthropic Claude', 'PyTorch (CPU & CUDA)'] },
-                                { label: 'Modding Tools', color: 'blue', items: ['xEdit / FO4Edit by ElminsterAU', 'Creation Kit by Bethesda', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar'] },
-                                { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope by hexabits', 'BodySlide & Outfit Studio by ousnius', 'B.A.E. by jonwd7', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'F4SE Plugin Template by Ryan-rsm-McKenzie', 'vcpkg by Microsoft', 'FOMOD Creator by Wenderer'] },
+                                { label: 'Modding Tools', color: 'blue', items: ['xEdit / FO4Edit by ElminsterAU', 'Creation Kit by Bethesda', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Hydra by SoleVaultBoy'] },
+                                { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope by hexabits', 'BodySlide & Outfit Studio by ousnius', 'B.A.E. by jonwd7', 'HkxTools by Bingle / jarari (credit: Dexesttp)', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'F4SE Plugin Template by Ryan-rsm-McKenzie', 'vcpkg by Microsoft', 'FOMOD Creator by Wenderer'] },
                                 { label: 'Diagnostics & Monitoring', color: 'amber', items: ['GPU-Z by TechPowerUp (freeware)', 'HWiNFO64 by Martin Malik (freeware)', 'Display Driver Uninstaller (DDU) by Wagnardsoft (freeware)', 'RivaTuner Statistics Server (RTSS) by Alexey Nicolaychuk — bundled with MSI Afterburner (freeware)'] },
                                 { label: 'Community', color: 'rose', items: ['Nexus Mods community', 'Fallout 4 modding community', 'GitHub contributors', 'Everyone who tests &amp; supports Mossy'] },
                             ].map(({ label, color, items }) => (
