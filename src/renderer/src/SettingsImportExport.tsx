@@ -6,6 +6,11 @@ interface SettingsData {
   [key: string]: any;
 }
 
+type SettingsSnapshot = {
+  localStorage: SettingsData;
+  electronSettings?: SettingsData;
+};
+
 interface SettingsImportExportProps {
   onImport?: (data: SettingsData) => void;
   onExport?: () => SettingsData;
@@ -20,11 +25,17 @@ export const SettingsImportExport: React.FC<SettingsImportExportProps> = ({
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [exportStatus, setExportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const api: any = (window as any).electron?.api || (window as any).electronAPI;
 
-  const handleExport = () => {
+  const handleExport = async () => {
     try {
-      const settingsData = onExport?.() || getAllSettings();
-      const dataStr = JSON.stringify(settingsData, null, 2);
+      const localStorageData = onExport?.() || getAllSettings();
+      const electronSettings = await api?.getSettings?.().catch(() => undefined);
+      const snapshot: SettingsSnapshot = {
+        localStorage: localStorageData,
+        ...(electronSettings ? { electronSettings } : {}),
+      };
+      const dataStr = JSON.stringify(snapshot, null, 2);
       const dataBlob = new Blob([dataStr], { type: 'application/json' });
       const url = URL.createObjectURL(dataBlob);
 
@@ -52,17 +63,28 @@ export const SettingsImportExport: React.FC<SettingsImportExportProps> = ({
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target?.result as string);
-        onImport?.(data) || importSettings(data);
-        setImportStatus('success');
-        setTimeout(() => setImportStatus('idle'), 3000);
-      } catch (error) {
-        console.error('Import failed:', error);
-        setImportStatus('error');
-        setErrorMessage('Invalid settings file');
-        setTimeout(() => setImportStatus('idle'), 3000);
-      }
+      const run = async () => {
+        try {
+          const raw = JSON.parse(e.target?.result as string) as SettingsData | SettingsSnapshot;
+          const snapshot: SettingsSnapshot =
+            raw && typeof raw === 'object' && 'localStorage' in raw
+              ? (raw as SettingsSnapshot)
+              : { localStorage: raw as SettingsData };
+
+          onImport?.(snapshot.localStorage) || importSettings(snapshot.localStorage);
+          if (snapshot.electronSettings && api?.setSettings) {
+            await api.setSettings(snapshot.electronSettings);
+          }
+          setImportStatus('success');
+          setTimeout(() => setImportStatus('idle'), 3000);
+        } catch (error) {
+          console.error('Import failed:', error);
+          setImportStatus('error');
+          setErrorMessage('Invalid settings file');
+          setTimeout(() => setImportStatus('idle'), 3000);
+        }
+      };
+      void run();
     };
     reader.readAsText(file);
 
