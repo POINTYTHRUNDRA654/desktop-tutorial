@@ -398,6 +398,13 @@ Special thanks to the following community members who have generously donated kn
   - All content is used here with full credit and is the intellectual property of PJMail
   - Thank you for your incredible contribution to the Fallout 4 modding community! 🙏
 
+- **Additional community references credited inline in Mossy guides**
+  - **GECK Wiki** — engine/editor workflow reference material
+  - **Sim Settlements community documentation** — modern FO4 navmesh and CK workflow references
+  - **Steam Community guide authors** — Creation Kit shortcut and workflow references
+  - **Felloutislife, Seddon4494, and Art Toots** — tutorial/community references cited where their navmesh workflow information is summarized
+  - These sources are credited directly inside the relevant topical guides where their information is used
+
 - **4estGimp** - https://www.nexusmods.com/fallout4/users/30343500
   - Prolific Fallout 4 mod author and patch creator
   - Donated their comprehensive Fallout 4 patch and compatibility database to Mossy

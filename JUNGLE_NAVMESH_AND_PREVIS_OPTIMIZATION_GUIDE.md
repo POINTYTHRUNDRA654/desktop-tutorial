@@ -1,12 +1,36 @@
 # Jungle Navmesh and Precombines/Previs Optimization Guide
 
-> **Note:** This is a Mossy-authored overview guide for dense-worldspace modding. For authoritative precombine/previs details, file formats, and workflow refer to PJM's documentation: see `PRECOMBINE_PREVIS_DEEP_DIVE.md`, `PJM_FO4CHECK_SCRIPT_GUIDE.md`, and `PJM_GENERATING_PREVISBINES_FOR_MOD.md` (all sourced from PJMail, Nexus #69978).
+> **Note:** This is a Mossy-authored overview guide for dense-worldspace modding. For authoritative precombine/previs workflow details, file formats, and patching practice, refer to PJM's documentation: `PRECOMBINE_PREVIS_DEEP_DIVE.md`, `PJM_FO4CHECK_SCRIPT_GUIDE.md`, and `PJM_GENERATING_PREVISBINES_FOR_MOD.md` (all sourced from **PJMail**, Nexus #69978).  
+> **Additional credited references used in this guide:** GECK Wiki (ESM/header flagging practices), Sim Settlements community documentation (NMIM cleanup workflow), Steam Community hotkey references, and tutorial/community references from **Felloutislife**, **Seddon4494**, and **Art Toots** for navmesh workflow conventions.
 
 To maintain high frame rates in a dense fungus jungle, mastering Navmesh and Precombines/Previs is non-negotiable. Fallout 4's Creation Engine relies heavily on these systems to prevent CPU and GPU bottlenecks.
 
 ---
 
-## Part 1: Navmesh (Navigation Mesh)
+## Part 1: Engine Architecture and Navmesh Safety (OG vs NG / AE)
+
+Fallout 4's modern runtimes are stricter than older tutorial ecosystems imply. If you are teaching Glowing Sea-scale edits, the tutor should treat the following as baseline safety rules.
+
+### NG / AE architecture notes
+
+- **Native asset compatibility matters more now.** Older NIF/BGSM optimization tricks that were tolerated on older runtimes can destabilize modern executables.
+- **Modern BA2 expectations:** Next-Gen/Anniversary teaching should assume modern DX10/DX11-era texture archive handling rather than legacy archive assumptions.
+- **Physics expectations:** Next-Gen no longer depends on High FPS Physics Fix for basic >60 FPS stability the same way older setups did, but dense custom geometry still needs clean precombines/previs or the layout side of the engine will fall behind rendering.
+
+### Core modern rules for large exterior navmesh projects
+
+1. **Large exterior navmesh overhauls should be header-flagged as ESM.**  
+   If you are rewriting navmesh across a massive continuous exterior area like the Glowing Sea, leave the `.esp` extension if that helps your CK workflow, but set the **ESM flag** in xEdit on the File Header.
+
+2. **Delete `Navigation Mesh Info Map` (`NMIM`) after every CK navmesh session.**  
+   The CK can generate a world-sized navmesh snapshot instead of saving only your localized edits. That creates compatibility-breaking wild edits and unnecessary plugin bloat. After saving navmesh work, open the mod in xEdit and delete the `Navigation Mesh Info Map` entry.
+
+3. **Never delete vanilla navmesh.**  
+   If you need to retire old triangles under mushroom canopies or terrain cover, move those triangles far below reachable space or neutralize their AI usefulness without removing the underlying vanilla record.
+
+---
+
+## Part 2: Navmesh (Navigation Mesh)
 
 Navmesh tells non-player characters (NPCs) and companions where they can walk, jump, or find cover. Poorly optimized navmesh causes extreme CPU spikes and game crashes.
 
@@ -16,17 +40,32 @@ Navmesh tells non-player characters (NPCs) and companions where they can walk, j
 - **Edge Connectivity:** Green lines mean triangles are connected; red lines mean broken paths where NPCs get stuck.
 - **Navmesh Layers:** The engine uses specific layers for humanoids, large creatures, and water paths.
 
+### Core hotkeys worth drilling into students
+
+| Key / Shortcut | Function | Practical tutor context |
+| --- | --- | --- |
+| `Ctrl + E` | Toggle Navmesh Mode | Enter or exit the navmesh editor quickly |
+| `B` | Toggle Cell Grid Borders | Critical for exterior work so seams line up cleanly across cells |
+| `V` | Select Vertex Mode | Fine control over node placement and seam cleanup |
+| `T` | Select Triangle Mode | Select full polygons to flag routes and behaviors |
+| `Ctrl + Right Click` | Drop Vertex Node | Place a new node directly on terrain or collision |
+| `A` | Form Triangle / Bridge | Build triangles from 3 vertices or bridge open edges |
+| `Q` | Merge Vertices | Weld seams and repair broken border connections |
+| `F` | Drop to Floor | Snap selected navmesh points onto collision/floor |
+
 ### Optimization Workflow
 
 1. **Generate Automatically:** Use the Creation Kit's **Navmesh → Advanced → Generation** tool for a baseline.
-2. **Manual Clean-up:** Delete tiny, unnecessary triangles under large mushrooms or terrain.
+2. **Manual Clean-up:** Simplify tiny, unnecessary triangles under large mushrooms or terrain, but do **not** delete vanilla navmesh records outright.
 3. **Simplify Geometry:** Use fewer, larger triangles to span flat jungle floors.
-4. **Vertex Snapping:** Press **G** to snap vertices together to prevent micro-gaps that break NPC AI.
+4. **Vertex Welding:** Use **Q** to merge/weld vertices where needed so micro-gaps do not break NPC AI across seams.
 5. **Cover Nodes:** Manually place cover nodes near giant fungal stalks so NPCs use them realistically.
+6. **Preferred paths:** Flag the wide, readable jungle routes as **Preferred** so AI favors cleared paths instead of recalculating through clutter-heavy fungal geometry.
+7. **Water handling:** If the jungle includes toxic pools, flooded basins, or creature-only water paths, explicitly assign the **Water** trait so humanoids avoid them correctly.
 
 ---
 
-## Part 2: Precombines and Previs
+## Part 3: Precombines and Previs
 
 This is the most critical step for an environmental mod. Without this, your jungle will drop to single-digit frame rates.
 
@@ -50,7 +89,39 @@ This is the most critical step for an environmental mod. Without this, your jung
 
 ---
 
-## Part 3: Jungle-Specific Performance Hacks
+## Part 4: Naked Fungal Creatures Workflow
+
+If you want fungal ambush predators or naked spore-mutants in the jungle, treat visuals, factions, and spawn logic as separate teaching tracks.
+
+### Actor record and naked visuals
+
+- Create a new Actor record such as `_FungalStalker`.
+- Leave the **Inventory** tab empty if you want the creature to appear naturally "naked" rather than clothed by outfit records.
+- On the **Traits** tab, use the **Skin** field to point at an Armor record that drives the creature's core fungal body mesh.
+
+### Race, sound, and faction setup
+
+- Pick a **Race** that matches the intended animation rig.
+- Add the creature to factions that match your ecosystem logic, then define hostility against the player and any rival jungle factions you want to script into territorial fights.
+
+### Spawn design: fixed vs dynamic
+
+#### Method A: Fixed ambush markers
+
+- Place an ambush marker in the jungle.
+- Place your fungal actor nearby.
+- Link the actor to the ambush marker using the proper linked-reference keyword.
+- Use an ambush/sleeper style package so the creature hides until the player is close.
+
+#### Method B: Dynamic leveled lists
+
+- Create a `LeveledCharacter` such as `LL_FungalJungle_Easy`.
+- Add multiple fungal creature variants at different levels.
+- Replace native encounter markers or compatible spawn points with your custom leveled list so cells can repopulate cleanly.
+
+---
+
+## Part 5: Jungle-Specific Performance Hacks
 
 ### Mesh Optimization
 
