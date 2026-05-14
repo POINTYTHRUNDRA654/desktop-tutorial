@@ -1,5 +1,8 @@
 # PJM Scripts Index + Setup
 
+**Source:** PJM's Precombine - Previs Patching Scripts, Nexus #69978  
+**Author:** PJMail — https://www.nexusmods.com/fallout4/mods/69978
+
 This is a consolidated index of the PJM xEdit scripts and the automated builder, with quick install notes and cross-links to the workflow guides in this repo.
 
 Note: The scripts currently reside in your SteamLibrary path (outside this workspace). Installation should be done into the `Edit Scripts` directory under your xEdit/FO4Edit installation.

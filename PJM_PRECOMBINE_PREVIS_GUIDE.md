@@ -1,5 +1,8 @@
 # PJM's Precombine-Previs Scripts and PRP Compatibility Guide
 
+**Source:** PJM's Precombine - Previs Patching Scripts, Nexus #69978  
+**Author:** PJMail
+
 ## Understanding Precombines and PreVis in Fallout 4
 
 ### What are Precombines and PreVis?
