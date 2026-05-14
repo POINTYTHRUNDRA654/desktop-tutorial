@@ -197,13 +197,14 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'BodySlide & Outfit Studio',
-        description: 'Create and convert armour and clothing meshes to fit different body shapes. Required for most outfit mods.',
+        description: "GUI tool suite for customising bodies and outfits, creating new shapes, and converting outfits between body types for Fallout 4 (and Skyrim). BodySlide lets you adjust body and outfit sliders and batch-build meshes without editing NIF files directly — check 'Build Morphs' to also generate TRI files for in-game morphing via LooksMenu. Outfit Studio lets you convert outfits between body types, create new BodySlide sliders, correct animation weights, and edit or import/export FBX/OBJ/NIF meshes. ⚠️ Requires OpenGL 3.3+. Install to Data/Tools/BodySlide and launch through your mod manager (MO2: add as executable; Vortex: add as dashboard tool). After BatchBuilding in MO2, move output files from Overwrite into a dedicated 'BodySlide Output' mod. Add bInvalidateOlderFiles=1 and sResourceDataDirsFinal= under [Archive] in Fallout4Custom.ini. Preset XML files you create are free to share; built meshes require author permission. Source: GPLv3+ (GitHub: ousnius/BodySlide-and-Outfit-Studio). Credits: Caliente, ousnius, NifTools team; Chinese translation by xuniana & silentdark; CBBE Uniboob reference by SQr17.",
         detectKeywords: ['bodyslide', 'outfit studio'],
         url: 'https://www.nexusmods.com/fallout4/mods/25',
-        urlLabel: 'Nexus Mods',
+        urlLabel: 'Nexus Mods #25',
         category: 'modding',
         required: false,
         ifMissing: 'Outfit mesh conversion and body preset building will not be available through Mossy.',
+        hasExecutable: false,
     },
     {
         name: 'F4SE (Fallout 4 Script Extender)',
@@ -278,6 +279,17 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         category: 'modding',
         required: false,
         ifMissing: 'Converting BCR-compatible reload animations to HaBCR will require manual HKX patching workflows and extra toolchain steps.',
+    },
+    {
+        name: 'Fallout 4 Animation Kit — F4AK (Nexus #16694)',
+        description: "Comprehensive toolkit and guide for creating brand-new animations for Fallout 4, created by ShadeAnimator. Includes a detailed PDF guide covering both animation import and export workflows, preset files for Havok Content Tools (HCT) including rig.txt and .hko settings files, 3ds Max scenes and CAT/Biped rigs for the human character skeleton, HKXPack GUI for hkx↔XML conversion, and a skeleton.hkx-to-rig.txt converter. The workflow guide is universal and applies to Maya and other 3D tools, not just 3ds max. ⚠️ This kit is no longer actively maintained (last updated 2020) — some tools or steps may need adjustment for current game versions. Update HKXPack to v0.1.5-beta from the Dexesttp GitHub separately. HavokContentTools 2014 (64-bit) is required but not included (ask other modders). Use the main rig file 'F4AK_Rig_Final.max' (3ds Max 2015+); the 2013 version is outdated. Credits: ShadeAnimator (author, guide, rigs); DexesTTP (HKXPack, HKXAnim); MaikCG (F4Biped rig, research); CPU (research); NifTools team; JoshNZ (research).",
+        detectKeywords: ['f4ak', 'fallout 4 animation kit', 'fo4 animation kit', 'shadeanimator', 'hkxpack', 'fo4 animation rig'],
+        url: 'https://www.nexusmods.com/fallout4/mods/16694',
+        urlLabel: 'Nexus Mods #16694',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Creating custom animations for Fallout 4 will require sourcing rigs, HCT presets, and HKXPack individually and assembling your own workflow from scratch.',
+        hasExecutable: false,
     },
     {
         name: 'FO4 Batch Material Editor (Nexus #103044)',
@@ -1875,7 +1887,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 { label: 'Core', color: 'amber', items: ['Electron v35', 'React v18', 'TypeScript v5', 'Vite v7'] },
                                 { label: 'AI', color: 'emerald', items: ['OpenAI SDK', 'Groq SDK', 'Anthropic Claude', 'PyTorch (CPU & CUDA)'] },
                                 { label: 'Modding Tools', color: 'blue', items: ["xEdit / FO4Edit by ElminsterAU", "Pra's xEdit Scripts by Pra (Nexus #28898)", "Pra's zEdit Patchers by Pra (Nexus #33858)", 'Creation Kit by Bethesda', 'Papyrus Compiler Patched — NoDox (Nexus #44959)', 'Creation Club ESL Stubs (Nexus #38029)', 'FallrimTools — ReSaver by MarkDFSoftware (Nexus #22633; Apache 2.0)', 'Universal Patch Installer by RageYT (Nexus #34825)', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'PLOPTOP / ProtoLLOverridePatchNPCs by LeafTongue (Nexus #84615)', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree (Nexus #64943)', 'Base Object Swapper v2 by powerofthree (Nexus #67528; credit: SniffleMan for CommonLibF4)', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Papyrus Condition Functions by LarannKiar (Nexus #88104; requires Garden of Eden)', 'Papyrus Common Library by SkyHorizon3 (Nexus #86222; deprecated — prefer Hydra)', 'Hydra by SoleVaultBoy'] },
-                                { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope Next-Gen Fork by hexabit (credit: Niftools team & contributors)', 'BodySlide & Outfit Studio by ousnius', 'B.A.E. by jonwd7', 'HkxTools by Bingle / jarari (credit: Dexesttp)', 'HaBCR Patcher by Bingle / jarari (credit: Dexesttp)', 'FO4 Batch Material Editor (Nexus #103044; based on Material Editor by ousnius)', 'AutoVideo by TheDestroyerOfWorlds (requires ffmpeg)', 'Commonwealth Cartography by AHeroicLlama (Nexus #73559; GitHub repo: Mappalachia/Commonwealth_Cartography)', 'SpreadSheetInator (Nexus #67616) — SS2 stage item CSV tool', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'F4SE Plugin Template by Ryan-rsm-McKenzie', 'vcpkg by Microsoft', 'FOMOD Creator by Wenderer'] },
+                                { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope Next-Gen Fork by hexabit (credit: Niftools team & contributors)', 'BodySlide & Outfit Studio by Caliente &amp; ousnius (Nexus #25; GPLv3+; credit: NifTools team)', 'B.A.E. by jonwd7', 'HkxTools by Bingle / jarari (credit: Dexesttp)', 'HaBCR Patcher by Bingle / jarari (credit: Dexesttp)', 'Fallout 4 Animation Kit — F4AK by ShadeAnimator (Nexus #16694; credits: DexesTTP, MaikCG, NifTools team)', 'FO4 Batch Material Editor (Nexus #103044; based on Material Editor by ousnius)', 'AutoVideo by TheDestroyerOfWorlds (requires ffmpeg)', 'Commonwealth Cartography by AHeroicLlama (Nexus #73559; GitHub repo: Mappalachia/Commonwealth_Cartography)', 'SpreadSheetInator (Nexus #67616) — SS2 stage item CSV tool', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'F4SE Plugin Template by Ryan-rsm-McKenzie', 'vcpkg by Microsoft', 'FOMOD Creator by Wenderer'] },
                                 { label: 'Diagnostics & Monitoring', color: 'amber', items: ['GPU-Z by TechPowerUp (freeware)', 'HWiNFO64 by Martin Malik (freeware)', 'Display Driver Uninstaller (DDU) by Wagnardsoft (freeware)', 'RivaTuner Statistics Server (RTSS) by Alexey Nicolaychuk — bundled with MSI Afterburner (freeware)'] },
                                 { label: 'Community', color: 'rose', items: ['Nexus Mods community', 'Fallout 4 modding community', 'GitHub contributors', 'Everyone who tests &amp; supports Mossy'] },
                             ].map(({ label, color, items }) => (
