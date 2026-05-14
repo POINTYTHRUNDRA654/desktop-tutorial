@@ -241,7 +241,7 @@ export const BlenderAnimationGuide: React.FC = () => {
       icon: <Zap className="w-5 h-5" />,
       content:
         `Tools you’ll typically need, plus “install/verify” checks:\n\n` +
-        `1) Blender (authoring)\n` +
+        `1) Blender (authoring) — use 3.6 LTS or 4.x (both work with PyNifly; 3.6 LTS preferred for maximum add-on compatibility)\n` +
         `   Verify: Blender launches; you can save a .blend.\n\n` +
         `2) PyNifly (NIF import/export in Blender)\n` +
         `   Verify: NIF import/export entries show up in Blender.\n\n` +

@@ -189,6 +189,7 @@ const Holodeck = () => {
     const [expandedStep, setExpandedStep] = useState<number | null>(null);
     const [testRuns, setTestRuns] = useState<TestRun[]>([]);
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [reportCopied, setReportCopied] = useState(false);
 
     const scenariosScrollRef = useRef<HTMLDivElement | null>(null);
     const detailsScrollRef = useRef<HTMLDivElement | null>(null);
@@ -199,6 +200,37 @@ const Holodeck = () => {
         navigator.clipboard.writeText(text);
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 2000);
+    };
+
+    const handleExportReport = () => {
+        if (!testRuns.length) return;
+        const lines: string[] = [
+            'HOLODECK TEST REPORT',
+            `Generated: ${new Date().toLocaleString()}`,
+            '='.repeat(60),
+            '',
+        ];
+        const byScenario = new Map<string, TestRun[]>();
+        testRuns.forEach((r) => {
+            const arr = byScenario.get(r.scenarioId) ?? [];
+            arr.push(r);
+            byScenario.set(r.scenarioId, arr);
+        });
+        for (const scenario of TEST_SCENARIOS) {
+            const runs = byScenario.get(scenario.id);
+            if (!runs?.length) continue;
+            lines.push(`SCENARIO: ${scenario.name} [${scenario.severity.toUpperCase()}]`);
+            lines.push(`  Category : ${scenario.category}`);
+            lines.push(`  Expected : ${scenario.expectedOutcome}`);
+            runs.forEach((r) => {
+                lines.push(`  Run ${r.timestamp} → ${r.status.toUpperCase()} (${r.duration}s)`);
+                r.issues.forEach((issue) => lines.push(`    ⚠ ${issue}`));
+            });
+            lines.push('');
+        }
+        navigator.clipboard.writeText(lines.join('\n'));
+        setReportCopied(true);
+        setTimeout(() => setReportCopied(false), 2000);
     };
 
     const handleTestRun = async (scenarioId: string) => {
@@ -362,8 +394,13 @@ const Holodeck = () => {
                     >
                         Help
                     </Link>
-                    <button className="px-3 py-1.5 bg-black rounded border border-slate-600 hover:border-purple-500 transition-colors text-xs text-purple-400 flex items-center gap-2">
-                        <BarChart3 className="w-3 h-3" /> Report
+                    <button
+                        onClick={handleExportReport}
+                        disabled={!testRuns.length}
+                        title={testRuns.length ? 'Copy all test run results to clipboard' : 'Run at least one test first'}
+                        className="px-3 py-1.5 bg-black rounded border border-slate-600 hover:border-purple-500 transition-colors text-xs text-purple-400 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        <BarChart3 className="w-3 h-3" /> {reportCopied ? 'Copied!' : 'Report'}
                     </button>
                 </div>
             </div>

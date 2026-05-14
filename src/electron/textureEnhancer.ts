@@ -509,67 +509,6 @@ export function registerTextureEnhancerHandlers(
   );
 
   /**
-   * Load material manifest from mod directory
-   */
-  ipcMain.handle(
-    'material:load-manifest',
-    async (event, modPath: string) => {
-      try {
-        const { loadMaterialManifest } = require('./materialDefinitions');
-        const manifest = loadMaterialManifest(modPath);
-        
-        if (!manifest) {
-          return {
-            success: false,
-            error: 'No .mossy_material.json found in mod',
-          };
-        }
-
-        return { success: true, manifest };
-      } catch (err: any) {
-        return {
-          success: false,
-          error: err.message,
-        };
-      }
-    }
-  );
-
-  /**
-   * Save material manifest to mod directory
-   */
-  ipcMain.handle(
-    'material:save-manifest',
-    async (event, manifest: any) => {
-      try {
-        const { saveMaterialManifest, validateMaterialManifest } = require('./materialDefinitions');
-        
-        // Validate before saving
-        const validation = validateMaterialManifest(manifest);
-        if (!validation.valid) {
-          return {
-            success: false,
-            error: `Manifest validation failed: ${validation.errors.join(', ')}`,
-          };
-        }
-
-        const outputDir = path.join(manifest.modPath || '.', '.mossy_enhanced');
-        const result = saveMaterialManifest(outputDir, manifest);
-
-        return {
-          success: result,
-          message: result ? 'Manifest saved successfully' : 'Failed to save manifest',
-        };
-      } catch (err: any) {
-        return {
-          success: false,
-          error: err.message,
-        };
-      }
-    }
-  );
-
-  /**
    * Get available texture files for a material
    */
   ipcMain.handle(

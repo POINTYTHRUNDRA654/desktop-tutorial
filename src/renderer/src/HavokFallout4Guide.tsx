@@ -166,6 +166,9 @@ const HavokFallout4Guide: React.FC<HavokFallout4GuideProps> = ({ embedded = fals
           <button style={buttonStyle} onClick={() => openNexusSearch('Bethesda Archive Extractor')}>Nexus search: BAE</button>
           <button style={buttonStyle} onClick={() => openNexusSearch('HKXPack')}>Nexus search: HKXPack</button>
         </div>
+        <div style={{ marginTop: '10px', padding: '8px', backgroundColor: 'rgba(255,200,0,0.07)', border: '1px solid #665500', borderRadius: '4px', fontSize: '12px', color: '#ccaa44' }}>
+          <strong>NG/AE note:</strong> The HKX animation format (Havok 2010.2.0-r1) is unchanged between OG (1.10.163), NG (1.10.980–984), and AE (1.11.x). Behavior graph paths and skeleton NIFs are also the same. No re-export is required when targeting different runtimes — the animation asset pipeline is identical for all three.
+        </div>
       </div>
 
       {/* Engine Architecture */}

@@ -467,12 +467,34 @@ script RewardDistributor : ObjectReference {
         </button>
         {expandedSection === 'best-practices' && (
           <div style={contentStyle}>
+            <div style={{...featureBoxStyle, borderLeft: '4px solid #ff4444'}}>
+              <h4 style={{color: '#ff4444', marginBottom: '0.5rem'}}>⚠️ Anti-Pattern: RegisterForUpdate Polling</h4>
+              <p style={{color: '#ffcccc', fontSize: '0.85rem', marginBottom: '0.5rem'}}>
+                <strong>Never</strong> use <code>RegisterForUpdate()</code> as a polling loop. It runs
+                a script every N seconds regardless of need, burns Papyrus VM budget, and causes
+                script lag and save-bloat — especially problematic on NG/AE where the VM budget is
+                shared with more running mods.
+              </p>
+              <p style={{color: '#ff8888', fontSize: '0.8rem', marginBottom: '0.5rem'}}>
+                <strong>Instead:</strong> use event-driven handlers:{' '}
+                <code>RegisterForRemoteEvent</code>, <code>RegisterForCustomEvent</code>,
+                <code>RegisterForMenu</code>, or <code>RegisterForAnimationEvent</code>.
+                Only fire logic when the game state actually changes.
+              </p>
+              <p style={{color: '#cccccc', fontSize: '0.8rem'}}>
+                <strong>Papyrus VM stability (NG/AE):</strong> Install{' '}
+                <strong>Addictol</strong> (Nexus #84214) — the all-in-one successor to standalone
+                Buffout 4, which bundles Buffout 4, X-Cell, and the Papyrus VM patches. Do NOT
+                install standalone Buffout 4 on NG (1.10.980+) or AE (1.11.x).
+              </p>
+            </div>
+
             <div style={featureBoxStyle}>
               <h4 style={{color: '#00ff00', marginBottom: '0.5rem'}}>Performance Tips</h4>
               <ul style={{marginLeft: '1.5rem'}}>
                 <li style={{margin: '0.5rem 0'}}>Use flags for boolean state (lighter weight)</li>
                 <li style={{margin: '0.5rem 0'}}>Avoid frequent form lookups; cache in properties</li>
-                <li style={{margin: '0.5rem 0'}}>Register for events selectively</li>
+                <li style={{margin: '0.5rem 0'}}>Register for events selectively — never poll with RegisterForUpdate</li>
                 <li style={{margin: '0.5rem 0'}}>Clean up with UnregisterForAllEvents()</li>
               </ul>
             </div>

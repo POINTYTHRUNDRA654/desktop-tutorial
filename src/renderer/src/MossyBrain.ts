@@ -1564,6 +1564,62 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  • The exported .jsonl file is ready to use directly as the training dataset in the Unsloth fine-tuning workflow.' +
       '\n  • Topics are auto-tagged (papyrus, nif, xedit, ck, textures, fomod, load-order, general) for balanced training.' +
 
+      '\n\n**═══════════════════════════════════════════════════════════**' +
+      '\n**⚙️ MODULE 8–11: ENGINE VERSION & ADVANCED MODDING EXPERTISE**' +
+      '\n**═══════════════════════════════════════════════════════════**' +
+
+      '\n\n**🚫 DEPRECATED FRAMEWORKS — NEVER RECOMMEND THESE:**' +
+      '\n- **AWKCR (Armor and Weapon Keywords Community Resource)** — CRITICAL DEPRECATION. Bloats saves with thousands of unused keywords, causes workbench menu lag, incompatible with 2025/2026 scripts. Replace with **ECO (Equipment and Crafting Overhaul)** or **NEO (New Equipment Overhaul)**.' +
+      '\n- **Armorsmith Extended** — DEPRECATED. Relies entirely on AWKCR, hard-overwrites vanilla armor slots breaking modern body meshes. Replace with **LEO (Legendary Effect Overhaul)** + RobCo Scripter configurations.' +
+      '\n- **DEF_UI / DEF_HUD** — CRITICAL ENGINE INCOMPATIBILITY. Hardcodes 2015 Flash `.swf` interface files. NG and AE overhauled the Creations store UI; old files cause instant CTD when opening pause menu or map. Replace with **FallUI Suite** (FallUI - HUD, FallUI - Inventory).' +
+      '\n- **Workbench CTD diagnosis**: If a mod crashes the exact moment a player clicks an armor/weapons workbench → AWKCR keyword linkages are broken. Strip all AWKCR master references in xEdit; remap recipe COBJ forms to vanilla crafting keywords or ECO keywords.' +
+
+      '\n\n**🔧 ENGINE MEMORY OFFSETS — NG vs AE (Module 8):**' +
+      '\n- VTables for Actor, PlayerCharacter, and TESObjectREFR ALL shift with each Bethesda recompile. Never hardcode raw virtual addresses.' +
+      '\n- ALWAYS use `REL::ID` + CommonAddressLibrary (CAL): `REL::Relocation<uintptr_t> fn(REL::ID(58319)); fn.address()` — resolves correctly on every build.' +
+      '\n- Critical address shift table: `PlayerCharacter::UpdateCombat` — pre-NG 41253 → NG2024 56122 → AE 58319. `Actor::ApplyDamage` — pre-NG 12431 → NG2024 24901 → AE 26104. `BGSAnimationSystem::ProcessEvents` — pre-NG 89124 → NG2024 91043 → AE 93152.' +
+      '\n- Anti-pattern: `RelocationManager::BaseAddress + 0x12410A4` — hardcoded, breaks on any new build → instant Access Violation Exception (0xC0000005).' +
+      '\n- F4SE log "Failed to locate critical memory address" = plugin using wrong-version hardcoded offset. Fix: update to REL::ID from the CAL .bin for the current build.' +
+
+      '\n\n**📜 AE PAPYRUS COMPATIBILITY PATTERN:**' +
+      '\n- The AE injects `Fallout4 - Creations.esm` and 150+ CC `.esl` files into every load order. Always gate optional AE content with `Game.IsPluginInstalled("Fallout4 - Creations.esm")` before referencing AE forms.' +
+      '\n- Pattern: `AnniversaryCompatibilityController extends Quest` — `OnQuestInit` calls `EvaluateEngineEnvironment()` which sets `IsAnniversaryEngineActive` flag and iterates `AnniversaryPacks[]` ContentPack structs. Attach to a Start Game Enabled quest.' +
+      '\n- `Game.IsPluginInstalled()` is the ONLY safe AE detection gate in Papyrus.' +
+
+      '\n\n**⬇️ BA2 DOWNGRADE PIPELINE (pre-NG testing):**' +
+      '\n- Fetch pre-NG (v1.10.163) binaries via Steam Console: `download_depot 377160 377161 4875416049448831327` (executable), `download_depot 377160 377163 1034440628283526848` (asset scripts profile).' +
+      '\n- Down-convert BA2 headers V2→V1: extract with modern Archive2, repack with `-f H1` flag. V2 archives crash pre-NG engine.' +
+      '\n- Plugin HEDR field: `1.0` = NG/AE format; `0.95` = pre-NG. Change in xEdit File Header → HEDR - Version before shipping to legacy users.' +
+
+      '\n\n**🤖 MULTI-TARGET C++ CI PIPELINE (GitHub Actions):**' +
+      '\n- Use `windows-2022` runner + `microsoft/setup-msbuild@v2`. Two MSBuild configurations: `Release_PreNG` (links pre-NG CAL, defines `PLUGIN_TARGET_PRENG`) and `Release_Anniversary` (links AE CAL, defines `PLUGIN_TARGET_AE`).' +
+      '\n- Guard address IDs in code: `#if defined(PLUGIN_TARGET_AE) REL::ID fn(26104); #elif defined(PLUGIN_TARGET_PRENG) REL::ID fn(12431); #endif`' +
+      '\n- Upload both DLL variants as artifacts under `distribution/PreNG/` and `distribution/Anniversary/` for FOMOD auto-selection.' +
+
+      '\n\n**🔍 CRASH LOG DIAGNOSIS (X-Cell / CLASSIC):**' +
+      '\n- X-Cell is the primary crash logger for NG/AE (2025/2026). Buffout 4 alone is insufficient for modern builds.' +
+      '\n- Reading call stacks: entry pointing to `F4SE_Plugin_Custom.dll` = custom plugin is the fault origin. Offset in `Fallout4.exe+XXXXXXX` = precise instruction that faulted.' +
+      '\n- Version mismatch: user on AE (v1.10.984) but crash offset maps to pre-NG (v1.10.163) layout → plugin pointing to nonexistent address → Access Violation 0xC0000005. Fix: replace hardcoded offset with `REL::ID`.' +
+      '\n- Checklist: (1) Identify faulting module. (2) Extract hex offset. (3) Cross-reference CAL .bin for reported version. (4) Check for AWKCR/DEF_UI masters in load order. (5) Confirm X-Cell installed. (6) Request full log, not screenshot.' +
+
+      '\n\n**📐 PAPYRUS SCRIPT OPTIMISATION RUBRIC (Module 10):**' +
+      '\n- **INSTANT FAIL — RegisterForUpdate()**: Any use of `RegisterForUpdate()` or active while-loop polling is a critical failure. Replace with `RegisterForRemoteEvent`, `RegisterForAnimationEvent`, or `RegisterForExternalEvent` (MCM). No exceptions.' +
+      '\n- **State Separation** (25%): Complex multi-stage scripts must use distinct Papyrus `State` blocks. Heavily nested if/else recalculating state on every call = fail.' +
+      '\n- **Save Footprint** (20%): Scripts processing external arrays must self-terminate with `Self.Stop()`. Unrestricted array expansion or never-stopping background quests = fail.' +
+      '\n- **Variable Scope** (20%): Use `Const` on immutable parameters. Abused global arrays or circular variable references = fail.' +
+      '\n- Benchmark: 1000 async `CallUserFunctionAsync` pass-throughs must complete in < 0.05 seconds on a properly event-driven handler.' +
+
+      '\n\n**🛠️ CUSTOM DEVELOPER TOOLS:**' +
+      '\n- **SanitizeESL.pas** (xEdit Pascal script, `FO4Edit\\Edit Scripts\\`): Scans for ESL records where `localID > 0xFFF`. Reports `[WARNING]` for each out-of-bounds record. Fix: use xEdit "Compact FormIDs for ESL". Run before every ESL release.' +
+      '\n- **PBR Channel Checker** (Python/Pillow): Opens `_s.dds`, splits channels, calls `getextrema()`. `(0,0)` on Red = no metalness (renders as plastic). `(0,0)` on Green = CRITICAL, zero specular. `(0,0)` on Blue = flat AO. Run before BA2 packing.' +
+      '\n- **ScriptPerformanceWatchdog.psc**: Times function execution with `Utility.GetCurrentRealTime()`. Delta * 1000 = ms. Fires `Debug.MessageBox` if delta > `MaxAllowedExecutionTimeMs` (default 50). Development only — must be stripped before release.' +
+      '\n- **F4Dev-CLI** (`node f4dev.js <ModName>`): Scaffolds `Data/Meshes/<Name>`, `Data/Textures/<Name>`, `Data/Materials/<Name>`, `Data/Scripts/Source`, `Data/MCM/Config/<Name>/config.json` in one command.' +
+      '\n- **Headless Blender Optimizer** (`blender --background --python optimize_mesh.py -- input.fbx`): Sets Auto Smooth at 180°, runs `seams_from_islands()`, applies `WEIGHTED_NORMAL` modifier with `keep_sharp=True`, exports `_Optimized_For_NIF.fbx`.' +
+
+      '\n\n**📋 FOMOD ENGINE AUTO-DETECTION PATTERN:**' +
+      '\n- FOMOD `ModuleConfig.xml` should detect AE by checking if `Fallout4 - Creations.esm` is present, then install `Anniversary/Data/F4SE/Plugins/MyPlugin.dll` vs `PreNG/Data/F4SE/Plugins/MyPlugin.dll`.' +
+      '\n- Capstone requirements: Git LFS for `.esp`/`.nif`/`.dds`/`.ba2`; GitHub Actions CI building both `Release_PreNG` and `Release_Anniversary` error-free; plugin <35k tris; event-driven self-terminating leveled list injector quest; REL::ID C++ recoil hook.' +
+
       // Include only the first ~3,000 chars (~750 tokens at ~4 chars/token) of the guide.
       // The full MASTER_TECHNICAL_GUIDE is ~368,000 chars (~92,000 tokens) which, combined
       // with conversation history and injected context, can exceed the model's 128K context window.

@@ -3842,6 +3842,45 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
+  // --- Workflow Runner: run a user-configured command and capture output ---
+  // Unlike VAULT_RUN_TOOL, this channel has no tool allowlist because the
+  // user has deliberately configured the commands inside their own workflow.
+  registerHandler(IPC_CHANNELS.WORKFLOW_RUNNER_RUN_TOOL, async (_event, payload: { cmd: string; args?: string[]; cwd?: string }) => {
+    try {
+      if (!payload || typeof payload.cmd !== 'string' || !payload.cmd.trim()) {
+        return { exitCode: -1, stdout: '', stderr: 'Invalid command: cmd must be a non-empty string' };
+      }
+      const cmd = payload.cmd.trim();
+      return new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve) => {
+        try {
+          const child = spawn(cmd, payload.args ?? [], {
+            cwd: (payload.cwd || '').trim() || process.cwd(),
+            shell: false,
+            windowsHide: true,
+          });
+
+          let stdout = '';
+          let stderr = '';
+
+          child.on('error', (err) => {
+            resolve({ exitCode: -1, stdout: '', stderr: `Failed to execute: ${err.message}` });
+          });
+
+          if (child.stdout) child.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
+          if (child.stderr) child.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
+
+          child.on('close', (code: number | null) => {
+            resolve({ exitCode: code ?? -1, stdout, stderr });
+          });
+        } catch (err: any) {
+          resolve({ exitCode: -1, stdout: '', stderr: `Error spawning process: ${err.message}` });
+        }
+      });
+    } catch (e: any) {
+      return { exitCode: -1, stdout: '', stderr: String(e?.message || e) };
+    }
+  });
+
   // --- Vault: Save/Load manifest under app data ---
   registerHandler(IPC_CHANNELS.VAULT_SAVE_MANIFEST, async (_event, assets: unknown) => {
     try {

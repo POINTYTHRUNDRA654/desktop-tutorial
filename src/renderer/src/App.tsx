@@ -1486,7 +1486,6 @@ const App: React.FC = () => {
               {/* Plugin & Load Order Hub */}
               <KeepAlivePanel path="/plugin-tools"><ErrorBoundary><PluginLoadOrderHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/xedit"><ErrorBoundary><XEditTools /></ErrorBoundary></KeepAlivePanel>
-              <KeepAlivePanel path="/tools/ck-extension"><ErrorBoundary><CKExtension /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/project-templates"><ErrorBoundary><ProjectTemplates /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/formid-remapper"><ErrorBoundary><FormIdRemapper /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/precombine-generator"><ErrorBoundary><PrecombineGenerator /></ErrorBoundary></KeepAlivePanel>

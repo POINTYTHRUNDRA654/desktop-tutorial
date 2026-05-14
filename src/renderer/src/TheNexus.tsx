@@ -382,7 +382,7 @@ const TheNexus: React.FC = () => {
                 icon: ShieldCheck,
                 step: '5',
                 title: 'Keep Your Game Stable',
-                body: 'Install F4SE + Address Library + Addictol (Buffout 4 successor). Use Creation Kit Hub for crash prevention monitoring when editing in the CK.',
+                body: 'First identify your game version: OG (1.10.163), NG (1.10.980–984), or AE/1.11.x (1.11.191+). Then install the matching stack: F4SE + Address Library + X-Cell. Avoid deprecated AWKCR/DEF_UI — use ECO/NEO and FallUI instead. Use Creation Kit Hub for crash prevention monitoring.',
                 to: '/ck-tools',
               },
               {
