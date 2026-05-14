@@ -3,7 +3,7 @@
 > **Note:** This is a Mossy-authored overview guide for dense-worldspace modding. For authoritative precombine/previs workflow details, file formats, and patching practice, refer to PJM's documentation: `PRECOMBINE_PREVIS_DEEP_DIVE.md`, `PJM_FO4CHECK_SCRIPT_GUIDE.md`, and `PJM_GENERATING_PREVISBINES_FOR_MOD.md` (all sourced from **PJMail**, Nexus #69978, aligned here to the **V4.9 / Feb 2026** guidance set).  
 > **Additional credited references used in this guide:** GECK Wiki (ESM/header flagging practices), Sim Settlements community documentation (NMIM cleanup workflow), Steam Community hotkey references, tutorial/community references from **Felloutislife**, **Seddon4494**, and **Art Toots** for navmesh workflow conventions, plus material/texture workflow references from **InspirationTuts**, **r/blenderhelp**, **r/FalloutMods**, and Nexus forum discussions on Fallout 4 material packing.
 
-To maintain high frame rates in a dense fungus jungle, mastering Navmesh and Precombines/Previs is non-negotiable. Fallout 4's Creation Engine relies heavily on these systems to prevent CPU and GPU bottlenecks.
+To maintain high frame rates in a dense fungal jungle, mastering Navmesh and Precombines/Previs is non-negotiable. Fallout 4's Creation Engine relies heavily on these systems to prevent CPU and GPU bottlenecks.
 
 ---
 
@@ -604,7 +604,7 @@ Wind deformation control offsets:
 | Hex Offset | Type  | Parameter              | Purpose |
 | --- | --- | --- | --- |
 | `0x78` | float | `fTreeWindScale` | Max bend amount during high wind |
-| `0x7C` | float | `fTreeWindFrequency` | Oscillation speed |
+| `0x7C` | float | `fTreeWindFrequency` | oscillation speed |
 | `0x80` | float | `fTreeLeafFlexibility` | Small-card flutter intensity |
 
 JSON parameter profile:
