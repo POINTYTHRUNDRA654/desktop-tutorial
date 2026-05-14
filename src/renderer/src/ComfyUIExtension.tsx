@@ -103,51 +103,82 @@ export const ComfyUIExtension: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const generateImage = async () => {
-    if (!prompt.trim()) return;
-
-    const job: GenerationJob = {
-      id: Date.now().toString(),
-      prompt,
-      status: 'queued',
-      progress: 0,
-      startTime: new Date(),
-    };
-
-    setQueue(prev => [...prev, job]);
-
-    // Simulate generation
+  const runSimulatedGeneration = (jobId: string) => {
     setTimeout(() => {
-      setQueue(prev => 
-        prev.map(j => j.id === job.id ? { ...j, status: 'generating', progress: 25 } : j)
-      );
-
+      setQueue(prev => prev.map(j => j.id === jobId ? { ...j, status: 'generating', progress: 25 } : j));
       setTimeout(() => {
-        setQueue(prev => 
-          prev.map(j => j.id === job.id ? { ...j, progress: 50 } : j)
-        );
-
+        setQueue(prev => prev.map(j => j.id === jobId ? { ...j, progress: 50 } : j));
         setTimeout(() => {
-          setQueue(prev => 
-            prev.map(j => j.id === job.id ? { ...j, progress: 75 } : j)
-          );
-
+          setQueue(prev => prev.map(j => j.id === jobId ? { ...j, progress: 75 } : j));
           setTimeout(() => {
-            setQueue(prev => 
-              prev.map(j => j.id === job.id ? { 
-                ...j, 
-                status: 'complete', 
-                progress: 100,
-                imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgZmlsbD0iIzFhMWExYSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzhhOGE4YSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+R2VuZXJhdGVkIEltYWdlPC90ZXh0Pjwvc3ZnPg=='
-              } : j)
-            );
+            setQueue(prev => prev.map(j => j.id === jobId ? {
+              ...j, status: 'complete', progress: 100,
+              imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgZmlsbD0iIzFhMWExYSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzhhOGE4YSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+U2ltdWxhdGVkPC90ZXh0Pjwvc3ZnPg==',
+            } : j));
           }, 1000);
         }, 1000);
       }, 1000);
     }, 500);
+  };
 
-    // Clear prompt after queuing
+  const buildComfyWorkflow = (promptText: string, negText: string, model: string) => ({
+    '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: model } },
+    '2': { class_type: 'CLIPTextEncode', inputs: { text: promptText, clip: ['1', 1] } },
+    '3': { class_type: 'CLIPTextEncode', inputs: { text: negText || 'blurry, low quality', clip: ['1', 1] } },
+    '4': { class_type: 'EmptyLatentImage', inputs: { width: 512, height: 512, batch_size: 1 } },
+    '5': { class_type: 'KSampler', inputs: { seed: Math.floor(Math.random() * 2 ** 32), steps: 20, cfg: 7, sampler_name: 'euler', scheduler: 'normal', denoise: 1.0, model: ['1', 0], positive: ['2', 0], negative: ['3', 0], latent_image: ['4', 0] } },
+    '6': { class_type: 'VAEDecode', inputs: { samples: ['5', 0], vae: ['1', 2] } },
+    '7': { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy', images: ['6', 0] } },
+  });
+
+  const generateImage = async () => {
+    if (!prompt.trim()) return;
+
+    const jobId = Date.now().toString();
+    const job: GenerationJob = { id: jobId, prompt, status: 'queued', progress: 0, startTime: new Date() };
+    setQueue(prev => [...prev, job]);
     setPrompt('');
+
+    // Try real ComfyUI API first (runs as a local server on port 8188)
+    const base = 'http://127.0.0.1:8188';
+    try {
+      const health = await fetch(`${base}/system_stats`, {
+        signal: AbortSignal.timeout(2000),
+      }).catch(() => null);
+
+      if (health?.ok) {
+        setQueue(prev => prev.map(j => j.id === jobId ? { ...j, status: 'generating', progress: 10 } : j));
+        const res = await fetch(`${base}/prompt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: buildComfyWorkflow(prompt, negativePrompt, selectedModel) }),
+        });
+        if (!res.ok) throw new Error(`ComfyUI API error ${res.status}`);
+        const { prompt_id } = await res.json() as { prompt_id: string };
+
+        // Poll /history until image is ready (max 60 × 2 s = 2 min)
+        for (let i = 0; i < 60; i++) {
+          await new Promise<void>(r => setTimeout(r, 2000));
+          const hist = await fetch(`${base}/history/${prompt_id}`).then(r => r.json()).catch(() => null);
+          setQueue(prev => prev.map(j => j.id === jobId ? { ...j, progress: Math.min(90, 10 + i * 2) } : j));
+          if (!hist?.[prompt_id]) continue;
+          const outputs = hist[prompt_id]?.outputs ?? {};
+          const imgNode = Object.values(outputs).find((o: any) => Array.isArray(o?.images) && o.images.length > 0) as any;
+          if (imgNode) {
+            const img = imgNode.images[0];
+            const imageUrl = `${base}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder ?? '')}&type=${img.type ?? 'output'}`;
+            setQueue(prev => prev.map(j => j.id === jobId ? { ...j, status: 'complete', progress: 100, imageUrl } : j));
+            return;
+          }
+        }
+        throw new Error('Timed out waiting for ComfyUI');
+      }
+    } catch {
+      // Fall through to simulation if ComfyUI is unreachable or errored
+    }
+
+    // Simulation fallback (ComfyUI server not available)
+    runSimulatedGeneration(jobId);
   };
 
   const filteredWorkflows = WORKFLOWS.filter(w => 
@@ -373,7 +404,19 @@ export const ComfyUIExtension: React.FC = () => {
                         </div>
                       </div>
                       {job.status === 'complete' && (
-                        <button className="p-2 bg-slate-700 hover:bg-slate-600 rounded transition-colors">
+                        <button
+                          onClick={() => {
+                            if (!job.imageUrl) return;
+                            const a = document.createElement('a');
+                            a.href = job.imageUrl;
+                            a.download = `comfyui-${job.id}.png`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                          }}
+                          title="Download generated image"
+                          className="p-2 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+                        >
                           <Download className="w-4 h-4 text-white" />
                         </button>
                       )}
