@@ -258,6 +258,17 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     // ── Gameplay frameworks ───────────────────────────────────────────────────
     {
+        name: 'PLOPTOP / ProtoLLOverridePatchNPCs (by LeafTongue)',
+        description: 'Modding utility and leveled-list (LL) framework for FO4Edit power users. Provides the PLOPTOP master (ESM-flagged, no overrides — safe patch master for any load order), and ProtoLLOverridePatchNPCs (a full override of all vanilla leveled NPC records with fixes forwarded), so modders can add custom LLs to reconfigured vanilla lists and control spawn rarity without touching scripts. Also functions as a mod disinjector — quest injection scripts can be disabled by deleting data blocks in the override, and mod LLs can be manually edited and patched without script edits. ⚠️ Do not clean these files; the redundant overrides are intentional. Credit: LeafTongue (free to use; credit appreciated).',
+        detectKeywords: ['ploptop', 'protolloverridepatchnpcs'],
+        url: 'https://www.nexusmods.com/fallout4/mods/84615',
+        urlLabel: 'Nexus Mods #84615',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Mods that use PLOPTOP as a patch master will fail to load. Custom LL control and mod disinjection workflows relying on this framework will not function.',
+        hasExecutable: false,
+    },
+    {
         name: 'RobCo Patcher (by Zzyxzz)',
         description: 'Runtime record-patching framework for Fallout 4. Applies changes to weapons, NPCs, armor, ammo, and leveled lists at launch via simple .ini files — without adding a single plugin to your load order. Required by mods that ship RobCo patch files for compatibility. ⚠️ Install via mod manager (MO2/Vortex). Requires F4SE, CommonLibF4, and Address Library.',
         detectKeywords: ['robco patcher'],
@@ -1765,7 +1776,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {[
                                 { label: 'Core', color: 'amber', items: ['Electron v35', 'React v18', 'TypeScript v5', 'Vite v7'] },
                                 { label: 'AI', color: 'emerald', items: ['OpenAI SDK', 'Groq SDK', 'Anthropic Claude', 'PyTorch (CPU & CUDA)'] },
-                                { label: 'Modding Tools', color: 'blue', items: ['xEdit / FO4Edit by ElminsterAU', 'Creation Kit by Bethesda', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Papyrus Condition Functions by LarannKiar (Nexus #88104; requires Garden of Eden)', 'Papyrus Common Library by SkyHorizon3 (Nexus #86222; deprecated — prefer Hydra)', 'Hydra by SoleVaultBoy'] },
+                                { label: 'Modding Tools', color: 'blue', items: ['xEdit / FO4Edit by ElminsterAU', 'Creation Kit by Bethesda', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'PLOPTOP / ProtoLLOverridePatchNPCs by LeafTongue (Nexus #84615)', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Papyrus Condition Functions by LarannKiar (Nexus #88104; requires Garden of Eden)', 'Papyrus Common Library by SkyHorizon3 (Nexus #86222; deprecated — prefer Hydra)', 'Hydra by SoleVaultBoy'] },
                                 { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope Next-Gen Fork by hexabit (credit: Niftools team & contributors)', 'BodySlide & Outfit Studio by ousnius', 'B.A.E. by jonwd7', 'HkxTools by Bingle / jarari (credit: Dexesttp)', 'HaBCR Patcher by Bingle / jarari (credit: Dexesttp)', 'FO4 Batch Material Editor (Nexus #103044; based on Material Editor by ousnius)', 'AutoVideo by TheDestroyerOfWorlds (requires ffmpeg)', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'F4SE Plugin Template by Ryan-rsm-McKenzie', 'vcpkg by Microsoft', 'FOMOD Creator by Wenderer'] },
                                 { label: 'Diagnostics & Monitoring', color: 'amber', items: ['GPU-Z by TechPowerUp (freeware)', 'HWiNFO64 by Martin Malik (freeware)', 'Display Driver Uninstaller (DDU) by Wagnardsoft (freeware)', 'RivaTuner Statistics Server (RTSS) by Alexey Nicolaychuk — bundled with MSI Afterburner (freeware)'] },
                                 { label: 'Community', color: 'rose', items: ['Nexus Mods community', 'Fallout 4 modding community', 'GitHub contributors', 'Everyone who tests &amp; supports Mossy'] },
