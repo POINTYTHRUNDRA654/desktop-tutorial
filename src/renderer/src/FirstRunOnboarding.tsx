@@ -134,6 +134,17 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         hasExecutable: false,
     },
     {
+        name: 'FallrimTools — ReSaver (Nexus #22633)',
+        description: 'Free, open-source (Apache 2.0) savegame editor and cleaner for Fallout 4 (and Skyrim). ReSaver reads and writes FO4 save files, displays the full tree of script instances and active scripts, and lets you clean broken or orphaned data without corrupting your save. Key features: remove Unattached Script Instances (orphaned scripts no longer tied to any form), delete Undefined Elements (data referencing plugins no longer in your load order), clean FormLists, delete plugin-specific data, terminate stuck active script threads (right-click → Terminate), and filter the tree by regex or by plugin/mod. Mod Parsing mode reads your ESM/ESP/PEX/BSA files to help identify what each save entry belongs to — works best with Mod Organizer 2. ⚠️ NOTE: in Fallout 4, Unattached Instances are a normal part of how FO4 operates — the author recommends NOT cleaning them unless you know they are genuinely orphaned. Always save to a new file, never overwrite your original. Requires Java 8 or newer (64-bit recommended; OpenJDK works). Credit: ReSaver by MarkDFSoftware; based loosely on SaveTool UI; special thanks to Flex Creator (Savegame Script Scalpel) for sharing source code.',
+        detectKeywords: ['fallrimtools', 'resaver', 'reSaver', 'save cleaner', 'savegame cleaner', 'save editor fallout'],
+        url: 'https://www.nexusmods.com/fallout4/mods/22633',
+        urlLabel: 'Nexus Mods #22633',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Cleaning orphaned script instances and broken save data from Fallout 4 saves will require using Save Game Script Cleaner (SaveTool) or Savegame Script Scalpel instead, neither of which supports all FO4 save formats.',
+        hasExecutable: false,
+    },
+    {
         name: 'Mod Organizer 2',
         description: 'The recommended mod manager for Fallout 4. Keeps your game folder clean with a virtual file system and supports profiles.',
         detectKeywords: ['mod organizer', 'modorganizer'],
