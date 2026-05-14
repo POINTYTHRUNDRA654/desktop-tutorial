@@ -169,3 +169,175 @@ If the `_s.dds` blue channel contains garbage color data, wet fungal caps and sl
 - **Environment reflections:** If you want convincing wet reflections, enable **Environment Mapping** in the BGSM and use an appropriate vanilla cubemap such as a Glowing Sea-style environment map.
 
 The important teaching point is that shiny FO4 materials are created by the **combination** of packed `_s.dds` behavior and BGSM flags, not by the diffuse map alone.
+
+---
+
+## Part 6: Automated DDS Export + BGSM Matrix for NG/AE
+
+When teaching Next-Gen/Anniversary workflows, emphasize that export automation should target modern DirectX-compatible compression and avoid legacy DDS handling paths that can produce unstable runtime behavior.
+
+### Mandatory DDS compression profiles
+
+- **Diffuse / Albedo (`_d.dds`)**: `BC7_UNORM` or `BC7_UNORM_SRGB`
+- **Normal (`_n.dds`)**: `BC5_UNORM`
+- **Specular / packed (`_s.dds`)**: `BC7_UNORM`
+
+### Automation execution loop (DirectXTex / IntelTex style)
+
+```bash
+# 1) Diffuse (sRGB) with full mip chain
+texconv.exe -f BC7_UNORM_SRGB -m 0 -y -o "Output/Path" "Input_diffuse.png"
+
+# 2) Normal (BC5 tangent-space friendly)
+texconv.exe -f BC5_UNORM -m 0 -y -o "Output/Path" "Input_normal.png"
+
+# 3) Packed specular/gloss map (linear BC7)
+texconv.exe -f BC7_UNORM -m 0 -y -o "Output/Path" "Input_specular.png"
+```
+
+### Numeric FO4 channel targets (teaching matrix)
+
+| Material Type | Diffuse Alpha / Diffuse Treatment | Specular Red (Reflectivity) | Specular Green (Gloss) | Specular Blue (Safe) |
+| --- | --- | --- | --- | --- |
+| Wet Fungal Slime | Standard diffuse (full opacity) | 140,140,140 | 230,230,230 | 0,0,0 |
+| Matte Moss / Fungi | Standard diffuse (full opacity) | 45,45,45 | 30,30,30 | 0,0,0 |
+| Bioluminescent Flesh | Emissive-data mask strategy | 80,80,80 | 110,110,110 | 0,0,0 |
+| Rusted Metal Scraps | Baked AO mixed over base color | 30,30,30 | 40,40,40 | 0,0,0 |
+| Wet Glowing Mud | Dark ground-toned diffuse | 110,110,110 | 190,190,190 | 0,0,0 |
+
+### BGSM generation matrix (blueprint for automation)
+
+Use this parameter set as a teaching baseline for jungle-biome wet/fungal material behavior:
+
+```json
+{
+  "Header": "BGSM",
+  "Version": 2,
+  "MaterialParameters": {
+    "bTileTextureX": true,
+    "bTileTextureY": true,
+    "bEnvironmentMapping": true,
+    "bSpecularEnabled": true,
+    "fSpecularPower": 4.0,
+    "fSpecularScale": 1.0,
+    "fSubsurfaceLightingAlpha": 0.3,
+    "fSubsurfaceLightingRollOff": 0.5
+  },
+  "TexturePaths": {
+    "DiffuseTexture": "Textures\\\\YourMod\\\\Fungus_Jungle_d.dds",
+    "NormalTexture": "Textures\\\\YourMod\\\\Fungus_Jungle_n.dds",
+    "SmoothnessTexture": "Textures\\\\YourMod\\\\Fungus_Jungle_s.dds",
+    "EnvironmentTexture": "Textures\\\\Shared\\\\Cubemaps\\\\CubeGlowingSea.dds"
+  },
+  "ShaderFlags": {
+    "bGlowMap": true,
+    "bEffectLighting": true,
+    "bZBufferWrite": true
+  }
+}
+```
+
+### Binary compile teaching note
+
+If you automate `.bgsm` generation in code, teach students to use a **known-good BGSM serializer or parser** and to write fields in strict engine order (header, version, scalar blocks, texture paths, flag blocks). Treat hand-rolled byte writers as advanced/debug tooling only, and always validate outputs in Material Editor and in-game.
+
+---
+
+## Part 7: Alpha-Test Foliage, BGSM Flag Math, and LOD Auto-Downsampling
+
+### Automated alpha presets for fuzzy moss and spore cards
+
+For dense jungle assets (fuzzy moss, hanging vines, spore cloud cards), teach students to prefer **alpha testing** over full alpha blending whenever possible.
+
+- **Avoid** `bAlphaBlend=true` on high-density foliage cards because heavy overdraw and sort cost can become a frame-time bottleneck.
+- **Prefer** `bAlphaTest=true` with a stable threshold for cutout-style foliage edges.
+- Use `bTwoSided=true` for flat card geometry so both sides render.
+
+```json
+{
+  "MaterialParameters": {
+    "bAlphaTest": true,
+    "uAlphaTestRef": 128,
+    "bAlphaBlend": false,
+    "bTwoSided": true
+  }
+}
+```
+
+Teaching interpretation:
+- `uAlphaTestRef = 128` means darker alpha pixels are clipped and brighter pixels render fully, giving crisp edges for cards/leaves.
+
+### BGSM flag/offset teaching matrix for glow + vertex color workflows
+
+Use this section as an **automation curriculum profile** for BGSM flag composition and offset literacy:
+
+| Hex Offset | Data Type | Parameter | Tutor purpose |
+| --- | --- | --- | --- |
+| `0x14` | `uint32` | `ShaderFlags1` | core material capability switches |
+| `0x18` | `uint32` | `ShaderFlags2` | advanced lighting/reflection switches |
+| `0x4C` | `float` | `fEmissiveMult` | emissive glow intensity |
+
+Example bitmask composition lesson:
+
+```python
+# Shader Flags 1 (example profile)
+Model_In_Sky_Reflections = 0x00000001
+Fallback_Lighting        = 0x00000008
+Specular_Enabled         = 0x00000200
+Vertex_Colors_Enabled    = 0x00004000
+ZBuffer_Write_Enabled    = 0x00008000
+
+sf1_combined = Model_In_Sky_Reflections | Specular_Enabled | Vertex_Colors_Enabled | ZBuffer_Write_Enabled
+# expected profile value: 0x0000C201
+
+# Shader Flags 2 (example profile)
+Glow_Map_Enabled         = 0x00000004
+Assume_Shadowmask        = 0x00000010
+Environment_Mapping      = 0x00000080
+
+sf2_combined = Glow_Map_Enabled | Environment_Mapping | Assume_Shadowmask
+# expected profile value: 0x00000094
+```
+
+> Keep this as a teaching/reference profile and validate final flag behavior in Material Editor plus in-game test cells before shipping.
+
+### Automated LOD texture down-sampling pipeline
+
+Teach students to generate lower-resolution LOD texture variants so distant assets do not keep loading full 2K/4K maps.
+
+```python
+import os
+import subprocess
+
+def generate_jungle_lod_textures(source_dir, output_dir, texconv_path):
+    """
+    Scan source textures, generate LOD variants, and apply performance-oriented compression.
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    for filename in os.listdir(source_dir):
+        if not filename.endswith(".png") and not filename.endswith(".tga"):
+            continue
+
+        input_file = os.path.join(source_dir, filename)
+
+        if filename.endswith("_d.png") or filename.endswith("_d.tga"):
+            cmd = f'"{texconv_path}" -w 512 -h 512 -f BC7_UNORM_SRGB -m 4 -y -o "{output_dir}" "{input_file}"'
+        elif filename.endswith("_n.png") or filename.endswith("_n.tga"):
+            cmd = f'"{texconv_path}" -w 256 -h 256 -f BC5_UNORM -m 3 -y -o "{output_dir}" "{input_file}"'
+        elif filename.endswith("_s.png") or filename.endswith("_s.tga"):
+            cmd = f'"{texconv_path}" -w 256 -h 256 -f BC7_UNORM -m 3 -y -o "{output_dir}" "{input_file}"'
+        else:
+            continue
+
+        subprocess.run(cmd, shell=True, check=True)
+
+# Example:
+# generate_jungle_lod_textures("Data/Textures/RawJungle", "Data/Textures/LOD", "C:/Tools/texconv.exe")
+```
+
+Recommended teaching checks:
+- verify naming convention consistency (`_d/_n/_s`) before running automation
+- inspect generated mip chains
+- validate distant visuals in-game to avoid shimmering or incorrect gloss at range
