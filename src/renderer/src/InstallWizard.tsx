@@ -106,7 +106,7 @@ const vaultKey = (item: KnowledgeVaultItem) => {
 const topicKeywords: Record<WizardTopic, string[]> = {
   xedit: ['xedit', 'fo4edit', 'apply script', 'edit scripts', 'conflict', 'override'],
   ss2: ['ss2', 'sim settlements 2', 'plot', 'plot building', 'city plan', 'workshop framework'],
-  prp: ['prp', 'previs', 'precombine', 'previsibines repair pack', 'optimization'],
+  prp: ['prp', 'previs', 'precombine', 'previsibines repair pack', 'optimization', 'pjm', 'pjmscripts', 'patching scripts', 'fo4check_previsbines'],
   patching: ['patch', 'patches', 'conflict', 'load order', 'merge', 'override', 'xedit'],
 };
 
@@ -119,6 +119,8 @@ const builtInLinks: Record<WizardTopic, Array<{ label: string; url: string; note
     { label: 'Nexus search: Sim Settlements 2', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=Sim%20Settlements%202&gsearchtype=mods', note: 'Search results in case you install via Nexus.' },
   ],
   prp: [
+    { label: "PJM's Previs Patching Scripts (Nexus #69978)", url: 'https://www.nexusmods.com/fallout4/mods/69978', note: 'By PJMail. V4.9 PJMScripts bundle (Feb 2026). Manual download ONLY — do NOT use a mod manager. Also grab every file under the "Updated Files" tab to replace older copies.' },
+    { label: 'CKPE — Creation Kit Platform Extended (Nexus search)', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=Creation+Kit+Platform+Extended&gsearchtype=mods', note: 'Required: V0.6 b639 or later for Steam CK. Install into the same directory as Fallout4.exe.' },
     { label: 'Nexus search: PRP', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=PRP&gsearchtype=mods', note: 'Search for "Previsibines Repair Pack (PRP)".' },
     { label: 'Nexus search: Previsibines Repair Pack', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=Previsibines%20Repair%20Pack&gsearchtype=mods' },
   ],
@@ -681,8 +683,8 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
       subtitle: t('installWizard.topic.ss2.subtitle', 'Dependencies + install + basic verification for plot building.'),
     },
     prp: {
-      title: t('installWizard.topic.prp.title', 'PRP Setup'),
-      subtitle: t('installWizard.topic.prp.subtitle', 'Precombines/previs install with conflict-aware verification.'),
+      title: t('installWizard.topic.prp.title', 'PRP + PJM Previs Scripts Setup'),
+      subtitle: t('installWizard.topic.prp.subtitle', 'Precombines/previs install with conflict-aware verification — including PJM\'s Previs Patching Scripts (Nexus #69978) by PJMail.'),
     },
     patching: {
       title: t('installWizard.topic.patching.title', 'Patch Building'),
