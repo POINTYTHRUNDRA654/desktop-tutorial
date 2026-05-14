@@ -137,6 +137,11 @@ export const PackagingReleaseWizard: React.FC<PackagingReleaseWizardProps> = ({ 
             title: 'ESL/ESP/ESM flags are intentional',
             details: <>Don’t flip flags “because it fits”. Understand the implications and test on a fresh save if required.</>,
           },
+          {
+            id: 'xedit-clean',
+            title: 'xEdit quick-clean before release',
+            details: <>Run <strong>FO4Edit -quickautoclean</strong> to remove Identical-to-Master records (ITMs) and restore Undeleted &amp; Disabled References (UDRs). These are the most common source of conflicts and CTDs.</>,
+          },
         ],
       },
       {
@@ -147,12 +152,17 @@ export const PackagingReleaseWizard: React.FC<PackagingReleaseWizardProps> = ({ 
           {
             id: 'loose-vs-ba2',
             title: 'Decide: loose files vs BA2',
-            details: <>BA2 is usually preferred for distribution. Some workflows require loose files during development; package at release time.</>,
+            details: <>BA2 is preferred for distribution. Some workflows require loose files during development; package at release time.</>,
+          },
+          {
+            id: 'ba2-version',
+            title: 'Choose the correct BA2 header version',
+            details: <><strong>Pre-NG (1.10.163):</strong> BA2 Header V1 (Archive2 default). <strong>NG/AE (1.10.984+, 1.11.x):</strong> BA2 Header V2 required — V1 archives CTD on NG. Build V2 with CAO (Cathedral Assets Optimizer) or Archive2 v2+. If targeting both, ship two archives or document the requirement clearly.</>,
           },
           {
             id: 'archive2',
-            title: 'Build BA2 with Archive2',
-            details: <>Use Archive2 (part of Bethesda tools) to pack your assets. Validate the archive contents match your intended paths.</>,
+            title: 'Build and validate the BA2',
+            details: <>Use Archive2 (ships with the CK) or CAO to pack assets. Open the BA2 in BAE to confirm all paths match the correct folder structure.</>,
           },
         ],
       },
@@ -181,7 +191,22 @@ export const PackagingReleaseWizard: React.FC<PackagingReleaseWizardProps> = ({ 
           {
             id: 'readme',
             title: 'Write a clear README',
-            details: <>Include: what it does, requirements, install steps, uninstall steps, and known conflicts.</>,
+            details: <>Include: what it does, requirements, install steps, uninstall steps, and known conflicts. <strong>Always state your target game version</strong> (OG 1.10.163, NG 1.10.984+, or AE 1.11.x) and which BA2 header version your archive uses.</>,
+          },
+          {
+            id: 'deprecated-frameworks',
+            title: 'Confirm no deprecated frameworks',
+            details: <>Do not ship mods that require <strong>AWKCR, Armorsmith Extended, or DEF_UI/DEF_HUD</strong> for NG/AE users — these cause instant CTD on NG. Use ECO/NEO instead of AWKCR, and FallUI Suite instead of DEF_UI. If your mod uses the legacy MCM DLL, replace with MCM NG.</>,
+          },
+          {
+            id: 'fomod-version-detect',
+            title: 'FOMOD: add game-version conditional installs',
+            details: <>If shipping a FOMOD, add a <strong>conditional install step</strong> that detects the user's game version. Check for <span className="font-mono">Creations.esm</span> in the Data folder — its presence indicates AE/1.11.x. This lets you automatically install the right F4SE plugin build, Address Library version, or BA2 archive type for each user's runtime.</>,
+          },
+          {
+            id: 'prp-compat',
+            title: 'Note PRP precombine compatibility',
+            details: <>If your mod edits exterior cells, state compatibility with <strong>PRP (Previsibines Repair Pack)</strong>. Mods that change worldspace cells without regenerating precombines conflict with PRP and cause FPS drops or CTDs. Either regenerate precombines or document the load-order requirement for PRP.</>,
           },
           {
             id: 'changelog',

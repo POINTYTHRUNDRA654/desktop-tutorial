@@ -134,13 +134,18 @@ type HubSection = {
 // ─── Utility Hook for Tracking Activated Settings Buttons ───────────────────
 
 export const useSettingsActivation = () => {
+  const readActivatedButtons = (): string[] => {
+    try {
+      const raw = localStorage.getItem('mossy_settings_activated_buttons');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
   const markActivated = (buttonId: string) => {
-    const activated = new Set(
-      (localStorage.getItem('mossy_settings_activated_buttons') !== null
-        ? JSON.parse(localStorage.getItem('mossy_settings_activated_buttons')!)
-        : []
-      )
-    );
+    const activated = new Set(readActivatedButtons());
     activated.add(buttonId);
     localStorage.setItem('mossy_settings_activated_buttons', JSON.stringify(Array.from(activated)));
     // Dispatch custom event to notify UI updates
@@ -148,12 +153,7 @@ export const useSettingsActivation = () => {
   };
 
   const isActivated = (buttonId: string) => {
-    const activated = new Set(
-      (localStorage.getItem('mossy_settings_activated_buttons') !== null
-        ? JSON.parse(localStorage.getItem('mossy_settings_activated_buttons')!)
-        : []
-      )
-    );
+    const activated = new Set(readActivatedButtons());
     return activated.has(buttonId);
   };
 
@@ -354,23 +354,6 @@ const InternetTestPanel: React.FC = () => {
 
 const SettingsHub: React.FC = () => {
   const [expandedSection, setExpandedSection] = useState<string>('privacy');
-  const [activatedButtons, setActivatedButtons] = useState<Set<string>>(() => {
-    // Load previously activated buttons from localStorage
-    const saved = localStorage.getItem('mossy_settings_activated_buttons');
-    return new Set(saved ? JSON.parse(saved) : []);
-  });
-
-  // Save activated buttons to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('mossy_settings_activated_buttons', JSON.stringify(Array.from(activatedButtons)));
-  }, [activatedButtons]);
-
-  // Callback to mark a button as activated when clicked
-  const markButtonActivated = (buttonId: string) => {
-    setActivatedButtons(prev => new Set(prev).add(buttonId));
-  };
-
-  const isButtonActivated = (buttonId: string) => activatedButtons.has(buttonId);
 
   const toggleSection = (id: string) => {
     setExpandedSection((current) => (current === id ? '' : id));

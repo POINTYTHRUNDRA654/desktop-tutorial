@@ -103,7 +103,7 @@ const BEST_PRACTICES = [
   },
   {
     title: 'Use F4CK Fixes / CK Platform Extended',
-    detail: 'CK Platform Extended (Nexus #51998) patches dozens of CK bugs including the 5-second save lag, navmesh crash on large cells, and memory leaks. Essential for serious CK work.',
+    detail: 'CK Platform Extended (Nexus #51998) patches dozens of CK bugs including the 5-second save lag, navmesh crash on large cells, and memory leaks. Essential for stable CK work. Use CKPE 0.3.x for OG (1.10.163) and CKPE 0.5+ for NG/AE/1.11.x — both on the same Nexus page.',
   },
   {
     title: 'Disable DistantLOD checkbox for new exterior cells',
@@ -111,7 +111,7 @@ const BEST_PRACTICES = [
   },
   {
     title: 'Compact FormIDs before releasing as ESL',
-    detail: 'ESL plugins can only use FormIDs 0x000–0x7FF. Run xEdit → "Compact FormIDs for ESL" before flagging. This is a destructive operation — do it before distributing.',
+    detail: 'ESL plugins can only use FormIDs 0x000–0xFFF. Run xEdit → "Compact FormIDs for ESL" before flagging. This is a destructive operation — do it before distributing.',
   },
   {
     title: 'Script compilation: always check for stale PEX files',
@@ -123,14 +123,14 @@ const BEST_PRACTICES = [
   },
   {
     title: 'Use CLASSIC for crash log analysis',
-    detail: 'CLASSIC (Crash Log Auto Scanner, Nexus #56255) parses Buffout 4 crash logs and identifies the most likely offending record or NIF. Run after every crash before editing.',
+    detail: 'CLASSIC (Crash Log Auto Scanner, Nexus #56255) parses Addictol/Buffout 4 crash logs and identifies the most likely offending record or NIF. Run after every crash before editing.',
   },
 ];
 
 const CK_TOOLS_REF = [
   { name: 'CK Platform Extended', desc: 'CK bug fixes, performance, extra dialogs. Essential for stable CK use.', nexus: '51998' },
-  { name: 'Buffout 4 NG', desc: 'Runtime crash logger. Produces crash logs readable by CLASSIC.', nexus: '64880' },
-  { name: 'CLASSIC', desc: 'Auto-parses Buffout 4 crash logs and matches FormIDs to records.', nexus: '56255' },
+  { name: 'Addictol', desc: 'All-in-one stability tool for OG/NG/1.11.x. Includes Buffout 4, X-Cell, BakaMaxPapyrusOps, Faster Workshop, and more. Do NOT install standalone Buffout 4 NG alongside it.', nexus: '84214' },
+  { name: 'CLASSIC', desc: 'Auto-parses Addictol/Buffout 4 crash logs and matches FormIDs to records.', nexus: '56255' },
   { name: 'xEdit (FO4Edit)', desc: 'Plugin editor/validator. Compact FormIDs, check for ITMs/UDRs, analyze LVLN.', nexus: '2737' },
   { name: 'Wrye Bash', desc: 'Bashed patch builder. Merges leveled lists, weapon/armor tags.', nexus: '20840' },
   { name: 'NifSkope', desc: 'NIF validator and viewer. Check block counts, shapes, normals before placing in CK.', nexus: '' },
@@ -160,8 +160,50 @@ const FO4CKGuide: React.FC = () => (
       <h2 className="text-2xl font-black text-white mb-2">Fallout 4 Creation Kit Reference</h2>
       <p className="text-emerald-100/80">
         Comprehensive guide to CK crash causes, best practices, Papyrus scripting tips, and essential tools
-        — covering vanilla CK workflow, CK Platform Extended, Buffout 4, CLASSIC, and F4SE integration.
+        — covering vanilla CK workflow, CK Platform Extended, Addictol, CLASSIC, and F4SE integration.
       </p>
+    </div>
+
+    {/* NG/AE CK Version Guide */}
+    <div className="rounded-xl border border-amber-600/40 bg-amber-950/20 p-5">
+      <h3 className="text-lg font-bold text-amber-300 mb-3 flex items-center gap-2">
+        <AlertTriangle className="h-5 w-5" /> CK Version &amp; NG/AE Compatibility
+      </h3>
+      <div className="space-y-2 text-xs text-slate-200">
+        <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+          <span className="font-bold text-white">OG (1.10.163): </span>Use CK 1.10.130.0 + CKPE 0.3.x (Nexus #51998). BA2 archives are Header V1.
+        </div>
+        <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+          <span className="font-bold text-white">NG/AE (1.10.982+, 1.11.x): </span>Use the NG CK (separate Steam depot) + CKPE 0.5+. CKPE 0.3.x is OG-only and will not work on NG. BA2 archives are V7/V8 by default — incompatible with OG game installs.
+        </div>
+        <div className="rounded-lg border border-red-800/40 bg-red-950/20 p-3">
+          <span className="font-bold text-red-300">⚠ BA2 cross-version warning: </span>The NG CK builds V7/V8 BA2 archives. If your mod must support OG users, pack archives manually with Archive2 using explicit version flags, or document the NG-only requirement clearly.
+        </div>
+        <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+          <span className="font-bold text-white">1.11.x (Creations Menu, Nov 2025+): </span>Requires F4SE 0.7.7+ and the AiO "Anniversary Edition" Address Library build. All DLL mods must be rebuilt for this version. Check f4se.silverlock.org before updating.
+        </div>
+      </div>
+    </div>
+
+    {/* Deprecated Frameworks */}
+    <div className="rounded-xl border border-red-600/40 bg-red-950/20 p-5">
+      <h3 className="text-lg font-bold text-red-300 mb-3 flex items-center gap-2">
+        <AlertTriangle className="h-5 w-5" /> Deprecated Frameworks — Do Not Use on NG/AE
+      </h3>
+      <div className="space-y-2 text-xs text-slate-200">
+        {[
+          { name: 'AWKCR', why: 'Causes save bloat and instant CTD at any armor/weapons workbench on NG/AE.', fix: 'Replace with ECO (Equipment & Crafting Overhaul) or NEO (New Equipment Overhaul).' },
+          { name: 'Armorsmith Extended', why: 'Depends entirely on AWKCR. Hard-overwrites vanilla armor slots, breaks modern body mesh mods.', fix: 'Replace with LEO (Legendary Effect Overhaul) + RobCo Scripter configs.' },
+          { name: 'DEF_UI / DEF_HUD', why: 'Hardcodes 2015 Flash .swf files. NG/AE UI changes cause instant CTD on pause menu or map.', fix: 'Replace with FallUI Suite (FallUI - HUD, FallUI - Inventory).' },
+          { name: 'Legacy MCM Framework DLL', why: 'The old MCM DLL does not work on NG/1.11.x. Causes F4SE load failures.', fix: 'Use MCM NG (separate Nexus mod — search "MCM NG").' },
+        ].map((f) => (
+          <div key={f.name} className="rounded-lg border border-red-700/30 bg-red-950/10 p-3">
+            <div className="font-bold text-red-200">❌ {f.name}</div>
+            <div className="text-slate-300 mt-1"><span className="text-slate-400">Why: </span>{f.why}</div>
+            <div className="text-emerald-300 mt-1"><span className="text-slate-400">Fix: </span>{f.fix}</div>
+          </div>
+        ))}
+      </div>
     </div>
 
     {/* Common CK Crash Causes */}
@@ -237,8 +279,8 @@ const FO4CKGuide: React.FC = () => (
             {[
               { type: 'ESP (full)', range: '0x000800–0xFFFFF per mod', max: '16,776,704', notes: 'Standard plugin. Counts toward 255 plugin limit.' },
               { type: 'ESM (master)', range: 'Same as ESP but flags as master', max: '16,776,704', notes: 'Used by other plugins as dependency. Full range.' },
-              { type: 'ESL (light)', range: '0x000–0x7FF (0–2047)', max: '2048', notes: 'Does NOT count toward 255 limit. Max 4096 ESL files total.' },
-              { type: 'ESL-flagged ESP', range: '0x000–0x7FF', max: '2048', notes: 'Regular ESP with ESL flag. Works the same as ESL. Compact FormIDs first.' },
+              { type: 'ESL (light)', range: '0x000–0xFFF (0–4095)', max: '4096', notes: 'Does NOT count toward 255 limit. Shares the 4096 ceiling with ESL-flagged ESPs. Exceeding 0xFFF causes save corruption.' },
+              { type: 'ESL-flagged ESP', range: '0x000–0xFFF', max: '4096', notes: 'Regular ESP with ESL flag. Shares the 4096 ceiling with ESL files. Compact FormIDs first.' },
               { type: 'ESM flagged as ESL', range: '0x000–0x7FF', max: '2048', notes: 'Rare. Used for large content split across ESL-size chunks.' },
             ].map((row) => (
               <tr key={row.type} className="border-b border-slate-800/60">
@@ -295,7 +337,7 @@ const CKToolsHub: React.FC = () => {
     const saved = sessionStorage.getItem('ck_hub_tab') as HubTab | null;
     if (saved && TAB_DEFS.some((t) => t.id === saved)) setActiveTab(saved);
 
-    // Support ?tab= query param for deep-link (e.g. /ck-tools?tab=extension)
+    // Support ?tab= query param for deep-link (e.g. /ck-tools?tab=safety|extension|guide|quests|anim|saves|livemon|gameint)
     const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
     const tabParam = params.get('tab') as HubTab | null;
     if (tabParam && TAB_DEFS.some((t) => t.id === tabParam)) setActiveTab(tabParam);

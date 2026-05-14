@@ -79,6 +79,7 @@ const IPC_CHANNELS = {
   SEND_BLENDER_COMMAND: 'send-blender-command',
   VAULT_RUN_TOOL: 'vault-run-tool',
   VAULT_SAVE_MANIFEST: 'vault-save-manifest',
+  WORKFLOW_RUNNER_RUN_TOOL: 'workflow-runner:run-tool',
   VAULT_LOAD_MANIFEST: 'vault-load-manifest',
   VAULT_GET_DDS_DIMENSIONS: 'vault-get-dds-dimensions',
   VAULT_GET_IMAGE_DIMENSIONS: 'vault-get-image-dimensions',
@@ -624,6 +625,15 @@ const electronAPI = {
    */
   runTool: (payload: { cmd: string; args?: string[]; cwd?: string }): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.VAULT_RUN_TOOL, payload);
+  },
+
+  /**
+   * Workflow Runner: run a user-configured tool/command and capture output.
+   * Uses a dedicated channel that is not subject to the Vault allowlist so that
+   * any executable the user has configured in their workflow can be launched.
+   */
+  workflowRunnerRunTool: (payload: { cmd: string; args?: string[]; cwd?: string }): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RUNNER_RUN_TOOL, payload);
   },
 
   /**
@@ -1973,6 +1983,13 @@ const electronAPI = {
   },
 
   /**
+   * Legacy alias for folder picker used by some renderer modules.
+   */
+  selectDirectory: (title?: string): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PICK_DIRECTORY, title);
+  },
+
+  /**
    * Creation Kit Link - Pick CreationKit.exe file
    */
   pickCreationKitExe: (): Promise<string> => {
@@ -2809,13 +2826,6 @@ const electronAPI = {
    */
   ckCrashGeneratePlan: (validation: any): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_GENERATE_PLAN, validation);
-  },
-
-  /**
-   * CK Crash Prevention: Pick log file via dialog
-   */
-  ckCrashPickLog: (): Promise<any> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_PICK_LOG);
   },
 
   // =========================================================================
