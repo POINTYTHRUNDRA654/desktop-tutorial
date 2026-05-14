@@ -456,7 +456,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'readme',
               title: 'Open the dedicated SS2 learning path first',
-              details: <>Go to <Link className="text-blue-400 hover:underline" to="/guides/mods/sim-settlements">SS2 Learning Path</Link> for the full beginner flow, then return here for checklist verification.</>,
+              details: <>Go to <Link className="text-blue-400 hover:underline" to="/guides/mods/sim-settlements">SS2 Learning Path</Link> for the full beginner flow, or <Link className="text-blue-400 hover:underline" to="/guides-hub">Guides Hub</Link> to browse all 22 tutorial platforms, then return here for checklist verification.</>,
             },
             {
               id: 'requirements',
