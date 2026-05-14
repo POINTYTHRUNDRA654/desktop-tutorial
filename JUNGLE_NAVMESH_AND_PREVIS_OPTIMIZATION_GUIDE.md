@@ -778,3 +778,119 @@ def verify_texture_integrity_for_nextgen(texture_folder):
     else:
         print(f"[AI Pipeline] Integrity check finished with {errors_found} issue(s).")
 ```
+
+---
+
+## Part 10: Toxicity HUD Widgets, Settlement Extraction Automation, and Dirty-Edit Auditing
+
+### 10.1 Automated custom UI widget pipeline for spore toxicity
+
+To avoid noisy notification spam and expensive script-driven text refreshes, use a Scaleform HUD widget (`.swf`) updated by injected game data.
+
+ActionScript controller example:
+
+```actionscript
+package {
+    import flash.display.MovieClip;
+    import flash.events.Event;
+
+    public class JungleToxicityMeter extends MovieClip {
+        public var MeterBar:MovieClip;
+
+        public function JungleToxicityMeter() {
+            super();
+            this.visible = false;
+        }
+
+        public function UpdateToxicityValue(currentValue:Number, maxValue:Number):void {
+            if (currentValue > 0) {
+                this.visible = true;
+                var percentage:Number = currentValue / maxValue;
+                this.MeterBar.scaleX = Math.max(0, Math.min(1, percentage));
+            } else {
+                this.visible = false;
+            }
+        }
+    }
+}
+```
+
+HUD injection manifest mapping:
+
+```json
+{
+  "HUDWidgetDefinition": {
+    "WidgetName": "FungusJungleToxicityMeter",
+    "SourceFile": "Interface\\FungusJungle\\JungleToxicityMeter.swf",
+    "bInjectIntoBaseHUD": true,
+    "LayoutAlignment": {
+      "AnchorPoint": "BottomRight",
+      "X_Offset": -50.0,
+      "Y_Offset": -180.0
+    }
+  }
+}
+```
+
+### 10.2 Settlement machine loot extraction script (event-driven production cycle)
+
+Use workshop production events instead of continuous update loops:
+
+```papyrus
+Scriptname FungusJungle:SporeExtractorMachine extends ObjectReference
+{Handles daily settlement resource production pipelines for custom jungle items.}
+
+Keyword Property WorkshopResourceFungalSpores Auto
+MiscObject Property RefinedFungalAcid Auto
+int Property ConversionRate = 5 Auto
+
+Event OnWorkshopProductionUpdate(ObjectReference akWorkshopRef)
+    int rawSporesCount = Self.GetItemCount(WorkshopResourceFungalSpores)
+
+    if (rawSporesCount >= ConversionRate)
+        int outputYield = rawSporesCount / ConversionRate
+        int sporesToConsume = outputYield * ConversionRate
+
+        Self.RemoveItem(WorkshopResourceFungalSpores, sporesToConsume, true)
+        Self.AddItem(RefinedFungalAcid, outputYield, false)
+    endif
+EndEvent
+```
+
+### 10.3 Automated dirty-edit detection routine for region safety
+
+Use a boundary-aware audit pass to flag edits outside intended Glowing Sea work coordinates:
+
+```python
+import os
+
+def audit_jungle_mod_for_dirty_edits(plugin_records, valid_min_x, valid_max_x, valid_min_y, valid_max_y):
+    """
+    Scans plugin records and flags changes outside authorized region bounds.
+    """
+    print("[AI Pipeline] Initializing Region Record Audit Loop...")
+    dirty_records_detected = 0
+
+    for record in plugin_records:
+        if record["Type"] == "CELL" and not record["bIsInterior"]:
+            grid_x = record["GridX"]
+            grid_y = record["GridY"]
+            if not (valid_min_x <= grid_x <= valid_max_x) or not (valid_min_y <= grid_y <= valid_max_y):
+                print(f"CRITICAL WILD EDIT DETECTED: Cell record at Grid [{grid_x}, {grid_y}] was modified!")
+                print(f" -> Reason: Outside intentional development grid range. Record FormID: {record['FormID']}")
+                dirty_records_detected += 1
+
+        elif record["Type"] == "REFR" and record["bIsVanillaBaseAsset"] and not record["bIsModifiedByIntent"]:
+            print(f"WARNING: Vanilla Reference asset FormID [{record['FormID']}] was touched without modification flags.")
+            dirty_records_detected += 1
+
+    if dirty_records_detected == 0:
+        print("[AI Pipeline] SUCCESS: Clean file validation complete. No dirty edits found.")
+        return True
+    else:
+        print(f"[AI Pipeline] AUDIT FAILED: {dirty_records_detected} unexpected edits must be cleaned using FO4Edit before release.")
+        return False
+
+# Example:
+# audit_jungle_mod_for_dirty_edits(my_plugin_data, -35, -20, -40, -25)
+```
