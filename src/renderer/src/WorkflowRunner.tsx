@@ -347,7 +347,11 @@ const WorkflowRunner: React.FC = () => {
             .map((s) => s.trim())
             .filter(Boolean);
 
-          const res = await api.runTool({ cmd, args, cwd: (step.cwd || '').trim() || undefined });
+          // Prefer the dedicated workflow-runner channel (no Vault allowlist);
+          // fall back to runTool for backward compatibility.
+          const runFn: (p: { cmd: string; args?: string[]; cwd?: string }) => Promise<{ exitCode: number; stdout: string; stderr: string }> =
+            api.workflowRunnerRunTool ?? api.runTool;
+          const res = await runFn({ cmd, args, cwd: (step.cwd || '').trim() || undefined });
           if (res?.stdout) log(res.stdout.trim());
           if (res?.stderr) log(res.stderr.trim(), 'warn');
           if (typeof res?.exitCode === 'number' && res.exitCode !== 0) {
@@ -366,7 +370,8 @@ const WorkflowRunner: React.FC = () => {
         if (step.type === 'openExternal') {
           const target = (step.target || '').trim();
           if (!target) throw new Error(`Step '${step.label}' is missing URL/path`);
-          await api.openExternal(target);
+          const res = await api.openExternal(target);
+          if (res?.success === false) throw new Error(res?.error || 'Failed to open external target');
           log('Opened.');
         }
 
