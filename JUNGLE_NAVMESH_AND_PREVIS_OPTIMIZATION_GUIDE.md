@@ -341,3 +341,104 @@ Recommended teaching checks:
 - verify naming convention consistency (`_d/_n/_s`) before running automation
 - inspect generated mip chains
 - validate distant visuals in-game to avoid shimmering or incorrect gloss at range
+
+---
+
+## Part 8: Archive2 Packaging, `.bwm` LOD World Meshes, and Streaming INI Profile
+
+### Automated Archive2 batch scripting for NG/AE-safe BA2 layouts
+
+For large biome projects, teach students to split archives into:
+- **Main BA2** for meshes/materials/vis data
+- **Textures BA2** for texture payloads
+
+Example `Archive2_Pack_Script.txt` teaching profile:
+
+```text
+# Main Archive Directives (Uncompressed Data / General Assets)
+-create="Data\FungusJungle - Main.ba2"
+-compression=NONE
+-format=GENERAL
+-root="Data\"
+-add="Meshes\Precombined\*"
+-add="Vis\*"
+-add="Materials\FungusJungle\*"
+
+# Textures Archive Directives (DX10/DX11 Linear Compression)
+-create="Data\FungusJungle - Textures.ba2"
+-compression=DEFAULT
+-format=XBOX_DXT
+-root="Data\"
+-add="Textures\FungusJungle\*"
+```
+
+Python execution hook example:
+
+```python
+import subprocess
+
+def compile_mod_archives(archive2_exe_path, script_path):
+    """
+    Execute Archive2 with a scripted command list.
+    """
+    cmd = f'"{archive2_exe_path}" @ "{script_path}"'
+    subprocess.run(cmd, shell=True, check=True)
+```
+
+### `.bwm` LOD mesh workflow architecture (teaching blueprint)
+
+Use this simplified tutor flow for distant fungal structures:
+
+```text
+[High-Poly Custom Fungus]
+          |
+          v  (Blender: proportional decimate target 10-15%)
+[Low-Poly Proxy Mesh]
+          |
+          v  (export proxy as OBJ/NIF per toolchain)
+[Elric / CK LOD Compiler]
+          |
+          v
+[Distant World Mesh Output (.bwm)]
+```
+
+Recommended teaching sequence:
+1. Reduce high-poly source meshes to roughly **10%–15%** of original detail for distant rendering.
+2. Export low-poly proxy meshes into a naming scheme aligned with LOD conventions.
+3. Keep source and LOD paths explicit:
+   - `Data\Meshes\FungusJungle\GiantMushroom01.nif`
+   - `Data\Meshes\LOD\FungusJungle\GiantMushroom01_LOD_4.nif`
+4. Compile through Elric/Creation Kit LOD tooling to produce final `.bwm` world-mesh outputs for unloaded-cell distance rendering.
+
+### `FungusJungle.ini` streaming profile (mod-local deployment)
+
+If the project includes a mod-specific runtime profile, place `FungusJungle.ini` alongside plugin files in `Data/`:
+
+```ini
+[Display]
+; Smooth fade behavior for grass/small fungal cards
+bEnableWetnessMaterials=1
+fMeshLODFadePercentScale=1.5000
+fMeshLODFadeMinStartRatio=0.1500
+
+[LOD]
+; Extended distance scaling for world objects/actors/items
+fLODFadeOutMultObjects=15.0000
+fLODFadeOutMultActors=15.0000
+fLODFadeOutMultItems=10.0000
+
+[TerrainManager]
+; Streaming distance ranges for large custom terrain blocks
+fBlockMaximumDistance=250000.0000
+fBlockLevel2Distance=110000.0000
+fBlockLevel1Distance=40000.0000
+fTreeLoadDistance=75000.0000
+
+[BackgroundLoad]
+; Background streaming controls for cell transitions
+bBackgroundCellLoads=1
+bSelectivePurgeUnusedOnFastTravel=1
+```
+
+Teaching reminder:
+- Validate these values on representative savegames and weather presets before treating them as final defaults.
