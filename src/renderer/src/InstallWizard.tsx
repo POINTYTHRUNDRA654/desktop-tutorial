@@ -520,8 +520,28 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
           steps: [
             {
               id: 'understand',
-              title: 'Know what PRP affects',
-              details: <>PRP affects precombines/previs. It can conflict with mods that edit worldspaces/cells. Plan your load order and patch strategy before installing.</>,
+              title: "Know what PRP and PJM's scripts affect",
+              details: <>PRP (Previsibines Repair Pack) restores precombines/previs broken by popular mods. <b>PJM’s Previs Patching Scripts</b> (Nexus #69978, by PJMail) let you find &amp; fix every flickering cell in your load order, create PRP-compatible patches, or add precombines to your own mod. Resolve all normal mod conflicts with standard patches <em>before</em> touching previs — previs patches are always the last step.</>,
+            },
+            {
+              id: 'xedit-version',
+              title: 'FO4Edit / xEdit V4.1.5f or later required',
+              details: <>PJM’s scripts require <b>FO4Edit64.exe (or FO4Edit.exe) V4.1.5f or later</b>. Use the GitHub upstream or the Nexus release — both are in the “Downloads &amp; Sources” panel. The 64-bit build is strongly recommended for large load orders.</>,
+            },
+            {
+              id: 'ck-prereq',
+              title: 'Fallout 4 Creation Kit (Steam) required',
+              details: <>The CK is free on Steam. Install it into your <b>Fallout 4 directory</b> (same folder as <code>Fallout4.exe</code>). If you have downgraded your game to OG/pre-NG, you must also downgrade the CK to match — see PJM’s FAQ post on Nexus #69978 for the exact procedure.</>,
+            },
+            {
+              id: 'ckpe-prereq',
+              title: 'CKPE V0.6 b639 or later required for Steam CK',
+              details: <>CKPE (Creation Kit Platform Extended) is mandatory with the Steam CK. Install <b>V0.6 b639 or later</b> into the same directory as <code>Fallout4.exe</code>. After installing, edit <code>CreationKitPlatformExtended.toml</code> as instructed, or use the pre-configured copies under CKPE’s “Optional Files”. See the Downloads panel for the Nexus search link.</>,
+            },
+            {
+              id: 'pjmscripts-prereq',
+              title: "PJMScripts V4.9 — manual download only, extract to FO4Edit directory",
+              details: <>Go to <b>Nexus #69978</b> (link in the panel above) and manually download the <b>V4.9 PJMScripts bundle</b>. <em>Do NOT use a mod manager.</em> Extract so all <code>*.pas</code> scripts land in the <b>Edit Scripts</b> subdirectory inside your FO4Edit folder. Then grab every file under the “Updated Files” tab and overwrite the older copies — <code>FO4_CheckPrevisbines.pas</code> and <code>GeneratePrevisibines.bat</code> in particular are newer in that tab.</>,
             },
           ],
         },
@@ -533,7 +553,17 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'get-prp',
               title: 'Download PRP and the correct optional files',
-              details: <>Use the links section below. Make sure you grab the correct main file plus any compatibility patches relevant to your mod list.</>,
+              details: <>Use the links panel above. Grab the correct PRP main file plus any compatibility patches for your mod list (ELFX, SS2, etc. patches are separate optional files — only take the ones you need).</>,
+            },
+            {
+              id: 'get-pjm',
+              title: "Download PJM's scripts from Nexus #69978 (manual only)",
+              details: <>On the PJM mod page click <b>Manual Download</b> for the <em>PJMScripts V4.9</em> archive — never use Vortex or MO2 to install it. After extracting, also download the updated <b>FO4_CheckPrevisbines.pas</b> and <b>GeneratePrevisibines.bat</b> from the “Updated Files” tab; they are newer than the copies inside the main kit. <em>Credit: PJM’s Precombine - Previs Patching Scripts by PJMail — Nexus #69978.</em></>,
+            },
+            {
+              id: 'get-ckpe',
+              title: 'Download and install CKPE from Nexus',
+              details: <>Search for “Creation Kit Platform Extended” (link in the panel). Install it into your <code>Fallout4.exe</code> directory. If you are on a downgraded (OG) game and need CKPE before V0.6, you must also convert BA2 archives to V1 via Collective Modding Toolkit and swap the Interface/Shaders BA2s for OG versions — see PJM’s FAQ for exact instructions.</>,
             },
           ],
         },
@@ -543,14 +573,36 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
           icon: Package,
           steps: [
             {
-              id: 'install',
+              id: 'install-prp',
               title: 'Install PRP in your mod manager',
-              details: <>Install, enable, deploy (Vortex) / ensure enabled (MO2). Then sort load order. PRP often wants to be late, but follow the author’s guidance.</>,
+              details: <>Install, enable, and deploy PRP (Vortex) or ensure it is enabled (MO2). Sort load order — PRP usually sits late. Follow the author’s README and any patch-specific notes.</>,
             },
             {
               id: 'patches',
               title: 'Install PRP compatibility patches',
-              details: <>If you have settlement/worldspace mods or big overhauls, install the PRP compatibility patches that match them. Missing patches can cause broken previs, flicker, or performance issues.</>,
+              details: <>If you have settlement/worldspace mods or large overhauls, install the matching PRP compatibility patches. Missing patches cause broken previs, flickering geometry, and FPS issues.</>,
+            },
+            {
+              id: 'extract-scripts',
+              title: 'Extract PJMScripts into your FO4Edit directory',
+              details: <>Unzip the PJMScripts archive so every <code>*.pas</code> file lands in <code>FO4Edit\Edit Scripts\</code>. Place <code>GeneratePrevisibines.bat</code> in the same folder as <code>FO4Edit64.exe</code>. Overwrite with the “Updated Files” versions of <code>FO4_CheckPrevisbines.pas</code> and <code>GeneratePrevisibines.bat</code>.</>,
+            },
+            {
+              id: 'launcher-once',
+              title: 'Run Fallout4Launcher.exe once, then exit immediately',
+              details: <>Launch <code>Fallout4Launcher.exe</code> from your Fallout 4 directory and close it right away — do not start the game. This registers the game path so <code>GeneratePrevisibines.bat</code> can locate <code>Fallout4.exe</code>. If the bat still cannot find it, add the argument <code>"-FO4:ThePathToTheDirectoryContainingFallout4.exe"</code> (with quotes).</>,
+            },
+            {
+              id: 'mo2-setup',
+              title: state.modManager === 'mo2' ? 'Register executables in MO2 (AppID 1946160)' : 'Create steam_appid.txt (non-MO2)',
+              details: state.modManager === 'mo2'
+                ? <>In MO2 go to <b>Executables</b> and add both <code>FO4Edit64.exe</code> and <code>GeneratePrevisibines.bat</code>. For each, set the <b>AppID override</b> to <code>1946160</code> (the Steam ID for the Fallout 4 Creation Kit). Always launch them through MO2 so your full mod list is visible. Make sure Steam is running in the background before launching the bat.</>
+                : <>Create a plain-text file named <code>steam_appid.txt</code> in the same folder as <code>FO4Edit64.exe</code>. The file should contain a single line: <code>1946160</code>. Make sure Steam is running in the background before you start <code>GeneratePrevisibines.bat</code> — Steam prompts will otherwise stall the build.</>,
+            },
+            {
+              id: 'ckpe-toml',
+              title: 'Configure CreationKitPlatformExtended.toml',
+              details: <>Open <code>CreationKitPlatformExtended.toml</code> and follow its instructions, or replace it with a pre-configured copy from CKPE’s Optional Files. If on a downgraded CK (before V0.6), also set <code>bOwnArchiveLoader=false</code> and <code>bBSPointerHandleExtremly=true</code> in <code>CreationKitPlatformExtended.ini</code>.</>,
             },
           ],
         },
@@ -561,8 +613,18 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
           steps: [
             {
               id: 'test',
-              title: 'Test in a PRP-heavy area',
-              details: <>Load into an affected exterior cell and look for: flickering geometry, objects popping, or severe performance spikes. If present, a conflict or wrong PRP option is likely.</>,
+              title: 'Test in a PRP-heavy area in-game',
+              details: <>Load into an affected exterior cell and look for flickering geometry, objects popping, or severe FPS spikes. If present, a conflict or wrong PRP optional file is likely.</>,
+            },
+            {
+              id: 'run-check',
+              title: 'Run FO4Check_Previsbines.pas to find all conflicts',
+              details: <>Launch <code>FO4Edit64.exe</code> with your full load order (via MO2 if applicable) and wait for the cache to finish. Right-click anywhere → <b>Apply Script…</b> → choose <b>FO4Check_Previsbines.pas</b> → OK. Select option <b>1) Fix all Cell Previs/config conflicts</b> → OK. This can take 1 hour or more. When the last line reads <em>“Generation Complete”</em>, exit xEdit saving and run <code>GeneratePrevisibines.bat</code>. The full batch build can take 6+ hours.</>,
+            },
+            {
+              id: 'worldspace-browser',
+              title: 'Optional: visualise conflicts with PrevisCheck.pas',
+              details: <>Run the included <b>Worldspace browser with PrevisCheck.pas</b> in xEdit to see a cell-level map of which mods touch which cells and where they overlap. Right-click any cell for its details. Solid outlines = precombine files supplied; dashed slants = previs files supplied. Useful for identifying exactly which mods cause flickering before generating a full patch.</>,
             },
           ],
         },
@@ -574,7 +636,42 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'conflicts',
               title: 'If you see flicker/pop-in after PRP',
-              details: <>You likely have a mod editing the same cells without a PRP patch. Identify the conflicting plugin and install/create a compatibility patch. Mossy can help you find conflicts in xEdit.</>,
+              details: <>You likely have a mod editing the same cells without a PRP patch. Run <b>FO4Check_Previsbines.pas → option 1</b> to let PJM’s script locate every conflict automatically, then create or install the appropriate compatibility patch.</>,
+            },
+            {
+              id: 'bat-wont-run',
+              title: "If GeneratePrevisibines.bat won't run — 'directories not empty'",
+              details: <>The error “Precombine/Previs directories are not Empty” means your load order contains mods with <em>loose</em> previs files. These must be packed into BA2 archives before you can build a patch. Identify and fix those mods first, then re-run the bat.</>,
+            },
+            {
+              id: 'ck-crash-access-violation',
+              title: 'CK crashes with Access violation 0xC0000005 during Precombine build',
+              details: <>This is the most common CK failure — caused by a corrupt or incompatible mesh on a Precombineable Reference (STAT or SCOL base type). <b>Step 1:</b> Check <code>CK.log</code> (in your CK directory) for the last <em>“DEFAULT: Generating for …”</em> line — that identifies the failing cell. <b>Step 2:</b> Open xEdit with just your patch mod, find that cell, note the other mods touching it (ignore base game, DLCs, UFO4P, PRP). Highlight those mods → right-click → Apply Script → <b>FO4FindNewPCStatics.pas</b>. If bad meshes are found (marked <code>!</code>), click “Exclude Bad?” and retry the Precombine phase. Credit: PJM’s “Resolving Creation Kit Crashes” article, Nexus #69978.</>,
+            },
+            {
+              id: 'ck-crash-no-start',
+              title: "CK doesn't start or returns 'GeneratePrecombined failed' with an error code",
+              details: <>If the CK doesn’t start at all, the problem is your PC setup, not a mod. Verify <code>steam_appid.txt</code> is present with <code>1946160</code>; verify CKPE is installed and <code>.toml</code> is configured; if using MO2, confirm FO4Edit and GeneratePrevisibines.bat are registered as Executables with the correct AppID. If you get a numeric exit code like <em>-1073741819</em>, convert to hex (e.g. 0xC0000005 = Access Violation) and search “windows error 0xHHHHHHHH”. Error -1073740771 / 0xC000041D at end of a CK phase can be ignored if the CK saved successfully beforehand.</>,
+            },
+            {
+              id: 'ck-crash-mesh-replacer',
+              title: 'CK still crashes after FO4FindNewPCStatics — mesh or texture replacer suspected',
+              details: <><b>Mesh replacers</b> (HD model mods) don’t add Cell overrides, so they won’t appear in the initial scan. Load xEdit with only your patch mod, select ALL other mods, and run <b>FO4FindNewPCStatics.pas</b> against everything. If nothing is found, suspect a <b>texture replacer</b>: temporarily disable all mods containing <code>- Textures.BA2</code> or loose <code>.dds</code> files, recreate your patch, and retry. Re-enable texture mods one at a time to isolate the culprit. Note: texture mods do not need to be enabled during precombine generation.</>,
+            },
+            {
+              id: 'ck-crash-single-cell',
+              title: 'Speed up fault-finding: test a single cell only',
+              details: <>Instead of a full precombine build each time, generate a single-cell test patch. Load your full load order in xEdit, find the failing cell by FormID (exterior) or EditorID (interior), right-click it → Apply Script → <b>FO4Check_Previsbines.pas</b> → choose “Build new Precomb/Previs …” AND tick “Only what you highlighted in xEdit”. This produces a small <code>xPrevisPatch.esp</code> to feed to GeneratePrevisibines.bat just for that one cell.</>,
+            },
+            {
+              id: 'manual-exclude-refr',
+              title: 'Manually exclude a Reference from being Precombined',
+              details: <>FO4Check_Previsbines.pas and FO4FindNewPCStatics.pas do this automatically. To do it by hand: find the REFR in xEdit and set its <b>XLRT — Location Ref Type</b> to <code>NoObjectCombinationRefType</code>. To exclude every reference sharing the same base object, find the base record (NAME — Base) and set its <b>FTYP — Force Loc Ref Type</b> to <code>NoObjectCombinationRefType</code>. Credit: PJM’s “Resolving Creation Kit Crashes” article, Nexus #69978 (PJMail, Jun 2025).</>,
+            },
+            {
+              id: 'faq',
+              title: "If any step didn't complete — read PJM's FAQ and Deep Dive",
+              details: <>Read the stickied <b>FAQ Post</b> and the <b>Previsbines Deep Dive</b> article on the PJM mod page (Nexus #69978). The Deep Dive is the most complete and current resource for everything precombines/previs (updated 2026). All scripts and documentation credit: PJMail.</>,
             },
           ],
         },
