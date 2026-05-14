@@ -55,6 +55,60 @@ const AIModAssistant: React.FC = () => {
     }
   };
 
+  const extractCodeBlock = (responseText: string): string | null => {
+    const codeMatch = responseText.match(/```[\w]*\n?([\s\S]*?)```/);
+    return codeMatch ? codeMatch[1].trim() : null;
+  };
+
+  const getLatestUserContext = () => {
+    const latestUser = [...messages].reverse().find((m) => m.role === 'user')?.text?.trim();
+    return (input.trim() || latestUser || 'Fallout 4 modding workflow help');
+  };
+
+  const buildPanelSuggestions = (context: string) => {
+    const lower = context.toLowerCase();
+    const base = [{ type: 'open-panel', text: 'Open Knowledge Hub', parameters: { panel: 'knowledge' } }];
+    if (lower.includes('script') || lower.includes('papyrus')) {
+      return [...base, { type: 'open-panel', text: 'Open Mod Builder Hub', parameters: { panel: 'scribe' } }, { type: 'open-panel', text: 'Open CK Tools', parameters: { panel: 'ck' } }];
+    }
+    if (lower.includes('texture') || lower.includes('dds') || lower.includes('mesh')) {
+      return [...base, { type: 'open-panel', text: 'Open Asset Analysis', parameters: { panel: 'auditor' } }, { type: 'open-panel', text: 'Open Textures Hub', parameters: { panel: 'textures' } }];
+    }
+    if (lower.includes('plugin') || lower.includes('load order') || lower.includes('xedit')) {
+      return [...base, { type: 'open-panel', text: 'Open Plugin Tools', parameters: { panel: 'plugins' } }, { type: 'open-panel', text: 'Open System Hub', parameters: { panel: 'system' } }];
+    }
+    if (lower.includes('package') || lower.includes('release') || lower.includes('archive')) {
+      return [...base, { type: 'open-panel', text: 'Open Packaging Hub', parameters: { panel: 'packaging' } }, { type: 'open-panel', text: 'Open Runtime Hub', parameters: { panel: 'holo' } }];
+    }
+    return [...base, { type: 'open-panel', text: 'Open Runtime Hub', parameters: { panel: 'holo' } }, { type: 'open-panel', text: 'Open Memory Vault', parameters: { panel: 'vault' } }];
+  };
+
+  const runSmartAction = async (
+    title: string,
+    userPrompt: string,
+    options?: { updateCodePreview?: boolean; fallbackCode?: string }
+  ) => {
+    if (isLoading) return;
+    setIsLoading(true);
+    try {
+      const systemInstruction = getFullSystemInstruction(
+        'You are Mossy AI Mod Assistant for Fallout 4. Be concise, practical, and return executable steps.'
+      );
+      const result = await LocalAIEngine.generateResponse(userPrompt, systemInstruction, []);
+      const responseText = result.content || `${title} is currently unavailable.`;
+      if (options?.updateCodePreview) {
+        const code = extractCodeBlock(responseText) || options.fallbackCode || responseText;
+        setCodePreview(code);
+      }
+      setMessages(m => [...m, { role: 'assistant', text: responseText }]);
+    } catch (err) {
+      console.error(`[AIModAssistant] ${title} failed:`, err);
+      setMessages(m => [...m, { role: 'assistant', text: `${title} failed. Please check AI settings and try again.` }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleQuickAction = async (action: any) => {
     if (action.type === 'create-file') {
       try {
@@ -117,6 +171,33 @@ const AIModAssistant: React.FC = () => {
     }
   };
 
+  const runInlineSuggestions = async () => {
+    const context = getLatestUserContext();
+    setSuggestions(buildPanelSuggestions(context));
+    await runSmartAction(
+      'Inline Suggestions',
+      `User request/context: ${context}\nProvide 4 concise, high-impact Fallout 4 modding suggestions tailored to this request.`
+    );
+  };
+
+  const runRefactor = async () => {
+    const context = codePreview?.trim() || getLatestUserContext();
+    await runSmartAction(
+      'Refactor',
+      `Refactor and improve this Fallout 4 Papyrus/modding content while preserving intent. Return improved content in a code block, then a short explanation.\n\n${context}`,
+      { updateCodePreview: true, fallbackCode: context }
+    );
+  };
+
+  const runQuickFix = async () => {
+    const context = codePreview?.trim() || getLatestUserContext();
+    await runSmartAction(
+      'Quick Fix',
+      `Find likely bugs or risk points in this Fallout 4 modding content and return a fixed version in a code block plus a short checklist of what was fixed.\n\n${context}`,
+      { updateCodePreview: true, fallbackCode: context }
+    );
+  };
+
   const toggleListening = async () => {
     if (!listening) {
       setListening(true);
@@ -162,9 +243,9 @@ const AIModAssistant: React.FC = () => {
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="px-3 py-1 bg-slate-700/10 rounded text-xs" onClick={() => generateCode('Create a basic dialogue script for an NPC')}><Code className="w-3 h-3 mr-1 inline" />Generate Script</button>
-              <button className="px-3 py-1 bg-slate-700/10 rounded text-xs" onClick={() => setMessages(m => [...m, { role: 'assistant', text: 'Showing inline suggestions (stub)' }])}>Inline Suggestions</button>
-              <button className="px-3 py-1 bg-slate-700/10 rounded text-xs" onClick={() => setMessages(m => [...m, { role: 'assistant', text: 'Refactor preview (stub)' }])}>Refactor</button>
-              <button className="px-3 py-1 bg-slate-700/10 rounded text-xs" onClick={() => setMessages(m => [...m, { role: 'assistant', text: 'Run quick fix (simulated)' }])}>Quick Fix</button>
+              <button className="px-3 py-1 bg-slate-700/10 rounded text-xs disabled:opacity-50" onClick={runInlineSuggestions} disabled={isLoading}>Inline Suggestions</button>
+              <button className="px-3 py-1 bg-slate-700/10 rounded text-xs disabled:opacity-50" onClick={runRefactor} disabled={isLoading}>Refactor</button>
+              <button className="px-3 py-1 bg-slate-700/10 rounded text-xs disabled:opacity-50" onClick={runQuickFix} disabled={isLoading}>Quick Fix</button>
             </div>
           </div>
         </div>
