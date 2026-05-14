@@ -543,6 +543,11 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               title: "PJMScripts V4.9 — manual download only, extract to FO4Edit directory",
               details: <>Go to <b>Nexus #69978</b> (link in the panel above) and manually download the <b>V4.9 PJMScripts bundle</b>. <em>Do NOT use a mod manager.</em> Extract so all <code>*.pas</code> scripts land in the <b>Edit Scripts</b> subdirectory inside your FO4Edit folder. Then grab every file under the “Updated Files” tab and overwrite the older copies — <code>FO4_CheckPrevisbines.pas</code> and <code>GeneratePrevisibines.bat</code> in particular are newer in that tab.</>,
             },
+            {
+              id: 'prp-load-order',
+              title: 'PRP load order rules',
+              details: <>Never use patches built for a different PRP version. Never place a mod with precombines after (below) PRP unless it was built for your exact PRP version or is a total replacer. All other mods go <em>before</em> PRP. Recommended order: (1) normal mods → (2) PRP + its patches → (3) PRP-compatible previsbine patches → (4) your final conflict-resolution patch → (5) cell-config restore patches (Lighting/Fog/Weather). Full rules and pre-built patch sources in <b>PJM_PREVIS_PATCHING_FAQ.md</b>.</>,
+            },
           ],
         },
         {
@@ -604,6 +609,13 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               title: 'Configure CreationKitPlatformExtended.toml',
               details: <>Open <code>CreationKitPlatformExtended.toml</code> and follow its instructions, or replace it with a pre-configured copy from CKPE’s Optional Files. If on a downgraded CK (before V0.6), also set <code>bOwnArchiveLoader=false</code> and <code>bBSPointerHandleExtremly=true</code> in <code>CreationKitPlatformExtended.ini</code>.</>,
             },
+            {
+              id: 'mo2-empty-mod',
+              title: state.modManager === 'mo2' ? 'MO2: Create empty mod to receive generated files' : 'Non-MO2: keep Data/vis and Data/meshes/Precombined empty before each run',
+              details: state.modManager === 'mo2'
+                ? <>Create an <b>empty mod</b> in MO2, place it at the bottom of your load order, and activate it. For both <code>FO4Edit64.exe</code> and <code>GeneratePrevisibines.bat</code> executables, tick <b>“Create Files in Mod instead of Overwrite”</b> and set it to this empty mod. Without this, <code>GeneratePrevisbines.bat</code> will fail because MO2 intercepts the files it needs (including <code>xPrevisPatch.esp</code>). If a phase still fails due to MO2 file-moving delays, just re-run that phase.</>
+                : <>Before every build run, confirm <code>Data/vis</code> and <code>Data/meshes/Precombined</code> are empty — the bat will error if loose previs or precombine files are found there.</>,
+            },
           ],
         },
         {
@@ -642,6 +654,16 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               id: 'bat-wont-run',
               title: "If GeneratePrevisibines.bat won't run — 'directories not empty'",
               details: <>The error “Precombine/Previs directories are not Empty” means your load order contains mods with <em>loose</em> previs files. These must be packed into BA2 archives before you can build a patch. Identify and fix those mods first, then re-run the bat.</>,
+            },
+            {
+              id: 'restart-failed-step',
+              title: 'How to restart GeneratePrevisibines.bat from a failed step',
+              details: <>Re-run the bat with the same arguments. Use the same patch name. When prompted <em>“Plugin already exists, Use It? [Y], Exit [N], Continue from failed step [C]”</em> — press <b>C</b>. At <em>“Restart at step (1–8 or 0 to exit):”</em> press the number of the failed step. If prompted to clean a directory, press <b>Y</b>. The step re-runs and continues automatically on success. A completed run asks <em>“Remove working files [Y]?”</em> — press <b>Y</b>. The 4 resulting files are your previs patch; place them at the bottom of your load order.</>,
+            },
+            {
+              id: 'bat-error-ref',
+              title: 'GeneratePrevisibines.bat error message reference',
+              details: <>Key error messages: <b>FO4Edit.exe cannot be found</b> — run FO4Edit once or place the bat in its directory. <b>CreationKit.exe cannot be found</b> — CK must be in the same folder as Fallout4.exe. <b>GeneratePrecombined ran out of Reference Handles</b> — set <code>iMaxUmbraBakeThreads</code> in CKPE .ini. <b>Archive2 failed</b> — too many files; use BSArchPro manually. Full error reference is in <b>PJM_PREVIS_PATCHING_FAQ.md</b> and on Nexus #69978.</>,
             },
             {
               id: 'ck-crash-access-violation',
