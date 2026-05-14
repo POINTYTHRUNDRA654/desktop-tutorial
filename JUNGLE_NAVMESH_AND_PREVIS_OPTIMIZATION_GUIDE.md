@@ -442,3 +442,339 @@ bSelectivePurgeUnusedOnFastTravel=1
 
 Teaching reminder:
 - Validate these values on representative savegames and weather presets before treating them as final defaults.
+
+---
+
+## Part 9: Spore Triggers, Climate Overrides, Conflict Patching, and Advanced Runtime Systems
+
+### 9.1 High-performance Papyrus spore cloud trigger pattern
+
+Avoid `OnUpdate()` polling loops for cloud hazards. Use event-driven trigger volumes so the script only executes when the player crosses bounds.
+
+```papyrus
+Scriptname FungusJungle:JungleSporeTrigger extends ObjectReference
+{Handles high-performance player radiation disease tracking via event-driven bounds.}
+
+VisualEffect Property SporeScreenFX Auto
+Spell Property SporeDiseaseSpell Auto
+Sound Property SporeCoughSound Auto
+
+Event OnTriggerEnter(ObjectReference akActionRef)
+    if (akActionRef == Game.GetPlayer())
+        SporeScreenFX.Play(Game.GetPlayer())
+        SporeDiseaseSpell.Cast(Game.GetPlayer(), Game.GetPlayer())
+        int instanceID = SporeCoughSound.Play(Game.GetPlayer())
+        Sound.SetInstanceVolume(instanceID, 1.0)
+    endif
+EndEvent
+
+Event OnTriggerExit(ObjectReference akActionRef)
+    if (akActionRef == Game.GetPlayer())
+        SporeScreenFX.Stop(Game.GetPlayer())
+        Game.GetPlayer().RemoveSpell(SporeDiseaseSpell)
+    endif
+EndEvent
+```
+
+### 9.2 Radioactive fog weather profile (WTHR structure)
+
+Use a constrained visibility profile to reinforce fungal atmosphere and reduce distant pop-in pressure:
+
+```json
+{
+  "WeatherData": {
+    "fFogNearDay": 0.0,
+    "fFogFarDay": 1200.0,
+    "fFogNearNight": 50.0,
+    "fFogFarNight": 800.0,
+    "fFogPowerDay": 1.8,
+    "fFogPowerNight": 2.2
+  },
+  "ColorGradients": {
+    "Sky_Upper_Day": "RGB: 35, 55, 30",
+    "Horizon_Day": "RGB: 74, 98, 62",
+    "Ambient_Day": "RGB: 40, 50, 38"
+  },
+  "ParticleSystemData": {
+    "ModelPath": "Effects\\Climate\\FungalSpores_Falling.nif",
+    "fParticleCountMultiplier": 2.5
+  }
+}
+```
+
+Guidance:
+- `fFogFarDay=1200.0` keeps render visibility tight for dense-biome mood and runtime performance.
+
+### 9.3 Automated load-order conflict resolution (compatibility patch generation)
+
+Use a deterministic merge pass for overlapping Glowing Sea records between weather overhauls and jungle world edits:
+
+```python
+import os
+
+def generate_glowing_sea_patch(mod_a_records, jungle_mod_records, output_patch_path):
+    """
+    Scans record arrays, detects overlapping cell injections, and creates
+    a targeted compatibility patch plugin.
+    """
+    patch_database = {}
+
+    for record in mod_a_records:
+        if "GlowingSea" in record["CellID"]:
+            patch_database[record["CellID"]] = {
+                "ClimateData": record["ClimateData"],
+                "StaticPlacements": []
+            }
+
+    for record in jungle_mod_records:
+        cell_id = record["CellID"]
+        if cell_id in patch_database:
+            patch_database[cell_id]["StaticPlacements"] = record["StaticPlacements"]
+        else:
+            patch_database[cell_id] = record
+
+    write_resolved_esp(output_patch_path, patch_database)
+
+def write_resolved_esp(path, data_map):
+    print(f"[AI Pipeline] Compatibility Patch successfully written to: {path}")
+```
+
+### 9.4 Automated LOD landscape texture baking loop
+
+Creation Kit headless pass:
+
+```bash
+CreationKit.exe -GenerateLODTextures:Commonwealth -LogLODTextures
+CreationKit.exe -GenerateLODNormals:Commonwealth -LogLODNormals
+```
+
+Compression post-pass:
+
+```python
+import os
+import subprocess
+
+def compress_landscape_lod_tiles(input_dir, output_dir, texconv_path):
+    """
+    Finds baked landscape LOD chunk images and applies optimized
+    BC7/BC5 compression for streaming.
+    """
+    for file in os.listdir(input_dir):
+        if not file.startswith("Commonwealth.") or not file.endswith(".tga"):
+            continue
+
+        full_path = os.path.join(input_dir, file)
+        if "_d.tga" in file:
+            cmd = f'"{texconv_path}" -f BC7_UNORM_SRGB -m 1 -y -o "{output_dir}" "{full_path}"'
+        elif "_n.tga" in file:
+            cmd = f'"{texconv_path}" -f BC5_UNORM -m 1 -y -o "{output_dir}" "{full_path}"'
+        else:
+            continue
+
+        subprocess.run(cmd, shell=True, check=True)
+```
+
+### 9.5 Collision-layer assignment map (Blender/NIF export)
+
+For reliable traversal and projectile behavior, ensure custom flora and structures have explicit collision metadata:
+- Layer profile examples: `L_FOLIAGE` (permeable projectile behavior) and `L_STATIC` (fully solid)
+- Material examples: `MAT_WOOD_HALLOW`, `MAT_DIRT`, `MAT_VEGETATION_MOSS`
+- Shape examples: `CAPSULE`, `BOX`, `CONVEX HULL`
+
+Exporter metadata injection pattern:
+
+```python
+def apply_fallout4_collision_metadata(mesh_node):
+    """
+    Injects Havok data fields directly into a custom mesh configuration object.
+    """
+    mesh_node["Havok_Settings"] = {
+        "Layer": 13,
+        "Alternative_Solid_Layer": 1,
+        "Material_ID": "MAT_VEGETATION_MOSS",
+        "Motion_System": "MO_SYS_FIXED",
+        "Quality_Type": "MO_QUAL_CHARACTER"
+    }
+```
+
+### 9.6 Wind-responsive foliage BGSM parameters
+
+Wind deformation control offsets:
+
+| Hex Offset | Type  | Parameter              | Purpose |
+| --- | --- | --- | --- |
+| `0x78` | float | `fTreeWindScale` | Max bend amount during high wind |
+| `0x7C` | float | `fTreeWindFrequency` | Oscillation speed |
+| `0x80` | float | `fTreeLeafFlexibility` | Small-card flutter intensity |
+
+JSON parameter profile:
+
+```json
+{
+  "MaterialParameters": {
+    "bTreeAnimsEnabled": true,
+    "fTreeWindScale": 0.35,
+    "fTreeWindFrequency": 1.2,
+    "fTreeLeafFlexibility": 0.15,
+    "fTreeLeafAmplitude": 0.05
+  },
+  "ShaderFlags1": {
+    "bTree_Animations": true
+  }
+}
+```
+
+Guidance:
+- Keep `fTreeWindScale` conservative (~0.35) to avoid exaggerated rubber-band deformation.
+
+### 9.7 Fungal flora harvesting script (event-driven)
+
+```papyrus
+Scriptname FungusJungle:JungleFloraHarvest extends ObjectReference
+{Handles fast, reliable player item harvesting from custom jungle foliage.}
+
+ComponentProperty IngredientItem Auto
+int Property YieldAmount = 3 Auto
+Sound Property HarvestSound Auto
+
+Event OnActivate(ObjectReference akActionRef)
+    Self.BlockActivation(true)
+
+    if (akActionRef == Game.GetPlayer())
+        HarvestSound.Play(Self)
+        Game.GetPlayer().AddItem(IngredientItem, YieldAmount, false)
+        Self.GoToState("Harvested")
+    else
+        Self.BlockActivation(false)
+    endif
+EndEvent
+
+State Harvested
+    Event OnBeginState()
+        Self.SetDestroyed(true)
+    EndEvent
+
+    Event OnReset()
+        Self.SetDestroyed(false)
+        Self.BlockActivation(false)
+        Self.GoToState("")
+    EndEvent
+EndState
+```
+
+### 9.8 Custom ambience descriptor randomization profile
+
+```json
+{
+  "SoundDescriptorData": {
+    "uCategory": "MUS_Ambience",
+    "bLooping": true,
+    "fLODRangeMin": 200.0,
+    "fLODRangeMax": 3500.0
+  },
+  "RandomizationParameters": {
+    "fPitchVarianceMin": -1.5,
+    "fPitchVarianceMax": 1.2,
+    "fVolumeVarianceMin": -3.0,
+    "fVolumeVarianceMax": 0.5,
+    "fRandomDelayMin": 12.0,
+    "fRandomDelayMax": 45.0
+  }
+}
+```
+
+### 9.9 In-game debug command checklist
+
+Use this quick verification chain in dense fungal cells:
+
+```text
+ShowTiming
+DrawNavMesh 1
+tai
+player.placeatme _FungalStalker 10
+```
+
+Additional geometry checks:
+- `scb` to verify precombine health
+- `tsb` to inspect hidden-geometry behavior without sky overhead
+
+### 9.10 Automated LOD billboard atlas generator
+
+```python
+import os
+import subprocess
+
+def generate_foliage_billboards(raw_tga_atlas, output_dir, texconv_path):
+    """
+    Takes a 4-angle texture snapshot sheet and exports
+    a distance billboard atlas.
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    base_name = os.path.basename(raw_tga_atlas).replace(".tga", "_lod.dds")
+    output_path = os.path.join(output_dir, base_name)
+    cmd = f'"{texconv_path}" -w 1024 -h 1024 -f BC7_UNORM_SRGB -m 5 -y -o "{output_dir}" "{raw_tga_atlas}"'
+
+    subprocess.run(cmd, shell=True, check=True)
+    print(f"[AI Pipeline] Distance Billboard Atlas successfully generated: {output_path}")
+```
+
+### 9.11 Settlement scrap/navmesh hook script
+
+```papyrus
+Scriptname FungusJungle:JungleSettlementScrap extends ObjectReference
+{Handles dynamic navmesh slicing and clean asset tracking when scrapped inside workshop zones.}
+
+Keyword Property WorkshopItemScrappedKeyword Auto
+ObjectReference Property NavmeshObstacleCylinder Auto
+
+Event OnWorkshopObjectPlaced(ObjectReference akWorkshopRef)
+    NavmeshObstacleCylinder.EnableNoWait()
+EndEvent
+
+Event OnDestroyed()
+    Self.DisableNoWait()
+    NavmeshObstacleCylinder.DisableNoWait()
+    Self.Delete()
+EndEvent
+```
+
+### 9.12 `.dds` integrity pre-flight checker for NG archives
+
+```python
+import os
+import struct
+
+def verify_texture_integrity_for_nextgen(texture_folder):
+    """
+    Scans binary headers of DDS files to ensure DX10/DX11-safe layout.
+    """
+    print("[AI Pipeline] Initializing Texture Integrity Pre-Flight Check...")
+    errors_found = 0
+
+    for root, dirs, files in os.walk(texture_folder):
+        for file in files:
+            if not file.endswith(".dds"):
+                continue
+
+            file_path = os.path.join(root, file)
+            with open(file_path, "rb") as f:
+                magic = f.read(4)
+                if magic != b'DDS ':
+                    print(f"ERROR: Invalid File Format Structure on: {file}")
+                    errors_found += 1
+                    continue
+
+                f.seek(12)
+                height = struct.unpack("<I", f.read(4))[0]
+                width = struct.unpack("<I", f.read(4))[0]
+                if (width & (width - 1)) != 0 or (height & (height - 1)) != 0:
+                    print(f"ERROR: Non-power-of-two texture size on: {file} ({width}x{height})")
+                    errors_found += 1
+
+    if errors_found == 0:
+        print("[AI Pipeline] Integrity check passed with zero critical issues.")
+    else:
+        print(f"[AI Pipeline] Integrity check finished with {errors_found} issue(s).")
+```
