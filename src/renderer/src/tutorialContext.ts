@@ -1034,7 +1034,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     features: [
       'Step 1 — Privacy & Security: control data collection, analytics opt-out, and security rule defaults',
       'Step 2 — Language: choose UI language and request new translations',
-      'Step 3 — AI Engine: select Groq primary model (Llama 3.1 8B, Llama 3.3 70B, DeepSeek R1, Gemma 2, Mixtral), max response tokens (512–4096), and self-critique loop toggle',
+      'Step 3 — AI Engine: select Groq primary model (Llama 3.1 8B, Llama 3.2 11B Vision, Llama 3.3 70B, DeepSeek R1, Gemma 2, Mixtral), max response tokens (512–4096), and self-critique loop toggle',
       'Step 3b — Local LLM (Ollama): connect to a local Ollama endpoint for offline AI assistance and check model pull status',
       'Step 4 — External Tools: browse and test-launch paths for all FO4 modding tools — xEdit (FO4Edit), Creation Kit, Fallout 4 game root, Papyrus compiler, F4SE, Archive2, LOOT, Mod Organizer 2, Wrye Bash, NifSkope, Blender, BodySlide, Outfit Studio, Vortex, FOMOD Creator, Upscayl, GIMP, and more; auto-detect for common install locations',
       'Step 5 — Backup & Restore: export or import a complete settings snapshot (JSON) for quick recovery after reinstall or machine migration',
@@ -1065,7 +1065,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'Groq primary model selector',
         type: 'dropdown',
-        description: 'Choices include llama-3.1-8b-instant (fastest), llama-3.3-70b-versatile (best reasoning), deepseek-r1-distill-llama-70b (chain-of-thought), llama-3.2-90b-vision-preview (smartest + vision), gemma2-9b-it (Google compact), mixtral-8x7b-32768 (32K context)',
+        description: 'Choices include llama-3.1-8b-instant (fastest), llama-3.2-11b-vision-preview (fast vision), llama-3.3-70b-versatile (best reasoning), deepseek-r1-distill-llama-70b (chain-of-thought), llama-3.2-90b-vision-preview (smartest + vision), gemma2-9b-it (Google compact), mixtral-8x7b-32768 (32K context)',
         whenToUse: 'Switch to llama-3.3-70b-versatile for complex Creation Kit scripting or asset pipeline questions; stay on 8b-instant for real-time voice and quick lookups',
       },
       {

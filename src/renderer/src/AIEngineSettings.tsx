@@ -24,6 +24,7 @@ const TOKEN_OPTIONS = [
 ];
 
 const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false }) => {
+  const api: any = (window as any).electron?.api || (window as any).electronAPI;
   const [groqPrimaryModel, setGroqPrimaryModel] = useState('llama-3.1-8b-instant');
   const [groqMaxResponseTokens, setGroqMaxResponseTokens] = useState(1024);
   const [groqSelfCritiqueEnabled, setGroqSelfCritiqueEnabled] = useState(false);
@@ -33,7 +34,7 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
   useEffect(() => {
     const load = async () => {
       try {
-        const s = await window.electronAPI.getSettings();
+        const s = await api?.getSettings?.();
         setGroqPrimaryModel(s?.groqPrimaryModel || 'llama-3.1-8b-instant');
         setGroqMaxResponseTokens(s?.groqMaxResponseTokens ?? 1024);
         setGroqSelfCritiqueEnabled(s?.groqSelfCritiqueEnabled ?? false);
@@ -43,23 +44,27 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
       }
     };
     void load();
-  }, []);
+  }, [api]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      await window.electronAPI.setSettings({
+      if (!api?.setSettings) {
+        toast.error('Settings API unavailable');
+        return;
+      }
+      await api.setSettings({
         groqPrimaryModel,
         groqMaxResponseTokens,
         groqSelfCritiqueEnabled,
-      } as Parameters<typeof window.electronAPI.setSettings>[0]);
+      });
       toast.success('AI Engine settings saved');
     } catch (e: any) {
       toast.error(e?.message || 'Failed to save settings');
     } finally {
       setSaving(false);
     }
-  }, [groqPrimaryModel, groqMaxResponseTokens, groqSelfCritiqueEnabled]);
+  }, [api, groqPrimaryModel, groqMaxResponseTokens, groqSelfCritiqueEnabled]);
 
   if (!loaded) {
     return (
