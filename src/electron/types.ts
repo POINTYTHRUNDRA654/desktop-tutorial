@@ -37,6 +37,7 @@ export const IPC_CHANNELS = {
   // Vault integration
   VAULT_RUN_TOOL: 'vault-run-tool',
   VAULT_SAVE_MANIFEST: 'vault-save-manifest',
+  WORKFLOW_RUNNER_RUN_TOOL: 'workflow-runner:run-tool',
   VAULT_LOAD_MANIFEST: 'vault-load-manifest',
   VAULT_GET_DDS_DIMENSIONS: 'vault-get-dds-dimensions',
   VAULT_GET_IMAGE_DIMENSIONS: 'vault-get-image-dimensions',
@@ -682,6 +683,8 @@ export interface ElectronAPI {
   }>;
   // Vault
   runTool: (payload: { cmd: string; args?: string[]; cwd?: string }) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
+  /** Workflow Runner: run a user-configured tool/command and capture output (no Vault allowlist) */
+  workflowRunnerRunTool: (payload: { cmd: string; args?: string[]; cwd?: string }) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
   saveVaultManifest: (assets: unknown) => Promise<{ ok: boolean; file?: string; error?: string }>;
   loadVaultManifest: () => Promise<unknown[]>;
   getDdsDimensions: (filePath: string) => Promise<{ width: number; height: number }>;
