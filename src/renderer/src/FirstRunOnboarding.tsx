@@ -322,6 +322,17 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         ifMissing: 'Mods that ship BOS .ini swap rules will not apply their object replacements. Dynamic flora/fauna overhauls and weather-conditional mesh swaps will be inactive.',
         hasExecutable: false,
     },
+    {
+        name: 'Base Object Swapper v2 — BOS v2 (Nexus #67528)',
+        description: 'Updated F4SE port of Base Object Swapper. Swaps both base objects and specific world-space references via _SWAP.ini config files placed in the Data folder — no ESP slot required. Supports form swaps, reference swaps, locational filters (location/cell/keyword/region EditorID), random multi-target swaps with per-session or per-load-order seed, transform overrides (position, rotation, random scale), and record-flag set/clear operations. ⚠️ Due to Fallout 4\'s precombine system, swapping statics and static collections is not recommended. Credit: Ryan (SniffleMan) for CommonLibF4. Requires F4SE, Address Library, Visual C++ Redistributables 2019, and Baka Framework.',
+        detectKeywords: ['base object swapper', 'bos v2', 'base object swapper v2', 'swap ini'],
+        url: 'https://www.nexusmods.com/fallout4/mods/67528',
+        urlLabel: 'Nexus Mods #67528',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Mods that ship _SWAP.ini rules (v2 format) will not apply their object or reference replacements. Random mesh-variant systems and locational swap overhauls will be inactive.',
+        hasExecutable: false,
+    },
     // ── Papyrus extenders ────────────────────────────────────────────────────
     {
         name: 'Lighthouse Papyrus Extender (by GELUXRUM)',
@@ -1797,7 +1808,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {[
                                 { label: 'Core', color: 'amber', items: ['Electron v35', 'React v18', 'TypeScript v5', 'Vite v7'] },
                                 { label: 'AI', color: 'emerald', items: ['OpenAI SDK', 'Groq SDK', 'Anthropic Claude', 'PyTorch (CPU & CUDA)'] },
-                                { label: 'Modding Tools', color: 'blue', items: ['xEdit / FO4Edit by ElminsterAU', 'Creation Kit by Bethesda', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'PLOPTOP / ProtoLLOverridePatchNPCs by LeafTongue (Nexus #84615)', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Papyrus Condition Functions by LarannKiar (Nexus #88104; requires Garden of Eden)', 'Papyrus Common Library by SkyHorizon3 (Nexus #86222; deprecated — prefer Hydra)', 'Hydra by SoleVaultBoy'] },
+                                { label: 'Modding Tools', color: 'blue', items: ['xEdit / FO4Edit by ElminsterAU', 'Creation Kit by Bethesda', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'PLOPTOP / ProtoLLOverridePatchNPCs by LeafTongue (Nexus #84615)', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree (Nexus #64943)', 'Base Object Swapper v2 by powerofthree (Nexus #67528; credit: SniffleMan for CommonLibF4)', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Papyrus Condition Functions by LarannKiar (Nexus #88104; requires Garden of Eden)', 'Papyrus Common Library by SkyHorizon3 (Nexus #86222; deprecated — prefer Hydra)', 'Hydra by SoleVaultBoy'] },
                                 { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope Next-Gen Fork by hexabit (credit: Niftools team & contributors)', 'BodySlide & Outfit Studio by ousnius', 'B.A.E. by jonwd7', 'HkxTools by Bingle / jarari (credit: Dexesttp)', 'HaBCR Patcher by Bingle / jarari (credit: Dexesttp)', 'FO4 Batch Material Editor (Nexus #103044; based on Material Editor by ousnius)', 'AutoVideo by TheDestroyerOfWorlds (requires ffmpeg)', 'Commonwealth Cartography by AHeroicLlama (Nexus #73559; GitHub repo: Mappalachia/Commonwealth_Cartography)', 'SpreadSheetInator (Nexus #67616) — SS2 stage item CSV tool', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'F4SE Plugin Template by Ryan-rsm-McKenzie', 'vcpkg by Microsoft', 'FOMOD Creator by Wenderer'] },
                                 { label: 'Diagnostics & Monitoring', color: 'amber', items: ['GPU-Z by TechPowerUp (freeware)', 'HWiNFO64 by Martin Malik (freeware)', 'Display Driver Uninstaller (DDU) by Wagnardsoft (freeware)', 'RivaTuner Statistics Server (RTSS) by Alexey Nicolaychuk — bundled with MSI Afterburner (freeware)'] },
                                 { label: 'Community', color: 'rose', items: ['Nexus Mods community', 'Fallout 4 modding community', 'GitHub contributors', 'Everyone who tests &amp; supports Mossy'] },
