@@ -234,6 +234,16 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         required: false,
         ifMissing: 'Bulk BGSM/BGEM editing and automated material-generation workflows will require manual per-file setup and additional external tooling.',
     },
+    {
+        name: 'AutoVideo (by TheDestroyerOfWorlds)',
+        description: 'Standalone program that automatically builds complete Videos of the Wasteland video addons from source videos, generating ESPs, textures, sounds, and meshes. Supports UI and CLI workflows. Requires ffmpeg to be installed separately (the mod page recommends trying "winget install ffmpeg" first).',
+        detectKeywords: ['autovideo'],
+        url: 'https://www.nexusmods.com/fallout4/mods/91587',
+        urlLabel: 'Nexus Mods #91587',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Creating VotW video packs will require the slower manual Razorwire/xEdit-style workflow or other external tooling.',
+    },
     // ── Visual enhancement ────────────────────────────────────────────────────
     {
         name: 'ENB Series (by Boris Vorontsov)',
@@ -1734,7 +1744,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 { label: 'Core', color: 'amber', items: ['Electron v35', 'React v18', 'TypeScript v5', 'Vite v7'] },
                                 { label: 'AI', color: 'emerald', items: ['OpenAI SDK', 'Groq SDK', 'Anthropic Claude', 'PyTorch (CPU & CUDA)'] },
                                 { label: 'Modding Tools', color: 'blue', items: ['xEdit / FO4Edit by ElminsterAU', 'Creation Kit by Bethesda', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Hydra by SoleVaultBoy'] },
-                                { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope Next-Gen Fork by hexabit (credit: Niftools team & contributors)', 'BodySlide & Outfit Studio by ousnius', 'B.A.E. by jonwd7', 'HkxTools by Bingle / jarari (credit: Dexesttp)', 'HaBCR Patcher by Bingle / jarari (credit: Dexesttp)', 'FO4 Batch Material Editor (Nexus #103044; based on Material Editor by ousnius)', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'F4SE Plugin Template by Ryan-rsm-McKenzie', 'vcpkg by Microsoft', 'FOMOD Creator by Wenderer'] },
+                                { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope Next-Gen Fork by hexabit (credit: Niftools team & contributors)', 'BodySlide & Outfit Studio by ousnius', 'B.A.E. by jonwd7', 'HkxTools by Bingle / jarari (credit: Dexesttp)', 'HaBCR Patcher by Bingle / jarari (credit: Dexesttp)', 'FO4 Batch Material Editor (Nexus #103044; based on Material Editor by ousnius)', 'AutoVideo by TheDestroyerOfWorlds (requires ffmpeg)', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'F4SE Plugin Template by Ryan-rsm-McKenzie', 'vcpkg by Microsoft', 'FOMOD Creator by Wenderer'] },
                                 { label: 'Diagnostics & Monitoring', color: 'amber', items: ['GPU-Z by TechPowerUp (freeware)', 'HWiNFO64 by Martin Malik (freeware)', 'Display Driver Uninstaller (DDU) by Wagnardsoft (freeware)', 'RivaTuner Statistics Server (RTSS) by Alexey Nicolaychuk — bundled with MSI Afterburner (freeware)'] },
                                 { label: 'Community', color: 'rose', items: ['Nexus Mods community', 'Fallout 4 modding community', 'GitHub contributors', 'Everyone who tests &amp; supports Mossy'] },
                             ].map(({ label, color, items }) => (
@@ -1992,6 +2002,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             <p className="text-slate-400 text-sm max-w-lg mx-auto">
                                 Everything Mossy depends on is listed here — runtime prerequisites first, then modding tools.
                                 Items already found on your system show <span className="text-emerald-400 font-semibold">Installed</span>.
+                                Most downloads here are <span className="text-amber-300 font-semibold">optional</span>; only items explicitly marked <span className="text-red-300 font-semibold">Required</span> are hard dependencies.
                                 Each missing item shows exactly <span className="text-amber-300 font-semibold">what won't work</span> without it.
                             </p>
                         </div>
@@ -2046,6 +2057,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                     {dl.required && !confirmed && (
                                                         <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full border border-red-500/40 font-semibold">
                                                             Required
+                                                        </span>
+                                                    )}
+                                                    {!dl.required && (
+                                                        <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-xs rounded-full border border-amber-500/40 font-semibold">
+                                                            Optional
                                                         </span>
                                                     )}
                                                     <span className={`text-xs font-medium ${categoryColor[dl.category]}`}>
