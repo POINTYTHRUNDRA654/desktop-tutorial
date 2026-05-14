@@ -894,3 +894,53 @@ def audit_jungle_mod_for_dirty_edits(plugin_records, valid_min_x, valid_max_x, v
 # Example:
 # audit_jungle_mod_for_dirty_edits(my_plugin_data, -35, -20, -40, -25)
 ```
+
+---
+
+## Part 11: Structured Curriculum, Crash-Log Prompting, and Visual Troubleshooting Matrix
+
+### 11.1 Structured lesson curriculum layout for onboarding
+
+Use this incremental pathway for project-based instruction:
+
+```text
+[Module 1: Asset Pipeline] -> [Module 2: CK Implementation] -> [Module 3: Optimization]
+ Pack textures & build .bgsm      Write scripts & paint navmesh       Bake LODs & clean dirty edits
+```
+
+#### Module 1 — Materials, physics, and asset pipeline
+- **Lesson 1.1:** Setup modern DirectXTex / Intel DDS CLI workflow for exports.
+- **Lesson 1.2:** Teach TBR packing logic (invert roughness into specular green, metallic in red).
+- **Lesson 1.3:** Configure Blender collision metadata (`L_FOLIAGE`, `MAT_VEGETATION_MOSS`).
+- **Lesson 1.4:** Enable wind motion by editing `.bgsm` wind offsets (`0x78`–`0x80`).
+
+#### Module 2 — World building, scripting, and AI navigation
+- **Lesson 2.1:** Creation Kit navigation fundamentals (grid view `B`, vertex mapping `V`, stitching `A`).
+- **Lesson 2.2:** Actor setup and ambush routing with naked templates and `LinkAmbushMarker` loops.
+- **Lesson 2.3:** Event-driven Papyrus for harvesting and spore-trigger hazards.
+- **Lesson 2.4:** Atmosphere systems: weather overrides plus custom Pip-Boy radio integration.
+
+#### Module 3 — Optimization and release engineering
+- **Lesson 3.1:** Rebuild precombines (`.ucp`) and previs (`.uvp`) safely to control draw calls.
+- **Lesson 3.2:** Generate LODs (2D billboard atlases + landscape texture baking).
+- **Lesson 3.3:** Release hygiene: ESM header flagging, NMIM cleanup, and dirty-edit audit automation.
+
+### 11.2 AI tutor system prompt blueprint for crash-log diagnostics
+
+```text
+You are an expert Fallout 4 Next-Gen engine diagnostic tool. Your task is to analyze user-submitted Buffout 4 crash logs and pinpoint exactly where their mod is failing. Follow this matching criteria:
+
+1. If the stack trace contains "BSXFlags" or "NiNode::UpdateDescending", flag an invalid 3D model. Instruct the user to check their custom fungus .nif files in NifSkope and verify that the shader flags match their .bgsm profiles.
+2. If the stack trace contains "BGSProcedurePathing" or "NavMeshInfoMap", flag a navmesh memory leak or an unpurged NMIM wild edit. Instruct the user to open their mod in FO4Edit, locate the 'Navigation Mesh Info Map' block, and delete it to let the engine rebuild its runtime array.
+3. If the stack trace contains "BGSPrecombinedObject" or "VisibilityRender", flag an out-of-sync precombine mesh file. This happens because an asset was moved after generation. Instruct the user to clear their 'Meshes/Precombined/' output cache and re-run 'Precombine Geometry for Selected Cells' inside the Creation Kit.
+```
+
+### 11.3 In-game visual troubleshooting reference matrix
+
+| Observed artifact | Primary cause | Exact remedy |
+| --- | --- | --- |
+| Custom fungi flicker or vanish with camera turns | Broken previs linkage (`.uvp` references stale/moved IDs) | Reload cells in CK, run **World -> Generate Previs for Selected Cells**, save, then re-export archives |
+| Mushroom caps render neon pink/white in daylight | Specular blue-channel contamination in `.dds` | Set blue channel to full black (`RGB 0,0,0`) and recompile with `BC7_UNORM` |
+| Leaves look like rectangular cards | Missing alpha-test threshold in `.bgsm` | Enable `bAlphaTest`, disable `bAlphaBlend`, set `uAlphaTestRef=128` |
+| Plants remain rigid in storms | Missing wind shader flags (`bTree_Animations`) | Enable tree animation flag and set non-zero `fTreeWindScale` (e.g., `0.35`) |
+| Player/projectiles pass through trunks | Missing or invalid Havok collision sub-shape | Rebuild collision proxy in Blender (capsule/solid boundary), set `L_STATIC`, re-export |
