@@ -120,7 +120,7 @@ const builtInLinks: Record<WizardTopic, Array<{ label: string; url: string; note
   ],
   prp: [
     { label: "PJM's Previs Patching Scripts (Nexus #69978)", url: 'https://www.nexusmods.com/fallout4/mods/69978', note: 'By PJMail. V4.9 PJMScripts bundle (Feb 2026). Manual download ONLY — do NOT use a mod manager. Also grab every file under the "Updated Files" tab to replace older copies.' },
-    { label: 'CKPE — Creation Kit Platform Extended (Nexus #51165)', url: 'https://www.nexusmods.com/fallout4/mods/51165', note: 'Credit: perchik71 (Nexus #51165). Required: V0.6 b639 or later for Steam CK. Install into the same directory as Fallout4.exe.' },
+    { label: 'CKPE — Creation Kit Platform Extended (Nexus #51165)', url: 'https://www.nexusmods.com/fallout4/mods/51165', note: 'Credit/source: Creation Kit Platform Extended by perchik71 (Nexus #51165). Open-source CK fixes/enhancements project; manual install to Fallout4/CreationKit folder. Requires FO4 CK + Microsoft Visual C++ 2022 Redistributable (x64).'},
     { label: 'Nexus search: PRP', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=PRP&gsearchtype=mods', note: 'Search for "Previsibines Repair Pack (PRP)".' },
     { label: 'Nexus search: Previsibines Repair Pack', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=Previsibines%20Repair%20Pack&gsearchtype=mods' },
   ],
@@ -536,7 +536,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'ckpe-prereq',
               title: 'CKPE V0.6 b639 or later required for Steam CK',
-              details: <>CKPE (Creation Kit Platform Extended) is mandatory with the Steam CK. Install <b>V0.6 b639 or later</b> into the same directory as <code>Fallout4.exe</code>. After installing, edit <code>CreationKitPlatformExtended.toml</code> as instructed, or use the pre-configured copies under CKPE’s “Optional Files”. See the Downloads panel for the direct Nexus #51165 link. <em>Credit: CKPE by perchik71 (Nexus #51165).</em></>,
+              details: <>CKPE (Creation Kit Platform Extended) is mandatory with the Steam CK and is an open-source platform of CK fixes/enhancements. Use <b>V0.6 b639 or later</b> on modern Steam CK setups. Requirements: <b>FO4 Creation Kit</b> + <b>Microsoft Visual C++ 2022 Redistributable (x64)</b>; CKPE supports CK <b>1.10.162.0+</b>. If CK is running alongside ENBSeries, use <code>ckpe_loader.exe</code> as recommended on the mod page. See the Downloads panel for the direct Nexus #51165 link. <em>Credit/source: CKPE by perchik71 (Nexus #51165), with contributor credits listed on that page including Nuukem, Darkfox127, and community testers.</em></>,
             },
             {
               id: 'pjmscripts-prereq',
@@ -568,7 +568,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'get-ckpe',
               title: 'Download and install CKPE from Nexus',
-              details: <>Use the direct <b>Nexus #51165</b> link in the panel and install CKPE into your <code>Fallout4.exe</code> directory. If you are on a downgraded (OG) game and need CKPE before V0.6, you must also convert BA2 archives to V1 via Collective Modding Toolkit and swap the Interface/Shaders BA2s for OG versions — see PJM’s FAQ for exact instructions. <em>Credit: CKPE by perchik71 (Nexus #51165).</em></>,
+              details: <>Use the direct <b>Nexus #51165</b> link in the panel. Install manually: (1) delete previous CKPE versions/libraries, (2) extract the zip into your Fallout 4 folder containing <code>CreationKit.exe</code>, (3) launch the Creation Kit. If you are on a downgraded (OG) game and need CKPE before V0.6, also convert BA2 archives to V1 via Collective Modding Toolkit and swap Interface/Shaders BA2s for OG versions — see PJM’s FAQ for exact instructions. The CKPE page also links a Darkfox127 installation video reference. <em>Credit/source: Creation Kit Platform Extended by perchik71 (Nexus #51165).</em></>,
             },
           ],
         },
