@@ -336,6 +336,17 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         hasExecutable: false,
     },
     {
+        name: 'Papyrus Common Library (by SkyHorizon3)',
+        description: 'Comprehensive Papyrus utility library offering 1,000+ common functions under the System namespace: form/formlist/projectile/cell/worldspace queries, filesystem management (read/write files and directories in the game root), EditorID restoration (used by Base Object Swapper & SPID), in-game global/persistent variables (MemVar/SaveVar), function runner (trigger Papyrus functions on OnGameStart/OnGameLoad events), command runner (execute console commands on menu load), and translation runner (load .json translation files before the splash screen). Supports Old-Gen and Next-Gen. ⚠️ Marked deprecated by its author — new projects should prefer Hydra instead. Requires F4SE and Address Library.',
+        detectKeywords: ['papyrus common library', 'pcl papyrus'],
+        url: 'https://www.nexusmods.com/fallout4/mods/86222',
+        urlLabel: 'Nexus Mods #86222',
+        category: 'modding',
+        required: false,
+        ifMissing: 'Older mods that depend on Papyrus Common Library functions (System.* namespace) will fail to compile or throw script errors. New projects should use Hydra instead.',
+        hasExecutable: false,
+    },
+    {
         name: 'Hydra (by SoleVaultBoy)',
         description: 'Papyrus framework and extender built from scratch as a modern alternative to Papyrus Common Library. Supports Old-Gen, Next-Gen, and Anniversary Edition; adds 2,800+ Papyrus functions; introduces advanced script types like hash maps, hash sets, mutexes, and 64-bit numeric types; restores Editor IDs; and ships runners/utilities for console commands, menus, misc stats, requirements, file caches, script functions/objects/reflections, and translations. Also includes experimental Papyrus performance patches. ⚠️ Install via mod manager (MO2/Vortex) and follow the mod page documentation.',
         detectKeywords: ['hydra', 'papyrus common library', 'hydra papyrus'],
@@ -1754,7 +1765,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {[
                                 { label: 'Core', color: 'amber', items: ['Electron v35', 'React v18', 'TypeScript v5', 'Vite v7'] },
                                 { label: 'AI', color: 'emerald', items: ['OpenAI SDK', 'Groq SDK', 'Anthropic Claude', 'PyTorch (CPU & CUDA)'] },
-                                { label: 'Modding Tools', color: 'blue', items: ['xEdit / FO4Edit by ElminsterAU', 'Creation Kit by Bethesda', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Papyrus Condition Functions by LarannKiar (Nexus #88104; requires Garden of Eden)', 'Hydra by SoleVaultBoy'] },
+                                { label: 'Modding Tools', color: 'blue', items: ['xEdit / FO4Edit by ElminsterAU', 'Creation Kit by Bethesda', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Papyrus Condition Functions by LarannKiar (Nexus #88104; requires Garden of Eden)', 'Papyrus Common Library by SkyHorizon3 (Nexus #86222; deprecated — prefer Hydra)', 'Hydra by SoleVaultBoy'] },
                                 { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope Next-Gen Fork by hexabit (credit: Niftools team & contributors)', 'BodySlide & Outfit Studio by ousnius', 'B.A.E. by jonwd7', 'HkxTools by Bingle / jarari (credit: Dexesttp)', 'HaBCR Patcher by Bingle / jarari (credit: Dexesttp)', 'FO4 Batch Material Editor (Nexus #103044; based on Material Editor by ousnius)', 'AutoVideo by TheDestroyerOfWorlds (requires ffmpeg)', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'F4SE Plugin Template by Ryan-rsm-McKenzie', 'vcpkg by Microsoft', 'FOMOD Creator by Wenderer'] },
                                 { label: 'Diagnostics & Monitoring', color: 'amber', items: ['GPU-Z by TechPowerUp (freeware)', 'HWiNFO64 by Martin Malik (freeware)', 'Display Driver Uninstaller (DDU) by Wagnardsoft (freeware)', 'RivaTuner Statistics Server (RTSS) by Alexey Nicolaychuk — bundled with MSI Afterburner (freeware)'] },
                                 { label: 'Community', color: 'rose', items: ['Nexus Mods community', 'Fallout 4 modding community', 'GitHub contributors', 'Everyone who tests &amp; supports Mossy'] },
