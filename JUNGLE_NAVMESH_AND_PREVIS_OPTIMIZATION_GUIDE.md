@@ -186,24 +186,26 @@ When teaching Next-Gen/Anniversary workflows, emphasize that export automation s
 
 ```bash
 # 1) Diffuse (sRGB) with full mip chain
-texconv.exe -f BC7_UNORM_SRGB -m 0 -y -o "Output/Path" "Input_diffuse.png"
+texconv.exe -f BC7_UNORM_SRGB -m 0 -y -o "Data/Textures/FungusJungle" "Input_diffuse.png"
 
 # 2) Normal (BC5 tangent-space friendly)
-texconv.exe -f BC5_UNORM -m 0 -y -o "Output/Path" "Input_normal.png"
+texconv.exe -f BC5_UNORM -m 0 -y -o "Data/Textures/FungusJungle" "Input_normal.png"
 
 # 3) Packed specular/gloss map (linear BC7)
-texconv.exe -f BC7_UNORM -m 0 -y -o "Output/Path" "Input_specular.png"
+texconv.exe -f BC7_UNORM -m 0 -y -o "Data/Textures/FungusJungle" "Input_specular.png"
 ```
 
 ### Numeric FO4 channel targets (teaching matrix)
 
+Channel values below are **single-channel grayscale intensities** (0-255), not RGB triplets.
+
 | Material Type | Diffuse Alpha / Diffuse Treatment | Specular Red (Reflectivity) | Specular Green (Gloss) | Specular Blue (Safe) |
 | --- | --- | --- | --- | --- |
-| Wet Fungal Slime | Standard diffuse (full opacity) | 140,140,140 | 230,230,230 | 0,0,0 |
-| Matte Moss / Fungi | Standard diffuse (full opacity) | 45,45,45 | 30,30,30 | 0,0,0 |
-| Bioluminescent Flesh | Emissive-data mask strategy | 80,80,80 | 110,110,110 | 0,0,0 |
-| Rusted Metal Scraps | Baked AO mixed over base color | 30,30,30 | 40,40,40 | 0,0,0 |
-| Wet Glowing Mud | Dark ground-toned diffuse | 110,110,110 | 190,190,190 | 0,0,0 |
+| Wet Fungal Slime | Standard diffuse (full opacity) | 140 | 230 | 0 |
+| Matte Moss / Fungi | Standard diffuse (full opacity) | 45 | 30 | 0 |
+| Bioluminescent Flesh | Emissive-data mask strategy | 80 | 110 | 0 |
+| Rusted Metal Scraps | Baked AO mixed over base color | 30 | 40 | 0 |
+| Wet Glowing Mud | Dark ground-toned diffuse | 110 | 190 | 0 |
 
 ### BGSM generation matrix (blueprint for automation)
 
