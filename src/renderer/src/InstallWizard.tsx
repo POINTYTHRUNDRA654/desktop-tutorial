@@ -116,6 +116,11 @@ const builtInLinks: Record<WizardTopic, Array<{ label: string; url: string; note
   ],
   ss2: [
     { label: 'Sim Settlements 2 (official site)', url: 'https://simsettlements2.com', note: 'Official hub; downloads are typically linked from there.' },
+    { label: "SS2 Add-On Maker's Toolkit (Nexus #48521)", url: 'https://www.nexusmods.com/fallout4/mods/48521', note: 'Beginner-focused toolkit with guided tutorials and helper files.' },
+    { label: 'Wasteland Reconstruction Kit (Nexus #48960)', url: 'https://www.nexusmods.com/fallout4/mods/48960', note: '10,000+ SS2-ready buildable assets and prefab resources.' },
+    { label: 'City Plan Contest Assistant (Nexus #50366)', url: 'https://www.nexusmods.com/fallout4/mods/50366', note: 'Contest-focused utility for fast setup, checks, and export helpers.' },
+    { label: 'SS2 Wiki Tutorials', url: 'https://wiki.simsettlements2.com', note: 'Core docs and learning references.' },
+    { label: 'Bethesda Mod School / SS2 videos', url: 'https://www.youtube.com/results?search_query=Bethesda+Mod+School+Sim+Settlements+2', note: 'Video learning path for beginners and visual learners.' },
     { label: 'Nexus search: Sim Settlements 2', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=Sim%20Settlements%202&gsearchtype=mods', note: 'Search results in case you install via Nexus.' },
   ],
   prp: [
@@ -450,8 +455,13 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             },
             {
               id: 'readme',
-              title: 'Find the SS2 requirements list',
-              details: <>SS2 has required dependencies. Use the links section below (from your Knowledge Vault, if present) or the official site to confirm the current required mods for your SS2 version.</>,
+              title: 'Open the dedicated SS2 learning path first',
+              details: <>Go to <Link className="text-blue-400 hover:underline" to="/guides/mods/sim-settlements">SS2 Learning Path</Link> for the full beginner flow, then return here for checklist verification.</>,
+            },
+            {
+              id: 'requirements',
+              title: 'Confirm required dependencies before add-ons',
+              details: <>Install core SS2 requirements first (Sim Settlements 2 + Workshop Framework, and other dependencies listed on the active mod pages) before creator add-ons.</>,
             },
           ],
         },
@@ -462,8 +472,28 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
           steps: [
             {
               id: 'ss2-files',
-              title: 'Download SS2 + required dependencies',
+              title: 'Download SS2 + required dependencies first',
               details: <>Download SS2 and all required dependencies (and optional add-ons you want). Keep versions compatible with your Fallout 4 runtime.</>,
+            },
+            {
+              id: 'ss2-toolkit',
+              title: "Download Add-On Maker's Toolkit (Nexus #48521)",
+              details: <>Install for step-by-step addon creation guides, helper resources, and beginner workflows.</>,
+            },
+            {
+              id: 'ss2-wrk',
+              title: 'Download Wasteland Reconstruction Kit (Nexus #48960)',
+              details: <>Install if you are building city plans or prefab-heavy settlements and need the expanded SS2 build set.</>,
+            },
+            {
+              id: 'ss2-contest',
+              title: 'Download City Plan Contest Assistant (Nexus #50366)',
+              details: <>Install for city plan contest workflows, automated setup tools, and monthly contest settlement helpers.</>,
+            },
+            {
+              id: 'ss2-modschool',
+              title: 'Open Mod School videos and SS2 wiki',
+              details: <>Use the Mod School video links and wiki links in “Downloads & Sources” for beginner-friendly visual walkthroughs.</>,
             },
           ],
         },
@@ -478,9 +508,19 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               details: <>Install SS2 and dependencies. Then enable plugins and sort load order. If you use MO2, make sure archives are enabled if the mod ships BA2s.</>,
             },
             {
+              id: 'install-order',
+              title: 'Use this beginner-friendly install order',
+              details: <>Core SS2 stack first, then Toolkit (#48521), then WRK (#48960), then Contest Assistant (#50366) if needed. This keeps setup clear and easy to troubleshoot.</>,
+            },
+            {
               id: 'plots',
               title: 'Plot building basics (first run)',
               details: <>In-game: confirm the SS2 HUD/holotape/menu appears. Then try placing a basic plot and ensure it upgrades/constructs as expected.</>,
+            },
+            {
+              id: 'contest-updates',
+              title: 'Contest Assistant monthly refresh check',
+              details: <>If you use #50366 for contest work, update it on/after the 28th each month to get current contest settlement unlock behavior.</>,
             },
           ],
         },
@@ -494,6 +534,11 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               title: 'Verify in-game SS2 initializes cleanly',
               details: <>Load a save (or new game) and check for missing textures/menus. If scripts are stuck, your dependencies/version mismatch is the first thing to check.</>,
             },
+            {
+              id: 'verify-tools',
+              title: 'Verify creator tools are visible in your workflow',
+              details: <>Confirm you can access toolkit docs (#48521), place WRK assets (#48960), and run contest helper holotape features (#50366) if installed.</>,
+            },
           ],
         },
         {
@@ -505,6 +550,11 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               id: 'version',
               title: 'If SS2 won’t start or menus are missing',
               details: <>Re-check dependencies and the Fallout 4 runtime version requirements. Then re-run your load order sorting and ensure plugins are enabled.</>,
+            },
+            {
+              id: 'newbie-fallback',
+              title: 'If overwhelmed: use the simplified learning path',
+              details: <>Return to <Link className="text-blue-400 hover:underline" to="/guides/mods/sim-settlements">SS2 Learning Path</Link> and follow it top-to-bottom, one tool at a time.</>,
             },
           ],
         },
@@ -900,6 +950,11 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             { label: 'Steam search: Fallout 4 Creation Kit', href: 'https://store.steampowered.com/search/?term=Fallout%204%20Creation%20Kit', kind: 'search', note: 'Use Steam search to find the official listing.' },
             { label: 'Nexus search: PRP', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=PRP&gsearchtype=mods', kind: 'search' },
             { label: 'Sim Settlements 2 (official site)', href: 'https://simsettlements2.com', kind: 'official' },
+            { label: "SS2 Add-On Maker's Toolkit (#48521)", href: 'https://www.nexusmods.com/fallout4/mods/48521', kind: 'official' },
+            { label: 'Wasteland Reconstruction Kit (#48960)', href: 'https://www.nexusmods.com/fallout4/mods/48960', kind: 'official' },
+            { label: 'City Plan Contest Assistant (#50366)', href: 'https://www.nexusmods.com/fallout4/mods/50366', kind: 'official' },
+            { label: 'SS2 Wiki Tutorials', href: 'https://wiki.simsettlements2.com', kind: 'docs' },
+            { label: 'SS2 Mod School Videos', href: 'https://www.youtube.com/results?search_query=Bethesda+Mod+School+Sim+Settlements+2', kind: 'docs' },
           ]}
           verify={[
             t('installWizard.verifyPanel.verify.0', 'Pick a topic and confirm the checklist renders and checkboxes persist after refresh.'),

@@ -13,6 +13,7 @@ import {
   Mic,
   Film,
   ScrollText,
+  Home,
 } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { openExternal } from './utils/openExternal';
@@ -62,6 +63,13 @@ export const PlatformsHub: React.FC<PlatformsHubProps> = ({ embedded = false }) 
       description: 'Tool installs and setup: xEdit, SS2, PRP, patching.',
       to: '/wizards',
       icon: Wrench,
+    },
+    {
+      title: 'SS2 Creator Learning Path',
+      description: 'Beginner-friendly step-by-step path for SS2 tools, city plans, and creator workflows.',
+      to: '/guides/mods/sim-settlements',
+      icon: Home,
+      badge: 'Learning Path',
     },
     {
       title: 'Precombine & PRP Guide',
