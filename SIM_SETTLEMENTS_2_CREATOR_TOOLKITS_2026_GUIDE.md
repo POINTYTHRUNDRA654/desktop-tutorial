@@ -84,6 +84,22 @@ City Plan Contest Assistant tooling provided by the SS2 creator ecosystem; full 
 
 ---
 
+## SS2 Modding School Videos (Recommended)
+
+For guided learning, send creators to the SS2 modding school style video tracks from the SS2 ecosystem (including kinggath/Bethesda Mod School coverage):
+
+- YouTube search hub:  
+  https://www.youtube.com/results?search_query=Bethesda+Mod+School+Sim+Settlements+2
+- Sim Settlements 2 wiki tutorials/docs hub:  
+  https://wiki.simsettlements2.com
+
+**How to use alongside this guide:**
+1. Watch the setup and first-project videos first.
+2. Follow with Toolkit (#48521) docs while reproducing each step.
+3. Use WRK (#48960) and Contest Assistant (#50366) only after the core CK/SS2 workflow is understood.
+
+---
+
 ## Recommended Learning Path (Mossy Users)
 
 1. Start with **#48521** (learn workflow).  
