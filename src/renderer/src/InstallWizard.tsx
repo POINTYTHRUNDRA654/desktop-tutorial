@@ -106,7 +106,7 @@ const vaultKey = (item: KnowledgeVaultItem) => {
 const topicKeywords: Record<WizardTopic, string[]> = {
   xedit: ['xedit', 'fo4edit', 'apply script', 'edit scripts', 'conflict', 'override'],
   ss2: ['ss2', 'sim settlements 2', 'plot', 'plot building', 'city plan', 'workshop framework'],
-  prp: ['prp', 'previs', 'precombine', 'previsibines repair pack', 'optimization'],
+  prp: ['prp', 'previs', 'precombine', 'previsibines repair pack', 'optimization', 'pjm', 'pjmscripts', 'patching scripts', 'fo4check_previsbines'],
   patching: ['patch', 'patches', 'conflict', 'load order', 'merge', 'override', 'xedit'],
 };
 
@@ -116,9 +116,16 @@ const builtInLinks: Record<WizardTopic, Array<{ label: string; url: string; note
   ],
   ss2: [
     { label: 'Sim Settlements 2 (official site)', url: 'https://simsettlements2.com', note: 'Official hub; downloads are typically linked from there.' },
+    { label: "SS2 Add-On Maker's Toolkit (Nexus #48521)", url: 'https://www.nexusmods.com/fallout4/mods/48521', note: 'Beginner-focused toolkit with guided tutorials and helper files.' },
+    { label: 'Wasteland Reconstruction Kit (Nexus #48960)', url: 'https://www.nexusmods.com/fallout4/mods/48960', note: '10,000+ SS2-ready buildable assets and prefab resources.' },
+    { label: 'City Plan Contest Assistant (Nexus #50366)', url: 'https://www.nexusmods.com/fallout4/mods/50366', note: 'Contest-focused utility for fast setup, checks, and export helpers.' },
+    { label: 'SS2 Wiki Tutorials', url: 'https://wiki.simsettlements2.com', note: 'Core docs and learning references.' },
+    { label: 'Bethesda Mod School / SS2 videos', url: 'https://www.youtube.com/results?search_query=Bethesda+Mod+School+Sim+Settlements+2', note: 'Video learning path for beginners and visual learners.' },
     { label: 'Nexus search: Sim Settlements 2', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=Sim%20Settlements%202&gsearchtype=mods', note: 'Search results in case you install via Nexus.' },
   ],
   prp: [
+    { label: "PJM's Previs Patching Scripts (Nexus #69978)", url: 'https://www.nexusmods.com/fallout4/mods/69978', note: 'By PJMail. V4.9 PJMScripts bundle (Feb 2026). Manual download ONLY — do NOT use a mod manager. Also grab every file under the "Updated Files" tab to replace older copies.' },
+    { label: 'CKPE — Creation Kit Platform Extended (Nexus #51165)', url: 'https://www.nexusmods.com/fallout4/mods/51165', note: 'Credit/source: Creation Kit Platform Extended by perchik71 (Nexus #51165). Open-source CK fixes/enhancements project; manual install to Fallout4/CreationKit folder. Requires FO4 CK + Microsoft Visual C++ 2022 Redistributable (x64).'},
     { label: 'Nexus search: PRP', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=PRP&gsearchtype=mods', note: 'Search for "Previsibines Repair Pack (PRP)".' },
     { label: 'Nexus search: Previsibines Repair Pack', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=Previsibines%20Repair%20Pack&gsearchtype=mods' },
   ],
@@ -448,8 +455,13 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             },
             {
               id: 'readme',
-              title: 'Find the SS2 requirements list',
-              details: <>SS2 has required dependencies. Use the links section below (from your Knowledge Vault, if present) or the official site to confirm the current required mods for your SS2 version.</>,
+              title: 'Open the dedicated SS2 learning path first',
+              details: <>Go to <Link className="text-blue-400 hover:underline" to="/guides/mods/sim-settlements">SS2 Learning Path</Link> for the full beginner flow, or <Link className="text-blue-400 hover:underline" to="/guides-hub">Guides Hub</Link> to browse all 22 tutorial platforms, then return here for checklist verification.</>,
+            },
+            {
+              id: 'requirements',
+              title: 'Confirm required dependencies before add-ons',
+              details: <>Install core SS2 requirements first (Sim Settlements 2 + Workshop Framework, and other dependencies listed on the active mod pages) before creator add-ons.</>,
             },
           ],
         },
@@ -460,8 +472,28 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
           steps: [
             {
               id: 'ss2-files',
-              title: 'Download SS2 + required dependencies',
+              title: 'Download SS2 + required dependencies first',
               details: <>Download SS2 and all required dependencies (and optional add-ons you want). Keep versions compatible with your Fallout 4 runtime.</>,
+            },
+            {
+              id: 'ss2-toolkit',
+              title: "Download Add-On Maker's Toolkit (Nexus #48521)",
+              details: <>Install for step-by-step addon creation guides, helper resources, and beginner workflows.</>,
+            },
+            {
+              id: 'ss2-wrk',
+              title: 'Download Wasteland Reconstruction Kit (Nexus #48960)',
+              details: <>Install if you are building city plans or prefab-heavy settlements and need the expanded SS2 build set.</>,
+            },
+            {
+              id: 'ss2-contest',
+              title: 'Download City Plan Contest Assistant (Nexus #50366)',
+              details: <>Install for city plan contest workflows, automated setup tools, and monthly contest settlement helpers.</>,
+            },
+            {
+              id: 'ss2-modschool',
+              title: 'Open Mod School videos and SS2 wiki',
+              details: <>Use the Mod School video links and wiki links in “Downloads & Sources” for beginner-friendly visual walkthroughs.</>,
             },
           ],
         },
@@ -476,9 +508,19 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               details: <>Install SS2 and dependencies. Then enable plugins and sort load order. If you use MO2, make sure archives are enabled if the mod ships BA2s.</>,
             },
             {
+              id: 'install-order',
+              title: 'Use this beginner-friendly install order',
+              details: <>Core SS2 stack first, then Toolkit (#48521), then WRK (#48960), then Contest Assistant (#50366) if needed. This keeps setup clear and easy to troubleshoot.</>,
+            },
+            {
               id: 'plots',
               title: 'Plot building basics (first run)',
               details: <>In-game: confirm the SS2 HUD/holotape/menu appears. Then try placing a basic plot and ensure it upgrades/constructs as expected.</>,
+            },
+            {
+              id: 'contest-updates',
+              title: 'Contest Assistant monthly refresh check',
+              details: <>If you use #50366 for contest work, update it on/after the 28th each month to get current contest settlement unlock behavior.</>,
             },
           ],
         },
@@ -492,6 +534,11 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               title: 'Verify in-game SS2 initializes cleanly',
               details: <>Load a save (or new game) and check for missing textures/menus. If scripts are stuck, your dependencies/version mismatch is the first thing to check.</>,
             },
+            {
+              id: 'verify-tools',
+              title: 'Verify creator tools are visible in your workflow',
+              details: <>Confirm you can access toolkit docs (#48521), place WRK assets (#48960), and run contest helper holotape features (#50366) if installed.</>,
+            },
           ],
         },
         {
@@ -503,6 +550,11 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               id: 'version',
               title: 'If SS2 won’t start or menus are missing',
               details: <>Re-check dependencies and the Fallout 4 runtime version requirements. Then re-run your load order sorting and ensure plugins are enabled.</>,
+            },
+            {
+              id: 'newbie-fallback',
+              title: 'If overwhelmed: use the simplified learning path',
+              details: <>Return to <Link className="text-blue-400 hover:underline" to="/guides/mods/sim-settlements">SS2 Learning Path</Link> and follow it top-to-bottom, one tool at a time.</>,
             },
           ],
         },
@@ -518,8 +570,33 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
           steps: [
             {
               id: 'understand',
-              title: 'Know what PRP affects',
-              details: <>PRP affects precombines/previs. It can conflict with mods that edit worldspaces/cells. Plan your load order and patch strategy before installing.</>,
+              title: "Know what PRP and PJM's scripts affect",
+              details: <>PRP (Previsibines Repair Pack) restores precombines/previs broken by popular mods. <b>PJM’s Previs Patching Scripts</b> (Nexus #69978, by PJMail) let you find &amp; fix every flickering cell in your load order, create PRP-compatible patches, or add precombines to your own mod. Resolve all normal mod conflicts with standard patches <em>before</em> touching previs — previs patches are always the last step.</>,
+            },
+            {
+              id: 'xedit-version',
+              title: 'FO4Edit / xEdit V4.1.5f or later required',
+              details: <>PJM’s scripts require <b>FO4Edit64.exe (or FO4Edit.exe) V4.1.5f or later</b>. Use the GitHub upstream or the Nexus release — both are in the “Downloads &amp; Sources” panel. The 64-bit build is strongly recommended for large load orders.</>,
+            },
+            {
+              id: 'ck-prereq',
+              title: 'Fallout 4 Creation Kit (Steam) required',
+              details: <>The CK is free on Steam. Install it into your <b>Fallout 4 directory</b> (same folder as <code>Fallout4.exe</code>). If you have downgraded your game to OG/pre-NG, you must also downgrade the CK to match — see PJM’s FAQ post on Nexus #69978 for the exact procedure.</>,
+            },
+            {
+              id: 'ckpe-prereq',
+              title: 'CKPE V0.6 b639 or later required for Steam CK',
+              details: <>CKPE (Creation Kit Platform Extended) is mandatory with the Steam CK and is an open-source platform of CK fixes/enhancements. Use <b>V0.6 b639 or later</b> on modern Steam CK setups. Requirements: <b>FO4 Creation Kit</b> + <b>Microsoft Visual C++ 2022 Redistributable (x64)</b>; CKPE supports CK <b>1.10.162.0+</b>. If CK is running alongside ENBSeries, use <code>ckpe_loader.exe</code> as recommended on the mod page. See the Downloads panel for the direct Nexus #51165 link. <em>Credit/source: CKPE by perchik71 (Nexus #51165), with contributor credits listed on that page including Nuukem, Darkfox127, and community testers.</em></>,
+            },
+            {
+              id: 'pjmscripts-prereq',
+              title: "PJMScripts V4.9 — manual download only, extract to FO4Edit directory",
+              details: <>Go to <b>Nexus #69978</b> (link in the panel above) and manually download the <b>V4.9 PJMScripts bundle</b>. <em>Do NOT use a mod manager.</em> Extract so all <code>*.pas</code> scripts land in the <b>Edit Scripts</b> subdirectory inside your FO4Edit folder. Then grab every file under the “Updated Files” tab and overwrite the older copies — <code>FO4_CheckPrevisbines.pas</code> and <code>GeneratePrevisibines.bat</code> in particular are newer in that tab.</>,
+            },
+            {
+              id: 'prp-load-order',
+              title: 'PRP load order rules',
+              details: <>Never use patches built for a different PRP version. Never place a mod with precombines after (below) PRP unless it was built for your exact PRP version or is a total replacer. All other mods go <em>before</em> PRP. Recommended order: (1) normal mods → (2) PRP + its patches → (3) PRP-compatible previsbine patches → (4) your final conflict-resolution patch → (5) cell-config restore patches (Lighting/Fog/Weather). Full rules and pre-built patch sources in <b>PJM_PREVIS_PATCHING_FAQ.md</b>.</>,
             },
           ],
         },
@@ -531,7 +608,17 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'get-prp',
               title: 'Download PRP and the correct optional files',
-              details: <>Use the links section below. Make sure you grab the correct main file plus any compatibility patches relevant to your mod list.</>,
+              details: <>Use the links panel above. Grab the correct PRP main file plus any compatibility patches for your mod list (ELFX, SS2, etc. patches are separate optional files — only take the ones you need).</>,
+            },
+            {
+              id: 'get-pjm',
+              title: "Download PJM's scripts from Nexus #69978 (manual only)",
+              details: <>On the PJM mod page click <b>Manual Download</b> for the <em>PJMScripts V4.9</em> archive — never use Vortex or MO2 to install it. After extracting, also download the updated <b>FO4_CheckPrevisbines.pas</b> and <b>GeneratePrevisibines.bat</b> from the “Updated Files” tab; they are newer than the copies inside the main kit. <em>Credit: PJM’s Precombine - Previs Patching Scripts by PJMail — Nexus #69978.</em></>,
+            },
+            {
+              id: 'get-ckpe',
+              title: 'Download and install CKPE from Nexus',
+              details: <>Use the direct <b>Nexus #51165</b> link in the panel. Install manually: (1) delete previous CKPE versions/libraries, (2) extract the zip into your Fallout 4 folder containing <code>CreationKit.exe</code>, (3) launch the Creation Kit. If you are on a downgraded (OG) game and need CKPE before V0.6, also convert BA2 archives to V1 via Collective Modding Toolkit and swap Interface/Shaders BA2s for OG versions — see PJM’s FAQ for exact instructions. The CKPE page also links a Darkfox127 installation video reference. <em>Credit/source: Creation Kit Platform Extended by perchik71 (Nexus #51165).</em></>,
             },
           ],
         },
@@ -541,14 +628,63 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
           icon: Package,
           steps: [
             {
-              id: 'install',
+              id: 'install-prp',
               title: 'Install PRP in your mod manager',
-              details: <>Install, enable, deploy (Vortex) / ensure enabled (MO2). Then sort load order. PRP often wants to be late, but follow the author’s guidance.</>,
+              details: <>Install, enable, and deploy PRP (Vortex) or ensure it is enabled (MO2). Sort load order — PRP usually sits late. Follow the author’s README and any patch-specific notes.</>,
             },
             {
               id: 'patches',
               title: 'Install PRP compatibility patches',
-              details: <>If you have settlement/worldspace mods or big overhauls, install the PRP compatibility patches that match them. Missing patches can cause broken previs, flicker, or performance issues.</>,
+              details: <>If you have settlement/worldspace mods or large overhauls, install the matching PRP compatibility patches. Missing patches cause broken previs, flickering geometry, and FPS issues.</>,
+            },
+            {
+              id: 'extract-scripts',
+              title: 'Extract PJMScripts into your FO4Edit directory',
+              details: <>Unzip the PJMScripts archive so every <code>*.pas</code> file lands in <code>FO4Edit\Edit Scripts\</code>. Place <code>GeneratePrevisibines.bat</code> in the same folder as <code>FO4Edit64.exe</code>. Overwrite with the “Updated Files” versions of <code>FO4_CheckPrevisbines.pas</code> and <code>GeneratePrevisibines.bat</code>.</>,
+            },
+            {
+              id: 'launcher-once',
+              title: 'Run Fallout4Launcher.exe once, then exit immediately',
+              details: <>Launch <code>Fallout4Launcher.exe</code> from your Fallout 4 directory and close it right away — do not start the game. This registers the game path so <code>GeneratePrevisibines.bat</code> can locate <code>Fallout4.exe</code>. If the bat still cannot find it, add the argument <code>"-FO4:ThePathToTheDirectoryContainingFallout4.exe"</code> (with quotes).</>,
+            },
+            {
+              id: 'mo2-setup',
+              title: state.modManager === 'mo2' ? 'Register executables in MO2 (AppID 1946160)' : 'Create steam_appid.txt (non-MO2)',
+              details: state.modManager === 'mo2'
+                ? <>In MO2 go to <b>Executables</b> and add both <code>FO4Edit64.exe</code> and <code>GeneratePrevisibines.bat</code>. For each, set the <b>AppID override</b> to <code>1946160</code> (the Steam ID for the Fallout 4 Creation Kit). Always launch them through MO2 so your full mod list is visible. Make sure Steam is running in the background before launching the bat.</>
+                : <>Create a plain-text file named <code>steam_appid.txt</code> in the same folder as <code>FO4Edit64.exe</code>. The file should contain a single line: <code>1946160</code>. Make sure Steam is running in the background before you start <code>GeneratePrevisibines.bat</code> — Steam prompts will otherwise stall the build.</>,
+            },
+            {
+              id: 'ckpe-toml',
+              title: 'Configure CreationKitPlatformExtended.toml',
+              details: <>Open <code>CreationKitPlatformExtended.toml</code> and follow its instructions, or replace it with a pre-configured copy from CKPE’s Optional Files. If on a downgraded CK (before V0.6), also set <code>bOwnArchiveLoader=false</code> and <code>bBSPointerHandleExtremly=true</code> in <code>CreationKitPlatformExtended.ini</code>.</>,
+            },
+            {
+              id: 'ckpe-faq',
+              title: 'CKPE Official Troubleshooting FAQ — credit: Nuukem / perchik71 (Nexus #51165)',
+              details: (
+                <div className="space-y-3 text-sm">
+                  <p className="italic text-yellow-400">All entries sourced from the official CKPE FAQ post on Nexus #51165 by Nuukem (perchik71). Full credits on the mod page: Nuukem, Darkfox127, pra, BenRierimanu, yarrmateys, muucow, and community testers.</p>
+                  <div><b>P: CK doesn&apos;t start — memory problems.</b><br /><b>S:</b> Minimum 8 GB RAM required (at least 2 GB free at launch). Hardware released before 2010 may not meet this baseline. Some CK functions are unavailable below the threshold.</div>
+                  <div><b>P: Log shows &quot;composite failed / Error Opening File Shaders&quot;; render window is black or red. (Not relevant CKPE v0.4+)</b><br /><b>S:</b> Your <code>Fallout4 - Shaders.ba2</code> is from a different game version (OG vs NG) than your editor. Match your CK version to your game version — they are not cross-compatible.</div>
+                  <div><b>P: Load error V:0000065432 when opening CK through MO2.</b><br /><b>S:</b> MO2 issue — configure your startup via Steam directly (relevant for CK 1.10.162.0 Steam). Two Steam applications in the Fallout 4 root folder causes a conflict; launching directly through Steam resolves it.</div>
+                  <div><b>P: Fatal error 0x5041524D.</b><br /><b>S:</b> Fix your Data folder — shorten file paths to loose files (keep under 260 characters including terminal zero; each <code>\</code> separator counts as two bytes). Pack loose files into an archive if needed. CK only reads from the Data folder — mod manager virtual mounts are ignored.</div>
+                  <div><b>P: NPC face generation takes a very long time.</b><br /><b>S:</b> For fast DDS compression set <code>bD3D11Patch=true</code>. In CKPE v0.6+ this patch is mandatory and automatic — if issues persist, disable the iGPU. Face generation uses the GPU.</div>
+                  <div><b>P: Cannot save a mod in CK. (Not relevant CKPE v0.4 build 625+)</b><br /><b>S:</b> Set <code>bAllowSaveESM=false</code> in your CKPE config.</div>
+                  <div><b>P: Steam CK via MO2 does not see MO2&apos;s load order, or cannot save a new plugin.</b><br /><b>S:</b> For the &quot;Override Steam AppID&quot; field in MO2 use <code>1946160</code>. Other AppID values may let CK launch but will not expose the plugin list.</div>
+                  <div><b>P: CK launch error — &quot;Can&apos;t find entry point&quot; or missing Steam API function.</b><br /><b>S:</b> See the CKPE GitHub page. This is a Steam Deck / new Steam API incompatibility — a workaround exists in the CKPE releases.</div>
+                  <div><b>P: CK crashes to desktop in the Data window.</b><br /><b>S:</b> Launch the Creation Kit with <b>Administrator rights</b>. The crash originates in <code>comctrl32.dll</code> — antivirus blocking is also possible.</div>
+                  <div><b>P: CK window does not fit on screen.</b><br /><b>S:</b> Full HD (1920×1080) monitor required. The CK is not adapted for DPI scaling above 100% — return Windows display scaling to 100% for the CK session.</div>
+                  <div><b>P: Not all items from a location are loaded.</b><br /><b>S:</b> Default budgets are 177 MB (interiors) / 157 MB (exteriors). To raise to 512 MB, add to <code>CreationKit.ini</code>:<br /><code>[BudgetCaps]</code><br /><code>uLoadedAreaNonActorMemoryBudgetCap=536870912</code><br />Formula: N × 1024 × 1024.</div>
+                </div>
+              ),
+            },
+            {
+              id: 'mo2-empty-mod',
+              title: state.modManager === 'mo2' ? 'MO2: Create empty mod to receive generated files' : 'Non-MO2: keep Data/vis and Data/meshes/Precombined empty before each run',
+              details: state.modManager === 'mo2'
+                ? <>Create an <b>empty mod</b> in MO2, place it at the bottom of your load order, and activate it. For both <code>FO4Edit64.exe</code> and <code>GeneratePrevisibines.bat</code> executables, tick <b>“Create Files in Mod instead of Overwrite”</b> and set it to this empty mod. Without this, <code>GeneratePrevisbines.bat</code> will fail because MO2 intercepts the files it needs (including <code>xPrevisPatch.esp</code>). If a phase still fails due to MO2 file-moving delays, just re-run that phase.</>
+                : <>Before every build run, confirm <code>Data/vis</code> and <code>Data/meshes/Precombined</code> are empty — the bat will error if loose previs or precombine files are found there.</>,
             },
           ],
         },
@@ -559,8 +695,23 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
           steps: [
             {
               id: 'test',
-              title: 'Test in a PRP-heavy area',
-              details: <>Load into an affected exterior cell and look for: flickering geometry, objects popping, or severe performance spikes. If present, a conflict or wrong PRP option is likely.</>,
+              title: 'Test in a PRP-heavy area in-game',
+              details: <>Load into an affected exterior cell and look for flickering geometry, objects popping, or severe FPS spikes. If present, a conflict or wrong PRP optional file is likely.</>,
+            },
+            {
+              id: 'run-check',
+              title: 'Run FO4Check_Previsbines.pas to find all conflicts',
+              details: <>Launch <code>FO4Edit64.exe</code> with your full load order (via MO2 if applicable) and wait for the cache to finish. Right-click anywhere → <b>Apply Script…</b> → choose <b>FO4Check_Previsbines.pas</b> → OK. Select option <b>1) Fix all Cell Previs/config conflicts</b> → OK. This can take 1 hour or more. When the last line reads <em>“Generation Complete”</em>, exit xEdit saving and run <code>GeneratePrevisibines.bat</code>. The full batch build can take 6+ hours.</>,
+            },
+            {
+              id: 'worldspace-browser',
+              title: 'Optional: visualise conflicts with PrevisCheck.pas',
+              details: <>Run the included <b>Worldspace browser with PrevisCheck.pas</b> in xEdit to see a cell-level map of which mods touch which cells and where they overlap. Right-click any cell for its details. Solid outlines = precombine files supplied; dashed slants = previs files supplied. Useful for identifying exactly which mods cause flickering before generating a full patch.</>,
+            },
+            {
+              id: 'lighting-env-patch',
+              title: 'Optional: fix overridden Lighting/Weather/Fog/Music — create a Cell Config patch',
+              details: <>Mods that change Lighting, Fog, Ambient Music, Weather, or Location store those settings in CELL records — PRP and Previs patches often reset them to base game values. <b>Fix:</b> place all your Lighting/Weather/etc mods <em>before</em> PRP in your load order, then in xEdit right-click any mod → Apply Script → <b>FO4Check_Previsbines.pas</b> → option <b>“4) Fix only Cell Config Conflicts (Region/MHDT/Lighting/Weather/Fog etc)”</b>. Give the patch a name and click OK. Place the resulting patch at the very end of your load order, after all Previs mods. To create a patch for a single mod only (e.g. a PRP patch for ELFX/Ultra Interior Lighting), load only that mod and PRP in xEdit, right-click the mod → Run Script → FO4Check_Previsbines.pas → option 4 → “Only what you highlighted in xEdit”. Full details and the list of all CELL/WRLD fields handled are in <b>PJM_LIGHTING_ENVIRONMENT_PATCHES.md</b>. Credit: PJMail, Nexus #69978.</>,
             },
           ],
         },
@@ -572,7 +723,52 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'conflicts',
               title: 'If you see flicker/pop-in after PRP',
-              details: <>You likely have a mod editing the same cells without a PRP patch. Identify the conflicting plugin and install/create a compatibility patch. Mossy can help you find conflicts in xEdit.</>,
+              details: <>You likely have a mod editing the same cells without a PRP patch. Run <b>FO4Check_Previsbines.pas → option 1</b> to let PJM’s script locate every conflict automatically, then create or install the appropriate compatibility patch.</>,
+            },
+            {
+              id: 'bat-wont-run',
+              title: "If GeneratePrevisibines.bat won't run — 'directories not empty'",
+              details: <>The error “Precombine/Previs directories are not Empty” means your load order contains mods with <em>loose</em> previs files. These must be packed into BA2 archives before you can build a patch. Identify and fix those mods first, then re-run the bat.</>,
+            },
+            {
+              id: 'restart-failed-step',
+              title: 'How to restart GeneratePrevisibines.bat from a failed step',
+              details: <>Re-run the bat with the same arguments. Use the same patch name. When prompted <em>“Plugin already exists, Use It? [Y], Exit [N], Continue from failed step [C]”</em> — press <b>C</b>. At <em>“Restart at step (1–8 or 0 to exit):”</em> press the number of the failed step. If prompted to clean a directory, press <b>Y</b>. The step re-runs and continues automatically on success. A completed run asks <em>“Remove working files [Y]?”</em> — press <b>Y</b>. The 4 resulting files are your previs patch; place them at the bottom of your load order.</>,
+            },
+            {
+              id: 'bat-error-ref',
+              title: 'GeneratePrevisibines.bat error message reference',
+              details: <>Key error messages: <b>FO4Edit.exe cannot be found</b> — run FO4Edit once or place the bat in its directory. <b>CreationKit.exe cannot be found</b> — CK must be in the same folder as Fallout4.exe. <b>GeneratePrecombined ran out of Reference Handles</b> — set <code>iMaxUmbraBakeThreads</code> in CKPE .ini. <b>Archive2 failed</b> — too many files; use BSArchPro manually. Full error reference is in <b>PJM_PREVIS_PATCHING_FAQ.md</b> and on Nexus #69978.</>,
+            },
+            {
+              id: 'ck-crash-access-violation',
+              title: 'CK crashes with Access violation 0xC0000005 during Precombine build',
+              details: <>This is the most common CK failure — caused by a corrupt or incompatible mesh on a Precombineable Reference (STAT or SCOL base type). <b>Step 1:</b> Check <code>CK.log</code> (in your CK directory) for the last <em>“DEFAULT: Generating for …”</em> line — that identifies the failing cell. <b>Step 2:</b> Open xEdit with just your patch mod, find that cell, note the other mods touching it (ignore base game, DLCs, UFO4P, PRP). Highlight those mods → right-click → Apply Script → <b>FO4FindNewPCStatics.pas</b>. If bad meshes are found (marked <code>!</code>), click “Exclude Bad?” and retry the Precombine phase. Credit: PJM’s “Resolving Creation Kit Crashes” article, Nexus #69978.</>,
+            },
+            {
+              id: 'ck-crash-no-start',
+              title: "CK doesn't start or returns 'GeneratePrecombined failed' with an error code",
+              details: <>If the CK doesn’t start at all, the problem is your PC setup, not a mod. Verify <code>steam_appid.txt</code> is present with <code>1946160</code>; verify CKPE is installed and <code>.toml</code> is configured; if using MO2, confirm FO4Edit and GeneratePrevisibines.bat are registered as Executables with the correct AppID. If you get a numeric exit code like <em>-1073741819</em>, convert to hex (e.g. 0xC0000005 = Access Violation) and search “windows error 0xHHHHHHHH”. Error -1073740771 / 0xC000041D at end of a CK phase can be ignored if the CK saved successfully beforehand.</>,
+            },
+            {
+              id: 'ck-crash-mesh-replacer',
+              title: 'CK still crashes after FO4FindNewPCStatics — mesh or texture replacer suspected',
+              details: <><b>Mesh replacers</b> (HD model mods) don’t add Cell overrides, so they won’t appear in the initial scan. Load xEdit with only your patch mod, select ALL other mods, and run <b>FO4FindNewPCStatics.pas</b> against everything. If nothing is found, suspect a <b>texture replacer</b>: temporarily disable all mods containing <code>- Textures.BA2</code> or loose <code>.dds</code> files, recreate your patch, and retry. Re-enable texture mods one at a time to isolate the culprit. Note: texture mods do not need to be enabled during precombine generation.</>,
+            },
+            {
+              id: 'ck-crash-single-cell',
+              title: 'Speed up fault-finding: test a single cell only',
+              details: <>Instead of a full precombine build each time, generate a single-cell test patch. Load your full load order in xEdit, find the failing cell by FormID (exterior) or EditorID (interior), right-click it → Apply Script → <b>FO4Check_Previsbines.pas</b> → choose “Build new Precomb/Previs …” AND tick “Only what you highlighted in xEdit”. This produces a small <code>xPrevisPatch.esp</code> to feed to GeneratePrevisibines.bat just for that one cell.</>,
+            },
+            {
+              id: 'manual-exclude-refr',
+              title: 'Manually exclude a Reference from being Precombined',
+              details: <>FO4Check_Previsbines.pas and FO4FindNewPCStatics.pas do this automatically. To do it by hand: find the REFR in xEdit and set its <b>XLRT — Location Ref Type</b> to <code>NoObjectCombinationRefType</code>. To exclude every reference sharing the same base object, find the base record (NAME — Base) and set its <b>FTYP — Force Loc Ref Type</b> to <code>NoObjectCombinationRefType</code>. Credit: PJM’s “Resolving Creation Kit Crashes” article, Nexus #69978 (PJMail, Jun 2025).</>,
+            },
+            {
+              id: 'faq',
+              title: "If any step didn't complete — read PJM's FAQ and Deep Dive",
+              details: <>Read the stickied <b>FAQ Post</b> and the <b>Previsbines Deep Dive</b> article on the PJM mod page (Nexus #69978). The Deep Dive is the most complete and current resource for everything precombines/previs (updated 2026). All scripts and documentation credit: PJMail.</>,
             },
           ],
         },
@@ -681,8 +877,8 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
       subtitle: t('installWizard.topic.ss2.subtitle', 'Dependencies + install + basic verification for plot building.'),
     },
     prp: {
-      title: t('installWizard.topic.prp.title', 'PRP Setup'),
-      subtitle: t('installWizard.topic.prp.subtitle', 'Precombines/previs install with conflict-aware verification.'),
+      title: t('installWizard.topic.prp.title', 'PRP + PJM Previs Scripts Setup'),
+      subtitle: t('installWizard.topic.prp.subtitle', 'Precombines/previs install with conflict-aware verification — including PJM\'s Previs Patching Scripts (Nexus #69978) by PJMail.'),
     },
     patching: {
       title: t('installWizard.topic.patching.title', 'Patch Building'),
@@ -754,6 +950,11 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             { label: 'Steam search: Fallout 4 Creation Kit', href: 'https://store.steampowered.com/search/?term=Fallout%204%20Creation%20Kit', kind: 'search', note: 'Use Steam search to find the official listing.' },
             { label: 'Nexus search: PRP', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=PRP&gsearchtype=mods', kind: 'search' },
             { label: 'Sim Settlements 2 (official site)', href: 'https://simsettlements2.com', kind: 'official' },
+            { label: "SS2 Add-On Maker's Toolkit (#48521)", href: 'https://www.nexusmods.com/fallout4/mods/48521', kind: 'official' },
+            { label: 'Wasteland Reconstruction Kit (#48960)', href: 'https://www.nexusmods.com/fallout4/mods/48960', kind: 'official' },
+            { label: 'City Plan Contest Assistant (#50366)', href: 'https://www.nexusmods.com/fallout4/mods/50366', kind: 'official' },
+            { label: 'SS2 Wiki Tutorials', href: 'https://wiki.simsettlements2.com', kind: 'docs' },
+            { label: 'SS2 Mod School Videos', href: 'https://www.youtube.com/results?search_query=Bethesda+Mod+School+Sim+Settlements+2', kind: 'docs' },
           ]}
           verify={[
             t('installWizard.verifyPanel.verify.0', 'Pick a topic and confirm the checklist renders and checkboxes persist after refresh.'),
