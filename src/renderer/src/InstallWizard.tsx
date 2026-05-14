@@ -638,6 +638,11 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               title: 'Optional: visualise conflicts with PrevisCheck.pas',
               details: <>Run the included <b>Worldspace browser with PrevisCheck.pas</b> in xEdit to see a cell-level map of which mods touch which cells and where they overlap. Right-click any cell for its details. Solid outlines = precombine files supplied; dashed slants = previs files supplied. Useful for identifying exactly which mods cause flickering before generating a full patch.</>,
             },
+            {
+              id: 'lighting-env-patch',
+              title: 'Optional: fix overridden Lighting/Weather/Fog/Music — create a Cell Config patch',
+              details: <>Mods that change Lighting, Fog, Ambient Music, Weather, or Location store those settings in CELL records — PRP and Previs patches often reset them to base game values. <b>Fix:</b> place all your Lighting/Weather/etc mods <em>before</em> PRP in your load order, then in xEdit right-click any mod → Apply Script → <b>FO4Check_Previsbines.pas</b> → option <b>“4) Fix only Cell Config Conflicts (Region/MHDT/Lighting/Weather/Fog etc)”</b>. Give the patch a name and click OK. Place the resulting patch at the very end of your load order, after all Previs mods. To create a patch for a single mod only (e.g. a PRP patch for ELFX/Ultra Interior Lighting), load only that mod and PRP in xEdit, right-click the mod → Run Script → FO4Check_Previsbines.pas → option 4 → “Only what you highlighted in xEdit”. Full details and the list of all CELL/WRLD fields handled are in <b>PJM_LIGHTING_ENVIRONMENT_PATCHES.md</b>. Credit: PJMail, Nexus #69978.</>,
+            },
           ],
         },
         {
