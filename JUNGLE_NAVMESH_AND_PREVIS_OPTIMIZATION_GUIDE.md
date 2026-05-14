@@ -1,7 +1,7 @@
 # Jungle Navmesh and Precombines/Previs Optimization Guide
 
 > **Note:** This is a Mossy-authored overview guide for dense-worldspace modding. For authoritative precombine/previs workflow details, file formats, and patching practice, refer to PJM's documentation: `PRECOMBINE_PREVIS_DEEP_DIVE.md`, `PJM_FO4CHECK_SCRIPT_GUIDE.md`, and `PJM_GENERATING_PREVISBINES_FOR_MOD.md` (all sourced from **PJMail**, Nexus #69978, aligned here to the **V4.9 / Feb 2026** guidance set).  
-> **Additional credited references used in this guide:** GECK Wiki (ESM/header flagging practices), Sim Settlements community documentation (NMIM cleanup workflow), Steam Community hotkey references, and tutorial/community references from **Felloutislife**, **Seddon4494**, and **Art Toots** for navmesh workflow conventions.
+> **Additional credited references used in this guide:** GECK Wiki (ESM/header flagging practices), Sim Settlements community documentation (NMIM cleanup workflow), Steam Community hotkey references, tutorial/community references from **Felloutislife**, **Seddon4494**, and **Art Toots** for navmesh workflow conventions, plus material/texture workflow references from **InspirationTuts**, **r/blenderhelp**, **r/FalloutMods**, and Nexus forum discussions on Fallout 4 material packing.
 
 To maintain high frame rates in a dense fungus jungle, mastering Navmesh and Precombines/Previs is non-negotiable. Fallout 4's Creation Engine relies heavily on these systems to prevent CPU and GPU bottlenecks.
 
@@ -132,3 +132,40 @@ If you want fungal ambush predators or naked spore-mutants in the jungle, treat 
 
 - **Glow Maps:** Bioluminescent fungi should use emissive textures, not dynamic lights. Dynamic lights cast shadows and destroy FPS.
 - **Alpha Blending:** Minimize overlapping transparent textures (like hanging moss or spore clouds), as they cause severe overdraw penalties.
+
+### AI texture enhancement without upscaling
+
+If Mossy is teaching an AI-driven texture enhancer, it should present the process as a **micro-detail refinement pass**, not as fake resolution growth.
+
+1. **Frequency separation and luminance alignment:** Split the texture into low-frequency color/tone data and high-frequency surface detail, then flatten unwanted baked lighting so the albedo/base color stays neutral.
+2. **Micro-contrast enhancement:** Sharpen existing pores, bark grain, scratches, and fungal fibers by adjusting local luminance relationships rather than enlarging the image canvas.
+3. **Procedural material derivation:** Use the refined texture as a source for inferred roughness, AO, and normal detail generation so the material reads as richer without changing from 2K to 4K.
+
+### Fallout 4 "TBR" material packing rules
+
+For teaching purposes, treat Fallout 4's workflow as a **specialized packed specular/gloss pipeline** rather than a modern standalone roughness/AO pipeline.
+
+- **Base Color + AO → `_d.dds`:** Bake ambient occlusion directly into the diffuse/base color using a multiply-style blend.
+- **Roughness → invert to gloss:** Fallout 4 wants gloss-style behavior, so invert roughness before packing.
+- **Gloss / inverted roughness → Green channel of `_s.dds`**
+- **Specular / metallic intensity → Red channel of `_s.dds`**
+- **Blue channel of `_s.dds` → pure black**
+
+If the `_s.dds` blue channel contains garbage color data, wet fungal caps and slime surfaces can render with broken bright highlights or obviously incorrect color response.
+
+### Normal map rules for strong 3D relief
+
+- Export normal maps in **BC5 / DXN-style** form when possible for stable FO4-friendly tangent-space results.
+- Build normal depth from **multiple scales**:
+  - broad curvature for caps and terrain bulges
+  - fine pore/fiber detail for fungal skin and bark
+- Blend normals with a **normal-map-aware combine method**, not a flat opacity stack.
+- If the lighting looks inverted in game, correct the **green channel / Y-axis** for FO4's DirectX-style normal interpretation.
+
+### Specular tuning for fungus, slime, and wet surfaces
+
+- **Matte organic pass:** Keep gloss values relatively dark for dry stalks, moss, and fibrous growth so light spreads softly.
+- **Wet/slime pass:** Push gloss much brighter on wet caps, slime films, and droplets so glints stay tight and dynamic.
+- **Environment reflections:** If you want convincing wet reflections, enable **Environment Mapping** in the BGSM and use an appropriate vanilla cubemap such as a Glowing Sea-style environment map.
+
+The important teaching point is that shiny FO4 materials are created by the **combination** of packed `_s.dds` behavior and BGSM flags, not by the diffuse map alone.
