@@ -1250,6 +1250,39 @@ The page also includes a **debug file** for diagnosing first-person reload issue
 
 ---
 
+### Mortar-Karl Resource (Automatron Asset Pack)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/93786 |
+| **Category** | Modder's Resource — PNG textures and NIF assets |
+| **Type** | Automatron-focused resource asset pack (also usable as habitation object) |
+| **DLC Required** | Automatron |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net |
+
+#### What It Is
+
+A resource package containing PNG textures and NIF files for an Automatron-oriented object set ("Mortar-Karl"), intended for reuse in mod-author workflows subject to the permissions below.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your own mods | ❌ Requires author permission first |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- No additional third-party file credits listed.
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
