@@ -1463,6 +1463,41 @@ The author positions it as a helper resource for Blender users trying to get res
 
 ---
 
+### Previs Cluster Spreadsheet
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/84717 |
+| **Category** | Modder's Resource — Previs / worldspace reference data |
+| **Type** | Spreadsheet reference for previs cluster lookup, cell coordinates, form IDs, and editor IDs |
+| **Off-site Requirements** | Excel or a compatible spreadsheet viewer/editor; Google Docs version also mentioned by the author |
+| **Console (Bethesda.net)** | ❌ Not available for Bethesda.net console users |
+
+#### What It Is
+
+A reference spreadsheet for Fallout 4 previs work covering the Commonwealth, Nuka-World, and Far Harbor, intended to speed up previs-cluster calculation and quick lookup of related cell metadata.
+
+The author also notes it can be used to quickly check cell coordinates, form IDs, and editor IDs during patching and worldspace workflow.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify/improve and release | ❌ Requires author permission first |
+| Convert for other games | ❌ Not allowed |
+| Use assets/files in your own mod | ❌ Requires author permission first |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not available for Bethesda.net console users |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- the xedit scripting team, for help in exporting the cell information
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
