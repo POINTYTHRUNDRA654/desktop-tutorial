@@ -434,6 +434,29 @@ Alpha                   -> white
 - Export normal maps as BC5
 - Export packed specular maps as BC7
 
+### 10. Photopea → NVIDIA Texture Tools Exporter Staging
+
+Use this when you want tighter DDS compression control than direct in-app export.
+
+**Raw staging export from Photopea:**
+```
+1. File → Export As → More
+2. Export as TGA or PNG
+3. Ensure channel mode is RGBA
+```
+
+**Recommended NVIDIA export targets:**
+- `_d.dds`: BC7 (Color + Alpha path)
+- `_n.dds`: BC5 tangent-space normal
+- `_s.dds`: BC7 packed-channel specular
+- `_g.dds`: BC1/BC7 depending on alpha need
+
+**Critical quality toggles in NVIDIA Exporter:**
+- Generate Mipmaps: Enabled
+- Filter: Kaiser or Mitchell
+- Alpha Coverage: Enabled (start around 0.5 for foliage)
+- Normal maps: Linear color space + Normalize Output
+
 ---
 
 ## Advanced Photopea Techniques

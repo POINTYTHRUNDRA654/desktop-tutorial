@@ -1008,6 +1008,52 @@ ModName/
 
 ---
 
+## Engine Architecture and Streaming Optimization
+
+### RAM vs VRAM Streaming Boundaries
+
+- Geometry/collision/animation payloads are loaded through system-memory paths during cell transitions.
+- Texture payloads stream through GPU memory (VRAM) via mipmap chains.
+- Missing mipmaps cause more aggressive high-resolution pulls and increase stutter risk.
+
+### Draw Call Discipline
+
+- Over-split meshes increase CPU draw-call overhead.
+- For static props, merge non-essential sub-mesh fragments before export to reduce submission cost.
+
+### FO4 Packed Specular Strategy (`_s.dds`)
+
+Use packed channel maps to reduce runtime texture lookup overhead:
+
+- Red: Glossiness (inverse roughness)
+- Green: Ambient Occlusion
+- Blue: Metalness
+
+### Compression Baseline
+
+- `_d.dds`: BC7 (alpha variant when needed)
+- `_n.dds`: BC5 tangent-space normal
+- `_s.dds`: BC7 for packed-channel fidelity
+- `_g.dds`: BC1/BC7 based on alpha requirements
+
+### Workspace Layout Baseline
+
+```text
+C:\Fallout4ModdingWorkspace\
+├── 01_RawSourceAssets\
+├── 02_BlenderStaging\
+└── 03_GameReadyStaging\
+    ├── Meshes\ModName\
+    ├── Textures\ModName\
+    └── Materials\ModName\
+```
+
+### Queue-Safe Papyrus Rule
+
+Papyrus is frame-budgeted and queue-driven. Prefer state/event-driven logic over persistent polling loops so scripts yield naturally and avoid long-term backlog buildup.
+
+---
+
 **Document Version:** 2.0  
 **Last Updated:** January 2026  
 **For Mossy AI Assistant v3.0**
