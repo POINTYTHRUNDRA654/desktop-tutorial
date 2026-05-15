@@ -1737,3 +1737,44 @@ EndEvent
  FINAL SCORE EVALUATION TOTAL: [_______ / 100]
 =======================================================================
 ```
+
+---
+
+## Deep Engine Optimization Metrics for High-Fidelity FX and Engine Updates
+
+### 1) Particle System Memory and Update Limits
+
+- **iMaxParticleSystemCount**
+  - Default: `300`
+  - Common upper safe profile target: up to `1000` depending on scene complexity
+  - If overwhelmed, new effects may fail to spawn or system stability can degrade
+
+- **fParticleFrameTimeLimit**
+  - Default: `0.0166`
+  - Performance-focused profile: around `0.0083` for tighter frame pacing
+  - Lower values prioritize framerate stability during heavy particle activity
+
+### 2) Post-Processing and Screen-Space Resource Allocation
+
+- **iSAOSamples**
+  - Baseline: `8`
+  - Common quality/performance target: `16`
+  - Past this point, gains often diminish while shader cost rises
+
+- **bScreenSpaceSubsurfaceScattering=1**
+  - Enables dedicated screen-space translucency pass
+  - Keep translucent/glowmap textures budgeted to moderate resolutions to avoid VRAM spikes in dense scenes
+
+### 3) Image Space Modifier (IMAD) Execution Metrics
+
+```text
+[Trigger Event] --> IMAD.Apply() --> VRAM Frame Buffer --> Screen-Space Refraction Shader
+                                  |
+                     (Console check: showimagespacemodifiers)
+                                  v
+                     Active stack target: keep <= 3
+```
+
+- Keep active simultaneous image-space overlays low (target `<= 3`)
+- Pair each `.Apply()` path with reliable cleanup/removal logic
+- Use `showimagespacemodifiers` during testing to catch leaked overlays before release
