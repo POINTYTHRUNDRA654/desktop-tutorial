@@ -950,6 +950,34 @@ The author identifies this as a compilation of prior community tutorials/knowled
 
 ---
 
+### LeafTongue's Papyrus Repository
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/98641 |
+| **Category** | Modder's Resource — Papyrus scripting resources |
+| **Type** | Free Papyrus code repository for Fallout 4 authors |
+| **DLC Required** | N/A (authoring resource) |
+| **Nexus Requirements** | Reading comprehension and ability to reason |
+
+#### What It Is
+
+A shared repository of free Papyrus resources intended to help mod authors ship faster by reusing common scripting patterns and components.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Use repository code in your own mods | ✅ **Allowed — author states code is free to use** |
+| Credit requirement | ✅ **Credit LeafTongue when reusing repository code** |
+
+#### Credits (as listed on the page)
+
+- **LeafTongue** — repository author and original code contributor.
+- No additional third-party file credits listed.
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
