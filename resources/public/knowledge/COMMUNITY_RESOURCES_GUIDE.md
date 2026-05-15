@@ -279,6 +279,19 @@ A good bug report gets your issue fixed faster and earns goodwill from mod autho
 
 ---
 
+## Recommended Mods — Download List & Credits
+
+Mossy maintains a curated list of high-quality mods worth knowing — both as a player building a modlist and as a mod author studying excellent examples. Each entry includes full author credits, permissions, requirements, and install notes.
+
+➡️ **See [`RECOMMENDED_MODS_LIST.md`](RECOMMENDED_MODS_LIST.md)** for the full list.
+
+Current entries:
+- **Immersive Animation Framework** (Nexus #50555) by AnotherOne — ingestible animations with keyword patching API
+- **First-Person Swimming Animations** (Nexus #62123) by neeher — arms visible while swimming
+- **Kicks And Punches — Unarmed Animations** (Nexus #45402) by Flovici — martial arts replacer for unarmed/boxing combat
+
+---
+
 ## Tools and Their Official Sources
 
 **Only ever download modding tools from these official locations:**
