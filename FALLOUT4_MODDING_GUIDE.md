@@ -1077,6 +1077,12 @@ Papyrus is frame-budgeted and queue-driven. Prefer state/event-driven logic over
 - Use screen-space refraction materials and safe Papyrus triggers for lens/visor impact effects.
 - Validate VFX under stress scenarios to ensure frame-time stability in dense combat/environment scenes.
 
+### Deep FX Metrics Quick Limits
+
+- Track particle pool usage against configured emitter limits to prevent dropped effects.
+- Keep SSAO/sample settings in balanced ranges to avoid disproportionate GPU cost.
+- Keep active ImageSpaceModifier overlays low and verify runtime stacks with `showimagespacemodifiers`.
+
 ---
 
 **Document Version:** 2.0  
