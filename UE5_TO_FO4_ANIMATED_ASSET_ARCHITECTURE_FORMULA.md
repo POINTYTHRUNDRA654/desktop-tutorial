@@ -46,7 +46,7 @@ When a UE5 FBX is imported into Blender, it usually arrives oversized and orient
 - UE5 uses **centimeters**
 - Fallout 4 uses a different scaled world/model space
 - Unlike Unity extractions that often require large scene-scale correction, UE5 FBX exports usually arrive much closer to usable Blender scene scale because they are already authored in centimeter-based DCC workflows
-- Start from the imported UE5 FBX at **1.0x** in Blender scene space, then tune the final object scale against a Fallout 4 reference inside an approximate **0.7x to 1.0x** range based on the target creature/object size
+- Start from the imported UE5 FBX at **1.0x** in Blender scene space as the baseline. Many assets will remain at that scale, while oversized hero assets may need to be tuned down toward roughly **0.7x** against a Fallout 4 reference mesh
 - Apply transforms with `Ctrl + A -> Apply All Transforms`
 
 ### Rotation Realignment
@@ -379,7 +379,7 @@ Use this script to audit custom `.bgsm` files for bad absolute paths or missing 
 ```python
 import os
 
-TARGET_DATA_DIR = "C:/Program Files (x86)/Steam/steamapps/common/Fallout 4/Data/"
+TARGET_DATA_DIR = os.environ.get("FO4_DATA_DIR", "C:/Fallout4/Data/")
 MATERIALS_SUB_DIR = os.path.join(TARGET_DATA_DIR, "Materials/ModName/")
 
 def validate_bgsm_paths(bgsm_filename):
@@ -580,6 +580,7 @@ Save this as `FixMaterializeOutputs.bat` inside the texture export folder to ren
 
 ```cmd
 @echo off
+setlocal enabledelayedexpansion
 title Materialize To Engine Suffix Converter
 echo =======================================================
 echo     MATERIALIZE RAW TEXTURE AUTOMATED TAGGING TOOL
@@ -601,19 +602,25 @@ echo [PROCESSING] Restructuring texture profile nodes...
 echo -------------------------------------------------------
 
 for %%i in (*diffuse*.png *diffuse*.jpg *diffuse*.bmp) do (
-    set "BASE=%%~ni"
-    echo Tagging Diffuse Color Map: %%i -> custom_asset_d%%~xi
-    ren "%%i" "custom_asset_d%%~xi" 2>nul
+    set "OUT=%%~ni"
+    set "OUT=!OUT:diffuse=_d!"
+    echo Tagging Diffuse Color Map: %%i -> !OUT!%%~xi
+    ren "%%i" "!OUT!%%~xi" 2>nul
 )
 
 for %%i in (*normal*.png *normal*.jpg *normal*.bmp) do (
-    echo Tagging Surface Vector Normal Map: %%i -> custom_asset_n%%~xi
-    ren "%%i" "custom_asset_n%%~xi" 2>nul
+    set "OUT=%%~ni"
+    set "OUT=!OUT:normal=_n!"
+    echo Tagging Surface Vector Normal Map: %%i -> !OUT!%%~xi
+    ren "%%i" "!OUT!%%~xi" 2>nul
 )
 
 for %%i in (*property*.png *property*.jpg *property*.bmp *smoothness*.png *smoothness*.jpg *smoothness*.bmp) do (
-    echo Tagging Channel-Packed Specular Map: %%i -> custom_asset_s%%~xi
-    ren "%%i" "custom_asset_s%%~xi" 2>nul
+    set "OUT=%%~ni"
+    set "OUT=!OUT:property=_s!"
+    set "OUT=!OUT:smoothness=_s!"
+    echo Tagging Channel-Packed Specular Map: %%i -> !OUT!%%~xi
+    ren "%%i" "!OUT!%%~xi" 2>nul
 )
 
 echo -------------------------------------------------------
@@ -633,4 +640,5 @@ echo Your files are tagged and ready for Intel Texture Works.
 echo =======================================================
 echo.
 pause
+endlocal
 ```
