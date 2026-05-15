@@ -921,3 +921,164 @@ Students must integrate world object, weapon, and creature pipelines into a sing
    Retarget a Unity robot/synthetic creature to a vanilla-compatible skeleton with validated weights and compiled loop track.
 4. **Final Deployment Packaging**  
    Package plugin + assets into optimized distribution-ready archives for end-user installation.
+
+---
+
+## Automated Student Grading Scorecard Template (Python)
+
+Use this script template to calculate weighted final scores and output markdown feedback.
+
+```python
+def calculate_student_grade(student_name, metrics):
+    """Calculates weighted scores and generates a structural grading evaluation report."""
+    weights = {
+        "mesh_integrity": 0.25,
+        "animation_fidelity": 0.25,
+        "directory_compliance": 0.25,
+        "archive_optimization": 0.25
+    }
+
+    total_score = sum(metrics[key] * weights[key] for key in weights)
+
+    letter_grade = "F"
+    if total_score >= 90:
+        letter_grade = "A"
+    elif total_score >= 80:
+        letter_grade = "B"
+    elif total_score >= 70:
+        letter_grade = "C"
+    elif total_score >= 60:
+        letter_grade = "D"
+
+    report = f"""
+### 🎓 Evaluation Report: {student_name}
+* **Final Score:** {total_score:.1f}%
+* **Letter Grade:** {letter_grade}
+
+#### Criteria Performance
+* 📦 **Mesh & Weight Integrity (25%):** {metrics['mesh_integrity']}/100
+* 🎬 **Animation Graph Fidelity (25%):** {metrics['animation_fidelity']}/100
+* 📁 **Directory Standard Compliance (25%):** {metrics['directory_compliance']}/100
+* 💾 **Archive Pack Optimization (25%):** {metrics['archive_optimization']}/100
+"""
+    return report
+
+# Instructor grading execution sample
+student_metrics = {
+    "mesh_integrity": 95,
+    "animation_fidelity": 88,
+    "directory_compliance": 100,
+    "archive_optimization": 90
+}
+print(calculate_student_grade("Alex Mercer", student_metrics))
+```
+
+---
+
+## Student Troubleshooting Flowchart (Text Layout)
+
+```text
+[My Mod is Broken / Crashing / Glitching]
+ |
+ +--> Is the asset invisible in-game or showing a red exclamation triangle?
+ |    +--> YES: Verify paths under Data/Meshes/... and Data/Animations/...
+ |    +--> NO: Continue
+ |
+ +--> Does the engine crash/freeze when animation triggers?
+ |    +--> YES: Run Limit Total and enforce <= 4 influences per vertex
+ |    +--> NO: Continue
+ |
+ +--> Is the asset pitch-black or missing textures?
+ |    +--> YES: Fix .bgsm paths to be game-relative (no absolute drive paths)
+ |    +--> NO: Continue
+ |
+ +--> Does animation play once and then fail?
+      +--> YES: Verify script state logic and UnregisterForAnimationEvent() usage
+      +--> NO: Run tad (ToggleAnimationDebug) and inspect graph state
+```
+
+---
+
+## Course Welcome and Onboarding Email Template
+
+```text
+Subject: Welcome to Advanced Modding: Unity to Creation Kit Asset Pipeline
+
+Hello Developer,
+
+Welcome to the Advanced Modding course. Over the next 4 weeks, you will learn how to convert animated Unity assets and deploy them directly into the Fallout 4 Creation Kit engine pipeline.
+
+This course moves past static model porting. You will work with skeletal weight distribution, custom Havok (.hkx) animation graphs, and thread-safe Papyrus interaction scripts.
+
+Required software before Week 1:
+1. Blender (4.2 LTS or newer)
+2. PyNifly Blender add-on (latest stable)
+3. Fallout 4 Creation Kit + animation toolchain
+4. Python (3.10+)
+5. Code editor (VS Code or Notepad++)
+
+Review Week 1 materials and complete your workspace folder setup before the first lab.
+
+Best regards,
+Course Instructor
+```
+
+---
+
+## Creation Kit Papyrus Debug Logging Setup Cheat Sheet
+
+By default, runtime script errors can be difficult to diagnose. Enable logging to capture traces and stack issues.
+
+### Step 1: Configure `Fallout4Custom.ini`
+
+Open `Documents\My Games\Fallout4\Fallout4Custom.ini` and add/update:
+
+```ini
+[Papyrus]
+bEnableLogging=1
+bEnableTrace=1
+bEnableDebugInformation=1
+bLogUnhandledArgs=1
+```
+
+### Step 2: Configure `CreationKit.ini`
+
+Open `CreationKit.ini` in your Fallout 4 install and verify:
+
+```ini
+[Messages]
+bBlockAllWarnings=0
+bShowWarnings=1
+bEnableMetaLog=1
+```
+
+### Step 3: Locate Runtime Output
+
+- Log file: `Documents\My Games\Fallout4\Logs\Script\Papyrus.0.log`
+- Common errors:
+  - `cannot call [Function] on a None object` → missing/empty property assignment in CK
+  - `stack overflow` → infinite recursion/loop without state guard
+
+---
+
+## High-Quality Open-Source Asset Repository Resource Guide
+
+Use sources with clean rigging and permissive licensing for curriculum reliability.
+
+### 1) Sketchfab (Rigged Character/Object Repository)
+
+- **Best for:** rigged creatures, weapons, mechanical objects
+- **Selection:** filter for `Rigged` + `Animated`, export FBX
+- **Advantage:** typically clean bone/weight data for retarget workflows
+
+### 2) OpenGameArt.org (Community Public-Domain Assets)
+
+- **Best for:** low-poly props, furniture, switches, doors
+- **Selection:** prioritize CC0/CC-BY licensing
+- **Advantage:** topology usually fits older-engine performance budgets
+
+### 3) Unity Asset Store (Extraction Source Hub)
+
+- **Best for:** motion clip libraries and complex mech/character assets
+- **Selection:** choose free packages using Mecanim Humanoid rigs where possible
+- **Advantage:** humanoid rig structures often map more predictably to FO4-style retargeting flows
