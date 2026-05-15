@@ -1709,6 +1709,41 @@ In addition to compatibility-oriented tree cleanup, the mod also reduces the rel
 
 ---
 
+### Custom Races in Fallout 4 (FaceGen + Outfit Studio Tutorial)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/53650 |
+| **Category** | Tutorial / Modder's Resource — Character race creation pipeline |
+| **Type** | Long-form (51+ page) step-by-step custom race authoring tutorial with images |
+| **Off-site Requirements** | FaceGen Customiser, FaceGen Modeller, Outfit Studio, Creation Kit (plus referenced workflow context for 3DS Max and Blender) |
+| **Console (Bethesda.net)** | ❌ Not available for Bethesda.net console users |
+
+#### What It Is
+
+A detailed, image-supported tutorial that walks through the author's end-to-end process for creating custom races in Fallout 4.
+
+The guide emphasizes practical workflow coverage across multiple tools and is intended as a deep, descriptive reference rather than a quick-start checklist.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ✅ Allowed with credit |
+| Modify/improve and release | ✅ Allowed with credit |
+| Convert for other games | ❌ Not allowed |
+| Use assets/files in your own mod | ⚠️ Ask author first |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not available for Bethesda.net console users |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- No additional third-party file credits listed.
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
