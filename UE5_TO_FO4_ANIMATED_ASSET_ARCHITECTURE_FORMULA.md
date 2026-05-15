@@ -1925,3 +1925,35 @@ Stop()
 - **B. ✅ Correct** — It determines which quest takes precedence for Scene execution and Alias filling when multiple quests compete for the same NPC
 - **C.** Minimum player level before quest initializes *(Level requirements are handled via Scripting or Story Manager conditions, not the Priority field)*
 - **D.** Polling frequency for background Papyrus scripts
+
+---
+
+## Deep Engine Optimization Metrics for Quest Architecture and Scene Scripting
+
+### 1) Persistence and Save Game Serialization Constraints
+
+- Quest aliases tag their targets as **Persistent References**, which bypass normal cell cleanup and are written into the `.fos` save file on every save
+- Failing to mark temporary targets, dungeon NPCs, or radiant enemies as **Optional** leaves them locked in memory after the quest ends
+- Accumulated uncleared persistent entries across multiple mods can grow save files far beyond their stable operating range, leading to save bloat, load-screen delays, and corruption freezes
+- **Fix:** Flag all non-essential aliases as `Optional`, and call `Stop()` plus alias-clear routines at quest stage 200 to release the memory footprint
+
+### 2) Story Manager Event Queue Allocation Limits
+
+```text
+[Game Event Fired] --> Story Manager Listener Node --> Scans Active SM Event Shares
+                                                     |
+                            (Log warning: 'Max Stack Limit Reached')
+                                                     v
+                              Max simultaneous quest wakeups: <= 20
+```
+
+- The Story Manager can process a limited number of concurrent quest wakeup checks within a single frame window
+- Generic filter conditions that fire on common events (e.g., every cell boundary crossing) without strict safety guards can flood the queue
+- Overflow causes the VM to drop incoming story triggers and can break quest tracking across the entire session
+- **Fix:** Use precise SM conditions (specific actor killed, specific item acquired) to minimize unnecessary wakeup evaluations per frame
+
+### 3) Dialogue Waveform and LIP Buffer Thresholds
+
+- Custom voice files must be **mono**, 44.1 kHz, 16-bit PCM — stereo audio desynchronizes or crashes the facial skeleton deformation system
+- Keep individual dialogue lines under **20 seconds** per phase; longer unbroken blocks overflow the real-time lip-sync buffer cache, causing NPCs to freeze mid-conversation or lock the camera
+- Always generate matching `.lip` files via the CK's LIP Generator after finalizing audio so facial timing data stays aligned with the waveform

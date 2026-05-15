@@ -1083,6 +1083,16 @@ Papyrus is frame-budgeted and queue-driven. Prefer state/event-driven logic over
 - Keep SSAO/sample settings in balanced ranges to avoid disproportionate GPU cost.
 - Keep active ImageSpaceModifier overlays low and verify runtime stacks with `showimagespacemodifiers`.
 
+### Quest Architecture Quick Reference
+
+- Set quest priority between `50–70`; avoid values near `100` to prevent overriding core engine processes.
+- Use clean stage milestones: `0` (init), `10` (objective dispatched), `100` (objective reached), `200` (completed/stop).
+- Mark all non-essential quest aliases as **Optional** to prevent save file bloat from stranded persistent references.
+- Call `Stop()` at quest completion stage to release the Papyrus memory footprint.
+- Keep Story Manager conditions specific — generic event triggers (e.g., every cell crossing) flood the SM wakeup queue.
+- Voice files must be mono, 44.1 kHz, 16-bit PCM; keep dialogue lines under 20 seconds to avoid lip-sync buffer overflow.
+- Clean plugins with FO4Edit (remove ITMs and resolve UDRs) before distribution.
+
 ---
 
 **Document Version:** 2.0  
