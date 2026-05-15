@@ -1048,6 +1048,23 @@ C:\Fallout4ModdingWorkspace\
     └── Materials\ModName\
 ```
 
+### Precombines and Previs Rebuild Rule
+
+- Editing worldspace cells can invalidate precombined geometry and previs visibility optimization.
+- After structural exterior edits, rebuild:
+  - `World -> PreCombine Geometry ...`
+  - `Visibility -> Generate Visibility ...`
+- Include generated outputs in release packaging:
+  - `Data/Meshes/Precombined/`
+  - `Data/Vis/`
+
+### Papyrus VM Metrics Baseline
+
+- `fUpdateBudgetMS` / `fExtraTaskletBudgetMS` define per-frame script budget windows.
+- Keep hot-path function work small and avoid heavy polling loops.
+- Monitor suspended stacks with `DumpPapyrusStacks`; persistent backlog indicates queue saturation.
+- Track listener/event memory usage against `iMaxAllocatedMemoryBytes` limits.
+
 ### Queue-Safe Papyrus Rule
 
 Papyrus is frame-budgeted and queue-driven. Prefer state/event-driven logic over persistent polling loops so scripts yield naturally and avoid long-term backlog buildup.

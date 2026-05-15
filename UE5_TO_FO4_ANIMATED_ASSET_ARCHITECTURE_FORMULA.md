@@ -1474,3 +1474,143 @@ C:\Fallout4ModdingWorkspace\
     ├── Textures\ModName\
     └── Materials\ModName\
 ```
+
+---
+
+## World-Space Rendering Optimization: Precombines and Previs
+
+### 1) Core Architecture: Precombines vs Previs
+
+- **Precombined Geometry** merges many static references into large combined render blocks to reduce draw-call overhead.
+- **Previs Visibility** stores occlusion/visibility data so hidden geometry does not render.
+- Editing exterior cells without rebuilding this data can disable efficient culling behavior and cause major frame drops.
+
+### 2) Creation Kit Generation Pipeline
+
+#### Phase A: Workspace Preparation
+
+1. Close unnecessary applications.
+2. Open Creation Kit and load the target plugin.
+3. Load the modified cell fully in Render View.
+
+#### Phase B: Compile Geometry
+
+1. Use `World -> PreCombine Geometry for Current Cell` (or loaded area for exterior work).
+2. Wait for completion without interrupting processing.
+3. Confirm generated output in:
+   - `Data/Meshes/Precombined/`
+
+#### Phase C: Compile Visibility
+
+1. Use `Visibility -> Generate Visibility for Current Cell` (or all loaded cells for exteriors).
+2. Wait until generation completes.
+3. Confirm generated output in:
+   - `Data/Vis/`
+
+### 3) Packaging Precombined Data
+
+Include both generated folders in distribution packaging:
+
+```cmd
+"Archive2.exe" -create -format=General -root="Data\" "Data\ModName - Main.ba2" "Data\Meshes\Precombined\" "Data\Vis\"
+```
+
+### 4) Precombine/Previs Evaluation Scorecard
+
+```text
+=======================================================================
+   CREATION ENGINE VISIBILITY & OCCLUSION EVALUATION SCORECARD
+=======================================================================
+ Student Name: [_______________________]  Target Cell ID: [___________]
+
+ CRITERIA 1: GEOMETRY PRECOMBINE INTEGRITY (Score: ___ / 25)
+ [ ] No major flicker/invisible-wall artifacts after edits
+ [ ] Static references grouped into optimized precombined outputs
+ [ ] Precombined outputs present in Data/Meshes/Precombined/
+
+ CRITERIA 2: PREVIS OCCLUSION VERIFICATION (Score: ___ / 25)
+ [ ] Previs generation completes without major CK failure
+ [ ] Hidden distant geometry is correctly culled
+ [ ] .uvd outputs present in Data/Vis/
+
+ CRITERIA 3: DISTRIBUTION ARCHIVE COMPLETENESS (Score: ___ / 25)
+ [ ] Precombined outputs are packaged in release archive
+ [ ] Vis outputs are packaged in release archive
+ [ ] Load-order guidance for end users is documented
+
+ CRITERIA 4: CELL PERFORMANCE LOAD BALANCING (Score: ___ / 25)
+ [ ] Stable frame pacing across edited cell boundaries
+ [ ] Draw-call behavior remains controlled in dense zones
+ [ ] Dynamic objects/light interactions remain visually consistent
+
+ FINAL COMBINED VISIBILITY OPTIMIZATION TOTAL: [_______ / 100]
+=======================================================================
+```
+
+---
+
+## Advanced Papyrus VM Profiling Metrics and Thresholds
+
+### 1) Timing Allocation Metrics
+
+- **fUpdateBudgetMS**
+  - Baseline: `1.2ms`
+  - Common safe upper profile: `2.4ms`
+  - Defines per-frame budget for queued Papyrus work
+- **fExtraTaskletBudgetMS**
+  - Baseline: `1.2ms`
+  - Common safe upper profile: `2.4ms`
+  - Emergency budget during heavy transitions/spawn pressure
+
+When combined demand exceeds available budget, deferred stacks and visible script lag increase.
+
+### 2) Thread Stack Allocation Metrics
+
+- **iMinMemoryPageSize**
+  - Default: `128`
+  - Common optimized profile: `512`
+- **iMaxMemoryPageSize**
+  - Default: `512`
+  - Common optimized profile: `2048`
+
+Overly large/inefficient loops can still overflow practical limits and destabilize execution.
+
+### 3) Real-Time Performance Targets
+
+- **Single-function target:** ideally near `<= 0.05ms`
+- **Warning zone:** sustained `> 0.25ms` per hot-path function suggests heavy loops or bad property access
+- **Suspended stack target:** keep active suspended stacks low (roughly under ~15 in stable scenarios)
+- **Critical backlog zone:** rising toward large triple-digit suspended counts indicates queue saturation
+- **Global event memory cap:** monitor against `iMaxAllocatedMemoryBytes` (`15728640` bytes / 15MB)
+
+### 4) Papyrus VM Metrics Evaluation Scorecard
+
+```text
+=======================================================================
+   ADVANCED PAPYRUS SCRIPT METRICS & VM EVALUATION SCORECARD
+=======================================================================
+ Student Name: [_______________________]  Script Name: [______________]
+
+ CRITERIA 1: TIME BUDGET PERFORMANCE (Score: ___ / 25)
+ [ ] Hot-path functions stay within safe time budget
+ [ ] Complex loops do not cause sustained frame stutter
+ [ ] Execution remains stable across animation state transitions
+
+ CRITERIA 2: MEMORY PROFILE & ALIGNMENT (Score: ___ / 25)
+ [ ] Thread allocations remain within configured page limits
+ [ ] No repeating stack overflow/infinite-loop signatures in logs
+ [ ] Global cache/listener footprint remains below cap
+
+ CRITERIA 3: PROPERTY BINDING ACCURACY (Score: ___ / 25)
+ [ ] Script properties are correctly bound in CK
+ [ ] No persistent None-object dereference warnings
+ [ ] Defensive conditionals are used before reference calls
+
+ CRITERIA 4: EVENT ENGINE EFFICIENCY (Score: ___ / 25)
+ [ ] Observer/event-driven pattern replaces heavy polling
+ [ ] Event listeners unregister cleanly on unload/shutdown
+ [ ] Suspended stack counts remain in healthy operating range
+
+ FINAL SCRIPT PERFORMANCE SCORE TOTAL: [_______ / 100]
+=======================================================================
+```
