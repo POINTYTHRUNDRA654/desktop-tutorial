@@ -1138,6 +1138,46 @@ Referenced companion resources/tools include:
 
 ---
 
+### Super Mutant Animation Rig (Author Resource)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/78103 |
+| **Category** | Modder's Resource — Animation rig (super mutants) |
+| **Type** | Super mutant-specific rig for FO4 animation authoring |
+| **Console (Bethesda.net)** | ❌ Not suitable/accepted for Bethesda.net console distribution |
+
+#### What It Is
+
+A dedicated super mutant animation rig for creator workflows. The author recommends using standard FO4 animation tutorials and substituting this rig for the human rig in super mutant animation projects.
+
+Referenced companion resources/tools include:
+- MaikCG Animation Rig
+- Animation Kit
+- Direct HKX import plugin referenced on the page
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your own mods | ✅ **Allowed — permission and credit not required** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not suitable for Bethesda.net console rules |
+
+> Author clarification: paid mods are not allowed; optional donations are fine.
+
+#### Credits (as listed on the page)
+
+- Rig author (Nexus page owner).
+- **MaikCG** — thanked by the author for foundational resources.
+- **ShadeAnimator** — thanked by the author for foundational resources.
+
+---
+
 ### Shared Assets Pack (Mod Dependency Resource)
 
 | Field | Details |
