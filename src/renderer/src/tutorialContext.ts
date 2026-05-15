@@ -3240,6 +3240,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Leveled-list injection guidance and safety checks',
       'Precombine / PRP rebuild checklist and helper utilities',
       'Papyrus scripting patterns, logging and debug workflows',
+      'Dynamic Spawn Framework (DSFW #96276) integration notes for creature/NPC spawn systems (F4SE + Garden of Eden Papyrus extender requirements)',
+      'Fallout4.esm Records Spreadsheet resource (#100679) for fast FormID/EditorID lookups during CK/xEdit authoring',
+      'Custom radio authoring workflow reference (#101520): Sound Descriptors, quest scenes, randomization scripts, and BA2 packaging safety',
       'Validation & release checklist (testing, packaging, docs)',
     ],
     controls: [
@@ -3350,6 +3353,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'When should I rebuild precombines?',
       'How do I safely inject items into a leveled list?',
       'What are the minimum Papyrus logging practices for debugging?',
+      'How do I set up a non-repeating custom radio station quest in Creation Kit?',
+      'When should I use Dynamic Spawn Framework (#96276) instead of custom one-off spawn scripts?',
+      'How can I use the Fallout4.esm spreadsheet resource (#100679) to speed up CK/xEdit record lookups?',
     ],
   },
 
