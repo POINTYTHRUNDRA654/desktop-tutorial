@@ -1388,6 +1388,81 @@ The goal is to speed up conversion of large armor/weapon record sets into patch-
 
 ---
 
+### FO4Edit NPC Editing Scripts
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/91166 |
+| **Category** | Modder's Resource — FO4Edit utility scripts |
+| **Type** | Script pack for NPC appearance randomization and cleanup in FO4Edit |
+| **Nexus Requirement** | FO4Edit |
+| **Console (Bethesda.net)** | ❌ Not suitable/accepted for Bethesda.net console distribution |
+
+#### What It Is
+
+A utility-focused FO4Edit script collection for changing NPC data, including random replacement of hair, hair color, beard, and eyes, plus cleanup helpers for face tint layers and CharGen face preset flags.
+
+This resource is intended for mod authors with working FO4Edit knowledge and is designed as an editing/override workflow rather than a standalone in-game mod.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify/improve and release | ✅ Allowed with credit |
+| Convert for other games | ✅ Allowed with credit |
+| Use assets/files in your own mod | ✅ Allowed with credit |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not suitable for Bethesda.net console rules |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- xEdit
+- xEdit Documentation
+- matortheeternal
+- FiftyTifty
+- Effelo
+- Author notes that open-source/publicly available code informed development and asks for source credit when directly copying code.
+
+---
+
+### Blender Texture Node Group Utility File
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/87441 |
+| **Category** | Modder's Resource — Blender material/texture workflow |
+| **Type** | `.blend` utility file with reusable node groups for Fallout-style texture work |
+| **Off-site Requirements** | Blender 4.1 recommended; Blender experience required |
+| **Console (Bethesda.net)** | ❌ Not suitable/accepted for Bethesda.net console distribution |
+
+#### What It Is
+
+A small Blender utility file containing reusable node groups for Fallout-style texture authoring, including material look matching, cubemap display variants, AO blending, normal mixing, and masked texture-set mixing.
+
+The author positions it as a helper resource for Blender users trying to get results closer to in-game Fallout 4 textures.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ✅ Allowed with credit |
+| Modify/improve and release | ✅ Allowed with credit |
+| Convert for other games | ❌ Not allowed |
+| Use assets/files in your own mod | ❌ Requires author permission first |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not suitable for Bethesda.net console rules |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- Blender — https://www.blender.org/
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
