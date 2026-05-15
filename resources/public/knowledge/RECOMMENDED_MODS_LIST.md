@@ -1783,6 +1783,42 @@ Core capabilities include large one-dimensional arrays (with sorting), typed set
 
 ---
 
+### Outfit Conversion Tutorial (Bodybase Conversion + BodySlide Workflow)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/50006 |
+| **Category** | Tutorial / Modder's Resource — Outfit conversion pipeline |
+| **Type** | Illustrated step-by-step guide for converting outfits across bodybases, including dismemberment, cloth bones, and BodySlide setup |
+| **Off-site Requirements** | Outfit Studio, BodySlide workflow familiarity, plus referenced toolchain context (Fusion Girl/Fusion Girl Reduced, CBBE variants) |
+| **Console (Bethesda.net)** | ❌ Not available for Bethesda.net console users |
+
+#### What It Is
+
+A long-form practical tutorial for converting Fallout 4 outfits to different bodybases with a publication-ready workflow focus.
+
+The guide explicitly covers dismemberment setup, cloth-bone handling, slider/zap authoring, and Nexus-ready packaging considerations, with specific guidance for Fusion Girl Reduced conversions.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify/improve and release | ⚠️ Ask author first |
+| Convert for other games | ❌ Not allowed |
+| Use assets/files in your own mod | ⚠️ Ask author first |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not available for Bethesda.net console users |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- No additional third-party file credits listed.
+- Additional tutorial acknowledgements mention: ZeX Team (including TheBottomhoodOfSteel/Motherofdeathclaws), erri120, and panzou1919.
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
