@@ -210,17 +210,171 @@ The mod replaces the shared unarmed animation pool, so the martial arts moves wi
 
 ---
 
+## Animation Frameworks
+
+---
+
+### NAF — Native Animation Framework
+
+| Field | Details |
+|---|---|
+| **Author** | Snapdragon (Nexus: Snapdragon2 / GitHub: Deweh) |
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/73889 |
+| **GitHub** | https://github.com/Deweh/Native-Animation-Framework |
+| **Category** | Animation Framework — multi-character scenes, face animations, ESP-less packs |
+| **F4SE Required** | ✅ Yes |
+| **Address Library Required** | ✅ Yes |
+| **Microsoft C++ Redist 2019** | ✅ Yes |
+| **MCM** | Optional — only needed for the menu hotkey (can use `cgf "NAF.ToggleMenu"` in console instead) |
+| **LooksMenu** | Optional — only needed for body morphs |
+| **Console (Bethesda.net)** | ❌ Not available — PC only |
+
+#### What It Does
+
+NAF is a new multi-character animation framework built entirely in native F4SE C++ — a ground-up successor to AAF, engineered for performance, reliability, and features that were never possible with a Papyrus-based approach. It is the most technically advanced animation framework ever built for Fallout 4.
+
+**Core features:**
+
+- **In-Game Animation Studio** — create full-body animations directly in the game with inverse kinematics, motion smoothing, and multi-character support. No Blender or 3DS Max required for basic animation creation. Export to a single shareable file with one click.
+- **Keyframed Face Animations** — for the first time, every face morph (including custom morphs and eye position) can be animated frame-by-frame. Previously, modders were limited to vanilla face poses.
+- **HeadPart Morph Patch** — dynamically injects custom face morphs into all headparts of the appropriate type at runtime, without requiring an ESP that edits every single headpart record.
+- **ESP-less Animation Packs** — play HKX animations without any ESP/plugin at all by referencing file paths directly in XML. Frees up load order slots and simplifies animation pack distribution.
+- **No Doppelganger** — uses the actual player character in multi-character scenes instead of a copy. Scenes start without a fade-to-black, and animators can use custom camera paths.
+- **LookAt Cam** — a toggleable camera mode that keeps the view locked on the player's head or body for more immersive scenes.
+- **80× Faster XML Loading** — NAF's XML mapping and caching system loads configuration files up to 80× faster than AAF. Bad XML is silently skipped rather than causing boot failures.
+- **Instant Scenes** — no lock-in delay. Actors are pulled into scenes immediately.
+- **Perfect Sync System** — synchronizes animations across different races by directly altering animation time, keeping multi-character scenes perfectly in step regardless of race differences.
+- **Adjustable Scene Speed** — change animation playback speed in real-time without creating separate animations.
+- **AAF Animation Pack Compatibility** — drop existing AAF XML files into `Data\NAF\` and they work. NAF understands all major AAF XML types: `animationData`, `raceData`, `positionData`, `morphSetData`, `equipmentSetData`, `actionData`, `animationGroupData`, `furnitureData`, `positionTreeData`, `tagData`, plus NAF's own `faceAnim` type.
+- **Built-in LooksMenu Patch** — automatically patches the LooksMenu morphs issue in v1.6.20.
+- **Multi-threaded Performance** — scans the full loaded area for actors and furniture in under 10ms using multi-threading.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires author permission |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your mod | ✅ **Allowed — credit Snapdragon** |
+| Use assets in paid mods | ❌ Not allowed |
+| Use assets in DP-earning mods | ✅ **Allowed** |
+| Console modding | ❌ Not available on Bethesda.net |
+
+#### Credits (as listed by the author)
+
+- **Maxie** — information on eye coordinates, morphs, and fly cam
+- **dagobaking** — original AAF, which inspired this framework
+- **Fudgyduff** — CommonLibF4
+- Everyone on the RE (Reverse Engineering) Discord for invaluable contributions to FO4 engine knowledge
+
+#### Install Notes
+
+1. Install **F4SE** (matching your game version) from f4se.silverlock.org.
+2. Install **Address Library for F4SE Plugins** from Nexus.
+3. Install **Microsoft C++ Redistributable 2019** — download from Microsoft's official site if not already present.
+4. Install **NAF** via MO2 or Vortex (Mod Manager Download button).
+5. Optionally install **MCM** (for in-game menu hotkey) and **LooksMenu** (for body morphs).
+6. Launch the game. Open the NAF menu in-game to generate a default `NAF.ini` and configure settings.
+
+**No ESP is required by NAF itself.** If you install animation packs that include an ESP, those follow normal load order rules.
+
+#### For Mod Authors — Creating Animation Content for NAF
+
+See `HAVOK_FALLOUT4_ANIMATION_GUIDE.md` Part 13 for the full NAF mod-author integration guide, including:
+- ESP-less animation pack XML format
+- `raceData` configuration for non-human races
+- Face animation creation workflow
+- `NAF.ini` HeadPart morph patch configuration
+
+---
+
+## Modding Tools & Resources
+
+These are not gameplay mods — they are tools and rigs used *during* mod creation. Every animation mod author should know about these.
+
+---
+
+### MaikCG F4Biped — Animation Rig for Fallout 4
+
+| Field | Details |
+|---|---|
+| **Author** | MaikCG |
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/16691 |
+| **Category** | Modder's Resource — Animation rig (3ds Max, Maya, MotionBuilder) |
+| **Type** | Tool / Resource — not a game mod |
+| **F4SE Required** | No |
+| **Console (Bethesda.net)** | N/A — modder's tool only |
+
+#### What It Is
+
+The definitive animation rig kit for creating and importing Fallout 4 animations. MaikCG built rigs for every major 3D application used by the modding community, wired directly to the FO4 skeleton with IK/FK support, twist bones, and Havok Content Tools presets included. This is the foundation that most serious FO4 animation work is built on.
+
+**Files included:**
+
+| File | Purpose |
+|---|---|
+| `F4Biped.max` | Main 3ds Max working file — Biped rig linked to the FO4 skeleton, IK/FK arms/legs, twist bones, armour/clothing skinning support |
+| `F4BipedImport.max` | 3ds Max file for importing vanilla `.fbx` animations |
+| `F4BipedCAT.max` | 3ds Max CAT-based rig — simpler alternative to Biped, especially suited for 1st-person animation |
+| `F4BipedCATImport.max` | Import companion for the CAT rig |
+| `F4Biped.FBX` | Same rig in FBX format for MotionBuilder — the best tool for processing motion capture data |
+| `F4Biped.ma` | Same rig for Maya (HumanIK system) |
+| `F4Animation.hko` | Havok Content Tools preset with three configurations: `ConvertAnimation_x32`, `AnimationExport1stPerson`, `AnimationExport3rdPerson` |
+| `Fallout4Rig1st.txt` | Bone list for HCT 1st-person skeleton settings |
+| `Fallout4Rig3rd.txt` | Bone list for HCT 3rd-person skeleton settings |
+| `skeleton.hkx` | Reference skeleton for Havok 2 FBX Converter |
+
+**Software this kit supports:**
+- 3ds Max 2014
+- MotionBuilder 2014
+- Maya 2016
+- HavokContentTools 2014-1-0
+- niftools-max-plugins 3.8.0
+- Havok 2 FBX Converter 0.1a
+
+#### Permissions Summary
+
+F4Biped is tagged as a **Modder's Resource** on Nexus. The explicit permissions grid is not posted, which under Nexus conventions means:
+
+| Permission | Status |
+|---|---|
+| Use rig to create your own FO4 animations | ✅ **Intended use — this is a modder's resource** |
+| Credit MaikCG in your mod's credits | ✅ **Required if you use it** |
+| Upload the rig itself to other sites | ❌ Contact MaikCG for permission |
+| Use in paid mods / commercial projects | ❌ Contact MaikCG for permission |
+
+> **Always check the Nexus page permissions tab for any updates.** When in doubt, contact MaikCG directly via Nexus messages.
+
+#### Credits
+
+- **MaikCG** — all rig files, Havok presets, and documentation. No other credits listed by the author.
+
+#### Notes for Mod Authors
+
+- See `HAVOK_FALLOUT4_ANIMATION_GUIDE.md` Part 13 for the full F4Biped pipeline — import workflow, 1st/3rd person conventions, weapon animation setup, and export to HCT.
+- The HCT preset `AnimationExport1stPerson` and `AnimationExport3rdPerson` handle the skeleton differences between the two viewpoints automatically — always use the correct preset for the animation type you're exporting.
+- 1st-person animations: weapon faces +Y, head/neck rotated back 90° to stay out of camera. Skeleton stored at `Actors\Character\_1stPerson\Animations\`.
+- 3rd-person animations: mostly in-place; locomotion uses actual Bip/skeleton root displacement. Camera/CamTarget bone positions must be set manually.
+- The Biped rig is best for motion capture processing and MotionBuilder pipeline. The CAT rig (`F4BipedCAT.max`) is easier for hand-keyed 1st-person work.
+
+---
+
+---
+
 ## Animation Mods as Learning References
 
-These three mods — IAF, First-Person Swimming Animations, and Kicks And Punches — are excellent study material for anyone learning Fallout 4 animation modding. Here's what each one teaches:
+These five mods and tools — IAF, First-Person Swimming, Kicks And Punches, NAF, and F4Biped — together cover the full spectrum of Fallout 4 animation modding, from the raw pipeline to full native framework development. Study them in order:
 
-| Mod | Key Learning |
-|---|---|
-| **Immersive Animation Framework** (#50555) | How to build a keyword-driven animation dispatch system; how to structure 1st/3rd person variant sets; how to use MCM for an animation mod |
-| **First-Person Swimming Animations** (#62123) | How to replace behavior graph–driven first-person animations; the limits of the vanilla behavior graph (no strafe/back states); three different distribution formats (ESL/loose/archive) |
-| **Kicks And Punches** (#45402) | How to replace third-person actor animations via directory-based `.hkx` file replacement; how shared animation pools affect all actors of a type; the simplest possible animation mod architecture |
+| Mod / Tool | Architecture | Key Learning |
+|---|---|---|
+| **MaikCG F4Biped** (#16691) | Modder's resource — rig kit | The canonical pipeline: 3ds Max / Maya / MotionBuilder → HCT → .hkx; 1st vs 3rd person skeleton conventions; Havok export presets |
+| **Kicks And Punches** (#45402) | Directory-based HKX replacer | Simplest animation replacer architecture; shared actor animation pools; no-plugin distribution |
+| **First-Person Swimming Animations** (#62123) | Behavior graph HKX replacement | Replacing behavior graph–driven 1st-person states; vanilla behavior graph limits; ESL/loose/archive distribution |
+| **Immersive Animation Framework** (#50555) | Keyword dispatch + HKX files | Keyword-driven animation routing; 1st/3rd person variant sets; MCM integration for animation mods |
+| **NAF — Native Animation Framework** (#73889) | Native F4SE C++ framework | Multi-character scene architecture; ESP-less XML-driven animation packs; face animation systems; framework-level performance engineering |
 
-**Study approach:** Install each mod, examine its files in MO2's "Data" tab to see the exact folder structure, open the `.hkx` files in HKXPackUI or the Havok Preview Tool, and compare to the vanilla equivalents. Cross-reference with `HAVOK_FALLOUT4_ANIMATION_GUIDE.md` for the technical context behind what you're looking at.
+**Study approach:** Start with F4Biped to understand the raw pipeline → Kicks And Punches for the simplest in-game result → First-Person Swimming for behavior graph work → IAF for keyword dispatch → NAF for full framework design. Each level builds on concepts from the last. Cross-reference with `HAVOK_FALLOUT4_ANIMATION_GUIDE.md` at every step.
 
 ---
 
