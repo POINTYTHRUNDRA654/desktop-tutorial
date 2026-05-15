@@ -1674,6 +1674,41 @@ The page also notes these destructible setups can be reused in other mods, with 
 
 ---
 
+### Random Encounter Framework
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/60074 |
+| **Category** | Framework — Story Manager / random encounter compatibility |
+| **Type** | Core framework plugin that reorganizes vanilla random encounter Story Manager trees for mod-safe integration |
+| **DLC Requirements** | Automatron, Far Harbor, Nuka World |
+| **Console (Bethesda.net)** | ✅ Allowed on Bethesda.net when the author is credited |
+
+#### What It Is
+
+A lightweight framework for Fallout 4 mod authors that makes the base game's random encounter Story Manager structure safer and more compatible for modded encounter additions.
+
+In addition to compatibility-oriented tree cleanup, the mod also reduces the relative frequency of certain Nuka-World and Automatron encounter branches in the Commonwealth.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ✅ Allowed with credit |
+| Modify/improve and release | ✅ Allowed without permission or credit |
+| Convert for other games | ✅ Allowed with credit |
+| Use assets/files in your own mod | ✅ Allowed without permission or credit |
+| Use in paid/sold mods | ✅ Allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ✅ Allowed with credit |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- No additional third-party file credits listed.
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
