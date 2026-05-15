@@ -1019,6 +1019,40 @@ The page notes that some workflows may require resources from:
 
 ---
 
+### Shared Assets Pack (Mod Dependency Resource)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/91788 |
+| **Category** | Shared Assets / Framework dependency |
+| **Type** | Shared models, textures, behaviors, and animation assets for dependent mods |
+| **Nexus Requirement** | Merged RootBehavior (for custom behaviors) |
+| **Console (Bethesda.net)** | Not listed |
+
+#### What It Includes
+
+The author-maintained shared asset base for current/future mods, including:
+- Gun attachment models and textures
+- Custom behavior edits (including windowed magazine workflows)
+- Custom 1st-person gun behaviors (WIP)
+- Animation sets
+
+The page also includes a **debug file** for diagnosing first-person reload issues; the author describes it as troubleshooting-only and not a replacement for the main merged root behavior setup.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Use assets in your mod | ✅ **Allowed while this mod remains a required dependency** |
+| Earn donation points / optional external donations | ✅ Allowed |
+| Use in paywalled/paid mods | ❌ Not allowed |
+
+#### Credits (as listed on the page)
+
+- Author-provided shared assets for dependent mods (no additional third-party file credits listed).
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
