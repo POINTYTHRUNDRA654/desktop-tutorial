@@ -1678,7 +1678,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'CK Safety tab: plugin validation, Spriggit serialization (ESP → YAML for Git version control), and live CK process monitor',
       'CK Extension tab: auto-save timer (timestamp only — CK IPC save bridge not yet wired), script compiler log, connection status',
       'Quest Editor tab: quest stage and alias authoring helpers',
-      'Animation tab: Havok/HKX workflow guidance',
+      'Animation tab: Havok/HKX workflow guidance — covers behavior graph editing, HKX export pipelines, community rig setup (Shiagur Blender rigs #81279/#82537, MaikCG F4Biped #16691), and animation framework integration (IAF #50555 keyword patching, NAF #73889 ESP-less XML packs, AWF #100946 world-object interactions)',
       'Save Parser tab: save game data inspection and script residue analysis',
       'Live Monitor tab: runtime event monitoring',
       'Game Link tab: F4SE bridge status and integration',
@@ -1711,8 +1711,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'Animation Tab',
         type: 'button',
-        description: 'Havok/HKX workflow guidance for animation rig export and behavior graph editing',
-        whenToUse: 'Use when working on custom animations, HKX export pipelines, or Havok behavior graphs',
+        description: 'Havok/HKX workflow guidance covering: behavior graph editing, rig export pipelines, Shiagur Blender rig suite (human #82537 + PA #81279), MaikCG F4Biped #16691, IAF keyword-dispatch patching, NAF ESP-less animation packs, and AWF world-object interaction animations',
+        whenToUse: 'Use when working on custom animations, HKX export pipelines, Havok behavior graphs, or integrating animation frameworks (IAF/NAF/AWF) into your mod',
       },
       {
         name: 'Save Parser Tab',
@@ -1776,7 +1776,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'CK Extension (Auto-save timer & Script Compile — timestamp logging only)',
       'FO4 CK Guide (Crash Causes, Best Practices, NG/AE Compatibility, Deprecated Frameworks)',
       'Quest Editor (Stages & Aliases)',
-      'Animation (Havok/HKX Workflow)',
+      'Animation (Havok/HKX Workflow — Shiagur Blender rigs, MaikCG F4Biped, IAF/NAF/AWF framework integration)',
       'Save Parser (Save Game Data Inspection)',
       'Live Monitor (Runtime Events)',
       'Game Link (F4SE Bridge)',
@@ -3033,7 +3033,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     features: [
       'Three-tab layout: Animation & Rigging, Quest Authoring, LOD & Precombine',
       'Tab selection persists for the session via sessionStorage key `guides_hub_tab`',
-      'Animation & Rigging — full Blender + Havok pipeline (skeleton, weights, FBX export, HKX conversion)',
+      'Animation & Rigging — full Blender + Havok pipeline (skeleton, weights, FBX export, HKX conversion) + Shiagur rig suite, MaikCG F4Biped, IAF/NAF/AWF framework integration',
       'Quest Authoring — CK + Papyrus + F4SE workflow from smoke test to release',
       'LOD & Precombine — xLODGen + DynDOLOD + PRP end-to-end generation and validation',
     ],
@@ -3097,6 +3097,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Why should I avoid RegisterForUpdate() in Papyrus scripts?',
       'Do I need Addictol or standalone Buffout 4 for NG/AE?',
       'What PRP version supports NG/AE precombine rebuilds?',
+      'Which Blender rig should I use for FO4 animations — Shiagur or MaikCG F4Biped?',
+      'What is the difference between IAF, NAF, and AWF for animation modding?',
+      'How do I use the Animated World Framework to add animations to world-object interactions?',
     ],
   },
 
@@ -3104,7 +3107,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'blender-animation-guide',
     pageName: 'Animation Guide',
     route: '/guides-hub',
-    purpose: 'End-to-end Fallout 4 animation pipeline: skeleton import, rigging, authoring, FBX export and HKX conversion, validation and in‑game testing.',
+    purpose: 'End-to-end Fallout 4 animation pipeline: skeleton import, rigging, authoring, FBX export and HKX conversion, validation, in-game testing, and community rig/framework integration.',
     features: [
       'Reference & skeleton import (preserve vanilla bone names)',
       'Rigging & weight painting checklists',
@@ -3112,6 +3115,12 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'FBX export guidance and Havok (FBX → HKX) conversion notes',
       'Animation Validator + common error troubleshooting',
       'Embedded helper panels (skeleton reference, export settings, rigging gallery, Havok guides)',
+      'Shiagur Blender Rig suite — Human 1st/3rd person rig (#82537) and Power Armor rig (#81279): FO4 Tools N-key panels, IK/FK driver system, 3-method annotation extraction, Havok Viewer preview workflow',
+      'MaikCG F4Biped (#16691) — 3ds Max / Maya / MotionBuilder pipeline: HCT export presets, 1st vs 3rd person skeleton conventions, vanilla animation import via havok2fbx',
+      'IAF — Immersive Animation Framework (#50555): keyword-dispatch patching for ingestible animations; patch author keyword table',
+      'NAF — Native Animation Framework (#73889): ESP-less XML animation packs, raceData graph/startEvent, face animation creation, NAF.ini HeadPart Morph Patch, AAF XML compatibility',
+      'AWF — Animated World Framework (#100946): F4SE-native world-object interaction animations; no-scripting CK workflow for patch authors',
+      'JNFA2026 (#100034), RAF (#90839), Witch\'s Nature (#89664), HIT THE MASS (#90416) — community animation mods as learning references',
     ],
     controls: [
       {
@@ -3208,6 +3217,13 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Which FBX export flags are required for Havok import?',
       'How do I convert FBX to HKX for Fallout 4?',
       'What common weight‑painting mistakes cause in‑game mesh explosions?',
+      'How do I use the Shiagur Blender rig FO4 Tools panel to import and export animations?',
+      'What is the difference between Shiagur\'s human rig (#82537) and the Power Armor rig (#81279)?',
+      'How do I extract vanilla annotations from an HKX file using the three available methods?',
+      'How do I add keyword patching to make my ingestible mod compatible with IAF (#50555)?',
+      'How do I create an ESP-less animation pack for NAF (#73889)?',
+      'How do I add a world-object activation animation using the Animated World Framework (#100946)?',
+      'What animation frameworks exist for Fallout 4 and when should I use each one?',
     ],
   },
 
@@ -3224,6 +3240,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Leveled-list injection guidance and safety checks',
       'Precombine / PRP rebuild checklist and helper utilities',
       'Papyrus scripting patterns, logging and debug workflows',
+      'Dynamic Spawn Framework (DSFW #96276) integration notes for creature/NPC spawn systems (F4SE + Garden of Eden Papyrus extender requirements)',
+      'Fallout4.esm Records Spreadsheet resource (#100679) for fast FormID/EditorID lookups during CK/xEdit authoring',
+      'Custom radio authoring workflow reference (#101520): Sound Descriptors, quest scenes, randomization scripts, and BA2 packaging safety',
       'Validation & release checklist (testing, packaging, docs)',
     ],
     controls: [
@@ -3334,6 +3353,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'When should I rebuild precombines?',
       'How do I safely inject items into a leveled list?',
       'What are the minimum Papyrus logging practices for debugging?',
+      'How do I set up a non-repeating custom radio station quest in Creation Kit?',
+      'When should I use Dynamic Spawn Framework (#96276) instead of custom one-off spawn scripts?',
+      'How can I use the Fallout4.esm spreadsheet resource (#100679) to speed up CK/xEdit record lookups?',
     ],
   },
 
