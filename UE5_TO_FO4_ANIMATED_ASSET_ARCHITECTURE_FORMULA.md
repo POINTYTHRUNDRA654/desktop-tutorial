@@ -1052,3 +1052,159 @@ This 4-week module extends the curriculum into vegetation systems, landscape mat
 - **Lecture Topics:** Flora and Tree forms, region generation, large-scale placement, distant-object LOD
 - **Practical Lab Work:** Link custom foliage meshes to flora records, distribute them through the Region Editor, and generate distant LOD assets
 - **Milestone Goal:** Populate a full test cell with an optimized, harvestable ecosystem that transitions cleanly into distant LODs
+
+---
+
+## Papyrus VM Optimization, Script Lag Repair, and Custom Event Architecture
+
+Papyrus is queue-driven and frame-budgeted rather than traditionally multithreaded. Students should learn both VM tuning and non-blocking design patterns.
+
+### 1) Fallout4Custom.ini VM Thread Tuning
+
+```ini
+[Papyrus]
+fUpdateBudgetMS=2.4000
+fExtraTaskletBudgetMS=2.4000
+iMinMemoryPageSize=512
+iMaxMemoryPageSize=2048
+iMaxAllocatedMemoryBytes=15728640
+```
+
+### 2) Thread-Safe Script Architectures
+
+#### Pattern A: State Machine + RegisterForSingleUpdate
+
+Use state changes and single updates instead of blocking `Utility.Wait()` loops.
+
+```papyrus
+Scriptname ModName:OptimizedThreadLoop extends ObjectReference
+
+Auto State Ready
+    Event OnActivate(ObjectReference akActionRef)
+        GoToState("Busy")
+        InitiateAssetCycle()
+    EndEvent
+EndState
+
+State Busy
+    Event OnActivate(ObjectReference akActionRef)
+        ; Ignore overlap while busy
+    EndEvent
+EndState
+
+Function InitiateAssetCycle()
+    Self.PlayAnimation("Play01")
+    Self.RegisterForSingleUpdate(5.0)
+EndFunction
+
+Event OnUpdate()
+    Self.PlayAnimation("Play02")
+    GoToState("Ready")
+EndEvent
+```
+
+#### Pattern B: Mutex-Style Critical Section
+
+Use a lock flag when several systems may try to modify shared data.
+
+```papyrus
+Scriptname ModName:GlobalSystemMutex extends Quest
+
+Bool isThreadLocked = false
+
+Bool Function ModifyGlobalSystemData(int iValueModifier)
+    While (isThreadLocked)
+        Utility.WaitMenuMode(0.1)
+    EndWhile
+
+    isThreadLocked = true
+
+    ; --- CRITICAL SECTION START ---
+    ; Perform shared data updates safely here
+    ; --- CRITICAL SECTION END ---
+
+    isThreadLocked = false
+    Return true
+EndFunction
+```
+
+### 3) Advanced Diagnostic Testing and Profiling Metrics
+
+- **Suspended Stacks Warning:** If `Suspended stack count altered` grows well above normal, script budget is exhausted
+- **Stack Dumping Pass:** Use `DumpPapyrusStacks` to identify runaway scripts
+- **Property Binding Bottlenecks:** `Binding Type Mismatch` warnings indicate dead or renamed properties causing lookup stalls
+
+### 4) Script Lag Optimization and Repair Blueprint
+
+| Papyrus.0.log Exception String | Visual Symptom In-Game | Underlying Script Defect | Actionable Repair Blueprint |
+| --- | --- | --- | --- |
+| `error: Cannot call [Function] on a None object` | Animations fail, actors T-pose, interactions abort | Script dereferences an invalid or empty pointer | Guard calls with `if (TargetRef != None)` |
+| `Warning: Max stack limit reached.` | Controls lag, menus stall, delayed scripts | Infinite loop or overloaded polling pattern | Replace repeating loops with controlled states or `RegisterForSingleUpdate()` |
+| `Binding Type Mismatch on Form...` | Stutter during animated assets or weapon actions | Script property still points to deleted/renamed CK data | Re-link or clear the broken property in the Creation Kit |
+
+### 5) Custom Script Events (Global Event Matrix)
+
+Use custom events instead of many independent polling loops.
+
+```text
+[Core Event Sender Script] --> .SendCustomEvent("OnAssetBiasShift")
+                                       |
+            +--------------------------+--------------------------+
+            v                          v                          v
+[Custom Weapon Anim Instance]   [World Container Asset]    [Rigged Creature Mesh]
+ -> Catch & Play Spin Loop       -> Catch & Unlock Hatch    -> Catch & Play Alert Pose
+```
+
+#### Sender Script
+
+```papyrus
+Scriptname ModName:GlobalAssetEventManager extends Quest
+
+CustomEvent OnAssetBiasShift
+
+Function TriggerGlobalBiasEvent(int iNewBiasState, ObjectReference akTriggerSource)
+    Var[] eventArgs = new Var[2]
+    eventArgs[0] = iNewBiasState
+    eventArgs[1] = akTriggerSource
+    Self.SendCustomEvent("OnAssetBiasShift", eventArgs)
+EndFunction
+```
+
+#### Listener Script
+
+```papyrus
+Scriptname ModName:AssetEventListener extends ObjectReference
+
+ModName:GlobalAssetEventManager Property MasterManagerHub Auto Const
+
+Event OnInit()
+    RegisterForMasterEvent()
+EndEvent
+
+Event OnCellLoad()
+    RegisterForMasterEvent()
+EndEvent
+
+Function RegisterForMasterEvent()
+    if (MasterManagerHub)
+        Self.RegisterForCustomEvent(MasterManagerHub, "OnAssetBiasShift")
+    endif
+EndFunction
+
+Event ModName:GlobalAssetEventManager.OnAssetBiasShift(ModName:GlobalAssetEventManager akSender, Var[] akArgs)
+    int iParsedBiasState = akArgs[0] as int
+    ObjectReference akActionRef = akArgs[1] as ObjectReference
+
+    if (iParsedBiasState == 1)
+        Self.PlayAnimation("Play01")
+    else
+        Self.PlayAnimation("Play02")
+    endif
+EndEvent
+
+Event OnUnload()
+    if (MasterManagerHub)
+        Self.UnregisterForCustomEvent(MasterManagerHub, "OnAssetBiasShift")
+    endif
+EndEvent
+```
