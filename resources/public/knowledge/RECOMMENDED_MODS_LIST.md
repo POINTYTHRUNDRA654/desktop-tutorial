@@ -1533,6 +1533,42 @@ The guide assumes prior familiarity with exporting meshes from 3ds Max with Havo
 
 ---
 
+### Functional Custom Crops Tutorial
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/74398 |
+| **Category** | Tutorial / Modder's Resource — Workshop crop functionality |
+| **Type** | Step-by-step guide and helper files for making custom crops generate workshop resources correctly |
+| **Off-site Requirements** | FO4Edit (basic working knowledge assumed); Notepad++ optional; PapyrusPlusPlus optional |
+| **Console (Bethesda.net)** | ✅ Allowed on Bethesda.net when the author is credited |
+
+#### What It Is
+
+A detailed tutorial explaining how to make custom crops behave like fully functional vanilla workshop food objects, including passive production during settlement workshop cycles instead of only manual harvesting.
+
+The walkthrough covers FO4Edit record setup, script-injected workshop quest hooks, functional flora object setup, iteration for multiple crops, in-game testing, and an optional compatibility pass for renaming and shipping the included scripts.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ✅ Allowed with credit |
+| Modify/improve and release | ✅ Allowed without permission or credit |
+| Convert for other games | ✅ Allowed with credit |
+| Use assets/files in your own mod | ✅ Allowed without permission or credit |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ✅ Allowed with credit |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- No additional third-party file credits listed.
+- The author states in the FAQ that credit is not required when using the included scripts, which were modified from existing open-permission script injector packs.
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
