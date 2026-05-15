@@ -551,7 +551,86 @@ See `HAVOK_FALLOUT4_ANIMATION_GUIDE.md` Part 13 for the full NAF mod-author inte
 
 ---
 
-## Modding Tools & Resources
+### Animated World Framework (Animated World 2)
+
+| Field | Details |
+|---|---|
+| **Author** | Knundrum (Nexus: Kewin568) |
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/100946 |
+| **Category** | Animation Framework — world object interaction animations (F4SE-native) |
+| **F4SE Required** | ✅ Yes |
+| **Address Library Required** | ✅ Yes |
+| **MCM Required** | ✅ Yes |
+| **DLC Required** | None |
+| **Console (Bethesda.net)** | ❌ No console permission listed |
+| **Note** | The framework itself does **not** include animations — animations are on a separate download page by the same author |
+
+#### What It Does
+
+Animated World Framework (AWF, also called Animated World 2) enables modders to add animations to virtually any world interaction — opening doors, activating objects, harvesting plants, picking up items, consuming food/chems, equipping gear, toggling your flashlight, and more. It works at the engine level via F4SE, which means it **doesn't alter the objects themselves** — a key design choice that eliminates the most common source of incompatibilities with other mods.
+
+This is a true framework: no scripting required for patch authors, minimal CK/xEdit knowledge needed, and complete separation between framework updates and animation pack updates.
+
+**Supported interaction types (all F4SE-native):**
+
+| Trigger | Description |
+|---|---|
+| Vanilla activate | Open, activate, harvest, etc. with the vanilla activate key |
+| Pick up items | Animations when picking up items from the ground |
+| Quick container take | Animations when taking from a quick container |
+| Consume item | Animations when eating/drinking/using a chem |
+| Equip item | Animations when equipping an item |
+| Add to inventory | Animations when adding an item to your inventory |
+| Flashlight toggle | Animation when toggling your flashlight |
+| NPC consume | NPCs play animations when they consume items (e.g. psycho) |
+| Equip from ground | Papyrus/Perk based — picks item up and equips it |
+
+**FallSouls compatible:** Yes — if you want animations to play during menus, FallSouls is required.
+
+#### For Mod Authors — Adding Your Animations
+
+Requirements: Your animations already exist as `.hkx` files. The Creation Kit must be installed (or xEdit).
+
+**Basic workflow:**
+
+1. Create your mod in CK with `Animated World - Base.esp` as a master
+2. Add your Animation Object (AO) and sounds as needed
+3. Go to **Gameplay → Animations...**
+4. Select either `_1stPerson RootBehavior` or `RaiderRootBehavior`
+5. Find and unwrap `AW_ActionActivate`, `AW_EquipAnimAction`, or `AW_ItemAddedAction`
+6. Insert a child node for the condition you want (e.g. `GetIsID-Potion:SquirrelBits==1.0`)
+7. Set your Anim Event, animation path, and when to play it
+8. Save your mod — that's it
+
+> **Important:** The game reads animation sequences **top-down**. Be as specific as possible in your condition queries — being too broad will cause your entry to override other mods' animations, or be overridden by them.
+
+**No scripting required.** See the articles section and example files on the mod page for full details.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / release bug fixes | ✅ **Allowed — credit Knundrum as original creator** |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your mod | ❌ Requires Knundrum's permission |
+| Use assets in paid mods | ❌ Not allowed |
+| Use assets in DP-earning mods | ❌ Not allowed |
+| Console modding | ❌ No permission granted |
+
+#### Credits (as listed by the author)
+
+- **Geluxrum** — F4SE help, setting up a workspace, answering all the questions
+- **Bingle** — GitHub work on C++ functions; saved significant time when learning
+- **LuBuCake** — work on the IdleStop fix
+- **Shiagur42** — Blender Animation setup (see Shiagur's rigs in this list)
+- **Omega4D2's Discord community** — support throughout development
+
+#### Install Notes
+
+Install via MO2 or Vortex. The framework itself has no animations — download the author's separate vanilla animations pack from the mod page to get started. Animation pack authors do not need to update their packs when the framework updates (unless the author dramatically restructures animation categories, which they aim to avoid).
+
+---
 
 These are not gameplay mods — they are tools and rigs used *during* mod creation. Every animation mod author should know about these.
 
