@@ -45,6 +45,7 @@ When a UE5 FBX is imported into Blender, it usually arrives oversized and orient
 
 - UE5 uses **centimeters**
 - Fallout 4 uses a different scaled world/model space
+- Unlike Unity extractions that often require large scene-scale correction, UE5 FBX exports usually arrive much closer to usable Blender scene scale because they are already authored in centimeter-based DCC workflows
 - Start from the imported UE5 FBX at **1.0x** in Blender scene space, then tune the final object scale against a Fallout 4 reference inside an approximate **0.7x to 1.0x** range based on the target creature/object size
 - Apply transforms with `Ctrl + A -> Apply All Transforms`
 
@@ -136,7 +137,7 @@ import bpy
 def remap_ue5_to_fo4():
     obj = bpy.context.active_object
     if not obj or obj.type != "ARMATURE":
-        print("Error: No armature selected. Select the imported UE5 armature in the 3D viewport and make it the active object before running this script.")
+        print("Error: No armature selected. Select the UE5 armature as the active object.")
         return
 
     bpy.ops.object.mode_set(mode="EDIT")
@@ -243,7 +244,7 @@ For Fallout 4:
 2. Copy the **Green channel** (roughness)
 3. Paste into a new grayscale image
 4. Invert it (`Ctrl + I`) to convert roughness into a gloss/smoothness-style map
-5. Save the result as `custom_asset_s.png` only as an optional working intermediate if your tool does not export directly to `.dds`
+5. If your editor cannot export directly to `.dds`, save the inverted result as a temporary working file such as `custom_asset_s.png`; otherwise skip this intermediate file and export straight to the final DDS format
 
 ### Step 3: Compress Assets into Direct3D Containers (Estimated: 10 min)
 
