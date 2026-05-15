@@ -231,3 +231,69 @@ Then:
 2. Choose a stock movement clip such as `MF_Run_Forward`
 3. Click **Export Selected Animations** to generate retargeted sequences inside the project
 
+---
+
+## Student Diagnostic Matrix: Correcting Foot-Sliding and Axis Drift
+
+When retargeting from Unity rigs into UE5, root tracking differences can cause sliding, drifting, snapping, or joint skew.
+
+```text
+[Character Slides / Floats at Runtime]
+                 |
+                 v
+Open Retargeted Anim Sequence --> Check "Enable Root Motion"
+                 |
+      (Does Mesh Snap Back?)
+                 +--> YES --> Check "Force Root Lock" to pin origin
+                 +--> NO  --> Open target IK Rig / IK Retargeter and adjust offsets
+```
+
+| Diagnostic Error | Visual Symptom in Preview / World View | Root Cause in UE5 Configuration | Corrective Action Blueprint |
+| --- | --- | --- | --- |
+| Ice-Skating / Foot-Sliding | Feet slide or stutter along the floor during locomotion | Source animation contains root velocity but target sequence has root motion disabled | Open the AnimSequence and enable **Root Motion** |
+| Asset Teleport Snap | Character completes loop then snaps back to start | Root translation accumulates instead of resetting per loop | Enable **Force Root Lock** in Root Motion settings |
+| Floating or Crouching | Character floats above floor or crouches unnaturally | Retarget root translation height scaling is off between rigs | Open `IKRT_MannyToCreature` and adjust target scale/offset until feet sit correctly |
+| Twisted Joints (Ortho Drift) | Limbs twist or snap outward during transitions | Chain rotation mapping is misaligned | In the IK Retargeter, lower the broken chain’s **Rotation Alpha** to reduce axis skew |
+
+---
+
+## Terminology Shift Translation Dictionary
+
+Use this mapping to help students move from the Creation Kit mental model to Unreal Engine 5.
+
+| Fallout 4 / Creation Kit Concept | Unreal Engine 5 Equivalent | Practical Operational Shift |
+| --- | --- | --- |
+| `.nif` (NetImmerse Mesh) | Skeletal Mesh / Static Mesh | UE5 separates rigged and non-rigged geometry into different asset types |
+| `.hkx` (Havok Behavior File) | Animation Sequence / Blend Space | Motion clips are separate assets and blending is handled natively in animation systems |
+| Animation Subgraph / State Graph | Animation Blueprint (AnimBP) | XML/state tables become a visual state machine graph |
+| Material Descriptor (`.bgsm`) | Material Instance / Material Graph | Texture linkage becomes graph-based shader logic |
+| Object Forms (`Furniture`, `Activator`) | Actor Blueprint (`BP_Actor`) | Visuals, collision, and logic are bundled into Blueprint actors |
+| Papyrus Script (`.psc` / `.pex`) | Blueprint Event Graph | Text-based scripting becomes node-based event flow |
+
+---
+
+## Syllabus Structural Breakdown: 4-Week UE5 Asset Modding Module
+
+### Week 1: Coordinate Systems, Scale, and FBX Pipelines
+
+- **Lecture Topics:** Left-handed vs right-handed coordinates, scale translation, FBX orientation settings
+- **Practical Lab Work:** Configure Blender export presets and bulk-import static models with the UE5 Python import script
+- **Milestone Goal:** Import error-free Static Mesh assets into the project
+
+### Week 2: Skeletal Mesh Optimization and Rig Alignment
+
+- **Lecture Topics:** Bone naming conventions, modern rigging constraints, weight cleanup
+- **Practical Lab Work:** Rename Unity armatures to Unreal naming conventions and optimize weight distribution
+- **Milestone Goal:** Export a rigged Skeletal Mesh that passes physics asset generation checks
+
+### Week 3: Modern IK Retargeting and Animation Graphs
+
+- **Lecture Topics:** IK Rig structure, retarget roots, chain setup, root-motion diagnostics
+- **Practical Lab Work:** Build IK Rig and IK Retargeter assets to remap standard locomotion onto the imported creature
+- **Milestone Goal:** Produce clean idle, run, and jump animations without stretching or clipping
+
+### Week 4: Blueprint Assembly, Interaction, and Pak Distribution
+
+- **Lecture Topics:** Actor Blueprints, Enhanced Input, content cooking and packaging
+- **Practical Lab Work:** Build an interactive Blueprint-driven world object and package the result with UE5 cooking tools into distributable `.pak` output
+- **Milestone Goal:** Test a fully interactive mod component inside a standalone game save
