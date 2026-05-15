@@ -95,7 +95,10 @@ Displays all active `.esp`, `.esm`, `.esl` plugins sorted by load order. Drag to
 F4SE is not a regular mod — it requires special setup:
 
 1. Download F4SE from **f4se.silverlock.org** (NOT Nexus mirrors).
-2. From the F4SE ZIP, copy `f4se_1_10_163.exe` (or NG equivalent), `f4se_loader.exe`, and `f4se_steam_loader.dll` to your **game root** (same folder as `Fallout4.exe`). Do this **manually outside MO2** — these DLLs go in game root, not Data\.
+2. From the F4SE ZIP, copy the version-specific EXE, `f4se_loader.exe`, and `f4se_steam_loader.dll` to your **game root** (same folder as `Fallout4.exe`). Do this **manually outside MO2** — these DLLs go in game root, not Data\.
+   - OG (1.10.163): copy `f4se_1_10_163.exe`
+   - NG (1.10.980 / 1.10.984): copy `f4se_1_10_980.exe` (or the matching version for your exact build — the filename always reflects the game version number)
+   - 1.11.x: copy `f4se_1_11_xxx.exe` where xxx matches your runtime (e.g. `f4se_1_11_191.exe` for 1.11.191)
 3. The F4SE Script folder (`Data\F4SE\`) goes through MO2 as a normal mod.
 4. In MO2: **Executables** (the gear icon) → Add new executable → Point to `f4se_loader.exe` in your game root.
 5. Set this as your default launch executable — always launch via MO2's Run button using F4SE, never directly via Steam.
