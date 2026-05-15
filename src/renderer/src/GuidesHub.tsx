@@ -8,7 +8,7 @@ const Lorekeeper = React.lazy(() => import('./Lorekeeper'));
 type GuidesTab = 'animation' | 'quest' | 'lod';
 
 const tabs: Array<{ id: GuidesTab; label: string; sublabel: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: 'animation', label: 'Animation & Rigging', sublabel: 'Blender + Havok', icon: Book },
+  { id: 'animation', label: 'Animation & Rigging', sublabel: 'Blender + Havok + Frameworks', icon: Book },
   { id: 'quest', label: 'Quest Authoring', sublabel: 'CK + Papyrus + F4SE', icon: BookOpen },
   { id: 'lod', label: 'LOD & Precombine', sublabel: 'xLODGen + DynDOLOD + PRP', icon: Network },
 ];
