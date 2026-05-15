@@ -1639,6 +1639,41 @@ The pack is positioned as a time-saver for animation authors and includes both v
 
 ---
 
+### Physics Playground (Destructible Objects Demo)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/62947 |
+| **Category** | Modder's Resource — Destruction physics / workshop asset reference |
+| **Type** | Demo worldspace + resource ESP showcasing prebuilt destructible objects/prefabs not normally workshop-buildable |
+| **Off-site Requirements** | Creation Kit knowledge recommended for inspecting movable-static + script setup; console command usage for access (`coc Physdemo`) |
+| **Console (Bethesda.net)** | ❌ Not suitable/accepted for Bethesda.net console distribution |
+
+#### What It Is
+
+A modder-focused demo resource built for testing physics limits and showcasing destructible objects/prefabs that are normally unavailable to player workshop building.
+
+The page also notes these destructible setups can be reused in other mods, with navmesh present in the demo worldspace for spawned-enemy testing and workflow iteration.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ✅ Allowed with credit |
+| Modify/improve and release | ✅ Allowed without permission or credit |
+| Convert for other games | ❌ Not allowed |
+| Use assets/files in your own mod | ✅ Allowed without permission or credit |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not suitable for Bethesda.net console rules |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- No additional third-party file credits listed.
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
