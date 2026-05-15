@@ -1614,3 +1614,126 @@ Overly large/inefficient loops can still overflow practical limits and destabili
  FINAL SCRIPT PERFORMANCE SCORE TOTAL: [_______ / 100]
 =======================================================================
 ```
+
+---
+
+## Course Blueprint: Cinematic VFX and Engine Modernization
+
+This advanced 4-week module teaches high-fidelity Fallout 4 VFX production and engine-side lighting modernization.
+
+### Week 1: Advanced Particle Emitters and Mesh Particle Vectors (`.nif`)
+
+#### Blender Geometry Particle Staging
+
+- Keep mesh particle variants lightweight (target low poly per variant; avoid dense geometry)
+- Create multiple shape variants to avoid visual repetition
+- Align particle pivots at the emission base so velocity direction remains stable
+
+#### PyNifly Emitter Node Array Properties
+
+| Particle Property Block | Recommended Value | Technical Function |
+| --- | --- | --- |
+| Emit Start Alpha | `1.0` | Full visibility at spawn |
+| Emit End Alpha | `0.0` | Smooth fade-out |
+| Growth Rate | `-0.15` to `0.40` | Lifetime size scaling |
+| NiPSParticles Max Cap | `150` | Hard cap for performance protection |
+
+### Week 2: Smoke, Fire, and Fluid Shader Networks
+
+```text
+[Texture Input Channels]                      [BSLightingShaderProperty Flags]
+  - Diffuse (_d.dds) -------------------------> Fire/Smoke shader selection
+  - Normal  (_n.dds) -------------------------> Double_Sided / Soft_Effect
+  - Mask/Packed (_s.dds) ---------------------> U/V scrolling animation behavior
+```
+
+#### Volumetric Alpha Packing in Photopea
+
+1. Load smoke/fluid source texture
+2. Create `Alpha 1` channel
+3. Paste grayscale mask with desired contrast profile
+4. Export as BC7 alpha-capable DDS
+
+#### `.bgsm` Smoke/Fire Flags
+
+- Shader Type: fire/smoke-compatible lighting procedure
+- Enable: `Soft_Effect`, `Vertex_Colors`, `Double_Sided`
+- Configure texture U/V translation speed to animate flow/rise behavior
+
+### Week 3: Screen-Space Post-Processing and Lighting Modernization
+
+#### SSAO / SSR Core Parameters
+
+```ini
+[Display]
+iSAOSamples=16
+fSAORadius=120.0000
+fSAOBias=0.6000
+bScreenSpaceSubsurfaceScattering=1
+bScreenSpaceReflections=1
+iSSRQuality=2
+```
+
+#### Weather Record (`.wthr`) Lighting Tuning
+
+- Duplicate a baseline weather profile in CK
+- Reduce daytime blue shadow bias for more natural contrast
+- Increase sun-glare/haze parameters for atmospheric depth and scale
+
+### Week 4: Dynamic Screen Particle Effects (Lens/Visor Splatter)
+
+#### Normal Refraction Setup
+
+1. Generate seamless droplet normal map
+2. Export as `BC5 Signed` (`screen_fluid_n.dds`)
+3. Create `.bgsm` using screen-space refraction-compatible shader type
+4. Map normal slot for refractive distortion behavior
+
+#### Papyrus Trigger Logic
+
+```papyrus
+Scriptname ModName:ScreenEffectTrigger extends ObjectReference
+
+ImageSpaceModifier Property FXFluidSplatterModifier Auto Const
+
+Event OnTemplateObjectEnter(ObjectReference akTriggerSource)
+    ObjectReference playerRef = Game.GetPlayer()
+
+    if (akTriggerSource == playerRef && FXFluidSplatterModifier != None)
+        FXFluidSplatterModifier.Apply()
+        Game.ShakeCamera(playerRef, 0.45, 1.5)
+    endif
+EndEvent
+```
+
+### Comprehensive Visual Effects Evaluation Scorecard
+
+```text
+=======================================================================
+   FALLOUT 4 VISUAL EFFECTS & LIGHTING PIPELINE SCORECARD
+=======================================================================
+ Student Name: [_______________________]  VFX Project Name: [__________]
+
+ CRITERIA 1: PARTICLE ARRAY CONFIGURATION (Score: ___ / 25)
+ [ ] Particle geometry remains within performance budgets
+ [ ] Particle lifetime fade behavior is configured cleanly
+ [ ] Emitter count caps are enforced
+
+ CRITERIA 2: SHADER NETWORK INTEGRITY (Score: ___ / 25)
+ [ ] Soft-effect/depth blending flags are correctly enabled
+ [ ] UV scrolling values produce believable fluid/smoke motion
+ [ ] Normal map orientation is correct for engine lighting
+
+ CRITERIA 3: POST-PROCESSING & CAMERA PIPELINE (Score: ___ / 25)
+ [ ] SSAO/SSR settings are correctly applied
+ [ ] Screen-space refraction behaves as intended
+ [ ] Papyrus handlers apply effects safely without leaks
+
+ CRITERIA 4: PERFORMANCE & STRESS TESTING (Score: ___ / 25)
+ [ ] No major streaming stutter from VFX assets
+ [ ] Weather tuning supports intended cinematic lighting
+ [ ] Particle systems remain stable in heavy gameplay scenes
+
+ FINAL SCORE EVALUATION TOTAL: [_______ / 100]
+=======================================================================
+```
