@@ -949,3 +949,76 @@ This index maps common errors across Blender/PyNifly, Elrich, Materialize, Shade
 - **Code / Log Alert:** `RENDER: BSLightingShaderProperty block type error.`
   - **Root Cause:** Mesh is using the wrong shader/profile setup
   - **Technical Fix:** Re-export via the correct PyNifly profile to reset shader defaults
+
+---
+
+## Photopea Foliage SSS Workflow: Leaf Opacity and Translucency
+
+To simulate photoreal vegetation in Fallout 4, students need a foliage material that combines an alpha-cutout diffuse texture with a translucency glowmap.
+
+### Step 1: Extract and Prepare the Leaf Canvas in Photopea
+
+1. Open the raw vegetation texture in Photopea
+2. Use **Magic Wand** or **Object Selection**
+3. Select the solid background around the leaves
+4. Press **Delete** to clear the background and create a transparent cutout layer
+
+### Step 2: Create the Semi-Transparent Opacity Mask (Alpha Channel)
+
+The diffuse texture’s alpha channel determines which parts of the leaf are solid and which are transparent.
+
+1. Hold `Ctrl` and click the leaf layer thumbnail to load the leaf silhouette as a selection
+2. Open the **Channels** panel
+3. Create a new channel named `Alpha 1`
+4. Fill the selection with:
+   - **White (`#FFFFFF`)** for fully solid leaf interiors
+   - **Mid-gray (`#808080`)** for softer edges, stems, and frills
+5. Leave the background fully black (`#000000`)
+
+### Step 3: Pack the Translucency Pass (`_g.dds`)
+
+This map drives light transmission through thin leaf tissue.
+
+1. Duplicate the main leaf layer (`Ctrl + J`)
+2. Rename it `Translucency_Map`
+3. Open `Image -> Adjustments -> Hue/Saturation`
+   - Saturation: `+20`
+   - Lightness: `-15`
+4. Open `Image -> Adjustments -> Brightness/Contrast`
+   - Contrast: `+30`
+   - Lower brightness until veins go dark while thin leaf tissue stays vibrant
+
+### Step 4: Export Game-Ready Textures from Photopea
+
+#### Diffuse with Alpha
+
+1. Select the diffuse document with `Alpha 1`
+2. Export as DDS
+3. Use:
+   - `BC7 (Alpha)` or `DXT5`
+4. Save as:
+   - `vegetation_leaves_d.dds`
+
+#### Translucency Glowmap
+
+1. Select the `Translucency_Map` document
+2. Export as DDS
+3. Use:
+   - `BC7 (Fine)` or `DXT1`
+4. Save as:
+   - `vegetation_leaves_g.dds`
+
+### Step 5: Creation Kit `.bgsm` Shader Settings
+
+Create a new `.bgsm` and configure:
+
+- **Material Tab:** `Two-Sided Foliage` or `Enviro Foliage`
+- **Texture Paths:**
+  - Diffuse: `vegetation_leaves_d.dds`
+  - Normal: `vegetation_leaves_n.dds`
+  - Glow / Translucency: `vegetation_leaves_g.dds`
+- **Shader Flags:** enable `Alpha Blend`, `Two-Sided`, `Glow`, and `Receive Shadows`
+- **Alpha Blending:**
+  - Source Blend Mode: `Src Alpha`
+  - Destination Blend Mode: `Inv Src Alpha`
+  - Alpha Test Ref: `128`
