@@ -294,6 +294,7 @@ Current entries:
 - **Witch's Nature** (Nexus #89664) by SexyWitch — blinking, expressive face morphs, eye & head tracking, no scripts
 - **HIT THE MASS** (Nexus #90416) by SexyWitch — combat hit reactions, hitstop, knockback, VFX panic criticals
 - **NAF — Native Animation Framework** (Nexus #73889) by Snapdragon/Deweh — multi-character animation framework, ESP-less packs, face animations
+- **Animated World Framework** (Nexus #100946) by Knundrum — F4SE-native world interaction animations; no scripting required for patch authors
 - **MaikCG F4Biped** (Nexus #16691) by MaikCG — professional animation rig for 3ds Max, Maya, and MotionBuilder
 
 ---
