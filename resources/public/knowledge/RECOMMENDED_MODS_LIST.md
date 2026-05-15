@@ -1604,6 +1604,41 @@ The author notes the conversion process was time-intensive and shared these work
 
 ---
 
+### Vertibird Minigun Turret Vanilla Animations Resource
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/70018 |
+| **Category** | Modder's Resource — Animation authoring reference |
+| **Type** | Vanilla 1st/3rd-person vertibird minigun turret animation conversion pack (3DS Max clips, FBX, HKX, XML) |
+| **Off-site Requirements** | 3DS Max/animation tooling if you plan to edit or rework the included source clips |
+| **Console (Bethesda.net)** | ❌ Not available for Bethesda.net console users |
+
+#### What It Is
+
+An animator-focused resource containing converted vanilla Fallout 4 vertibird minigun turret animations in both first-person and third-person sets for easier DCC editing workflows.
+
+The pack is positioned as a time-saver for animation authors and includes both vanilla and converted HKX data alongside clips and interchange formats.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify/improve and release | ✅ Allowed without permission or credit |
+| Convert for other games | ❌ Not allowed |
+| Use assets/files in your own mod | ✅ Allowed without permission or credit |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not available for Bethesda.net console users |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- No additional third-party file credits listed.
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
