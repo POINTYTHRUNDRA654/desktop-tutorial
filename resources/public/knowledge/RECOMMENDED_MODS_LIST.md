@@ -1744,6 +1744,45 @@ The guide emphasizes practical workflow coverage across multiple tools and is in
 
 ---
 
+### Fallout 4 Data Structures (F4DS)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/53089 |
+| **Category** | Framework — Papyrus scripting extension (F4SE plugin) |
+| **Type** | Native data-structure framework for Papyrus (arrays, sets, dictionaries, iterators) |
+| **Requirements** | Fallout 4 Script Extender (F4SE) — mandatory |
+| **Console (Bethesda.net)** | ❌ Not suitable/accepted for Bethesda.net console distribution |
+
+#### What It Is
+
+An F4SE plugin aimed at mod authors that adds multiple data-structure primitives to Papyrus scripts to bypass vanilla engine limitations.
+
+Core capabilities include large one-dimensional arrays (with sorting), typed sets, typed dictionaries (including key-to-array mappings), and iterator-based traversal support for set/dictionary workflows.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify/improve and release | ✅ Allowed with credit |
+| Convert for other games | ✅ Allowed with credit |
+| Use assets/files in your own mod | ✅ Allowed without permission or credit |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not suitable for Bethesda.net console rules |
+
+#### Credits (as listed on the page)
+
+- F4SE Team.
+- F4SE plugin authors for shared learning source code.
+- LoversLab community for shared learning source code.
+- Eskella (bug reports).
+- weefbellington (bug reports).
+- DeadlyStr1ke (bug report).
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
