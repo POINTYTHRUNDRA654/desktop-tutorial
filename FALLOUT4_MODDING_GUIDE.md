@@ -1069,6 +1069,14 @@ C:\Fallout4ModdingWorkspace\
 
 Papyrus is frame-budgeted and queue-driven. Prefer state/event-driven logic over persistent polling loops so scripts yield naturally and avoid long-term backlog buildup.
 
+### Cinematic VFX Modernization Snapshot
+
+- Build lightweight mesh-particle systems for sparks/embers/spores and cap emitter counts for stability.
+- Use smoke/fluid materials with soft-depth blending and UV scrolling for believable motion.
+- Tune screen-space post effects (SSAO/SSR and weather records) for consistent photoreal lighting.
+- Use screen-space refraction materials and safe Papyrus triggers for lens/visor impact effects.
+- Validate VFX under stress scenarios to ensure frame-time stability in dense combat/environment scenes.
+
 ---
 
 **Document Version:** 2.0  
