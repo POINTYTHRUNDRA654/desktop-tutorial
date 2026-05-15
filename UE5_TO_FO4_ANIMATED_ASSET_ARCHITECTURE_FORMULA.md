@@ -1022,3 +1022,33 @@ Create a new `.bgsm` and configure:
   - Source Blend Mode: `Src Alpha`
   - Destination Blend Mode: `Inv Src Alpha`
   - Alpha Test Ref: `128`
+
+---
+
+## Advanced Environmental World-Building and Foliage Syllabus Module
+
+This 4-week module extends the curriculum into vegetation systems, landscape materials, and large-scale flora deployment inside the Creation Kit.
+
+### Week 1: Procedural Flora Generation and Volumetric Shading
+
+- **Lecture Topics:** Creation Engine landscape basics, vertex-normal bending for foliage masses, runtime overdraw budgets
+- **Practical Lab Work:** Build a modular low-poly canopy branch in Blender and use the **Normal Edit** modifier to bend normals outward from a central pivot
+- **Milestone Goal:** Export a vegetation cluster mesh with custom normals that avoids heavy sub-facet shading
+
+### Week 2: High-Density Texture Optimization and Alpha Masking
+
+- **Lecture Topics:** Photopea channel packing, Alpha Blend vs Alpha Test, subsurface-style foliage lighting
+- **Practical Lab Work:** Cut out leaf textures in Photopea, build embedded alpha masks, and generate translucency glowmaps
+- **Milestone Goal:** Export a complete foliage texture set (`_d.dds` with alpha, `_n.dds`, `_g.dds`) with mipmaps enabled
+
+### Week 3: Landscape Materials and Ground Covers
+
+- **Lecture Topics:** Layered landscape materials, FO4 Material Editor usage, terrain texture blending
+- **Practical Lab Work:** Create seamless dirt/grass/needle textures with Materialize and ShaderMap 4, then build landscape `.bgsm` materials
+- **Milestone Goal:** Produce a seamless 3-texture landscape painting palette in the CK
+
+### Week 4: Procedural Placement, Flora Records, and LOD Generation
+
+- **Lecture Topics:** Flora and Tree forms, region generation, large-scale placement, distant-object LOD
+- **Practical Lab Work:** Link custom foliage meshes to flora records, distribute them through the Region Editor, and generate distant LOD assets
+- **Milestone Goal:** Populate a full test cell with an optimized, harvestable ecosystem that transitions cleanly into distant LODs
