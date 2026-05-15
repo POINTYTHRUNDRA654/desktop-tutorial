@@ -716,3 +716,95 @@ To preserve the look from Materialize, disable extra enhancement passes.
 Save final outputs into:
 
 `Data\Textures\ModName\`
+
+---
+
+## In-Game Lighting Assignment: Real-Time PBR Stress Test
+
+**Course Module:** Surface Reaction and Environmental Litmus Testing  
+**Objective:** Validate that packed `_s.dds` maps and DirectX-style normal maps behave correctly under extreme lighting conditions.
+
+### Laboratory Execution Steps
+
+1. Open the Creation Kit and load the target `.esp`
+2. In the Object Window, place the custom object into a test cell
+3. Add a dynamic light source such as an omni or spotlight
+4. Save the plugin and launch Fallout 4
+5. Use `coc [YourCellName]` to enter the test cell
+6. Run the following time-of-day checks
+
+| Time Command | Target Light Check Value | Expected Behavior / Visual Grading Metric | Pass / Fail |
+| --- | --- | --- | --- |
+| `set timeofday to 12.00` | Noon sunlight | Non-metal areas remain matte; metallic areas reflect the environment without blowing out | `[ ] Pass [ ] Fail` |
+| `set timeofday to 20.00` | Twilight / low-angle sun | Normal details cast long correct-direction shadows; if they face the sun, Y-flip is wrong | `[ ] Pass [ ] Fail` |
+| `set timeofday to 01.00` | Midnight / flashlight test | Micro-scratches and lacquer detail shift reflections dynamically with viewing distance | `[ ] Pass [ ] Fail` |
+
+---
+
+## Lab Troubleshooting Sheet: Correcting Texture Compression Artifacts
+
+```text
+[Texture Error Discovered In-Game]
+                |
+                v
+Identify Symptom Type Matrix
+ +--> Blocky Green/Magenta Banding --> Root Cause: Specular compressed as BC1/DXT1 --> Fix: Re-export as BC7 (Fine)
+ +--> Flipped Shadows/Indents      --> Root Cause: Y-axis normal not flipped      --> Fix: Toggle Flip Y in ShaderMap
+ +--> Pixel Grid Shimmer           --> Root Cause: Missing mipmaps                --> Fix: Enable Generate Mipmaps
+```
+
+### Artifact A: Blocky Green and Magenta Color Bleeding
+
+- **Symptom:** Specular highlights become pixelated with green/purple block artifacts
+- **Root Cause:** Packed specular exported as `BC1/DXT1` or `BC3/DXT5`
+- **Fix:** Re-export packed specular as `BC7 (Fine / 8bpc)`
+
+### Artifact B: Reversed or Inverted Normal Depth
+
+- **Symptom:** Cracks bulge out while raised details appear indented
+- **Root Cause:** Normal map uses the wrong handedness / green-channel orientation
+- **Fix:** In ShaderMap 4, enable **Flip Y (Green Channel)** before exporting `BC5`
+
+### Artifact C: Shimmering or Buzzing Textures at Distance
+
+- **Symptom:** Texture looks fine up close but shimmers at range
+- **Root Cause:** Mipmaps were omitted during export
+- **Fix:** Enable **Generate Mipmaps** in ShaderMap 4 or DDS export settings
+
+---
+
+## Student Weekly Project Tracking Checklist
+
+Distribute this checklist so students can track texture files through the full production chain.
+
+### Production Tracking Log Matrix
+
+```text
+Asset Name Tag identifier: [_______________________]
+Source System Reference Path: [_______________________]
+```
+
+### Phase 1: Materialize Generation Pass
+
+- Diffuse loaded and tiled cleanly
+- Height map configured with `Low 0.70 / Mid 0.50 / High 0.25`
+- Normal map built from **Weight Map / Displacement**
+- Smoothness and AO exported as separate project layers
+
+### Phase 2: ShaderMap Advanced Node Routing
+
+- Materialize normal map loaded into ShaderMap
+- Custom Packed map created in Advanced workspace
+- Red channel linked to Smoothness / inverse roughness
+- Green channel linked to Ambient Occlusion
+- Blue channel linked to Metallic
+- Alpha channel fixed to solid white (`1.0`)
+
+### Phase 3: Exporter Target Optimization Passes
+
+- Normal node blur/sharpen disabled
+- Flip Y enabled on the normal node
+- Packed specular bias values kept at defaults (`1.0 / 0.0`)
+- Normal exported as `BC5 (Signed)` `.dds`
+- Packed specular exported as `BC7 (Fine)` `.dds`
+- Final texture paths staged under `Data\Textures\ModName\`
