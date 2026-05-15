@@ -289,6 +289,10 @@ Current entries:
 - **Immersive Animation Framework** (Nexus #50555) by AnotherOne — ingestible animations with keyword patching API
 - **First-Person Swimming Animations** (Nexus #62123) by neeher — arms visible while swimming
 - **Kicks And Punches — Unarmed Animations** (Nexus #45402) by Flovici — martial arts replacer for unarmed/boxing combat
+- **JNFA2026 — Just New Female Animations** (Nexus #100034) by cyb9erg — feminine movement replacer for female player character
+- **RAF — Random Animation Framework** (Nexus #90839) by SexyWitch — 80+ animations, 9 NPC archetypes, dynamic walk/run speeds
+- **Witch's Nature** (Nexus #89664) by SexyWitch — blinking, expressive face morphs, eye & head tracking, no scripts
+- **HIT THE MASS** (Nexus #90416) by SexyWitch — combat hit reactions, hitstop, knockback, VFX panic criticals
 - **NAF — Native Animation Framework** (Nexus #73889) by Snapdragon/Deweh — multi-character animation framework, ESP-less packs, face animations
 - **MaikCG F4Biped** (Nexus #16691) by MaikCG — professional animation rig for 3ds Max, Maya, and MotionBuilder
 
