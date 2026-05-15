@@ -1,0 +1,1959 @@
+# Unreal Engine 5 to Fallout 4 Animated Asset Architecture Formula
+
+This guide covers the correct direction for moving modern Unreal Engine 5 assets into Blender and then into Fallout 4 through PyNifly, Elrich, and the Creation Kit.
+
+---
+
+## Core Workflow Formula (UE5 → Blender → Fallout 4)
+
+PyNifly and the Creation Kit cannot read Unreal Engine 5 assets directly. The correct workflow is:
+
+1. Export raw asset data from **Unreal Engine 5**
+2. Correct transforms, scale, and rigging in **Blender**
+3. Export meshes with **PyNifly**
+4. Export animations back to **FBX** for **Elrich**
+5. Deliver `.nif` and `.hkx` into **Fallout 4 / Creation Kit**
+
+---
+
+## 1) Extraction (Unreal Engine 5 to Blender)
+
+UE5 assets must be converted into a raw format Blender can interpret without losing skeletal hierarchy or skin weights.
+
+### The Process
+
+- In the UE5 Content Browser, right-click the target **Skeletal Mesh** or **Animation Sequence**
+- Choose `Asset Actions -> Export`
+- Export as **FBX**
+
+### Export Settings
+
+- **Uncheck** `Level of Detail (LODs)` so only the highest-resolution base mesh is exported
+- **Check** `Export Morph Targets` when facial animation or morph-driven deformation is needed
+
+---
+
+## 2) Blender Transform Correction (Critical Shift)
+
+When a UE5 FBX is imported into Blender, it usually arrives oversized and oriented incorrectly for Fallout 4.
+
+### Import Settings
+
+- Import the UE5 FBX into Blender
+
+### Scale Shift
+
+- UE5 uses **centimeters**
+- Fallout 4 uses a different scaled world/model space
+- Unlike Unity extractions that often require large scene-scale correction, UE5 FBX exports usually arrive much closer to usable Blender scene scale because they are already authored in centimeter-based DCC workflows
+- Start from the imported UE5 FBX at **1.0x** in Blender scene space as the baseline. Many assets will remain at that scale, while oversized hero assets may need to be tuned down toward roughly **0.7x** against a Fallout 4 reference mesh
+- Apply transforms with `Ctrl + A -> Apply All Transforms`
+
+### Rotation Realignment
+
+- UE5 faces down the **positive X-axis**
+- Fallout 4 expects assets aligned to the **negative Y-axis**
+- Rotate the armature **-90 degrees on the Z-axis**
+- Apply transforms again with `Ctrl + A`
+
+---
+
+## 3) Rigging and Bone Renaming (UE5 to Fallout 4 Mapping)
+
+UE5 default bone names must be remapped to Fallout 4-compatible naming or the exported result can fail in-game or crash in CK workflows.
+
+| UE5 Source Bone Name | Target Fallout 4 Bone Name | Structural Role |
+| --- | --- | --- |
+| `root` | `Root` or remove if using `Bip01` | Base origin node |
+| `pelvis` | `Bip01 Pelvis` or `COM` | Center of mass / movement anchor |
+| `spine_01` / `spine_02` | `Bip01 Spine1` / `Bip01 Spine2` | Torso articulation |
+| `upperarm_l` / `lowerarm_l` | `Bip01 L UpperArm` / `Bip01 L Forearm` | Left arm chain |
+| `thigh_r` / `calf_r` | `Bip01 R Thigh` / `Bip01 R Calf` | Right leg chain |
+
+---
+
+## 4) Downsampling and Optimization Module
+
+UE5 assets routinely exceed Creation Engine-era limits, so optimize before export.
+
+### Vertex Count Guidance
+
+- Keep mesh partitions roughly within **30,000 to 45,000 polygons**
+- Use a **Decimate Modifier** where necessary
+
+### Bone Influence Limit
+
+- In Blender, use `Weights -> Limit Total`
+- Set the limit to **4 bones per vertex**
+- UE5 may tolerate more, but Fallout 4 can glitch or crash above 4 influences
+
+---
+
+## 5) Blender to PyNifly Export Profile
+
+Once the asset is scaled, rotated, renamed, and optimized:
+
+1. Go to `File -> Export -> NetImmerse (.nif)`
+2. Set **Game Target** to `Fallout 4`
+3. Enable:
+   - `Export Vertex Weights`
+   - `Generate Skin Partition`
+4. Save the output `.nif` directly into the `Data/Meshes/` workspace
+
+---
+
+## 6) Animation Track Routing (FBX to Elrich)
+
+If animation data was exported from UE5:
+
+1. Bake animations onto the newly renamed Fallout 4 bone structure in Blender
+2. Export the armature from Blender as **FBX (ASCII)** for the Havok compilation step
+3. Drop the FBX into the `compile_anims.py` input directory
+4. Let **Elrich** compile it into a Fallout 4-compatible `.hkx`
+
+---
+
+## Practical Checklist
+
+- UE5 export uses **FBX**
+- LODs are disabled unless intentionally needed
+- Morph targets are exported only when required
+- Blender transform scale is corrected and applied
+- Armature is rotated to Fallout 4 heading expectations
+- Bone names are mapped to FO4-compatible structure
+- Vertex influences are capped at **4**
+- PyNifly export targets **Fallout 4**
+- Animation FBX is routed through **Elrich** for `.hkx` output
+
+---
+
+## Automated Bone Renaming Script (UE5 to Fallout 4 Matrix)
+
+Run this inside Blender’s Scripting workspace with the imported UE5 armature selected.
+
+```python
+import bpy
+
+def remap_ue5_to_fo4():
+    obj = bpy.context.active_object
+    if not obj or obj.type != "ARMATURE":
+        print("Error: No armature selected. Select the UE5 armature as the active object.")
+        return
+
+    bpy.ops.object.mode_set(mode="EDIT")
+
+    bone_rename_map = {
+        "root": "Root",
+        "pelvis": "Bip01 Pelvis",
+        "spine_01": "Bip01 Spine1",
+        "spine_02": "Bip01 Spine2",
+        "spine_03": "Bip01 Spine3",
+        "neck_01": "Bip01 Neck",
+        "head": "Bip01 Head",
+        "clavicle_l": "Bip01 L Clavicle",
+        "upperarm_l": "Bip01 L UpperArm",
+        "lowerarm_l": "Bip01 L Forearm",
+        "hand_l": "Bip01 L Hand",
+        "clavicle_r": "Bip01 R Clavicle",
+        "upperarm_r": "Bip01 R UpperArm",
+        "lowerarm_r": "Bip01 R Forearm",
+        "hand_r": "Bip01 R Hand",
+        "thigh_l": "Bip01 L Thigh",
+        "calf_l": "Bip01 L Calf",
+        "foot_l": "Bip01 L Foot",
+        "thigh_r": "Bip01 R Thigh",
+        "calf_r": "Bip01 R Calf",
+        "foot_r": "Bip01 R Foot",
+    }
+
+    renamed_count = 0
+    for edit_bone in obj.data.edit_bones:
+        if edit_bone.name in bone_rename_map:
+            old_name = edit_bone.name
+            new_name = bone_rename_map[old_name]
+            edit_bone.name = new_name
+            renamed_count += 1
+            print(f"Renamed Node Link: {old_name} -> {new_name}")
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+    print(f"Success: Modified and translated {renamed_count} bone node references.")
+
+if __name__ == "__main__":
+    remap_ue5_to_fo4()
+```
+
+---
+
+## Axis Flip Animation Correction Diagnostic Checklist
+
+Because UE5 tracks forward on the X-axis while Fallout 4 expects forward motion on negative Y, uncorrected assets can walk sideways or backward after conversion.
+
+### Verify Viewport Facing Alignment
+
+- Switch Blender to **Front View** (`Numpad 1`)
+- The model should face toward you
+- If it faces left or right, it is still aligned to the UE5 X-forward heading
+
+### Apply Corrective Rotation
+
+1. Select the armature
+2. Press `R -> Z -> -90`
+3. Apply with `Ctrl + A -> All Transforms`
+
+### Clear Root Animation Curve Inversions
+
+- Open the **Graph Editor**
+- Inspect root bone translation channels
+- If forward motion still lives on `X Location` instead of the expected FO4-aligned axis, mirror or move the motion into the corrected channel set before export
+
+### Run Elrich Graph Sanity Check
+
+- Compile the exported **ASCII FBX** with `compile_anims.py`
+- If the log reports `Orientation matrix mismatch on root transform`, re-import into Blender and verify transforms are fully applied (`Scale = 1.0`, `Rotation = 0.0`) before recompiling
+
+---
+
+## Student Lab Sheet: Processing and Converting High-Poly UE5 Textures in Photopea
+
+**Course Module:** PBR Material Texture Downsampling and Conversion  
+**Objective:** Convert high-fidelity UE5 textures into optimized `.dds` assets and Fallout 4-ready material inputs.
+
+### Required Student Working Assets
+
+- `UE5_Texture_BaseColor.png`
+- `UE5_Texture_Normal.png`
+- `UE5_Texture_ORD.png`
+
+### Step 1: Scale Down Texture Resolution Assets (Estimated: 10 min)
+
+1. Open the base color texture in **Photopea**
+2. If the source is `4096 x 4096`, scale it down to `2048 x 2048`
+3. Use a reduction-friendly filter such as **Bicubic Sharper**
+
+### Step 2: Unpack and Reform Texture Channels (Estimated: 15 min)
+
+UE5 commonly stores:
+
+- **Occlusion** in Red
+- **Roughness** in Green
+- **Metallic** in Blue
+
+For Fallout 4:
+
+1. Open the `ORD` texture
+2. Copy the **Green channel** (roughness)
+3. Paste into a new grayscale image
+4. Invert it (`Ctrl + I`) to convert roughness into a gloss/smoothness-style map
+5. In **Photopea**, save the inverted result as a temporary working file such as `custom_asset_s.png`, then pass it to your DDS conversion tool for final export
+
+### Step 3: Compress Assets into Direct3D Containers (Estimated: 10 min)
+
+The Creation Engine cannot use `.png` at runtime, so convert textures to `.dds`.
+
+- **Diffuse:** `BC7` or `BC1/DXT1` → `custom_asset_d.dds`
+- **Normal:** `BC5` or `DXT5 (NM)` → `custom_asset_n.dds`
+- **Specular / Gloss:** `BC7` or `DXT1` → `custom_asset_s.dds`
+
+Move the final `.dds` files into:
+
+`Data\Textures\ModName\`
+
+---
+
+## Fallout 4 Texture-State Module: Diffuse, Overlays, and Glowmaps
+
+This module covers the three essential Fallout 4 texture states: diffuse maps, material overlays, and glowmaps.
+
+### Step 1: Asset Creation and Channel Preparation
+
+Prepare textures at strict power-of-two resolutions appropriate for the asset.
+
+#### 1) Diffuse Maps (Base Color)
+
+- Keep base color free of baked lighting and shadows
+- If transparency is needed, add an **Alpha Channel**
+- Paint visible areas white and hidden areas black in alpha
+
+#### 2) Material Overlays (Decals / Blood / Dirt)
+
+- Create only the overlay detail with transparent background
+- Copy the overlay shape into the **Alpha Channel** as solid white
+- This isolates the overlay when rendered over the base material
+
+#### 3) Glowmaps (Emissive Textures)
+
+- Start from the diffuse texture
+- Black out everything except emissive regions
+- Paint glow regions using their target emissive color
+- Keep all non-emissive space pure black
+
+### Step 2: Compression Matrix
+
+| Texture Type | Naming Tag | Compression Format | Mipmaps | Technical Function |
+| --- | --- | --- | --- | --- |
+| Standard Diffuse | `_d.dds` | `BC7 x.0 8bpc Fine` | Auto | Preserves color gradients cleanly |
+| Overlay / Alpha Diffuse | `_d.dds` | `BC7 x.0 8bpc Alpha` | Auto | Preserves clean transparency edges |
+| Normal Map | `_n.dds` | `BC5 8bpc (Signed)` | Auto | High-fidelity surface normal vectors |
+| Specular / Gloss | `_s.dds` | `BC7 x.0 8bpc Fine` | Auto | Carries reflectivity and gloss data |
+| Glowmap / Emissive | `_g.dds` | `BC7 x.0 8bpc Fine` | Auto | Preserves emissive color data |
+
+### Step 3: `.bgsm` Material Setup
+
+You cannot assign raw `.dds` directly in CK; use a `.bgsm` material file.
+
+#### Standard Textures + Glowmaps
+
+- **Shader Type:** `Default`
+- **Texture Paths:**
+  - Diffuse: `Textures\ModName\Asset_d.dds`
+  - Normal: `Textures\ModName\Asset_n.dds`
+  - Smoothness / Spec: `Textures\ModName\Asset_s.dds`
+  - Glow / Emissive: `Textures\ModName\Asset_g.dds`
+- **Shader Flags:** enable `Glow` and `Receive Shadows`
+- **Lighting Properties:** set **Emissive Multiplier** roughly between `1.5` and `5.0`
+
+#### Alpha / Overlay Decal Textures
+
+- **Shader Type:** `Decal` or `Default`
+- **Shader Flags:** enable `Assume Shadowmask`, `Z-Buffer Test`, and `Alpha Blend`
+- **Alpha Blending:**
+  - Enable blending
+  - Source Blend Mode: `Src Alpha`
+  - Destination Blend Mode: `Inv Src Alpha`
+
+### Step 4: Blender PyNifly Mesh Material Assignment
+
+1. Select the mesh in Blender
+2. Open **Material Properties**
+3. Create a material slot
+4. Name it with the exact game-relative `.bgsm` path:
+
+```text
+Materials\ModName\AssetMaterial.bgsm
+```
+
+PyNifly embeds this path into the exported mesh shader property block.
+
+### Step 5: Creation Kit Deployment Verification
+
+- Verify files exist under:
+  - `Data\Meshes\ModName\`
+  - `Data\Textures\ModName\`
+  - `Data\Materials\ModName\`
+- Open or create a `Static` / `MovableStatic` form in CK
+- Point the model to the exported `.nif`
+- Toggle preview lighting off in the CK preview window and confirm glow regions light correctly in darkness
+
+---
+
+## Fallout 4 PBR Conversion: Roughness, Metallic, and AO to `_s.dds`
+
+Fallout 4 does not use separate PBR roughness, metallic, and AO textures directly. Instead, it expects a channel-packed `_s.dds` specular/gloss map.
+
+### `_s.dds` Texture Blueprint Matrix
+
+Using **Photopea**, create a new texture matching the diffuse size and pack channels as follows:
+
+- **Red Channel:** Smoothness / Glossiness
+  - Paste the source **Roughness** map
+  - Invert it (`Ctrl + I`) to convert roughness into smoothness
+- **Green Channel:** Reflected Color Intensity / Specular Mask
+  - Paste the grayscale **Ambient Occlusion** map
+- **Blue Channel:** Metalness Reflection Value
+  - Paste the **Metallic** map
+- **Alpha Channel:** Special Lighting / Subsurface Intensity
+  - Leave solid white unless targeting assets that need specialized lighting control
+
+### Exporting the Specular Map
+
+- Save as `.dds` (for example `Asset_s.dds`)
+- Texture Type: **Color + Alpha**
+- Compression Format: **BC7 x.0 8bpc Fine**
+
+---
+
+## Python `.bgsm` Material File Path Validator Tool
+
+Use this script to audit custom `.bgsm` files for bad absolute paths or missing relative texture references.
+
+```python
+import os
+
+TARGET_DATA_DIR = os.environ.get("FO4_DATA_DIR", "C:/Fallout4/Data/")
+MATERIALS_SUB_DIR = os.path.join(TARGET_DATA_DIR, "Materials/ModName/")
+
+def validate_bgsm_paths(bgsm_filename):
+    bgsm_path = os.path.join(MATERIALS_SUB_DIR, bgsm_filename)
+
+    if not os.path.exists(bgsm_path):
+        print(f"ERROR: File not found at target location: {bgsm_path}")
+        return False
+
+    print(f"Auditing Material Spec Configuration Profile: {bgsm_filename}")
+    has_errors = False
+
+    with open(bgsm_path, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+
+        if "C:" in content or "Users\\" in content or "Desktop\\" in content:
+            print("  - PATH ERROR: Found absolute desktop drive paths.")
+            has_errors = True
+
+        try:
+            if "Textures\\" not in content:
+                print("  - STRUCTURE ERROR: Material lacks relative 'Textures\\' paths.")
+                has_errors = True
+
+            expected_maps = ["_d.dds", "_n.dds", "_s.dds"]
+            for texture_tag in expected_maps:
+                if texture_tag not in content:
+                    print(f"  - WARNING: Material does not contain a standard '{texture_tag}' entry.")
+        except Exception as e:
+            print(f"  - INTERPRETATION FAILURE: {str(e)}")
+            has_errors = True
+
+    if not has_errors:
+        print("  - PASS: Material relative path metrics conform to game engine layouts.")
+        return True
+
+    print("  - FAIL: Correct the file pathing errors above before launching the Creation Kit.")
+    return False
+
+if __name__ == "__main__":
+    os.makedirs(MATERIALS_SUB_DIR, exist_ok=True)
+    SAMPLE_TARGET_MATERIAL = "PlayerWeaponAsset.bgsm"
+    validate_bgsm_paths(SAMPLE_TARGET_MATERIAL)
+```
+
+---
+
+## Step-by-Step Tutorial: Complex Layered Textures in the `.bgsm` Material Editor
+
+Layered materials let multiple materials blend on a single mesh using a grayscale blend mask.
+
+### Step A: Texture Preparation Checklist
+
+Prepare these files inside `Data\Textures\ModName\`:
+
+- `Asset_Base_d.dds` and `Asset_Base_s.dds`
+- `Asset_Top_d.dds` and `Asset_Top_s.dds`
+- `Asset_BlendMask_d.dds`
+- `Asset_n.dds`
+
+### Step B: Material Setup Configuration Pipeline
+
+1. Open the Fallout 4 Material Editor
+2. Click `File -> New`
+3. In **Material Properties**, set **Shader Type** to `Layered`
+4. Set **Layer Count** to `2`
+
+### Step C: Mapping Textures to the Material Structure
+
+#### Layer 1 (Base Layer)
+
+- Diffuse: `Textures\ModName\Asset_Base_d.dds`
+- Normal: `Textures\ModName\Asset_n.dds`
+- Smoothness / Spec: `Textures\ModName\Asset_Base_s.dds`
+
+#### Layer 2 (Top Layer)
+
+- Diffuse: `Textures\ModName\Asset_Top_d.dds`
+- Smoothness / Spec: `Textures\ModName\Asset_Top_s.dds`
+
+#### Blend Mask
+
+- Blend Mask: `Textures\ModName\Asset_BlendMask_d.dds`
+
+### Step D: Adjusting Material Interaction Properties
+
+1. Open the **Material Layers** configuration tab
+2. In **Layer 2 Properties**, set Blend Mode to `Alpha Blend` or `Specular Mask`
+3. Enable **Invert Blend Mask** only if the mask needs reversing
+4. Save into `Data\Materials\ModName\CustomLayeredAsset.bgsm`
+
+---
+
+## Materialize Master Workflow for Photoreal Fallout 4 PBR Conversion
+
+Bounding Box Software’s Materialize works best when students build the material stack in dependency order: **Height first**, then **Normal**, **AO**, and **Smoothness**.
+
+### Step 1: Base Setup and Seamless Tiling
+
+Before generating maps:
+
+1. Click the `O` button under **Diffuse Map**
+2. Load a square, high-resolution source texture
+3. Click **Tile Maps**
+4. Set **Tiling X** and **Tiling Y** to the required scale
+5. Set **Overlap X** and **Overlap Y** to `0.15` or `0.20`
+6. Increase **Falloff** until seams are blended out
+7. Click **Set Select Maps**
+
+### Step 2: Height Map Definition (Foundation)
+
+The Height map drives downstream realism.
+
+1. Click **Create** under **Height Map**
+2. Choose preset: **Mid Details**
+
+#### Height Master Settings
+
+- Frequency Weight (Low): `0.70`
+- Frequency Weight (Mid): `0.50`
+- Frequency Weight (High): `0.25`
+- Gain: `0.15`
+- Contrast: `1.20`
+
+3. Click **Set as Height Map**
+
+### Step 3: Normal Map Precision
+
+1. Click **Create** under **Normal Map**
+2. Set source to **From Weight Map / Displacement**
+3. Select preset: **Crisp**
+
+#### Normal Master Settings
+
+- Pre-Contrast: `1.10`
+- Shape Recognition: `0.40`
+- Final Contrast: `1.30`
+
+4. Click **Set as Normal Map**
+
+### Step 4: Metallic and Smoothness Generation
+
+#### 1) Metallic Map
+
+1. Click **Create** under **Metallic Map**
+2. Configure by material type:
+   - Non-metals: Default Value `0.0`
+   - Pure metals: Default Value `1.0`
+   - Mixed materials: use color picking and raise contrast to `1.8`
+3. Click **Set as Metallic Map**
+
+#### 2) Smoothness Map
+
+1. Click **Create** under **Smoothness Map**
+2. Enable **Invert** when needed to convert source interpretation correctly
+
+#### Smoothness Master Settings
+
+- Final Contrast: `1.40`
+- Blur / Smooth: `0.05`
+
+3. Click **Set as Smoothness Map**
+
+### Step 5: Ambient Occlusion Generation
+
+1. Click **Create** under **Ambient Occlusion Map**
+
+#### AO Master Settings
+
+- Pixel Spread: `150`
+- Depth: `2.50`
+- Contrast: `1.35`
+
+2. Click **Set as AO Map**
+
+### Step 6: Visualize and Compile the Master Specular Map
+
+1. Click **Show Full Material**
+2. Hold `L` and move the mouse to inspect changing light angles
+
+Materialize can export a Fallout 4-style packed specular map directly through **Property Map Setup**:
+
+- **Red Channel:** Smoothness
+- **Green Channel:** Ambient Occlusion
+- **Blue Channel:** Metallic
+
+Then click **Save Project** to output:
+
+- Diffuse
+- Normal
+- FO4-style packed `_s` specular map
+
+---
+
+## Materialize Batch Cleanup and Engine Suffix Tagging Script
+
+Save this as `FixMaterializeOutputs.bat` inside the texture export folder to rename Materialize outputs into FO4/PyNifly-friendly suffixes.
+
+```cmd
+@echo off
+setlocal enabledelayedexpansion
+title Materialize To Engine Suffix Converter
+echo =======================================================
+echo     MATERIALIZE RAW TEXTURE AUTOMATED TAGGING TOOL
+echo =======================================================
+echo.
+
+set /a count=0
+for %%f in (*diffuse*.png *diffuse*.jpg *diffuse*.bmp) do set /a count+=1
+
+if %count%==0 (
+    echo [ERROR] No standard Materialize export patterns located in this folder.
+    echo Ensure you exported maps using standard naming templates.
+    echo.
+    pause
+    exit /b
+)
+
+echo [PROCESSING] Restructuring texture profile nodes...
+echo -------------------------------------------------------
+
+for %%i in (*diffuse*.png *diffuse*.jpg *diffuse*.bmp) do (
+    set "OUT=%%~ni"
+    set "OUT=!OUT:diffuse=_d!"
+    echo Tagging Diffuse Color Map: %%i -> !OUT!%%~xi
+    ren "%%i" "!OUT!%%~xi" 2>nul
+)
+
+for %%i in (*normal*.png *normal*.jpg *normal*.bmp) do (
+    set "OUT=%%~ni"
+    set "OUT=!OUT:normal=_n!"
+    echo Tagging Surface Vector Normal Map: %%i -> !OUT!%%~xi
+    ren "%%i" "!OUT!%%~xi" 2>nul
+)
+
+for %%i in (*property*.png *property*.jpg *property*.bmp *smoothness*.png *smoothness*.jpg *smoothness*.bmp) do (
+    set "OUT=%%~ni"
+    set "OUT=!OUT:property=_s!"
+    set "OUT=!OUT:smoothness=_s!"
+    echo Tagging Channel-Packed Specular Map: %%i -> !OUT!%%~xi
+    ren "%%i" "!OUT!%%~xi" 2>nul
+)
+
+echo -------------------------------------------------------
+echo [CLEANUP] Discarding intermediate development map layers...
+
+if exist *height*.png del /f /q *height*.png 2>nul
+if exist *height*.jpg del /f /q *height*.jpg 2>nul
+if exist *ao*.png del /f /q *ao*.png 2>nul
+if exist *ao*.jpg del /f /q *ao*.jpg 2>nul
+if exist *metallic*.png del /f /q *metallic*.png 2>nul
+if exist *metallic*.jpg del /f /q *metallic*.jpg 2>nul
+
+echo.
+echo =======================================================
+echo SUCCESS: Suffix processing and cache cleaning complete.
+echo Your files are tagged and ready for Intel Texture Works.
+echo =======================================================
+echo.
+pause
+endlocal
+```
+
+---
+
+## Materialize to ShaderMap 4 Bridge Workflow
+
+This bridge covers the final gap between raw Materialize exports and Fallout 4-ready `.dds` outputs.
+
+### Step 1: Sort Materialize Map Exports
+
+Students should sort Materialize outputs into three core groups:
+
+- **Diffuse Base Texture:** `custom_asset_d.png`
+- **Normal Input Node:** `custom_asset_n.png`
+- **Specular Construction Elements:** raw **Smoothness**, **Ambient Occlusion**, and **Metallic** maps
+
+Use the exported Materialize normal map directly instead of regenerating normals inside ShaderMap 4.
+
+### Step 2: ShaderMap 4 Advanced Channel Packing Setup
+
+```text
+[Materialize Map Inputs]                 [ShaderMap 4 Project Grid Nodes]
+  +--> Normal Map -----------------------------> Map: Normal (Direct Export Slot)
+  |
+  +--> Smoothness Map --> (RED) ---------------+
+  +--> AO Map         --> (GREEN) -------------+--> Map: Custom Packed Specular (_s)
+  +--> Metallic Map   --> (BLUE) --------------+
+```
+
+#### Workflow
+
+1. Launch ShaderMap 4 and click **Advanced**
+2. Click **Add Source** and load the Materialize normal map
+3. Add **Map: Custom Packed (R+G+B+A)**
+4. In the Custom Packed Map properties:
+   - **Red Channel:** Smoothness / inverse roughness
+   - **Green Channel:** Ambient Occlusion
+   - **Blue Channel:** Metallic
+   - **Alpha Channel:** Solid White (`1.0`)
+
+### Step 3: Exact Engine Optimization Settings (No Enhancement Pass)
+
+To preserve the look from Materialize, disable extra enhancement passes.
+
+#### Normal Map Node
+
+- Intensity / Amplitude: `100`
+- Filter Blur / Sharpen: `0`
+- Flip Y (Green Channel): **Enabled**
+
+#### Custom Packed Specular Node
+
+- Red Contrast / Bias: `1.0 / 0.0`
+- Green Contrast / Bias: `1.0 / 0.0`
+- Blue Contrast / Bias: `1.0 / 0.0`
+
+### Step 4: Export Game-Ready `.dds` Files
+
+#### Normal Map Export
+
+1. Select the **Normal Map** node
+2. Save to file as `custom_asset_n.dds`
+3. Use format:
+   - `BC5 (Signed)` or `3DC / ATI2`
+
+#### Packed Specular Export
+
+1. Select the **Custom Packed Specular** node
+2. Save to file as `custom_asset_s.dds`
+3. Use format:
+   - `BC7 (Fine / 8bpc)`
+
+Save final outputs into:
+
+`Data\Textures\ModName\`
+
+---
+
+## In-Game Lighting Assignment: Real-Time PBR Stress Test
+
+**Course Module:** Surface Reaction and Environmental Litmus Testing  
+**Objective:** Validate that packed `_s.dds` maps and DirectX-style normal maps behave correctly under extreme lighting conditions.
+
+### Laboratory Execution Steps
+
+1. Open the Creation Kit and load the target `.esp`
+2. In the Object Window, place the custom object into a test cell
+3. Add a dynamic light source such as an omni or spotlight
+4. Save the plugin and launch Fallout 4
+5. Use `coc [YourCellName]` to enter the test cell
+6. Run the following time-of-day checks
+
+| Time Command | Target Light Check Value | Expected Behavior / Visual Grading Metric | Pass / Fail |
+| --- | --- | --- | --- |
+| `set timeofday to 12.00` | Noon sunlight | Non-metal areas remain matte; metallic areas reflect the environment without blowing out | `[ ] Pass [ ] Fail` |
+| `set timeofday to 20.00` | Twilight / low-angle sun | Normal details cast long correct-direction shadows; if they face the sun, Y-flip is wrong | `[ ] Pass [ ] Fail` |
+| `set timeofday to 01.00` | Midnight / flashlight test | Micro-scratches and lacquer detail shift reflections dynamically with viewing distance | `[ ] Pass [ ] Fail` |
+
+---
+
+## Lab Troubleshooting Sheet: Correcting Texture Compression Artifacts
+
+```text
+[Texture Error Discovered In-Game]
+                |
+                v
+Identify Symptom Type Matrix
+ +--> Blocky Green/Magenta Banding --> Root Cause: Specular compressed as BC1/DXT1 --> Fix: Re-export as BC7 (Fine)
+ +--> Flipped Shadows/Indents      --> Root Cause: Y-axis normal not flipped      --> Fix: Toggle Flip Y in ShaderMap
+ +--> Pixel Grid Shimmer           --> Root Cause: Missing mipmaps                --> Fix: Enable Generate Mipmaps
+```
+
+### Artifact A: Blocky Green and Magenta Color Bleeding
+
+- **Symptom:** Specular highlights become pixelated with green/purple block artifacts
+- **Root Cause:** Packed specular exported as `BC1/DXT1` or `BC3/DXT5`
+- **Fix:** Re-export packed specular as `BC7 (Fine / 8bpc)`
+
+### Artifact B: Reversed or Inverted Normal Depth
+
+- **Symptom:** Cracks bulge out while raised details appear indented
+- **Root Cause:** Normal map uses the wrong handedness / green-channel orientation
+- **Fix:** In ShaderMap 4, enable **Flip Y (Green Channel)** before exporting `BC5`
+
+### Artifact C: Shimmering or Buzzing Textures at Distance
+
+- **Symptom:** Texture looks fine up close but shimmers at range
+- **Root Cause:** Mipmaps were omitted during export
+- **Fix:** Enable **Generate Mipmaps** in ShaderMap 4 or DDS export settings
+
+---
+
+## Student Weekly Project Tracking Checklist
+
+Distribute this checklist so students can track texture files through the full production chain.
+
+### Production Tracking Log Matrix
+
+```text
+Asset Name Tag identifier: [_______________________]
+Source System Reference Path: [_______________________]
+```
+
+### Phase 1: Materialize Generation Pass
+
+- Diffuse loaded and tiled cleanly
+- Height map configured with `Low 0.70 / Mid 0.50 / High 0.25`
+- Normal map built from **Weight Map / Displacement**
+- Smoothness and AO exported as separate project layers
+
+### Phase 2: ShaderMap Advanced Node Routing
+
+- Materialize normal map loaded into ShaderMap
+- Custom Packed map created in Advanced workspace
+- Red channel linked to Smoothness / inverse roughness
+- Green channel linked to Ambient Occlusion
+- Blue channel linked to Metallic
+- Alpha channel fixed to solid white (`1.0`)
+
+### Phase 3: Exporter Target Optimization Passes
+
+- Normal node blur/sharpen disabled
+- Flip Y enabled on the normal node
+- Packed specular bias values kept at defaults (`1.0 / 0.0`)
+- Normal exported as `BC5 (Signed)` `.dds`
+- Packed specular exported as `BC7 (Fine)` `.dds`
+- Final texture paths staged under `Data\Textures\ModName\`
+
+---
+
+## Creation Kit Material Optimization Console Commands Cheat Sheet
+
+Use these while testing materials in the live game client.
+
+### `hlm [MaterialName.bgsm]` (Hot Load Material)
+
+- **Usage:** `hlm CustomAsset.bgsm` or `hlm ModName\CustomAsset.bgsm`
+- **Purpose:** Reloads a material from disk so students can test updates without restarting the game
+
+### `twf` (Toggle Wireframe)
+
+- **Usage:** `twf`
+- **Purpose:** Switches to wireframe mode to verify perceived depth is coming from normal/specular work rather than mesh density
+
+### `tgl` (Toggle Light Buffers)
+
+- **Usage:** `tgl`
+- **Purpose:** Toggles specular-light rendering buffers; if metallic surfaces do not change, the `_s.dds` blue channel or environment mapping is likely wrong
+
+### `scof [LogName.txt]` (Save Console Output File)
+
+- **Usage:** `scof material_debug.txt`
+- **Purpose:** Writes active console errors to disk for later troubleshooting
+
+---
+
+## Mod File Deployment Verification Tool (`VerifyStaging.bat`)
+
+Use this before packaging to verify that meshes, BGSMs, and DDS textures are all staged correctly.
+
+```cmd
+@echo off
+title Mod Deployment Verification Utility
+echo =======================================================
+echo     AUTOMATED MOD ASSET DEPLOYMENT VALIDATION PASS
+echo =======================================================
+echo.
+
+set "STAGING_ROOT=."
+set "MESH_DIR=%STAGING_ROOT%\Meshes\ModName"
+set "TEX_DIR=%STAGING_ROOT%\Textures\ModName"
+set "MAT_DIR=%STAGING_ROOT%\Materials\ModName"
+
+set /a error_flag=0
+
+echo [1/3] Auditing Geometry Block Links...
+if not exist "%MESH_DIR%\*.nif" (
+    echo   - [ERROR] No structural .nif model files located inside: %MESH_DIR%
+    set /a error_flag+=1
+) else (
+    echo   - [PASS] Found active .nif meshes.
+)
+echo.
+
+echo [2/3] Auditing Material Descriptor Sub-Nodes...
+if not exist "%MAT_DIR%\*.bgsm" (
+    echo   - [ERROR] No .bgsm shader descriptors located inside: %MAT_DIR%
+    set /a error_flag+=1
+) else (
+    echo   - [PASS] Found active .bgsm configuration profiles.
+)
+echo.
+
+echo [3/3] Auditing PBR Texture File Nodes...
+if exist "%TEX_DIR%" (
+    if not exist "%TEX_DIR%\*_d.dds" echo   - [WARNING] Missing Diffuse color map array nodes (_d.dds)
+    if not exist "%TEX_DIR%\*_n.dds" (
+        echo   - [ERROR] Missing DirectX Normal vector map tracking systems (_n.dds)
+        set /a error_flag+=1
+    )
+    if not exist "%TEX_DIR%\*_s.dds" (
+        echo   - [ERROR] Missing Custom Channel-Packed Specular maps (_s.dds)
+        set /a error_flag+=1
+    )
+) else (
+    echo   - [ERROR] Texture target directory path missing entirely: %TEX_DIR%
+    set /a error_flag+=1
+)
+echo.
+
+echo =======================================================
+if %error_flag% GTR 0 (
+    echo VALIDATION FAILED: Found %error_flag% missing or broken asset components.
+    echo Correct the file structure errors listed above before building your .ba2 archives.
+) else (
+    echo SUCCESS: All local texture, mesh, and material assets match the pipeline format.
+    echo Your project is optimized and ready for deployment packaging.
+)
+echo =======================================================
+echo.
+pause
+```
+
+---
+
+## Master Asset Troubleshooting Index Database
+
+This index maps common errors across Blender/PyNifly, Elrich, Materialize, ShaderMap 4, and the Creation Kit into actionable fixes.
+
+### Track 1: Geometry and Skeletal Pipeline Errors (Blender and PyNifly)
+
+- **Code / Log Alert:** `PyNifError: Bone count mismatch on skin partition.`
+  - **Root Cause:** Vertex groups still reference missing or deleted bones
+  - **Technical Fix:** In Blender, open Vertex Groups and purge stale assignments before export
+
+- **Code / Log Alert:** `SystemError: Cannot calculate tangent space for n-gon faces.`
+  - **Root Cause:** Mesh contains n-gons
+  - **Technical Fix:** In Edit Mode, triangulate faces with `Ctrl + T` and re-export
+
+### Track 2: Animation and Compilation Errors (Elrich)
+
+- **Code / Log Alert:** `Elrich: ERROR 0x80040154 - Class not registered`
+  - **Root Cause:** Missing Visual C++ runtime / Havok-related dependencies
+  - **Technical Fix:** Install required VC++ redistributables and rerun the compiler as Administrator
+
+- **Code / Log Alert:** `Warning: Animation track has zero translation delta.`
+  - **Root Cause:** Root translation was cleared but the action was not rebaked
+  - **Technical Fix:** Bake Action again with **Visual Keying** and **Clear Constraints**
+
+### Track 3: Texture and Channel-Packing Errors (Materialize and ShaderMap 4)
+
+- **Code / Log Alert:** `ShaderMap 4: DirectDraw Surface export failed. Invalid memory layout size.`
+  - **Root Cause:** Texture dimensions are not power-of-two
+  - **Technical Fix:** Resize to standard power-of-two dimensions and retry export
+
+- **Code / Log Alert:** `Materialize: Out of VRAM buffer tracking allocation.`
+  - **Root Cause:** Source textures are too large for available GPU memory
+  - **Technical Fix:** Downsample source textures before generating maps
+
+### Track 4: Runtime Render Errors (Creation Kit and Game Client)
+
+- **Code / Log Alert:** `PAPYRUS: Property [MaterialProperty] on Script [ModScript] cannot be bound.`
+  - **Root Cause:** Material/file naming conflicts with expected path formatting
+  - **Technical Fix:** Normalize file and folder naming and update script-bound references
+
+- **Code / Log Alert:** `RENDER: BSLightingShaderProperty block type error.`
+  - **Root Cause:** Mesh is using the wrong shader/profile setup
+  - **Technical Fix:** Re-export via the correct PyNifly profile to reset shader defaults
+
+---
+
+## Photopea Foliage SSS Workflow: Leaf Opacity and Translucency
+
+To simulate photoreal vegetation in Fallout 4, students need a foliage material that combines an alpha-cutout diffuse texture with a translucency glowmap.
+
+### Step 1: Extract and Prepare the Leaf Canvas in Photopea
+
+1. Open the raw vegetation texture in Photopea
+2. Use **Magic Wand** or **Object Selection**
+3. Select the solid background around the leaves
+4. Press **Delete** to clear the background and create a transparent cutout layer
+
+### Step 2: Create the Semi-Transparent Opacity Mask (Alpha Channel)
+
+The diffuse texture’s alpha channel determines which parts of the leaf are solid and which are transparent.
+
+1. Hold `Ctrl` and click the leaf layer thumbnail to load the leaf silhouette as a selection
+2. Open the **Channels** panel
+3. Create a new channel named `Alpha 1`
+4. Fill the selection with:
+   - **White (`#FFFFFF`)** for fully solid leaf interiors
+   - **Mid-gray (`#808080`)** for softer edges, stems, and frills
+5. Leave the background fully black (`#000000`)
+
+### Step 3: Pack the Translucency Pass (`_g.dds`)
+
+This map drives light transmission through thin leaf tissue.
+
+1. Duplicate the main leaf layer (`Ctrl + J`)
+2. Rename it `Translucency_Map`
+3. Open `Image -> Adjustments -> Hue/Saturation`
+   - Saturation: `+20`
+   - Lightness: `-15`
+4. Open `Image -> Adjustments -> Brightness/Contrast`
+   - Contrast: `+30`
+   - Lower brightness until veins go dark while thin leaf tissue stays vibrant
+
+### Step 4: Export Game-Ready Textures from Photopea
+
+#### Diffuse with Alpha
+
+1. Select the diffuse document with `Alpha 1`
+2. Export as DDS
+3. Use:
+   - `BC7 (Alpha)` or `DXT5`
+4. Save as:
+   - `vegetation_leaves_d.dds`
+
+#### Translucency Glowmap
+
+1. Select the `Translucency_Map` document
+2. Export as DDS
+3. Use:
+   - `BC7 (Fine)` or `DXT1`
+4. Save as:
+   - `vegetation_leaves_g.dds`
+
+### Step 5: Creation Kit `.bgsm` Shader Settings
+
+Create a new `.bgsm` and configure:
+
+- **Material Tab:** `Two-Sided Foliage` or `Enviro Foliage`
+- **Texture Paths:**
+  - Diffuse: `vegetation_leaves_d.dds`
+  - Normal: `vegetation_leaves_n.dds`
+  - Glow / Translucency: `vegetation_leaves_g.dds`
+- **Shader Flags:** enable `Alpha Blend`, `Two-Sided`, `Glow`, and `Receive Shadows`
+- **Alpha Blending:**
+  - Source Blend Mode: `Src Alpha`
+  - Destination Blend Mode: `Inv Src Alpha`
+  - Alpha Test Ref: `128`
+
+---
+
+## Advanced Environmental World-Building and Foliage Syllabus Module
+
+This 4-week module extends the curriculum into vegetation systems, landscape materials, and large-scale flora deployment inside the Creation Kit.
+
+### Week 1: Procedural Flora Generation and Volumetric Shading
+
+- **Lecture Topics:** Creation Engine landscape basics, vertex-normal bending for foliage masses, runtime overdraw budgets
+- **Practical Lab Work:** Build a modular low-poly canopy branch in Blender and use the **Normal Edit** modifier to bend normals outward from a central pivot
+- **Milestone Goal:** Export a vegetation cluster mesh with custom normals that avoids heavy sub-facet shading
+
+### Week 2: High-Density Texture Optimization and Alpha Masking
+
+- **Lecture Topics:** Photopea channel packing, Alpha Blend vs Alpha Test, subsurface-style foliage lighting
+- **Practical Lab Work:** Cut out leaf textures in Photopea, build embedded alpha masks, and generate translucency glowmaps
+- **Milestone Goal:** Export a complete foliage texture set (`_d.dds` with alpha, `_n.dds`, `_g.dds`) with mipmaps enabled
+
+### Week 3: Landscape Materials and Ground Covers
+
+- **Lecture Topics:** Layered landscape materials, FO4 Material Editor usage, terrain texture blending
+- **Practical Lab Work:** Create seamless dirt/grass/needle textures with Materialize and ShaderMap 4, then build landscape `.bgsm` materials
+- **Milestone Goal:** Produce a seamless 3-texture landscape painting palette in the CK
+
+### Week 4: Procedural Placement, Flora Records, and LOD Generation
+
+- **Lecture Topics:** Flora and Tree forms, region generation, large-scale placement, distant-object LOD
+- **Practical Lab Work:** Link custom foliage meshes to flora records, distribute them through the Region Editor, and generate distant LOD assets
+- **Milestone Goal:** Populate a full test cell with an optimized, harvestable ecosystem that transitions cleanly into distant LODs
+
+---
+
+## Papyrus VM Optimization, Script Lag Repair, and Custom Event Architecture
+
+Papyrus is queue-driven and frame-budgeted rather than traditionally multithreaded. Students should learn both VM tuning and non-blocking design patterns.
+
+### 1) Fallout4Custom.ini VM Thread Tuning
+
+```ini
+[Papyrus]
+fUpdateBudgetMS=2.4000
+fExtraTaskletBudgetMS=2.4000
+iMinMemoryPageSize=512
+iMaxMemoryPageSize=2048
+iMaxAllocatedMemoryBytes=15728640
+```
+
+### 2) Thread-Safe Script Architectures
+
+#### Pattern A: State Machine + RegisterForSingleUpdate
+
+Use state changes and single updates instead of blocking `Utility.Wait()` loops.
+
+```papyrus
+Scriptname ModName:OptimizedThreadLoop extends ObjectReference
+
+Auto State Ready
+    Event OnActivate(ObjectReference akActionRef)
+        GoToState("Busy")
+        InitiateAssetCycle()
+    EndEvent
+EndState
+
+State Busy
+    Event OnActivate(ObjectReference akActionRef)
+        ; Ignore overlap while busy
+    EndEvent
+EndState
+
+Function InitiateAssetCycle()
+    Self.PlayAnimation("Play01")
+    Self.RegisterForSingleUpdate(5.0)
+EndFunction
+
+Event OnUpdate()
+    Self.PlayAnimation("Play02")
+    GoToState("Ready")
+EndEvent
+```
+
+#### Pattern B: Mutex-Style Critical Section
+
+Use a lock flag when several systems may try to modify shared data.
+
+```papyrus
+Scriptname ModName:GlobalSystemMutex extends Quest
+
+Bool isThreadLocked = false
+
+Bool Function ModifyGlobalSystemData(int iValueModifier)
+    While (isThreadLocked)
+        Utility.WaitMenuMode(0.1)
+    EndWhile
+
+    isThreadLocked = true
+
+    ; --- CRITICAL SECTION START ---
+    ; Perform shared data updates safely here
+    ; --- CRITICAL SECTION END ---
+
+    isThreadLocked = false
+    Return true
+EndFunction
+```
+
+### 3) Advanced Diagnostic Testing and Profiling Metrics
+
+- **Suspended Stacks Warning:** If `Suspended stack count altered` grows well above normal, script budget is exhausted
+- **Stack Dumping Pass:** Use `DumpPapyrusStacks` to identify runaway scripts
+- **Property Binding Bottlenecks:** `Binding Type Mismatch` warnings indicate dead or renamed properties causing lookup stalls
+
+### 4) Script Lag Optimization and Repair Blueprint
+
+| Papyrus.0.log Exception String | Visual Symptom In-Game | Underlying Script Defect | Actionable Repair Blueprint |
+| --- | --- | --- | --- |
+| `error: Cannot call [Function] on a None object` | Animations fail, actors T-pose, interactions abort | Script dereferences an invalid or empty pointer | Guard calls with `if (TargetRef != None)` |
+| `Warning: Max stack limit reached.` | Controls lag, menus stall, delayed scripts | Infinite loop or overloaded polling pattern | Replace repeating loops with controlled states or `RegisterForSingleUpdate()` |
+| `Binding Type Mismatch on Form...` | Stutter during animated assets or weapon actions | Script property still points to deleted/renamed CK data | Re-link or clear the broken property in the Creation Kit |
+
+### 5) Custom Script Events (Global Event Matrix)
+
+Use custom events instead of many independent polling loops.
+
+```text
+[Core Event Sender Script] --> .SendCustomEvent("OnAssetBiasShift")
+                                       |
+            +--------------------------+--------------------------+
+            v                          v                          v
+[Custom Weapon Anim Instance]   [World Container Asset]    [Rigged Creature Mesh]
+ -> Catch & Play Spin Loop       -> Catch & Unlock Hatch    -> Catch & Play Alert Pose
+```
+
+#### Sender Script
+
+```papyrus
+Scriptname ModName:GlobalAssetEventManager extends Quest
+
+CustomEvent OnAssetBiasShift
+
+Function TriggerGlobalBiasEvent(int iNewBiasState, ObjectReference akTriggerSource)
+    Var[] eventArgs = new Var[2]
+    eventArgs[0] = iNewBiasState
+    eventArgs[1] = akTriggerSource
+    Self.SendCustomEvent("OnAssetBiasShift", eventArgs)
+EndFunction
+```
+
+#### Listener Script
+
+```papyrus
+Scriptname ModName:AssetEventListener extends ObjectReference
+
+ModName:GlobalAssetEventManager Property MasterManagerHub Auto Const
+
+Event OnInit()
+    RegisterForMasterEvent()
+EndEvent
+
+Event OnCellLoad()
+    RegisterForMasterEvent()
+EndEvent
+
+Function RegisterForMasterEvent()
+    if (MasterManagerHub)
+        Self.RegisterForCustomEvent(MasterManagerHub, "OnAssetBiasShift")
+    endif
+EndFunction
+
+Event ModName:GlobalAssetEventManager.OnAssetBiasShift(ModName:GlobalAssetEventManager akSender, Var[] akArgs)
+    int iParsedBiasState = akArgs[0] as int
+    ObjectReference akActionRef = akArgs[1] as ObjectReference
+
+    if (iParsedBiasState == 1)
+        Self.PlayAnimation("Play01")
+    else
+        Self.PlayAnimation("Play02")
+    endif
+EndEvent
+
+Event OnUnload()
+    if (MasterManagerHub)
+        Self.UnregisterForCustomEvent(MasterManagerHub, "OnAssetBiasShift")
+    endif
+EndEvent
+```
+
+---
+
+## Photopea Project Export Staging (Raw Canvas)
+
+Before using NVIDIA Texture Tools Exporter, export a raw master from Photopea to avoid double-compression artifacts.
+
+1. In Photopea, go to `File -> Export As -> More`
+2. Export as `TGA` or `PNG`
+3. Ensure channel mode is `RGBA` so alpha-mask data is bundled with color data
+
+---
+
+## NVIDIA Exporter Compression Profiles Matrix
+
+| Map Target Class | Target Suffix | Format Allocation Mode | Texture Profile | GPU Optimization Metric |
+| --- | --- | --- | --- | --- |
+| Vegetation Diffuse | `_d.dds` | `BC7 Quick / Linear` | Color + Alpha | Reduces edge block artifacts while preserving alpha cutouts |
+| DirectX Normal Map | `_n.dds` | `BC5 Tangent Space` | Normal Map | Removes redundant channels and improves memory efficiency |
+| Channel-Packed Specular | `_s.dds` | `BC7 Quick / Linear` | Color | Preserves packed RGB material channels |
+| Translucency Glowmap | `_g.dds` | `BC1 Fast / Linear` | Color | Lower memory footprint where alpha is not required |
+
+---
+
+## Advanced CUDA Quality and VRAM Compression Settings
+
+### 1) Compression Depth
+
+- Set compression quality to `Highest / Production (Slowest)` for best block-fitting output quality
+
+### 2) Mipmap Generation and Alpha Preservation
+
+- Enable `Generate Mipmaps`
+- Prefer `Kaiser` or `Mitchell` filter types over basic box filtering
+- Enable `Alpha Coverage` and start around threshold `0.5` to preserve foliage silhouettes across mip levels
+
+### 3) Normal Map Normalization and Color Space
+
+- For `_n.dds`, use `Linear` color space (not sRGB)
+- Enable `Normalize Output` so normal vectors remain unit-length after export
+
+---
+
+## Master Texture Pipeline Evaluation Scorecard
+
+```text
+=======================================================================
+   FALLOUT 4 TEXTURE PIPELINE & FPS OPTIMIZATION SCORECARD
+=======================================================================
+ Student Name: [_______________________]  Project Model: [____________]
+
+ CRITERIA 1: FORMAT CHECK PASS (Score: ___ / 25)
+ [ ] Diffuse exported as BC7 alpha-safe profile
+ [ ] Normal exported as BC5 tangent-space format
+ [ ] Packed specular exported as BC7 with clean channel separation
+
+ CRITERIA 2: MIPMAP & CORRECTION METRICS (Score: ___ / 25)
+ [ ] Mipmaps generated with Kaiser/Mitchell filtering
+ [ ] Alpha Coverage enabled around 0.5 threshold
+ [ ] Normal output normalized for shading stability
+
+ CRITERIA 3: DIRECTORY & PATH ARCHITECTURE (Score: ___ / 25)
+ [ ] Lowercase suffix conventions (_d, _n, _s, _g)
+ [ ] Leaf texture dimensions budgeted appropriately
+ [ ] Relative .bgsm pathing aligns with staged directories
+
+ CRITERIA 4: IN-GAME FPS STRESS TEST (Score: ___ / 25)
+ [ ] Zero major texture-streaming stutter on load
+ [ ] Backlit foliage translucency behaves correctly
+ [ ] Distant LOD transition remains clean without popping
+
+ FINAL SCORE EVALUATION TOTAL: [_______ / 100]
+=======================================================================
+```
+
+---
+
+## Standalone NVIDIA Exporter Utility Keyboard Shortcut Cheat Sheet
+
+```text
+=======================================================================
+   NVIDIA TEXTURE TOOLS EXPORTER QUICK-REFERENCE CHEAT SHEET
+=======================================================================
+
+ CAMERA CONTROLS (3D PREVIEW VIEWPORT)
+ ----------------------------------------------------------------------
+  Left Mouse Button + Drag   | Rotate the 3D preview asset geometry
+  Right Mouse Button + Drag  | Zoom the camera viewport in and out
+  Middle Mouse Button + Drag | Pan the camera viewport horizontally/vertically
+  L Key + Mouse Move         | Swing the dynamic preview sun light source
+
+ WORKSPACE GRID KEYBINDS
+ ----------------------------------------------------------------------
+  Spacebar                   | Reset camera view to origin
+  1 Key                      | View texture at exact 1:1 pixel scale
+  F Key                      | Fit full texture boundaries to screen
+  M Key                      | Toggle 2D texture view / 3D preview
+
+ SHADER & CHANNEL MASK TOGGLES
+ ----------------------------------------------------------------------
+  R Key                      | Toggle Red channel visibility
+  G Key                      | Toggle Green channel visibility
+  B Key                      | Toggle Blue channel visibility
+  A Key                      | Toggle Alpha channel view
+  C Key                      | Reset to full RGB display
+
+ FILE MANAGEMENT
+ ----------------------------------------------------------------------
+  Ctrl + O                   | Import raw master texture (.png, .tga)
+  Ctrl + S                   | Save compiled DirectDraw Surface (.dds)
+=======================================================================
+```
+
+---
+
+## Automated Mod File Deployment Checks Script (`ValidateModPackage.bat`)
+
+```cmd
+@echo off
+title Mod Package Deployment Validator
+echo =======================================================
+echo     AUTOMATED MOD ASSET PACKAGE VALIDATION UTILITY
+echo =======================================================
+echo.
+
+set "STAGING_ROOT=."
+set "MESH_DIR=%STAGING_ROOT%\Meshes"
+set "TEX_DIR=%STAGING_ROOT%\Textures"
+set "MAT_DIR=%STAGING_ROOT%\Materials"
+
+set /a error_flag=0
+
+echo [1/4] Auditing Root Folder Case-Sensitivity Metrics...
+if exist "%STAGING_ROOT%\MESHES" echo   - [WARNING] Directory named 'MESHES' should be lowercase 'meshes'.
+if exist "%STAGING_ROOT%\TEXTURES" echo   - [WARNING] Directory named 'TEXTURES' should be lowercase 'textures'.
+if exist "%STAGING_ROOT%\MATERIALS" echo   - [WARNING] Directory named 'MATERIALS' should be lowercase 'materials'.
+echo   - Complete: Folder case-sensitivity checks run.
+echo.
+
+echo [2/4] Auditing 3D Mesh Assets...
+if not exist "%MESH_DIR%\*" (
+    echo   - [CRITICAL ERROR] Missing mandatory 'Meshes' folder path layout.
+    set /a error_flag+=1
+) else (
+    echo   - [PASS] Structural 'Meshes' folder verified.
+)
+echo.
+
+echo [3/4] Auditing NVIDIA Compressed DDS File Names...
+if exist "%TEX_DIR%" (
+    echo   - Validating engine texture suffix bindings...
+    for /r "%TEX_DIR%" %%f in (*.dds) do (
+        set "filename=%%~nxf"
+        echo %%f | findstr /R "[A-Z]" >nul
+        if not errorlevel 1 (
+            echo   - [CRITICAL ERROR] Found uppercase characters in texture path: %%~nxf
+            echo     All file paths and names inside the Textures directory MUST be lowercase!
+            set /a error_flag+=1
+        )
+    )
+
+    if not exist "%TEX_DIR%\*\_d.dds" echo   - [NOTICE] No active diffuse maps found matching '_d.dds' suffix templates.
+    if not exist "%TEX_DIR%\*\_n.dds" echo   - [WARNING] Missing active tangent normal vectors matching '_n.dds'.
+    if not exist "%TEX_DIR%\*\_s.dds" echo   - [WARNING] Missing active packed specular properties matching '_s.dds'.
+) else (
+    echo   - [CRITICAL ERROR] Missing mandatory 'Textures' folder path layout.
+    set /a error_flag+=1
+)
+echo.
+
+echo [4/4] Auditing Material Shader Descriptors...
+if not exist "%MAT_DIR%\*" (
+    echo   - [CRITICAL ERROR] Missing mandatory 'Materials' folder path layout.
+    set /a error_flag+=1
+) else (
+    echo   - [PASS] Structural 'Materials' folder verified.
+)
+echo.
+
+echo =======================================================
+if %error_flag% GTR 0 (
+    echo VALIDATION FAILED: Located %error_flag% production layout anomalies.
+    echo Correct file paths, formatting, or sizes before archiving.
+) else (
+    echo PACKAGE VERIFIED: All local asset dependencies match platform rules.
+    echo The mod folder is ready for distribution packaging.
+)
+echo =======================================================
+echo.
+pause
+```
+
+---
+
+## Advanced Troubleshooting Master Index (Rare and Complex Mod Conflicts)
+
+### Conflict A: Black Render Grid Overlay / Infinite Loading Stutter
+
+- **In-Game Symptom:** Asset turns black, stalls, or causes crash while other objects still render
+- **Root Cause:** Asymmetrical texture dimensions with incompatible compression behavior for the target workflow
+- **Actionable Fix:** Re-open in Photopea, enforce matched canvas dimensions (square, power-of-two profile), then re-export through NVIDIA Texture Tools
+
+### Conflict B: Ghosting Alpha Shimmer (Distant Mipmap Flicker)
+
+- **In-Game Symptom:** Leaves look correct up close but flicker or show bright fringes at distance
+- **Root Cause:** Alpha coverage not enabled during compression
+- **Actionable Fix:** Re-export with **Alpha Coverage enabled** and set threshold near `0.5`
+
+### Conflict C: Flat Shiny Armor/Weapon (Missing Vector Shading)
+
+- **In-Game Symptom:** Metal appears uniformly glossy and normal details are missing
+- **Root Cause:** Normal map exported with the wrong color-space settings
+- **Actionable Fix:** Re-export normal map with **Linear** color space and **Normalize Output** enabled, then hot-reload material in-game
+
+---
+
+## Creation Engine Architecture and Optimization Notes
+
+### 1) Memory Topography: System RAM vs VRAM Streaming Boundaries
+
+- `.nif` and Havok data are loaded through system memory paths during cell load
+- `.dds` textures are streamed to GPU memory progressively (mipmap chain first, full-res later)
+- Missing mipmaps force costly full-resolution loads and increase stutter risk
+
+### 2) Draw Call Bottlenecks: Mesh Splitting Cost
+
+- Each discrete mesh object can become an additional draw call
+- Over-split assets can bottleneck CPU submission even when GPU headroom remains
+- For static objects, merge components in Blender (`Ctrl + J`) before export where appropriate
+
+### 3) Channel Packing and BC7 Efficiency
+
+```text
+[Standard PBR Workflow: 3 Textures]       [Fallout 4 Optimized Workflow: 1 Texture]
+  - Roughness Map                           - Specular Packed Map (_s.dds)
+  - Metallic Map                      --->    - Red:   Glossiness (inverse roughness)
+  - Ambient Occlusion Map                    - Green: Ambient Occlusion
+                                              - Blue:  Metalness
+```
+
+Packing reduces texture fetch overhead and keeps runtime material evaluation leaner when authored correctly.
+
+### 4) Papyrus Queue Model and Garbage Collection
+
+- Papyrus executes on a frame-budgeted queue
+- Long-running loops can block queue throughput and delay cleanup windows
+- Prefer state/event-driven script patterns that complete cleanly and release memory pressure
+
+### 5) Student Desktop Organization Baseline
+
+```text
+C:\Fallout4ModdingWorkspace\
+│
+├── 01_RawSourceAssets\
+│   ├── Unity_Original_Extracts\
+│   ├── PhotopeaProjects\
+│   └── MaterializeProjects\
+│
+├── 02_BlenderStaging\
+│   └── workspace_scene.blend
+│
+└── 03_GameReadyStaging\
+    ├── Meshes\ModName\
+    ├── Textures\ModName\
+    └── Materials\ModName\
+```
+
+---
+
+## World-Space Rendering Optimization: Precombines and Previs
+
+### 1) Core Architecture: Precombines vs Previs
+
+- **Precombined Geometry** merges many static references into large combined render blocks to reduce draw-call overhead.
+- **Previs Visibility** stores occlusion/visibility data so hidden geometry does not render.
+- Editing exterior cells without rebuilding this data can disable efficient culling behavior and cause major frame drops.
+
+### 2) Creation Kit Generation Pipeline
+
+#### Phase A: Workspace Preparation
+
+1. Close unnecessary applications.
+2. Open Creation Kit and load the target plugin.
+3. Load the modified cell fully in Render View.
+
+#### Phase B: Compile Geometry
+
+1. Use `World -> PreCombine Geometry for Current Cell` (or loaded area for exterior work).
+2. Wait for completion without interrupting processing.
+3. Confirm generated output in:
+   - `Data/Meshes/Precombined/`
+
+#### Phase C: Compile Visibility
+
+1. Use `Visibility -> Generate Visibility for Current Cell` (or all loaded cells for exteriors).
+2. Wait until generation completes.
+3. Confirm generated output in:
+   - `Data/Vis/`
+
+### 3) Packaging Precombined Data
+
+Include both generated folders in distribution packaging:
+
+```cmd
+"Archive2.exe" -create -format=General -root="Data\" "Data\ModName - Main.ba2" "Data\Meshes\Precombined\" "Data\Vis\"
+```
+
+### 4) Precombine/Previs Evaluation Scorecard
+
+```text
+=======================================================================
+   CREATION ENGINE VISIBILITY & OCCLUSION EVALUATION SCORECARD
+=======================================================================
+ Student Name: [_______________________]  Target Cell ID: [___________]
+
+ CRITERIA 1: GEOMETRY PRECOMBINE INTEGRITY (Score: ___ / 25)
+ [ ] No major flicker/invisible-wall artifacts after edits
+ [ ] Static references grouped into optimized precombined outputs
+ [ ] Precombined outputs present in Data/Meshes/Precombined/
+
+ CRITERIA 2: PREVIS OCCLUSION VERIFICATION (Score: ___ / 25)
+ [ ] Previs generation completes without major CK failure
+ [ ] Hidden distant geometry is correctly culled
+ [ ] .uvd outputs present in Data/Vis/
+
+ CRITERIA 3: DISTRIBUTION ARCHIVE COMPLETENESS (Score: ___ / 25)
+ [ ] Precombined outputs are packaged in release archive
+ [ ] Vis outputs are packaged in release archive
+ [ ] Load-order guidance for end users is documented
+
+ CRITERIA 4: CELL PERFORMANCE LOAD BALANCING (Score: ___ / 25)
+ [ ] Stable frame pacing across edited cell boundaries
+ [ ] Draw-call behavior remains controlled in dense zones
+ [ ] Dynamic objects/light interactions remain visually consistent
+
+ FINAL COMBINED VISIBILITY OPTIMIZATION TOTAL: [_______ / 100]
+=======================================================================
+```
+
+---
+
+## Advanced Papyrus VM Profiling Metrics and Thresholds
+
+### 1) Timing Allocation Metrics
+
+- **fUpdateBudgetMS**
+  - Baseline: `1.2ms`
+  - Common safe upper profile: `2.4ms`
+  - Defines per-frame budget for queued Papyrus work
+- **fExtraTaskletBudgetMS**
+  - Baseline: `1.2ms`
+  - Common safe upper profile: `2.4ms`
+  - Emergency budget during heavy transitions/spawn pressure
+
+When combined demand exceeds available budget, deferred stacks and visible script lag increase.
+
+### 2) Thread Stack Allocation Metrics
+
+- **iMinMemoryPageSize**
+  - Default: `128`
+  - Common optimized profile: `512`
+- **iMaxMemoryPageSize**
+  - Default: `512`
+  - Common optimized profile: `2048`
+
+Overly large/inefficient loops can still overflow practical limits and destabilize execution.
+
+### 3) Real-Time Performance Targets
+
+- **Single-function target:** ideally near `<= 0.05ms`
+- **Warning zone:** sustained `> 0.25ms` per hot-path function suggests heavy loops or bad property access
+- **Suspended stack target:** keep active suspended stacks low (roughly under ~15 in stable scenarios)
+- **Critical backlog zone:** rising toward large triple-digit suspended counts indicates queue saturation
+- **Global event memory cap:** monitor against `iMaxAllocatedMemoryBytes` (`15728640` bytes / 15MB)
+
+### 4) Papyrus VM Metrics Evaluation Scorecard
+
+```text
+=======================================================================
+   ADVANCED PAPYRUS SCRIPT METRICS & VM EVALUATION SCORECARD
+=======================================================================
+ Student Name: [_______________________]  Script Name: [______________]
+
+ CRITERIA 1: TIME BUDGET PERFORMANCE (Score: ___ / 25)
+ [ ] Hot-path functions stay within safe time budget
+ [ ] Complex loops do not cause sustained frame stutter
+ [ ] Execution remains stable across animation state transitions
+
+ CRITERIA 2: MEMORY PROFILE & ALIGNMENT (Score: ___ / 25)
+ [ ] Thread allocations remain within configured page limits
+ [ ] No repeating stack overflow/infinite-loop signatures in logs
+ [ ] Global cache/listener footprint remains below cap
+
+ CRITERIA 3: PROPERTY BINDING ACCURACY (Score: ___ / 25)
+ [ ] Script properties are correctly bound in CK
+ [ ] No persistent None-object dereference warnings
+ [ ] Defensive conditionals are used before reference calls
+
+ CRITERIA 4: EVENT ENGINE EFFICIENCY (Score: ___ / 25)
+ [ ] Observer/event-driven pattern replaces heavy polling
+ [ ] Event listeners unregister cleanly on unload/shutdown
+ [ ] Suspended stack counts remain in healthy operating range
+
+ FINAL SCRIPT PERFORMANCE SCORE TOTAL: [_______ / 100]
+=======================================================================
+```
+
+---
+
+## Course Blueprint: Cinematic VFX and Engine Modernization
+
+This advanced 4-week module teaches high-fidelity Fallout 4 VFX production and engine-side lighting modernization.
+
+### Week 1: Advanced Particle Emitters and Mesh Particle Vectors (`.nif`)
+
+#### Blender Geometry Particle Staging
+
+- Keep mesh particle variants lightweight (target low poly per variant; avoid dense geometry)
+- Create multiple shape variants to avoid visual repetition
+- Align particle pivots at the emission base so velocity direction remains stable
+
+#### PyNifly Emitter Node Array Properties
+
+| Particle Property Block | Recommended Value | Technical Function |
+| --- | --- | --- |
+| Emit Start Alpha | `1.0` | Full visibility at spawn |
+| Emit End Alpha | `0.0` | Smooth fade-out |
+| Growth Rate | `-0.15` to `0.40` | Lifetime size scaling |
+| NiPSParticles Max Cap | `150` | Hard cap for performance protection |
+
+### Week 2: Smoke, Fire, and Fluid Shader Networks
+
+```text
+[Texture Input Channels]                      [BSLightingShaderProperty Flags]
+  - Diffuse (_d.dds) -------------------------> Fire/Smoke shader selection
+  - Normal  (_n.dds) -------------------------> Double_Sided / Soft_Effect
+  - Mask/Packed (_s.dds) ---------------------> U/V scrolling animation behavior
+```
+
+#### Volumetric Alpha Packing in Photopea
+
+1. Load smoke/fluid source texture
+2. Create `Alpha 1` channel
+3. Paste grayscale mask with desired contrast profile
+4. Export as BC7 alpha-capable DDS
+
+#### `.bgsm` Smoke/Fire Flags
+
+- Shader Type: fire/smoke-compatible lighting procedure
+- Enable: `Soft_Effect`, `Vertex_Colors`, `Double_Sided`
+- Configure texture U/V translation speed to animate flow/rise behavior
+
+### Week 3: Screen-Space Post-Processing and Lighting Modernization
+
+#### SSAO / SSR Core Parameters
+
+```ini
+[Display]
+iSAOSamples=16
+fSAORadius=120.0000
+fSAOBias=0.6000
+bScreenSpaceSubsurfaceScattering=1
+bScreenSpaceReflections=1
+iSSRQuality=2
+```
+
+#### Weather Record (`.wthr`) Lighting Tuning
+
+- Duplicate a baseline weather profile in CK
+- Reduce daytime blue shadow bias for more natural contrast
+- Increase sun-glare/haze parameters for atmospheric depth and scale
+
+### Week 4: Dynamic Screen Particle Effects (Lens/Visor Splatter)
+
+#### Normal Refraction Setup
+
+1. Generate seamless droplet normal map
+2. Export as `BC5 Signed` (`screen_fluid_n.dds`)
+3. Create `.bgsm` using screen-space refraction-compatible shader type
+4. Map normal slot for refractive distortion behavior
+
+#### Papyrus Trigger Logic
+
+```papyrus
+Scriptname ModName:ScreenEffectTrigger extends ObjectReference
+
+ImageSpaceModifier Property FXFluidSplatterModifier Auto Const
+
+Event OnTemplateObjectEnter(ObjectReference akTriggerSource)
+    ObjectReference playerRef = Game.GetPlayer()
+
+    if (akTriggerSource == playerRef && FXFluidSplatterModifier != None)
+        FXFluidSplatterModifier.Apply()
+        Game.ShakeCamera(playerRef, 0.45, 1.5)
+    endif
+EndEvent
+```
+
+### Comprehensive Visual Effects Evaluation Scorecard
+
+```text
+=======================================================================
+   FALLOUT 4 VISUAL EFFECTS & LIGHTING PIPELINE SCORECARD
+=======================================================================
+ Student Name: [_______________________]  VFX Project Name: [__________]
+
+ CRITERIA 1: PARTICLE ARRAY CONFIGURATION (Score: ___ / 25)
+ [ ] Particle geometry remains within performance budgets
+ [ ] Particle lifetime fade behavior is configured cleanly
+ [ ] Emitter count caps are enforced
+
+ CRITERIA 2: SHADER NETWORK INTEGRITY (Score: ___ / 25)
+ [ ] Soft-effect/depth blending flags are correctly enabled
+ [ ] UV scrolling values produce believable fluid/smoke motion
+ [ ] Normal map orientation is correct for engine lighting
+
+ CRITERIA 3: POST-PROCESSING & CAMERA PIPELINE (Score: ___ / 25)
+ [ ] SSAO/SSR settings are correctly applied
+ [ ] Screen-space refraction behaves as intended
+ [ ] Papyrus handlers apply effects safely without leaks
+
+ CRITERIA 4: PERFORMANCE & STRESS TESTING (Score: ___ / 25)
+ [ ] No major streaming stutter from VFX assets
+ [ ] Weather tuning supports intended cinematic lighting
+ [ ] Particle systems remain stable in heavy gameplay scenes
+
+ FINAL SCORE EVALUATION TOTAL: [_______ / 100]
+=======================================================================
+```
+
+---
+
+## Deep Engine Optimization Metrics for High-Fidelity FX and Engine Updates
+
+### 1) Particle System Memory and Update Limits
+
+- **iMaxParticleSystemCount**
+  - Default: `300`
+  - Common upper safe profile target: up to `1000` depending on scene complexity
+  - If overwhelmed, new effects may fail to spawn or system stability can degrade
+
+- **fParticleFrameTimeLimit**
+  - Default: `0.0166`
+  - Performance-focused profile: around `0.0083` for tighter frame pacing
+  - Lower values prioritize framerate stability during heavy particle activity
+
+### 2) Post-Processing and Screen-Space Resource Allocation
+
+- **iSAOSamples**
+  - Baseline: `8`
+  - Common quality/performance target: `16`
+  - Past this point, gains often diminish while shader cost rises
+
+- **bScreenSpaceSubsurfaceScattering=1**
+  - Enables dedicated screen-space translucency pass
+  - Keep translucent/glowmap textures budgeted to moderate resolutions to avoid VRAM spikes in dense scenes
+
+### 3) Image Space Modifier (IMAD) Execution Metrics
+
+```text
+[Trigger Event] --> IMAD.Apply() --> VRAM Frame Buffer --> Screen-Space Refraction Shader
+                                  |
+                     (Console check: showimagespacemodifiers)
+                                  v
+                     Active stack target: keep <= 3
+```
+
+- Keep active simultaneous image-space overlays low (target `<= 3`)
+- Pair each `.Apply()` path with reliable cleanup/removal logic
+- Use `showimagespacemodifiers` during testing to catch leaked overlays before release
+
+---
+
+## Course Blueprint: Quest Architecture and Scene Scripting
+
+This advanced 4-week module teaches students how to design, rig, and script a complete quest mod inside the Creation Kit.
+
+### Week 1: Quest Setup, Story Manager Nodes, and Quest Stages
+
+#### Creation Kit Quest Initialization
+
+1. In the Object Window navigate to `Character -> Quest`, right-click and select `New`
+2. Set a unique ID: `ModName_MasterQuest`
+3. Set **Quest Priority** between `50` and `70`
+   - Avoid 100; values that high can override core engine processes
+4. Enable **Run Once** for storyline quests; leave unchecked only for repeatable framework quests
+
+#### Quest Stage Index Reference
+
+| Stage Index | Assignment State | Technical Function |
+| --- | --- | --- |
+| `0` | Quest Initialized | Holds early variables and links reference assets |
+| `10` | Objective 1 Dispatched | Triggers HUD compass markers |
+| `100` | Core Objective Reached | Swaps combat packages or toggles world state |
+| `200` | Quest Completed | Turns off scene loops and stops script execution |
+
+### Week 2: Persistent References, Aliases, and Scene Logic Trees
+
+```text
+[Quest Alias Staging Box]
+ModName_MasterQuest --> Alias: TargetNPC (Points to Reference ID)
+                              |
+           +-----------------+-----------------+
+           v                                   v
+ [Scene Tree Window]                   [Dialogue Fragments]
+  - Phase 1: Custom Dialogue Line        - SetStage(100) On End
+  - Phase 2: Play Custom Animation       - ForceGiveItem Package
+```
+
+#### Building Quest Aliases Safely
+
+1. Open the quest form and go to the **Quest Aliases** tab
+2. Right-click the list panel, select `New Reference Alias`, name it `Alias_TargetNPC`
+3. Set **Fill Type** to `Unique Actor` or use `Find Matching Reference` with a proximity filter
+4. Check **Optional** if the NPC can die during the quest — leaving it unchecked when an NPC is dead can permanently break script loops
+
+#### Dialogue and Scene Actions
+
+1. Open the **Scenes** tab, create `ModName_IntroScene`
+2. Add a Scene Phase: right-click the timeline, select `Add Action -> Dialogue`
+3. Save audio as uncompressed `.wav` and run through the CK's built-in **LIP Generator** for facial sync
+
+### Week 3: Quest Script Fragments and Thread-Safe Event Triggers
+
+#### Stage 10 Script Fragment
+
+```papyrus
+; SCRIPT FRAGMENT FOR QUEST STAGE 10
+SetObjectiveDisplayed(10, true)
+Alias_QuestItem.GetReference().Enable()
+Debug.Trace("ModName: Master Quest stage 10 initialized successfully.")
+```
+
+#### Dungeon Trigger Script
+
+```papyrus
+Scriptname ModName:DungeonQuestTrigger extends ObjectReference
+
+Quest Property ModMasterQuest Auto Const
+Scene Property ModIntroScene Auto Const
+int Property TargetStageToSet = 10 Auto Const
+
+Event OnTriggerEnter(ObjectReference akActionRef)
+    ObjectReference playerRef = Game.GetPlayer()
+
+    if (akActionRef == playerRef && ModMasterQuest != None)
+        if (!ModMasterQuest.IsObjectiveDisplayed(TargetStageToSet) && !ModMasterQuest.IsCompleted())
+            ModMasterQuest.SetStage(TargetStageToSet)
+
+            if (ModIntroScene != None && !ModIntroScene.IsPlaying())
+                ModIntroScene.Start()
+            endif
+
+            Self.Disable()
+            Self.Delete()
+        endif
+    endif
+EndEvent
+```
+
+### Week 4: Quest Termination, Cleaning, and Distribution
+
+#### Stage 200 Completion Fragment
+
+```papyrus
+SetObjectiveCompleted(10, true)
+SetObjectiveCompleted(100, true)
+Stop()
+```
+
+#### Pre-Distribution Cleaning via xEdit / FO4Edit
+
+1. Open FO4Edit and load the target `ModName.esp`
+2. Right-click the file in the left pane and select `Apply Filter for Cleaning`
+3. After analysis, select `Remove Identical to Master Records (ITMs)`
+4. Select `Undelete and Disable References (UDRs)` to safely handle deleted vanilla assets
+
+### Quest Architecture and Performance Scorecard
+
+```text
+=======================================================================
+   FALLOUT 4 QUEST ARCHITECTURE & SCRIPTING SCORECARD
+=======================================================================
+ Student Name: [_______________________]  Quest Mod Name: [____________]
+
+ CRITERIA 1: STRUCTURAL STAGING & PRIORITY (Score: ___ / 25)
+ [ ] Quest priority assigned within safe range (50-70)
+ [ ] Stage index steps follow clean milestone structure (0-200)
+ [ ] Run Once flag matches intended deployment behavior
+
+ CRITERIA 2: ALIAS SYSTEM & DIALOGUE HEALTH (Score: ___ / 25)
+ [ ] NPC and item aliases flagged as Optional where appropriate
+ [ ] Dialogue tracks include matching .lip files for facial sync
+ [ ] Scenes exit cleanly without hanging threads
+
+ CRITERIA 3: PAPYRUS EVENT FRAGMENTS (Score: ___ / 25)
+ [ ] Stage scripts compile without VM warnings
+ [ ] Trigger scripts use safety gates to block repeat-fire events
+ [ ] Self-terminating Disable/Delete routines free thread resources
+
+ CRITERIA 4: OPTIMIZATION & CLEANING (Score: ___ / 25)
+ [ ] Stage 200 correctly invokes Stop() to clear script footprint
+ [ ] Plugin cleaned in FO4Edit with ITMs and UDRs resolved
+ [ ] Distribution archive bundles all required files cleanly
+
+ FINAL COMBINED QUEST TRACKING TOTAL: [_______ / 100]
+=======================================================================
+```
+
+### Quiz: Quest Modding and Engine Pipeline
+
+**Q1.** How does the Priority value (0–100) on a Quest record affect engine behavior?
+
+- **A.** Sorting order in the Pip-Boy quest log
+- **B. ✅ Correct** — It determines which quest takes precedence for Scene execution and Alias filling when multiple quests compete for the same NPC
+- **C.** Minimum player level before quest initializes *(Level requirements are handled via Scripting or Story Manager conditions, not the Priority field)*
+- **D.** Polling frequency for background Papyrus scripts
+
+---
+
+## Deep Engine Optimization Metrics for Quest Architecture and Scene Scripting
+
+### 1) Persistence and Save Game Serialization Constraints
+
+- Quest aliases tag their targets as **Persistent References**, which bypass normal cell cleanup and are written into the `.fos` save file on every save
+- Failing to mark temporary targets, dungeon NPCs, or radiant enemies as **Optional** leaves them locked in memory after the quest ends
+- Accumulated uncleared persistent entries across multiple mods can grow save files far beyond their stable operating range, leading to save bloat, load-screen delays, and corruption freezes
+- **Fix:** Flag all non-essential aliases as `Optional`, and call `Stop()` plus alias-clear routines at quest stage 200 to release the memory footprint
+
+### 2) Story Manager Event Queue Allocation Limits
+
+```text
+[Game Event Fired] --> Story Manager Listener Node --> Scans Active SM Event Shares
+                                                     |
+                            (Log warning: 'Max Stack Limit Reached')
+                                                     v
+                              Max simultaneous quest wakeups: <= 20
+```
+
+- The Story Manager can process a limited number of concurrent quest wakeup checks within a single frame window
+- Generic filter conditions that fire on common events (e.g., every cell boundary crossing) without strict safety guards can flood the queue
+- Overflow causes the VM to drop incoming story triggers and can break quest tracking across the entire session
+- **Fix:** Use precise SM conditions (specific actor killed, specific item acquired) to minimize unnecessary wakeup evaluations per frame
+
+### 3) Dialogue Waveform and LIP Buffer Thresholds
+
+- Custom voice files must be **mono**, 44.1 kHz, 16-bit PCM — stereo audio desynchronizes or crashes the facial skeleton deformation system
+- Keep individual dialogue lines under **20 seconds** per phase; longer unbroken blocks overflow the real-time lip-sync buffer cache, causing NPCs to freeze mid-conversation or lock the camera
+- Always generate matching `.lip` files via the CK's LIP Generator after finalizing audio so facial timing data stays aligned with the waveform
