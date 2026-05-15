@@ -199,13 +199,16 @@ Fallout4.exe
 
 ## 6. Ascension — Mandatory Engine Fixes (2026)
 
-**Ascension** is a collection of F4SE plugins (maintained as a suite or individually) that fix engine-level bugs that become critical under high-fidelity asset loads. For a 2026 realism mod, these are non-optional.
+> **⚠️ 2025/2026 Update — Addictol supersedes Buffout 4 and many other plugins:**
+> As of mid-2025, **Addictol** (Nexus #84214) is the all-in-one engine stability suite that replaces Buffout 4 (all variants), X-Cell, BakaMaxPapyrusOps, Baka ScrapHeap, Fallout Priority, Faster Workshop, and more. Do **not** install Buffout 4 or any of those superseded tools alongside Addictol. The components listed below are the current 2026 stack — use Addictol in place of any individual Buffout 4 reference.
 
-### Components
+**Ascension** refers to the collection of F4SE plugins (maintained as a suite or individually) that fix engine-level bugs that become critical under high-fidelity asset loads. For a 2026 realism mod, these are non-optional.
+
+### Components (2026 Stack)
 
 | Plugin | What It Fixes |
 |---|---|
-| `Buffout4.dll` | Heap fragmentation, script stack overflow, mesh crash guards |
+| `Addictol.dll` (Nexus #84214) | **ALL-IN-ONE**: memory manager, heap fragmentation, script performance, FaceGen bugs, workshop speed, crash fixes, micro-stutter, and much more. **Replaces Buffout 4 entirely.** |
 | `ExcelFO4.dll` | CPU priority, disk cache, heap defrag |
 | `HighFPSPhysicsFix.dll` | Physics tied to frame rate — decouples engine physics from vsync |
 | `LooksMenu.dll` (optional) | Face mesh corruption in high-poly scenes |
@@ -273,19 +276,20 @@ MaxActors = 4096   ; default 1024; each loaded plant NPC_ counts as 1
 Install in this order (bottom = loads last / highest priority):
 
 ```
-1. F4SE
-2. Address Library for F4SE
+1. F4SE 0.7.7+ (from f4se.silverlock.org)
+2. Address Library for F4SE — All In One (Nexus #47327)
 3. Visual C++ Redistributables 2015–2022
-4. Buffout 4 + Buffout4.toml
-5. High FPS Physics Fix + toml
+4. Addictol (Nexus #84214) — ALL-IN-ONE: memory, heap, scripts, FaceGen, workshop, crash fixes
+   ⚠️ Do NOT also install Buffout 4, X-Cell, BakaMaxPapyrusOps, Faster Workshop, etc.
+5. High FPS Physics Fix + toml (Nexus #44798)
 6. Excel Fallout 4 + toml
-7. Ascension suite plugins (CellLoadFix, ActorCountFix, TextureStreamFix)
+7. Ascension suite plugins (CellLoadFix, ActorCountFix, TextureStreamFix) — if separately maintained
 8. ENB Series (enbseries.ini + enblocal.ini)
 9. Vulkan wrapper d3d11.dll (if used — chain via enblocal.ini ProxyLibrary)
 10. DLSS / DLAA injector
 11. Your mutated flora mod (ESP/BA2)
 12. LOD output BA2 (xLODGen/DynDOLOD)
-13. Buffout 4 crash log analyzer (CLASSIC) — post-crash diagnostics only
+13. CLASSIC crash scanner (Nexus #56255) — post-crash diagnostics only
 ```
 
 ### FOMOD Version Selector
@@ -351,8 +355,8 @@ Common CLASSIC crash signatures for flora mods:
 
 | Tool | Purpose | Key Setting |
 |---|---|---|
+| Addictol (Nexus #84214) | ALL-IN-ONE: memory, heap, FaceGen, workshop, crash fixes | Supersedes Buffout 4 entirely — do not use both |
 | Excel Fallout 4 | CPU priority + disk cache + heap defrag | `DiskCache.MaxCacheSizeMB=512`, `PrefetchDepthCells=2` |
-| Buffout 4 | Memory manager + crash guards | `MemoryManager=true`, `iMaxAllocatedMemoryBytes=536870912` |
 | High FPS Physics Fix | Decouple physics from frame rate | `EnableHavokFix=true`, `MaxFPS=0` |
 | Ascension suite | CellLoadFix + ActorCountFix + TextureStreamFix | `MaxActors=4096`, `MaxTextureStreamWorkers=4` |
 | Vulkan wrapper | D3D11→Vulkan, async compute, multi-thread rendering | `enblocal.ini ProxyLibrary=vulkan_wrapper.dll` |

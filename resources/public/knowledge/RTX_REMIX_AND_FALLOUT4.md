@@ -257,11 +257,12 @@ Since RTX Remix doesn't work with Fallout 4, here are the **actual tools** for g
 
 ### **Step 5: Mesh/Model Improvements**
 ```
-1. Install Armor and Weapon Keywords Community Resource (AWKCR)
-2. Install high-poly weapon mods
-3. Install Enhanced Vanilla Bodies (EVB)
-4. Add Reduced Grass Density (performance)
+1. Install high-poly weapon mods (AWKCR is deprecated — use ECO or standalone keyword mods instead)
+2. Install Enhanced Vanilla Bodies (EVB) or CBBE + BodySlide
+3. Add Reduced Grass Density (performance)
+4. Install Hi-Poly Faces (character close-up quality)
 ```
+> ⚠️ **Note (2025+):** AWKCR (Armor and Weapon Keywords Community Resource) is no longer actively maintained. Do **not** add it to new mod setups. Use ECO (Equipment and Crafting Overhaul) or standalone keyword patches instead. Many popular mods now offer AWKCR-free versions on their Nexus pages.
 
 ### **Performance Targets**
 | Hardware | Settings | Expected FPS |

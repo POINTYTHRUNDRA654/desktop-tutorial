@@ -160,6 +160,7 @@ const HavokFallout4Guide: React.FC<HavokFallout4GuideProps> = ({ embedded = fals
           <li><strong>Extract</strong> a vanilla HKX + skeleton for reference (BAE).</li>
           <li><strong>Author</strong> in Blender (see in-app animation guide).</li>
           <li><strong>Convert</strong> to FO4 HKX with a community toolchain (HKXPack is a common starting point).</li>
+          <li><strong>Integrate</strong> via replacer or framework route (IAF / NAF / AWF) depending on trigger type.</li>
           <li><strong>Validate</strong> format/version issues before launching the game.</li>
         </ul>
         <div style={buttonRowStyle}>
@@ -168,6 +169,9 @@ const HavokFallout4Guide: React.FC<HavokFallout4GuideProps> = ({ embedded = fals
         </div>
         <div style={{ marginTop: '10px', padding: '8px', backgroundColor: 'rgba(255,200,0,0.07)', border: '1px solid #665500', borderRadius: '4px', fontSize: '12px', color: '#ccaa44' }}>
           <strong>NG/AE note:</strong> The HKX animation format (Havok 2010.2.0-r1) is unchanged between OG (1.10.163), NG (1.10.980–984), and AE (1.11.x). Behavior graph paths and skeleton NIFs are also the same. No re-export is required when targeting different runtimes — the animation asset pipeline is identical for all three.
+        </div>
+        <div style={{ marginTop: '8px', padding: '8px', backgroundColor: 'rgba(0,200,255,0.07)', border: '1px solid #0a6a88', borderRadius: '4px', fontSize: '12px', color: '#7adfff' }}>
+          <strong>Framework dependency note (2025–2026):</strong> For IAF/NAF/AWF integration tests, validate runtime dependencies first (F4SE + Address Library). AWF workflows additionally expect MCM, and menu-time playback relies on FallSouls.
         </div>
       </div>
 
@@ -829,6 +833,8 @@ Performance Impact:
             <ul>
               <li><a href="https://www.youtube.com/watch?v=PZ5nP8mwzDA&list=PLGGw--fFEeZd5HM9shaaANPuXP9zAgmAN" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>FO4 Havok animation playlist</a> (visual walkthroughs)</li>
               <li>Nexus Mods tutorials</li>
+              <li>Shiagur42 Blender rig documentation and examples (human + power armor rigs)</li>
+              <li>Animation framework docs and examples: IAF (#50555), NAF (#73889), AWF (#100946)</li>
               <li>Fallout 4 modding forums</li>
               <li>GitHub (PredatorCZ projects)</li>
               <li>Game dev courses</li>
@@ -837,7 +843,9 @@ Performance Impact:
             <p><strong>Tools:</strong></p>
             <ul>
               <li>Nifskope (NIF viewer/editor)</li>
-              <li>HavokMax (3DS Max plugin)</li>
+              <li>Blender + PyNifly (current FO4 authoring baseline)</li>
+              <li>Havok Content Tools 2014 (FBX → HKX conversion)</li>
+              <li>HKXPackUI / HKXPack tools (HKX inspect/pack)</li>
               <li>Creation Kit (in-game testing)</li>
               <li>Havok Behavior Editor (state machines)</li>
             </ul>
@@ -846,6 +854,7 @@ Performance Impact:
             <ul>
               <li>Fallout 4 Animation Kit (F4AK) by ShadeAnimator — author of the kit and guide</li>
               <li>DexesTTP — HKXPack/HKXAnim tools</li>
+              <li>Shiagur42 — Blender animation rigs and setup workflows for FO4</li>
               <li>MaikCG — <a href="https://www.nexusmods.com/fallout4/mods/16691" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>F4Biped animation rig</a> and guidance</li>
               <li>Contributors: CPU, NifTools team, JoshNZ, Kimbale, Caliente/Ousnius (CBBE)</li>
               <li>F4AK Nexus release (credit when used): <a href="https://www.nexusmods.com/fallout4/mods/16694" target="_blank" rel="noreferrer" style={{ color: '#00ff00' }}>Nexus mod 16694</a></li>
