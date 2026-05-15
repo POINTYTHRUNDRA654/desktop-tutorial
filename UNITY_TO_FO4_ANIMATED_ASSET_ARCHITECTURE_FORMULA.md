@@ -714,3 +714,210 @@ Run BC7 Compression Verification Pass on Alpha Channels
 - Convert textures to FO4-compatible DDS format
 - Typical choices: `BC1/DXT1` for opaque diffuse, `BC7` for higher-fidelity RGBA use cases
 - Keep power-of-two dimensions (for example `1024x1024`, `2048x2048`, `4096x4096` as appropriate)
+
+---
+
+## Interactive Papyrus Script Debugging Challenges
+
+Use these intentionally broken scripts as student code-review exercises.
+
+### Challenge A: Locked Interaction Bug
+
+**Scenario:** Activation plays once, then object locks permanently.  
+**Assignment:** Find two structural bugs.
+
+```papyrus
+; DEFECTIVE SCRIPT - FOR STUDENT REVIEW
+Scriptname ModName:BrokenLeverScript extends ObjectReference
+
+String Property AnimationName = "Play01" Auto Const
+Bool isAnimating = false
+
+Event OnActivate(ObjectReference akActionRef)
+    if (isAnimating == true)
+        return
+    endif
+
+    isAnimating = true
+    Self.PlayAnimation(AnimationName)
+    ; STUCK POINTER: Student forgot to register for the termination event string key here
+EndEvent
+
+Event OnAnimationEvent(ObjectReference akSource, string asEventName)
+    if (asEventName == "End")
+        isAnimating = false
+        ; CRITICAL DEFECT: Missing a mandatory clear function call to free up the listener handle
+    endif
+EndEvent
+```
+
+**Instructor Answer Key**
+- Bug 1: Missing `Self.RegisterForAnimationEvent(Self, "End")` in `OnActivate`
+- Bug 2: Missing `Self.UnregisterForAnimationEvent(Self, "End")` in `OnAnimationEvent`
+
+### Challenge B: Non-Thread-Safe Gate Trigger
+
+**Scenario:** Simultaneous activations desync state and animation.  
+**Assignment:** Re-architect with state-based lock control.
+
+```papyrus
+; DEFECTIVE SCRIPT - FOR STUDENT REVIEW
+Scriptname ModName:BrokenGateScript extends ObjectReference
+
+String Property OpenAnim = "Play01" Auto Const
+Bool Property IsOpen = false Auto
+
+Event OnActivate(ObjectReference akActionRef)
+    ; LOGIC CRASH: If two actors press activate simultaneously, both bypass this line before IsOpen flips
+    if (IsOpen == false)
+        IsOpen = true
+        Self.PlayAnimation(OpenAnim)
+    endif
+EndEvent
+```
+
+**Instructor Answer Pattern**
+
+```papyrus
+Auto State Ready
+    Event OnActivate(ObjectReference akActionRef)
+        GoToState("Busy")
+        IsOpen = !IsOpen
+        Self.PlayAnimation(OpenAnim)
+        Self.RegisterForAnimationEvent(Self, "End")
+    EndEvent
+EndState
+
+State Busy
+    Event OnActivate(ObjectReference akActionRef)
+        ; Do nothing while busy processing frames
+    EndEvent
+EndState
+```
+
+---
+
+## Student Weekly Milestone Tracking Checklist
+
+### Week 1: Import and Base Scaling Setup
+
+- Mesh/skeleton extracted from Unity using AssetRipper/AssetStudio
+- Asset scaled uniformly in Blender and transforms applied
+- Scale values confirmed as `1.000` after apply
+- Custom split normals cleared where required
+
+### Week 2: Skeleton Optimization and Weight Painting
+
+- Root bone renamed correctly (`Scene Root`) or aligned to vanilla target node structure
+- Weight influence limit pass applied (max 4 influences per vertex)
+- Root-motion horizontal drift removed from X/Y channels
+- `End` marker embedded for script event handoff
+
+### Week 3: Compiling and Directory Staging
+
+- `.hkx` generated successfully from Elrich pipeline
+- Textures converted to power-of-two DDS formats (`BC1`/`BC7` as needed)
+- Material paths use game-relative structure
+- Meshes, animations, and materials staged under correct `Data/` folders
+
+### Week 4: Assembly and Final Archiving
+
+- CK resolves assets with no red exclamation markers
+- State-safe Papyrus logic compiled and attached
+- Archive2 packaging completed as separate `- Main.ba2` and `- Textures.ba2`
+- Final in-game validation completed in live save
+
+---
+
+## Next-Gen Runtime Patch Compatibility Blueprint
+
+Use this strategy when engine/runtime updates alter behavior graph layouts.
+
+### 1) Decouple via Custom Animation Subgraphs
+
+Do not overwrite global base animation registry files.  
+Instead, isolate mod behavior through custom animation groups/subgraphs and plugin-scoped records (`.esp`), so core updates do not overwrite mod state routing.
+
+### 2) Resolve Runtime Pointer/Format Breakage
+
+When toolchain updates alter expected HKX structure:
+
+- Recompile using the latest FO4 animation toolkit components
+- Update processing flags where applicable (example below)
+
+```xml
+<ProcessType>Animation64</ProcessType>
+```
+
+Validate output against expected modern runtime profiles, including file size and load behavior consistency.
+
+### 3) Preserve Dynamic Form IDs
+
+Avoid hardcoded form IDs in scripts; use Creation Kit property wiring.
+
+**Bad practice**
+
+```papyrus
+Game.GetFormFromFile(0x01004F3C, "MyMod.esp")
+```
+
+**Preferred practice**
+
+```papyrus
+Weapon Property MyCustomWeapon Auto Const
+; Creation Kit resolves this dynamically based on runtime load order.
+```
+
+---
+
+## Creation Kit Error Message Quick-Reference Dictionary
+
+| Error Message String | True Root Cause | Immediate Actionable Fix |
+| --- | --- | --- |
+| `MASTERFILE: Model... has no texture mapping info.` | Missing/corrupt `BSLightingShaderProperty` data | Reassign material in Blender and re-export with valid PyNifly preset |
+| `ANIMATION: Cannot find animation graph for Actor...` | Race/Actor graph path points to invalid or missing subgraph/skeleton structure | Correct graph path fields in CK to match staged folders |
+| `FORMS: Subgraph requested event that does not exist.` | Script/engine calls animation marker not present in `.hkx` | Verify marker spelling/case in Blender timeline, then recompile |
+| `CONTROLLER: NiTransformController targets missing node.` | Animation track points to renamed/missing bone node | Align action bone names with final skeleton/vertex group naming |
+
+---
+
+## In-Game Console Animation Debugging Guide
+
+### `ToggleAnimationDebug` (`tad`)
+
+- **Usage:** open console and enter `tad`
+- **Purpose:** overlays active animation graph states in real time
+
+### `PlayBGSAnimGame [EditorID] [AnimName]`
+
+- **Usage:** target object, then run e.g. `PlayBGSAnimGame Play01`
+- **Purpose:** bypasses Papyrus and directly tests embedded animation controller playback
+
+### `DumpAnimationGraphs` (`dag`)
+
+- **Usage:** target actor, then run `dag`
+- **Purpose:** exports current actor graph details for log-based diagnostics
+
+### `SetAnimGraphVar [VarName] [Value]`
+
+- **Usage:** e.g. `SetAnimGraphVar bIsAlert true`
+- **Purpose:** forces animation graph variable state transitions for rapid testing
+
+---
+
+## End-of-Course Capstone Project Prompt
+
+### Project Assignment: The Automated Security Outpost
+
+Students must integrate world object, weapon, and creature pipelines into a single interactive settlement defense mod.
+
+### Technical Specification Requirements
+
+1. **Object Module (Animated Structure)**  
+   Import a Unity mechanical terminal/cage object and drive activation with a thread-safe Papyrus script loop.
+2. **Weapon Module (Custom Attachment)**  
+   Rig a custom defense/turret weapon component to vanilla weapon bones with working reload animation behavior.
+3. **Creature Module (Guardian Unit)**  
+   Retarget a Unity robot/synthetic creature to a vanilla-compatible skeleton with validated weights and compiled loop track.
+4. **Final Deployment Packaging**  
+   Package plugin + assets into optimized distribution-ready archives for end-user installation.
