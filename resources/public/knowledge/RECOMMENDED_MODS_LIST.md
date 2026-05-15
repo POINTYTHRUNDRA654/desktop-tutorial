@@ -1498,6 +1498,41 @@ The author also notes it can be used to quickly check cell coordinates, form IDs
 
 ---
 
+### Animated Texture Guide
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/75528 |
+| **Category** | Tutorial / Modder's Resource — Animated texture workflow |
+| **Type** | Step-by-step guide for building animated textures from a spritesheet and exporting the final mesh for Fallout 4 |
+| **Off-site Requirements** | 3ds Max 2013, Havok Content Tools 2013, Bethesda NIF exporter, NifSkope, an image editor (Photoshop/GIMP/etc.), and a spritesheet or GIF-to-spritesheet workflow |
+| **Console (Bethesda.net)** | ❌ Not suitable/accepted for Bethesda.net console distribution |
+
+#### What It Is
+
+A hands-on tutorial for creating animated textures in Fallout 4 using a vertically arranged spritesheet, UV offset keyframing in 3ds Max, NIF export, Elrich conversion, and final flag cleanup in NifSkope.
+
+The guide assumes prior familiarity with exporting meshes from 3ds Max with Havok-related tooling and focuses specifically on the animated-texture portion of the pipeline rather than general collision or Havok setup.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ⚠️ Ask author first |
+| Modify/improve and release | ⚠️ Ask author first |
+| Convert for other games | ⚠️ Ask author first |
+| Use assets/files in your own mod | ⚠️ Ask author first |
+| Use in paid/sold mods | ⚠️ Ask author first |
+| Use in DP-earning mods | ⚠️ Ask author first |
+| Console publishing | ❌ Not suitable for Bethesda.net console distribution |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- IceStormNG — for walking the author through animation work
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
