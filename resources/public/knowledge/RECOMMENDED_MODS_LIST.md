@@ -210,11 +210,273 @@ The mod replaces the shared unarmed animation pool, so the martial arts moves wi
 
 ---
 
-## Animation Frameworks
+### JNFA2026 — Just New Female Animations
+
+| Field | Details |
+|---|---|
+| **Author** | cyb9erg (Nexus: Cyb9rg) |
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/100034 |
+| **Category** | Animation — Female player character (idle, walk, run, sprint) |
+| **Version** | 1.1 |
+| **DLC Required** | None |
+| **F4SE Required** | No |
+| **Console (Bethesda.net)** | See note below |
+
+#### What It Does
+
+A re-release of the classic "Just New Female Animations" mod — feminine, natural-feeling movement replacers for the female player character, deliberately kept tasteful and not oversexualized. Replaces third-person idle, walk, run, and sprint animations with smoother, gender-authentic equivalents. One of the most-used animation replacers in the community for female character playthroughs.
+
+Key features:
+- Replaces 3rd-person idle, walk, run, and sprint animations for female characters
+- Feminine motion that reads naturally without being exaggerated
+- Pure animation file replacer — no plugin, no F4SE, no scripting overhead
+- Installs as loose `.hkx` files or via mod manager
+- Compatible with body replacers (CBBE, Fusion Girl, etc.) — animations are skeleton-driven, not mesh-dependent
+- Use only one main movement animation replacer at a time to prevent conflicts
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires cyb9erg's permission |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your mod | ❌ Requires cyb9erg's permission |
+| Use assets in paid mods | ❌ Not allowed |
+| Use assets in DP-earning mods | ❌ Not allowed |
+| Console modding (Bethesda.net) | ⚠️ See note |
+
+> **Xbox note:** The standard Nexus permissions template lists this as unavailable on Bethesda.net. However, the author has added a personal note: *"Anyone who wants to upload it to Xbox is free to do so (I can't), as long as the entire page and descriptions are respected."* The author's note takes precedence for Xbox — you may upload to Bethesda.net for Xbox **if you reproduce the full mod page and description accurately and credit cyb9erg**.
+
+#### Credits
+
+- **cyb9erg** — re-upload and current maintainer. No additional file credits listed.
+- Original "Just New Female Animations" lineage — a long-running community staple that cyb9erg has brought back and updated as JNFA2026.
+
+#### Install Notes
+
+Install via MO2 or Vortex using the Mod Manager Download button. No plugin required. No F4SE required. Place after any body mesh mods in MO2's left panel to ensure the animation files take priority. Only one movement animation replacer should be active at a time — disable or remove any conflicting female animation mods before enabling JNFA2026.
+
+Install via MO2 or Vortex using the Mod Manager Download button. No plugin required. No F4SE required. Place after any body mesh mods in MO2's left panel to ensure the animation files take priority. Only one movement animation replacer should be active at a time — disable or remove any conflicting female animation mods before enabling JNFA2026.
 
 ---
 
-### NAF — Native Animation Framework
+### RAF — Random Animation Framework (Animation Overhaul for Humans)
+
+| Field | Details |
+|---|---|
+| **Author** | SexyWitch |
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/90839 |
+| **Category** | Animation — NPC & player movement archetypes, behavioral variety |
+| **DLC Required** | None |
+| **F4SE Required** | No |
+| **Scripts** | 1 lightweight script |
+| **Console (Bethesda.net)** | ❌ Not available — PC only |
+| **Uploaded** | January 2025 |
+| **Last Updated** | October 2025 |
+
+#### What It Does
+
+RAF unlocks the full breadth of Fallout 4's built-in animation system — a system that has always existed in the engine but was barely used by the base game. Vanilla actors default to a single movement archetype; RAF distributes all nine vanilla archetypes across the population and adds dynamic speed variation, making every human in the Commonwealth move like an individual.
+
+The core insight: Fallout 4 already has animations for confident walkers, nervous people, the elderly, military postures, babies being held, and more — they just weren't being used. RAF makes use of all of them.
+
+**What RAF adds:**
+
+- **80+ active animations** across 9 vanilla movement archetypes
+- **6 walk animations in 1** — base + elderly + optional girly variant, blended seamlessly via dynamic speed switching
+- **9 archetype rings** craftable at the chemistry workbench — equip an actor with a ring to assign their movement personality
+- **RAF random speed** — 5 speed tiers with random switching for both player and NPCs, producing natural-feeling variation rather than robotic constant-speed movement
+- All 9 vanilla archetypes deployed: `player`, `confident`, `fastwalk`, `nervous/depressed`, `elderly/tired`, `irritated`, `neutral`, and more
+- **Baby-holding animation** repurposed as a general posture (not just the prologue)
+- **Military flavor** edited for better general-use timing
+- No load conflicts — 1 script
+
+**Ring types (crafted at chemistry workbench):**
+
+| Ring | Effect |
+|---|---|
+| RAF re | Resident Evil–style movement |
+| RAF c | Even faster variant |
+| RAF 11a | Recommended first pick — best all-around baseline |
+| RAF Tcaa/nx-Bot | Base only — random speeds, random switching |
+| RAF random speed | For player and actors — 5 speed types, random switching |
+
+#### Recommended Install Order
+
+For the full 6-walk-animation experience, install in this order:
+
+1. Install RAF (this mod)
+2. Install the included animation improvements (for seamless transitions)
+3. Install **Elderly animation MOD** — adds the 5th walk animation
+4. Install **Girly animation MOD** — adds the 6th walk animation *(optional)*
+
+> The author notes: *"If you mix all together, IT MUST FIT — fit for nice transitions."* Only mix with compatible animation mods. Install after the Vault prologue for best results.
+
+#### Companion Mods by the Same Author
+
+SexyWitch has a suite of related animation mods worth exploring alongside RAF:
+- **Eyes blinking and express natural face** — facial animation overhaul
+- **HIT THE MASS** — combat hit reactions
+- **Witch's DOGmeat animation overhaul** (parts 1 & 2) — Dogmeat movement improvements
+- **Witch's CAT and Brahmin** — animal companion animations
+
+Also recommended by the author: **Simple Slide or Stomp** by Cyan49.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires SexyWitch's permission |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your mod | ❌ Requires SexyWitch's permission |
+| Use assets in paid mods | ❌ Not allowed |
+| Use assets in DP-earning mods | ❌ Not allowed |
+| Console modding | ❌ Not available on Bethesda.net |
+
+#### Credits (as listed by the author)
+
+- **SexyWitch** — mod author and primary creator
+- **GoneFish** — contributor
+- **Cyan49** — contributor
+
+---
+
+### Witch's Nature — Eyes, Blinking & Expressive Face Morphs
+
+| Field | Details |
+|---|---|
+| **Author** | SexyWitch |
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/89664 |
+| **Category** | Animation — Facial expressions, blinking, eye & head tracking |
+| **DLC Required** | None |
+| **F4SE Required** | No |
+| **Scripts** | None — vanilla record edits only |
+| **Console (Bethesda.net)** | ✅ A specific person has been given permission to port — credit SexyWitch |
+| **Versions** | ESP (recommended, load at end) and ESL (for those at the mod limit) |
+
+#### What It Does
+
+Witch's Nature overhauls the facial life of every character in the game — player and NPC alike — using only vanilla record edits. No scripts, no F4SE, no framework requirements. It makes characters look genuinely present during conversations and while going about their lives, through more frequent blinking, expressive face morphs, improved eye tracking angles, and better head movement timing.
+
+Key features:
+- **More blinking** — increased natural blink frequency for all characters
+- **Improved eye and head angle movement** — tracking feels more alive; angles are tuned for believable attention
+- **Expressive face morphs** — subtle emotional expressions during idle and dialogue
+- **NPC and PC talk timing** — improves the rhythm of speech animations so conversations feel more grounded
+- **Alpha and Beta variants:**
+  - *Beta* — different timing for normal vs. dialogue emotion states
+  - *Alpha* — more precise, detail-focused version
+- **Zero overhead** — pure vanilla edits, fully compatible with everything at time of writing
+- Works with player comment mods, custom companion heads (e.g. MAYA), and all custom NPC mods
+- **Modular eyes-only variant** available separately: https://www.nexusmods.com/fallout4/mods/89879
+
+> Already mentioned in the RAF (#90839) entry as part of SexyWitch's animation suite — this is the full standalone entry with complete credits and install details.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires SexyWitch's permission |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your mod | ❌ Requires SexyWitch's permission |
+| Use assets in paid mods | ❌ Not allowed |
+| Use assets in DP-earning mods | ❌ Not allowed |
+| Console modding (Bethesda.net) | ✅ **A specific person has been granted permission to port — credit SexyWitch** |
+
+> Unlike RAF (#90839) which is PC-only, this mod has an authorised console port. If you see it on Bethesda.net for Xbox, that is a legitimate upload made with the author's permission.
+
+#### Credits
+
+- **SexyWitch** — mod author. No additional credits listed.
+- Ko-fi support page linked on the Nexus mod page.
+
+#### Install Notes
+
+Install via MO2 or Vortex. **Choose one version:**
+- **ESP version** — recommended; place at the **end of your load order** for best results
+- **ESL version** — use if you are at or near the 255 ESP plugin limit
+
+Can be installed or updated at any time — no save dependency. No conflicts reported with any current mods.
+
+**Pairs naturally with the rest of SexyWitch's suite:**
+- RAF (#90839) — movement and archetype variety
+- HIT THE MASS (#90416) — combat hit reactions (see entry below)
+- Witch's DOGmeat animation overhaul — Dogmeat animations
+
+---
+
+### HIT THE MASS — Combat Hit Reactions & Impact Overhaul
+
+| Field | Details |
+|---|---|
+| **Author** | SexyWitch |
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/90416 |
+| **Category** | Combat — Hit reactions, hitstop, knockback, VFX, panic criticals |
+| **DLC Required** | Far Harbor, Nuka World |
+| **F4SE Required** | No |
+| **Scripts** | 2 lightweight scripts |
+| **Size** | ~30 KB |
+| **Console (Bethesda.net)** | ✅ A specific person has been granted permission to port — credit SexyWitch |
+
+#### What It Does
+
+HIT THE MASS makes Fallout 4's combat feel like a modern action game. Inspired by Cyberpunk 2077 and Dishonored, it adds the hit feedback that vanilla Fallout 4 completely lacks — the physical sense that attacks connect with real bodies rather than passing through them. Everything is probabilistic (10–50% chance per hit, scaled by skills and weapon type), so the effects feel organic rather than mechanical.
+
+**8 new hit effect types (10 total with variations):**
+
+| Effect | Description |
+|---|---|
+| **HITlight** | Subtle impact flash for both guns and melee weapons |
+| **HITshake** | 3 types of camera/screen shake with variations — scales by hit weight |
+| **HITstop** | 2 types of freeze-frame stop animations with VFX — the "BANG-BANG-stop-BANG" feel of impactful hits |
+| **KNOCKback** | Heavy weapon knockback with improved ragdoll physics for natural-looking impacts |
+| **WIDEspread PANIC criticals** | Critical hits trigger visible panic reactions in targets |
+
+**Two install variants:**
+- **AP cost / NO race edits version** — maximum compatibility; no race record edits
+- **MORE AP cost version** — very small race edits for a stronger feel; compatibility patches included for character customisation and damage reaction mods
+
+**Asset permission note:** Uses assets from the **ROBOTIZED** mod — permission from ROBOTIZED has been explicitly granted and is confirmed.
+
+**Unarmed compatibility:**
+- Classic unarmed pack from **GrilledTurkey** is shipped empty for non-unarmed-pack users
+- If you use GrilledTurkey's unarmed weapon pack, use the original version of that file instead
+
+**Part of SexyWitch's Full Total Combat Overhaul** — designed to work alongside RAF (#90839) and Witch's Nature (#89664) as a complete suite.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires SexyWitch's permission |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your mod | ❌ Requires SexyWitch's permission |
+| Use assets in paid mods | ❌ Not allowed |
+| Use assets in DP-earning mods | ❌ Not allowed |
+| Console modding (Bethesda.net) | ✅ **A specific person has been granted permission to port — credit SexyWitch** |
+
+#### Credits
+
+- **SexyWitch** — mod author and primary creator
+- **ROBOTIZED** — asset permission explicitly granted for this mod
+- No other credits listed by the author
+
+#### Install Notes
+
+Install via MO2 or Vortex. Choose the AP cost / no race edits version unless you specifically want the enhanced feel of the race-edits variant. If using the race-edits version, apply the included compatibility patches for any character customisation or damage reaction mods you have active.
+
+Requires Far Harbor and Nuka World DLCs. Recommended as part of SexyWitch's full suite:
+1. Witch's Nature (#89664) — facial life
+2. RAF (#90839) — movement variety
+3. **HIT THE MASS (#90416) — combat impact**
+
+---
+
+## Animation Frameworks
 
 | Field | Details |
 |---|---|
@@ -362,7 +624,121 @@ F4Biped is tagged as a **Modder's Resource** on Nexus. The explicit permissions 
 
 ---
 
-## Animation Mods as Learning References
+### Shiagur's Blender Animation Rig Suite (Human + Power Armor)
+
+> These two mods are designed as a pair by the same author. The v2.0 guide covers both together. **Read the permissions carefully — they differ between the two rigs.**
+
+#### Power Armor Rig — Nexus #81279
+
+| Field | Details |
+|---|---|
+| **Author** | Shiagur (Nexus: Shiagur42) |
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/81279 |
+| **Category** | Modder's Resource — Blender animation rig for Power Armor |
+| **Version** | 2.6.0 (Sound update) |
+| **Blender Required** | 4.1+ |
+| **Havok Content Tools** | 2014 64-bit v1.1 (specific build required) |
+| **FBXImporter** | Nexus #59849 (by andrelo1) — to convert FBX → HKT |
+
+**Permissions for #81279 (Power Armor Rig):**
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires Shiagur's permission |
+| Convert to other games | ✅ **Allowed — credit Shiagur as creator** |
+| Use assets in your mod | ❌ Requires Shiagur's permission |
+| Use assets in paid mods | ❌ Not allowed |
+| Use assets in DP-earning mods | ❌ Not allowed |
+| Console modding | ❌ Won't work on consoles / not acceptable on Bethesda.net |
+
+#### Human 1st/3rd Person Rig — Nexus #82537
+
+| Field | Details |
+|---|---|
+| **Author** | Shiagur (Nexus: Shiagur42) |
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/82537 |
+| **Category** | Modder's Resource — Blender animation rig for human 1st and 3rd person animations |
+| **Version** | 2.6.0 (Sound update) |
+| **Blender Required** | 4.1+ |
+| **Havok Content Tools** | 2014 64-bit v1.1 |
+| **FBXImporter** | Nexus #59849 (by andrelo1) |
+
+**Permissions for #82537 (Human Rig):**
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / release bug fixes | ✅ **Allowed — credit Shiagur as original creator** |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your mod | ❌ Requires Shiagur's permission |
+| Use assets in paid mods | ❌ Not allowed |
+| Use assets in DP-earning mods | ❌ Not allowed |
+| Console modding | ✅ **A specific person has been granted permission to port to Bethesda.net — credit the author** |
+
+> ⚠️ Note the difference: the Human rig (#82537) **allows modification with credit** and **has a console port authorised**, while the PA rig (#81279) **allows cross-game conversion with credit** but **does not allow modification or console ports**. Always check each mod's page before using assets.
+
+#### What the Suite Covers
+
+The definitive Blender-native animation pipeline for Fallout 4 — covering human first-person, third-person, and Power Armor animations in a single workflow. Version 2.0 merged what were previously two separate guides and replaced all manual Havok Content Tools steps with a Python automation script ("FO4 Tools") built into the Blender file.
+
+Previously, creating FO4 animations required 3ds Max (see MaikCG F4Biped above). Shiagur's rigs made this possible entirely in Blender, which most newer modders already use.
+
+**What the rig covers:**
+- Third-person character and weapon animations
+- First-person weapon animations (additive and non-additive)
+- First-person Power Armor animations (uses same skeleton as human; overridden by subgraph data in-game)
+- Weapon attachment system (attach weapons/props to rig bones via the Attach panel)
+- Full IK/FK rig with drivers for arm, leg, finger, and spine control
+- Annotation (Havok event) creation and import via Pose Markers
+- Three methods to extract annotations from vanilla animations
+- In-rig Havok Viewer preview workflow (using included skeleton .hkx files)
+
+**Files included:**
+
+| File | Purpose |
+|---|---|
+| Main `.blend` file | Rig, meshes, "FO4 Tools" Python panels, sample 10mm pistol animation |
+| `assets/TMP/` | Auto-generated import/export staging folder |
+| `assets/programm_paths.txt` | Tool paths — copy to other projects to avoid re-entering paths |
+| `skeleton Human 1stP for Havok Viewer.hkx` | Preview 1st-person animations in Havok Viewer |
+| `skeleton Human 3rdP for Havok Viewer.hkx` | Preview 3rd-person animations in Havok Viewer |
+| `skeleton PA for Havok Viewer.hkx` | Preview Power Armor animations in Havok Viewer |
+| `Havok Filter Config.hko` | HCT filter presets (less critical in v2.0 but included) |
+
+**Full toolchain required:**
+- Blender 4.1+: https://www.blender.org/
+- Havok Content Tools 2014 64-bit v1.1: https://archive.org/download/Havok-Content-Tools-2014/
+- FBX Importer (Nexus #59849): https://www.nexusmods.com/fallout4/mods/59849
+- havok2fbx OR F4AK_HKXPackUI (Nexus #16694): https://www.nexusmods.com/fallout4/mods/16694
+- Autodesk FBX Converter: https://aps.autodesk.com/developer/overview/fbx-converter-archives
+- A .ba2 extractor — any of: BAE (#78), BSA Browser (#17061), Archive2 (CK), BSArchPro (#63243)
+- PyNifly (for importing .nif weapon/mesh files): https://github.com/BadDogSkyrim/PyNifly/releases
+
+**Suggested Blender add-ons (all free, two built-in):**
+- Animation: Copy Global Transform (built-in Blender)
+- Animation: Pose Library (built-in Blender)
+- AnimAide — reposition already-animated bones
+
+#### Credits (as listed by the author — applies to both mods)
+
+- **EngineGaming** — beta reading and testing; creator of "Story Action Poses" (the inspiration for bringing this workflow to Blender)
+- **andrelo1** — creator of FBXImporter (Nexus #59849)
+- **Highflex** — creator of Havok2Gbx
+- Bethesda, Blender Foundation, all linked tool providers
+- **havok2fbx** — Copyright © 2015 Alex M, BSD 3-Clause License (full text on mod page)
+
+#### Author Contact & Support
+
+- **Discord:** https://discord.gg/5ydKyYSy6U — active community, best place for questions and feedback
+- **Nexus profile:** https://www.nexusmods.com/fallout4/users/125098883
+- Ko-fi donations accepted (link on Nexus page)
+
+#### For Mod Authors — Complete Workflow
+
+See `BLENDER_ANIMATION_RIG_GUIDE.md` for the full Shiagur rig workflow section, including: the FO4 Tools panel reference, driver system, bone descriptions, annotation extraction (3 methods), Havok Viewer preview, first-person vs third-person conventions, and PA-specific notes.
+
+---
 
 These five mods and tools — IAF, First-Person Swimming, Kicks And Punches, NAF, and F4Biped — together cover the full spectrum of Fallout 4 animation modding, from the raw pipeline to full native framework development. Study them in order:
 
