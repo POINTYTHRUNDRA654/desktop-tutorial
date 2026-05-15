@@ -397,3 +397,230 @@ graph TD
    - Match bake frame range to original clip length
 
 This preserves sub-bone animation while keeping the master root stable for FO4 behavior-graph-driven runtime movement.
+
+---
+
+## Student Laboratory Exercise Worksheet
+
+**Course Module:** Advanced Modding – Asset Conversion Pipelines  
+**Objective:** Convert a rigged Unity asset into a functional Fallout 4 world object with an interaction loop.
+
+### Required Assets Checklist
+
+- `unity_asset_input.fbx` (mesh + skeleton)
+- `unity_idle_clip.anim` (raw animation data)
+- Python 3.10+ environment configured with `compile_anims.py`
+
+### Step 1: Geometry and Scale Correction (Estimated: 10 min)
+
+1. Open a clean scene in Blender 4.2+ and delete default scene objects
+2. Import `unity_asset_input.fbx`
+3. Select armature + mesh
+4. Scale (`S`) to `100`
+5. Apply transforms (`Ctrl + A -> All Transforms`)
+
+**Checkpoint Question:** What are Scale X/Y/Z values after applying transforms?  
+**Expected Answer:** `1.000` for X, Y, and Z.
+
+### Step 2: Retargeting and Hierarchy Cleanup (Estimated: 15 min)
+
+1. In Outliner/Data view, find top-level parent/root bone
+2. Rename root from `GameObject_Root` to `Scene Root`
+3. In Action Editor, rename imported action to `Play01`
+4. Scrub timeline and verify clean loop from frame 1 to frame 60
+
+### Step 3: PyNifly Compilation Challenge (Estimated: 10 min)
+
+1. Select mesh + root armature
+2. Go to `File -> Export -> NetImmerse (.nif)`
+3. Load `FO4_Animated_Asset_Default`
+4. Export as `lab_asset_output.nif`
+
+---
+
+## BGSM Material Batch Automation Tool
+
+Use this standalone script to generate `.bgsm` JSON-structured material specs from texture folders with consistent relative pathing.
+
+```python
+import os
+import json
+
+# Setup targeting directories
+TEXTURES_DIR_RELATIVE = "Textures\\ModName\\CustomAssets\\"
+BGSM_OUTPUT_DIR = "./BGSM_Output"
+
+os.makedirs(BGSM_OUTPUT_DIR, exist_ok=True)
+
+def create_bgsm_template(material_name):
+    """Returns a dictionary payload mirroring a FO4 BGSM-style structure."""
+    return {
+        "Version": 2,
+        "MaterialType": "BGSM",
+        "TileFlags": {
+            "Tile_U": True,
+            "Tile_V": True
+        },
+        "TexturePaths": {
+            "Diffuse": f"{TEXTURES_DIR_RELATIVE}{material_name}_d.dds",
+            "Normal": f"{TEXTURES_DIR_RELATIVE}{material_name}_n.dds",
+            "Specular": f"{TEXTURES_DIR_RELATIVE}{material_name}_s.dds"
+        },
+        "ShaderProperties": {
+            "Alpha": 1.0,
+            "Smoothness": 0.8,
+            "Glossiness": 0.5,
+            "EmitColor": [0.0, 0.0, 0.0],
+            "SpecularColor": [1.0, 1.0, 1.0]
+        }
+    }
+
+def batch_generate_bgsm(target_folder):
+    # Locate diffuse textures to verify material base presence
+    diffuse_files = [f for f in os.listdir(target_folder) if f.endswith("_d.dds")]
+
+    if not diffuse_files:
+        print("No diffuse maps (*_d.dds) located inside your target source path.")
+        return
+
+    for item in diffuse_files:
+        base_name = item.replace("_d.dds", "")
+        bgsm_payload = create_bgsm_template(base_name)
+
+        output_file_path = os.path.join(BGSM_OUTPUT_DIR, f"{base_name}.bgsm")
+        with open(output_file_path, "w", encoding="utf-8") as f:
+            json.dump(bgsm_payload, f, indent=4)
+
+        print(f"Generated Material Spec File: {base_name}.bgsm")
+
+if __name__ == "__main__":
+    # Point this variable to your raw textures working folder
+    BATCH_SOURCE_FOLDER = "./SampleTextures"
+    os.makedirs(BATCH_SOURCE_FOLDER, exist_ok=True)
+    batch_generate_bgsm(BATCH_SOURCE_FOLDER)
+```
+
+---
+
+## Optimization Module: Poly Count and Performance Limits
+
+The Creation Engine can become unstable when imported assets exceed practical runtime budgets.
+
+### Hard Structural Constraints
+
+- **Static Props / Interactables:** target up to ~15,000 polygons per mesh object
+- **Characters / Dynamic Rigged Assets:** target up to ~45,000 polygons total
+- **Texture Sheets:** typically 2K (`2048x2048`) for general assets; up to 4K (`4096x4096`) for hero views (weapons/faces)
+
+### Optimization Pipeline in Blender
+
+```text
+Import High-Poly Asset -> Decimate Modifier (Collapse Ratio) -> Triangulate Pass -> Clear Custom Split Normals Data
+```
+
+### Practical Steps
+
+1. **Decimate Pass**
+   - Add `Decimate` modifier in `Collapse` mode
+   - Reduce ratio progressively (for example `1.0 -> 0.4`) until polygon budget is acceptable
+2. **Triangulation Pass**
+   - Add `Triangulate` modifier below `Decimate`
+   - Ensure export-ready triangle topology for FO4 runtime
+3. **Clear Split Normals**
+   - In Object Data Properties, open geometry data and clear custom split normals
+   - Removes Unity-imported normal artifacts that can cause black faceting in CK
+
+---
+
+## Creation Kit Havok Animation Repair Blueprint
+
+When `.hkx` compiles but fails in CK, diagnose graph, path, and event-tag mismatches.
+
+```text
+[Engine Crash / T-Pose]
+       |
+       v
+Check Character Subgraph Selection --(Default Humanoid?)--> NO --> Assign Custom Race Skeleton Path
+       |
+      YES
+       v
+Inspect Text Keyframe Tags --(Missing "End" Tag?)--> YES --> Re-inject Markers in Action Editor
+       |
+       NO
+       v
+Run Havok Behavior Tool (HBT) Sanity Verification Pass
+```
+
+### Step 1: Fix Runtime T-Pose
+
+**Symptom:** Actor remains in default T-pose when clip is called.  
+**Root Cause:** `.hkx` path or naming mismatch against animation subgraph descriptor.  
+**Fix:**
+- Verify actual compiled filename and path
+- Align naming with behavior node references (for example `Idle.hkx` vs `custom_idle.hkx`)
+- Ensure descriptor paths are correctly rooted relative to game data conventions
+
+### Step 2: Fix Missing Event Marker Triggers
+
+**Symptom:** Loop plays once, then freezes or crashes on repeat.  
+**Root Cause:** Missing animation event marker expected by script (`End`).  
+**Fix:**
+- Open Action Editor in Blender
+- Add final-frame marker named `End`
+- Re-export and recompile
+
+---
+
+## Quick-Reference Mod Packaging Cheat Sheet (.ba2)
+
+For public distribution, package assets into `.ba2` archives instead of loose files.
+
+### Archive2 Setup
+
+- Tool path: `Fallout 4/Tools/Archive2/Archive2.exe`
+- In Archive2 settings, set Root Folder to active `Fallout 4/Data/` workspace
+
+### Packaging Matrix Rules
+
+| Target File Types | Required BA2 Format | Compression Setting | Technical Reason |
+| --- | --- | --- | --- |
+| `.nif`, `.hkx`, `.bgsm` | General | Default (Compressed) | Structural and metadata-heavy assets compress efficiently |
+| `.dds` (textures) | DX10 / Texture | None (Uncompressed container) | Archive2 repacks textures into engine-ready texture stream format |
+
+### CLI Automation Commands
+
+```cmd
+:: Main data package
+"Archive2.exe" "Data\ModName - Main.ba2" -create -format=General -root="Data\SourceFiles\"
+
+:: Texture package
+"Archive2.exe" "Data\ModName - Textures.ba2" -create -format=Texture -root="Data\SourceTextures\"
+```
+
+---
+
+## Syllabus Outline: 4-Week Asset Modding Course
+
+### Week 1: Asset Rigging and Scale Foundations
+
+- **Lecture:** Unity Mecanim conversion rules and scale translation fundamentals
+- **Lab:** Import FBX, clear split normals, align bone structure to target hierarchy
+- **Milestone:** Export a clean `.nif`
+
+### Week 2: Animation Pipelines and Weight Distribution
+
+- **Lecture:** Bone influence limits and Action Editor workflow
+- **Lab:** Remove horizontal root drift, paint/test weights with limit-total workflow
+- **Milestone:** Export baked animation track to FBX
+
+### Week 3: Havok Compiling and Material Automation
+
+- **Lecture:** Elrich CLI patterns and material mapping structure
+- **Lab:** Batch-generate `.bgsm` specs and compile animation clips to `.hkx`
+- **Milestone:** Produce valid on-disk FO4 asset structure
+
+### Week 4: Creation Kit Integration and Distribution
+
+- **Lecture:** Scripted event flow and archive packaging strategy
+- **Lab:** Wire interactive logic in CK and package release with Archive2
+- **Milestone:** Run a working interactive world asset in game
