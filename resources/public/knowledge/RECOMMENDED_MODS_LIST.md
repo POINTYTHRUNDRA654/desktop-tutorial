@@ -978,6 +978,47 @@ A shared repository of free Papyrus resources intended to help mod authors ship 
 
 ---
 
+### Animal Animation Rigs (Author Resource)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/95105 |
+| **Category** | Modder's Resource — Animation rigs for FO4 animals |
+| **Type** | Rig resource for creating animal animations |
+| **Current Supported Animals** | Radstag, Radchicken, Cats |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net |
+
+#### What It Is
+
+A growing collection of animal animation rigs intended for author workflows. The author recommends following established FO4 animation tutorials and using these rigs in place of the human rig where appropriate.
+
+The page notes that some workflows may require resources from:
+- MaikCG Animation Rig
+- Animation Kit
+- Direct HKX import plugin referenced by the author
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your own mods | ✅ **Allowed — permission and credit not required** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Author clarification: paid mods are not allowed; optional donations are fine.
+
+#### Credits (as listed on the page)
+
+- **LeafTongue** — animal rig author.
+- **MaikCG** — thanked by the author for foundational resources.
+- **ShadeAnimator** — thanked by the author for foundational resources.
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
