@@ -1283,6 +1283,71 @@ A resource package containing PNG textures and NIF files for an Automatron-orien
 
 ---
 
+### Creation Kit World Position XLS Reference
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/92295 |
+| **Category** | Modder's Resource — CK workflow reference |
+| **Type** | Spreadsheet map/coordinate lookup aid for faster Creation Kit navigation |
+| **Format** | XLS/XLS-like spreadsheet (Excel-compatible) |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net |
+
+#### What It Is
+
+A modder-facing spreadsheet reference intended to speed up worldspace/location lookup in Creation Kit by providing position values and map-oriented coordinate context, helping authors quickly inspect one build zone and move to the next.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets/files in your own mod | ❌ Requires author permission first |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- No additional third-party file credits listed.
+
+---
+
+### Realistic Human Skeleton Proportions Resource
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/92263 |
+| **Category** | Modder's Resource — Human skeleton/rig proportions |
+| **Type** | Alternative human skeleton proportion setup for Fallout 4 |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net |
+
+#### What It Is
+
+An author resource that provides a more realistic proportional approach to the human skeleton versus vanilla proportions, intended for creators working on animation/character movement pipelines.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets/files in your own mod | ❌ Requires author permission first |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- No additional third-party file credits listed.
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
