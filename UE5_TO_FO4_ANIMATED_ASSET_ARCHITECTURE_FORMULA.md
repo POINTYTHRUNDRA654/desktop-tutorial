@@ -808,3 +808,144 @@ Source System Reference Path: [_______________________]
 - Normal exported as `BC5 (Signed)` `.dds`
 - Packed specular exported as `BC7 (Fine)` `.dds`
 - Final texture paths staged under `Data\Textures\ModName\`
+
+---
+
+## Creation Kit Material Optimization Console Commands Cheat Sheet
+
+Use these while testing materials in the live game client.
+
+### `hlm [MaterialName.bgsm]` (Hot Load Material)
+
+- **Usage:** `hlm CustomAsset.bgsm` or `hlm ModName\CustomAsset.bgsm`
+- **Purpose:** Reloads a material from disk so students can test updates without restarting the game
+
+### `twf` (Toggle Wireframe)
+
+- **Usage:** `twf`
+- **Purpose:** Switches to wireframe mode to verify perceived depth is coming from normal/specular work rather than mesh density
+
+### `tgl` (Toggle Light Buffers)
+
+- **Usage:** `tgl`
+- **Purpose:** Toggles specular-light rendering buffers; if metallic surfaces do not change, the `_s.dds` blue channel or environment mapping is likely wrong
+
+### `scof [LogName.txt]` (Save Console Output File)
+
+- **Usage:** `scof material_debug.txt`
+- **Purpose:** Writes active console errors to disk for later troubleshooting
+
+---
+
+## Mod File Deployment Verification Tool (`VerifyStaging.bat`)
+
+Use this before packaging to verify that meshes, BGSMs, and DDS textures are all staged correctly.
+
+```cmd
+@echo off
+title Mod Deployment Verification Utility
+echo =======================================================
+echo     AUTOMATED MOD ASSET DEPLOYMENT VALIDATION PASS
+echo =======================================================
+echo.
+
+set "STAGING_ROOT=."
+set "MESH_DIR=%STAGING_ROOT%\Meshes\ModName"
+set "TEX_DIR=%STAGING_ROOT%\Textures\ModName"
+set "MAT_DIR=%STAGING_ROOT%\Materials\ModName"
+
+set /a error_flag=0
+
+echo [1/3] Auditing Geometry Block Links...
+if not exist "%MESH_DIR%\*.nif" (
+    echo   - [ERROR] No structural .nif model files located inside: %MESH_DIR%
+    set /a error_flag+=1
+) else (
+    echo   - [PASS] Found active .nif meshes.
+)
+echo.
+
+echo [2/3] Auditing Material Descriptor Sub-Nodes...
+if not exist "%MAT_DIR%\*.bgsm" (
+    echo   - [ERROR] No .bgsm shader descriptors located inside: %MAT_DIR%
+    set /a error_flag+=1
+) else (
+    echo   - [PASS] Found active .bgsm configuration profiles.
+)
+echo.
+
+echo [3/3] Auditing PBR Texture File Nodes...
+if exist "%TEX_DIR%" (
+    if not exist "%TEX_DIR%\*_d.dds" echo   - [WARNING] Missing Diffuse color map array nodes (_d.dds)
+    if not exist "%TEX_DIR%\*_n.dds" (
+        echo   - [ERROR] Missing DirectX Normal vector map tracking systems (_n.dds)
+        set /a error_flag+=1
+    )
+    if not exist "%TEX_DIR%\*_s.dds" (
+        echo   - [ERROR] Missing Custom Channel-Packed Specular maps (_s.dds)
+        set /a error_flag+=1
+    )
+) else (
+    echo   - [ERROR] Texture target directory path missing entirely: %TEX_DIR%
+    set /a error_flag+=1
+)
+echo.
+
+echo =======================================================
+if %error_flag% GTR 0 (
+    echo VALIDATION FAILED: Found %error_flag% missing or broken asset components.
+    echo Correct the file structure errors listed above before building your .ba2 archives.
+) else (
+    echo SUCCESS: All local texture, mesh, and material assets match the pipeline format.
+    echo Your project is optimized and ready for deployment packaging.
+)
+echo =======================================================
+echo.
+pause
+```
+
+---
+
+## Master Asset Troubleshooting Index Database
+
+This index maps common errors across Blender/PyNifly, Elrich, Materialize, ShaderMap 4, and the Creation Kit into actionable fixes.
+
+### Track 1: Geometry and Skeletal Pipeline Errors (Blender and PyNifly)
+
+- **Code / Log Alert:** `PyNifError: Bone count mismatch on skin partition.`
+  - **Root Cause:** Vertex groups still reference missing or deleted bones
+  - **Technical Fix:** In Blender, open Vertex Groups and purge stale assignments before export
+
+- **Code / Log Alert:** `SystemError: Cannot calculate tangent space for n-gon faces.`
+  - **Root Cause:** Mesh contains n-gons
+  - **Technical Fix:** In Edit Mode, triangulate faces with `Ctrl + T` and re-export
+
+### Track 2: Animation and Compilation Errors (Elrich)
+
+- **Code / Log Alert:** `Elrich: ERROR 0x80040154 - Class not registered`
+  - **Root Cause:** Missing Visual C++ runtime / Havok-related dependencies
+  - **Technical Fix:** Install required VC++ redistributables and rerun the compiler as Administrator
+
+- **Code / Log Alert:** `Warning: Animation track has zero translation delta.`
+  - **Root Cause:** Root translation was cleared but the action was not rebaked
+  - **Technical Fix:** Bake Action again with **Visual Keying** and **Clear Constraints**
+
+### Track 3: Texture and Channel-Packing Errors (Materialize and ShaderMap 4)
+
+- **Code / Log Alert:** `ShaderMap 4: DirectDraw Surface export failed. Invalid memory layout size.`
+  - **Root Cause:** Texture dimensions are not power-of-two
+  - **Technical Fix:** Resize to standard power-of-two dimensions and retry export
+
+- **Code / Log Alert:** `Materialize: Out of VRAM buffer tracking allocation.`
+  - **Root Cause:** Source textures are too large for available GPU memory
+  - **Technical Fix:** Downsample source textures before generating maps
+
+### Track 4: Runtime Render Errors (Creation Kit and Game Client)
+
+- **Code / Log Alert:** `PAPYRUS: Property [MaterialProperty] on Script [ModScript] cannot be bound.`
+  - **Root Cause:** Material/file naming conflicts with expected path formatting
+  - **Technical Fix:** Normalize file and folder naming and update script-bound references
+
+- **Code / Log Alert:** `RENDER: BSLightingShaderProperty block type error.`
+  - **Root Cause:** Mesh is using the wrong shader/profile setup
+  - **Technical Fix:** Re-export via the correct PyNifly profile to reset shader defaults
