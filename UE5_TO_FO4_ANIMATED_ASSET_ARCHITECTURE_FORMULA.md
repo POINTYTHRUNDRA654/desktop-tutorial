@@ -257,3 +257,216 @@ The Creation Engine cannot use `.png` at runtime, so convert textures to `.dds`.
 Move the final `.dds` files into:
 
 `Data\Textures\ModName\`
+
+---
+
+## Fallout 4 Texture-State Module: Diffuse, Overlays, and Glowmaps
+
+This module covers the three essential Fallout 4 texture states: diffuse maps, material overlays, and glowmaps.
+
+### Step 1: Asset Creation and Channel Preparation
+
+Prepare textures at strict power-of-two resolutions appropriate for the asset.
+
+#### 1) Diffuse Maps (Base Color)
+
+- Keep base color free of baked lighting and shadows
+- If transparency is needed, add an **Alpha Channel**
+- Paint visible areas white and hidden areas black in alpha
+
+#### 2) Material Overlays (Decals / Blood / Dirt)
+
+- Create only the overlay detail with transparent background
+- Copy the overlay shape into the **Alpha Channel** as solid white
+- This isolates the overlay when rendered over the base material
+
+#### 3) Glowmaps (Emissive Textures)
+
+- Start from the diffuse texture
+- Black out everything except emissive regions
+- Paint glow regions using their target emissive color
+- Keep all non-emissive space pure black
+
+### Step 2: Compression Matrix
+
+| Texture Type | Naming Tag | Compression Format | Mipmaps | Technical Function |
+| --- | --- | --- | --- | --- |
+| Standard Diffuse | `_d.dds` | `BC7 x.0 8bpc Fine` | Auto | Preserves color gradients cleanly |
+| Overlay / Alpha Diffuse | `_d.dds` | `BC7 x.0 8bpc Alpha` | Auto | Preserves clean transparency edges |
+| Normal Map | `_n.dds` | `BC5 8bpc (Signed)` | Auto | High-fidelity surface normal vectors |
+| Specular / Gloss | `_s.dds` | `BC7 x.0 8bpc Fine` | Auto | Carries reflectivity and gloss data |
+| Glowmap / Emissive | `_g.dds` | `BC7 x.0 8bpc Fine` | Auto | Preserves emissive color data |
+
+### Step 3: `.bgsm` Material Setup
+
+You cannot assign raw `.dds` directly in CK; use a `.bgsm` material file.
+
+#### Standard Textures + Glowmaps
+
+- **Shader Type:** `Default`
+- **Texture Paths:**
+  - Diffuse: `Textures\ModName\Asset_d.dds`
+  - Normal: `Textures\ModName\Asset_n.dds`
+  - Smoothness / Spec: `Textures\ModName\Asset_s.dds`
+  - Glow / Emissive: `Textures\ModName\Asset_g.dds`
+- **Shader Flags:** enable `Glow` and `Receive Shadows`
+- **Lighting Properties:** set **Emissive Multiplier** roughly between `1.5` and `5.0`
+
+#### Alpha / Overlay Decal Textures
+
+- **Shader Type:** `Decal` or `Default`
+- **Shader Flags:** enable `Assume Shadowmask`, `Z-Buffer Test`, and `Alpha Blend`
+- **Alpha Blending:**
+  - Enable blending
+  - Source Blend Mode: `Src Alpha`
+  - Destination Blend Mode: `Inv Src Alpha`
+
+### Step 4: Blender PyNifly Mesh Material Assignment
+
+1. Select the mesh in Blender
+2. Open **Material Properties**
+3. Create a material slot
+4. Name it with the exact game-relative `.bgsm` path:
+
+```text
+Materials\ModName\AssetMaterial.bgsm
+```
+
+PyNifly embeds this path into the exported mesh shader property block.
+
+### Step 5: Creation Kit Deployment Verification
+
+- Verify files exist under:
+  - `Data\Meshes\ModName\`
+  - `Data\Textures\ModName\`
+  - `Data\Materials\ModName\`
+- Open or create a `Static` / `MovableStatic` form in CK
+- Point the model to the exported `.nif`
+- Toggle preview lighting off in the CK preview window and confirm glow regions light correctly in darkness
+
+---
+
+## Fallout 4 PBR Conversion: Roughness, Metallic, and AO to `_s.dds`
+
+Fallout 4 does not use separate PBR roughness, metallic, and AO textures directly. Instead, it expects a channel-packed `_s.dds` specular/gloss map.
+
+### `_s.dds` Texture Blueprint Matrix
+
+Create a new texture matching the diffuse size and pack channels as follows:
+
+- **Red Channel:** Smoothness / Glossiness
+  - Paste the source **Roughness** map
+  - Invert it (`Ctrl + I`) to convert roughness into smoothness
+- **Green Channel:** Reflected Color Intensity / Specular Mask
+  - Paste the grayscale **Ambient Occlusion** map
+- **Blue Channel:** Metalness Reflection Value
+  - Paste the **Metallic** map
+- **Alpha Channel:** Special Lighting / Subsurface Intensity
+  - Leave solid white unless targeting assets that need specialized lighting control
+
+### Exporting the Specular Map
+
+- Save as `.dds` (for example `Asset_s.dds`)
+- Texture Type: **Color + Alpha**
+- Compression Format: **BC7 x.0 8bpc Fine**
+
+---
+
+## Python `.bgsm` Material File Path Validator Tool
+
+Use this script to audit custom `.bgsm` files for bad absolute paths or missing relative texture references.
+
+```python
+import os
+
+TARGET_DATA_DIR = "C:/Program Files (x86)/Steam/steamapps/common/Fallout 4/Data/"
+MATERIALS_SUB_DIR = os.path.join(TARGET_DATA_DIR, "Materials/ModName/")
+
+def validate_bgsm_paths(bgsm_filename):
+    bgsm_path = os.path.join(MATERIALS_SUB_DIR, bgsm_filename)
+
+    if not os.path.exists(bgsm_path):
+        print(f"ERROR: File not found at target location: {bgsm_path}")
+        return False
+
+    print(f"Auditing Material Spec Configuration Profile: {bgsm_filename}")
+    has_errors = False
+
+    with open(bgsm_path, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+
+        if "C:" in content or "Users\\" in content or "Desktop\\" in content:
+            print("  - PATH ERROR: Found absolute desktop drive paths.")
+            has_errors = True
+
+        try:
+            if "Textures\\" not in content:
+                print("  - STRUCTURE ERROR: Material lacks relative 'Textures\\' paths.")
+                has_errors = True
+
+            expected_maps = ["_d.dds", "_n.dds", "_s.dds"]
+            for texture_tag in expected_maps:
+                if texture_tag not in content:
+                    print(f"  - WARNING: Material does not contain a standard '{texture_tag}' entry.")
+        except Exception as e:
+            print(f"  - INTERPRETATION FAILURE: {str(e)}")
+            has_errors = True
+
+    if not has_errors:
+        print("  - PASS: Material relative path metrics conform to game engine layouts.")
+        return True
+
+    print("  - FAIL: Correct the file pathing errors above before launching the Creation Kit.")
+    return False
+
+if __name__ == "__main__":
+    os.makedirs(MATERIALS_SUB_DIR, exist_ok=True)
+    SAMPLE_TARGET_MATERIAL = "PlayerWeaponAsset.bgsm"
+    validate_bgsm_paths(SAMPLE_TARGET_MATERIAL)
+```
+
+---
+
+## Step-by-Step Tutorial: Complex Layered Textures in the `.bgsm` Material Editor
+
+Layered materials let multiple materials blend on a single mesh using a grayscale blend mask.
+
+### Step A: Texture Preparation Checklist
+
+Prepare these files inside `Data\Textures\ModName\`:
+
+- `Asset_Base_d.dds` and `Asset_Base_s.dds`
+- `Asset_Top_d.dds` and `Asset_Top_s.dds`
+- `Asset_BlendMask_d.dds`
+- `Asset_n.dds`
+
+### Step B: Material Setup Configuration Pipeline
+
+1. Open the Fallout 4 Material Editor
+2. Click `File -> New`
+3. In **Material Properties**, set **Shader Type** to `Layered`
+4. Set **Layer Count** to `2`
+
+### Step C: Mapping Textures to the Material Structure
+
+#### Layer 1 (Base Layer)
+
+- Diffuse: `Textures\ModName\Asset_Base_d.dds`
+- Normal: `Textures\ModName\Asset_n.dds`
+- Smoothness / Spec: `Textures\ModName\Asset_Base_s.dds`
+
+#### Layer 2 (Top Layer)
+
+- Diffuse: `Textures\ModName\Asset_Top_d.dds`
+- Smoothness / Spec: `Textures\ModName\Asset_Top_s.dds`
+
+#### Blend Mask
+
+- Blend Mask: `Textures\ModName\Asset_BlendMask_d.dds`
+
+### Step D: Adjusting Material Interaction Properties
+
+1. Open the **Material Layers** configuration tab
+2. In **Layer 2 Properties**, set Blend Mode to `Alpha Blend` or `Specular Mask`
+3. Enable **Invert Blend Mask** only if the mask needs reversing
+4. Save into `Data\Materials\ModName\CustomLayeredAsset.bgsm`
