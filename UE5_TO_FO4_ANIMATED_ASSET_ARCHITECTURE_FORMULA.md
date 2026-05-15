@@ -1208,3 +1208,269 @@ Event OnUnload()
     endif
 EndEvent
 ```
+
+---
+
+## Photopea Project Export Staging (Raw Canvas)
+
+Before using NVIDIA Texture Tools Exporter, export a raw master from Photopea to avoid double-compression artifacts.
+
+1. In Photopea, go to `File -> Export As -> More`
+2. Export as `TGA` or `PNG`
+3. Ensure channel mode is `RGBA` so alpha-mask data is bundled with color data
+
+---
+
+## NVIDIA Exporter Compression Profiles Matrix
+
+| Map Target Class | Target Suffix | Format Allocation Mode | Texture Profile | GPU Optimization Metric |
+| --- | --- | --- | --- | --- |
+| Vegetation Diffuse | `_d.dds` | `BC7 Quick / Linear` | Color + Alpha | Reduces edge block artifacts while preserving alpha cutouts |
+| DirectX Normal Map | `_n.dds` | `BC5 Tangent Space` | Normal Map | Removes redundant channels and improves memory efficiency |
+| Channel-Packed Specular | `_s.dds` | `BC7 Quick / Linear` | Color | Preserves packed RGB material channels |
+| Translucency Glowmap | `_g.dds` | `BC1 Fast / Linear` | Color | Lower memory footprint where alpha is not required |
+
+---
+
+## Advanced CUDA Quality and VRAM Compression Settings
+
+### 1) Compression Depth
+
+- Set compression quality to `Highest / Production (Slowest)` for best block-fitting output quality
+
+### 2) Mipmap Generation and Alpha Preservation
+
+- Enable `Generate Mipmaps`
+- Prefer `Kaiser` or `Mitchell` filter types over basic box filtering
+- Enable `Alpha Coverage` and start around threshold `0.5` to preserve foliage silhouettes across mip levels
+
+### 3) Normal Map Normalization and Color Space
+
+- For `_n.dds`, use `Linear` color space (not sRGB)
+- Enable `Normalize Output` so normal vectors remain unit-length after export
+
+---
+
+## Master Texture Pipeline Evaluation Scorecard
+
+```text
+=======================================================================
+   FALLOUT 4 TEXTURE PIPELINE & FPS OPTIMIZATION SCORECARD
+=======================================================================
+ Student Name: [_______________________]  Project Model: [____________]
+
+ CRITERIA 1: FORMAT CHECK PASS (Score: ___ / 25)
+ [ ] Diffuse exported as BC7 alpha-safe profile
+ [ ] Normal exported as BC5 tangent-space format
+ [ ] Packed specular exported as BC7 with clean channel separation
+
+ CRITERIA 2: MIPMAP & CORRECTION METRICS (Score: ___ / 25)
+ [ ] Mipmaps generated with Kaiser/Mitchell filtering
+ [ ] Alpha Coverage enabled around 0.5 threshold
+ [ ] Normal output normalized for shading stability
+
+ CRITERIA 3: DIRECTORY & PATH ARCHITECTURE (Score: ___ / 25)
+ [ ] Lowercase suffix conventions (_d, _n, _s, _g)
+ [ ] Leaf texture dimensions budgeted appropriately
+ [ ] Relative .bgsm pathing aligns with staged directories
+
+ CRITERIA 4: IN-GAME FPS STRESS TEST (Score: ___ / 25)
+ [ ] Zero major texture-streaming stutter on load
+ [ ] Backlit foliage translucency behaves correctly
+ [ ] Distant LOD transition remains clean without popping
+
+ FINAL SCORE EVALUATION TOTAL: [_______ / 100]
+=======================================================================
+```
+
+---
+
+## Standalone NVIDIA Exporter Utility Keyboard Shortcut Cheat Sheet
+
+```text
+=======================================================================
+   NVIDIA TEXTURE TOOLS EXPORTER QUICK-REFERENCE CHEAT SHEET
+=======================================================================
+
+ CAMERA CONTROLS (3D PREVIEW VIEWPORT)
+ ----------------------------------------------------------------------
+  Left Mouse Button + Drag   | Rotate the 3D preview asset geometry
+  Right Mouse Button + Drag  | Zoom the camera viewport in and out
+  Middle Mouse Button + Drag | Pan the camera viewport horizontally/vertically
+  L Key + Mouse Move         | Swing the dynamic preview sun light source
+
+ WORKSPACE GRID KEYBINDS
+ ----------------------------------------------------------------------
+  Spacebar                   | Reset camera view to origin
+  1 Key                      | View texture at exact 1:1 pixel scale
+  F Key                      | Fit full texture boundaries to screen
+  M Key                      | Toggle 2D texture view / 3D preview
+
+ SHADER & CHANNEL MASK TOGGLES
+ ----------------------------------------------------------------------
+  R Key                      | Toggle Red channel visibility
+  G Key                      | Toggle Green channel visibility
+  B Key                      | Toggle Blue channel visibility
+  A Key                      | Toggle Alpha channel view
+  C Key                      | Reset to full RGB display
+
+ FILE MANAGEMENT
+ ----------------------------------------------------------------------
+  Ctrl + O                   | Import raw master texture (.png, .tga)
+  Ctrl + S                   | Save compiled DirectDraw Surface (.dds)
+=======================================================================
+```
+
+---
+
+## Automated Mod File Deployment Checks Script (`ValidateModPackage.bat`)
+
+```cmd
+@echo off
+title Mod Package Deployment Validator
+echo =======================================================
+echo     AUTOMATED MOD ASSET PACKAGE VALIDATION UTILITY
+echo =======================================================
+echo.
+
+set "STAGING_ROOT=."
+set "MESH_DIR=%STAGING_ROOT%\Meshes"
+set "TEX_DIR=%STAGING_ROOT%\Textures"
+set "MAT_DIR=%STAGING_ROOT%\Materials"
+
+set /a error_flag=0
+
+echo [1/4] Auditing Root Folder Case-Sensitivity Metrics...
+if exist "%STAGING_ROOT%\MESHES" echo   - [WARNING] Directory named 'MESHES' should be lowercase 'meshes'.
+if exist "%STAGING_ROOT%\TEXTURES" echo   - [WARNING] Directory named 'TEXTURES' should be lowercase 'textures'.
+if exist "%STAGING_ROOT%\MATERIALS" echo   - [WARNING] Directory named 'MATERIALS' should be lowercase 'materials'.
+echo   - Complete: Folder case-sensitivity checks run.
+echo.
+
+echo [2/4] Auditing 3D Mesh Assets...
+if not exist "%MESH_DIR%\*" (
+    echo   - [CRITICAL ERROR] Missing mandatory 'Meshes' folder path layout.
+    set /a error_flag+=1
+) else (
+    echo   - [PASS] Structural 'Meshes' folder verified.
+)
+echo.
+
+echo [3/4] Auditing NVIDIA Compressed DDS File Names...
+if exist "%TEX_DIR%" (
+    echo   - Validating engine texture suffix bindings...
+    for /r "%TEX_DIR%" %%f in (*.dds) do (
+        set "filename=%%~nxf"
+        echo %%f | findstr /R "[A-Z]" >nul
+        if not errorlevel 1 (
+            echo   - [CRITICAL ERROR] Found uppercase characters in texture path: %%~nxf
+            echo     All file paths and names inside the Textures directory MUST be lowercase!
+            set /a error_flag+=1
+        )
+    )
+
+    if not exist "%TEX_DIR%\*\_d.dds" echo   - [NOTICE] No active diffuse maps found matching '_d.dds' suffix templates.
+    if not exist "%TEX_DIR%\*\_n.dds" echo   - [WARNING] Missing active tangent normal vectors matching '_n.dds'.
+    if not exist "%TEX_DIR%\*\_s.dds" echo   - [WARNING] Missing active packed specular properties matching '_s.dds'.
+) else (
+    echo   - [CRITICAL ERROR] Missing mandatory 'Textures' folder path layout.
+    set /a error_flag+=1
+)
+echo.
+
+echo [4/4] Auditing Material Shader Descriptors...
+if not exist "%MAT_DIR%\*" (
+    echo   - [CRITICAL ERROR] Missing mandatory 'Materials' folder path layout.
+    set /a error_flag+=1
+) else (
+    echo   - [PASS] Structural 'Materials' folder verified.
+)
+echo.
+
+echo =======================================================
+if %error_flag% GTR 0 (
+    echo VALIDATION FAILED: Located %error_flag% production layout anomalies.
+    echo Correct file paths, formatting, or sizes before archiving.
+) else (
+    echo PACKAGE VERIFIED: All local asset dependencies match platform rules.
+    echo The mod folder is ready for distribution packaging.
+)
+echo =======================================================
+echo.
+pause
+```
+
+---
+
+## Advanced Troubleshooting Master Index (Rare and Complex Mod Conflicts)
+
+### Conflict A: Black Render Grid Overlay / Infinite Loading Stutter
+
+- **In-Game Symptom:** Asset turns black, stalls, or causes crash while other objects still render
+- **Root Cause:** Asymmetrical texture dimensions with incompatible compression behavior for the target workflow
+- **Actionable Fix:** Re-open in Photopea, enforce matched canvas dimensions (square, power-of-two profile), then re-export through NVIDIA Texture Tools
+
+### Conflict B: Ghosting Alpha Shimmer (Distant Mipmap Flicker)
+
+- **In-Game Symptom:** Leaves look correct up close but flicker or show bright fringes at distance
+- **Root Cause:** Alpha coverage not enabled during compression
+- **Actionable Fix:** Re-export with **Alpha Coverage enabled** and set threshold near `0.5`
+
+### Conflict C: Flat Shiny Armor/Weapon (Missing Vector Shading)
+
+- **In-Game Symptom:** Metal appears uniformly glossy and normal details are missing
+- **Root Cause:** Normal map exported with the wrong color-space settings
+- **Actionable Fix:** Re-export normal map with **Linear** color space and **Normalize Output** enabled, then hot-reload material in-game
+
+---
+
+## Creation Engine Architecture and Optimization Notes
+
+### 1) Memory Topography: System RAM vs VRAM Streaming Boundaries
+
+- `.nif` and Havok data are loaded through system memory paths during cell load
+- `.dds` textures are streamed to GPU memory progressively (mipmap chain first, full-res later)
+- Missing mipmaps force costly full-resolution loads and increase stutter risk
+
+### 2) Draw Call Bottlenecks: Mesh Splitting Cost
+
+- Each discrete mesh object can become an additional draw call
+- Over-split assets can bottleneck CPU submission even when GPU headroom remains
+- For static objects, merge components in Blender (`Ctrl + J`) before export where appropriate
+
+### 3) Channel Packing and BC7 Efficiency
+
+```text
+[Standard PBR Workflow: 3 Textures]       [Fallout 4 Optimized Workflow: 1 Texture]
+  - Roughness Map                           - Specular Packed Map (_s.dds)
+  - Metallic Map                      --->    - Red:   Glossiness (inverse roughness)
+  - Ambient Occlusion Map                    - Green: Ambient Occlusion
+                                              - Blue:  Metalness
+```
+
+Packing reduces texture fetch overhead and keeps runtime material evaluation leaner when authored correctly.
+
+### 4) Papyrus Queue Model and Garbage Collection
+
+- Papyrus executes on a frame-budgeted queue
+- Long-running loops can block queue throughput and delay cleanup windows
+- Prefer state/event-driven script patterns that complete cleanly and release memory pressure
+
+### 5) Student Desktop Organization Baseline
+
+```text
+C:\Fallout4ModdingWorkspace\
+│
+├── 01_RawSourceAssets\
+│   ├── Unity_Original_Extracts\
+│   ├── PhotopeaProjects\
+│   └── MaterializeProjects\
+│
+├── 02_BlenderStaging\
+│   └── workspace_scene.blend
+│
+└── 03_GameReadyStaging\
+    ├── Meshes\ModName\
+    ├── Textures\ModName\
+    └── Materials\ModName\
+```
