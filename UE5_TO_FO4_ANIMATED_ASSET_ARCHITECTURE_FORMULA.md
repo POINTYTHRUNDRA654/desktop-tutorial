@@ -642,3 +642,77 @@ echo.
 pause
 endlocal
 ```
+
+---
+
+## Materialize to ShaderMap 4 Bridge Workflow
+
+This bridge covers the final gap between raw Materialize exports and Fallout 4-ready `.dds` outputs.
+
+### Step 1: Sort Materialize Map Exports
+
+Students should sort Materialize outputs into three core groups:
+
+- **Diffuse Base Texture:** `custom_asset_d.png`
+- **Normal Input Node:** `custom_asset_n.png`
+- **Specular Construction Elements:** raw **Smoothness**, **Ambient Occlusion**, and **Metallic** maps
+
+Use the exported Materialize normal map directly instead of regenerating normals inside ShaderMap 4.
+
+### Step 2: ShaderMap 4 Advanced Channel Packing Setup
+
+```text
+[Materialize Map Inputs]                 [ShaderMap 4 Project Grid Nodes]
+  +--> Normal Map -----------------------------> Map: Normal (Direct Export Slot)
+  |
+  +--> Smoothness Map --> (RED) ---------------+
+  +--> AO Map         --> (GREEN) -------------+--> Map: Custom Packed Specular (_s)
+  +--> Metallic Map   --> (BLUE) --------------+
+```
+
+#### Workflow
+
+1. Launch ShaderMap 4 and click **Advanced**
+2. Click **Add Source** and load the Materialize normal map
+3. Add **Map: Custom Packed (R+G+B+A)**
+4. In the Custom Packed Map properties:
+   - **Red Channel:** Smoothness / inverse roughness
+   - **Green Channel:** Ambient Occlusion
+   - **Blue Channel:** Metallic
+   - **Alpha Channel:** Solid White (`1.0`)
+
+### Step 3: Exact Engine Optimization Settings (No Enhancement Pass)
+
+To preserve the look from Materialize, disable extra enhancement passes.
+
+#### Normal Map Node
+
+- Intensity / Amplitude: `100`
+- Filter Blur / Sharpen: `0`
+- Flip Y (Green Channel): **Enabled**
+
+#### Custom Packed Specular Node
+
+- Red Contrast / Bias: `1.0 / 0.0`
+- Green Contrast / Bias: `1.0 / 0.0`
+- Blue Contrast / Bias: `1.0 / 0.0`
+
+### Step 4: Export Game-Ready `.dds` Files
+
+#### Normal Map Export
+
+1. Select the **Normal Map** node
+2. Save to file as `custom_asset_n.dds`
+3. Use format:
+   - `BC5 (Signed)` or `3DC / ATI2`
+
+#### Packed Specular Export
+
+1. Select the **Custom Packed Specular** node
+2. Save to file as `custom_asset_s.dds`
+3. Use format:
+   - `BC7 (Fine / 8bpc)`
+
+Save final outputs into:
+
+`Data\Textures\ModName\`
