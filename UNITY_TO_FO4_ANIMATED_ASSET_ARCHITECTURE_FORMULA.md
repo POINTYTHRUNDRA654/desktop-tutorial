@@ -1203,3 +1203,143 @@ Documents/My Games/Fallout4/Logs/
 Archive2.exe
 elrich.exe
 ```
+
+---
+
+## In-Game Graph Validation and Profiling Workflow
+
+Use built-in runtime overlays when animations export but jitter, snap, or freeze mid-loop.
+
+```text
+[Run Game in Windowed Mode]
+         |
+         v
+Target Actor --> Open Console --> Type: ToggleAnimationDebug (TAD)
+         |
+         +--> Left Overlay: Active States & Variables
+         +--> Right Overlay: Active Subgraph Processing Tree
+```
+
+### Variables Check
+
+If custom variables show as missing (for example `bIsWidgetActive`), the graph variable name and script/subgraph spelling do not match exactly.
+
+### Frame Alignment Check
+
+If clips jitter or snap at loop point, verify runtime speed scaling before debugging animation keys:
+
+- Console: `player.getav speedmult`
+- Expected baseline for consistent test behavior: `100.0`
+
+---
+
+## PyNifly Export Log Diagnostic Cheat Sheet
+
+When export fails, inspect Blender System Console logs and map errors to fixes:
+
+### `KeyError: 'Vertex Group assignment missing required Bone node'`
+
+- **Root Cause:** Vertex group names do not match armature bone names
+- **Fix:** Clean and rename vertex groups to exact bone names; remove unused/empty groups
+
+### `RuntimeError: Submesh exceeds maximum hardware partition buffer limit (64 bones)`
+
+- **Root Cause:** Submesh weighted to too many unique bones
+- **Fix:** In Weight Paint, run `Weights -> Clean` and trim low-value influences (for example threshold `0.01`)
+
+### `AttributeError: 'NoneType' object has no attribute 'materials'`
+
+- **Root Cause:** Mesh has no assigned material
+- **Fix:** Add a new material before export so PyNifly can generate required shader property blocks
+
+---
+
+## Creation Kit Warning Message Filters
+
+Use local warning filters in `CreationKitCustom.ini` to surface relevant animation/script issues.
+
+```ini
+[Warnings]
+bSuppressTextureWarnings=1
+bSuppressCellLoadWarnings=1
+
+[Filters]
+ActiveLogFilters=ANIMATION, PAPYRUS, FORMS
+```
+
+---
+
+## Cache Cleanup Utility: `ClearGameCache.bat`
+
+Save this script in the Fallout 4 install root and run it before testing to clear stale logs and crash artifacts.
+
+```cmd
+@echo off
+title Fallout 4 Modding Cache and Log Janitor
+echo =======================================================
+echo     FALLOUT 4 ASSET PIPELINE CACHE CLEANUP TOOL
+echo =======================================================
+echo.
+
+set "DOCUMENTS_DIR=%USERPROFILE%\Documents\My Games\Fallout4"
+set "LOGS_DIR=%DOCUMENTS_DIR%\Logs\Script"
+
+echo [1/3] Flushing old Papyrus Runtime Script Trace Logs...
+if exist "%LOGS_DIR%" (
+    del /f /q "%LOGS_DIR%\*.log" 2>nul
+    del /f /q "%LOGS_DIR%\*.log.bak" 2>nul
+    echo -- Clear Pass: Cleaned all log files in %LOGS_DIR%
+) else (
+    echo -- Notice: Log directory not found. Creating clear path structure...
+    mkdir "%LOGS_DIR%"
+)
+echo.
+
+echo [2/3] Purging temporary Creation Kit build caches...
+if exist "CreationKit.ini" (
+    if exist "EditorWarnings.txt" del /f /q "EditorWarnings.txt" 2>nul
+    if exist "CreationKit.ka" del /f /q "CreationKit.ka" 2>nul
+    echo -- Clear Pass: Wiped temporary engine scratch text outputs.
+)
+echo.
+
+echo [3/3] Clearing Windows memory dump allocations...
+if exist "%DOCUMENTS_DIR%\F4SE\CrashLogs" (
+    del /f /q "%DOCUMENTS_DIR%\F4SE\CrashLogs\*.log" 2>nul
+    echo -- Clear Pass: Wiped script extender crash dumps.
+)
+if exist "CrashDumps" (
+    rmdir /s /q "CrashDumps" 2>nul
+    echo -- Clear Pass: Flushed mini-dump engine traces.
+)
+echo.
+
+echo =======================================================
+echo SUCCESS: Workspace environments successfully refreshed.
+echo Engine logs are cleared. Launch your testing environment.
+echo =======================================================
+echo.
+pause
+```
+
+---
+
+## Troubleshooting Checklist: Game and Script Freezes During Maintenance
+
+### 1) Eliminate Active File Locks
+
+- **Symptom:** Script hangs on log-flush step or returns `Access Denied`
+- **Cause:** `Fallout4.exe`, `CreationKit.exe`, or editors are locking log files
+- **Fix:** Close related processes in Task Manager before rerunning script
+
+### 2) Resolve Privilege Conflicts
+
+- **Symptom:** Script skips/deletes fail under protected install paths
+- **Cause:** UAC restrictions in protected directories
+- **Fix:** Run as Administrator and prefer non-protected install location (for example `C:\Games\Fallout4\`)
+
+### 3) Exclude Workspace from Real-Time Scanning
+
+- **Symptom:** Cleanup stalls during crash dump deletion
+- **Cause:** Antivirus/Defender scan interception during rapid file operations
+- **Fix:** Add Fallout 4 install + `Documents\My Games\Fallout4\` to security exclusions
