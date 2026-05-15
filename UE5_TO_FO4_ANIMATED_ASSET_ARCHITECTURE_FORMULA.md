@@ -470,3 +470,104 @@ Prepare these files inside `Data\Textures\ModName\`:
 2. In **Layer 2 Properties**, set Blend Mode to `Alpha Blend` or `Specular Mask`
 3. Enable **Invert Blend Mask** only if the mask needs reversing
 4. Save into `Data\Materials\ModName\CustomLayeredAsset.bgsm`
+
+---
+
+## Materialize Master Workflow for Photoreal Fallout 4 PBR Conversion
+
+Bounding Box Software’s Materialize works best when students build the material stack in dependency order: **Height first**, then **Normal**, **AO**, and **Smoothness**.
+
+### Step 1: Base Setup and Seamless Tiling
+
+Before generating maps:
+
+1. Click the `O` button under **Diffuse Map**
+2. Load a square, high-resolution source texture
+3. Click **Tile Maps**
+4. Set **Tiling X** and **Tiling Y** to the required scale
+5. Set **Overlap X** and **Overlap Y** to `0.15` or `0.20`
+6. Increase **Falloff** until seams are blended out
+7. Click **Set Select Maps**
+
+### Step 2: Height Map Definition (Foundation)
+
+The Height map drives downstream realism.
+
+1. Click **Create** under **Height Map**
+2. Choose preset: **Mid Details**
+
+#### Height Master Settings
+
+- Frequency Weight (Low): `0.70`
+- Frequency Weight (Mid): `0.50`
+- Frequency Weight (High): `0.25`
+- Gain: `0.15`
+- Contrast: `1.20`
+
+3. Click **Set as Height Map**
+
+### Step 3: Normal Map Precision
+
+1. Click **Create** under **Normal Map**
+2. Set source to **From Weight Map / Displacement**
+3. Select preset: **Crisp**
+
+#### Normal Master Settings
+
+- Pre-Contrast: `1.10`
+- Shape Recognition: `0.40`
+- Final Contrast: `1.30`
+
+4. Click **Set as Normal Map**
+
+### Step 4: Metallic and Smoothness Generation
+
+#### 1) Metallic Map
+
+1. Click **Create** under **Metallic Map**
+2. Configure by material type:
+   - Non-metals: Default Value `0.0`
+   - Pure metals: Default Value `1.0`
+   - Mixed materials: use color picking and raise contrast to `1.8`
+3. Click **Set as Metallic Map**
+
+#### 2) Smoothness Map
+
+1. Click **Create** under **Smoothness Map**
+2. Enable **Invert** when needed to convert source interpretation correctly
+
+#### Smoothness Master Settings
+
+- Final Contrast: `1.40`
+- Blur / Smooth: `0.05`
+
+3. Click **Set as Smoothness Map**
+
+### Step 5: Ambient Occlusion Generation
+
+1. Click **Create** under **Ambient Occlusion Map**
+
+#### AO Master Settings
+
+- Pixel Spread: `150`
+- Depth: `2.50`
+- Contrast: `1.35`
+
+2. Click **Set as AO Map**
+
+### Step 6: Visualize and Compile the Master Specular Map
+
+1. Click **Show Full Material**
+2. Hold `L` and move the mouse to inspect changing light angles
+
+Materialize can export a Fallout 4-style packed specular map directly through **Property Map Setup**:
+
+- **Red Channel:** Smoothness
+- **Green Channel:** Ambient Occlusion
+- **Blue Channel:** Metallic
+
+Then click **Save Project** to output:
+
+- Diffuse
+- Normal
+- FO4-style packed `_s` specular map
