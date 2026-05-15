@@ -978,6 +978,44 @@ A shared repository of free Papyrus resources intended to help mod authors ship 
 
 ---
 
+### PaperScript (Papyrus Transpiler Language)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/94351 |
+| **Category** | Scripting Toolchain — Papyrus authoring language/transpiler |
+| **Type** | Modern language that transpiles to valid Papyrus (`.psc`) and compiles to `.pex` |
+| **Project Status** | Alpha / proof-of-concept stage |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net |
+
+#### What It Is
+
+PaperScript is a modern Papyrus alternative syntax that transpiles into Papyrus, aimed at improving readability and quality-of-life (for example, more expressive iteration and modern control-flow features) while still producing Fallout 4-compatible outputs.
+
+The mod page notes:
+- Fallout 4 support is available in current alpha releases
+- Project mode can transpile/copy/compile scripts in one workflow
+- Ongoing active development and feedback channels (docs, source repo, Discord)
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires author permission |
+| Convert to other games | ❌ Not allowed |
+| Use assets/files in your own mod | ❌ Requires author permission |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+#### Credits (as listed on the page)
+
+- PaperScript project author (Nexus page owner).
+- No additional third-party file credits listed.
+
+---
+
 ### Animal Animation Rigs (Author Resource)
 
 | Field | Details |
