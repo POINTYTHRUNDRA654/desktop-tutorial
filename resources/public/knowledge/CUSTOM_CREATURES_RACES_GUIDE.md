@@ -283,13 +283,13 @@ Scriptname MM_CreatureBoss extends Actor
 Actor Property ReinforcementNPC Auto
 Float Property CallHealthThreshold = 0.30 Auto  ; 30% HP triggers call
 
-Bool bCalledReinforcements = false
+Bool calledReinforcements = false
 
 Event OnHit(ObjectReference akAggressor, Form akSource, Projectile akProjectile, Bool abPowerAttack, Bool abSneakAttack, Bool abBashAttack, Bool abHitBlocked)
-    If (!bCalledReinforcements)
+    If (!calledReinforcements)
         Float healthPct = self.GetActorValuePercentage(ActorValue.kHealth)
         If (healthPct < CallHealthThreshold)
-            bCalledReinforcements = true
+            calledReinforcements = true
             self.PlaceAtMe(ReinforcementNPC, 3)
             Debug.Notification("Reinforcements called!")
         EndIf
