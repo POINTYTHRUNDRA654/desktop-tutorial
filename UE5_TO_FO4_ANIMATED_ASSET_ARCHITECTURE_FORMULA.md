@@ -213,7 +213,7 @@ Because UE5 tracks forward on the X-axis while Fallout 4 expects forward motion 
 
 ---
 
-## Student Lab Sheet: Processing and Converting High-Poly UE5 Textures
+## Student Lab Sheet: Processing and Converting High-Poly UE5 Textures in Photopea
 
 **Course Module:** PBR Material Texture Downsampling and Conversion  
 **Objective:** Convert high-fidelity UE5 textures into optimized `.dds` assets and Fallout 4-ready material inputs.
@@ -226,7 +226,7 @@ Because UE5 tracks forward on the X-axis while Fallout 4 expects forward motion 
 
 ### Step 1: Scale Down Texture Resolution Assets (Estimated: 10 min)
 
-1. Open the base color texture in an editor such as Photoshop, GIMP, or Paint.NET
+1. Open the base color texture in **Photopea**
 2. If the source is `4096 x 4096`, scale it down to `2048 x 2048`
 3. Use a reduction-friendly filter such as **Bicubic Sharper**
 
@@ -244,7 +244,7 @@ For Fallout 4:
 2. Copy the **Green channel** (roughness)
 3. Paste into a new grayscale image
 4. Invert it (`Ctrl + I`) to convert roughness into a gloss/smoothness-style map
-5. If your editor cannot export directly to `.dds`, save the inverted result as a temporary working file such as `custom_asset_s.png`; otherwise skip this intermediate file and export straight to the final DDS format
+5. In **Photopea**, save the inverted result as a temporary working file such as `custom_asset_s.png`, then pass it to your DDS conversion tool for final export
 
 ### Step 3: Compress Assets into Direct3D Containers (Estimated: 10 min)
 
@@ -352,7 +352,7 @@ Fallout 4 does not use separate PBR roughness, metallic, and AO textures directl
 
 ### `_s.dds` Texture Blueprint Matrix
 
-Create a new texture matching the diffuse size and pack channels as follows:
+Using **Photopea**, create a new texture matching the diffuse size and pack channels as follows:
 
 - **Red Channel:** Smoothness / Glossiness
   - Paste the source **Roughness** map
@@ -571,3 +571,66 @@ Then click **Save Project** to output:
 - Diffuse
 - Normal
 - FO4-style packed `_s` specular map
+
+---
+
+## Materialize Batch Cleanup and Engine Suffix Tagging Script
+
+Save this as `FixMaterializeOutputs.bat` inside the texture export folder to rename Materialize outputs into FO4/PyNifly-friendly suffixes.
+
+```cmd
+@echo off
+title Materialize To Engine Suffix Converter
+echo =======================================================
+echo     MATERIALIZE RAW TEXTURE AUTOMATED TAGGING TOOL
+echo =======================================================
+echo.
+
+set /a count=0
+for %%f in (*diffuse*.png *diffuse*.jpg *diffuse*.bmp) do set /a count+=1
+
+if %count%==0 (
+    echo [ERROR] No standard Materialize export patterns located in this folder.
+    echo Ensure you exported maps using standard naming templates.
+    echo.
+    pause
+    exit /b
+)
+
+echo [PROCESSING] Restructuring texture profile nodes...
+echo -------------------------------------------------------
+
+for %%i in (*diffuse*.png *diffuse*.jpg *diffuse*.bmp) do (
+    set "BASE=%%~ni"
+    echo Tagging Diffuse Color Map: %%i -> custom_asset_d%%~xi
+    ren "%%i" "custom_asset_d%%~xi" 2>nul
+)
+
+for %%i in (*normal*.png *normal*.jpg *normal*.bmp) do (
+    echo Tagging Surface Vector Normal Map: %%i -> custom_asset_n%%~xi
+    ren "%%i" "custom_asset_n%%~xi" 2>nul
+)
+
+for %%i in (*property*.png *property*.jpg *property*.bmp *smoothness*.png *smoothness*.jpg *smoothness*.bmp) do (
+    echo Tagging Channel-Packed Specular Map: %%i -> custom_asset_s%%~xi
+    ren "%%i" "custom_asset_s%%~xi" 2>nul
+)
+
+echo -------------------------------------------------------
+echo [CLEANUP] Discarding intermediate development map layers...
+
+if exist *height*.png del /f /q *height*.png 2>nul
+if exist *height*.jpg del /f /q *height*.jpg 2>nul
+if exist *ao*.png del /f /q *ao*.png 2>nul
+if exist *ao*.jpg del /f /q *ao*.jpg 2>nul
+if exist *metallic*.png del /f /q *metallic*.png 2>nul
+if exist *metallic*.jpg del /f /q *metallic*.jpg 2>nul
+
+echo.
+echo =======================================================
+echo SUCCESS: Suffix processing and cache cleaning complete.
+echo Your files are tagged and ready for Intel Texture Works.
+echo =======================================================
+echo.
+pause
+```
