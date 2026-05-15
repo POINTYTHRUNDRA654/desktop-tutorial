@@ -1057,6 +1057,47 @@ A feral ghoul-specific animation rig intended for creators following FO4 animati
 
 ---
 
+### Insect & Similar Creature Animation Rigs (Author Resource)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/88872 |
+| **Category** | Modder's Resource — Animation rigs (insects/similar creatures) |
+| **Type** | Creature rig pack for non-humanoid FO4 animation authoring |
+| **Current Supported Creatures** | Radroach-family users (including Nuka-World ants and Mirelurk hatchlings), Radscorpion |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net |
+
+#### What It Is
+
+A rig resource set for insect-like and similar creatures, intended for use with established FO4 animation tutorials in place of human rigs where appropriate.
+
+The page notes possible dependency on common authoring resources/tools such as:
+- MaikCG Animation Rig
+- Animation Kit
+- Direct HKX import plugin referenced on the page
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files | ❌ Requires author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your own mods | ✅ **Allowed — permission and credit not required** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Author clarification: paid mods are not allowed; optional donations are fine.
+
+#### Credits (as listed on the page)
+
+- Rig author (Nexus page owner).
+- **MaikCG** — thanked by the author for foundational resources.
+- **ShadeAnimator** — thanked by the author for foundational resources.
+
+---
+
 ### Shared Assets Pack (Mod Dependency Resource)
 
 | Field | Details |
