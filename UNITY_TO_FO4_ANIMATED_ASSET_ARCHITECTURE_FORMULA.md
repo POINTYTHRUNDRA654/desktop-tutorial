@@ -1082,3 +1082,124 @@ Use sources with clean rigging and permissive licensing for curriculum reliabili
 - **Best for:** motion clip libraries and complex mech/character assets
 - **Selection:** choose free packages using Mecanim Humanoid rigs where possible
 - **Advantage:** humanoid rig structures often map more predictably to FO4-style retargeting flows
+
+---
+
+## Diagnostic Guide: Mismatched and Displaced Collision Shapes
+
+Use this map when visual animation plays but collision/hitbox positioning is incorrect.
+
+```text
+[Collision Displaced In-Game]
+          |
+          v
+Check Parenting Layer In Blender --(Parented to Scene Root?)--> YES --> Clear Parent & Keep Transform
+          |
+          NO
+          v
+Verify Origin Points Matrix --(Origins Match at 0,0,0?)--> NO --> Snap Origin to 3D Cursor
+          |
+          YES
+          v
+Re-Export With PyNifly "Rigged Collision" Profile Override
+```
+
+### Step 1: Fix Parent Node Drift
+
+**Error:** Collision hull drifts/floats or moves at incorrect speed versus visual mesh.  
+**Root Cause:** Collision geometry has conflicting parent transforms and object-level unapplied transforms.  
+**Fix:**
+- Select collision mesh
+- `Alt + P -> Clear and Keep Transformation`
+- `Ctrl + A -> All Transforms`
+- Re-parent cleanly to the correct driving bone/node
+
+### Step 2: Sync Coordinate Origins
+
+**Error:** Prompt/collision interaction appears offset from visual model.  
+**Root Cause:** Visual and collision objects use different origin anchors.  
+**Fix:**
+- Select both meshes
+- `Shift + S -> Cursor to World Origin`
+- Set both object origins to the 3D cursor
+
+---
+
+## Pre-Export Asset Auditor Tool (Python Script)
+
+Use this script to run pre-export checks on weight limits, poly counts, and root naming.
+
+```python
+def audit_mesh_data(vertex_weights, poly_count, bone_hierarchy):
+    """Audits 3D asset properties against engine runtime capabilities."""
+    issues_found = []
+
+    # 1. Evaluate maximum bone weight limits per vertex
+    for idx, weights in enumerate(vertex_weights):
+        if len(weights) > 4:
+            issues_found.append(
+                f"CRITICAL: Vertex index [{idx}] is bound to {len(weights)} bones. Max allowed is 4."
+            )
+
+    # 2. Check total structural polygon allocation limits
+    if poly_count > 45000:
+        issues_found.append(
+            f"WARNING: Poly count ({poly_count}) exceeds standard performance budgets."
+        )
+
+    # 3. Check for mandatory root naming standards
+    if "Scene Root" not in bone_hierarchy and "Bip01" not in bone_hierarchy:
+        issues_found.append(
+            "CRITICAL: Root bone node hierarchy must be named exactly 'Scene Root' or 'Bip01'."
+        )
+
+    # Print diagnostic results
+    if not issues_found:
+        print("✅ PASS: Asset properties comply with engine validation specifications.")
+    else:
+        print("❌ FAIL: Asset audit uncovered structural defects:")
+        for issue in issues_found:
+            print(f"  - {issue}")
+
+# Sample test payload
+sample_vertex_weights = [[1.0, 0.5, 0.2, 0.1, 0.05]]  # Contains 5 weights (illegal)
+sample_bone_nodes = ["RootNode", "Pelvis", "Spine"]    # Incorrect root name (illegal)
+
+audit_mesh_data(sample_vertex_weights, 48000, sample_bone_nodes)
+```
+
+---
+
+## Git Version Control Guide for Modding Classrooms
+
+Because `.nif`, `.hkx`, `.ba2`, and related assets are binary, use Git LFS to avoid merge corruption.
+
+### Step 1: Initialize Repository
+
+```bash
+git init
+git lfs install
+```
+
+### Step 2: Track Binary Asset Types in LFS
+
+```bash
+git lfs track "*.nif"
+git lfs track "*.hkx"
+git lfs track "*.ba2"
+git lfs track "*.dds"
+git lfs track "*.bgsm"
+
+git add .gitattributes
+```
+
+### Step 3: Add `.gitignore` Exclusions
+
+```text
+*.log
+*.tmp
+*.bak
+Documents/My Games/Fallout4/Logs/
+Archive2.exe
+elrich.exe
+```
