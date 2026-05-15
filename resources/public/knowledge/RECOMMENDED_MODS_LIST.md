@@ -833,6 +833,123 @@ These five mods and tools — IAF, First-Person Swimming, Kicks And Punches, NAF
 
 ---
 
+## Frameworks & Authoring References (Creation Kit / Data Work)
+
+---
+
+### Dynamic Spawn Framework (DSFW)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/96276 |
+| **Category** | Framework — dynamic creature/NPC spawning systems |
+| **Type** | Dependency framework for other mods |
+| **F4SE Required** | ✅ Yes (required for Garden of Eden integration) |
+| **Garden of Eden Papyrus Script Extender Required** | ✅ Yes (required for water spawn restrictions) |
+| **DLC Required** | None listed |
+
+#### What It Does
+
+A shared spawn framework for advanced ecosystem and encounter logic, including:
+- Pack/herd spawning (Brahmin, Radstags, Mongrels, faction pets/tames)
+- Object-reference-driven spawns on load (plants, references, optional NPC spawn chances)
+- Dual-month nest/baby spawning toggles
+- Bird zone randomization with hourly/monthly/weather restrictions
+
+Load order note from the author:
+- **Load framework high**
+- **Load DSFW patches low**
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Use as framework/resource in your own mods | ✅ **Allowed** |
+| Edit/repurpose scripts for your own works | ✅ **Allowed** |
+| Credit requirement | ✅ **Required — endorse and credit the author when repurposing assets/scripts** |
+
+#### Credits (as listed on the page)
+
+- No additional third-party file credits listed by the author.
+
+---
+
+### Fallout4.esm Full Records Spreadsheet (Modder Resource)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/100679 |
+| **Category** | Modder's Resource — FO4 data reference/export |
+| **Type** | Excel table containing Fallout4.esm records |
+| **DLC Required** | N/A |
+| **F4SE Required** | No |
+
+#### What It Is
+
+An authoring reference file (not a gameplay mod) containing exported Fallout4.esm records for fast filtering and lookups by:
+- FormID
+- Record Type
+- EditorID
+- Full Name
+
+Useful for CK/xEdit planning, consistency checks, and fast form discovery during plugin authoring.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| General modder resource usage | ✅ **Allowed — “do what you want”** |
+| Commercial/paid mod use | ❌ **Not allowed** |
+| Credit expectation | ✅ **Credit recommended when redistributing derivative resource work** |
+
+#### Credits (as listed on the page)
+
+- Author notes this spreadsheet was produced using an xEdit export script referenced on the Nexus description.
+- No additional file-credit entries were listed.
+
+---
+
+### Tutorial — Creating Your Own Radio Station in Fallout 4
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/101520 |
+| **Category** | Tutorial / Modder's Resource — CK radio quest pipeline |
+| **Type** | End-to-end instructional guide + example project assets |
+| **Core Tools Mentioned** | Creation Kit, MultiXwm, Archive2, BA2 Archive Version Patcher, audio editor |
+| **DLC Required** | N/A (tutorial resource) |
+
+#### What It Covers
+
+A full beginner-to-advanced radio-station workflow:
+- Audio prep and conversion (`.wav`/`.xwm`) with level normalization guidance
+- CK setup for Sound Descriptors, radio transmitter placement, quest aliases, and scene logic
+- Non-repeating random playlist logic in Papyrus
+- Radio silence prevention pattern (`RestartScene` timer workflow)
+- Optional host segments, additional scene loops, and packaging flow with BA2 patching
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ✅ **Allowed with credit to author** |
+| Modify / bug-fix / improve | ✅ **Allowed with credit to author** |
+| Use assets in your own mod | ✅ **Allowed with credit to author** |
+| Convert to other games | ❌ Not allowed |
+| Use in paid mods / sold files | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+#### Credits (as listed by the author)
+
+The author identifies this as a compilation of prior community tutorials/knowledge and credits:
+- **Tutorial - Creating Your Own Radio Station** — RadioactiveNuke
+- **Create Radio Stations with Custom Music & Shuffle Scripting** — HeartImpaled
+- **Bethesda Mod School** — Kinggath
+- **`Function RestartScene()` pattern** — Glitchfinder
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
