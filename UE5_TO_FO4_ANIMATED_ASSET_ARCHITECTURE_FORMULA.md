@@ -1778,3 +1778,150 @@ EndEvent
 - Keep active simultaneous image-space overlays low (target `<= 3`)
 - Pair each `.Apply()` path with reliable cleanup/removal logic
 - Use `showimagespacemodifiers` during testing to catch leaked overlays before release
+
+---
+
+## Course Blueprint: Quest Architecture and Scene Scripting
+
+This advanced 4-week module teaches students how to design, rig, and script a complete quest mod inside the Creation Kit.
+
+### Week 1: Quest Setup, Story Manager Nodes, and Quest Stages
+
+#### Creation Kit Quest Initialization
+
+1. In the Object Window navigate to `Character -> Quest`, right-click and select `New`
+2. Set a unique ID: `ModName_MasterQuest`
+3. Set **Quest Priority** between `50` and `70`
+   - Avoid 100; values that high can override core engine processes
+4. Enable **Run Once** for storyline quests; leave unchecked only for repeatable framework quests
+
+#### Quest Stage Index Reference
+
+| Stage Index | Assignment State | Technical Function |
+| --- | --- | --- |
+| `0` | Quest Initialized | Holds early variables and links reference assets |
+| `10` | Objective 1 Dispatched | Triggers HUD compass markers |
+| `100` | Core Objective Reached | Swaps combat packages or toggles world state |
+| `200` | Quest Completed | Turns off scene loops and stops script execution |
+
+### Week 2: Persistent References, Aliases, and Scene Logic Trees
+
+```text
+[Quest Alias Staging Box]
+ModName_MasterQuest --> Alias: TargetNPC (Points to Reference ID)
+                              |
+           +-----------------+-----------------+
+           v                                   v
+ [Scene Tree Window]                   [Dialogue Fragments]
+  - Phase 1: Custom Dialogue Line        - SetStage(100) On End
+  - Phase 2: Play Custom Animation       - ForceGiveItem Package
+```
+
+#### Building Quest Aliases Safely
+
+1. Open the quest form and go to the **Quest Aliases** tab
+2. Right-click the list panel, select `New Reference Alias`, name it `Alias_TargetNPC`
+3. Set **Fill Type** to `Unique Actor` or use `Find Matching Reference` with a proximity filter
+4. Check **Optional** if the NPC can die during the quest — leaving it unchecked when an NPC is dead can permanently break script loops
+
+#### Dialogue and Scene Actions
+
+1. Open the **Scenes** tab, create `ModName_IntroScene`
+2. Add a Scene Phase: right-click the timeline, select `Add Action -> Dialogue`
+3. Save audio as uncompressed `.wav` and run through the CK's built-in **LIP Generator** for facial sync
+
+### Week 3: Quest Script Fragments and Thread-Safe Event Triggers
+
+#### Stage 10 Script Fragment
+
+```papyrus
+; SCRIPT FRAGMENT FOR QUEST STAGE 10
+SetObjectiveDisplayed(10, true)
+Alias_QuestItem.GetReference().Enable()
+Debug.Trace("ModName: Master Quest stage 10 initialized successfully.")
+```
+
+#### Dungeon Trigger Script
+
+```papyrus
+Scriptname ModName:DungeonQuestTrigger extends ObjectReference
+
+Quest Property ModMasterQuest Auto Const
+Scene Property ModIntroScene Auto Const
+int Property TargetStageToSet = 10 Auto Const
+
+Event OnTriggerEnter(ObjectReference akActionRef)
+    ObjectReference playerRef = Game.GetPlayer()
+
+    if (akActionRef == playerRef && ModMasterQuest != None)
+        if (!ModMasterQuest.IsObjectiveDisplayed(TargetStageToSet) && !ModMasterQuest.IsCompleted())
+            ModMasterQuest.SetStage(TargetStageToSet)
+
+            if (ModIntroScene != None && !ModIntroScene.IsPlaying())
+                ModIntroScene.Start()
+            endif
+
+            Self.Disable()
+            Self.Delete()
+        endif
+    endif
+EndEvent
+```
+
+### Week 4: Quest Termination, Cleaning, and Distribution
+
+#### Stage 200 Completion Fragment
+
+```papyrus
+SetObjectiveCompleted(10, true)
+SetObjectiveCompleted(100, true)
+Stop()
+```
+
+#### Pre-Distribution Cleaning via xEdit / FO4Edit
+
+1. Open FO4Edit and load the target `ModName.esp`
+2. Right-click the file in the left pane and select `Apply Filter for Cleaning`
+3. After analysis, select `Remove Identical to Master Records (ITMs)`
+4. Select `Undelete and Disable References (UDRs)` to safely handle deleted vanilla assets
+
+### Quest Architecture and Performance Scorecard
+
+```text
+=======================================================================
+   FALLOUT 4 QUEST ARCHITECTURE & SCRIPTING SCORECARD
+=======================================================================
+ Student Name: [_______________________]  Quest Mod Name: [____________]
+
+ CRITERIA 1: STRUCTURAL STAGING & PRIORITY (Score: ___ / 25)
+ [ ] Quest priority assigned within safe range (50-70)
+ [ ] Stage index steps follow clean milestone structure (0-200)
+ [ ] Run Once flag matches intended deployment behavior
+
+ CRITERIA 2: ALIAS SYSTEM & DIALOGUE HEALTH (Score: ___ / 25)
+ [ ] NPC and item aliases flagged as Optional where appropriate
+ [ ] Dialogue tracks include matching .lip files for facial sync
+ [ ] Scenes exit cleanly without hanging threads
+
+ CRITERIA 3: PAPYRUS EVENT FRAGMENTS (Score: ___ / 25)
+ [ ] Stage scripts compile without VM warnings
+ [ ] Trigger scripts use safety gates to block repeat-fire events
+ [ ] Self-terminating Disable/Delete routines free thread resources
+
+ CRITERIA 4: OPTIMIZATION & CLEANING (Score: ___ / 25)
+ [ ] Stage 200 correctly invokes Stop() to clear script footprint
+ [ ] Plugin cleaned in FO4Edit with ITMs and UDRs resolved
+ [ ] Distribution archive bundles all required files cleanly
+
+ FINAL COMBINED QUEST TRACKING TOTAL: [_______ / 100]
+=======================================================================
+```
+
+### Quiz: Quest Modding and Engine Pipeline
+
+**Q1.** How does the Priority value (0–100) on a Quest record affect engine behavior?
+
+- **A.** Sorting order in the Pip-Boy quest log
+- **B. ✅ Correct** — It determines which quest takes precedence for Scene execution and Alias filling when multiple quests compete for the same NPC
+- **C.** Minimum player level before quest initializes *(Level requirements are handled via Scripting or Story Manager conditions, not the Priority field)*
+- **D.** Polling frequency for background Papyrus scripts
