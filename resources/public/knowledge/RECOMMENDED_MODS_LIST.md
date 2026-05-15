@@ -1348,6 +1348,46 @@ An author resource that provides a more realistic proportional approach to the h
 
 ---
 
+### FO4Edit → CSV → XML → RobCoPatcher Workflow
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/92210 |
+| **Category** | Modder's Resource — Data pipeline / patching workflow |
+| **Type** | Workflow guide/scripts for exporting records and generating RobCoPatcher-ready output |
+| **Nexus Requirement** | RobCo Patcher |
+| **Off-site Requirements** | Python runtime/compiler (e.g. Thonny), CSV→XML converter tool |
+| **Console (Bethesda.net)** | ❌ Not suitable/accepted for Bethesda.net console distribution |
+
+#### What It Is
+
+A productivity workflow for large-scale leveled-list or record patching that chains:
+1. FO4Edit record export to CSV  
+2. CSV conversion to XML  
+3. Python transformation into formatted RobCoPatcher-style text output
+
+The goal is to speed up conversion of large armor/weapon record sets into patch-ready rule blocks with less manual formatting.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ✅ Allowed with credit |
+| Modify/improve and release | ✅ Allowed with credit |
+| Convert for other games | ✅ Allowed with credit |
+| Use assets/files in your own mod | ✅ Allowed with credit |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not suitable for Bethesda.net console rules |
+
+#### Credits (as listed on the page)
+
+- Resource/workflow author (Nexus page owner).
+- No additional third-party file credits listed.
+- Author indicates parts of the code were sourced from internet examples and invites attribution claims if needed.
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
