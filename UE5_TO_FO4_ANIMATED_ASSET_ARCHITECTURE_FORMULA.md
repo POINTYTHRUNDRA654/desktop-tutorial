@@ -124,3 +124,135 @@ If animation data was exported from UE5:
 - PyNifly export targets **Fallout 4**
 - Animation FBX is routed through **Elrich** for `.hkx` output
 
+---
+
+## Automated Bone Renaming Script (UE5 to Fallout 4 Matrix)
+
+Run this inside Blender’s Scripting workspace with the imported UE5 armature selected.
+
+```python
+import bpy
+
+def remap_ue5_to_fo4():
+    obj = bpy.context.active_object
+    if not obj or obj.type != "ARMATURE":
+        print("Error: Select the active UE5 Armature object first.")
+        return
+
+    bpy.ops.object.mode_set(mode="EDIT")
+
+    bone_rename_map = {
+        "root": "Root",
+        "pelvis": "Bip01 Pelvis",
+        "spine_01": "Bip01 Spine1",
+        "spine_02": "Bip01 Spine2",
+        "spine_03": "Bip01 Spine3",
+        "neck_01": "Bip01 Neck",
+        "head": "Bip01 Head",
+        "clavicle_l": "Bip01 L Clavicle",
+        "upperarm_l": "Bip01 L UpperArm",
+        "lowerarm_l": "Bip01 L Forearm",
+        "hand_l": "Bip01 L Hand",
+        "clavicle_r": "Bip01 R Clavicle",
+        "upperarm_r": "Bip01 R UpperArm",
+        "lowerarm_r": "Bip01 R Forearm",
+        "hand_r": "Bip01 R Hand",
+        "thigh_l": "Bip01 L Thigh",
+        "calf_l": "Bip01 L Calf",
+        "foot_l": "Bip01 L Foot",
+        "thigh_r": "Bip01 R Thigh",
+        "calf_r": "Bip01 R Calf",
+        "foot_r": "Bip01 R Foot",
+    }
+
+    renamed_count = 0
+    for edit_bone in obj.data.edit_bones:
+        if edit_bone.name in bone_rename_map:
+            old_name = edit_bone.name
+            new_name = bone_rename_map[old_name]
+            edit_bone.name = new_name
+            renamed_count += 1
+            print(f"Renamed Node Link: {old_name} -> {new_name}")
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+    print(f"Success: Modified and translated {renamed_count} bone node references.")
+
+if __name__ == "__main__":
+    remap_ue5_to_fo4()
+```
+
+---
+
+## Axis Flip Animation Correction Diagnostic Checklist
+
+Because UE5 tracks forward on the X-axis while Fallout 4 expects forward motion on negative Y, uncorrected assets can walk sideways or backward after conversion.
+
+### Verify Viewport Facing Alignment
+
+- Switch Blender to **Front View** (`Numpad 1`)
+- The model should face toward you
+- If it faces left or right, it is still aligned to the UE5 X-forward heading
+
+### Apply Corrective Rotation
+
+1. Select the armature
+2. Press `R -> Z -> -90`
+3. Apply with `Ctrl + A -> All Transforms`
+
+### Clear Root Animation Curve Inversions
+
+- Open the **Graph Editor**
+- Inspect root bone translation channels
+- If forward motion still lives on `X Location` instead of the expected FO4-aligned axis, mirror or move the motion into the corrected channel set before export
+
+### Run Elrich Graph Sanity Check
+
+- Compile the exported **ASCII FBX** with `compile_anims.py`
+- If the log reports `Orientation matrix mismatch on root transform`, re-import into Blender and verify transforms are fully applied (`Scale = 1.0`, `Rotation = 0.0`) before recompiling
+
+---
+
+## Student Lab Sheet: Processing and Converting High-Poly UE5 Textures
+
+**Course Module:** PBR Material Texture Downsampling and Conversion  
+**Objective:** Convert high-fidelity UE5 textures into optimized `.dds` assets and Fallout 4-ready material inputs.
+
+### Required Student Working Assets
+
+- `UE5_Texture_BaseColor.png`
+- `UE5_Texture_Normal.png`
+- `UE5_Texture_ORD.png`
+
+### Step 1: Scale Down Texture Resolution Assets (Estimated: 10 min)
+
+1. Open the base color texture in an editor such as Photoshop, GIMP, or Paint.NET
+2. If the source is `4096 x 4096`, scale it down to `2048 x 2048`
+3. Use a reduction-friendly filter such as **Bicubic Sharper**
+
+### Step 2: Unpack and Reform Texture Channels (Estimated: 15 min)
+
+UE5 commonly stores:
+
+- **Occlusion** in Red
+- **Roughness** in Green
+- **Metallic** in Blue
+
+For Fallout 4:
+
+1. Open the `ORD` texture
+2. Copy the **Green channel** (roughness)
+3. Paste into a new grayscale image
+4. Invert it (`Ctrl + I`) to convert roughness into a gloss/smoothness-style map
+5. Save the result as `custom_asset_s.png`
+
+### Step 3: Compress Assets into Direct3D Containers (Estimated: 10 min)
+
+The Creation Engine cannot use `.png` at runtime, so convert textures to `.dds`.
+
+- **Diffuse:** `BC7` or `BC1/DXT1` → `custom_asset_d.dds`
+- **Normal:** `BC5` or `DXT5 (NM)` → `custom_asset_n.dds`
+- **Specular / Gloss:** `BC7` or `DXT1` → `custom_asset_s.dds`
+
+Move the final `.dds` files into:
+
+`Data\Textures\ModName\`
