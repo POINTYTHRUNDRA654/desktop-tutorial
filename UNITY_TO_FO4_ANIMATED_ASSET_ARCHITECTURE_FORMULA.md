@@ -624,3 +624,93 @@ For public distribution, package assets into `.ba2` archives instead of loose fi
 - **Lecture:** Scripted event flow and archive packaging strategy
 - **Lab:** Wire interactive logic in CK and package release with Archive2
 - **Milestone:** Run a working interactive world asset in game
+
+---
+
+## Week 4 Final Project Grading Rubric
+
+Use this rubric to score final student asset submissions.
+
+| Assessment Category | Exceptional (90-100%) | Satisfactory (70-80%) | Unsatisfactory (<70%) |
+| --- | --- | --- | --- |
+| Skeletal & Mesh Integrity | All transforms applied, weights constrained to valid per-vertex limits, no visible tearing | Transforms applied, minor weight clipping without major deformation | Exploding vertices, severe distortion, or unapplied transforms causing scale/runtime errors |
+| Animation Fidelity | Root motion corrected, loops are seamless, required event tags present | Animations run with minor loop/alignment issues | Interaction crash/freeze due to missing or invalid animation event tags |
+| Asset Directory Compliance | Pathing matches required FO4 structure exactly | Assets load but organization/path naming is inconsistent | Missing-path errors, red exclamation markers, or failed loads |
+| Archive Optimization | Correct General/Texture `.ba2` separation with proper settings | Archives build but include avoidable format/compression mistakes | Loose-file submission or oversized/invalid package structure |
+
+---
+
+## Printable Reference Sheet: Papyrus Animation API
+
+Quick-reference functions for object and actor animation scripting in CK.
+
+### Critical Object Animation Methods
+
+- `PlayAnimation(string asAnimName) -> Bool`  
+  **Purpose:** Plays embedded `.nif` transform animation/controller tracks.  
+  **Example:** `Self.PlayAnimation("Play01")`
+
+- `PlaySubGraphAnimation(string asEventName)`  
+  **Purpose:** Triggers behavior-subgraph animation events for actors/creatures.  
+  **Example:** `akActorRef.PlaySubGraphAnimation("Reset")`
+
+### Core Registration Events
+
+- `RegisterForAnimationEvent(ObjectReference akSource, string asEventName)`  
+  **Purpose:** Registers a script listener for animation event payloads.  
+  **Example:** `Self.RegisterForAnimationEvent(Self, "End")`
+
+- `UnregisterForAnimationEvent(ObjectReference akSource, string asEventName)`  
+  **Purpose:** Unregisters listeners to avoid stale handles and unnecessary script overhead.
+
+### Safety and Verification Methods
+
+- `HasAnimationVariableBool(string asVarName) -> Bool`  
+  **Purpose:** Checks whether a specific animation bool variable exists in active graph state.
+
+- `SetAnimationVariableBool(string asVarName, bool abValue)`  
+  **Purpose:** Toggles graph bool state flags during runtime behavior control.  
+  **Example:** `akActorRef.SetAnimationVariableBool("bIsAttacking", true)`
+
+---
+
+## Troubleshooting Guide: Black Texture and Shader Failures
+
+Use this blueprint when assets render black or lose expected specular response in CK.
+
+```text
+[Pitch Black Mesh Render]
+           |
+           v
+Verify Texture Directory Pathing --(Relative Path Used?)--> NO --> Strip Drive Letter (Keep Data\...)
+           |
+          YES
+           v
+Check Lighting Shader Flag Settings --(Has Vertex Colors Checked?)--> YES --> Disable/Correct Flag in Material Setup
+           |
+           NO
+           v
+Run BC7 Compression Verification Pass on Alpha Channels
+```
+
+### Step 1: Repair Absolute Local Paths
+
+**Root Cause:** `.bgsm` references absolute machine-local paths (for example `C:\...`) that break on other systems.  
+**Fix:** Ensure material texture paths are relative (`Textures\ModName\...`) and portable.
+
+### Step 2: Resolve Vertex Color Flag Conflicts
+
+**Root Cause:** Shader/material expects vertex color channels but mesh lacks color attributes.  
+**Fix:**
+- In Blender, select target mesh
+- Open Object Data Properties and review Color Attributes
+- If empty, create a default color layer (for example `Col`)
+- Re-export through PyNifly
+
+### Step 3: Correct DDS Format Compatibility
+
+**Root Cause:** Non-FO4-ready texture formats and/or incompatible compression settings.  
+**Fix:**
+- Convert textures to FO4-compatible DDS format
+- Typical choices: `BC1/DXT1` for opaque diffuse, `BC7` for higher-fidelity RGBA use cases
+- Keep power-of-two dimensions (for example `1024x1024`, `2048x2048`, `4096x4096` as appropriate)
