@@ -1569,6 +1569,41 @@ The walkthrough covers FO4Edit record setup, script-injected workshop quest hook
 
 ---
 
+### 3rd Person One-Handed Melee Vanilla Animations Resource
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/66487 |
+| **Category** | Modder's Resource — Animation authoring reference |
+| **Type** | Vanilla one-handed melee animation conversion pack (3DS Max clips, FBX, HKX, XML) |
+| **Off-site Requirements** | 3DS Max/animation tooling if you plan to edit or rework the included source clips |
+| **Console (Bethesda.net)** | ❌ Not available for Bethesda.net console users |
+
+#### What It Is
+
+An animator-focused resource pack containing converted vanilla Fallout 4 third-person one-handed melee animations prepared for easier editing workflows.
+
+The author notes the conversion process was time-intensive and shared these working files to help other animators skip setup overhead and begin iteration faster.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify/improve and release | ✅ Allowed without permission or credit |
+| Convert for other games | ❌ Not allowed |
+| Use assets/files in your own mod | ✅ Allowed without permission or credit |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not available for Bethesda.net console users |
+
+#### Credits (as listed on the page)
+
+- Resource author (Nexus page owner).
+- No additional third-party file credits listed.
+
+---
+
 ## How to Suggest a Mod for This List
 
 If you've found a mod that belongs here — high quality, widely compatible, respectful permissions — tell Mossy about it. Include the Nexus URL and why you think it deserves a place. Mossy will evaluate it and add it with full credits if it meets the bar.
