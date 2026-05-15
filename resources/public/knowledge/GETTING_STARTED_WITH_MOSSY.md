@@ -5,6 +5,18 @@ Welcome to Mossy v5.4.23! This guide will help you get the most out of your AI m
 
 ---
 
+## 🏆 Your Mod, Your Work — Mossy's Ownership Policy
+
+**Everything you create with Mossy's help is yours. Full stop.**
+
+Mossy is your tutor and assistant. You are the creator. Anything you build — scripts, quests, weapons, companions, worldspaces, textures, the whole mod — belongs entirely to you. You can publish it, sell it, license it, keep it private, or share it freely. No strings attached, ever.
+
+The only thing we ask — and it's completely optional — is a small credit in your mod's description if you feel Mossy earned it. Something like *"AI guidance: Mossy"* is plenty. If you'd rather not, that's totally fine too. Your work, your call.
+
+> **Full details:** See `MOSSY_OWNERSHIP_AND_CREDIT_POLICY.md` for the complete policy, including notes on third-party assets and platform publishing rules.
+
+---
+
 ## 🎆 What's New in v5.4.23
 
 ### Revolutionary Direct-Write Protocol
@@ -395,6 +407,31 @@ Start chatting with Mossy and explore all the capabilities. Remember:
 
 ---
 
-*For technical details, see [FALLOUT4_MODDING_GUIDE.md](FALLOUT4_MODDING_GUIDE.md)*  
-*For complete feature list, see [MOSSY_V5_ADVANCED_FEATURES.md](MOSSY_V5_ADVANCED_FEATURES.md)*
+## 🤝 Share, Support & Stay Connected
 
+### Share Your Work With the Community
+
+If Mossy helped you make something — share it. The Fallout 4 modding community is what it is because people give back. Publish your mod on Nexus Mods or Bethesda Creations, write up how you made it, answer questions when others get stuck on the same thing you solved. Every contribution — big or small — keeps this community alive and growing.
+
+### Support Mossy's Development
+
+Mossy is an independent project. If she's been useful to you — saved you hours of searching, walked you through something that felt impossible, or just made modding feel welcoming — we'd really appreciate your support.
+
+Donations help cover:
+- AI model access and server costs
+- Ongoing knowledge base updates with every Bethesda patch and community tool release
+- New features, guides, and improvements
+
+Find current donation links (Ko-fi, Patreon, or similar) on the **About / Support page** inside the Mossy app. No amount is too small, and nothing is ever required — Mossy is here to help you either way.
+
+### 🌿 Stay Safe in the Wasteland
+
+Whatever you build — a tiny texture fix, a massive total conversion, a quest that makes someone cry at 2 a.m. — it matters. The wasteland is better for it.
+
+*Stay safe out there.* 🌿
+
+---
+
+*For technical details, see [FALLOUT4_MODDING_GUIDE.md](FALLOUT4_MODDING_GUIDE.md)*
+*For complete feature list, see [MOSSY_V5_ADVANCED_FEATURES.md](MOSSY_V5_ADVANCED_FEATURES.md)*
+*For ownership & credit policy, see [MOSSY_OWNERSHIP_AND_CREDIT_POLICY.md](MOSSY_OWNERSHIP_AND_CREDIT_POLICY.md)*
