@@ -950,6 +950,70 @@ The author identifies this as a compilation of prior community tutorials/knowled
 
 ---
 
+### Object palettes 1.0 (OPAL) — Level Design Palette Resource
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/39733 |
+| **Category** | Modder's Resource — Creation Kit level-design workflow |
+| **Type** | 98 object palettes for interior, exterior, and misc set-dressing workflows |
+| **DLC Required** | Far Harbor, Nuka World |
+| **Off-site Requirements** | Creation Kit (to load files) |
+| **Console (Bethesda.net)** | ❌ Won't work on consoles / not acceptable on Bethesda.net |
+
+#### What It Is
+
+A practical Creation Kit authoring resource focused on speed and consistency when building interiors/exteriors. OPAL ships curated object-palette collections so modders can place coherent groups of assets quickly instead of repeatedly searching for individual records.
+
+Current package scope:
+- 98 object palettes total
+- Organized into exterior, interior, and misc groups
+- Intended as a core level-design quality-of-life toolkit
+
+The page also links the CK wiki Object Palette reference:
+- https://www.creationkit.com/index.php?title=Object_Palettes
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ✅ **Allowed with credit to the creator** |
+| Modify files / bug fixes / improvements | ✅ **Allowed without permission or credit** |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your own mod | ✅ **Allowed with credit to the creator** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Won't work on consoles / not acceptable on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed on the page)
+
+- Nexus page author (mod creator).
+- No additional file credits listed by the author.
+- Author notes section lists no extra permission notes.
+
+#### Install Notes
+
+Extract the ZIP contents into your Fallout 4 Creation Kit location (example from the page):
+
+`C:\Program Files (x86)\Steam\steamapps\common\Fallout 4\OPAL`
+
+If the `OPAL` folder is not present, create it.
+
+#### Quick Usage Notes
+
+In Creation Kit:
+1. Click in the render window, then press `Shift + O` (or `World` → `Object palette editing`).
+2. In the OPAL window, pick the OPAL folder.
+3. In `Palette objects`, select from first item to last item with Shift-select.
+4. In render window, hold `Ctrl + Alt` and left-click to place a random object from the selected palette list.
+
+Known issue from the page:
+- Some palettes currently contain only 1–2 items because they are unfinished or had specific assets removed.
+
+---
+
 ### LeafTongue's Papyrus Repository
 
 | Field | Details |
