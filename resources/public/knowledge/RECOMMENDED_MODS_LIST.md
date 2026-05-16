@@ -1323,6 +1323,50 @@ Important page notes:
 
 ---
 
+### Inject-Tec (Papyrus Library)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/21530 |
+| **Category** | Modder's Resource — Papyrus injection library |
+| **Type** | Library for injections into Form Lists, Leveled Lists, and Instance Naming Records |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+
+#### What It Is
+
+Inject-Tec is a Papyrus library built to make injection workflows faster and more approachable for mod authors, including authors newer to programming and Bethesda tooling.
+
+Primary capabilities described on the page:
+- Injecting records into **Form Lists**
+- Injecting records into **Leveled Lists**
+- Injecting records into **Instance Naming Records**
+- Improving cross-plugin compatibility workflows
+
+Important page note:
+- End users should not install Inject-Tec unless a mod author explicitly instructs them to do so.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / improvements | ❌ Must get author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets/files in your own mod | ✅ **Allowed with credit to creator** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed on the page)
+
+- Nexus page author (library creator).
+- No additional file credits listed.
+- No additional author permission notes listed.
+
+---
+
 ### PaperScript (Papyrus Transpiler Language)
 
 | Field | Details |
