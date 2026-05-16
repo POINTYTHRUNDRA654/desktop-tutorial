@@ -1166,6 +1166,42 @@ Known issue from the page:
 
 ---
 
+### Clutter/Object Authoring Resource (Nexus #37329)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/37329 |
+| **Category** | Modder's Resource — Clutter/object creation workflows |
+| **Type** | Authoring helper resource for clutter-object creation and related use cases |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+| **Changelog Note** | 1.1 adds info about `StaticCollectionPivotDummy` |
+
+#### What It Is
+
+A creator-focused helper resource described by the author as useful for making clutter objects and broader object-authoring workflows.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / bug fixes / improvements | ✅ **Allowed with credit to original creator** |
+| Convert to other games | ✅ **Allowed with credit to creator** |
+| Use assets/files in your own mod | ✅ **Allowed with credit to creator** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed on the page)
+
+- Nexus page author (mod creator).
+- No additional file credits listed.
+- No additional author notes listed.
+
+---
+
 ### LeafTongue's Papyrus Repository
 
 | Field | Details |
