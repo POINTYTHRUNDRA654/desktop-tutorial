@@ -1052,6 +1052,56 @@ GMST caveat noted by the author:
 
 ---
 
+### BGSM/BGEM JSON Material Library for 3ds Max Beth Shaders
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/38289 |
+| **Category** | Modder's Resource — Material/shader pipeline tooling |
+| **Type** | Converted BGSM/BGEM material set for 3ds Max 2013 Beth shader workflows |
+| **Target DCC** | 3ds Max 2013 |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+
+#### What It Is
+
+A resource pack of BGSM/BGEM data converted to load into Beth shaders in 3ds Max 2013 and auto-populate fields.
+
+The page describes:
+- Scripted conversion of 9,900+ materials that ship with the game
+- A replacement release using **Zilav's** highly optimized version
+- Intended use with Figment's NIF importer once paths are adjusted
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / improvements | ❌ Must get author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets/files in your own mod | ❌ Must get author permission first |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed by the author)
+
+- **Zilav** — credited in file credits and for the optimized shared version.
+- Nexus page author (mod creator).
+- Author also thanks **MunkySpunk** in the description for raising the Figment JSON-material issue.
+
+#### Setup Notes (from the page)
+
+- Keep vanilla extracted materials accessible under a `Data\Materials` path.
+- Common structure shown on the page:
+  - Move original binary materials to `data\data\materials`
+  - Place converted JSON materials at `data\materials`
+- Update `[Fallout 4]` paths in `MaxNifTools.ini` (especially `MaterialRootPath`) to match your local data-root layout.
+- Verify root data paths and correct skeleton path spacing issues if present.
+
+---
+
 ### Object palettes 1.0 (OPAL) — Level Design Palette Resource
 
 | Field | Details |
