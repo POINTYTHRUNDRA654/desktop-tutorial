@@ -889,6 +889,28 @@ These five mods and tools — IAF, First-Person Swimming, Kicks And Punches, NAF
 
 This subsection targets high-impact gaps for modern Fallout 4 authoring workflows after the OG/NG/AE split and recent toolchain changes.
 
+#### Deep Scan — Platform Coverage (2026 pass)
+
+| Platform | Coverage Status | Primary References in Mossy Knowledge |
+|---|---|---|
+| Nexus Mods (download/distribution) | ✅ Covered | `COMMUNITY_RESOURCES_GUIDE.md` (Nexus section), entries throughout this list |
+| GitHub (tool source + releases) | ✅ Covered | CMT, xEdit/FO4Edit, papyrus-lang sections below; `COMMUNITY_RESOURCES_GUIDE.md` (GitHub section) |
+| Bethesda / Creation Kit ecosystem | ✅ Covered | `CREATION_KIT_RESOURCES_INDEX.md`, `COMMUNITY_RESOURCES_GUIDE.md` (Wikis section) |
+| Reddit + Discord community help | ✅ Covered | `COMMUNITY_RESOURCES_GUIDE.md` (Reddit + Discord sections), bug-report template in that guide |
+| Tool-specific support channels | ✅ Covered | xEdit Discord, F4SE Discord, CommonLibF4 references in `COMMUNITY_RESOURCES_GUIDE.md` |
+
+#### Deep Scan — Asset Workflow Coverage (2026 pass)
+
+| Asset / Workflow Area | Coverage Status | Primary References in Mossy Knowledge |
+|---|---|---|
+| Animation authoring + frameworks | ✅ Covered | Animation sections in this list; `HAVOK_FALLOUT4_ANIMATION_GUIDE.md` |
+| Mesh/NIF authoring | ✅ Covered | `NIFSKOPE_DIVA11_GUIDE.md`, clutter/workshop resource entries in this list |
+| Texture/material pipeline | ✅ Covered | `DDS_TEXTURE_CREATION_GUIDE.md`, `GIMP_FOR_FALLOUT4_TEXTURES.md`, `PHOTOPEA_FOR_FALLOUT4_TEXTURES.md` |
+| Audio/voice pipeline | ✅ Covered | `AUDIO_STUDIO_GUIDE.md`, `VOICE_GENERATION_GUIDELINES.md`, radio tutorial entry in this list |
+| Quest/dialogue authoring | ✅ Covered | `QUEST_SCRIPTING_GUIDE.md`, `DIALOGUE_CONVERSATION_GUIDE.md` |
+| Papyrus scripting + tooling | ✅ Covered | papyrus-lang section below; `PAPYRUS_*` and `EXTENDING_SCRIPTS_PAPYRUS_GUIDE.md` docs |
+| Worldspace/previs/precombine | ✅ Covered | `PRECOMBINE_PREVIS_DEEP_DIVE.md`, `PRP_COMPREHENSIVE_GUIDE.md`, previs cluster resource in this list |
+
 #### Coverage Check (what this adds)
 
 | Learning / Workflow Area | Status After This Update | Primary Resources |
@@ -896,6 +918,27 @@ This subsection targets high-impact gaps for modern Fallout 4 authoring workflow
 | Version-split diagnostics (OG/NG/AE), archive patching, setup triage | ✅ Covered | Collective Modding Toolkit |
 | xEdit/FO4Edit current workflows + current build channels | ✅ Covered | xEdit GitHub + FO4Edit Nexus + xEdit Discord builds |
 | Modern Papyrus authoring ergonomics (IDE/LSP tooling) | ✅ Covered | papyrus-lang VS Code extension + wiki/manual |
+| Cross-platform community troubleshooting hubs (Reddit/Discord) | ✅ Covered | Community Resources Guide + r/FalloutMods ecosystem references |
+| Beginner-to-advanced setup baseline guide | ✅ Covered | The Midnight Ride (linked in community/PRP docs) |
+
+---
+
+### The Midnight Ride — Modern FO4 Setup Baseline (Learning Reference)
+
+| Field | Details |
+|---|---|
+| **Official Site** | https://themidnightride.moddinglinked.com/ |
+| **Category** | Learning Resource — stable modern setup baseline (OG/NG-era practices) |
+| **Type** | Curated guide, not a downloadable mod asset |
+
+#### Why It’s Included
+
+- Frequently referenced in Mossy’s existing knowledge corpus as a baseline for stable installs and modern setup order.
+- Useful as the first stop before deeper per-asset workflows (animation, scripts, previs, and conflict-resolution work).
+
+#### Credits
+
+- **The Midnight Ride maintainers/contributors** (community-maintained guide project)
 
 ---
 
