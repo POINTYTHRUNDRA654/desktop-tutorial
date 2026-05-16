@@ -885,6 +885,101 @@ These five mods and tools — IAF, First-Person Swimming, Kicks And Punches, NAF
 
 ---
 
+### 2025–2026 Coverage Gap Fill (Official Toolchain + Learning Resources)
+
+This subsection targets high-impact gaps for modern Fallout 4 authoring workflows after the OG/NG/AE split and recent toolchain changes.
+
+#### Coverage Check (what this adds)
+
+| Learning / Workflow Area | Status After This Update | Primary Resources |
+|---|---|---|
+| Version-split diagnostics (OG/NG/AE), archive patching, setup triage | ✅ Covered | Collective Modding Toolkit |
+| xEdit/FO4Edit current workflows + current build channels | ✅ Covered | xEdit GitHub + FO4Edit Nexus + xEdit Discord builds |
+| Modern Papyrus authoring ergonomics (IDE/LSP tooling) | ✅ Covered | papyrus-lang VS Code extension + wiki/manual |
+
+---
+
+### Collective Modding Toolkit (CMT) — 2025/2026 Compatibility Toolkit
+
+| Field | Details |
+|---|---|
+| **Official Source** | https://github.com/wxMichael/Collective-Modding-Toolkit |
+| **Latest Download** | https://github.com/wxMichael/Collective-Modding-Toolkit/releases/latest/download/cm-toolkit.zip |
+| **Category** | Toolchain Utility — setup diagnostics, downgrade/upgrade, archive patching |
+| **Type** | Standalone toolkit for Fallout 4 troubleshooting and environment validation |
+
+#### What It Adds (2025/2026 relevance)
+
+- Explicit OG/NG/AE-era support improvements in recent releases
+- Better F4SE DLL version-split detection across OG/NG/AE
+- Archive patcher fixes for modern Windows 11 + MO2 workflows
+- Built-in scanner for common setup/config errors in modded installs
+
+Recent release highlights:
+- **v0.6.0**: initial Anniversary Edition support
+- **v0.6.1**: AE texture patch detection + improved OG/NG/AE DLL detection + archive patcher fixes
+
+#### Permissions / Usage Notes
+
+- Distributed from the project’s official GitHub releases.
+- Follow the repository’s published license/terms and release notes.
+
+#### Credits
+
+- **wxMichael** — project author/maintainer
+- **Collective Modding community contributors** (suggestions and testing acknowledged in release notes)
+
+---
+
+### xEdit / FO4Edit (Official Project + Live Build Channels)
+
+| Field | Details |
+|---|---|
+| **Official Project** | https://github.com/TES5Edit/TES5Edit |
+| **FO4Edit Nexus Page** | https://www.nexusmods.com/fallout4/mods/2737 |
+| **Build Channel** | xEdit Discord (`#xedit-builds`) — linked from project README |
+| **Category** | Core Data Tool — plugin cleaning, conflict analysis, record editing, scripting |
+
+#### Why It Matters for Current Mod Authors
+
+- xEdit remains the canonical data-layer tool for FO4 plugin authoring and compatibility patching.
+- The current project README points to the live “What’s New” stream and active build channels, which is important for post-update modding cycles.
+- Use xEdit docs (`tes5edit.github.io/docs`) for current workflow details instead of older PDF-era guides.
+
+#### Credits (from the official project summary)
+
+- **ElminsterAU** — original xEdit foundation
+- **Hlp, Zilav, Sharlikran** — FO4-era xEdit development
+- **Sheson** — LOD-management contributions
+
+---
+
+### papyrus-lang (VS Code) — Modern Papyrus Authoring Toolkit
+
+| Field | Details |
+|---|---|
+| **Official Source** | https://github.com/joelday/papyrus-lang |
+| **VS Code Marketplace** | https://marketplace.visualstudio.com/items?itemName=joelday.papyrus-lang-vscode |
+| **Manual** | https://github.com/joelday/papyrus-lang/wiki |
+| **Category** | Scripting Toolchain — Papyrus language tooling/LSP-style workflow support |
+| **License** | MIT (project license) |
+
+#### What It Provides
+
+- Modern editing UX for Papyrus (completion, jump-to-definition, hover, symbol search)
+- PPJ-based build-task integration
+- Live diagnostics while authoring scripts
+
+This is a major quality-of-life accelerator for authors maintaining larger script-heavy mods in 2025/2026.
+
+#### Credits (from project README/license)
+
+- **joelday** — project author
+- Additional listed contributors: **Scrivener07**, **shad0wshayd3**, **rjstone**
+- Includes Pyro-related contributions credited to **fireundubh** and **Nyo**
+
+---
+
 ### Dynamic Spawn Framework (DSFW)
 
 | Field | Details |
