@@ -1367,6 +1367,45 @@ Important page note:
 
 ---
 
+### OMOD Effect Injection Script Source (Nexus #21510)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/21510 |
+| **Category** | Modder's Resource — Papyrus equip-time OMOD injection logic |
+| **Type** | Open-source quest script source from Perforation for adding custom OMOD effects on equip |
+| **License** | GPLv3 (author instruction: code is open source under GPLv3) |
+
+#### What It Is
+
+A script-source resource demonstrating an equip-time OMOD injection approach designed to preserve compatibility and avoid destructive replacement behavior.
+
+Behavior highlights described on the page:
+- Adds target effects when the player equips OMOD-capable items
+- No compatibility patches required for new/current/future weapons
+- Silent operation (no "Removed / Added" spam)
+- Handles multiple base objects in inventory (processed on equip)
+- Re-equips processed weapons and preserves favorite quickslot assignment
+- Preserves legendary OMODs, including custom/mod-added legendary effects
+- Hidden helper OMOD does not appear in the workbench UI
+- Script is intended to fire once per weapon per game
+
+Technical note from the page:
+- Current implementation uses the **NONE attach-point temporary chain trick** (v4.0), with two bound OMODs left in place after temporary swap/removal.
+
+#### Permissions / License Summary
+
+- Source code is declared open source under **GPLv3** by the author.
+- The request did not include additional Nexus permissions-grid restrictions for this page; follow GPLv3 terms and the Nexus page for distribution details.
+
+#### Credits (as listed by the author)
+
+- Nexus page author — all source code.
+- **tim-timman** — credited for the mod-swap "floating" method concept.
+- **Wenderer** — credited for FOMOD Creation Tool.
+
+---
+
 ### PaperScript (Papyrus Transpiler Language)
 
 | Field | Details |
