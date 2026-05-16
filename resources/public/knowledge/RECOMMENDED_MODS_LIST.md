@@ -703,6 +703,54 @@ F4Biped is tagged as a **Modder's Resource** on Nexus. The explicit permissions 
 
 ---
 
+### Custom Power Armor Rig (3rd-Person Animation Resource)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/39089 |
+| **Category** | Modder's Resource — Power Armor animation rig |
+| **Type** | Custom rig for creating Fallout 4 Power Armor 3rd-person animations |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+
+#### What It Is
+
+A custom Power Armor rig released for mod authors who want to animate Power Armor in 3rd person. The author describes it as an early rig that is not perfect, but functional and used in shipped weapon-mod animation work.
+
+The page notes the workflow is broadly similar to:
+- Fallout 4 Animation Kit
+- F4Biped animation rig
+
+If you already build 1st/3rd-person FO4 animations, the author indicates this rig follows a familiar process.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / improve features | ❌ Must get author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your own mod | ❌ Must get author permission first |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed by the author)
+
+- **ShadeAnimator** — credited by the author for the Animation Kit and helping them learn custom animation workflows.
+- **MaikCG** — credited by the author for the first human rig.
+- Nexus page author (mod creator).
+- No additional file credits listed in the permissions tab.
+
+#### Notes for Mod Authors
+
+- The author did not provide a full tutorial for this rig.
+- The page asks users not to repost the rig elsewhere.
+- Author indicates they may attempt a super-mutant rig in the future.
+
+---
+
 ### Shiagur's Blender Animation Rig Suite (Human + Power Armor)
 
 > These two mods are designed as a pair by the same author. The v2.0 guide covers both together. **Read the permissions carefully — they differ between the two rigs.**
@@ -837,6 +885,133 @@ These five mods and tools — IAF, First-Person Swimming, Kicks And Punches, NAF
 
 ---
 
+### 2025–2026 Coverage Gap Fill (Official Toolchain + Learning Resources)
+
+This subsection targets high-impact gaps for modern Fallout 4 authoring workflows after the OG/NG/AE split and recent toolchain changes.
+
+#### Deep Scan — Platform Coverage (2026 pass)
+
+| Platform | Coverage Status | Primary References in Mossy Knowledge |
+|---|---|---|
+| Nexus Mods (download/distribution) | ✅ Covered | `COMMUNITY_RESOURCES_GUIDE.md` (Nexus section), entries throughout this list |
+| GitHub (tool source + releases) | ✅ Covered | CMT, xEdit/FO4Edit, papyrus-lang sections below; `COMMUNITY_RESOURCES_GUIDE.md` (GitHub section) |
+| Bethesda / Creation Kit ecosystem | ✅ Covered | `CREATION_KIT_RESOURCES_INDEX.md`, `COMMUNITY_RESOURCES_GUIDE.md` (Wikis section) |
+| Reddit + Discord community help | ✅ Covered | `COMMUNITY_RESOURCES_GUIDE.md` (Reddit + Discord sections), bug-report template in that guide |
+| Tool-specific support channels | ✅ Covered | xEdit Discord, F4SE Discord, CommonLibF4 references in `COMMUNITY_RESOURCES_GUIDE.md` |
+
+#### Deep Scan — Asset Workflow Coverage (2026 pass)
+
+| Asset / Workflow Area | Coverage Status | Primary References in Mossy Knowledge |
+|---|---|---|
+| Animation authoring + frameworks | ✅ Covered | Animation sections in this list; `HAVOK_FALLOUT4_ANIMATION_GUIDE.md` |
+| Mesh/NIF authoring | ✅ Covered | `NIFSKOPE_DIVA11_GUIDE.md`, clutter/workshop resource entries in this list |
+| Texture/material pipeline | ✅ Covered | `DDS_TEXTURE_CREATION_GUIDE.md`, `GIMP_FOR_FALLOUT4_TEXTURES.md`, `PHOTOPEA_FOR_FALLOUT4_TEXTURES.md` |
+| Audio/voice pipeline | ✅ Covered | `AUDIO_STUDIO_GUIDE.md`, `VOICE_GENERATION_GUIDELINES.md`, radio tutorial entry in this list |
+| Quest/dialogue authoring | ✅ Covered | `QUEST_SCRIPTING_GUIDE.md`, `DIALOGUE_CONVERSATION_GUIDE.md` |
+| Papyrus scripting + tooling | ✅ Covered | papyrus-lang section below; `PAPYRUS_*` and `EXTENDING_SCRIPTS_PAPYRUS_GUIDE.md` docs |
+| Worldspace/previs/precombine | ✅ Covered | `PRECOMBINE_PREVIS_DEEP_DIVE.md`, `PRP_COMPREHENSIVE_GUIDE.md`, previs cluster resource in this list |
+
+### The Midnight Ride — Modern FO4 Setup Baseline (Learning Reference)
+
+| Field | Details |
+|---|---|
+| **Official Site** | https://themidnightride.moddinglinked.com/ |
+| **Category** | Learning Resource — stable modern setup baseline (OG/NG-era practices) |
+| **Type** | Curated guide, not a downloadable mod asset |
+| **Console (Bethesda.net)** | N/A — web-based external guide |
+
+#### Why It’s Included
+
+- Referenced in Mossy docs as a baseline setup resource (for example: `PRP_COMPREHENSIVE_GUIDE.md` and `COMMUNITY_ACHIEVEMENTS_2025_2026.md`).
+- Useful as the first stop before deeper per-asset workflows (animation, scripts, previs, and conflict-resolution work).
+
+#### Credits
+
+- **The Midnight Ride maintainers/contributors** (community-maintained guide project)
+
+---
+
+### Collective Modding Toolkit (CMT) — 2025/2026 Compatibility Toolkit
+
+| Field | Details |
+|---|---|
+| **Official Source** | https://github.com/wxMichael/Collective-Modding-Toolkit |
+| **Latest Download** | https://github.com/wxMichael/Collective-Modding-Toolkit/releases/latest/download/cm-toolkit.zip |
+| **Category** | Toolchain Utility — setup diagnostics, downgrade/upgrade, archive patching |
+| **Type** | Standalone toolkit for Fallout 4 troubleshooting and environment validation |
+
+#### What It Adds (2025/2026 relevance)
+
+- Explicit OG/NG/AE-era support improvements in recent releases
+- Better F4SE DLL version-split detection across OG/NG/AE
+- Archive patcher fixes for modern Windows 11 + MO2 workflows
+- Built-in scanner for common setup/config errors in modded installs
+
+Recent release highlights:
+- **v0.6.0**: initial Anniversary Edition support
+- **v0.6.1**: AE texture patch detection + improved OG/NG/AE DLL detection + archive patcher fixes
+
+#### Permissions / Usage Notes
+
+- Distributed from the project’s official GitHub releases.
+- Follow the repository’s published license/terms and release notes.
+
+#### Credits
+
+- **wxMichael** — project author/maintainer
+- **Collective Modding community contributors** (suggestions and testing acknowledged in release notes)
+
+---
+
+### xEdit / FO4Edit (Official Project + Live Build Channels)
+
+| Field | Details |
+|---|---|
+| **Official Project** | https://github.com/TES5Edit/TES5Edit |
+| **FO4Edit Nexus Page** | https://www.nexusmods.com/fallout4/mods/2737 |
+| **Build Channel** | xEdit Discord (`#xedit-builds`) — linked from project README |
+| **Category** | Core Data Tool — plugin cleaning, conflict analysis, record editing, scripting |
+
+#### Why It Matters for Current Mod Authors
+
+- xEdit remains the canonical data-layer tool for FO4 plugin authoring and compatibility patching.
+- The current project README points to the live “What’s New” stream and active build channels, which is important for post-update modding cycles.
+- Use xEdit docs (`tes5edit.github.io/docs`) for current workflow details instead of older PDF-era guides.
+
+#### Credits (from the official project summary)
+
+- **ElminsterAU** — original xEdit foundation
+- **Hlp, Zilav, Sharlikran** — FO4-era xEdit development
+- **Sheson** — LOD-management contributions
+
+---
+
+### papyrus-lang (VS Code) — Modern Papyrus Authoring Toolkit
+
+| Field | Details |
+|---|---|
+| **Official Source** | https://github.com/joelday/papyrus-lang |
+| **VS Code Marketplace** | https://marketplace.visualstudio.com/items?itemName=joelday.papyrus-lang-vscode |
+| **Manual** | https://github.com/joelday/papyrus-lang/wiki |
+| **Category** | Scripting Toolchain — Papyrus language tooling/LSP-style workflow support |
+| **License** | MIT (project license) |
+
+#### What It Provides
+
+- Modern editing UX for Papyrus (completion, jump-to-definition, hover, symbol search)
+- PPJ-based build-task integration
+- Live diagnostics while authoring scripts
+
+This is a major quality-of-life accelerator for authors maintaining larger script-heavy mods in 2025/2026.
+
+#### Credits (from project README/license)
+
+- **joelday** — project author
+- Additional listed contributors: **Scrivener07**, **shad0wshayd3**, **rjstone**
+- Includes Pyro-related contributions credited to **fireundubh** and **Nyo**
+
+---
+
 ### Dynamic Spawn Framework (DSFW)
 
 | Field | Details |
@@ -950,6 +1125,259 @@ The author identifies this as a compilation of prior community tutorials/knowled
 
 ---
 
+### FO4 INI Settings and GMST Dump (Reference Resource)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/38496 |
+| **Category** | Modder's Resource — Engine/config reference (INI + GameSettings) |
+| **Type** | Full INI settings index + 5,500+ GMST text dump from Fallout4.exe |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+
+#### What It Is
+
+A technical reference pack for Fallout 4 authors containing:
+- A complete INI settings list (alphabetically organized)
+- A text dump of 5,500+ GMSTs (GameSettings), also organized alphabetically
+
+The page positions this as a research/testing aid for modders who tune engine behavior, validate settings, and prototype gameplay/system changes.
+
+#### Workflow Notes from the Page
+
+To fetch corresponding live values for INI settings, the page includes an optional `GetValues` batch file workflow:
+1. Extract optional `GetValues` into `...steamapps\common\Fallout 4`.
+2. Confirm `getvl.txt` is present in that Fallout 4 root directory.
+3. Launch Fallout 4, open console, run: `bat getvl`.
+
+Suggested console-history buffer setting before running:
+- `iConsoleHistoryCharBufferSize=9000000` under `[Menu]` in `Fallout4.ini`
+- Or via console: `setini "iConsoleHistoryCharBufferSize:Menu" 9000000`
+
+Reason: this larger buffer helps retain long console output when dumping large setting/value lists so results are not truncated.
+
+GMST caveat noted by the author:
+- Some GMSTs will report `NOT FOUND` via console/batch and must be applied through an ESP instead.
+- Example ESP-only cases listed: `bEnableConsoleMenuDuringSurvival`, `fSurvivalPerceptionCompassBase`, `fSurvivalPerceptionCompassMult`.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / bug fixes / improvements | ✅ **Allowed with credit to original creator** |
+| Convert to other games | ✅ **Allowed with credit to creator** |
+| Use assets/files in your own mod | ✅ **Allowed with credit to creator** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed on the page)
+
+- Nexus page author (mod creator).
+- No additional file credits listed.
+- No extra author permission notes listed.
+
+---
+
+### BGSM/BGEM JSON Material Library for 3ds Max Beth Shaders
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/38289 |
+| **Category** | Modder's Resource — Material/shader pipeline tooling |
+| **Type** | Converted BGSM/BGEM material set for 3ds Max 2013 Beth shader workflows |
+| **Target DCC** | 3ds Max 2013 |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+
+#### What It Is
+
+A resource pack of BGSM/BGEM data converted to load into Beth shaders in 3ds Max 2013 and auto-populate fields.
+
+The page describes:
+- Scripted conversion of 9,900+ materials that ship with the game
+- A replacement release using **Zilav's** highly optimized version
+- Intended use with Figment's NIF importer once paths are adjusted
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / improvements | ❌ Must get author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets/files in your own mod | ❌ Must get author permission first |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed by the author)
+
+- **Zilav** — credited in file credits and for the optimized shared version.
+- Nexus page author (mod creator).
+- Author also thanks **MunkySpunk** in the description for raising the Figment JSON-material issue.
+
+#### Setup Notes (from the page)
+
+- Keep vanilla extracted materials accessible under a `data\materials` path.
+- Common structure shown on the page:
+  - Move original binary materials to `data\data\materials`
+  - Place converted JSON materials at `data\materials`
+  - Example absolute layout: `C:\PROJECTS\FALLOUT4\BUILD\PC\DATA\data\materials` (originals) and `C:\PROJECTS\FALLOUT4\BUILD\PC\DATA\materials` (JSON set)
+- Update `[Fallout 4]` paths in `MaxNifTools.ini` (especially `MaterialRootPath`) to match your local data-root layout.
+- Verify root data paths and correct skeleton path spacing issues if present.
+
+---
+
+### Object palettes 1.0 (OPAL) — Level Design Palette Resource
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/39733 |
+| **Category** | Modder's Resource — Creation Kit level-design workflow |
+| **Type** | 98 object palettes for interior, exterior, and misc set-dressing workflows |
+| **DLC Required** | Far Harbor, Nuka World |
+| **Off-site Requirements** | Creation Kit (to load files) |
+| **Console (Bethesda.net)** | ❌ Won't work on consoles / not acceptable on Bethesda.net |
+
+#### What It Is
+
+A practical Creation Kit authoring resource focused on speed and consistency when building interiors/exteriors. OPAL ships curated object-palette collections so modders can place coherent groups of assets quickly instead of repeatedly searching for individual records.
+
+Current package scope:
+- 98 object palettes total
+- Organized into exterior, interior, and misc groups
+- Intended as a core level-design quality-of-life toolkit
+
+The page also links the CK wiki Object Palette reference:
+- https://www.creationkit.com/index.php?title=Object_Palettes
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ✅ **Allowed with credit to the creator** |
+| Modify files / bug fixes / improvements | ✅ **Allowed without permission or credit** |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your own mod | ✅ **Allowed with credit to the creator** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Won't work on consoles / not acceptable on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed on the page)
+
+- Nexus page author (mod creator).
+- No additional file credits listed by the author.
+- Author notes section lists no extra permission notes.
+
+#### Install Notes
+
+Extract the ZIP contents into your Fallout 4 Creation Kit location (example from the page):
+
+`C:\Program Files (x86)\Steam\steamapps\common\Fallout 4\OPAL`
+
+If the `OPAL` folder is not present, create it.
+
+#### Quick Usage Notes
+
+In Creation Kit:
+1. Click in the render window, then press `Shift + O` (or `World` → `Object palette editing`).
+2. In the OPAL window, pick the OPAL folder.
+3. In `Palette objects`, click the first item, hold `Shift`, then click the last item to multi-select the full range.
+4. In render window, hold `Ctrl + Alt` and left-click to place a random object from the selected palette list.
+
+Known issue from the page:
+- Some palettes currently contain only 1–2 items because they are unfinished or had specific assets removed.
+
+---
+
+### Clutter/Object Authoring Resource
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/37329 |
+| **Category** | Modder's Resource — Clutter/object creation workflows |
+| **Type** | Authoring helper resource for clutter-object creation and related use cases |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+| **Changelog Note** | 1.1 adds info about `StaticCollectionPivotDummy` |
+
+#### What It Is
+
+A creator-focused helper resource described by the author as useful for making clutter objects and broader object-authoring workflows.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / bug fixes / improvements | ✅ **Allowed with credit to original creator** |
+| Convert to other games | ✅ **Allowed with credit to creator** |
+| Use assets/files in your own mod | ✅ **Allowed with credit to creator** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed on the page)
+
+- Nexus page author (mod creator).
+- No additional file credits listed.
+- No additional author notes listed.
+
+---
+
+### Workshop Resources (NIF Collection for Mod Authors)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/32628 |
+| **Category** | Modder's Resource — Mesh/NIF clutter-object assets |
+| **Type** | Resource-only NIF collection for reuse in other mods (not a standalone gameplay mod) |
+| **DLC Required** | Automatron, Contraptions Workshop, Far Harbor, Nuka World, Vault-Tec Workshop, Wasteland Workshop |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+
+#### What It Is
+
+A creator resource pack of NIF assets intended to reduce time spent decorating settlements and building clutter-rich scenes.
+
+Author usage notes from the page:
+- Best used as workshop items
+- If used in cells, disable Havok simulation and choose "Don't Havok Settle" on placed objects
+- Some included meshes emit light (for example flip lighter, blow torch, bunsen burner, and angler-stalk bottle variants)
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ✅ **Allowed with credit to creator** |
+| Modify files / improvements | ✅ **Allowed without permission or credit** |
+| Convert to other games | ❌ Not allowed |
+| Use assets/files in your own mod | ✅ **Allowed without permission or credit** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ⚠️ **Requires permission** |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed on the page)
+
+- Nexus page author (mod creator).
+- No additional file credits listed.
+- No additional author permission notes listed.
+
+#### Install/Path Notes (from the page)
+
+- Place NIFs under your chosen `Meshes` folders and point Creation Kit records to those paths.
+- The author indicates some resources rely on DLC-backed objects and recommends having all listed DLCs loaded during authoring.
+
+---
+
 ### LeafTongue's Papyrus Repository
 
 | Field | Details |
@@ -975,6 +1403,133 @@ A shared repository of free Papyrus resources intended to help mod authors ship 
 
 - **LeafTongue** — repository author and original code contributor.
 - No additional third-party file credits listed.
+
+---
+
+### Dynamic Terminal (Papyrus Library)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/21536 |
+| **Category** | Modder's Resource — Papyrus terminal scripting library |
+| **Type** | Library for dynamic terminal form substitution and paginated form selection |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+
+#### What It Is
+
+Dynamic Terminal is a Papyrus library inspired by **Settlement Management Software** behavior patterns by **matzman666**. It is aimed at mod authors who need reliable terminal-driven selection workflows.
+
+The library supports:
+- Dynamic form substitution into terminal content
+- Selecting forms from paginated terminal lists
+- Multi-step option-selection flows that combine choices to produce outcome-specific results
+
+Important page notes:
+- Due to engine restrictions, these dynamic terminals cannot be displayed on the Pip-Boy
+- End users should not install this unless a mod author explicitly requires it
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / improvements | ❌ Must get author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets/files in your own mod | ✅ **Allowed with credit to creator** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed on the page)
+
+- Nexus page author (library creator).
+- **Settlement Management Software** by **matzman666** — listed as inspiration for the library behavior model.
+- No additional file credits listed.
+
+---
+
+### Inject-Tec (Papyrus Library)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/21530 |
+| **Category** | Modder's Resource — Papyrus injection library |
+| **Type** | Library for injections into Form Lists, Leveled Lists, and Instance Naming Records |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+
+#### What It Is
+
+Inject-Tec is a Papyrus library built to make injection workflows faster and more approachable for mod authors, including authors newer to programming and Bethesda tooling.
+
+Primary capabilities described on the page:
+- Injecting records into **Form Lists**
+- Injecting records into **Leveled Lists**
+- Injecting records into **Instance Naming Records**
+- Improving cross-plugin compatibility workflows
+
+Important page note:
+- End users should not install Inject-Tec unless a mod author explicitly instructs them to do so.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / improvements | ❌ Must get author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets/files in your own mod | ✅ **Allowed with credit to creator** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed on the page)
+
+- Nexus page author (library creator).
+- No additional file credits listed.
+- No additional author permission notes listed.
+
+---
+
+### OMOD Effect Injection Script Source (Nexus #21510)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/21510 |
+| **Category** | Modder's Resource — Papyrus equip-time OMOD injection logic |
+| **Type** | Open-source quest script source from Perforation for adding custom OMOD effects on equip |
+| **License** | GPLv3 (author instruction: code is open source under GPLv3) |
+
+#### What It Is
+
+A script-source resource demonstrating an equip-time OMOD injection approach designed to preserve compatibility and avoid destructive replacement behavior.
+
+Behavior highlights described on the page:
+- Adds target effects when the player equips OMOD-capable items
+- No compatibility patches required for new/current/future weapons
+- Silent operation (no "Removed / Added" spam)
+- Handles multiple base objects in inventory (processed on equip)
+- Re-equips processed weapons and preserves favorite quickslot assignment
+- Preserves legendary OMODs, including custom/mod-added legendary effects
+- Hidden helper OMOD does not appear in the workbench UI
+- Script is intended to fire once per weapon per game
+
+Technical note from the page:
+- Current implementation uses the **NONE attach-point temporary chain trick** (v4.0), with two bound OMODs left in place after temporary swap/removal.
+
+#### Permissions / License Summary
+
+- Source code is declared open source under **GPLv3** by the author.
+- The request did not include additional Nexus permissions-grid restrictions for this page; follow GPLv3 terms and the Nexus page for distribution details.
+
+#### Credits (as listed by the author)
+
+- Nexus page author — all source code.
+- **tim-timman** — credited for the mod-swap "floating" method concept.
+- **Wenderer** — credited for FOMOD Creation Tool.
 
 ---
 
