@@ -1166,7 +1166,7 @@ Known issue from the page:
 
 ---
 
-### Clutter/Object Authoring Resource (Nexus #37329)
+### Clutter/Object Authoring Resource
 
 | Field | Details |
 |---|---|
