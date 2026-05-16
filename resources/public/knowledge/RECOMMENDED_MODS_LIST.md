@@ -911,18 +911,6 @@ This subsection targets high-impact gaps for modern Fallout 4 authoring workflow
 | Papyrus scripting + tooling | ✅ Covered | papyrus-lang section below; `PAPYRUS_*` and `EXTENDING_SCRIPTS_PAPYRUS_GUIDE.md` docs |
 | Worldspace/previs/precombine | ✅ Covered | `PRECOMBINE_PREVIS_DEEP_DIVE.md`, `PRP_COMPREHENSIVE_GUIDE.md`, previs cluster resource in this list |
 
-#### Coverage Check (what this adds)
-
-| Learning / Workflow Area | Status After This Update | Primary Resources |
-|---|---|---|
-| Version-split diagnostics (OG/NG/AE), archive patching, setup triage | ✅ Covered | Collective Modding Toolkit |
-| xEdit/FO4Edit current workflows + current build channels | ✅ Covered | xEdit GitHub + FO4Edit Nexus + xEdit Discord builds |
-| Modern Papyrus authoring ergonomics (IDE/LSP tooling) | ✅ Covered | papyrus-lang VS Code extension + wiki/manual |
-| Cross-platform community troubleshooting hubs (Reddit/Discord) | ✅ Covered | Community Resources Guide + r/FalloutMods ecosystem references |
-| Beginner-to-advanced setup baseline guide | ✅ Covered | The Midnight Ride (linked in community/PRP docs) |
-
----
-
 ### The Midnight Ride — Modern FO4 Setup Baseline (Learning Reference)
 
 | Field | Details |
@@ -930,10 +918,11 @@ This subsection targets high-impact gaps for modern Fallout 4 authoring workflow
 | **Official Site** | https://themidnightride.moddinglinked.com/ |
 | **Category** | Learning Resource — stable modern setup baseline (OG/NG-era practices) |
 | **Type** | Curated guide, not a downloadable mod asset |
+| **Console (Bethesda.net)** | N/A — web-based external guide |
 
 #### Why It’s Included
 
-- Frequently referenced in Mossy’s existing knowledge corpus as a baseline for stable installs and modern setup order.
+- Referenced in Mossy docs as a baseline setup resource (for example: `PRP_COMPREHENSIVE_GUIDE.md` and `COMMUNITY_ACHIEVEMENTS_2025_2026.md`).
 - Useful as the first stop before deeper per-asset workflows (animation, scripts, previs, and conflict-resolution work).
 
 #### Credits
