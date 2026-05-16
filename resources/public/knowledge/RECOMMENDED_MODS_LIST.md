@@ -998,6 +998,60 @@ The author identifies this as a compilation of prior community tutorials/knowled
 
 ---
 
+### FO4 INI Settings and GMST Dump (Reference Resource)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/38496 |
+| **Category** | Modder's Resource — Engine/config reference (INI + GameSettings) |
+| **Type** | Full INI settings index + 5,500+ GMST text dump from Fallout4.exe |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+
+#### What It Is
+
+A technical reference pack for Fallout 4 authors containing:
+- A complete INI settings list (alphabetically organized)
+- A text dump of 5,500+ GMSTs (GameSettings), also organized alphabetically
+
+The page positions this as a research/testing aid for modders who tune engine behavior, validate settings, and prototype gameplay/system changes.
+
+#### Workflow Notes from the Page
+
+To fetch corresponding live values for INI settings, the page includes an optional `GetValues` batch workflow:
+1. Extract optional `GetValues` into `...steamapps\common\Fallout 4`.
+2. Confirm `getvl.txt` is present in that Fallout 4 root directory.
+3. Launch Fallout 4, open console, run: `bat getvl`.
+
+Suggested console-history buffer setting before running:
+- `iConsoleHistoryCharBufferSize=9000000` under `[Menu]` in `Fallout4.ini`
+- Or via console: `setini "iConsoleHistoryCharBufferSize:Menu" 9000000`
+
+GMST caveat noted by the author:
+- Some GMSTs will report `NOT FOUND` via console/batch and must be applied through an ESP instead.
+- Example ESP-only cases listed: `bEnableConsoleMenuDuringSurvival`, `fSurvivalPerceptionCompassBase`, `fSurvivalPerceptionCompassMult`.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / bug fixes / improvements | ✅ **Allowed with credit to original creator** |
+| Convert to other games | ✅ **Allowed with credit to creator** |
+| Use assets/files in your own mod | ✅ **Allowed with credit to creator** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed on the page)
+
+- Nexus page author (mod creator).
+- No additional file credits listed.
+- No extra author permission notes listed.
+
+---
+
 ### Object palettes 1.0 (OPAL) — Level Design Palette Resource
 
 | Field | Details |
