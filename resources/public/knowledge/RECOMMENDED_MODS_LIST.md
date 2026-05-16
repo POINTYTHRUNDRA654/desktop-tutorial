@@ -1202,6 +1202,52 @@ A creator-focused helper resource described by the author as useful for making c
 
 ---
 
+### Workshop Resources (NIF Collection for Mod Authors)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/32628 |
+| **Category** | Modder's Resource — Mesh/NIF clutter-object assets |
+| **Type** | Resource-only NIF collection for reuse in other mods (not a standalone gameplay mod) |
+| **DLC Required** | Automatron, Contraptions Workshop, Far Harbor, Nuka World, Vault-Tec Workshop, Wasteland Workshop |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+
+#### What It Is
+
+A creator resource pack of NIF assets intended to reduce time spent decorating settlements and building clutter-rich scenes.
+
+Author usage notes from the page:
+- Best used as workshop items
+- If used in cells, disable Havok simulation and choose "Don't Havok Settle" on placed objects
+- Some included meshes emit light (for example flip lighter, blow torch, bunsen burner, and angler-stalk bottle variants)
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ✅ **Allowed with credit to creator** |
+| Modify files / improvements | ✅ **Allowed without permission or credit** |
+| Convert to other games | ❌ Not allowed |
+| Use assets/files in your own mod | ✅ **Allowed without permission or credit** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ⚠️ **Requires permission** |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed on the page)
+
+- Nexus page author (mod creator).
+- No additional file credits listed.
+- No additional author permission notes listed.
+
+#### Install/Path Notes (from the page)
+
+- Place NIFs under your chosen `Meshes` folders and point Creation Kit records to those paths.
+- The author indicates some resources rely on DLC-backed objects and recommends having all listed DLCs loaded during authoring.
+
+---
+
 ### LeafTongue's Papyrus Repository
 
 | Field | Details |
