@@ -1279,6 +1279,50 @@ A shared repository of free Papyrus resources intended to help mod authors ship 
 
 ---
 
+### Dynamic Terminal (Papyrus Library)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/21536 |
+| **Category** | Modder's Resource — Papyrus terminal scripting library |
+| **Type** | Library for dynamic terminal form substitution and paginated form selection |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+
+#### What It Is
+
+Dynamic Terminal is a Papyrus library inspired by **Settlement Management Software** behavior patterns by **matzman666**. It is aimed at mod authors who need reliable terminal-driven selection workflows.
+
+The library supports:
+- Dynamic form substitution into terminal content
+- Selecting forms from paginated terminal lists
+- Multi-step option-selection flows that combine choices to produce outcome-specific results
+
+Important page notes:
+- Due to engine restrictions, these dynamic terminals cannot be displayed on the Pip-Boy
+- End users should not install this unless a mod author explicitly requires it
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / improvements | ❌ Must get author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets/files in your own mod | ✅ **Allowed with credit to creator** |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ✅ Allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed on the page)
+
+- Nexus page author (library creator).
+- **Settlement Management Software** by **matzman666** — listed as inspiration for the library behavior model.
+- No additional file credits listed.
+
+---
+
 ### PaperScript (Papyrus Transpiler Language)
 
 | Field | Details |
