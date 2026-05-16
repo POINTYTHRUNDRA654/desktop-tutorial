@@ -1026,6 +1026,8 @@ Suggested console-history buffer setting before running:
 - `iConsoleHistoryCharBufferSize=9000000` under `[Menu]` in `Fallout4.ini`
 - Or via console: `setini "iConsoleHistoryCharBufferSize:Menu" 9000000`
 
+Reason: this larger buffer helps retain long console output when dumping large setting/value lists so results are not truncated.
+
 GMST caveat noted by the author:
 - Some GMSTs will report `NOT FOUND` via console/batch and must be applied through an ESP instead.
 - Example ESP-only cases listed: `bEnableConsoleMenuDuringSurvival`, `fSurvivalPerceptionCompassBase`, `fSurvivalPerceptionCompassMult`.
@@ -1097,6 +1099,7 @@ The page describes:
 - Common structure shown on the page:
   - Move original binary materials to `data\data\materials`
   - Place converted JSON materials at `data\materials`
+  - Example absolute layout: `C:\PROJECTS\FALLOUT4\BUILD\PC\DATA\data\materials` (originals) and `C:\PROJECTS\FALLOUT4\BUILD\PC\DATA\materials` (JSON set)
 - Update `[Fallout 4]` paths in `MaxNifTools.ini` (especially `MaterialRootPath`) to match your local data-root layout.
 - Verify root data paths and correct skeleton path spacing issues if present.
 
@@ -1158,7 +1161,7 @@ If the `OPAL` folder is not present, create it.
 In Creation Kit:
 1. Click in the render window, then press `Shift + O` (or `World` → `Object palette editing`).
 2. In the OPAL window, pick the OPAL folder.
-3. In `Palette objects`, select from first item to last item with Shift-select.
+3. In `Palette objects`, click the first item, hold `Shift`, then click the last item to multi-select the full range.
 4. In render window, hold `Ctrl + Alt` and left-click to place a random object from the selected palette list.
 
 Known issue from the page:
