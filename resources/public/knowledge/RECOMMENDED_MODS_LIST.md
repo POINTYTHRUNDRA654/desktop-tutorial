@@ -1017,7 +1017,7 @@ The page positions this as a research/testing aid for modders who tune engine be
 
 #### Workflow Notes from the Page
 
-To fetch corresponding live values for INI settings, the page includes an optional `GetValues` batch workflow:
+To fetch corresponding live values for INI settings, the page includes an optional `GetValues` batch file workflow:
 1. Extract optional `GetValues` into `...steamapps\common\Fallout 4`.
 2. Confirm `getvl.txt` is present in that Fallout 4 root directory.
 3. Launch Fallout 4, open console, run: `bat getvl`.
@@ -1093,7 +1093,7 @@ The page describes:
 
 #### Setup Notes (from the page)
 
-- Keep vanilla extracted materials accessible under a `Data\Materials` path.
+- Keep vanilla extracted materials accessible under a `data\materials` path.
 - Common structure shown on the page:
   - Move original binary materials to `data\data\materials`
   - Place converted JSON materials at `data\materials`
