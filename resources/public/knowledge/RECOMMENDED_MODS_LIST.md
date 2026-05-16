@@ -703,6 +703,54 @@ F4Biped is tagged as a **Modder's Resource** on Nexus. The explicit permissions 
 
 ---
 
+### Custom Power Armor Rig (3rd-Person Animation Resource)
+
+| Field | Details |
+|---|---|
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/39089 |
+| **Category** | Modder's Resource — Power Armor animation rig |
+| **Type** | Custom rig for creating Fallout 4 Power Armor 3rd-person animations |
+| **Console (Bethesda.net)** | ❌ Not available on Bethesda.net for console users |
+
+#### What It Is
+
+A custom Power Armor rig released for mod authors who want to animate Power Armor in 3rd person. The author describes it as an early rig that is not perfect, but functional and used in shipped weapon-mod animation work.
+
+The page notes the workflow is broadly similar to:
+- Fallout 4 Animation Kit
+- F4Biped animation rig
+
+If you already build 1st/3rd-person FO4 animations, the author indicates this rig follows a familiar process.
+
+#### Permissions Summary
+
+| Permission | Status |
+|---|---|
+| Upload to other sites | ❌ Not allowed |
+| Modify files / improve features | ❌ Must get author permission first |
+| Convert to other games | ❌ Not allowed |
+| Use assets in your own mod | ❌ Must get author permission first |
+| Use in paid/sold mods | ❌ Not allowed |
+| Use in DP-earning mods | ❌ Not allowed |
+| Console publishing | ❌ Not available on Bethesda.net |
+
+> Asset ownership note from page permissions: assets belong to the author or free-to-use modder resources.
+
+#### Credits (as listed by the author)
+
+- **ShadeAnimator** — credited by the author for the Animation Kit and helping them learn custom animation workflows.
+- **MaikCG** — credited by the author for the first human rig.
+- Nexus page author (mod creator).
+- No additional file credits listed in the permissions tab.
+
+#### Notes for Mod Authors
+
+- The author did not provide a full tutorial for this rig.
+- The page asks users not to repost the rig elsewhere.
+- Author indicates they may attempt a super-mutant rig in the future.
+
+---
+
 ### Shiagur's Blender Animation Rig Suite (Human + Power Armor)
 
 > These two mods are designed as a pair by the same author. The v2.0 guide covers both together. **Read the permissions carefully — they differ between the two rigs.**
