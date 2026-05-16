@@ -297,6 +297,8 @@ Current entries:
 - **Animated World Framework** (Nexus #100946) by Knundrum — F4SE-native world interaction animations; no scripting required for patch authors
 - **MaikCG F4Biped** (Nexus #16691) by MaikCG — professional animation rig for 3ds Max, Maya, and MotionBuilder
 - **2025–2026 Toolchain Gap-Fill Section** — now includes Collective Modding Toolkit (OG/NG/AE diagnostics), xEdit/FO4Edit official build channels, and papyrus-lang VS Code tooling with credits and source links
+- **Deep-scan Platform + Asset Coverage Matrix (2026 pass)** — verifies Nexus/GitHub/CK/Reddit/Discord coverage and maps each major asset workflow to Mossy knowledge docs
+- **The Midnight Ride baseline guide entry** — added as a modern setup reference for onboarding and version-aware stability practices
 
 ---
 
