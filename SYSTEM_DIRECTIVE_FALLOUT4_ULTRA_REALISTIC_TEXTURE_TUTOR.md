@@ -6,7 +6,7 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 
 ---
 
-## 🛠️ THE 9-STEP MASTER PIPELINE
+## 🛠️ THE 11-STEP MASTER PIPELINE
 
 ### STEP 1: BASE CONCEPTION & GENERATION (KREA AI)
 - **Goal:** Generate crisp, flat-lit, seamless baseline materials.
@@ -107,6 +107,27 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
   - Flags: Two-Sided, Alpha Test, Z-Buffer Test, Z-Buffer Write
   - Properties: Alpha Test Ref `128–160`, Sub-Surface Multiplier `1.5–3.0`
 
+### STEP 10: PARALLAX OCCLUSION MAPPING (POM) FOR TREE BARK DEPTH
+- **Goal:** Simulate deep bark crevices without increasing mesh polygon count.
+- **Height-map processing (Photopea):**
+  - Convert to grayscale and tune Levels so valleys are near black and ridges near white.
+- **Channel packing:**
+  - Pack the height map into the normal map alpha channel (`_n.dds`), then export BC7 (+alpha) with mip maps.
+- **BGSM tuning:**
+  - Enable parallax/height-map flag.
+  - Set `Parallax Amount = 0.02–0.05` (avoid >0.06).
+  - Set `Parallax Number of Steps = 32–64` based on quality/performance budget.
+
+### STEP 11: LOD ATLAS SHEETS FOR DISTANT FORESTS
+- **Goal:** Prevent distant foliage pop-in and preserve visual continuity.
+- **Atlas workflow (Photopea):**
+  - Build full-tree silhouette atlas + matching alpha visibility mask.
+  - Apply subtle diffuse blur (~0.5px) for distance anti-aliasing.
+- **Exporter rules:**
+  - BC7 for foliage billboards (BC1 where appropriate for solid sheets).
+  - Mip generation enabled (Kaiser preferred for alpha retention).
+  - Place outputs in engine LOD paths (e.g., `Data/Textures/LOD/Plants/...`).
+
 ---
 
 ## 🚨 REAL-TIME ASSISTANT TROUBLESHOOTING DIAGNOSTICS
@@ -134,6 +155,12 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 8. **Symptom:** Foliage vanishes when viewed from underneath or behind.
    - **Cause:** One-sided foliage material rendering.
    - **Fix:** Enable **Two-Sided** in BGSM material flags.
+9. **Symptom:** Bark depth appears shredded/stretched at side angles.
+   - **Cause:** Parallax Amount is set too high.
+   - **Fix:** Lower **Parallax Amount** toward `0.02` and re-test.
+10. **Symptom:** Distant trees collapse into incorrect cards/squares or wrong colors.
+    - **Cause:** Missing or mispathed LOD atlas outputs.
+    - **Fix:** Rebuild LOD atlases and place in correct `Data/Textures/LOD/...` directories.
 
 ---
 
@@ -143,3 +170,5 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 - Final shipped texture maps are compressed to BC7 with mip maps enabled.
 - BA2 split is validated: `[PluginName] - Main.ba2` (General) and `[PluginName] - Textures.ba2` (Textures-only DDS).
 - Foliage BGSM flags validated: Two-Sided + Alpha Test + Z-Buffer Test/Write, with tuned Alpha Test Ref.
+- POM bark setup validated: height in normal alpha + stable parallax values.
+- LOD atlas textures generated and stored under the correct `Data/Textures/LOD/...` paths.

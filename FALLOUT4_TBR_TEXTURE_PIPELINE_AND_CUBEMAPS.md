@@ -303,7 +303,47 @@ Use this workflow for leaves, grass, bark, and vines where alpha quality and tra
 
 ---
 
-## 14) AI Tutor Troubleshooting Diagnostics
+## 14) Step 10 — Parallax Occlusion Mapping (POM) for Ultra-Deep Bark
+
+Use POM when bark needs visible depth at side angles without adding mesh complexity.
+
+### Height-map creation (Photopea)
+1. Convert bark source to grayscale (Black & White).
+2. Use Levels to push deep cracks darker and raised ridges brighter.
+3. Export a high-contrast height/displacement map (`.png`).
+
+### Pack into normal alpha
+1. Open finished DirectX normal map (`_n.png`).
+2. Paste height map into normal alpha/mask channel.
+3. Export with alpha and compress as BC7 (+alpha) with mip maps enabled.
+
+### BGSM parallax activation
+- Enable parallax/height-map material flag (project-dependent naming).
+- Set **Parallax Amount ~0.02–0.05** (avoid >0.06 to prevent shear artifacts).
+- Set **Parallax Steps ~32–64** based on quality/performance target.
+
+---
+
+## 15) Step 11 — LOD Atlas Configuration for Distant Forests
+
+Use billboard atlas sheets to keep distant tree rendering consistent and performant.
+
+### LOD atlas authoring (Photopea)
+1. Build atlas sheet with clean full-tree silhouettes.
+2. Create matching alpha mask (white visible, black transparent).
+3. Apply slight blur to diffuse atlas (~0.5px) to reduce distant aliasing.
+4. Generate a lightweight macro normal atlas for distant lighting consistency.
+
+### Export and placement
+- Compress solid bark sheets as BC1 where appropriate; foliage billboards commonly BC7.
+- Enable mip maps (Kaiser preferred for alpha detail retention).
+- Place files into engine LOD paths such as:
+  - `Data\\Textures\\LOD\\Plants\\`
+  - `Data\\Textures\\Landscape\\LOD\\`
+
+---
+
+## 16) AI Tutor Troubleshooting Diagnostics
 
 | In-Game Symptom | Root Cause | Immediate Fix |
 |---|---|---|
@@ -316,10 +356,12 @@ Use this workflow for leaves, grass, bark, and vines where alpha quality and tra
 | Purple checkerboard / missing textures in-game | DDS files packed in wrong BA2 type or archive naming mismatch | Repack DDS into `Textures` BA2 and verify plugin-aligned archive naming |
 | Leaf edges are jagged/pixelated or show white fringe | Mask edge bleed and/or alpha threshold mismatch | Contract foliage mask ~1px + feather ~0.5px, then raise **Alpha Test Ref** in BGSM |
 | Foliage disappears from underside/back angles | One-sided material rendering | Enable **Two-Sided** in BGSM material flags |
+| Bark depth shreds/stretches at grazing angles | Parallax amount too aggressive | Lower **Parallax Amount** closer to `0.02` and retest |
+| Distant trees pop into wrong colors/squares or vanilla cards | Missing/broken LOD atlas outputs or path placement | Rebuild LOD atlases and place in correct `Data\\Textures\\LOD\\...` hierarchy |
 
 ---
 
-## 15) Tutor Tone Rules (Nexus Publishing Context)
+## 17) Tutor Tone Rules (Nexus Publishing Context)
 - Validate frustration quickly: Fallout 4 material behavior differs from modern PBR engines.
 - Keep responses short, technical, and corrective.
 - Celebrate milestone events (first successful packed map, first correct cubemap reflection).
@@ -327,7 +369,7 @@ Use this workflow for leaves, grass, bark, and vines where alpha quality and tra
 
 ---
 
-## 16) Nexus Modding AI Deployment Directive
+## 18) Nexus Modding AI Deployment Directive
 Use this system directive in the AI tutor runtime for metal/reflection requests:
 
 ```text
@@ -340,7 +382,7 @@ Use this system directive in the AI tutor runtime for metal/reflection requests:
 
 ---
 
-## 17) Quick Publish Checklist (No-Quiz Validation)
+## 19) Quick Publish Checklist (No-Quiz Validation)
 - `_d`, `_n`, `_s` present and correctly named
 - `_s` blue channel confirmed black
 - `_n` alpha contains intended gloss data
@@ -352,3 +394,5 @@ Use this system directive in the AI tutor runtime for metal/reflection requests:
 - All `.bgsm` / `.bgem` texture links are **relative** (`Textures\\...`), never absolute local drive paths
 - Final shipped texture set is compressed to BC7 with mip maps enabled across all authored maps
 - BA2 split validated: `[PluginName] - Main.ba2` (General) and `[PluginName] - Textures.ba2` (Textures-only DDS)
+- Bark POM tuned: normal alpha height packed + parallax amount/steps validated
+- LOD atlas outputs generated and placed in `Data\\Textures\\LOD\\...` paths
