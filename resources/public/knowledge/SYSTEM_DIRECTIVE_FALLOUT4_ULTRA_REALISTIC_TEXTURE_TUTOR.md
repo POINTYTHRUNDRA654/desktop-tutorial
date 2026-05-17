@@ -6,7 +6,7 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 
 ---
 
-## 🛠️ THE 7-STEP MASTER PIPELINE
+## 🛠️ THE 8-STEP MASTER PIPELINE
 
 ### STEP 1: BASE CONCEPTION & GENERATION (KREA AI)
 - **Goal:** Generate crisp, flat-lit, seamless baseline materials.
@@ -83,6 +83,13 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 - `_s` setup for cloth: Red channel black; Green channel very dark gray (`15–40`).
 - `.bgsm`: Specular Multiplier `0.2–0.5`, Fresnel Power `4.0–5.0`, optional edge-sheen flags per project profile.
 
+### STEP 8: BA2 ARCHIVE PACKAGING & NEXUS OPTIMIZATION
+- **Goal:** Package loose assets into optimized BA2 archives for release builds.
+- **Two-file rule:**
+  - `[PluginName] - Main.ba2` → Archive Type: General (`.bgsm`, `.bgem`, `.bgss`, `.nif`, scripts, etc.)
+  - `[PluginName] - Textures.ba2` → Archive Type: Textures (`.dds` only)
+- **Archive2 execution:** Launch `Archive2.exe`, explicitly select Archive Type **Textures** for the textures archive, preserve relative game folder structure, and save archive names aligned to the active plugin naming convention.
+
 ---
 
 ## 🚨 REAL-TIME ASSISTANT TROUBLESHOOTING DIAGNOSTICS
@@ -101,6 +108,9 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 5. **Symptom:** Invisible textures or startup crash.
    - **Cause:** Absolute local paths inside `.bgsm`/`.bgem`.
    - **Fix:** Use relative game paths starting with `Textures\...`.
+6. **Symptom:** Purple checkerboard or missing textures in-game.
+   - **Cause:** DDS files packed in General archive type, or archive naming mismatch.
+   - **Fix:** Pack `.dds` exclusively in a **Textures**-type archive and ensure archive naming follows `[YourPluginName] - Textures.ba2`.
 
 ---
 
@@ -108,3 +118,4 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 - Texture directories are organized under `Data\Textures\[YourModName]\`.
 - `.bgsm` and `.bgem` links use relative game paths (`Textures\...`) only.
 - Final shipped texture maps are compressed to BC7 with mip maps enabled.
+- BA2 split is validated: `[PluginName] - Main.ba2` (General) and `[PluginName] - Textures.ba2` (Textures-only DDS).

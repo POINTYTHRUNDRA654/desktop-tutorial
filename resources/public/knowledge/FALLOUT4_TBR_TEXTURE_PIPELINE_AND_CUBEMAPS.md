@@ -242,7 +242,37 @@ Use `.bgem` for animated emissive behavior, scrolling energy fields, and high-in
 
 ---
 
-## 12) AI Tutor Troubleshooting Diagnostics
+## 12) Step 8 — BA2 Archive Packaging & Nexus Optimization
+
+Loose files are fine for iteration, but professional Nexus release builds should be archived for better runtime streaming behavior.
+
+### Two-file archive split (required)
+- **`[PluginName] - Main.ba2`** (Archive Type: General)  
+  Contains `.bgsm`, `.bgem`, `.bgss`, `.nif`, scripts, and other non-texture assets.
+- **`[PluginName] - Textures.ba2`** (Archive Type: Textures)  
+  Contains `.dds` files only.
+
+### Archive2 workflow
+1. Launch `Archive2.exe` from Creation Kit tools.
+2. Create Textures archive:
+   - File → New
+   - Archive Type: **Textures**
+   - Import `Textures\\[YourModName]\\...` structure
+   - Save as `[YourPluginName] - Textures.ba2`
+3. Create Main archive:
+   - File → New
+   - Archive Type: **General**
+   - Import materials/mesh/script content (`Materials\\...`, etc.)
+   - Save as `[YourPluginName] - Main.ba2`
+
+### Critical packaging rules
+- Keep internal paths relative and game-root aligned.
+- Do not mix non-DDS files into the Textures archive.
+- Keep archive names aligned with your plugin naming convention.
+
+---
+
+## 13) AI Tutor Troubleshooting Diagnostics
 
 | In-Game Symptom | Root Cause | Immediate Fix |
 |---|---|---|
@@ -252,10 +282,11 @@ Use `.bgem` for animated emissive behavior, scrolling energy fields, and high-in
 | Surface looks flat/plastic | `_n` alpha gloss missing/blank | Reinsert smoothness map into `_n` alpha |
 | Reflections look low-res or warped | Cubemap exported as 2D texture | Re-export with **Cube Map** shape |
 | Rust/rubber also reflects like chrome | No reflection mask remap | Enable glow-to-env-mask and author `_m` mask |
+| Purple checkerboard / missing textures in-game | DDS files packed in wrong BA2 type or archive naming mismatch | Repack DDS into `Textures` BA2 and verify plugin-aligned archive naming |
 
 ---
 
-## 13) Tutor Tone Rules (Nexus Publishing Context)
+## 14) Tutor Tone Rules (Nexus Publishing Context)
 - Validate frustration quickly: Fallout 4 material behavior differs from modern PBR engines.
 - Keep responses short, technical, and corrective.
 - Celebrate milestone events (first successful packed map, first correct cubemap reflection).
@@ -263,7 +294,7 @@ Use `.bgem` for animated emissive behavior, scrolling energy fields, and high-in
 
 ---
 
-## 14) Nexus Modding AI Deployment Directive
+## 15) Nexus Modding AI Deployment Directive
 Use this system directive in the AI tutor runtime for metal/reflection requests:
 
 ```text
@@ -276,7 +307,7 @@ Use this system directive in the AI tutor runtime for metal/reflection requests:
 
 ---
 
-## 15) Quick Publish Checklist (No-Quiz Validation)
+## 16) Quick Publish Checklist (No-Quiz Validation)
 - `_d`, `_n`, `_s` present and correctly named
 - `_s` blue channel confirmed black
 - `_n` alpha contains intended gloss data
@@ -287,3 +318,4 @@ Use this system directive in the AI tutor runtime for metal/reflection requests:
 - Texture directory structure is strictly under `Data\\Textures\\[YourModName]\\`
 - All `.bgsm` / `.bgem` texture links are **relative** (`Textures\\...`), never absolute local drive paths
 - Final shipped texture set is compressed to BC7 with mip maps enabled across all authored maps
+- BA2 split validated: `[PluginName] - Main.ba2` (General) and `[PluginName] - Textures.ba2` (Textures-only DDS)
