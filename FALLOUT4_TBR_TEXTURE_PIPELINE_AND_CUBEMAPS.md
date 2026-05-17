@@ -272,7 +272,38 @@ Loose files are fine for iteration, but professional Nexus release builds should
 
 ---
 
-## 13) AI Tutor Troubleshooting Diagnostics
+## 13) Step 9 — Photorealistic Vegetation Pipeline (Photopea)
+
+Use this workflow for leaves, grass, bark, and vines where alpha quality and translucency control are critical.
+
+### Foliage texture anatomy
+- **`_d.dds` (Diffuse + Transparency Alpha)**
+  - RGB: de-lit foliage color
+  - Alpha: silhouette transparency mask
+- **`_n.dds` (Normal + Translucency Alpha)**
+  - RGB: DirectX normal detail
+  - Alpha: sub-surface/translucency intensity map
+
+### Photopea foliage processing sequence
+1. **De-light base color**
+   - Use Shadows/Highlights to flatten baked sunlight and restore neutral surface color.
+2. **Color profile for FO4 lighting**
+   - Slightly reduce saturation/lightness to avoid neon or overblown greens.
+3. **Build clean alpha silhouette**
+   - Select subject, invert, contract mask by ~1px, feather ~0.5px, then bake white-on-black alpha.
+4. **Build translucency map for normal alpha**
+   - Generate grayscale vein/thickness map and invert so thinner tissue passes more light.
+   - Pack into `_n` alpha (mask channel workflow).
+5. **Organic spec profiles (`_s.dds`)**
+   - Leaves: red channel black; green channel low/mid gloss.
+   - Bark/vines: red channel black; green channel very dark (`~5–15`) to avoid oily glare.
+6. **BGSM foliage flags/properties**
+   - Flags: **Two-Sided**, **Alpha Test**, **Z-Buffer Test**, **Z-Buffer Write**
+   - Properties: **Alpha Test Ref ~128–160**, **Sub-Surface Multiplier ~1.5–3.0**
+
+---
+
+## 14) AI Tutor Troubleshooting Diagnostics
 
 | In-Game Symptom | Root Cause | Immediate Fix |
 |---|---|---|
@@ -283,10 +314,12 @@ Loose files are fine for iteration, but professional Nexus release builds should
 | Reflections look low-res or warped | Cubemap exported as 2D texture | Re-export with **Cube Map** shape |
 | Rust/rubber also reflects like chrome | No reflection mask remap | Enable glow-to-env-mask and author `_m` mask |
 | Purple checkerboard / missing textures in-game | DDS files packed in wrong BA2 type or archive naming mismatch | Repack DDS into `Textures` BA2 and verify plugin-aligned archive naming |
+| Leaf edges are jagged/pixelated or show white fringe | Mask edge bleed and/or alpha threshold mismatch | Contract foliage mask ~1px + feather ~0.5px, then raise **Alpha Test Ref** in BGSM |
+| Foliage disappears from underside/back angles | One-sided material rendering | Enable **Two-Sided** in BGSM material flags |
 
 ---
 
-## 14) Tutor Tone Rules (Nexus Publishing Context)
+## 15) Tutor Tone Rules (Nexus Publishing Context)
 - Validate frustration quickly: Fallout 4 material behavior differs from modern PBR engines.
 - Keep responses short, technical, and corrective.
 - Celebrate milestone events (first successful packed map, first correct cubemap reflection).
@@ -294,7 +327,7 @@ Loose files are fine for iteration, but professional Nexus release builds should
 
 ---
 
-## 15) Nexus Modding AI Deployment Directive
+## 16) Nexus Modding AI Deployment Directive
 Use this system directive in the AI tutor runtime for metal/reflection requests:
 
 ```text
@@ -307,7 +340,7 @@ Use this system directive in the AI tutor runtime for metal/reflection requests:
 
 ---
 
-## 16) Quick Publish Checklist (No-Quiz Validation)
+## 17) Quick Publish Checklist (No-Quiz Validation)
 - `_d`, `_n`, `_s` present and correctly named
 - `_s` blue channel confirmed black
 - `_n` alpha contains intended gloss data
