@@ -150,7 +150,99 @@ Suggested tuning ranges:
 
 ---
 
-## 8) AI Tutor Troubleshooting Diagnostics
+## 8) Step 4 — Dynamically Swapping Textures (Material Swaps / `.mswp`)
+
+Use Material Swaps to switch skins without duplicating meshes.
+
+### Creation Kit setup
+1. Open Creation Kit.
+2. Go to **Object Window → Miscellaneous → Material Swap**.
+3. Create a new record (example: `ModName_MaterialSwap_Chrome`).
+
+### Mapping table
+- **Original Material Path** → vanilla/default BGSM path used by the mesh.
+- **Replacement Material Path** → your custom BGSM (example: `Materials\\ModName\\10mmChrome.bgsm`).
+
+### Attach to OMOD (weapon bench skin workflow)
+1. Open the target Object Modification record.
+2. In Property History, add a new property.
+3. Set function to **RemapMaterial**.
+4. Set value to your Material Swap record.
+
+Result: bench-applied skin changes happen by material remap, not mesh duplication.
+
+---
+
+## 9) Step 5 — Masterclass Wetness Shaders (`.bgss`)
+
+### Purpose
+Enable rain-responsive glistening behavior so assets do not remain visually dry during weather transitions.
+
+### Build wetness sheet
+1. In Bethesda Material Editor: **File → New → Sub-Surface Material (`.bgss`)**.
+2. Save as `[YourAsset]_Wet.bgss`.
+
+### Recommended wetness values
+- **Specular Power:** `128.0–256.0`
+- **Specular Multiplier:** `4.0–6.0`
+- **Fresnel Reflection Power:** `5.0`
+
+### Link into primary material
+1. Re-open `[YourAsset].bgsm`.
+2. Set **Sub-Surface Material (BGSS Path)** to `[YourAsset]_Wet.bgss`.
+
+### Required flags
+- **Sub-Surface Scattering**
+- **Environment Mapping**
+
+---
+
+## 10) Step 6 — Material Effect Shaders (`.bgem`) for Sci-Fi & Energy FX
+
+Use `.bgem` for animated emissive behavior, scrolling energy fields, and high-intensity effect rendering.
+
+### Texture prep
+- **Emissive (`_g.dds`)**: black background, white energy lines/zones.
+- **Noise/Scroll map**: seamless abstract texture for animated motion overlays.
+
+### Create effect material
+1. Bethesda Material Editor → **File → New → Effect Material (`.bgem`)**.
+2. Load required diffuse/normal/effect textures into effect slots.
+
+### Recommended effect properties
+- **Emissive Multiple:** `5.0–30.0`
+- **Falloff Start / End:** `0.2 / 1.0`
+- **U/V Scroll Speed:** `0.05–0.2`
+- **Emissive Color:** set per effect family (plasma, cryo, laser, etc.)
+
+### Key flags
+- **Glow / Full Bright**
+- **Weapon Emissive**
+- Optional: uncheck **Z-Buffer Test** for through-wall/x-ray style effects
+
+---
+
+## 11) Step 7 — Micro-Weave Fabric Shaders for Realistic Clothing
+
+### Micro-detail normal workflow
+1. Generate a tight, seamless weave/pore normal source.
+2. Keep intensity fine; detail should read at close range without noisy sparkle.
+
+### Clothing-specific `_s` packing targets
+- **Red (metallic/spec):** pure black
+- **Green (gloss):** very dark gray (`~15–40` range)
+
+### BGSM tuning
+- **Specular Multiplier:** `0.2–0.5`
+- **BGSS path:** cloth backlighting profile (vanilla or custom)
+
+### Optional satin/silk edge sheen
+- Enable **Remap Glow to Environment Mask** (or equivalent project-approved satin workflow flag)
+- Set **Fresnel Power** near `4.0–5.0` for angle-dependent cloth sheen
+
+---
+
+## 12) AI Tutor Troubleshooting Diagnostics
 
 | In-Game Symptom | Root Cause | Immediate Fix |
 |---|---|---|
@@ -163,7 +255,7 @@ Suggested tuning ranges:
 
 ---
 
-## 9) Tutor Tone Rules (Nexus Publishing Context)
+## 13) Tutor Tone Rules (Nexus Publishing Context)
 - Validate frustration quickly: Fallout 4 material behavior differs from modern PBR engines.
 - Keep responses short, technical, and corrective.
 - Celebrate milestone events (first successful packed map, first correct cubemap reflection).
@@ -171,7 +263,7 @@ Suggested tuning ranges:
 
 ---
 
-## 10) Nexus Modding AI Deployment Directive
+## 14) Nexus Modding AI Deployment Directive
 Use this system directive in the AI tutor runtime for metal/reflection requests:
 
 ```text
@@ -184,7 +276,7 @@ Use this system directive in the AI tutor runtime for metal/reflection requests:
 
 ---
 
-## 11) Quick Publish Checklist (No-Quiz Validation)
+## 15) Quick Publish Checklist (No-Quiz Validation)
 - `_d`, `_n`, `_s` present and correctly named
 - `_s` blue channel confirmed black
 - `_n` alpha contains intended gloss data
