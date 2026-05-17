@@ -231,3 +231,10 @@ Operational notes:
 
 For the complete production-ready reference block, use:
 - `SYSTEM_DIRECTIVE_FALLOUT4_ULTRA_REALISTIC_TEXTURE_TUTOR.md`
+- This file is the **authoritative 8-step pipeline**, including BA2 packaging optimization for Nexus releases.
+
+For external tool downloads and credit attribution used by the cubemap pipeline, use:
+- `resources/public/knowledge/RECOMMENDED_MODS_LIST.md` → **Cubemap & Texture Authoring Toolchain (Nexus Publication Support)**.
+
+Dependency note:
+- No new app runtime dependency is required for this tutorial expansion; the workflow uses external authoring tools and documentation guidance.
