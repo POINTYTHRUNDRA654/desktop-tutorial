@@ -284,3 +284,6 @@ Use this system directive in the AI tutor runtime for metal/reflection requests:
 - Custom cubemap exported as Cube Map (`_e.dds`)
 - BGSM env mapping + glow remap flags confirmed
 - In-game daylight + interior test pass completed
+- Texture directory structure is strictly under `Data\\Textures\\[YourModName]\\`
+- All `.bgsm` / `.bgem` texture links are **relative** (`Textures\\...`), never absolute local drive paths
+- Final shipped texture set is compressed to BC7 with mip maps enabled across all authored maps
