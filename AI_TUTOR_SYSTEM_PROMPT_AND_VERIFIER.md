@@ -228,3 +228,6 @@ For Nexus-focused authoring support, enable this direct-reference behavior when 
 Operational notes:
 - Treat this as a **high-utility reference mode** (no quiz gating).
 - Prioritize pass/fail diagnostics and corrective steps over long explanations.
+
+For the complete production-ready reference block, use:
+- `SYSTEM_DIRECTIVE_FALLOUT4_ULTRA_REALISTIC_TEXTURE_TUTOR.md`
