@@ -14,6 +14,28 @@ This is Mossy's curated list of recommended mods — mods that are high quality,
 
 ---
 
+## Cubemap & Texture Authoring Toolchain (Nexus Publication Support)
+
+This section tracks trusted external tools used for ultra-realistic Fallout 4 texture/cubemap workflows.  
+Use these links when building `_d/_n/_s/_e/_m` pipelines and keep creator credits intact in your project notes.
+
+| Tool | Credits / Maintainer | Official Source | Use in Pipeline |
+|---|---|---|---|
+| NVIDIA Texture Tools Exporter | NVIDIA Corporation | https://developer.nvidia.com/texture-tools-exporter | DDS compression, mip generation, Cube Map export for `_e.dds` |
+| Materialize | Bounding Box Software | https://boundingboxsoftware.com/materialize/ | Seamless conversion and map extraction (height/metal/smoothness) |
+| ShaderMap 4 | Rendering Systems Inc. | https://shadermap.com/ | DirectX normal generation, AO baking, micro-detail workflows |
+| Photopea | Ivan Kuckir | https://www.photopea.com/ | Channel packing and reflection-mask authoring |
+| Creation Kit Archive2 | Bethesda Game Studios | Bundled with Creation Kit (`Fallout 4/Tools/Archive2/Archive2.exe`) | Final BA2 split packaging (`Main.ba2` + `Textures.ba2`) |
+| Hugin (optional) | Hugin open-source contributors | https://hugin.sourceforge.io/ | Panorama/cross-layout prep before Cube Map export |
+
+### Attribution and Usage Notes
+
+- Keep upstream author/org credits in your release notes when a workflow depends heavily on their tooling.
+- For third-party assets/textures/HDRIs, follow each asset license and include explicit credit links on Nexus.
+- Use official sources only; avoid mirror repacks.
+
+---
+
 ## Animation Mods
 
 ---
