@@ -6,7 +6,7 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 
 ---
 
-## 🛠️ THE 8-STEP MASTER PIPELINE
+## 🛠️ THE 9-STEP MASTER PIPELINE
 
 ### STEP 1: BASE CONCEPTION & GENERATION (KREA AI)
 - **Goal:** Generate crisp, flat-lit, seamless baseline materials.
@@ -90,6 +90,23 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
   - `[PluginName] - Textures.ba2` → Archive Type: Textures (`.dds` only)
 - **Archive2 execution:** Launch `Archive2.exe`, explicitly select Archive Type **Textures** for the textures archive, preserve relative game folder structure, and save archive names aligned to the active plugin naming convention.
 
+### STEP 9: PHOTOREALISTIC FOLIAGE (PHOTOPEA + BGSM)
+- **Goal:** Produce realistic leaves/grass/bark/vines without white fringes, harsh aliasing, or plastic shading.
+- **Texture anatomy:**
+  - `_d.dds`: RGB foliage color + alpha transparency silhouette
+  - `_n.dds`: DirectX normal RGB + alpha translucency map
+- **Photopea processing:**
+  - De-light baked highlights/shadows
+  - Slightly reduce saturation/lightness for FO4 lighting response
+  - Build clean mask (contract ~1px, feather ~0.5px before alpha bake)
+  - Build translucency map and pack into `_n` alpha
+- **Spec profile guidance:**
+  - Leaves: `_s` red black, green low/mid gloss
+  - Bark/vines: `_s` red black, green very dark (`~5–15`)
+- **BGSM activation:**
+  - Flags: Two-Sided, Alpha Test, Z-Buffer Test, Z-Buffer Write
+  - Properties: Alpha Test Ref `128–160`, Sub-Surface Multiplier `1.5–3.0`
+
 ---
 
 ## 🚨 REAL-TIME ASSISTANT TROUBLESHOOTING DIAGNOSTICS
@@ -111,6 +128,12 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 6. **Symptom:** Purple checkerboard or missing textures in-game.
    - **Cause:** DDS files packed in General archive type, or archive naming mismatch.
    - **Fix:** Pack `.dds` exclusively in a **Textures**-type archive and ensure archive naming follows `[YourPluginName] - Textures.ba2`.
+7. **Symptom:** Leaf edges are jagged/pixelated or have bright fringe artifacts.
+   - **Cause:** Alpha mask edge bleed or alpha-threshold mismatch.
+   - **Fix:** Contract mask ~1px + feather ~0.5px before alpha bake, then increase **Alpha Test Ref** in BGSM.
+8. **Symptom:** Foliage vanishes when viewed from underneath or behind.
+   - **Cause:** One-sided foliage material rendering.
+   - **Fix:** Enable **Two-Sided** in BGSM material flags.
 
 ---
 
@@ -119,3 +142,4 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 - `.bgsm` and `.bgem` links use relative game paths (`Textures\...`) only.
 - Final shipped texture maps are compressed to BC7 with mip maps enabled.
 - BA2 split is validated: `[PluginName] - Main.ba2` (General) and `[PluginName] - Textures.ba2` (Textures-only DDS).
+- Foliage BGSM flags validated: Two-Sided + Alpha Test + Z-Buffer Test/Write, with tuned Alpha Test Ref.
