@@ -6,7 +6,7 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 
 ---
 
-## 🛠️ THE 8-STEP MASTER PIPELINE
+## 🛠️ THE 11-STEP MASTER PIPELINE
 
 ### STEP 1: BASE CONCEPTION & GENERATION (KREA AI)
 - **Goal:** Generate crisp, flat-lit, seamless baseline materials.
@@ -90,6 +90,44 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
   - `[PluginName] - Textures.ba2` → Archive Type: Textures (`.dds` only)
 - **Archive2 execution:** Launch `Archive2.exe`, explicitly select Archive Type **Textures** for the textures archive, preserve relative game folder structure, and save archive names aligned to the active plugin naming convention.
 
+### STEP 9: PHOTOREALISTIC FOLIAGE (PHOTOPEA + BGSM)
+- **Goal:** Produce realistic leaves/grass/bark/vines without white fringes, harsh aliasing, or plastic shading.
+- **Texture anatomy:**
+  - `_d.dds`: RGB foliage color + alpha transparency silhouette
+  - `_n.dds`: DirectX normal RGB + alpha translucency map
+- **Photopea processing:**
+  - De-light baked highlights/shadows
+  - Slightly reduce saturation/lightness for FO4 lighting response
+  - Build clean mask (contract ~1px, feather ~0.5px before alpha bake)
+  - Build translucency map and pack into `_n` alpha
+- **Spec profile guidance:**
+  - Leaves: `_s` red black, green low/mid gloss
+  - Bark/vines: `_s` red black, green very dark (`~5–15`)
+- **BGSM activation:**
+  - Flags: Two-Sided, Alpha Test, Z-Buffer Test, Z-Buffer Write
+  - Properties: Alpha Test Ref `128–160`, Sub-Surface Multiplier `1.5–3.0`
+
+### STEP 10: PARALLAX OCCLUSION MAPPING (POM) FOR TREE BARK DEPTH
+- **Goal:** Simulate deep bark crevices without increasing mesh polygon count.
+- **Height-map processing (Photopea):**
+  - Convert to grayscale and tune Levels so valleys are near black and ridges near white.
+- **Channel packing:**
+  - Pack the height map into the normal map alpha channel (`_n.dds`), then export BC7 (+alpha) with mip maps.
+- **BGSM tuning:**
+  - Enable parallax/height-map flag.
+  - Set `Parallax Amount = 0.02–0.05` (avoid >0.06).
+  - Set `Parallax Number of Steps = 32–64` based on quality/performance budget.
+
+### STEP 11: LOD ATLAS SHEETS FOR DISTANT FORESTS
+- **Goal:** Prevent distant foliage pop-in and preserve visual continuity.
+- **Atlas workflow (Photopea):**
+  - Build full-tree silhouette atlas + matching alpha visibility mask.
+  - Apply subtle diffuse blur (~0.5px) for distance anti-aliasing.
+- **Exporter rules:**
+  - BC7 for foliage billboards (BC1 where appropriate for solid sheets).
+  - Mip generation enabled (Kaiser preferred for alpha retention).
+  - Place outputs in engine LOD paths (e.g., `Data/Textures/LOD/Plants/...`).
+
 ---
 
 ## 🚨 REAL-TIME ASSISTANT TROUBLESHOOTING DIAGNOSTICS
@@ -111,6 +149,18 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 6. **Symptom:** Purple checkerboard or missing textures in-game.
    - **Cause:** DDS files packed in General archive type, or archive naming mismatch.
    - **Fix:** Pack `.dds` exclusively in a **Textures**-type archive and ensure archive naming follows `[YourPluginName] - Textures.ba2`.
+7. **Symptom:** Leaf edges are jagged/pixelated or have bright fringe artifacts.
+   - **Cause:** Alpha mask edge bleed or alpha-threshold mismatch.
+   - **Fix:** Contract mask ~1px + feather ~0.5px before alpha bake, then increase **Alpha Test Ref** in BGSM.
+8. **Symptom:** Foliage vanishes when viewed from underneath or behind.
+   - **Cause:** One-sided foliage material rendering.
+   - **Fix:** Enable **Two-Sided** in BGSM material flags.
+9. **Symptom:** Bark depth appears shredded/stretched at side angles.
+   - **Cause:** Parallax Amount is set too high.
+   - **Fix:** Lower **Parallax Amount** toward `0.02` and re-test.
+10. **Symptom:** Distant trees collapse into incorrect cards/squares or wrong colors.
+    - **Cause:** Missing or mispathed LOD atlas outputs.
+    - **Fix:** Rebuild LOD atlases and place in correct `Data/Textures/LOD/...` directories.
 
 ---
 
@@ -119,3 +169,6 @@ Fallout 4 does not use a standard modern PBR engine (metal/rough or spec/gloss).
 - `.bgsm` and `.bgem` links use relative game paths (`Textures\...`) only.
 - Final shipped texture maps are compressed to BC7 with mip maps enabled.
 - BA2 split is validated: `[PluginName] - Main.ba2` (General) and `[PluginName] - Textures.ba2` (Textures-only DDS).
+- Foliage BGSM flags validated: Two-Sided + Alpha Test + Z-Buffer Test/Write, with tuned Alpha Test Ref.
+- POM bark setup validated: height in normal alpha + stable parallax values.
+- LOD atlas textures generated and stored under the correct `Data/Textures/LOD/...` paths.
