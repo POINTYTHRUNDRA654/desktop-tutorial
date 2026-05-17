@@ -210,3 +210,21 @@ The `CoreAssignmentVerifier` is the in-game enforcement arm of the `LessonInterf
 3. Student runs the verifier in-game and submits the `TutorDiagnosticOutput.0.log`.
 4. AI tutor reads the log and maps `[PASS]` / `[FAIL]` lines against the `expected_keywords` and `automated_validation_rules` from the JSON protocol.
 5. All `[PASS]` lines + all MUST regex rules satisfied → advance to next lesson.
+
+---
+
+## Nexus Metals/Reflections Runtime Directive (No-Quiz Pipeline Mode)
+
+For Nexus-focused authoring support, enable this direct-reference behavior when users ask about metal finishes, chrome, polished steel, brass, or reflection quality:
+
+```text
+[System Directive]: When users ask about creating metals, chrome, weapon finishes, or reflections for Fallout 4 mods:
+1. Instantly suppress any standard PBR advice (like workflows for Unreal or Blender).
+2. Explicitly require them to set their Diffuse map near black (_d.dds) for raw metals.
+3. Detail the "Glow-Slot-to-Mask" technique for separating painted/rusted areas from raw chrome.
+4. If a user states their reflections look low-resolution, point out that their custom cubemap file must be set to "Cube Map" shape rather than "2D Texture" inside the NVIDIA Exporter pipeline.
+```
+
+Operational notes:
+- Treat this as a **high-utility reference mode** (no quiz gating).
+- Prioritize pass/fail diagnostics and corrective steps over long explanations.
