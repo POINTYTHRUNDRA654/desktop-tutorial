@@ -2555,3 +2555,151 @@ Always resample captured mic audio to 16kHz before Whisper transcription.
 - **High**: missing audio, infinite waits, STT loop failure.
 - **Medium**: animation/lipsync defects, wrong voice routing.
 - **Low**: cosmetic logs/UI timing/typos.
+
+---
+
+## 42) Adaptive Local Learning Loop (LoRA/DPO Style)
+
+This section outlines a local preference-learning pattern (without full base-model retraining).
+
+### A) Preference Data Logger (Python)
+
+```python
+import os
+import json
+
+TRAINING_DATA_DIR = r"Data/F4AI/Training_Cache"
+
+def log_self_advancement_data(npc_name, baseline_prompt, user_input, ai_generation, reward_score):
+    os.makedirs(TRAINING_DATA_DIR, exist_ok=True)
+    dataset_file = os.path.join(TRAINING_DATA_DIR, f"{npc_name}_training_pool.jsonl")
+
+    if reward_score >= 1:
+        chosen_response = ai_generation
+        rejected_response = "Standard boring fallback dialogue."
+    else:
+        chosen_response = "Standard polite compliance text."
+        rejected_response = ai_generation
+
+    training_sample = {
+        "prompt": f"System: {baseline_prompt}\nUser: {user_input}",
+        "chosen": chosen_response,
+        "rejected": rejected_response
+    }
+
+    with open(dataset_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(training_sample) + "\n")
+```
+
+### B) Papyrus Reward/Feedback Monitor
+
+```papyrus
+Scriptname F4AI_FeedbackMonitor extends ReferenceAlias
+
+String Property TrainingInputPath = "Data/F4AI/training_feedback.json" Auto Const
+Int Property LikeKey = 200
+Int Property DislikeKey = 208
+
+Actor LastActiveNPC
+
+Event OnInit()
+    RegisterForKey(LikeKey)
+    RegisterForKey(DislikeKey)
+EndEvent
+
+Function TrackActiveSpeaker(Actor speakingNPC)
+    LastActiveNPC = speakingNPC
+EndFunction
+
+Event OnKeyDown(Int aiKeyCode)
+    if (LastActiveNPC == None || LastActiveNPC.IsDead())
+        return
+    endif
+
+    Int rewardScore = 0
+    if (aiKeyCode == LikeKey)
+        rewardScore = 1
+    elseif (aiKeyCode == DislikeKey)
+        rewardScore = -1
+    endif
+
+    if (rewardScore != 0)
+        SendFeedbackToPython(LastActiveNPC.GetActorBase().GetName(), rewardScore)
+    endif
+EndEvent
+
+Function SendFeedbackToPython(String npcName, Int score)
+    String jsonPayload = "{"
+    jsonPayload += "\"npc_name\": \"" + npcName + "\","
+    jsonPayload += "\"reward_score\": " + score as String
+    jsonPayload += "}"
+    MiscUtil.WriteToFile(TrainingInputPath, jsonPayload, append = false)
+EndFunction
+```
+
+### C) Unsloth Local DPO Fine-Tuning Pattern (`train_lora.py`)
+
+```python
+import os
+from unsloth import FastLanguageModel
+from datasets import load_dataset
+from trl import DPOConfig, DPOTrainer
+import torch
+
+DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+TRAINING_DATA_FILE = os.path.join(DATA_DIR, "Training_Cache", "Settler_training_pool.jsonl")
+OUTPUT_LORA_DIR = os.path.join(DATA_DIR, "Adapters", "Settler_lora")
+BASE_MODEL_PATH = "unsloth/llama-3-8b-Instruct-bnb-4bit"
+
+def run_local_dpo_training():
+    if not os.path.exists(TRAINING_DATA_FILE):
+        return
+
+    max_seq_length = 1024
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=BASE_MODEL_PATH,
+        max_seq_length=max_seq_length,
+        load_in_4bit=True,
+    )
+
+    model = FastLanguageModel.get_peft_model(
+        model,
+        r=16,
+        target_modules=["q_proj","k_proj","v_proj","o_proj","gate_proj","up_proj","down_proj"],
+        lora_alpha=16,
+        lora_dropout=0,
+        bias="none",
+        use_gradient_checkpointing=True,
+    )
+
+    dataset = load_dataset("json", data_files=TRAINING_DATA_FILE, split="train")
+    dpo_config = DPOConfig(
+        output_dir=OUTPUT_LORA_DIR,
+        per_device_train_batch_size=1,
+        gradient_accumulation_steps=4,
+        learning_rate=5e-6,
+        max_steps=20,
+        beta=0.1,
+        fp16=not torch.cuda.is_bf16_supported(),
+        bf16=torch.cuda.is_bf16_supported(),
+    )
+
+    trainer = DPOTrainer(
+        model=model,
+        ref_model=None,
+        args=dpo_config,
+        beta=0.1,
+        train_dataset=dataset,
+        tokenizer=tokenizer,
+        max_length=max_seq_length,
+        max_prompt_length=512,
+    )
+    trainer.train()
+    model.save_pretrained_merged(OUTPUT_LORA_DIR, tokenizer, save_method="lora")
+```
+
+### D) Runtime Hot-Swap
+
+- Trigger training during low-interaction windows (sleep/menu idle).
+- After adapter output, load LoRA via local model host API.
+- Keep opt-in and provide rollback (disable adapter if output quality drops).
