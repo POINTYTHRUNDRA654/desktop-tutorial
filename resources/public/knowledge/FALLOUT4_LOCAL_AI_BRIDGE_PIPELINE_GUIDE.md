@@ -1765,3 +1765,58 @@ def execute_headless_lipgen(wav_relative_path, subtitle_string):
 - `Debug.Notification()` is short-display UI; keep generated lines compact.
 - Delete bridge files promptly after successful read/write stages.
 - Clear or rotate `f4ai_crash_log.txt` at startup so users report current failures.
+
+---
+
+## 30) Game Master Agent Expansion (Beyond Conversation)
+
+After establishing a stable two-way bridge, your Python runtime can orchestrate broader world-state behavior.
+
+### 1) Multi-Agent Inter-NPC Communication
+
+- Trigger joint packets when NPCs share a sandbox cell/zone.
+- Run local multi-turn dialogue loops between NPCs (no player prompt required).
+- Persist resulting exchanges to each NPC memory profile.
+
+Outcome: settlements feel active with unscripted NPC-to-NPC chatter and coordination.
+
+### 2) Autonomous Goal Trees
+
+- Export periodic settlement telemetry (food, defense, caps, beds, threats).
+- Let the LLM/rules layer emit explicit directives, for example:
+  - `[DECISION: GOAL_FARMING]`
+  - `[DECISION: GOAL_DEFENSE_REPAIR]`
+- Map directives to vetted Papyrus actions/packages.
+
+Outcome: NPC priorities adapt to settlement conditions instead of static schedules.
+
+### 3) Mod-Aware Prompt Enrichment
+
+- Read active load order (`plugins.txt`) during startup.
+- Detect major gameplay/content mods and append contextual prompt tags.
+- Keep a safe allowlist so only known metadata affects behavior.
+
+Outcome: AI commentary reflects the user’s modded world context.
+
+### 4) Dynamic Tactical Pathing Signals
+
+- Export hostile/searching actor coordinates + player position + local tags.
+- Compute suggested flank/intercept directives externally.
+- Feed concise commands back into Papyrus combat package selectors.
+
+Outcome: enemies can execute more varied tactical movement and callouts.
+
+### 5) Local Adapter Fine-Tuning Lifecycle (Advanced)
+
+- Track long-term interaction sentiment and behavior patterns per companion.
+- Periodically train/apply small local adapters (LoRA-style) offline.
+- Gate adapter hot-swaps behind explicit user opt-in and integrity checks.
+
+Outcome: personalities evolve over long playthroughs while staying local/offline.
+
+### Safety Boundaries for Game Master Features
+
+- Keep all high-impact actions behind deterministic command whitelists.
+- Enforce cooldowns/rate limits on autonomous actions.
+- Log all AI-issued directives for replay/debugging.
+- Provide a holotape kill switch to disable autonomous systems instantly.
