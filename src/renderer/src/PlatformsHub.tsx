@@ -65,6 +65,13 @@ export const PlatformsHub: React.FC<PlatformsHubProps> = ({ embedded = false }) 
       icon: Wrench,
     },
     {
+      title: 'Deep Scan Platform',
+      description: 'Run full environment diagnostics, system scan, and Fallout 4 tool detection in one place.',
+      to: '/diagnostics',
+      icon: ShieldCheck,
+      badge: 'Deep Scan',
+    },
+    {
       title: 'SS2 Creator Learning Path',
       description: 'Beginner-friendly step-by-step path for SS2 tools, city plans, and creator workflows.',
       to: '/guides/mods/sim-settlements',
