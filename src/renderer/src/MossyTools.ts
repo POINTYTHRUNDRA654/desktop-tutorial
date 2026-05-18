@@ -1066,34 +1066,58 @@ export const executeMossyTool = async (name: string, args: any, context: {
         }
     } else if (name === 'get_scan_results') {
         try {
-            const cachedApps = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+            const parseArray = (raw: string | null) => {
+                if (!raw) return [];
+                try {
+                    const parsed = JSON.parse(raw);
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch {
+                    return [];
+                }
+            };
+
+            const allDetectedApps = parseArray(localStorage.getItem('mossy_all_detected_apps'));
+            const approvedApps = parseArray(localStorage.getItem('mossy_apps'));
+            const summaryRaw = localStorage.getItem('mossy_scan_summary');
+            const summary = summaryRaw ? JSON.parse(summaryRaw) : null;
             const lastScan = localStorage.getItem('mossy_last_scan');
-            
-            if (!cachedApps || cachedApps.length === 0) {
+
+            const sourceApps = allDetectedApps.length > 0 ? allDetectedApps : approvedApps;
+            if (!sourceApps || sourceApps.length === 0) {
                 result = `**No scan results found.** I haven't scanned your system yet. Please ask me to "Run a deep scan" or "Scan my system" to detect installed software.`;
             } else {
                 const scanDate = lastScan ? new Date(lastScan).toLocaleString() : 'Unknown time';
-                const aiApps = cachedApps.filter((a: any) => {
-                    const name = (a.name || a.displayName || '').toLowerCase();
-                    return name.includes('ai') || 
-                           name.includes('chatgpt') || 
-                           name.includes('claude') || 
-                           name.includes('copilot') ||
-                           name.includes('gpt') ||
-                           name.includes('ollama') ||
-                           name.includes('local') ||
-                           name.includes('neural') ||
-                           name.includes('llm');
+                const aiApps = sourceApps.filter((a: any) => {
+                    const appName = (a.name || a.displayName || '').toLowerCase();
+                    return appName.includes('ai') ||
+                        appName.includes('chatgpt') ||
+                        appName.includes('claude') ||
+                        appName.includes('copilot') ||
+                        appName.includes('gpt') ||
+                        appName.includes('ollama') ||
+                        appName.includes('local') ||
+                        appName.includes('neural') ||
+                        appName.includes('llm');
                 });
-                
-                const appList = cachedApps.map((a: any) => `- **${a.name}**${a.version ? ` (v${a.version})` : ''}\n  📍 ${a.path}`).join('\n');
-                
+
+                const appList = sourceApps.slice(0, 60).map((a: any) =>
+                    `- **${a.displayName || a.name || 'Unknown App'}**${a.version ? ` (v${a.version})` : ''}\n  📍 ${a.path || 'Path unavailable'}`
+                ).join('\n');
+
+                const totalPrograms = summary?.totalPrograms ?? sourceApps.length;
+                const nvidiaTools = summary?.nvidiaTools ?? 'unknown';
+                const fallout4Installations = summary?.fallout4Installations ?? 'unknown';
+                const sourceLabel = allDetectedApps.length > 0 ? 'deep scan cache' : 'approved tools cache';
+
                 result = `**📊 System Scan Results**
 
 **Last Scan:** ${scanDate}
-**Total Applications Detected:** ${cachedApps.length}
+**Total Applications Detected:** ${totalPrograms}
+**NVIDIA Tools:** ${nvidiaTools}
+**Fallout 4 Installations:** ${fallout4Installations}
+**Data Source:** ${sourceLabel}
 
-${aiApps.length > 0 ? `**AI & Machine Learning Tools (${aiApps.length}):**\n${aiApps.map((a: any) => `- **${a.name}** 📍 ${a.path}`).join('\n')}\n\n` : ''}**All Detected Applications:**
+${aiApps.length > 0 ? `**AI & Machine Learning Tools (${aiApps.length}):**\n${aiApps.slice(0, 20).map((a: any) => `- **${a.displayName || a.name || 'Unknown App'}** 📍 ${a.path || 'Path unavailable'}`).join('\n')}\n\n` : ''}**Detected Applications (top ${Math.min(sourceApps.length, 60)}):**
 ${appList}
 
 I can now integrate with these tools to enhance my capabilities and provide you with seamless workflows. Which of these applications would you like me to help you with?`;
@@ -1134,6 +1158,91 @@ I can now integrate with these tools to enhance my capabilities and provide you 
             }
         } catch (e: any) {
             result = `**Error analyzing programs:** ${e instanceof Error ? e.message : 'Unknown error'}`;
+        }
+    } else if (name === 'cortex_neural_pulse') {
+        try {
+            const reason = String(args?.reason || 'Cortex pulse requested').trim();
+            const parseArray = (raw: string | null) => {
+                if (!raw) return [];
+                try {
+                    const parsed = JSON.parse(raw);
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch {
+                    return [];
+                }
+            };
+
+            let allApps = parseArray(localStorage.getItem('mossy_all_detected_apps'));
+            if (allApps.length === 0 && api?.detectPrograms) {
+                try {
+                    allApps = await api.detectPrograms();
+                    localStorage.setItem('mossy_all_detected_apps', JSON.stringify(allApps));
+                    localStorage.setItem('mossy_last_scan', new Date().toISOString());
+                } catch {
+                    // Keep operating with cached data only
+                }
+            }
+
+            const appName = (a: any) => `${a?.displayName || a?.name || ''} ${a?.path || ''}`.toLowerCase();
+            const hasTool = (keywords: string[]) => allApps.some((a: any) => keywords.some((kw) => appName(a).includes(kw)));
+
+            const fo4Keywords = ['fallout 4', 'fo4', 'f4se', 'xedit', 'fo4edit', 'creation kit', 'nifskope', 'mod organizer', 'mo2', 'vortex', 'loot'];
+            const fo4Relevant = allApps.filter((a: any) => fo4Keywords.some((kw) => appName(a).includes(kw)));
+
+            const missingCore: string[] = [];
+            if (!hasTool(['xedit', 'fo4edit', 'fo4xedit'])) missingCore.push('xEdit / FO4Edit');
+            if (!hasTool(['mod organizer', 'mo2', 'vortex'])) missingCore.push('MO2 or Vortex');
+            if (!hasTool(['loot'])) missingCore.push('LOOT');
+
+            const recommendations: string[] = [];
+            if (missingCore.length > 0) {
+                recommendations.push(`Install core tooling: ${missingCore.join(', ')}.`);
+            }
+            if (!hasTool(['f4se'])) {
+                recommendations.push('Install and verify F4SE for script-heavy mod stacks.');
+            }
+            if (fo4Relevant.length === 0) {
+                recommendations.push('Run Settings → System Monitor deep scan and validate Fallout 4/modding tool paths.');
+            }
+            if (recommendations.length === 0) {
+                recommendations.push('Core tooling looks present; next step is plugin-level scan with scan_plugin for your active ESP/ESM.');
+            }
+
+            const pulseTime = new Date().toISOString();
+            const pulseEntry = {
+                id: `cortex-pulse-${Date.now()}`,
+                type: 'scan',
+                name: `Neural Pulse ${new Date().toLocaleString()}`,
+                status: 'indexed',
+                summary: `Analyzed ${allApps.length} detected apps; ${fo4Relevant.length} FO4-relevant tools.`,
+                details: {
+                    reason,
+                    analyzedApps: allApps.length,
+                    fo4RelevantTools: fo4Relevant.slice(0, 30).map((a: any) => a.displayName || a.name).filter(Boolean),
+                    missingCore,
+                    recommendations,
+                    at: pulseTime,
+                }
+            };
+
+            const existingMemory = parseArray(localStorage.getItem('mossy_cortex_memory'));
+            const nextMemory = [...existingMemory, pulseEntry].slice(-200);
+            localStorage.setItem('mossy_cortex_memory', JSON.stringify(nextMemory));
+            window.dispatchEvent(new Event('mossy-memory-update'));
+
+            result = `🧠 **Cortex Neural Pulse Complete**
+
+**Reason:** ${reason}
+**Apps analyzed:** ${allApps.length}
+**FO4-relevant tools detected:** ${fo4Relevant.length}
+${missingCore.length > 0 ? `**Missing core tools:** ${missingCore.join(', ')}` : '**Missing core tools:** none detected'}
+
+**Recommended next actions:**
+${recommendations.map((r) => `- ${r}`).join('\n')}
+
+✅ Pulse results were added to Cortex memory and are available for future guidance.`;
+        } catch (e: any) {
+            result = `❌ **cortex_neural_pulse error:** ${e?.message || String(e)}`;
         }
     } else if (name === 'scan_installed_tools') {
         const api = (window as any).electron?.api || (window as any).electronAPI;
