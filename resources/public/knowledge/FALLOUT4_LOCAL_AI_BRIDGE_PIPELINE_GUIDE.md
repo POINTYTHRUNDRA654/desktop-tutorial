@@ -2473,3 +2473,85 @@ Fix:
 1. Open quest/script properties in CK.
 2. Select `F4AI_AudioOutputSound`.
 3. Click **Edit Value** and assign the intended sound descriptor asset.
+
+---
+
+## 40) Companion Edge-Case Hardening
+
+### Codsworth / Nick / Curie / Strong Lipgen Guard
+
+Some companions use non-standard rigs or special meshes; skip lipgen for flagged actors.
+
+```python
+def check_lipgen_eligibility(npc_name):
+    blacklist = ["Codsworth", "Curie", "Nick Valentine", "Strong"]
+    return npc_name not in blacklist
+
+# if check_lipgen_eligibility(npc):
+#     execute_headless_lipgen(wav_path, ai_response)
+```
+
+### Danse Power-Armor Radio Color
+
+In CK, set `F4AI_AudioOutputSound` output model to a power-armor-compatible sound output model (for helmet/radio coloration) instead of default dry output.
+
+### Curie Identity Unification
+
+```python
+def normalize_companion_identity(npc_name):
+    if "Curie" in npc_name:
+        return "Curie"
+    return npc_name
+```
+
+Use normalized identity for memory file keys to preserve continuity across quest-form transitions.
+
+### Scene-Safe Companion Trigger Guard (Papyrus)
+
+```papyrus
+Function SafeCompanionTrigger(Actor companionRef)
+    if (companionRef.IsInScene())
+        Debug.Notification(companionRef.GetActorBase().GetName() + " is currently busy.")
+        Return
+    endif
+    QueueManager.PushToQueue(companionRef)
+EndFunction
+```
+
+---
+
+## 41) Alpha Framework Warnings + Bug-Tracking Template
+
+### Warning 1: `CUDA initialization: CUDA unknown error`
+
+Safe to suppress if STT is CPU-only:
+
+```python
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+```
+
+### Warning 2: `ResourceWarning: unclosed file`
+
+Use `with open(...)` for all bridge/config file reads and writes; avoid lingering file handles in polling loops.
+
+### Warning 3: `FutureWarning` on non-16kHz sample rate
+
+Always resample captured mic audio to 16kHz before Whisper transcription.
+
+### Suggested Alpha Bug Tracker Columns
+
+| Ticket ID | Feature Module | Severity | Reporter ID | Bug Description | Hardware Context | Log Attached? | Resolution Status |
+|---|---|---|---|---|---|---|---|
+| #001 | Microphone STT | High | VaultHunter99 | Gunfire transcribes as noise | RTX 3070 / Blue Yeti | Yes | Investigating noise gate |
+| #002 | Animation/Lips | Medium | CodsworthFan | Codsworth lipgen crash | GTX 1060 / i5-7500 | Yes | Fixed (blacklist) |
+| #003 | Memory Engine | Low | SynthSympathizer | Curie memory split | RX 6800 XT / Ryzen 7 | No | Fixed (name unification) |
+| #004 | Quest/Scenes | High | DiamondCityRep | Piper scene interruption | RTX 4080 / i9-13900K | Yes | Scene guard in progress |
+
+### Severity Definitions
+
+- **Critical**: crashes, save corruption, hard quest lock.
+- **High**: missing audio, infinite waits, STT loop failure.
+- **Medium**: animation/lipsync defects, wrong voice routing.
+- **Low**: cosmetic logs/UI timing/typos.
