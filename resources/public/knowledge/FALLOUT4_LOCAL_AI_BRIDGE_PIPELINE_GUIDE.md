@@ -2008,3 +2008,75 @@ EndEvent
 - `compute_type="int8"` on CPU preserves GPU VRAM for Fallout 4 + LLM runtime.
 - Tune `pause_threshold` (1.2–1.5) to reduce mid-sentence clipping.
 - Keep phrase limits tight to avoid long blocking listens during combat.
+
+---
+
+## 33) STT Cross-Talk Filtering + Final Alpha Build Matrix
+
+### 1) Filtering Game Audio Cross-Talk
+
+Install dependency:
+
+```bash
+pip install scipy
+```
+
+Noise-gate/filter example for microphone buffers:
+
+```python
+import numpy as np
+
+def apply_acoustic_noise_gate(wav_bytes_data):
+    """
+    Suppresses low-level noise and clamps extreme spikes before STT.
+    """
+    audio_data = np.frombuffer(wav_bytes_data, dtype=np.int16)
+
+    NOISE_FLOOR = 500
+    audio_data[np.abs(audio_data) < NOISE_FLOOR] = 0
+
+    MAX_SPEECH_VOLUME = 28000
+    audio_data = np.clip(audio_data, -MAX_SPEECH_VOLUME, MAX_SPEECH_VOLUME)
+
+    return audio_data.tobytes()
+```
+
+In the STT loop, apply the filter before transcription:
+
+```python
+# raw_audio_bytes = audio_data.get_raw_data()
+# filtered_bytes = apply_acoustic_noise_gate(raw_audio_bytes)
+```
+
+### 2) Compile the Full Alpha Executable
+
+```bash
+pyinstaller --onefile --noconsole --collect-all faster_whisper --name="Fallout4_AI_Engine" main.py
+```
+
+### 3) Final Asset Tree Verification
+
+```text
+Fallout 4/
+ └── Data/
+      ├── F4AI_Core.esp
+      ├── Scripts/
+      │    ├── F4AI_QueueManager.pex
+      │    ├── F4AI_CrowdNPC.pex
+      │    ├── F4AI_PushToTalkTrigger.pex
+      │    └── F4AI_VisionWidgetManager.pex
+      └── F4AI/
+           ├── Fallout4_AI_Engine.exe
+           ├── config.json
+           ├── en_US-lessac-medium.onnx
+           └── en_US-lessac-medium.onnx.json
+```
+
+### 4) End-to-End Playtest Steps
+
+1. Launch `Fallout4_AI_Engine.exe`.
+2. Launch game via `f4se_loader.exe`.
+3. Look at companion and hold push-to-talk key.
+4. Speak, release key, verify STT -> LLM -> TTS -> playback chain.
+
+If this loop passes consistently, your alpha runtime is ready for controlled testing distribution.
