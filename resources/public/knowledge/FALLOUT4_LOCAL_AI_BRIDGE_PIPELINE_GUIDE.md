@@ -695,3 +695,135 @@ def generate_response_with_config(npc_name, location, player_input):
 2. Assign a custom Terminal object.
 3. Add menu items/submenus and bind actions to `IncreaseTemperature`, `DecreaseTemperature`, and `ToggleMemory`.
 4. Add a startup quest that gives the holotape to the player on first load.
+
+---
+
+## 15) Multi-NPC Crowd Safety with a Global Dialogue Queue
+
+When multiple NPCs trigger simultaneously, queue requests to avoid overlap and race conditions.
+
+### Global Queue Controller (Quest Script)
+
+```papyrus
+Scriptname F4AI_QueueManager extends Quest
+
+String Property InputPath = "Data/F4AI/bridge_input.json" Auto Const
+String Property OutputPath = "Data/F4AI/bridge_output.json" Auto Const
+Sound Property F4AI_AudioOutputSound Auto Const
+
+Actor[] DialogueQueue
+Bool IsProcessing = false
+
+Event OnInit()
+    DialogueQueue = new Actor[20]
+EndEvent
+
+Function PushToQueue(Actor npcRef)
+    Int i = 0
+    While (i < DialogueQueue.Length)
+        if (DialogueQueue[i] == None)
+            DialogueQueue[i] = npcRef
+            ProcessNextInQueue()
+            Return
+        endif
+        i += 1
+    EndWhile
+EndFunction
+
+Function ProcessNextInQueue()
+    if (IsProcessing || DialogueQueue[0] == None)
+        Return
+    endif
+    
+    IsProcessing = true
+    Actor currentNPC = DialogueQueue[0]
+    
+    Int i = 0
+    While (i < DialogueQueue.Length - 1)
+        DialogueQueue[i] = DialogueQueue[i + 1]
+        i += 1
+    EndWhile
+    DialogueQueue[DialogueQueue.Length - 1] = None
+    
+    TriggerAIGeneration(currentNPC)
+EndFunction
+
+Function TriggerAIGeneration(Actor targetNPC)
+    String jsonPayload = "{\"npc_name\": \"" + targetNPC.GetActorBase().GetName() + "\", \"location\": \"" + Game.GetPlayer().GetCurrentLocation().GetName() + "\"}"
+    MiscUtil.WriteToFile(InputPath, jsonPayload, append = false)
+    
+    Int timeout = 0
+    While (!MiscUtil.FileExists(OutputPath) && timeout < 60)
+        Utility.Wait(0.1)
+        timeout += 1
+    EndWhile
+    
+    if (MiscUtil.FileExists(OutputPath))
+        String fileContents = MiscUtil.ReadFromFile(OutputPath)
+
+        Int subtitleMarkerPos = StringUtil.Find(fileContents, "\"subtitle_text\": \"")
+        Int endPos = StringUtil.Find(fileContents, "\", \"audio_file\"")
+        If (subtitleMarkerPos != -1 && endPos != -1 && endPos > subtitleMarkerPos + 18)
+            Int startPos = subtitleMarkerPos + 18
+            String finalSubtitle = StringUtil.Substring(fileContents, startPos, endPos - startPos)
+            Debug.Notification(targetNPC.GetActorBase().GetName() + ": " + finalSubtitle)
+        Else
+            Debug.Notification("[AI Output Parse Error]")
+        EndIf
+        
+        F4AI_AudioOutputSound.Play(targetNPC)
+        MiscUtil.DeleteFile(OutputPath)
+    endif
+    
+    IsProcessing = false
+    ProcessNextInQueue()
+EndFunction
+```
+
+### Individual NPC Enqueue Script
+
+```papyrus
+Scriptname F4AI_CrowdNPC extends ReferenceAlias
+
+F4AI_QueueManager Property QueueManager Auto Const
+
+Event OnActivate(ObjectReference akActionRef)
+    if (akActionRef == Game.GetPlayer())
+        QueueManager.PushToQueue(self.GetActorReference())
+    endif
+EndEvent
+```
+
+### Queue Behavior Notes
+
+- One NPC is processed at a time.
+- Others wait in `DialogueQueue` until processing clears.
+- Prevents TTS overlap, file clobbering, and back-to-back bridge crashes.
+
+---
+
+## 16) Advanced Systems Enabled by the Same Bridge
+
+### 1. Dynamic Faction Radio ("Gossip Engine")
+
+- Update `world_history.json` on major player milestones.
+- Generate fresh radio host lines from local AI + local TTS.
+- Feed generated audio into radio playback assets.
+
+### 2. AI-Driven Companion Morality
+
+- Track long-term player behavior (crime/help/faction choices).
+- Evaluate trajectory in memory profiles.
+- Generate relationship reactions beyond static liked/disliked toggles.
+
+### 3. Contextual Stealth Reactions
+
+- Export Caution-state context (location, sound source, visibility).
+- Generate squad callouts and search plans dynamically.
+- Increase encounter variety without hand-authoring every bark.
+
+### 4. Environmental Commentary
+
+- Send weather/time/location/event context into prompt.
+- Generate situational companion observations on demand.
+- Keep dialogue fresh across repeated playthroughs.
