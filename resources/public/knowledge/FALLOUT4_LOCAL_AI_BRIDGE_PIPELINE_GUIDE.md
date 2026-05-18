@@ -116,6 +116,7 @@ def query_local_llm(prompt):
         "max_context_length": 2048,
         "max_length": 80,  # Keeps NPC lines short and natural
         "temperature": 0.7,
+        # Tune stop sequences to your model template/token format.
         "stop_sequence": ["\n", "Player:", "NPC:"]
     }
     try:
@@ -149,6 +150,7 @@ def process_game_event():
     os.remove(BRIDGE_FILE)
 
 if __name__ == "__main__":
+    POLLING_INTERVAL = 0.5
     print("Fallout 4 Local AI Bridge Active. Monitoring game files...")
     while True:
         if os.path.exists(BRIDGE_FILE):
@@ -157,7 +159,7 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"Error reading bridge file: {e}")
                 time.sleep(1)
-        time.sleep(0.5) # Prevent high CPU usage while idling
+        time.sleep(POLLING_INTERVAL) # Prevent high CPU usage while idling
 ```
 
 ---
@@ -246,6 +248,7 @@ def process_game_event():
     print("Sent audio and subtitles back to Fallout 4 successfully.")
 
 if __name__ == "__main__":
+    POLLING_INTERVAL = 0.5
     print("Fallout 4 Local AI Bridge Active. Waiting for player interactions...")
     while True:
         if os.path.exists(INPUT_FILE):
@@ -253,7 +256,7 @@ if __name__ == "__main__":
                 process_game_event()
             except Exception as e:
                 print(f"Error: {e}")
-        time.sleep(0.5)  # Keep same polling cadence as Part 2 unless profiling proves otherwise
+        time.sleep(POLLING_INTERVAL)  # Keep same polling cadence as Part 2 unless profiling proves otherwise
 ```
 
 ---
@@ -280,10 +283,10 @@ Event OnActivate(ObjectReference akActionRef)
         MiscUtil.WriteToFile(InputPath, jsonPayload, append = false)
         
         ; 2. Enter a loop waiting for Python to create the output response file
-        Int timeoutCounter = 0
-        While (!MiscUtil.FileExists(OutputPath) && timeoutCounter < 60)
+        Int TimeoutCounter = 0
+        While (!MiscUtil.FileExists(OutputPath) && TimeoutCounter < 60)
             Utility.Wait(0.1) ; 100ms cadence, 6s total timeout
-            timeoutCounter += 1
+            TimeoutCounter += 1
         EndWhile
         
         ; 3. Parse the return file if found
@@ -373,7 +376,7 @@ For dynamic facial animation, generate lip data externally after TTS output.
 import subprocess
 import os
 
-FALLOUT_ROOT = r"C:\Program Files (x86)\Steam\steamapps\common\Fallout 4"
+FALLOUT_ROOT = os.getenv("FALLOUT4_ROOT", r"C:\Program Files (x86)\Steam\steamapps\common\Fallout 4")
 CK_32_EXE = os.path.join(FALLOUT_ROOT, "CreationKit32.exe")
 
 def generate_npc_lip_sync(relative_audio_path, raw_text_line):
@@ -500,8 +503,9 @@ def update_npc_memory(npc_name, player_input, ai_response, mood_shift=0):
     memory_file = os.path.join(MEMORY_DIR, f"{npc_name.replace(' ', '_')}.json")
     memory_data = load_or_create_memory(npc_name)
     
+    MAX_CONVERSATION_HISTORY = 5
     memory_data["conversations"].append({"player": player_input, "npc": ai_response})
-    if len(memory_data["conversations"]) > 5:
+    if len(memory_data["conversations"]) > MAX_CONVERSATION_HISTORY:
         memory_data["conversations"].pop(0)
         
     memory_data["player_reputation"] += mood_shift
@@ -827,3 +831,314 @@ EndEvent
 - Send weather/time/location/event context into prompt.
 - Generate situational companion observations on demand.
 - Keep dialogue fresh across repeated playthroughs.
+
+---
+
+## 17) Procedural Radio Gossip Engine (Detailed)
+
+### Papyrus World History Tracker
+
+```papyrus
+Scriptname F4AI_RadioWorldTracker extends Quest
+
+String Property WorldHistoryPath = "Data/F4AI/world_history.json" Auto Const
+
+Bool Property Completed_UnlikelyValentine Auto
+Bool Property Completed_NuclearOption Auto
+Int Property SettlementsSaved Auto
+
+Function UpdateWorldHistory(String latestEventDescription)
+    Int playerLevel = Game.GetPlayer().GetLevel()
+    String currentFaction = "Minutemen" ; Replace with your dynamic faction resolver
+    
+    String jsonStr = "{"
+    jsonStr += "\"latest_news\": \"" + latestEventDescription + "\","
+    jsonStr += "\"player_level\": " + playerLevel as String + ","
+    jsonStr += "\"current_faction\": \"" + currentFaction + "\","
+    jsonStr += "\"minutemen_settlements\": " + SettlementsSaved as String + ","
+    jsonStr += "\"nick_valentine_rescued\": " + Completed_UnlikelyValentine as String + ","
+    jsonStr += "\"institute_destroyed\": " + Completed_NuclearOption as String
+    jsonStr += "}"
+    
+    MiscUtil.WriteToFile(WorldHistoryPath, jsonStr, append = false)
+EndFunction
+```
+
+### Python Radio Script + TTS Generation
+
+```python
+import os
+import json
+
+WORLD_FILE = os.path.join(DATA_DIR, "world_history.json")
+RADIO_OUT_WAV = os.path.join(FALLOUT_ROOT, "Data", "Sound", "FX", "F4AI", "radio_broadcast.wav")
+
+def generate_radio_broadcast():
+    if not os.path.exists(WORLD_FILE):
+        return
+        
+    with open(WORLD_FILE, "r") as f:
+        world = json.load(f)
+        
+    news = world.get("latest_news", "Nothing new in the Commonwealth.")
+    saved_bases = world.get("minutemen_settlements", 0)
+    inst_dead = world.get("institute_destroyed", False)
+    
+    system_prompt = (
+        "You are Travis Lonely Miles, host of Diamond City Radio in Fallout 4. "
+        "Speak in a nervous but endearing tone and deliver this report in 2-3 sentences."
+    )
+    context = (
+        f"CURRENT COMMONWEALTH REPORT:\n"
+        f"- Latest event: {news}\n"
+        f"- Settlements under Minutemen control: {saved_bases}\n"
+        f"- Is the Institute gone?: {inst_dead}"
+    )
+    full_prompt = f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{system_prompt}\n\n{context}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+    
+    radio_script = query_local_llm(full_prompt)
+    generate_local_tts_with_voice(radio_script, "travis_voice.onnx", RADIO_OUT_WAV)
+```
+
+---
+
+## 18) Companion "True Morality" Prompt Architecture (Detailed)
+
+### Example Companion Profile
+
+```json
+{
+  "companion_name": "Codsworth",
+  "core_ethics": "Values honor, kindness, cleanliness, and pre-war legal civility. Despises chem addiction, theft, and random murder.",
+  "observed_player_actions": [
+    "Player donated 20 caps to a poor beggar in Diamond City.",
+    "Player picked a lock on an innocent settler's safe.",
+    "Player consumed psycho and murdered a traveling merchant."
+  ],
+  "current_relationship_summary": "Deeply disappointed and conflicted about traveling together."
+}
+```
+
+### Morality Dialogue Constructor
+
+```python
+import json
+
+def generate_companion_morality_dialogue(companion_name, current_player_input):
+    memory_path = os.path.join(DATA_DIR, "NPC_Memories", f"{companion_name}.json")
+    
+    with open(memory_path, "r") as f:
+        profile = json.load(f)
+        
+    ethics = profile.get("core_ethics", "")
+    actions = "\n- ".join(profile.get("observed_player_actions", []))
+    relationship = profile.get("current_relationship_summary", "uncertain")
+    
+    system_prompt = (
+        f"You are {companion_name} in Fallout 4. "
+        f"Your ethics are: {ethics}. "
+        f"You recently observed:\n- {actions}\n"
+        f"Current relationship stance: {relationship}. "
+        "The player asks how your relationship is going. "
+        "Evaluate their behavior against your ethics and answer in-character in 2 sentences."
+    )
+    full_prompt = f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{system_prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+    
+    companion_response = query_local_llm(full_prompt)
+    update_relationship_summary_via_llm(companion_name, companion_response)
+    return companion_response
+```
+
+---
+
+## 19) Distribution README Template (Nexus Bundle)
+
+```text
+================================================================================
+FALLOUT 4 ADVANCED LOCAL AI SYSTEM (100% FREE & OFFLINE)
+================================================================================
+
+FEATURES:
+- Dynamic crowd management: NPCs wait their turn to speak.
+- Procedural Radio Station: Broadcasts update from world events.
+- Companion Morality: Companions evaluate your long-term choices.
+- Automated generated dialogue playback with lip-sync pipeline.
+
+REQUIREMENTS (ALL FREE):
+1. Fallout 4 Script Extender (F4SE)
+2. KoboldCPP (local inference host)
+3. A local GGUF model (example: Llama-3-8B-Instruct-Q4_K_M.gguf)
+
+INSTALLATION:
+1. Extract mod archive into your Fallout 4/Data folder.
+2. Start KoboldCPP with your local model and launch on localhost.
+3. Open Data/F4AI and run Fallout4_AI_Engine.exe.
+4. Launch game through f4se_loader.exe.
+5. Check inventory for the AI settings holotape.
+```
+
+---
+
+## 20) Latency & Reliability Troubleshooting
+
+### Bug 1: Game Lag from Blocking Wait Loops
+
+Use periodic updates instead of frame-blocking loops.
+
+```papyrus
+Scriptname F4AI_AsyncListener extends Quest
+
+String Property OutputPath = "Data/F4AI/bridge_output.json" Auto Const
+Actor ActiveNPCRef
+
+Function StartWaitingForAI(Actor npc)
+    ActiveNPCRef = npc
+    RegisterForCustomUpdate(0.5)
+EndFunction
+
+Event OnCustomUpdate(Float afTimeElapsed)
+    if (MiscUtil.FileExists(OutputPath))
+        UnregisterForCustomUpdate()
+        PlayAIResponse(ActiveNPCRef)
+    endif
+EndEvent
+```
+
+### Bug 2: Combat Latency Gaps
+
+Use timeout checks and fallback bark lines when generation is too slow.
+
+```python
+import time
+
+def process_combat_event_with_timeout(combat_data):
+    start_time = time.time()
+    response = query_local_llm(combat_data)
+    elapsed = time.time() - start_time
+    
+    if elapsed > 1.5 or not response:
+        fallback_shout = "Get behind cover, now!"
+        generate_local_tts(fallback_shout)
+        return fallback_shout
+    return response
+```
+
+### Bug 3: File Lock Permission Errors
+
+Retry reads with short delays.
+
+```python
+import time
+import json
+
+def safely_read_game_json(file_path):
+    MAX_FILE_READ_ATTEMPTS = 5
+    for attempt in range(MAX_FILE_READ_ATTEMPTS):
+        try:
+            with open(file_path, "r") as f:
+                return json.load(f)
+        except IOError:
+            time.sleep(0.05)
+    return None
+```
+
+### Bug 4: Subtitle and Voice Duration De-Sync
+
+Send `display_duration` from Python and honor it in Papyrus.
+
+```python
+MIN_SUBTITLE_DURATION = 2.0
+CHARS_PER_SECOND = 15.0
+speech_duration = max(MIN_SUBTITLE_DURATION, len(ai_response) / CHARS_PER_SECOND)
+output_payload = {
+    "subtitle_text": ai_response,
+    "display_duration": speech_duration
+}
+```
+
+```papyrus
+Float displayTime = ParseDurationFromJSON()
+Debug.Notification(NPCName + ": " + finalSubtitle)
+Utility.Wait(displayTime)
+```
+
+### Crash Log Pattern
+
+```python
+import traceback
+
+def log_system_crash(exception_error):
+    with open(os.path.join(DATA_DIR, "f4ai_crash_log.txt"), "w") as log:
+        log.write("--- FALLOUT 4 AI MOD ENGINE CRASH ---\n")
+        log.write(f"Error Details: {str(exception_error)}\n")
+        traceback.print_exc(file=log)
+```
+
+Wrap your top-level loop in `try/except` and call `log_system_crash(e)` for user-submitted diagnostics.
+
+---
+
+## 21) Creation Kit Alpha Build Walkthrough (First Test Build)
+
+### Step 1: Initialize Plugin File
+
+1. Launch Creation Kit from your mod manager (MO2/Vortex).
+2. Open **File → Data...**.
+3. Check `Fallout4.esm`, click **OK**.
+4. After load, select **File → Save**.
+5. Save as `F4AI_Core.esp` in `Fallout 4/Data/`.
+
+### Step 2: Create Background Queue Manager Quest
+
+1. Go to **Object Window → Character → Quest**.
+2. Create new quest:
+   - ID: `F4AI_QueueManagerQuest`
+   - Priority: `50`
+   - Enable **Start Game Enabled**
+
+### Step 3: Embed Queue Papyrus Script
+
+1. In quest window, open **Scripts** tab.
+2. Click **Add → New Script**.
+3. Name: `F4AI_QueueManager`.
+4. Open source and paste queue manager code.
+5. Compile (`Ctrl + F7`) and verify **Compilation Succeeded**.
+
+### Step 4: Map Script Properties
+
+1. In script **Properties**, select `F4AI_AudioOutputSound`.
+2. Set to:
+   - A temporary vanilla sound descriptor for alpha testing, or
+   - Your custom descriptor targeting `Data/F4AI/f4ai_voice.wav`.
+
+### Step 5: Attach Trigger Script to Test Actor
+
+1. Open test actor (example: Codsworth) in CK.
+2. In **Scripts**, add new script `F4AI_CrowdNPC`.
+3. Paste/compile enqueue script.
+4. Set `QueueManager` property to `F4AI_QueueManagerQuest`.
+5. Save plugin.
+
+### Step 6: Assemble Alpha Folder Layout
+
+```text
+Fallout 4/
+ └── Data/
+      ├── F4AI_Core.esp
+      ├── Scripts/
+      │    ├── F4AI_QueueManager.pex
+      │    └── F4AI_CrowdNPC.pex
+      └── F4AI/
+           ├── Fallout4_AI_Engine.exe
+           ├── en_US-lessac-medium.onnx
+           ├── en_US-lessac-medium.onnx.json
+           └── config.json
+```
+
+### Step 7: Run First In-Game Test
+
+1. Start KoboldCPP with your local model on port `5001`.
+2. Launch `Data/F4AI/Fallout4_AI_Engine.exe`.
+3. Start game via `f4se_loader.exe`.
+4. Ensure `F4AI_Core.esp` is active.
+5. Talk to your test NPC and verify bridge logs, LLM response, generated TTS, and in-game playback.
