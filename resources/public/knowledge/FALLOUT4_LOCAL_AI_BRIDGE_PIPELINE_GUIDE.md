@@ -2469,6 +2469,78 @@ targetNPC.ClearExpressionOverride()
 
 ---
 
+## 44) GitHub Wiki Templates + Final Alpha Deployment Package
+
+### Wiki Page Template 1 — Home / Architecture Overview
+
+```markdown
+# Welcome to the Fallout 4 Advanced AI System Wiki
+
+This project is a 100% free, fully offline middleware framework that bridges Bethesda's Creation Engine with local machine learning models.
+
+## Architectural Pipeline
+1. **Papyrus Trigger** → writes `bridge_input.json`
+2. **Python Watcher** → reads/cleans/processes payload
+3. **Local Inference** → KoboldCPP + Piper + optional CK32 lipgen
+4. **Game Execution** → reads `bridge_output.json`, applies morphs, plays audio
+
+## Developer Quick Links
+* [[Papyrus-Script-Inventory]]
+* [[Machine-Learning-and-Unsloth-Tuning]]
+```
+
+### Wiki Page Template 2 — Machine Learning and Unsloth Tuning
+
+```markdown
+# Machine Learning Optimization & DPO Fine-Tuning
+
+Local preference learning is performed with lightweight LoRA adapters.
+
+## Data Pipeline
+* Feedback capture via `F4AI_FeedbackMonitor.psc`
+* Preference logs appended to `Training_Cache/*.jsonl`
+* Background training via `train_lora.py`
+
+## Hardware Constraints
+* `load_in_4bit = True`
+* `max_steps = 20`
+* `gradient_checkpointing = True`
+```
+
+### Final Alpha Package Blueprint
+
+```text
+F4AI_Advanced_System_v0.1.0-Alpha.zip
+ ├── fomod/
+ │    ├── Info.xml
+ │    └── ModuleConfig.xml
+ ├── F4AI_Core_Files/
+ │    ├── F4AI_Core.esp
+ │    ├── Scripts/
+ │    │    ├── F4AI_QueueManager.pex
+ │    │    ├── F4AI_CrowdNPC.pex
+ │    │    ├── F4AI_FeedbackMonitor.pex
+ │    │    └── F4AI_VisionWidgetManager.pex
+ │    └── F4AI/
+ │         ├── Fallout4_AI_Engine.exe
+ │         ├── train_lora.py
+ │         ├── config.json
+ │         ├── Training_Cache/
+ │         └── Adapters/
+ └── Optional_Voices/
+      ├── Lessac_Voice/F4AI/en_US-lessac-medium.onnx(.json)
+      └── Joe_Voice/F4AI/en_US-joe-medium.onnx(.json)
+```
+
+### Production Deployment Checklist
+
+- Ensure only compiled `.pex` ships in release archive.
+- Build executable with `--collect-all faster_whisper`.
+- Include default `config.json` in release.
+- Confirm testers run local model host on expected port before launching game.
+
+---
+
 ## 39) Alpha Announcement Template + CK Compile Troubleshooting
 
 ### Official Alpha Project Announcement (Template)
