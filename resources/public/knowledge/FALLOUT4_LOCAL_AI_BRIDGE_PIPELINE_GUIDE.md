@@ -2080,3 +2080,96 @@ Fallout 4/
 4. Speak, release key, verify STT -> LLM -> TTS -> playback chain.
 
 If this loop passes consistently, your alpha runtime is ready for controlled testing distribution.
+
+---
+
+## 34) Alpha Runtime Bug Playbook (Papyrus + External AI Bridge)
+
+### Bug 1: Infinite Dialogue Freeze
+
+Symptom: Python finishes response, but NPC never speaks.
+
+Use bounded checks + `WaitMenuMode` fail-safe:
+
+```papyrus
+Int checksCompleted = 0
+Bool fileFound = false
+
+While (!fileFound && checksCompleted < 20)
+    if (MiscUtil.FileExists("Data/F4AI/text_out.txt"))
+        fileFound = true
+    else
+        Utility.WaitMenuMode(0.2)
+        checksCompleted += 1
+    endif
+EndWhile
+
+if (!fileFound)
+    targetNPC.SetRestrained(false)
+    Debug.Notification("[AI Sync Failed: Engine Latency]")
+endif
+```
+
+### Bug 2: Dialogue Triggering on Inanimate Targets
+
+Validate actor type before enqueueing:
+
+```papyrus
+ObjectReference lookTarget = F4SE_InternalRaycastUtils.GetPlayerCurrentCrosshairTarget()
+Actor targetActor = lookTarget as Actor
+
+if (targetActor == None)
+    Return
+endif
+
+if (targetActor.IsDead() || targetActor.IsRace(Game.GetForm(0x0001337B) as Race))
+    Return
+endif
+```
+
+### Bug 3: Firewall/Antivirus Drop-Out
+
+Catch connection errors and return graceful fallback:
+
+```python
+import os
+import sys
+import requests
+
+def query_local_llm_with_error_handling(payload):
+    try:
+        response = requests.post(KOBOLD_API_URL, json=payload, timeout=4)
+        return response.json()["results"][0]["text"].strip()
+    except requests.exceptions.ConnectionError:
+        print("\n[CRITICAL ERROR] Firewall/Antivirus may be blocking local AI endpoints.")
+        print(f"Allow '{os.path.basename(sys.executable)}' through Windows Firewall.")
+        return "[Cognitive Matrix Offline]"
+```
+
+### Bug 4: Lip-Sync File Corruption
+
+Normalize WAV output before lip generation:
+
+```python
+import numpy as np
+import scipy.io.wavfile as wavf
+
+def normalize_audio_for_lipgen(input_wav_path):
+    sample_rate, data = wavf.read(input_wav_path)
+    if data.dtype == np.float32:
+        data = (data * 32767).astype(np.int16)
+    wavf.write(input_wav_path, 16000, data)
+```
+
+### Papyrus VM Diagnostics for Testers
+
+In `Documents/My Games/Fallout4/Fallout4Custom.ini`:
+
+```ini
+[Papyrus]
+bEnableLogging=1
+bEnableTrace=1
+bLoadScriptsInBackground=1
+```
+
+Then inspect `Logs/Script/User/Papyrus.0.log` after reproducing the issue.
