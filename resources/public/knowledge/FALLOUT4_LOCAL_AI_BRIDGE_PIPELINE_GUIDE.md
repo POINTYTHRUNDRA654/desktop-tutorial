@@ -1142,3 +1142,221 @@ Fallout 4/
 3. Start game via `f4se_loader.exe`.
 4. Ensure `F4AI_Core.esp` is active.
 5. Talk to your test NPC and verify bridge logs, LLM response, generated TTS, and in-game playback.
+
+---
+
+## 22) FOMOD Installer (Voice Model Selection Wizard)
+
+Use FOMOD so MO2/Vortex can present selectable voice packs during install.
+
+### FOMOD Package Layout
+
+```text
+[YourModName_Alpha.7z]
+ ├── fomod/
+ │    ├── Info.xml
+ │    └── ModuleConfig.xml
+ ├── F4AI_Core_Files/
+ │    ├── F4AI_Core.esp
+ │    ├── Scripts/
+ │    │    ├── F4AI_QueueManager.pex
+ │    │    └── F4AI_CrowdNPC.pex
+ │    └── F4AI/
+ │         ├── Fallout4_AI_Engine.exe
+ │         └── config.json
+ └── Optional_Voices/
+      ├── Lessac_Voice/
+      │    └── F4AI/
+      │         ├── en_US-lessac-medium.onnx
+      │         └── en_US-lessac-medium.onnx.json
+      └── Joe_Voice/
+           └── F4AI/
+                ├── en_US-joe-medium.onnx
+                └── en_US-joe-medium.onnx.json
+```
+
+### `fomod/Info.xml`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<fomod>
+    <Name>Fallout 4 Advanced Local AI System</Name>
+    <Author>YourDeveloperName</Author>
+    <Version>0.1.0-Alpha</Version>
+    <Website>https://nexusmods.com</Website>
+    <Description>A 100% free, offline AI bridge bringing LLM dialogue, memories, and automated lip-sync to the Commonwealth.</Description>
+</fomod>
+```
+
+### `fomod/ModuleConfig.xml`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+    <moduleName>Fallout 4 Advanced Local AI System</moduleName>
+
+    <requiredInstallFiles>
+        <folder source="F4AI_Core_Files" destination="Data" priority="0"/>
+    </requiredInstallFiles>
+
+    <installSteps order="Explicit">
+        <installStep name="Local Voice Model Selection">
+            <optionalFileGroups order="Explicit">
+                <group name="Choose Your Primary TTS Model Pack" type="SelectExactlyOne">
+                    <plugins>
+                        <plugin name="Lessac Voice Pack (Recommended)">
+                            <description>Fast, clear English profile with low overhead.</description>
+                            <files>
+                                <folder source="Optional_Voices/Lessac_Voice/F4AI" destination="Data/F4AI" priority="1"/>
+                            </files>
+                            <typeDescriptor>
+                                <type name="Recommended"/>
+                            </typeDescriptor>
+                        </plugin>
+                        <plugin name="Joe Voice Pack (Alternative)">
+                            <description>Deeper, gruff alternative profile.</description>
+                            <files>
+                                <folder source="Optional_Voices/Joe_Voice/F4AI" destination="Data/F4AI" priority="1"/>
+                            </files>
+                            <typeDescriptor>
+                                <type name="Optional"/>
+                            </typeDescriptor>
+                        </plugin>
+                    </plugins>
+                </group>
+            </optionalFileGroups>
+        </installStep>
+    </installSteps>
+</config>
+```
+
+### Python Dynamic Voice Model Discovery
+
+```python
+import glob
+import os
+
+def locate_installed_voice_model():
+    search_pattern = os.path.join(DATA_DIR, "*.onnx")
+    found_models = glob.glob(search_pattern)
+    if found_models:
+        return found_models[0]
+    raise FileNotFoundError("No Piper .onnx voice model found in Data/F4AI.")
+
+PIPER_MODEL_PATH = locate_installed_voice_model()
+```
+
+### Packaging Test
+
+1. Zip/7z: `fomod`, `F4AI_Core_Files`, `Optional_Voices`.
+2. Drop archive into MO2/Vortex.
+3. Verify installer page appears and exactly one voice option is selectable.
+
+---
+
+## 23) Nexus Mods Landing Page Template
+
+```markdown
+# Fallout 4 Advanced Local AI System (Alpha 0.1)
+
+A 100% free, fully offline artificial intelligence framework that replaces vanilla dialogue scripts with open-source Large Language Models (LLMs) and neural Text-to-Speech (TTS). Characters remember your actions, coordinate tactical shout responses during combat, and procedurally generate automated lipsync data on your machine.
+
+---
+
+## 🚀 Key Features
+
+* **Local Dialogue Processing**: Infinite unscripted interactions via local Llama-class models.
+* **Persistent Memory Stores**: Companions and settlers track past choices and moral alignment.
+* **Smart Crowd Control**: Global queue manager prevents overlapping NPC audio.
+* **Dynamic Lipsync Injection**: Legacy-tool integration generates mouth animation data.
+* **In-Game Configuration**: Adjust temperature, memory mode, and speech controls from Pip-Boy holotape.
+
+---
+
+## 🛠️ Step-by-Step Setup Guide
+
+### 1. Prerequisites
+* Install [F4SE](https://silverlock.org).
+* Download/run [KoboldCPP](https://github.com).
+
+### 2. Free Model Setup
+* Download a GGUF model (example: Llama-3-8B-Instruct-Q4_K_M.gguf).
+* Launch KoboldCPP and verify localhost serving on port `5001`.
+
+### 3. Mod Installation
+* Install this archive in MO2 or Vortex.
+* Use FOMOD wizard to choose a Piper voice pack.
+* Run `Data/F4AI/Fallout4_AI_Engine.exe` before launching game.
+
+---
+
+## 🤝 Open Source & Credits
+
+* LLM host/API workflow inspired by **KoboldCPP**.
+* Offline TTS pipeline aligns with **Piper TTS** ecosystem.
+* Bethesda bridge patterns informed by **Mantella-related** F4SE/Papyrus workflows.
+```
+
+---
+
+## 24) Python Auto-Updater Module (Optional)
+
+For production, prefer explicit user-confirmed updates and signed release assets.
+
+```python
+import os
+import sys
+import requests
+import subprocess
+
+CURRENT_VERSION = "0.1.0-Alpha"
+GITHUB_RELEASES_API = "https://api.github.com/repos/<owner>/<repo>/releases/latest"
+EXE_PATH = sys.executable
+
+def check_for_updates():
+    try:
+        response = requests.get(GITHUB_RELEASES_API, timeout=3)
+        if response.status_code != 200:
+            return
+        release_data = response.json()
+        latest_version = release_data.get("tag_name", CURRENT_VERSION)
+        if latest_version == CURRENT_VERSION:
+            return
+        assets = release_data.get("assets", [])
+        if not assets:
+            return
+        download_url = assets[0].get("browser_download_url")
+        if download_url:
+            execute_hot_update(download_url)
+    except Exception:
+        # Stay offline silently if update endpoint is unavailable
+        return
+
+def execute_hot_update(download_url):
+    update_file_path = EXE_PATH + ".tmp"
+    response = requests.get(download_url, stream=True, timeout=10)
+    response.raise_for_status()
+    with open(update_file_path, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+
+    updater_batch_path = "f4ai_patcher.bat"
+    with open(updater_batch_path, "w") as bat:
+        bat.write("@echo off\n")
+        bat.write("timeout /t 2 /nobreak > nul\n")
+        bat.write(f'del "{EXE_PATH}"\n')
+        bat.write(f'ren "{update_file_path}" "{os.path.basename(EXE_PATH)}"\n')
+        bat.write(f'start "" "{EXE_PATH}"\n')
+        bat.write(f'del "{updater_batch_path}"\n')
+
+    subprocess.Popen([updater_batch_path], shell=True)
+    sys.exit(0)
+```
+
+### Update Safety Checklist
+
+- Use HTTPS API endpoints.
+- Verify owner/repo and expected asset naming.
+- Prefer hash/signature verification before replacement.
+- Provide rollback path if update fails.
