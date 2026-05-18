@@ -2173,3 +2173,113 @@ bLoadScriptsInBackground=1
 ```
 
 Then inspect `Logs/Script/User/Papyrus.0.log` after reproducing the issue.
+
+---
+
+## 35) Race-Aware Personas + Save-Bloat Prevention
+
+### Race-Aware Telemetry (Papyrus)
+
+```papyrus
+Function InjectRaceContext(Actor targetNPC, String existingJson)
+    Race npcRace = targetNPC.GetRace()
+    String raceTag = "Human"
+
+    if (npcRace == Game.GetForm(0x0001D4B5) as Race)
+        raceTag = "Super Mutant"
+    elseif (npcRace == Game.GetForm(0x000EAFDF) as Race)
+        raceTag = "Ghoul"
+    elseif (npcRace == Game.GetForm(0x0002C4C6) as Race)
+        raceTag = "Synth"
+    endif
+
+    String raceJsonChunk = "\"npc_race\": \"" + raceTag + "\""
+    ; Merge this chunk into your outgoing payload
+EndFunction
+```
+
+### Lore-Aligned Prompt Rules (Python)
+
+```python
+def apply_racial_persona_rules(npc_name, race_tag, baseline_prompt):
+    racial_rules = ""
+    if race_tag == "Super Mutant":
+        racial_rules = (
+            "You are a Super Mutant: aggressive, loud, and direct. "
+            "Use brutal, simplified phrasing."
+        )
+    elif race_tag == "Ghoul":
+        racial_rules = (
+            "You are a Ghoul: raspy, worn, cynical, but still human."
+        )
+    elif race_tag == "Synth":
+        racial_rules = (
+            "You are a Generation 3 Synth: analytical and introspective."
+        )
+
+    if racial_rules:
+        return f"{baseline_prompt}\nRACIAL PERSONALITY CONSTRAINTS:\n{racial_rules}"
+    return baseline_prompt
+```
+
+### Save-File Script Bloat Prevention
+
+1. Keep large text in local function scope, not persistent script properties.
+2. Add `OnUnload()` cleanup hooks to:
+   - `UnregisterForCustomUpdate()`
+   - release restraints
+   - delete stale bridge files
+3. Prefer event-driven triggers (`OnActivate`, `OnCombatStateChanged`, etc.) over perpetual loops.
+
+Example cleanup pattern:
+
+```papyrus
+Event OnUnload()
+    UnregisterForCustomUpdate()
+    Actor npcRef = self.GetActorReference()
+    if (npcRef != None)
+        npcRef.SetRestrained(false)
+    endif
+    MiscUtil.DeleteFile("Data/F4AI/bridge_input.json")
+EndEvent
+```
+
+---
+
+## 36) Animation/Skeleton Stability Fixes (AI Voice Injection)
+
+### Bug 1: Lip-Lock (Mouth Frozen After Line)
+
+```papyrus
+Function ResetFaceAnimations(Actor targetNPC)
+    targetNPC.ClearExpressionOverride()
+    targetNPC.EvaluatePackage()
+EndFunction
+```
+
+Call this after voice playback completes.
+
+### Bug 2: Mannequin Stare (No Blink/Idle Motion)
+
+Avoid full-body restraint where possible; use movement/pathing control while preserving idle graph.
+
+```papyrus
+Function RestrainMovementOnly(Actor targetNPC)
+    targetNPC.SetLookAt(Game.GetPlayer(), abForce = true)
+    targetNPC.StopCombatAlarm()
+    targetNPC.KeepOffsetFromActor(Game.GetPlayer(), 0.0, 0.0, 0.0)
+EndFunction
+```
+
+### Bug 3: T-Pose/A-Pose During Furniture Transitions
+
+```papyrus
+Function SafeFurnitureExit(Actor targetNPC)
+    if (targetNPC.GetSitState() != 0 || targetNPC.GetSleepState() != 0)
+        targetNPC.Activate(targetNPC)
+        Utility.Wait(1.5)
+    endif
+EndFunction
+```
+
+Run this before triggering bridge output while NPC is bound to furniture/sandbox markers.
