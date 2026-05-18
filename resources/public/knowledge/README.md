@@ -440,6 +440,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Cosmos Dependencies (local repo): [COSMOS_DEPENDENCIES_INTEGRATION.md](COSMOS_DEPENDENCIES_INTEGRATION.md)
 - Cosmos Curate (local repo): [COSMOS_CURATE_INTEGRATION.md](COSMOS_CURATE_INTEGRATION.md)
 - Cosmos Xenna (local repo): [COSMOS_XENNA_INTEGRATION.md](COSMOS_XENNA_INTEGRATION.md)
+- Fallout 4 local AI bridge (F4SE + Papyrus + Python + local LLM/TTS): [FALLOUT4_LOCAL_AI_BRIDGE_PIPELINE_GUIDE.md](FALLOUT4_LOCAL_AI_BRIDGE_PIPELINE_GUIDE.md)
+- Fallout 4 production asset templates (`main.py` + `F4AI_QueueManager.psc`): [F4AI_PRODUCTION_ASSET_TEMPLATES.md](F4AI_PRODUCTION_ASSET_TEMPLATES.md)
 
 ## Fallout 4 Local Knowledge
 
@@ -548,4 +550,3 @@ For issues, questions, or suggestions:
 - Blender Community: [BLENDER_COMMUNITY.md](BLENDER_COMMUNITY.md)
 - Installing Blender: [BLENDER_INSTALLING.md](BLENDER_INSTALLING.md)
 - Installing on Linux: [BLENDER_INSTALLING_LINUX.md](BLENDER_INSTALLING_LINUX.md)
-
