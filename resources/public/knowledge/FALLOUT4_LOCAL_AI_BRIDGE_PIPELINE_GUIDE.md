@@ -1820,3 +1820,85 @@ Outcome: personalities evolve over long playthroughs while staying local/offline
 - Enforce cooldowns/rate limits on autonomous actions.
 - Log all AI-issued directives for replay/debugging.
 - Provide a holotape kill switch to disable autonomous systems instantly.
+
+---
+
+## 31) Multi-Turn Dialogue Stability (Debugging Patterns)
+
+Multi-turn loops fail most often from context drift, token overflow, and stale/corrupt handoff files.
+
+### Bug 1: Context Overwrite (Ordering Problem)
+
+Use an in-memory session buffer and persist only after successful turn completion.
+
+```python
+active_session_cache = {}
+
+def process_live_dialogue_turn(npc_name, player_speech):
+    if npc_name not in active_session_cache:
+        active_session_cache[npc_name] = load_long_term_history(npc_name)
+        
+    session = active_session_cache[npc_name]
+    history_block = ""
+    for turn in session["history"]:
+        history_block += f"Player: {turn['p']}\nYou: {turn['n']}\n"
+        
+    full_prompt = f"[System Prompt Details]\n{history_block}Player: {player_speech}\nYou:"
+    ai_response = query_local_llm(full_prompt)
+    return ai_response, session
+```
+
+### Bug 2: Token Window Bloat / VRAM Pressure
+
+Apply strict sliding-window pruning.
+
+```python
+def add_to_history_with_pruning(session_data, player_line, npc_line):
+    session_data["history"].append({"p": player_line, "n": npc_line})
+    
+    MAX_TURNS = 5
+    if len(session_data["history"]) > MAX_TURNS:
+        session_data["history"].pop(0)
+    return session_data
+```
+
+### Bug 3: Papyrus Parsing Delay from Large JSON
+
+Write flat output files so Papyrus reads instantly without string slicing.
+
+```python
+def write_flat_game_outputs(clean_subtitle, relative_audio_path):
+    with open("Data/F4AI/text_out.txt", "w", encoding="utf-8") as tf:
+        tf.write(clean_subtitle)
+    with open("Data/F4AI/audio_out.txt", "w", encoding="utf-8") as af:
+        af.write(relative_audio_path)
+```
+
+```papyrus
+Function ReadFlatAIResponse()
+    If (MiscUtil.FileExists("Data/F4AI/text_out.txt"))
+        String cleanSubtitle = MiscUtil.ReadFromFile("Data/F4AI/text_out.txt")
+        Debug.Notification(cleanSubtitle)
+        MiscUtil.DeleteFile("Data/F4AI/text_out.txt")
+    EndIf
+EndFunction
+```
+
+### Bug 4: Memory Cross-Contamination
+
+Validate identity before prompt assembly.
+
+```python
+def verify_identity_integrity(game_payload):
+    current_npc = game_payload.get("npc_name")
+    if not current_npc or current_npc.strip() == "":
+        print("[Memory Guard Warning] Rejected corrupt or incomplete packet data.")
+        return False
+    return True
+```
+
+### Operational Reminder
+
+- Keep write/read/delete order strict for bridge files.
+- Avoid persisting partial turns.
+- Log rejected packets and prune events for diagnostics.
