@@ -178,7 +178,7 @@ def query_local_llm(prompt):
     try:
         response = requests.post(KOBOLD_API_URL, json=payload)
         if response.status_code == 200:
-            return response.json()['results']['text'].strip()
+            return response.json()['results'][0]['text'].strip()
     except requests.exceptions.ConnectionError:
         return "I am having trouble connecting to my cognitive matrix."
     return ""
@@ -186,8 +186,14 @@ def query_local_llm(prompt):
 def generate_local_tts(text):
     """Uses Piper TTS via command line to quickly output an offline .wav file."""
     print("Synthesizing voice audio locally...")
-    command = f'echo "{text}" | piper --model {PIPER_MODEL_PATH} --output_file {AUDIO_OUTPUT_PATH}'
-    subprocess.run(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    command = ["piper", "--model", PIPER_MODEL_PATH, "--output_file", AUDIO_OUTPUT_PATH]
+    subprocess.run(
+        command,
+        input=text.encode("utf-8"),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
 
 def process_game_event():
     """Reads game data, generates text + audio, and returns it to Fallout 4."""
@@ -231,7 +237,7 @@ if __name__ == "__main__":
                 process_game_event()
             except Exception as e:
                 print(f"Error: {e}")
-        time.sleep(0.2)
+        time.sleep(0.5)  # Keep same polling cadence as Part 2 unless profiling proves otherwise
 ```
 
 ---
@@ -259,8 +265,8 @@ Event OnActivate(ObjectReference akActionRef)
         
         ; 2. Enter a loop waiting for Python to create the output response file
         Int timeoutCounter = 0
-        While (!MiscUtil.FileExists(OutputPath) && timeoutCounter < 30)
-            Utility.Wait(0.2) ; Wait 200ms per frame loop
+        While (!MiscUtil.FileExists(OutputPath) && timeoutCounter < 60)
+            Utility.Wait(0.1) ; 100ms cadence, ~6s total timeout
             timeoutCounter += 1
         EndWhile
         
@@ -270,13 +276,18 @@ Event OnActivate(ObjectReference akActionRef)
             String fileContents = MiscUtil.ReadFromFile(OutputPath)
             
             ; Quick, basic string parsing to grab the subtitle text inside the JSON quotes
-            Int startPos = StringUtil.Find(fileContents, "\"subtitle_text\": \"") + 18
+            Int subtitleMarkerPos = StringUtil.Find(fileContents, "\"subtitle_text\": \"")
             Int endPos = StringUtil.Find(fileContents, "\", \"audio_file\"")
-            String finalSubtitle = StringUtil.Substring(fileContents, startPos, endPos - startPos)
-            
-            ; 4. Display the text and play the voice file inside the game engine
-            Debug.Notification(TargetNPC.GetActorBase().GetName() + ": " + finalSubtitle)
-            F4AI_AudioOutputSound.Play(TargetNPC) ; Plays the generated audio coming directly from the NPC's mouth
+            If (subtitleMarkerPos != -1 && endPos != -1 && endPos > subtitleMarkerPos + 18)
+                Int startPos = subtitleMarkerPos + 18
+                String finalSubtitle = StringUtil.Substring(fileContents, startPos, endPos - startPos)
+                
+                ; 4. Display the text and play the voice file inside the game engine
+                Debug.Notification(TargetNPC.GetActorBase().GetName() + ": " + finalSubtitle)
+                F4AI_AudioOutputSound.Play(TargetNPC) ; Plays the generated audio coming directly from the NPC's mouth
+            Else
+                Debug.Notification("[AI Output Parse Error]")
+            EndIf
             
             ; Clean up the output file so it's fresh for the next interaction
             MiscUtil.DeleteFile(OutputPath)
@@ -329,3 +340,233 @@ For a fully free and publicly redistributable release:
 - Keep all model execution on user hardware.
 
 This keeps runtime cost at zero for end users and preserves offline usage.
+
+---
+
+## 9) Automated Lip-Sync Generation (`.lip` / `.fuz`)
+
+For dynamic facial animation, generate lip data externally after TTS output.
+
+### Setup Notes
+
+1. Place `CreationKit32.exe` where your automation can invoke it reliably.
+2. Save generated voice lines under `Data\Sound\Voice\YourMod.esp\...`.
+3. Run lip generation immediately after producing WAV output.
+
+```python
+import subprocess
+import os
+
+FALLOUT_ROOT = r"C:\Program Files (x86)\Steam\steamapps\common\Fallout 4"
+CK_32_EXE = os.path.join(FALLOUT_ROOT, "CreationKit32.exe")
+
+def generate_npc_lip_sync(relative_audio_path, raw_text_line):
+    """
+    Runs Bethesda's lip generation utility for a single line.
+    """
+    print("Generating realtime face and lip animations...")
+    command = [
+        CK_32_EXE,
+        f"-GenerateSingleLip:{relative_audio_path}",
+        raw_text_line,
+    ]
+
+    try:
+        subprocess.run(
+            command,
+            cwd=FALLOUT_ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
+        )
+        print("Lip animation generated successfully.")
+    except subprocess.TimeoutExpired:
+        print("Lip generation timed out.")
+```
+
+---
+
+## 10) Dynamic Combat Inputs for Tactical AI Reactions
+
+### Papyrus Combat Export
+
+```papyrus
+Scriptname F4AI_CombatEvaluator extends ReferenceAlias
+
+String Property CombatInputPath = "Data/F4AI/combat_input.json" Auto Const
+
+Event OnCombatStateChanged(Actor akTarget, Int aeCombatState)
+    ; aeCombatState: 0 = Safe, 1 = Combat, 2 = Searching
+    If (aeCombatState == 1)
+        EvaluateCombatSituation(akTarget)
+    EndIf
+EndEvent
+
+Function EvaluateCombatSituation(Actor enemyTarget)
+    Actor npcRef = self.GetActorReference()
+    
+    Float npcHealth = npcRef.GetActorValuePercentage("Health") * 100.0
+    Float enemyHealth = enemyTarget.GetActorValuePercentage("Health") * 100.0
+    Float combatDistance = npcRef.GetDistance(enemyTarget)
+    
+    String enemyName = enemyTarget.GetActorBase().GetName()
+    
+    String jsonPayload = "{"
+    jsonPayload += "\"combat_status\": \"ACTIVE\","
+    jsonPayload += "\"npc_health\": " + npcHealth as String + ","
+    jsonPayload += "\"enemy_type\": \"" + enemyName + "\","
+    jsonPayload += "\"enemy_health\": " + enemyHealth as String + ","
+    jsonPayload += "\"distance_units\": " + combatDistance as String
+    jsonPayload += "}"
+    
+    MiscUtil.WriteToFile(CombatInputPath, jsonPayload, append = false)
+EndFunction
+```
+
+### Python Combat Processor
+
+```python
+COMBAT_INPUT_FILE = r"C:\Program Files (x86)\Steam\steamapps\common\Fallout 4\Data\F4AI\combat_input.json"
+
+def process_combat_event():
+    with open(COMBAT_INPUT_FILE, "r") as f:
+        combat_data = json.load(f)
+        
+    npc_hp = combat_data.get("npc_health", 100)
+    enemy = combat_data.get("enemy_type", "Raider")
+    enemy_hp = combat_data.get("enemy_health", 100)
+    dist = combat_data.get("distance_units", 1000)
+    
+    if npc_hp < 30:
+        tactical_context = f"You are losing a brutal firefight against a {enemy}. Your health is low ({int(npc_hp)}%). Scream in panic, curse, or shout a tactical retreat line."
+    elif dist < 300:
+        tactical_context = f"A hostile {enemy} is close. Threaten them with close-quarters violence."
+    else:
+        tactical_context = f"You are taking shots at a {enemy} from a distance. Shout a confident combat line."
+        
+    full_prompt = f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{tactical_context}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+    combat_shout = query_local_llm(full_prompt)
+    print(f"\n[NPC Combat Shout]: {combat_shout}\n")
+    
+    generate_local_tts(combat_shout)
+    generate_npc_lip_sync(r"Data\Sound\Voice\F4AI\f4ai_voice.wav", combat_shout)
+    
+    os.remove(COMBAT_INPUT_FILE)
+```
+
+---
+
+## 11) Long-Term NPC Memory Profiles (Local JSON Store)
+
+Use per-NPC JSON memory files instead of storing long conversation state in save data.
+
+```python
+import os
+import json
+
+MEMORY_DIR = r"C:\Program Files (x86)\Steam\steamapps\common\Fallout 4\Data\F4AI\NPC_Memories"
+
+def load_or_create_memory(npc_name):
+    """Loads a specific NPC's memory file, or builds a blank history index."""
+    if not os.path.exists(MEMORY_DIR):
+        os.makedirs(MEMORY_DIR)
+        
+    memory_file = os.path.join(MEMORY_DIR, f"{npc_name.replace(' ', '_')}.json")
+    
+    if os.path.exists(memory_file):
+        with open(memory_file, "r") as f:
+            return json.load(f)
+    return {"conversations": [], "combat_events": [], "player_reputation": 0}
+
+def update_npc_memory(npc_name, player_input, ai_response, mood_shift=0):
+    """Saves the current interaction context so the NPC remembers it next time."""
+    memory_file = os.path.join(MEMORY_DIR, f"{npc_name.replace(' ', '_')}.json")
+    memory_data = load_or_create_memory(npc_name)
+    
+    memory_data["conversations"].append({"player": player_input, "npc": ai_response})
+    if len(memory_data["conversations"]) > 5:
+        memory_data["conversations"].pop(0)
+        
+    memory_data["player_reputation"] += mood_shift
+    
+    with open(memory_file, "w") as f:
+        json.dump(memory_data, f, indent=4)
+
+def build_prompt_with_history(npc_name, current_location):
+    """Injects historical memories straight into the system prompt."""
+    memory = load_or_create_memory(npc_name)
+    rep = memory.get("player_reputation", 0)
+    
+    relationship = "neutral toward"
+    if rep > 3:
+        relationship = "good friends with"
+    elif rep < -3:
+        relationship = "hostile and suspicious of"
+    
+    history_string = ""
+    for exchange in memory["conversations"]:
+        history_string += f"\nPlayer said: '{exchange['player']}' -> You responded: '{exchange['npc']}'"
+        
+    prompt = f"You are {npc_name} in Fallout 4 at {current_location}. You are {relationship} the player."
+    if history_string:
+        prompt += f" Here is a summary of your recent interactions with them:{history_string}"
+    prompt += "\nRespond to the player's new interaction based on this context in one short sentence."
+    
+    return prompt
+```
+
+---
+
+## 12) Build a Standalone Windows Executable (`.exe`)
+
+### Install PyInstaller
+
+```bash
+pip install pyinstaller
+```
+
+### Runtime Asset Path Helper
+
+```python
+import sys
+import os
+
+def get_asset_path(relative_path):
+    """Locates assets when running as script or PyInstaller EXE."""
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+```
+
+### Build Command
+
+```bash
+pyinstaller --onefile --noconsole --icon=vault_boy.ico --name="Fallout4_AI_Engine" main.py
+```
+
+The output executable will be generated in `dist/Fallout4_AI_Engine.exe`.
+
+---
+
+## 13) Nexus Packaging Layout
+
+```text
+[YourModName.7z]
+ ├── Data/
+ │    ├── YourModAI.esp
+ │    ├── Scripts/
+ │    │    └── F4AI_ConversationBridge.pex
+ │    └── F4AI/
+ │         ├── Fallout4_AI_Engine.exe
+ │         ├── en_US-lessac-medium.onnx
+ │         └── en_US-lessac-medium.onnx.json
+ └── Documentation_Readme.txt
+```
+
+### Expected End-User Flow
+
+1. User installs mod files into the game directory.
+2. User runs `Data/F4AI/Fallout4_AI_Engine.exe`.
+3. User launches Fallout 4 and interacts with NPCs.
+4. Runtime loop handles local reasoning, memory, TTS, lip sync, and playback.
