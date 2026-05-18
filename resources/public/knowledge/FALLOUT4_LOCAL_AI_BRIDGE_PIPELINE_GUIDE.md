@@ -39,6 +39,19 @@ Recommended local stack:
 - STT (optional): Faster-Whisper
 - TTS: Piper TTS or xVASynth
 
+### Path Configuration (Recommended)
+
+Avoid hard-coded install paths in production. Prefer a single shared root:
+
+```python
+import os
+
+FALLOUT_ROOT = os.getenv("FALLOUT4_ROOT", r"C:\Program Files (x86)\Steam\steamapps\common\Fallout 4")
+DATA_DIR = os.path.join(FALLOUT_ROOT, "Data", "F4AI")
+```
+
+Then derive all file paths from `DATA_DIR`.
+
 ---
 
 ## 2) Part 1 — Papyrus Event Detector (One-Way Input)
@@ -91,7 +104,9 @@ import time
 import requests
 
 # Paths and local API settings
-BRIDGE_FILE = r"C:\Program Files (x86)\Steam\steamapps\common\Fallout 4\Data\F4AI\bridge_input.json"
+FALLOUT_ROOT = os.getenv("FALLOUT4_ROOT", r"C:\Program Files (x86)\Steam\steamapps\common\Fallout 4")
+DATA_DIR = os.path.join(FALLOUT_ROOT, "Data", "F4AI")
+BRIDGE_FILE = os.path.join(DATA_DIR, "bridge_input.json")
 KOBOLD_API_URL = "http://localhost:5001/api/v1/generate"  # Default local KoboldCPP port
 
 def query_local_llm(prompt):
@@ -163,7 +178,8 @@ import requests
 import subprocess
 
 # Local directories and configurations
-DATA_DIR = r"C:\Program Files (x86)\Steam\steamapps\common\Fallout 4\Data\F4AI"
+FALLOUT_ROOT = os.getenv("FALLOUT4_ROOT", r"C:\Program Files (x86)\Steam\steamapps\common\Fallout 4")
+DATA_DIR = os.path.join(FALLOUT_ROOT, "Data", "F4AI")
 INPUT_FILE = os.path.join(DATA_DIR, "bridge_input.json")
 OUTPUT_FILE = os.path.join(DATA_DIR, "bridge_output.json")
 KOBOLD_API_URL = "http://localhost:5001/api/v1/generate"
@@ -266,7 +282,7 @@ Event OnActivate(ObjectReference akActionRef)
         ; 2. Enter a loop waiting for Python to create the output response file
         Int timeoutCounter = 0
         While (!MiscUtil.FileExists(OutputPath) && timeoutCounter < 60)
-            Utility.Wait(0.1) ; 100ms cadence, ~6s total timeout
+            Utility.Wait(0.1) ; 100ms cadence, 6s total timeout
             timeoutCounter += 1
         EndWhile
         
@@ -427,7 +443,7 @@ EndFunction
 ### Python Combat Processor
 
 ```python
-COMBAT_INPUT_FILE = r"C:\Program Files (x86)\Steam\steamapps\common\Fallout 4\Data\F4AI\combat_input.json"
+COMBAT_INPUT_FILE = os.path.join(DATA_DIR, "combat_input.json")
 
 def process_combat_event():
     with open(COMBAT_INPUT_FILE, "r") as f:
@@ -465,7 +481,7 @@ Use per-NPC JSON memory files instead of storing long conversation state in save
 import os
 import json
 
-MEMORY_DIR = r"C:\Program Files (x86)\Steam\steamapps\common\Fallout 4\Data\F4AI\NPC_Memories"
+MEMORY_DIR = os.path.join(DATA_DIR, "NPC_Memories")
 
 def load_or_create_memory(npc_name):
     """Loads a specific NPC's memory file, or builds a blank history index."""
@@ -570,3 +586,112 @@ The output executable will be generated in `dist/Fallout4_AI_Engine.exe`.
 2. User runs `Data/F4AI/Fallout4_AI_Engine.exe`.
 3. User launches Fallout 4 and interacts with NPCs.
 4. Runtime loop handles local reasoning, memory, TTS, lip sync, and playback.
+
+---
+
+## 14) In-Game Holotape Configuration Loop (`config.json`)
+
+Players can tune AI behavior from Pip-Boy by writing settings to `Data/F4AI/config.json`.
+
+### Config File Shape
+
+```json
+{
+  "ai_temperature": 0.7,
+  "enable_memory": 1,
+  "speech_speed": 1.0
+}
+```
+
+### Papyrus Holotape Script
+
+```papyrus
+Scriptname F4AI_ConfigHolotape extends ObjectReference
+
+String Property ConfigPath = "Data/F4AI/config.json" Auto Const
+
+Float ai_temperature = 0.7
+Int enable_memory = 1
+Float speech_speed = 1.0
+
+Function IncreaseTemperature()
+    if (ai_temperature < 1.2)
+        ai_temperature += 0.1
+        SaveConfiguration()
+        Debug.Notification("AI Creativity increased to: " + ai_temperature)
+    endif
+EndFunction
+
+Function DecreaseTemperature()
+    if (ai_temperature > 0.2)
+        ai_temperature -= 0.1
+        SaveConfiguration()
+        Debug.Notification("AI Creativity decreased to: " + ai_temperature)
+    endif
+EndFunction
+
+Function ToggleMemory()
+    if (enable_memory == 1)
+        enable_memory = 0
+        Debug.Notification("NPC Memory Profiles: DISABLED")
+    else
+        enable_memory = 1
+        Debug.Notification("NPC Memory Profiles: ENABLED")
+    endif
+    SaveConfiguration()
+EndFunction
+
+Function SaveConfiguration()
+    String jsonStr = "{"
+    jsonStr += "\"ai_temperature\": " + ai_temperature as String + ","
+    jsonStr += "\"enable_memory\": " + enable_memory as String + ","
+    jsonStr += "\"speech_speed\": " + speech_speed as String
+    jsonStr += "}"
+    MiscUtil.WriteToFile(ConfigPath, jsonStr, append = false)
+EndFunction
+```
+
+### Python Config Reader Integration
+
+```python
+CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
+
+def load_user_config():
+    defaults = {
+        "ai_temperature": 0.7,
+        "enable_memory": 1,
+        "speech_speed": 1.0
+    }
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return defaults
+    return defaults
+
+def generate_response_with_config(npc_name, location, player_input):
+    config = load_user_config()
+
+    if config.get("enable_memory") == 1:
+        prompt = build_prompt_with_history(npc_name, location)
+    else:
+        prompt = f"You are {npc_name} at {location}. Respond to the player in one sentence."
+
+    payload = {
+        "prompt": prompt,
+        "max_context_length": 2048,
+        "max_length": 60,
+        "temperature": config.get("ai_temperature", 0.7)
+    }
+
+    # Send payload to local LLM backend.
+    # Pass config["speech_speed"] into your TTS command arguments.
+```
+
+### Creation Kit Steps
+
+1. Create `F4AI_SettingsHolotape` in **Items → Holotape**.
+2. Assign a custom Terminal object.
+3. Add menu items/submenus and bind actions to `IncreaseTemperature`, `DecreaseTemperature`, and `ToggleMemory`.
+4. Add a startup quest that gives the holotape to the player on first load.
