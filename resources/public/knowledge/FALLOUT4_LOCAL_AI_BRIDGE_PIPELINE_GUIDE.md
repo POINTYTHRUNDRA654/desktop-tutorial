@@ -1278,7 +1278,7 @@ A 100% free, fully offline artificial intelligence framework that replaces vanil
 
 ### 1. Prerequisites
 * Install [F4SE](https://silverlock.org).
-* Download/run [KoboldCPP](https://github.com).
+* Download/run [KoboldCPP](https://github.com/LostRuins/koboldcpp).
 
 ### 2. Free Model Setup
 * Download a GGUF model (example: Llama-3-8B-Instruct-Q4_K_M.gguf).
@@ -1313,7 +1313,8 @@ import hashlib
 import tempfile
 
 CURRENT_VERSION = "0.1.0-Alpha"
-# Replace these placeholders with your actual repository coordinates:
+# Replace these placeholders with your actual repository coordinates.
+# Keep auto-updates disabled by default until these are configured and tested.
 REPO_OWNER = "your-github-user-or-org"
 REPO_NAME = "your-release-repo"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest"
@@ -1520,7 +1521,7 @@ def query_local_vision_model(image_path, npc_name):
 Scriptname F4AI_VisionWidgetManager extends ReferenceAlias
 
 String Property VisionTriggerPath = "Data/F4AI/vision_trigger.json" Auto Const
-Int Property HotkeyScanKey = 48 Auto Const ; B key (DX scancode mapping can vary)
+Int Property HotkeyScanKey = 48 Auto Const ; B key by default; confirm scan code via F4SE input docs/test logger
 
 Event OnInit()
     RegisterForKey(HotkeyScanKey)
@@ -1679,3 +1680,88 @@ Immediate delete-after-read prevents stale replay and lock contention.
 - KoboldCPP reachable at `http://localhost:5001`.
 - `CreationKit32.exe` present where your automation expects it.
 - Papyrus property name and CK Sound Descriptor ID match exactly (`F4AI_AudioOutputSound`).
+
+---
+
+## 29) Core Parser + Decoder Logic Review
+
+### Code Block 1: Python Bridge Parser Thread
+
+```python
+import os
+import json
+import time
+
+def process_game_bridge_loop():
+    """
+    Monitors incoming bridge file, parses context, strips model formatting,
+    and returns clean payload data to the game.
+    """
+    try:
+        with open(INPUT_FILE, "r") as f:
+            game_context = json.load(f)
+    except (IOError, json.JSONDecodeError):
+        return
+
+    # Immediately clear input file once read to avoid stale replay and lock contention
+    try:
+        os.remove(INPUT_FILE)
+    except OSError:
+        pass
+
+    npc = game_context.get("npc_name", "Settler")
+    user_input = game_context.get("player_speech", "Hello")
+
+    raw_ai_text = query_local_llm_backend(npc, user_input)
+    clean_ai_text = raw_ai_text.replace("*", "").replace("\"", "").strip()
+
+    output_payload = {
+        "subtitle_text": clean_ai_text,
+        "audio_file": "F4AI/f4ai_voice.wav"
+    }
+
+    with open(OUTPUT_FILE, "w") as out_f:
+        json.dump(output_payload, out_f)
+```
+
+### Code Block 2: Papyrus Subtitle Decoder (String-Based)
+
+```papyrus
+Function ProcessAIResponsePayload()
+    String rawJsonString = MiscUtil.ReadFromFile(OutputPath)
+    String searchKey = "\"subtitle_text\": \""
+    Int keyIndexPosition = StringUtil.Find(rawJsonString, searchKey)
+    
+    If (keyIndexPosition != -1)
+        Int dialogueStartIndex = keyIndexPosition + 18
+        Int dialogueEndIndex = StringUtil.Find(rawJsonString, "\"", dialogueStartIndex)
+        
+        If (dialogueEndIndex != -1 && dialogueEndIndex > dialogueStartIndex)
+            String finalSubtitleText = StringUtil.Substring(rawJsonString, dialogueStartIndex, dialogueEndIndex - dialogueStartIndex)
+            Debug.Notification(finalSubtitleText)
+        EndIf
+    EndIf
+EndFunction
+```
+
+### Code Block 3: Headless Lipgen Command Construction
+
+Prefer argument-list execution over `shell=True` command strings.
+
+```python
+import subprocess
+
+def execute_headless_lipgen(wav_relative_path, subtitle_string):
+    command = [
+        "CreationKit32.exe",
+        f"-GenerateSingleLip:{wav_relative_path}",
+        subtitle_string
+    ]
+    subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+```
+
+### Practical Reminders
+
+- `Debug.Notification()` is short-display UI; keep generated lines compact.
+- Delete bridge files promptly after successful read/write stages.
+- Clear or rotate `f4ai_crash_log.txt` at startup so users report current failures.
