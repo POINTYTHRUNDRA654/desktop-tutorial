@@ -1066,6 +1066,8 @@ export const executeMossyTool = async (name: string, args: any, context: {
         }
     } else if (name === 'get_scan_results') {
         try {
+            const MAX_DISPLAYED_APPS = 60;
+            const MAX_AI_APPS = 20;
             const parseArray = (raw: string | null) => {
                 if (!raw) return [];
                 try {
@@ -1100,7 +1102,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
                         appName.includes('llm');
                 });
 
-                const appList = sourceApps.slice(0, 60).map((a: any) =>
+                const appList = sourceApps.slice(0, MAX_DISPLAYED_APPS).map((a: any) =>
                     `- **${a.displayName || a.name || 'Unknown App'}**${a.version ? ` (v${a.version})` : ''}\n  📍 ${a.path || 'Path unavailable'}`
                 ).join('\n');
 
@@ -1117,7 +1119,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
 **Fallout 4 Installations:** ${fallout4Installations}
 **Data Source:** ${sourceLabel}
 
-${aiApps.length > 0 ? `**AI & Machine Learning Tools (${aiApps.length}):**\n${aiApps.slice(0, 20).map((a: any) => `- **${a.displayName || a.name || 'Unknown App'}** 📍 ${a.path || 'Path unavailable'}`).join('\n')}\n\n` : ''}**Detected Applications (top ${Math.min(sourceApps.length, 60)}):**
+${aiApps.length > 0 ? `**AI & Machine Learning Tools (${aiApps.length}):**\n${aiApps.slice(0, MAX_AI_APPS).map((a: any) => `- **${a.displayName || a.name || 'Unknown App'}** 📍 ${a.path || 'Path unavailable'}`).join('\n')}\n\n` : ''}**Detected Applications (top ${Math.min(sourceApps.length, MAX_DISPLAYED_APPS)}):**
 ${appList}
 
 I can now integrate with these tools to enhance my capabilities and provide you with seamless workflows. Which of these applications would you like me to help you with?`;
@@ -1161,6 +1163,7 @@ I can now integrate with these tools to enhance my capabilities and provide you 
         }
     } else if (name === 'cortex_neural_pulse') {
         try {
+            const MAX_FO4_TOOLS_IN_PULSE = 30;
             const reason = String(args?.reason || 'Cortex pulse requested').trim();
             const parseArray = (raw: string | null) => {
                 if (!raw) return [];
@@ -1183,16 +1186,20 @@ I can now integrate with these tools to enhance my capabilities and provide you 
                 }
             }
 
-            const appName = (a: any) => `${a?.displayName || a?.name || ''} ${a?.path || ''}`.toLowerCase();
-            const hasTool = (keywords: string[]) => allApps.some((a: any) => keywords.some((kw) => appName(a).includes(kw)));
+            const getAppSearchText = (a: any) => `${a?.displayName || a?.name || ''} ${a?.path || ''}`.toLowerCase();
+            const hasTool = (keywords: string[]) => allApps.some((a: any) => keywords.some((kw) => getAppSearchText(a).includes(kw)));
 
-            const fo4Keywords = ['fallout 4', 'fo4', 'f4se', 'xedit', 'fo4edit', 'creation kit', 'nifskope', 'mod organizer', 'mo2', 'vortex', 'loot'];
-            const fo4Relevant = allApps.filter((a: any) => fo4Keywords.some((kw) => appName(a).includes(kw)));
+            const FO4_TOOL_KEYWORDS = ['fallout 4', 'fo4', 'f4se', 'xedit', 'fo4edit', 'creation kit', 'nifskope', 'mod organizer', 'mo2', 'vortex', 'loot'];
+            const CORE_TOOL_REQUIREMENTS: Array<{ label: string; keywords: string[] }> = [
+                { label: 'xEdit / FO4Edit', keywords: ['xedit', 'fo4edit', 'fo4xedit'] },
+                { label: 'MO2 or Vortex', keywords: ['mod organizer', 'mo2', 'vortex'] },
+                { label: 'LOOT', keywords: ['loot'] },
+            ];
 
-            const missingCore: string[] = [];
-            if (!hasTool(['xedit', 'fo4edit', 'fo4xedit'])) missingCore.push('xEdit / FO4Edit');
-            if (!hasTool(['mod organizer', 'mo2', 'vortex'])) missingCore.push('MO2 or Vortex');
-            if (!hasTool(['loot'])) missingCore.push('LOOT');
+            const fo4Relevant = allApps.filter((a: any) => FO4_TOOL_KEYWORDS.some((kw) => getAppSearchText(a).includes(kw)));
+            const missingCore = CORE_TOOL_REQUIREMENTS
+                .filter((req) => !hasTool(req.keywords))
+                .map((req) => req.label);
 
             const recommendations: string[] = [];
             if (missingCore.length > 0) {
@@ -1205,7 +1212,7 @@ I can now integrate with these tools to enhance my capabilities and provide you 
                 recommendations.push('Run Settings → System Monitor deep scan and validate Fallout 4/modding tool paths.');
             }
             if (recommendations.length === 0) {
-                recommendations.push('Core tooling looks present; next step is plugin-level scan with scan_plugin for your active ESP/ESM.');
+                recommendations.push('Core tooling looks present; next step is a plugin-level scan on your active ESP/ESM.');
             }
 
             const pulseTime = new Date().toISOString();
@@ -1218,7 +1225,7 @@ I can now integrate with these tools to enhance my capabilities and provide you 
                 details: {
                     reason,
                     analyzedApps: allApps.length,
-                    fo4RelevantTools: fo4Relevant.slice(0, 30).map((a: any) => a.displayName || a.name).filter(Boolean),
+                    fo4RelevantTools: fo4Relevant.slice(0, MAX_FO4_TOOLS_IN_PULSE).map((a: any) => a.displayName || a.name).filter(Boolean),
                     missingCore,
                     recommendations,
                     at: pulseTime,
