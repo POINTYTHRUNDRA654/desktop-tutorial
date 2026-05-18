@@ -2404,6 +2404,71 @@ External middleware bridge designs (Script Extender + external AI runtime + loca
 
 ---
 
+## 43) Dynamic Facial Morphs via Emotion ID Handoff
+
+Tie emotional text output to in-engine expression morphs with an integer handoff.
+
+### Python: Emotion Tag -> Integer
+
+```python
+def extract_emotion_id(raw_llm_output):
+    if "[ANGRY]" in raw_llm_output:
+        return 1
+    elif "[SAD]" in raw_llm_output:
+        return 2
+    elif "[WHISPER]" in raw_llm_output:
+        return 3
+    return 0
+```
+
+Embed in output payload:
+
+```python
+output_payload = {
+    "subtitle_text": clean_ai_text,
+    "audio_file": "F4AI/f4ai_voice.wav",
+    "emotion_id": extract_emotion_id(raw_llm_output),
+    "display_duration": max(2.5, len(clean_ai_text) / 13.0)
+}
+```
+
+### Papyrus: Parse `emotion_id` and Apply Expression Override
+
+```papyrus
+Function ApplyDynamicFacialMorph(Actor targetNPC, Int emotionID)
+    if (emotionID == 1)
+        targetNPC.SetExpressionOverride(1, 80) ; anger
+    elseif (emotionID == 2)
+        targetNPC.SetExpressionOverride(7, 90) ; sadness
+    elseif (emotionID == 3)
+        targetNPC.SetExpressionOverride(2, 50) ; intense/alert whisper mode
+    else
+        targetNPC.ClearExpressionOverride()
+    endif
+EndFunction
+```
+
+In queue response handler:
+
+```papyrus
+Int emoStart = StringUtil.Find(rawJson, "\"emotion_id\": ") + 14
+Int emoEnd = StringUtil.Find(rawJson, ",", emoStart)
+Int emotionID = StringUtil.Substring(rawJson, emoStart, emoEnd - emoStart) as Int
+
+ApplyDynamicFacialMorph(targetNPC, emotionID)
+F4AI_AudioOutputSound.Play(targetNPC)
+Utility.WaitMenuMode(displayTime)
+targetNPC.ClearExpressionOverride()
+```
+
+### Stability Rules
+
+- Always clear overrides after playback.
+- Keep a neutral fallback (`emotion_id = 0`) for untagged lines.
+- Use conservative intensity values to avoid exaggerated or stuck expressions.
+
+---
+
 ## 39) Alpha Announcement Template + CK Compile Troubleshooting
 
 ### Official Alpha Project Announcement (Template)
