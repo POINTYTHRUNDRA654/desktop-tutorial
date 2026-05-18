@@ -2401,3 +2401,75 @@ External middleware bridge designs (Script Extender + external AI runtime + loca
 - Push-to-talk STT with optional filtering improves natural interaction.
 - FOMOD installer and packaging layout support repeatable distribution.
 - Runtime guardrails (timeouts, retries, cleanup hooks, logging) reduce crash/debug overhead.
+
+---
+
+## 39) Alpha Announcement Template + CK Compile Troubleshooting
+
+### Official Alpha Project Announcement (Template)
+
+```text
+================================================================================
+📢 PROJECT ANNOUNCEMENT: FALLOUT 4 ADVANCED LOCAL AI SYSTEM (ALPHA v0.1.0)
+================================================================================
+
+Hello everyone!
+
+We are opening the first closed alpha build of a local, 100% free, fully offline AI pipeline for Fallout 4.
+NPCs can now process push-to-talk input, track memory context, react to combat stress, and play local generated voice/lipsync with no cloud dependency.
+
+--------------------------------------------------------------------------------
+🛠️ QUICK-START TESTER STEPS:
+--------------------------------------------------------------------------------
+1. Install alpha archive in MO2/Vortex (follow FOMOD voice selection).
+2. Launch KoboldCPP with your preferred GGUF model on localhost:5001.
+3. Run Data/F4AI/Fallout4_AI_Engine.exe.
+4. Launch game via f4se_loader.exe.
+5. Target test NPC and use your push-to-talk key to speak.
+
+--------------------------------------------------------------------------------
+📋 EXPECTED ALPHA FEATURES:
+--------------------------------------------------------------------------------
+• Push-to-talk STT with noise filtering.
+• Dialogue queueing for crowd stability.
+• Race-aware persona shaping.
+• Emotional TTS scaling.
+• Save-safe script cleanup routines.
+
+Please include f4ai_crash_log.txt + perf metrics in bug reports.
+```
+
+### Creation Kit Compile Warning Troubleshooting
+
+#### Warning 1: `mismatched input 'Actor' expecting IDENTIFIER`
+
+Cause: using reserved type names as variable identifiers.
+
+```papyrus
+; ❌
+Function TriggerAIGeneration(Actor Actor)
+
+; ✅
+Function TriggerAIGeneration(Actor targetActor)
+```
+
+#### Warning 2: `cannot call function GetName on a Cast type`
+
+Cause: metadata call on untyped/generic reference without safe cast/base access.
+
+```papyrus
+; ❌
+String name = lookTarget.GetName()
+
+; ✅
+String name = (lookTarget as Actor).GetActorBase().GetName()
+```
+
+#### Warning 3: `variable F4AI_AudioOutputSound is unassigned`
+
+Cause: property declared in script but not mapped in CK property UI.
+
+Fix:
+1. Open quest/script properties in CK.
+2. Select `F4AI_AudioOutputSound`.
+3. Click **Edit Value** and assign the intended sound descriptor asset.
