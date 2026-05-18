@@ -1902,3 +1902,109 @@ def verify_identity_integrity(game_payload):
 - Keep write/read/delete order strict for bridge files.
 - Avoid persisting partial turns.
 - Log rejected packets and prune events for diagnostics.
+
+---
+
+## 32) Local Speech-to-Text (Push-to-Talk Voice Input)
+
+### Dependencies
+
+```bash
+pip install faster-whisper SpeechRecognition pyaudio
+```
+
+If `pyaudio` fails on Windows, install a wheel matching your Python version.
+
+### `stt.py` Core Engine Example
+
+```python
+import io
+import speech_recognition as sr
+from faster_whisper import WhisperModel
+
+class FalloutVoiceReceiver:
+    def __init__(self):
+        self.model = WhisperModel("base.en", device="cpu", compute_type="int8")
+        self.recognizer = sr.Recognizer()
+        self.recognizer.energy_threshold = 300
+        self.recognizer.dynamic_energy_threshold = False
+        self.recognizer.pause_threshold = 1.2
+        
+    def listen_and_transcribe(self):
+        with sr.Microphone(sample_rate=16000) as source:
+            try:
+                audio_data = self.recognizer.listen(source, timeout=10, phrase_time_limit=15)
+                wav_bytes = audio_data.get_wav_data()
+                wav_stream = io.BytesIO(wav_bytes)
+                segments, info = self.model.transcribe(wav_stream, beam_size=3, language="en")
+                return " ".join([segment.text for segment in segments]).strip()
+            except sr.WaitTimeoutError:
+                return ""
+            except Exception:
+                return ""
+```
+
+### `main.py` Integration Example
+
+```python
+import os
+import json
+import time
+from stt import FalloutVoiceReceiver
+
+TRIGGER_FILE = r"Data/F4AI/bridge_input.json"
+voice_engine = FalloutVoiceReceiver()
+
+def handle_game_activation_event():
+    with open(TRIGGER_FILE, "r") as f:
+        context = json.load(f)
+    os.remove(TRIGGER_FILE)
+    
+    npc = context.get("npc_name", "Settler")
+    location = context.get("location", "The Commonwealth")
+    player_voice_input = voice_engine.listen_and_transcribe() or "[The player stares at you silently]"
+    
+    system_prompt = build_prompt_with_history(npc, location)
+    full_prompt = f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{system_prompt}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{player_voice_input}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+    
+    ai_response = query_local_llm(full_prompt)
+    update_npc_memory(npc, player_voice_input, ai_response)
+    write_flat_game_outputs(ai_response, "F4AI/f4ai_voice.wav")
+
+if __name__ == "__main__":
+    while True:
+        if os.path.exists(TRIGGER_FILE):
+            handle_game_activation_event()
+        time.sleep(0.1)
+```
+
+### Papyrus Push-to-Talk Trigger
+
+```papyrus
+Scriptname F4AI_PushToTalkTrigger extends ReferenceAlias
+
+String Property InputPath = "Data/F4AI/bridge_input.json" Auto Const
+Int Property ActivationKey = 56 Auto Const ; Left Alt default (verify keycode for your setup)
+
+Event OnInit()
+    RegisterForKey(ActivationKey)
+EndEvent
+
+Event OnKeyDown(Int aiKeyCode)
+    if (aiKeyCode == ActivationKey)
+        Actor lookTarget = F4SE_InternalRaycastUtils.GetPlayerCurrentCrosshairTarget() as Actor
+        if (lookTarget != None && !lookTarget.IsDead())
+            lookTarget.SetRestrained(true)
+            String jsonPayload = "{\"npc_name\": \"" + lookTarget.GetActorBase().GetName() + "\", \"location\": \"" + Game.GetPlayer().GetCurrentLocation().GetName() + "\"}"
+            MiscUtil.WriteToFile(InputPath, jsonPayload, append = false)
+            WaitForVoiceReturn(lookTarget)
+        endif
+    endif
+EndEvent
+```
+
+### Performance Notes
+
+- `compute_type="int8"` on CPU preserves GPU VRAM for Fallout 4 + LLM runtime.
+- Tune `pause_threshold` (1.2–1.5) to reduce mid-sentence clipping.
+- Keep phrase limits tight to avoid long blocking listens during combat.
