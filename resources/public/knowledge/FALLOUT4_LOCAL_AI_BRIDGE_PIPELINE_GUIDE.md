@@ -1309,9 +1309,14 @@ import os
 import sys
 import requests
 import subprocess
+import hashlib
+import tempfile
 
 CURRENT_VERSION = "0.1.0-Alpha"
-GITHUB_RELEASES_API = "https://api.github.com/repos/<owner>/<repo>/releases/latest"
+# Replace these placeholders with your actual repository coordinates:
+REPO_OWNER = "your-github-user-or-org"
+REPO_NAME = "your-release-repo"
+GITHUB_RELEASES_API = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest"
 EXE_PATH = sys.executable
 
 def check_for_updates():
@@ -1326,20 +1331,34 @@ def check_for_updates():
         assets = release_data.get("assets", [])
         if not assets:
             return
-        download_url = assets[0].get("browser_download_url")
-        if download_url:
-            execute_hot_update(download_url)
+        binary_asset = assets[0]
+        download_url = binary_asset.get("browser_download_url")
+        expected_sha256 = binary_asset.get("label")  # Example: store hash in label or sidecar metadata
+        if download_url and expected_sha256:
+            execute_hot_update(download_url, expected_sha256)
     except Exception:
         # Stay offline silently if update endpoint is unavailable
         return
 
-def execute_hot_update(download_url):
-    update_file_path = EXE_PATH + ".tmp"
+def verify_sha256(file_path, expected_sha256):
+    digest = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            digest.update(chunk)
+    return digest.hexdigest().lower() == expected_sha256.lower()
+
+def execute_hot_update(download_url, expected_sha256):
+    fd, update_file_path = tempfile.mkstemp(prefix="f4ai_update_", suffix=".tmp")
+    os.close(fd)
     response = requests.get(download_url, stream=True, timeout=10)
     response.raise_for_status()
     with open(update_file_path, "wb") as f:
         for chunk in response.iter_content(chunk_size=8192):
             f.write(chunk)
+
+    if not verify_sha256(update_file_path, expected_sha256):
+        os.remove(update_file_path)
+        raise ValueError("Update hash verification failed")
 
     updater_batch_path = "f4ai_patcher.bat"
     with open(updater_batch_path, "w") as bat:
@@ -1360,3 +1379,203 @@ def execute_hot_update(download_url):
 - Verify owner/repo and expected asset naming.
 - Prefer hash/signature verification before replacement.
 - Provide rollback path if update fails.
+
+---
+
+## 25) Visual AI in Fallout 4 (Semantic + Multimodal)
+
+Direct frame scraping can be expensive, so use two modes:
+
+1. **Semantic vision raycasting** (fast, low overhead)
+2. **True multimodal vision** (higher fidelity, higher cost)
+
+### Method 1: Semantic Vision Raycasting (Papyrus + Prompt Context)
+
+```papyrus
+Scriptname F4AI_VisionScanner extends ReferenceAlias
+
+String Property VisionInputPath = "Data/F4AI/vision_input.json" Auto Const
+
+Function ScanNPCVisualField()
+    Actor npcRef = self.GetActorReference()
+    ObjectReference visibleTarget = CastEyeRaycast(npcRef, 2000.0)
+    
+    If (visibleTarget != None)
+        String targetName = visibleTarget.GetBaseObject().GetName()
+        Int targetType = visibleTarget.GetBaseObject().GetType()
+        Float distance = npcRef.GetDistance(visibleTarget)
+        
+        String jsonPayload = "{"
+        jsonPayload += "\"seeing_object\": true,"
+        jsonPayload += "\"object_name\": \"" + targetName + "\","
+        jsonPayload += "\"object_type_id\": " + targetType as String + ","
+        jsonPayload += "\"distance_to_target\": " + distance as String
+        jsonPayload += "}"
+        
+        MiscUtil.WriteToFile(VisionInputPath, jsonPayload, append = false)
+    EndIf
+EndFunction
+
+ObjectReference Function CastEyeRaycast(Actor sourceNPC, Float maxRange)
+    Return F4SE_InternalRaycastUtils.GetFirstObjectInLineOfSight(sourceNPC, maxRange)
+EndFunction
+```
+
+```python
+def build_vision_prompt(npc_name, location, vision_data):
+    obj_name = vision_data.get("object_name", "unknown clutter")
+    dist = int(vision_data.get("distance_to_target", 0))
+    
+    proximity = "in the distance"
+    if dist < 300:
+        proximity = "right in front of your face"
+    elif dist < 800:
+        proximity = "a few steps away"
+        
+    return (
+        f"You are {npc_name} exploring {location} in Fallout 4. "
+        f"You lock eyes on a {obj_name} located {proximity}. "
+        "Comment in one short in-character sentence."
+    )
+```
+
+### Method 2: True Computer Vision (Frame Capture + Local VLM)
+
+Install capture dependencies:
+
+```bash
+pip install pywin32 opencv-python pillow
+```
+
+```python
+import win32gui
+import win32ui
+import win32con
+import cv2
+import numpy as np
+
+def capture_fallout4_window():
+    hwnd = win32gui.FindWindow(None, "Fallout4")
+    if not hwnd:
+        return None
+        
+    left, top, right, bot = win32gui.GetWindowRect(hwnd)
+    w, h = right - left, bot - top
+    
+    hwndDC = win32gui.GetWindowDC(hwnd)
+    mfcDC  = win32ui.CreateDCFromHandle(hwndDC)
+    saveDC = mfcDC.CreateCompatibleDC()
+    saveBitMap = win32ui.CreateBitmap()
+    saveBitMap.CreateCompatibleBitmap(mfcDC, w, h)
+    saveDC.SelectObject(saveBitMap)
+    saveDC.BitBlt((0, 0), (w, h), mfcDC, (0, 0), win32con.SRCCOPY)
+    
+    signedIntsArray = saveBitMap.GetBitmapBits(True)
+    img = np.frombuffer(signedIntsArray, dtype="uint8")
+    img.shape = (h, w, 4)
+    
+    win32gui.DeleteObject(saveBitMap.GetHandle())
+    saveDC.DeleteDC()
+    mfcDC.DeleteDC()
+    win32gui.ReleaseDC(hwnd, hwndDC)
+    
+    output_image = cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
+    frame_path = os.path.join(DATA_DIR, "live_vision_frame.jpg")
+    cv2.imwrite(frame_path, output_image)
+    return frame_path
+```
+
+```python
+import base64
+import requests
+
+OLLAMA_VISION_URL = "http://localhost:11434/api/generate"
+
+def query_local_vision_model(image_path, npc_name):
+    with open(image_path, "rb") as image_file:
+        encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
+        
+    payload = {
+        "model": "moondream",
+        "prompt": f"Describe the primary object or enemy in this frame from NPC {npc_name}'s perspective in <=15 words.",
+        "images": [encoded_image],
+        "stream": False
+    }
+    try:
+        response = requests.post(OLLAMA_VISION_URL, json=payload, timeout=10)
+        if response.status_code == 200:
+            return response.json().get("response", "")
+    except Exception as e:
+        return f"My visual receptors are blurred: {e}"
+    return ""
+```
+
+---
+
+## 26) Crosshair Vision Trigger + VRAM Optimization
+
+### In-Game Crosshair/Hotkey Trigger (Papyrus)
+
+```papyrus
+Scriptname F4AI_VisionWidgetManager extends ReferenceAlias
+
+String Property VisionTriggerPath = "Data/F4AI/vision_trigger.json" Auto Const
+Int Property HotkeyScanKey = 48 Auto Const ; B key (DX scancode mapping can vary)
+
+Event OnInit()
+    RegisterForKey(HotkeyScanKey)
+EndEvent
+
+Event OnKeyDown(Int aiKeyCode)
+    if (aiKeyCode == HotkeyScanKey)
+        TriggerVisualScan()
+    endif
+EndEvent
+
+Function TriggerVisualScan()
+    ObjectReference lookTarget = F4SE_InternalRaycastUtils.GetPlayerCurrentCrosshairTarget()
+    String targetClass = "Static Object"
+    String targetName = "Unknown Environment Entity"
+    
+    if (lookTarget != None)
+        targetName = lookTarget.GetBaseObject().GetName()
+        if (lookTarget as Actor)
+            targetClass = "Actor/Living Entity"
+        endif
+    endif
+    
+    String jsonPayload = "{"
+    jsonPayload += "\"trigger_status\": \"CAPTURE_REQUESTED\","
+    jsonPayload += "\"engine_target_name\": \"" + targetName + "\","
+    jsonPayload += "\"engine_target_class\": \"" + targetClass + "\""
+    jsonPayload += "}"
+    
+    MiscUtil.WriteToFile(VisionTriggerPath, jsonPayload, append = false)
+EndFunction
+```
+
+### VRAM-Safe Serialized Processing
+
+```python
+import time
+import requests
+
+KOBOLD_CONTROL_URL = "http://localhost:5001/api/v1/model"
+
+def execute_optimized_vision_loop(image_path, npc_name):
+    try:
+        requests.post(f"{KOBOLD_CONTROL_URL}/unload", json={"unload": True}, timeout=1)
+    except Exception:
+        pass
+
+    time.sleep(0.1)
+    visual_description = query_local_vision_model(image_path, npc_name)
+    return visual_description
+```
+
+### Practical Performance Rules
+
+- Use quantized models (Q4_K_M/Q3_K_S for text).
+- Keep text context windows conservative (`max_context_length: 1024` for chatter/combat loops).
+- Process VLM and LLM serially under load; avoid simultaneous heavy inference.
+- Gate multimodal feature behind installer option (recommended minimum: 8GB VRAM).
