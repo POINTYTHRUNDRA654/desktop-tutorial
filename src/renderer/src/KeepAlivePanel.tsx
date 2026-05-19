@@ -44,7 +44,13 @@ const KeepAlivePanel: React.FC<KeepAlivePanelProps> = ({ path, children }) => {
   return (
     <div
       aria-hidden={!isActive}
-      style={{ display: isActive ? 'block' : 'none' }}
+      style={{ 
+        display: isActive ? 'flex' : 'none',
+        flexDirection: 'column',
+        flex: 1,
+        minHeight: 0,
+        minWidth: 0,
+      }}
     >
       <Suspense fallback={<PanelLoader />}>
         {children}
