@@ -9,13 +9,20 @@ import fs from 'fs';
 import { execSync } from 'child_process';
 
 export class DesktopShortcutManager {
+  private static getHomeDir(): string {
+    return process.env.USERPROFILE || process.env.HOME || '';
+  }
+
   private static getDesktopPath(): string {
     try {
       return app.getPath('desktop');
     } catch {
-      const homeDir = process.env.USERPROFILE || process.env.HOME || '';
-      return path.join(homeDir, 'Desktop');
+      return path.join(this.getHomeDir(), 'Desktop');
     }
+  }
+
+  private static getLinuxApplicationsDir(): string {
+    return path.join(this.getHomeDir(), '.local', 'share', 'applications');
   }
 
   private static getLinuxIconPath(): string {
@@ -45,7 +52,7 @@ export class DesktopShortcutManager {
       const iconPath = exePath;
       
       // Windows shortcut creation using PowerShell
-      const shortcutName = 'Mossy Pip-Boy';
+      const shortcutName = 'Mossy';
       const shortcutPath = path.join(desktopPath, `${shortcutName}.lnk`);
       
       // For packaged builds the exe IS the app – no --app argument needed.
@@ -90,7 +97,7 @@ export class DesktopShortcutManager {
       }
 
       const appPath = app.getAppPath();
-      const shortcutPath = path.join(desktopPath, 'Mossy Pip-Boy.app');
+      const shortcutPath = path.join(desktopPath, 'Mossy.app');
       
       // Create simple alias on macOS
       execSync(`ln -s "${appPath}" "${shortcutPath}"`, { stdio: 'pipe' });
@@ -119,7 +126,7 @@ export class DesktopShortcutManager {
       const exePath = process.execPath;
       const iconPath = this.getLinuxIconPath();
       const shortcutPath = path.join(desktopPath, 'Mossy.desktop');
-      const applicationsDir = path.join(process.env.HOME || '', '.local', 'share', 'applications');
+      const applicationsDir = this.getLinuxApplicationsDir();
       const appMenuShortcutPath = path.join(applicationsDir, 'Mossy.desktop');
       const execCommand = app.isPackaged
         ? `"${exePath}"`
@@ -182,13 +189,17 @@ StartupWMClass=mossy-desktop
       let shortcutPath = '';
       
       if (platform === 'win32') {
-        shortcutPath = path.join(desktopPath, 'Mossy Pip-Boy.lnk');
+        const newShortcut = path.join(desktopPath, 'Mossy.lnk');
+        const legacyShortcut = path.join(desktopPath, 'Mossy Pip-Boy.lnk');
+        return fs.existsSync(newShortcut) || fs.existsSync(legacyShortcut);
       } else if (platform === 'darwin') {
-        shortcutPath = path.join(desktopPath, 'Mossy Pip-Boy.app');
+        const newShortcut = path.join(desktopPath, 'Mossy.app');
+        const legacyShortcut = path.join(desktopPath, 'Mossy Pip-Boy.app');
+        return fs.existsSync(newShortcut) || fs.existsSync(legacyShortcut);
       } else if (platform === 'linux') {
         const desktopShortcut = path.join(desktopPath, 'Mossy.desktop');
         const legacyDesktopShortcut = path.join(desktopPath, 'Mossy-Pip-Boy.desktop');
-        const appMenuShortcut = path.join(process.env.HOME || '', '.local', 'share', 'applications', 'Mossy.desktop');
+        const appMenuShortcut = path.join(this.getLinuxApplicationsDir(), 'Mossy.desktop');
         return fs.existsSync(desktopShortcut) || fs.existsSync(appMenuShortcut) || fs.existsSync(legacyDesktopShortcut);
       }
       
