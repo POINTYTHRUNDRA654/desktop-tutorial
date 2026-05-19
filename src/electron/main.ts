@@ -8749,13 +8749,14 @@ end.
       ];
 
       // Try backend proxy first (Render or self-hosted).
-      // Use a shorter 4-second timeout so cold-start Render instances fail fast
-      // and we fall through to the direct Groq SDK path without making the user wait.
+      // Use a 15-second timeout to allow cold-start Render instances to wake up.
+      // The backend at https://mossy.onrender.com has a valid Groq key configured,
+      // so we prioritize backend success over fast fallback to the (potentially invalid) local key.
       let content = '';
       const backend = getBackendConfig();
       if (backend) {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 4000);
+        const timeout = setTimeout(() => controller.abort(), 15000);
         try {
           const res = await fetch(backendJoin(backend, '/v1/chat'), {
             method: 'POST',
