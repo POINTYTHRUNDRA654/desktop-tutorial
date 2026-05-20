@@ -70,6 +70,9 @@
     "token-server": "ts-node backend/token-server.ts",
     "check-conflicts": "node scripts/check-no-conflict-markers.js",
     "extract-translations": "node scripts/extract-translations.mjs",
+    "release:snapshot": "pwsh -File scripts/Publish-MossyRelease.ps1 -SnapshotOnly",
+    "release:publish:safe": "pwsh -File scripts/Publish-MossyRelease.ps1",
+    "release:publish:draft:safe": "pwsh -File scripts/Publish-MossyRelease.ps1 -Draft",
     "prebuild:electron": "node scripts/clean.mjs --electron",
     "clean": "node scripts/clean.mjs"
   },
@@ -169,7 +172,9 @@
       ".env.encrypted",
       "CREDITS.md",
       "LICENSE",
-      "LICENSE.electron.txt"
+      "LICENSE.electron.txt",
+      "!PROJECT_MEMORY.md",
+      "!AGENT_MEMORY.md"
     ],
     "extraResources": [
       {

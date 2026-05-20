@@ -353,6 +353,110 @@ Settings:
 - Mipmaps: Yes
 ```
 
+### 7. Packing Modern PBR Maps into Fallout 4’s `_s.dds`
+
+**Use Case:** Converting roughness, AO, and metallic maps from other tools/platforms into a Fallout 4-ready packed specular texture.
+
+**Channel Packing Layout:**
+
+```
+Red Channel    = Smoothness / Glossiness
+                 (paste Roughness, then invert with Ctrl+I)
+
+Green Channel  = Ambient Occlusion
+
+Blue Channel   = Metallic
+
+Alpha Channel  = White by default
+                 (or reserved for special lighting workflows)
+```
+
+**Workflow:**
+```
+1. File → New (same resolution as diffuse)
+2. Window → Channels
+3. Paste roughness into Red, then Ctrl+I
+4. Paste AO into Green
+5. Paste metallic into Blue
+6. Fill Alpha with white
+7. File → Export As → DDS
+8. Compression: BC7 (Fine)
+9. Mipmaps: Yes
+```
+
+### 8. Foliage Alpha and Translucency Workflow
+
+**Use Case:** Leaves, vines, thin organic planes, and backlit vegetation.
+
+**Diffuse Alpha Mask:**
+```
+1. Remove background to checkerboard transparency
+2. Ctrl+click leaf layer thumbnail to load selection
+3. Window → Channels → New Channel
+4. Fill leaf interior with white
+5. Use mid-gray on thin edge frills/stems
+6. Keep background black
+7. Export diffuse as BC7 (Alpha) or BC3/DXT5
+```
+
+**Translucency / Glowmap Pass:**
+```
+1. Duplicate leaf layer
+2. Increase saturation slightly
+3. Lower brightness and raise contrast
+4. Keep thin tissue brighter than dense veins
+5. Export as _g.dds using BC7 or BC1/DXT1
+```
+
+**Recommended BGSM flags for foliage:**
+- Two-Sided
+- Alpha Blend
+- Glow
+- Receive Shadows
+
+### 9. Materialize + ShaderMap 4 Bridge
+
+**Use Case:** Taking raw Materialize outputs and preparing them for engine-ready DDS export.
+
+**Recommended map routing:**
+```
+Materialize diffuse     -> _d
+Materialize normal      -> _n
+Materialize smoothness  -> _s Red
+Materialize AO          -> _s Green
+Materialize metallic    -> _s Blue
+Alpha                   -> white
+```
+
+**Important notes:**
+- Keep ShaderMap enhancement sliders at neutral/default when preserving Materialize detail
+- Flip Y / green channel on normal maps when targeting DirectX-style normals
+- Export normal maps as BC5
+- Export packed specular maps as BC7
+
+### 10. Photopea → NVIDIA Texture Tools Exporter Staging
+
+Use this when you want tighter DDS compression control than direct in-app export.
+
+**Raw staging export from Photopea:**
+```
+1. File → Export As → More
+2. Export as TGA or PNG
+3. Ensure channel mode is RGBA
+```
+
+**Recommended NVIDIA export targets:**
+- `_d.dds`: BC7 (Color + Alpha path)
+- `_n.dds`: BC5 tangent-space normal
+- `_s.dds`: BC7 packed-channel specular
+- `_g.dds`: BC1/BC7 depending on alpha need
+
+**Critical quality toggles in NVIDIA Exporter:**
+- Generate Mipmaps: Enabled
+- Filter: Kaiser or Mitchell
+- Alpha Coverage: Enabled (start around 0.5 for foliage)
+- Normal maps: Linear color space + Normalize Output
+
 ---
 
 ## Advanced Photopea Techniques

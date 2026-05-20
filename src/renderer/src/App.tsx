@@ -1124,6 +1124,7 @@ const App: React.FC = () => {
     if (!hasBooted) {
       return (
         <PipBoyStartup
+          duration={500}
           onComplete={() => {
             localStorage.setItem('mossy_has_booted', 'true');
             setHasBooted(true);
@@ -1320,12 +1321,13 @@ const App: React.FC = () => {
               // Layout fail-safe
               flex: '1 1 auto',
               minWidth: 0,
+              scrollbarGutter: 'stable',
               outline: import.meta.env.DEV ? '2px solid rgba(0,255,255,0.8)' : undefined,
             }}
             role="main"
             aria-label="Main content"
           >
-            <div className="relative z-10">
+            <div className="flex flex-col relative z-10 flex-1 min-h-0">
               <MossyObserver />
 
               {/*
