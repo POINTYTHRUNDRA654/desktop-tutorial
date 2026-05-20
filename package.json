@@ -172,7 +172,9 @@
       ".env.encrypted",
       "CREDITS.md",
       "LICENSE",
-      "LICENSE.electron.txt"
+      "LICENSE.electron.txt",
+      "!PROJECT_MEMORY.md",
+      "!AGENT_MEMORY.md"
     ],
     "extraResources": [
       {
