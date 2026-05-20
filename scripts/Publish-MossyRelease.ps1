@@ -116,8 +116,8 @@ function New-SafetySnapshot {
     $stagedPatchPath = Join-Path $snapshotDir "$timestamp-staged.patch"
     $metadataPath = Join-Path $snapshotDir "$timestamp-metadata.json"
 
-    git diff --binary | Out-File -FilePath $workingPatchPath -Encoding ascii
-    git diff --cached --binary | Out-File -FilePath $stagedPatchPath -Encoding ascii
+    git diff --binary | Out-File -FilePath $workingPatchPath -Encoding utf8
+    git diff --cached --binary | Out-File -FilePath $stagedPatchPath -Encoding utf8
 
     $metadata = @{
         timestamp = (Get-Date).ToString("o")
@@ -127,7 +127,7 @@ function New-SafetySnapshot {
         workingPatch = $workingPatchPath
         stagedPatch = $stagedPatchPath
     } | ConvertTo-Json
-    Set-Content -Path $metadataPath -Value $metadata -Encoding ascii
+    Set-Content -Path $metadataPath -Value $metadata -Encoding utf8
 
     return @{
         BackupBranch = $backupBranch
