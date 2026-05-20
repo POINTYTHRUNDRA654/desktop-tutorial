@@ -103,29 +103,93 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
 
   const pickPlugin = async () => {
     const a = api();
-    if (!a?.ckPickPlugin) { toast.error('File picker not available'); return; }
+    if (!a) { toast.error('Desktop bridge not available'); return; }
     try {
-      const result = await a.ckPickPlugin();
-      if (result?.success && result.path) setSelectedPlugin(result.path);
-    } catch (e) { console.error('File picker error:', e); }
+      // Prefer dedicated CK picker, then fallback to generic invoke and tool picker.
+      if (typeof a.ckPickPlugin === 'function') {
+        const result = await a.ckPickPlugin();
+        if (result?.success && result.path) {
+          setSelectedPlugin(result.path);
+          toast.success('Plugin selected');
+          return;
+        }
+      }
+
+      if (typeof a.invoke === 'function') {
+        const result = await a.invoke('ck-crash-prevention:pick-plugin');
+        if (result?.success && result.path) {
+          setSelectedPlugin(result.path);
+          toast.success('Plugin selected');
+          return;
+        }
+      }
+
+      if (typeof a.pickToolPath === 'function') {
+        const picked = await a.pickToolPath('Fallout 4 Plugin (ESP/ESM/ESL)');
+        if (picked && /\.(esp|esm|esl)$/i.test(String(picked))) {
+          setSelectedPlugin(String(picked));
+          toast.success('Plugin selected');
+          return;
+        }
+      }
+
+      toast('No plugin selected.', { icon: '📁' });
+    } catch (e: any) {
+      const msg = String(e?.message || e || 'Unknown picker error');
+      console.error('File picker error:', e);
+      toast.error(`Plugin picker failed: ${msg}`);
+    }
   };
 
   const pickSpriggitCli = async () => {
     const a = api();
-    if (!a?.spriggitPickCli) { toast.error('File picker not available'); return; }
+    if (!a) { toast.error('Desktop bridge not available'); return; }
     try {
-      const result = await a.spriggitPickCli();
-      if (result) setSpriggitCliPath(result);
-    } catch (e) { console.error('File picker error:', e); }
+      if (typeof a.spriggitPickCli === 'function') {
+        const result = await a.spriggitPickCli();
+        if (result) {
+          setSpriggitCliPath(result);
+          toast.success('Spriggit CLI selected');
+          return;
+        }
+      }
+
+      if (typeof a.pickToolPath === 'function') {
+        const result = await a.pickToolPath('Spriggit CLI');
+        if (result) {
+          setSpriggitCliPath(String(result));
+          toast.success('Spriggit CLI selected');
+          return;
+        }
+      }
+
+      toast('No file selected.', { icon: '📁' });
+    } catch (e: any) {
+      const msg = String(e?.message || e || 'Unknown picker error');
+      console.error('File picker error:', e);
+      toast.error(`Spriggit picker failed: ${msg}`);
+    }
   };
 
   const pickSpriggitDataFolder = async () => {
     const a = api();
-    if (!a?.pickDirectory) { toast.error('Folder picker not available'); return; }
+    if (!a) { toast.error('Desktop bridge not available'); return; }
     try {
-      const result = await a.pickDirectory('Select Fallout 4 Data Folder');
-      if (result) setSpriggitDataPath(result);
-    } catch (e) { console.error('Folder picker error:', e); }
+      if (typeof a.pickDirectory === 'function') {
+        const result = await a.pickDirectory('Select Fallout 4 Data Folder');
+        if (result) {
+          setSpriggitDataPath(result);
+          toast.success('Data folder selected');
+          return;
+        }
+      }
+
+      toast('No folder selected.', { icon: '📁' });
+    } catch (e: any) {
+      const msg = String(e?.message || e || 'Unknown folder picker error');
+      console.error('Folder picker error:', e);
+      toast.error(`Folder picker failed: ${msg}`);
+    }
   };
 
   // ── Validate plugin ───────────────────────────────────
@@ -232,17 +296,31 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
 
   const pickAndAnalyzeLog = async () => {
     const a = api();
-    if (!a?.ckPickLogFile) { toast.error('Log file picker not available'); return; }
+    if (!a) { toast.error('Desktop bridge not available'); return; }
     setAnalysisError('');
     setCrashDiagnosis(null);
     try {
       toast('Select a CK crash log (.log or .txt) — not your ESP.', { icon: '📄' });
-      const picked = await a.ckPickLogFile();
-      if (!picked?.success || !picked.path) return;
+
+      let picked: { success?: boolean; path?: string } | null = null;
+      if (typeof a.ckPickLogFile === 'function') {
+        picked = await a.ckPickLogFile();
+      } else if (typeof a.invoke === 'function') {
+        picked = await a.invoke('ck-crash-prevention:pick-log-file');
+      }
+
+      if (!picked?.success || !picked.path) {
+        toast('No log selected.', { icon: '📄' });
+        return;
+      }
+
       setSelectedLogPath(picked.path);
       setActiveTab('postcrash');
       await analyzeLog(picked.path);
-    } catch (e: any) { toast.error(String(e?.message || e)); }
+    } catch (e: any) {
+      const msg = String(e?.message || e || 'Unknown picker error');
+      toast.error(`Log picker failed: ${msg}`);
+    }
   };
 
   const analyzeLog = async (logPath: string) => {

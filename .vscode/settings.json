@@ -1,0 +1,10 @@
+{
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 1200,
+  "files.hotExit": "onExitAndWindowClose",
+  "explorer.confirmDelete": true,
+  "explorer.confirmDragAndDrop": true,
+  "git.confirmSync": true,
+  "git.enableSmartCommit": false,
+  "git.autofetch": true
+}

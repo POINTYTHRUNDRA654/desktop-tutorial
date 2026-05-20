@@ -52,6 +52,16 @@ This setup process is intended to make onboarding easier while keeping the user 
 
     [Parameter(Mandatory = $false)]
     [switch]$Draft
+
+    ,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$SkipSafetySnapshot
+
+    ,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$SnapshotOnly
 )
 
 # Colors for output
@@ -71,8 +81,86 @@ function Write-Status {
     Write-Host "[$Status] $Message" -ForegroundColor $color
 }
 
+function New-SafetySnapshot {
+    param([string]$RepoRoot)
+
+    $currentBranch = (git branch --show-current 2>$null).Trim()
+    if (-not $currentBranch) {
+        throw "Unable to determine the current git branch."
+    }
+
+    $fullCommit = (git rev-parse HEAD 2>$null).Trim()
+    $shortCommit = (git rev-parse --short HEAD 2>$null).Trim()
+    if (-not $fullCommit) {
+        throw "Unable to resolve current git commit."
+    }
+
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $snapshotDir = Join-Path $RepoRoot ".release-safety"
+    if (-not (Test-Path $snapshotDir)) {
+        New-Item -ItemType Directory -Path $snapshotDir | Out-Null
+    }
+
+    $backupBranch = "backup/pre-release-$timestamp"
+    git show-ref --verify --quiet "refs/heads/$backupBranch"
+    if ($LASTEXITCODE -eq 0) {
+        $backupBranch = "$backupBranch-$shortCommit"
+    }
+
+    git branch $backupBranch $fullCommit
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to create backup branch '$backupBranch'."
+    }
+
+    $workingPatchPath = Join-Path $snapshotDir "$timestamp-working.patch"
+    $stagedPatchPath = Join-Path $snapshotDir "$timestamp-staged.patch"
+    $metadataPath = Join-Path $snapshotDir "$timestamp-metadata.json"
+
+    git diff --binary | Out-File -FilePath $workingPatchPath -Encoding ascii
+    git diff --cached --binary | Out-File -FilePath $stagedPatchPath -Encoding ascii
+
+    $metadata = @{
+        timestamp = (Get-Date).ToString("o")
+        sourceBranch = $currentBranch
+        sourceCommit = $fullCommit
+        backupBranch = $backupBranch
+        workingPatch = $workingPatchPath
+        stagedPatch = $stagedPatchPath
+    } | ConvertTo-Json
+    Set-Content -Path $metadataPath -Value $metadata -Encoding ascii
+
+    return @{
+        BackupBranch = $backupBranch
+        SourceBranch = $currentBranch
+        SourceCommit = $shortCommit
+        WorkingPatch = $workingPatchPath
+        StagedPatch = $stagedPatchPath
+    }
+}
+
 try {
     Write-Status "Starting Mossy release process..." "INFO"
+
+    # Ensure script runs from repository root context
+    $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+    Push-Location $repoRoot
+
+    if (-not $SkipSafetySnapshot) {
+        Write-Status "Creating pre-release safety snapshot..." "INFO"
+        $snapshot = New-SafetySnapshot -RepoRoot $repoRoot
+        Write-Status "Safety snapshot created on branch $($snapshot.BackupBranch)" "SUCCESS"
+        Write-Status "Rollback command: git switch $($snapshot.BackupBranch)" "INFO"
+        Write-Status "Patch backups: $($snapshot.WorkingPatch), $($snapshot.StagedPatch)" "INFO"
+    }
+
+    if ($SnapshotOnly) {
+        if ($SkipSafetySnapshot) {
+            throw "SnapshotOnly cannot be combined with SkipSafetySnapshot."
+        }
+
+        Write-Status "Snapshot-only mode complete. No release was created." "SUCCESS"
+        exit 0
+    }
 
     # Verify gh is installed
     $ghVersion = gh --version 2>&1
@@ -172,4 +260,7 @@ try {
 catch {
     Write-Status $_.Exception.Message "ERROR"
     exit 1
+}
+finally {
+    Pop-Location
 }
