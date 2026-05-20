@@ -449,6 +449,7 @@ const MessageList = React.memo(({ messages, onRate, ...props }: any) => {
             ref={messageListRef}
             onWheel={wheelHandler}
             className="flex-1 overflow-y-auto overflow-x-auto p-4 space-y-6 scroll-smooth"
+            style={{ scrollbarGutter: 'stable' }}
         >
             {messages.length === 0 && <QuickPromptChips onSelect={props.onQuickPrompt ?? (() => {})} />}
             {messages.map((msg: ChatMessage) => (
@@ -2170,7 +2171,7 @@ export const ChatInterface: React.FC = () => {
     };
 
     return (
-        <div data-testid="chat-container" className="flex flex-col h-full bg-forge-dark text-slate-200">
+        <div data-testid="chat-container" className="flex flex-col h-full bg-forge-dark text-slate-200" style={{ scrollbarGutter: 'stable' }}>
             {/* Header */}
             <div className="p-4 border-b border-slate-700 flex flex-wrap justify-between items-center bg-forge-panel gap-y-2">
                 <div className="flex items-center gap-3 min-w-0 flex-shrink overflow-hidden">

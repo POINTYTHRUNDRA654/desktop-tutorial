@@ -1311,15 +1311,11 @@ print("Batch processing complete")`,
   };
 
   const loadTemplate = (template: string) => {
-    if (typeof template !== 'string' || template.trim().length === 0) return;
-    const templatesForType = templates[activeTab as keyof typeof templates];
-    if (!templatesForType || typeof templatesForType !== 'object') return;
-
-    const selectedTemplate = (templatesForType as Record<string, string>)[template];
-    if (typeof selectedTemplate !== 'string') return;
-
-    setCode(selectedTemplate);
-    setValidationErrors([]);
+    const templates_for_type = templates[activeTab];
+    if (templates_for_type && template in templates_for_type) {
+      setCode((templates_for_type as any)[template]);
+      setValidationErrors([]);
+    }
   };
 
   return (
@@ -1609,21 +1605,20 @@ print("Batch processing complete")`,
                 error: 'border-red-500/50 bg-red-900/20 text-red-400',
                 warning: 'border-amber-500/50 bg-amber-900/20 text-amber-400',
                 info: 'border-blue-500/50 bg-blue-900/20 text-blue-400',
-              } as const;
+              };
 
               const icons = {
                 error: X,
                 warning: AlertTriangle,
                 info: Zap,
-              } as const;
+              };
 
-              const colorClass = colors[error.severity as keyof typeof colors] || 'border-slate-500/50 bg-slate-900/20 text-slate-400';
-              const Icon = icons[error.severity as keyof typeof icons] || Zap;
+              const Icon = icons[error.severity];
 
               return (
                 <div
                   key={index}
-                  className={`border rounded-lg p-3 ${colorClass}`}
+                  className={`border rounded-lg p-3 ${colors[error.severity]}`}
                 >
                   <div className="flex items-start gap-2">
                     <Icon className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -2052,3 +2047,4 @@ print("Batch processing complete")`,
     </div>
   );
 };
+
