@@ -5,18 +5,20 @@ A comprehensive tutorial and helper system for creating Fallout 4 mods in Blende
 
 bl_info = {
     "name": "Mossy Fallout 4 Blender Add-on",
-    "author": "Tutorial Team",
+    "author": "Mossy Industries",
     "version": (5, 1, 0),
     "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x
     "location": "View3D > Sidebar > Fallout 4",
     "description": (
-        "Professional Fallout 4 modding assistant. Exports NIF (BSTriShape) via "
-        "PyNifly (Blender 4.x/5.x) or Niftools v0.1.1 (Blender 3.6 LTS), "
+        "Professional Fallout 4 modding assistant by Mossy Industries. "
+        "FREE local AI powered by Mossy desktop app. "
+        "Exports NIF (BSTriShape) via PyNifly (Blender 4.x/5.x) or Niftools v0.1.1 (Blender 3.6 LTS), "
         "auto-preps meshes (triangulate/UV/transforms), generates UCX_ collision, "
         "validates against FO4 limits, and falls back to FBX when no NIF exporter "
-        "is installed. Includes mesh optimisation, DDS texture conversion "
+        "is installed. Includes mesh optimization, DDS texture conversion "
         "(NVTT/texconv), wind animation, AI rigging (RigNet), quest/NPC/item "
-        "helpers, and smart presets."
+        "helpers, and smart presets. No paid subscriptions or API keys required. "
+        "A Mossy Industries product."
     ),
     "warning": "NIF export: install PyNifly for Blender 4.x/5.x, or Niftools v0.1.1 for Blender 3.6 LTS",
     "doc_url": "https://github.com/POINTYTHRUNDRA654/Blender-add-on",

@@ -50,12 +50,12 @@ class AdvisorHelpers:
                 report["issues"].append(f"Export validation: {issue}")
 
         if use_llm:
-            # Try Mossy first (no API key needed), then fall back to remote LLM
+            # Use Mossy for FREE, LOCAL AI assistance (no API keys, no cloud)
             ai_resp = AdvisorHelpers.query_mossy(report)
-            if not ai_resp:
-                ai_resp = AdvisorHelpers.query_llm(report)
             if ai_resp:
                 report["llm"] = ai_resp
+            else:
+                report["llm"] = "Mossy not available. Start Mossy desktop app for FREE AI assistance."
 
         # Derive suggestions from findings
         AdvisorHelpers._derive_suggestions(report)
@@ -183,60 +183,6 @@ class AdvisorHelpers:
             return response  # str with content, or None
         except Exception as e:
             return f"Could not connect to Mossy: {e}\nMake sure Mossy is running and server is started."
-
-    @staticmethod
-    def query_llm(meta_report):
-        """Optional LLM call using user-configured endpoint. Sends only summary strings."""
-        cfg = preferences.get_llm_config()
-        if not cfg.get("enabled"):
-            return None
-        if not cfg.get("endpoint") or not cfg.get("api_key"):
-            return None
-
-        kb_snippets = []
-        prefs = preferences.get_preferences()
-        if prefs and getattr(prefs, "knowledge_base_enabled", False):
-            kb_snippets = knowledge_helpers.load_snippets(max_files=6, max_chars=1200)
-
-        payload = {
-            "model": cfg.get("model", ""),
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a Blender→Fallout4 export assistant. Reply briefly with prioritized fixes for export readiness, textures, and scale/rig issues."
-                },
-                {
-                    "role": "user",
-                    "content": json.dumps({
-                        "issues": meta_report.get("issues", [])[:20],
-                        "suggestions": meta_report.get("suggestions", [])[:20],
-                        "objects_checked": meta_report.get("objects_checked", 0),
-                        "kb": kb_snippets[:6],
-                    })
-                }
-            ]
-        }
-        data = json.dumps(payload).encode("utf-8")
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {cfg['api_key']}",
-        }
-        req = urllib.request.Request(cfg['endpoint'], data=data, headers=headers, method="POST")
-        try:
-            with contextlib.closing(urllib.request.urlopen(req, timeout=8)) as resp:
-                text = resp.read().decode("utf-8", errors="replace")
-                # Best-effort parse minimal JSON; otherwise return raw text
-                try:
-                    parsed = json.loads(text)
-                    if isinstance(parsed, dict):
-                        # Try OpenAI-style choices
-                        if 'choices' in parsed and parsed['choices']:
-                            return parsed['choices'][0].get('message', {}).get('content', text)
-                    return text
-                except json.JSONDecodeError:
-                    return text
-        except Exception as e:
-            return f"LLM call failed: {e}"
 
     @staticmethod
     def apply_quick_fix(context, action: str):

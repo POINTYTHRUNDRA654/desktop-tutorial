@@ -43,11 +43,13 @@ ZIP_FILE_PREFIX   = "mossy-fo4-blender-addon"
 
 # Files and directories to EXCLUDE from every zip
 EXCLUDE = {
-    ".git", ".github", ".gitattributes", ".gitignore", ".githooks", ".vscode",
+    ".git", ".github", ".gitattributes", ".gitignore", ".githooks", ".vscode", ".vs",
     "build_temp", "build_addon.py", "build.ps1", "build.log",
     "*.zip", "*.pyc", "__pycache__",
     "README.md", "GIT_RECOVERY_GUIDE.md", "BUTTON_PATTERN_GUIDE.md",
-    "DEVELOPMENT_NOTES.md", "RELEASE_GUIDE.md", "fix_git_remote.bat", "resolve_conflicts.bat",
+    "DEVELOPMENT_NOTES.md", "RELEASE_GUIDE.md", "MIGRATION_v5.1.0.md",
+    "COMPLETION_REPORT.md", "BLENDER_EXTENSION_SUBMISSION.md",
+    "fix_git_remote.bat", "resolve_conflicts.bat",
     ".DS_Store", "Thumbs.db",
     # The repo-root manifest is only used for direct-folder installation;
     # it is regenerated dynamically for each zip variant.
@@ -143,8 +145,8 @@ def _make_manifest(addon_version: str, blender_min: tuple,
         id = "blender_game_tools"
         version = "{addon_version}"
         name = "Mossy Fallout 4 Blender Add-on"
-        tagline = "Professional Fallout 4 modding tools for Blender"
-        maintainer = "Tutorial Team"
+        tagline = "Professional Fallout 4 modding tools by Mossy Industries"
+        maintainer = "Mossy Industries <support@mossy.industries>"
         type = "add-on"
         website = "{ADDON_WEBSITE}"
 
@@ -160,8 +162,8 @@ def _make_manifest(addon_version: str, blender_min: tuple,
         category = "Import-Export"
 
         [permissions]
-        network = "Download tools and AI models on demand"
-        files = "Read / write FO4 data folder and export NIF files"
+        network = "Connect to FREE Mossy desktop app (localhost only - no cloud services, no API keys required)"
+        files = "Read/write Fallout 4 data folders and export mesh files"
         """)
     return lines
 
@@ -176,46 +178,64 @@ def build_nexus_bundle(outdir: Path, addon_version: str,
 
     install_guide = textwrap.dedent(f"""\
         Mossy Fallout 4 Blender Add-on  v{addon_version}  — Nexus Mods Bundle
-        ===============================================================
+        A Mossy Industries Product
 
-        WHICH ZIP DO I INSTALL?
-        -----------------------
-        Pick the zip that matches your Blender version:
+        ════════════════════════════════════════════════════════════════════════
 
-          mossy-fo4-blender-addon-v{addon_version}-blender3x.zip  →  Blender 3.6 LTS
-          mossy-fo4-blender-addon-v{addon_version}-blender4x.zip  →  Blender 4.0 – 4.1
-          mossy-fo4-blender-addon-v{addon_version}-blender42.zip  →  Blender 4.2 – 4.9  (Extension format)
-          mossy-fo4-blender-addon-v{addon_version}-blender5x.zip  →  Blender 5.0+       (Extension format)
+        INSTALLATION — Pick the zip that matches your Blender version:
 
-        HOW TO INSTALL — Blender 4.2 and 5.x (Extension format)
-        ---------------------------------------------------------
-        1.  Open Blender.
-        2.  Go to Edit → Preferences → Add-ons.
-        3.  Click the drop-down arrow next to "Install" and choose
-            "Install from Disk…".
-        4.  Select the matching zip from this bundle.
-        5.  Enable the add-on by checking the checkbox next to
-            "Mossy Fallout 4 Blender Add-on".
+          • Blender 5.0 or later     →  mossy-fo4-blender-addon-v{addon_version}-blender5x.zip
+          • Blender 4.2 – 4.9        →  mossy-fo4-blender-addon-v{addon_version}-blender42.zip
+          • Blender 4.0 – 4.1        →  mossy-fo4-blender-addon-v{addon_version}-blender4x.zip
+          • Blender 3.6 LTS          →  mossy-fo4-blender-addon-v{addon_version}-blender3x.zip
 
-        HOW TO INSTALL — Blender 3.6 and 4.0-4.1 (legacy add-on format)
-        ------------------------------------------------------------------
-        1.  Open Blender.
-        2.  Go to Edit → Preferences → Add-ons → Install.
-        3.  Select the matching zip from this bundle.
-        4.  Enable the add-on by checking the checkbox next to
-            "Mossy Fallout 4 Blender Add-on".
+        Check your Blender version:  Help → About Blender
 
-        ALTERNATIVE: Get Extensions (Blender 4.2+)
-        -------------------------------------------
-        If the add-on is listed on extensions.blender.org you can install it
-        directly inside Blender without downloading anything manually:
-        Edit → Preferences → Add-ons → Get Extensions → search
-        "Mossy Fallout 4 Blender Add-on" → Install.
+        Installing:
+          1. Open Blender
+          2. Edit → Preferences → Add-ons → Install
+          3. Select the zip that matches your Blender version
+          4. Enable the add-on (check the box)
 
-        SOURCE / UPDATES
-        ----------------
-        {ADDON_WEBSITE}
-    """)
+        ════════════════════════════════════════════════════════════════════════
+
+        FEATURES
+
+        ✓ 100% FREE - No subscriptions, no API keys required
+        ✓ FREE Local AI - Powered by Mossy Industries desktop app
+        ✓ Professional NIF export (BSTriShape format)
+        ✓ Automatic mesh preparation & validation
+        ✓ UCX_ collision generation
+        ✓ DDS texture conversion
+        ✓ Havok animation export
+        ✓ Quest/NPC/item creation helpers
+        ✓ Multi-engine support (FO4, Unreal, Unity)
+
+        ════════════════════════════════════════════════════════════════════════
+
+        AI FEATURES (Optional - 100% FREE)
+
+        For FREE AI-powered scene analysis and assistance:
+
+        1. Download Mossy Industries desktop app (free)
+        2. In Blender: Press N → Fallout 4 → Settings
+        3. Enable "AI Advisor (via Mossy)"
+        4. Connect to Mossy (localhost only - no cloud)
+
+        All AI runs locally on YOUR machine. No API keys, no cloud services,
+        no data transmission. Complete privacy.
+
+        ════════════════════════════════════════════════════════════════════════
+
+        SUPPORT
+
+        GitHub: https://github.com/POINTYTHRUNDRA654/Blender-add-on
+        Issues: https://github.com/POINTYTHRUNDRA654/Blender-add-on/issues
+
+        Mossy Industries - Professional tools for game modders
+
+        ════════════════════════════════════════════════════════════════════════
+        """)
 
     with zipfile.ZipFile(bundle_path, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("INSTALL_GUIDE.txt", install_guide)

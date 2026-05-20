@@ -14,8 +14,6 @@ import bpy
 _DEFAULT_HAVOK2FBX_PATH = ""
 _DEFAULT_NVTT_PATH = ""
 _DEFAULT_TEXCONV_PATH = ""
-_DEFAULT_LLM_ENDPOINT = ""
-_DEFAULT_LLM_MODEL = "gpt-4o"
 _DEFAULT_ADVISOR_INTERVAL = 30
 _DEFAULT_KB_PATH = ""
 
@@ -55,7 +53,6 @@ def save_api_keys() -> None:
     if not prefs:
         return
     keys: dict = {
-        "llm_api_key": prefs.llm_api_key,
         "mossy_token": prefs.token,
         "pytorch_path": prefs.pytorch_path,
     }
@@ -87,13 +84,6 @@ def load_api_keys() -> None:
         old_addon = bpy.context.preferences.addons.get(_OLD_ADDON_NAME)
         if old_addon and hasattr(old_addon, "preferences"):
             old_prefs = old_addon.preferences
-            if (hasattr(old_prefs, "llm_api_key")
-                    and isinstance(old_prefs.llm_api_key, str)
-                    and old_prefs.llm_api_key
-                    and isinstance(prefs.llm_api_key, str)
-                    and not prefs.llm_api_key.strip()):
-                prefs.llm_api_key = old_prefs.llm_api_key
-                print(f"✓ Migrated LLM API key from '{_OLD_ADDON_NAME}'")
             if (hasattr(old_prefs, "token")
                     and isinstance(old_prefs.token, str)
                     and old_prefs.token
@@ -114,11 +104,6 @@ def load_api_keys() -> None:
     except Exception as exc:
         print(f"Could not read saved API keys from {path}: {exc}")
         return
-
-    llm_key = keys.get("llm_api_key", "")
-    if llm_key and not prefs.llm_api_key.strip():
-        prefs.llm_api_key = llm_key
-        print("✓ LLM API key restored from keys file")
 
     mossy_token = keys.get("mossy_token", "")
     if mossy_token and not prefs.token.strip():
@@ -202,17 +187,15 @@ def is_ckcmd_configured() -> bool:
     return get_ckcmd_path() is not None
 
 
-def get_llm_config() -> dict:
+def get_mossy_config() -> dict:
+    """Get Mossy AI advisor configuration (free, local AI via Mossy desktop app)."""
     prefs = get_preferences()
     if not prefs:
         return {"enabled": False}
     return {
-        "enabled": prefs.llm_enabled,
-        "endpoint": prefs.llm_endpoint.strip(),
-        "model": prefs.llm_model.strip(),
-        "api_key": prefs.llm_api_key.strip(),
-        "allow_actions": prefs.llm_allow_actions,
-        "send_stats": prefs.llm_send_stats,
+        "enabled": getattr(prefs, "use_mossy_as_ai", False),
+        "http_port": getattr(prefs, "mossy_http_port", 5000),
+        "allow_actions": getattr(prefs, "advisor_auto_monitor_enabled", True),
     }
 
 
@@ -639,46 +622,10 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         ),
     )
 
-    llm_enabled: bpy.props.BoolProperty(
-        name="Enable LLM Advisor",
-        default=False,
-        description="Opt-in: allow calls to configured LLM endpoint for advice (metadata only)",
-    )
-
-    llm_endpoint: bpy.props.StringProperty(
-        name="LLM Endpoint",
-        default=_DEFAULT_LLM_ENDPOINT,
-        description="HTTP endpoint for chat completions",
-    )
-
-    llm_model: bpy.props.StringProperty(
-        name="LLM Model",
-        default=_DEFAULT_LLM_MODEL,
-        description="Model name to request from the endpoint",
-    )
-
-    llm_api_key: bpy.props.StringProperty(
-        name="LLM API Key",
-        default="",
-        subtype='PASSWORD',
-        description=(
-            "Bearer token for the LLM endpoint. "
-            "Stored in plain text at ~/.blender_game_tools_keys.json."
-        ),
-        update=_key_update,
-    )
-
-    llm_allow_actions: bpy.props.BoolProperty(
-        name="Allow Action Suggestions",
-        default=False,
-        description="If enabled, advisor may suggest actions; execution still requires user click",
-    )
-
-    llm_send_stats: bpy.props.BoolProperty(
-        name="Send Counts Only",
-        default=True,
-        description="Only send summary strings/counts; no mesh or texture binaries",
-    )
+    # ──────────────────────────────────────────────────────────────────────
+    # LLM/OpenAI fields REMOVED - ALL AI now goes through Mossy (free, local)
+    # See use_mossy_as_ai property below for enabling AI features
+    # ──────────────────────────────────────────────────────────────────────
 
     advisor_auto_monitor_enabled: bpy.props.BoolProperty(
         name="Advisor Auto-Monitor",
@@ -943,12 +890,12 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
     )
 
     use_mossy_as_ai: bpy.props.BoolProperty(
-        name="Use Mossy as AI Advisor",
-        default=False,
+        name="Enable AI Advisor (via Mossy)",
+        default=True,
         description=(
-            "Route advisor AI queries through Mossy instead of a remote LLM endpoint. "
-            "Requires Mossy to be running on the desktop. "
-            "No API key needed - everything stays on your machine."
+            "Enable FREE AI-powered scene analysis via Mossy desktop app. "
+            "Requires Mossy to be running (100% free, 100% local - no cloud, no API keys). "
+            "All AI processing stays on your machine."
         ),
     )
 

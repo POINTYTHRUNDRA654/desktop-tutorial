@@ -4004,20 +4004,21 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             opt_box.prop(scene, "fo4_opt_preserve_uvs",
                          text="Preserve UVs when removing doubles")
 
-        # ── LLM Advisor ───────────────────────────────────────────────────────
-        llm_box = layout.box()
-        llm_box.label(text="AI Advisor – LLM (optional, opt-in)", icon="INFO")
+        # ── AI Advisor (via Mossy - FREE & LOCAL) ────────────────────────────
+        ai_box = layout.box()
+        ai_box.label(text="AI Advisor – FREE via Mossy (100% Local)", icon="COMMUNITY")
         if prefs is not None:
-            llm_box.prop(prefs, "llm_enabled", text="Enable LLM Advisor")
-            col = llm_box.column(align=True)
-            col.enabled = prefs.llm_enabled
-            col.prop(prefs, "llm_endpoint",      text="Endpoint URL")
-            col.prop(prefs, "llm_model",         text="Model")
-            col.prop(prefs, "llm_api_key",       text="API Key")
-            col.prop(prefs, "llm_allow_actions", text="Allow action suggestions")
-            col.prop(prefs, "llm_send_stats",    text="Send summary counts only")
+            ai_box.prop(prefs, "use_mossy_as_ai", text="Enable AI Advisor")
+            info_col = ai_box.column(align=True)
+            info_col.label(text="✓ No API keys needed", icon="CHECKMARK")
+            info_col.label(text="✓ No cloud services", icon="CHECKMARK")
+            info_col.label(text="✓ 100% free forever", icon="CHECKMARK")
+            if not prefs.use_mossy_as_ai:
+                ai_box.label(text="Enable above to get FREE AI scene analysis", icon="INFO")
+            else:
+                ai_box.label(text="Requires Mossy desktop app running", icon="LINKED")
         else:
-            llm_box.prop(scene, "fo4_llm_enabled", text="Enable LLM Advisor")
+            ai_box.label(text="AI Advisor settings unavailable", icon='INFO')
 
         # ── Advisor auto-monitor ──────────────────────────────────────────────
         mon_box = layout.box()
@@ -4043,9 +4044,12 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             kb_box.prop(scene, "fo4_kb_enabled", text="Use bundled / user KB")
             kb_box.prop(scene, "fo4_kb_path",    text="Custom KB folder (txt/md)")
 
-        # ── Mossy Link ────────────────────────────────────────────────────────
+        # ── Mossy Link (FREE Local AI + Desktop Integration) ─────────────────
         ml_box = layout.box()
-        ml_box.label(text="Mossy Link", icon="LINKED")
+        ml_box.label(text="Mossy Link – Desktop App Connection", icon="LINKED")
+
+        info_row = ml_box.row()
+        info_row.label(text="Connects to FREE Mossy desktop app for AI assistance", icon="INFO")
 
         tcp_sub = ml_box.box()
         tcp_sub.label(text="TCP Server  (Mossy → Blender control)",
@@ -4063,16 +4067,15 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
                 tcp_sub.label(text="Mossy settings unavailable", icon='INFO')
 
         http_sub = ml_box.box()
-        http_sub.label(text="AI Queries  (Blender → Mossy)", icon="URL")
+        http_sub.label(text="AI Queries  (Blender → Mossy FREE AI)", icon="URL")
         if prefs is not None:
             http_sub.prop(prefs, "mossy_http_port", text="Mossy HTTP Port")
-            http_sub.prop(prefs, "use_mossy_as_ai",  text="Use Mossy as AI Advisor")
             if prefs.use_mossy_as_ai:
                 http_sub.label(
-                    text="✓ Advisor will ask Mossy instead of remote LLM",
+                    text="✓ AI Advisor enabled - using FREE Mossy AI",
                     icon="CHECKMARK")
             else:
-                http_sub.label(text="Enable to route AI through Mossy", icon="INFO")
+                http_sub.label(text="Enable AI Advisor above to use Mossy AI", icon="INFO")
         else:
             if hasattr(scene, 'fo4_mossy_http_port'):
                 http_sub.prop(scene, "fo4_mossy_http_port", text="Mossy HTTP Port")

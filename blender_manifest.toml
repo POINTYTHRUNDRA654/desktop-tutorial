@@ -11,8 +11,8 @@ schema_version = "1.0.0"
 id          = "blender_game_tools"
 version     = "5.1.0"
 name        = "Mossy Fallout 4 Blender Add-on"
-tagline     = "Professional Fallout 4 modding tools for Blender 5"
-maintainer  = "Tutorial Team"
+tagline     = "Professional Fallout 4 modding tools by Mossy Industries"
+maintainer  = "Mossy Industries <support@mossy.industries>"
 type        = "add-on"
 website     = "https://github.com/POINTYTHRUNDRA654/Blender-add-on."
 
@@ -22,5 +22,5 @@ license  = ["SPDX:GPL-3.0-or-later"]
 category = "Import-Export"
 
 [permissions]
-network = "Download tools and AI models on demand"
-files   = "Read / write FO4 data folder and export NIF files"
+network = "Connect to FREE Mossy desktop app (localhost only - no cloud services, no API keys required)"
+files   = "Read/write Fallout 4 data folders and export mesh files"
