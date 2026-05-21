@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Github, Save, Send, ShieldCheck } from 'lucide-react';
+import { Save, Send, ShieldCheck } from 'lucide-react';
 import type { Settings } from '../../shared/types';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { openExternal } from './utils/openExternal';

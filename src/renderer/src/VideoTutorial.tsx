@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Play, Pause, Volume2, VolumeX, Maximize, Minimize, ExternalLink, Youtube, Video } from 'lucide-react';
+import { X, Play, Pause, Volume2, VolumeX, Maximize, Minimize, ExternalLink, Video } from 'lucide-react';
 import { speakMossy } from './mossyTts';
 
 interface VideoTutorialProps {
