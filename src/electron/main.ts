@@ -8754,11 +8754,14 @@ end.
       // so we prioritize backend success over fast fallback to the (potentially invalid) local key.
       let content = '';
       const backend = getBackendConfig();
+      console.log('[AI Chat Groq] Backend config:', backend ? `URL=${backend.baseUrl}, hasToken=${!!backend.token}` : 'No backend configured');
       if (backend) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 15000);
         try {
-          const res = await fetch(backendJoin(backend, '/v1/chat'), {
+          const backendUrl = backendJoin(backend, '/v1/chat');
+          console.log('[AI Chat Groq] Attempting backend request to:', backendUrl);
+          const res = await fetch(backendUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -8768,24 +8771,40 @@ end.
             signal: controller.signal,
           });
 
+          console.log('[AI Chat Groq] Backend response status:', res.status, res.statusText);
           const json: any = await res.json().catch(() => ({}));
           if (res.ok && json?.ok) {
             content = String(json?.text || '');
+            console.log('[AI Chat Groq] ✅ Backend proxy succeeded, content length:', content.length);
           } else {
-            console.warn('[AI Chat Groq] Backend proxy failed:', json?.message || json?.error || res.status);
+            console.warn('[AI Chat Groq] ❌ Backend proxy failed:', json?.message || json?.error || res.status);
+            console.warn('[AI Chat Groq] Response body:', JSON.stringify(json).substring(0, 200));
           }
         } catch (e: any) {
-          console.warn('[AI Chat Groq] Backend proxy error, falling back to direct Groq:', e?.message || e);
+          console.error('[AI Chat Groq] ❌ Backend proxy exception:', e?.message || e);
+          console.error('[AI Chat Groq] Error type:', e?.name, 'Code:', e?.code);
         } finally {
           clearTimeout(timeout);
         }
+      } else {
+        console.log('[AI Chat Groq] Skipping backend — no backend URL configured');
       }
 
       // Fall back to direct Groq SDK when backend is unavailable or failed
       if (!content) {
         const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
         if (!apiKey) {
-          return { success: false, error: 'No Groq API key configured. Add your key in Desktop Settings.' };
+          // More descriptive error: differentiate between "no backend" vs "backend failed"
+          const backendConfig = getBackendConfig();
+          if (!backendConfig) {
+            console.error('[AI Chat Groq] No backend configured and no local Groq API key — cannot proceed');
+            return { success: false, error: 'Groq unavailable: No backend URL configured and no local Groq API key set. Add backend URL or Groq API key in Desktop Settings.' };
+          } else {
+            console.error('[AI Chat Groq] Backend connection failed and no local Groq API key fallback available');
+            console.error('[AI Chat Groq] Backend URL:', backendConfig.baseUrl);
+            console.error('[AI Chat Groq] Backend token present:', !!backendConfig.token);
+            return { success: false, error: 'Groq cloud chat unavailable: Backend connection failed. Please check: 1. Backend service is running (https://mossy.onrender.com/health). 2. Internet connection. 3. Backend token is correct in Settings.' };
+          }
         }
         const { default: Groq } = await import('groq-sdk');
         const client = new Groq({ apiKey });
