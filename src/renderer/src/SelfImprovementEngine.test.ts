@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { vi } from 'vitest';
 import { SelfImprovementEngine } from './SelfImprovementEngine';
 
 // Mock localStorage globally

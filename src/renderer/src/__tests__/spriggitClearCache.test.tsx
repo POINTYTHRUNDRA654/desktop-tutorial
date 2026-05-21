@@ -12,7 +12,7 @@
  *     button appears and calls the spriggitClearCache IPC exactly once.
  */
 
-import { test, expect, describe, vi, beforeEach, afterEach } from 'vitest';
+import { vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';

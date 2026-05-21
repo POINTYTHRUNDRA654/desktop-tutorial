@@ -306,7 +306,10 @@ const IPC_CHANNELS = {
   CK_CRASH_VALIDATE: 'ck-crash-prevention:validate',
   CK_CRASH_ANALYZE: 'ck-crash-prevention:analyze-crash',
   CK_CRASH_GENERATE_PLAN: 'ck-crash-prevention:generate-plan',
-  CK_CRASH_PICK_LOG: 'ck-crash-prevention:pick-log-file',
+  CK_CRASH_PICK_LOG_FILE: 'ck-crash-prevention:pick-log-file',
+  CK_CRASH_PICK_PLUGIN: 'ck-crash-prevention:pick-plugin',
+  CK_CRASH_PICK_MOD_PACKAGE: 'ck-crash-prevention:pick-mod-package',
+  CK_CRASH_EXTRACT_ZIP: 'ck-crash-prevention:extract-zip',
 
   // Mod Projects persistence
   SAVE_MOD_PROJECTS: 'save-mod-projects',
@@ -1229,7 +1232,7 @@ const electronAPI = {
    * CK Crash Prevention: Pick plugin file (ESP/ESM/ELS)
    */
   ckPickPlugin: (): Promise<{ success: boolean; path?: string; error?: string }> => {
-    return ipcRenderer.invoke('ck-crash-prevention:pick-plugin');
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_PICK_PLUGIN);
   },
 
   /**
@@ -2826,6 +2829,20 @@ const electronAPI = {
    */
   ckCrashGeneratePlan: (validation: any): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_GENERATE_PLAN, validation);
+  },
+
+  /**
+   * CK Crash Prevention: Pick a full mod package path (folder/archive)
+   */
+  ckPickModPackage: (): Promise<{ success: boolean; path?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_PICK_MOD_PACKAGE);
+  },
+
+  /**
+   * CK Crash Prevention: Extract a .zip archive to temporary directory for scan
+   */
+  ckExtractZip: (archivePath: string): Promise<{ success: boolean; extractedPath?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_EXTRACT_ZIP, archivePath);
   },
 
   // =========================================================================

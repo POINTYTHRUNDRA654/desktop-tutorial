@@ -39,6 +39,31 @@ interface IpcCrashDiagnosis {
   timestamp?: string;
 }
 
+interface ModValidationIssue {
+  id?: string;
+  type: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  file?: string;
+  autoFixable?: boolean;
+}
+
+interface ModValidationReport {
+  modPath: string;
+  totalFiles: number;
+  totalSizeMB?: string;
+  issues: ModValidationIssue[];
+  summary?: {
+    errors: number;
+    warnings: number;
+    info: number;
+  };
+  compliance?: {
+    score?: number;
+    rating?: string;
+  };
+}
+
 // -------------------------------------------------------
 
 const api = () => (window as any).electron?.api || (window as any).electronAPI;
@@ -51,6 +76,17 @@ const severityColor = (s: string) => {
     default: return 'text-slate-400';
   }
 };
+
+const modIssueColor = (s: string) => {
+  switch (s) {
+    case 'error': return 'text-red-400';
+    case 'warning': return 'text-yellow-400';
+    default: return 'text-slate-400';
+  }
+};
+
+const isZipPath = (p: string) => /\.zip$/i.test(p.trim());
+const isPluginPath = (p: string) => /\.(esp|esm|esl)$/i.test(p.trim());
 
 const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<'preflight' | 'monitoring' | 'postcrash'>('preflight');
@@ -88,6 +124,21 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
   // Prevention plan (generated client-side after validation)
   const [preventionPlan, setPreventionPlan] = useState<ReturnType<typeof generatePreventionPlan> | null>(null);
 
+  // Full mod package scan state
+  const [modPackagePath, setModPackagePath] = useState('');
+  const [modScanPath, setModScanPath] = useState('');
+  const [modScanBusy, setModScanBusy] = useState(false);
+  const [modScanError, setModScanError] = useState('');
+  const [modScanReport, setModScanReport] = useState<ModValidationReport | null>(null);
+  const [modAutoFixBusy, setModAutoFixBusy] = useState(false);
+
+  const unwrapModReport = (raw: any): ModValidationReport | null => {
+    if (!raw) return null;
+    if (raw?.success === true && raw?.data?.report) return raw.data.report as ModValidationReport;
+    if (raw?.report) return raw.report as ModValidationReport;
+    return null;
+  };
+
   // Stop monitor on unmount
   useEffect(() => {
     return () => {
@@ -115,21 +166,25 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
         }
       }
 
-      if (typeof a.invoke === 'function') {
-        const result = await a.invoke('ck-crash-prevention:pick-plugin');
-        if (result?.success && result.path) {
-          setSelectedPlugin(result.path);
-          toast.success('Plugin selected');
-          return;
-        }
-      }
-
       if (typeof a.pickToolPath === 'function') {
         const picked = await a.pickToolPath('Fallout 4 Plugin (ESP/ESM/ESL)');
         if (picked && /\.(esp|esm|esl)$/i.test(String(picked))) {
           setSelectedPlugin(String(picked));
           toast.success('Plugin selected');
           return;
+        }
+      }
+
+      if (typeof a.invoke === 'function') {
+        try {
+          const result = await a.invoke('ck-crash-prevention:pick-plugin');
+          if (result?.success && result.path) {
+            setSelectedPlugin(result.path);
+            toast.success('Plugin selected');
+            return;
+          }
+        } catch {
+          // Optional fallback channel may be unavailable in some runtime builds.
         }
       }
 
@@ -189,6 +244,189 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
       const msg = String(e?.message || e || 'Unknown folder picker error');
       console.error('Folder picker error:', e);
       toast.error(`Folder picker failed: ${msg}`);
+    }
+  };
+
+  const pickModPackage = async () => {
+    const a = api();
+    if (!a) { toast.error('Desktop bridge not available'); return; }
+    try {
+      if (typeof a.ckPickModPackage === 'function') {
+        const picked = await a.ckPickModPackage();
+        if (picked?.success && picked.path) {
+          setModPackagePath(String(picked.path));
+          setModScanPath('');
+          setModScanReport(null);
+          setModScanError('');
+          toast.success('Mod package selected');
+          return;
+        }
+      }
+
+      if (typeof a.pickDirectory === 'function') {
+        const folder = await a.pickDirectory('Select Mod Folder');
+        if (folder) {
+          setModPackagePath(String(folder));
+          setModScanPath('');
+          setModScanReport(null);
+          setModScanError('');
+          toast.success('Mod folder selected');
+          return;
+        }
+      }
+
+      if (typeof a.invoke === 'function') {
+        try {
+          const picked = await a.invoke('ck-crash-prevention:pick-mod-package');
+          if (picked?.success && picked.path) {
+            setModPackagePath(String(picked.path));
+            setModScanPath('');
+            setModScanReport(null);
+            setModScanError('');
+            toast.success('Mod package selected');
+            return;
+          }
+        } catch {
+          // Optional fallback channel may be unavailable in some runtime builds.
+        }
+      }
+
+      toast('No mod package selected.', { icon: '📦' });
+    } catch (e: any) {
+      const msg = String(e?.message || e || 'Unknown picker error');
+      toast.error(`Mod package picker failed: ${msg}`);
+    }
+  };
+
+  const runModScan = async () => {
+    const rawPath = modPackagePath.trim();
+    if (!rawPath) {
+      toast('Select a mod folder or ZIP first.', { icon: '📦' });
+      return;
+    }
+
+    const a = api();
+    if (!a) {
+      toast.error('Desktop bridge not available');
+      return;
+    }
+
+    setModScanBusy(true);
+    setModScanError('');
+    setModScanReport(null);
+
+    try {
+      let scanTarget = rawPath;
+
+      if (isZipPath(rawPath)) {
+        let extractResult: any = null;
+        if (typeof a.ckExtractZip === 'function') {
+          extractResult = await a.ckExtractZip(rawPath);
+        } else if (typeof a.invoke === 'function') {
+          extractResult = await a.invoke('ck-crash-prevention:extract-zip', rawPath);
+        }
+
+        if (!extractResult?.success || !extractResult.extractedPath) {
+          throw new Error(extractResult?.error || 'ZIP extraction failed');
+        }
+        scanTarget = String(extractResult.extractedPath);
+      }
+
+      // If user gave an individual plugin, scan the parent folder and keep plugin selected.
+      if (isPluginPath(scanTarget)) {
+        setSelectedPlugin(scanTarget);
+        const normalized = scanTarget.replace(/\\/g, '/');
+        const lastSlash = normalized.lastIndexOf('/');
+        if (lastSlash > 0) {
+          scanTarget = scanTarget.slice(0, lastSlash);
+        }
+      }
+
+      let response: any;
+      if (typeof a.assetValidatorValidateMod === 'function') {
+        response = await a.assetValidatorValidateMod(scanTarget, 'standard');
+      } else if (typeof a.invoke === 'function') {
+        response = await a.invoke('asset-validator:validate-mod', scanTarget, 'standard');
+      } else {
+        throw new Error('Asset validator API not available');
+      }
+
+      const report = unwrapModReport(response);
+      if (!report) {
+        const maybeError = response?.error || response?.message || 'No report returned';
+        throw new Error(String(maybeError));
+      }
+
+      setModScanPath(scanTarget);
+      setModScanReport(report);
+      const issueCount = Array.isArray(report.issues) ? report.issues.length : 0;
+      toast.success(`Mod scan complete: ${issueCount} issue(s) found`);
+    } catch (e: any) {
+      const msg = String(e?.message || e || 'Scan failed');
+      setModScanError(msg);
+      toast.error(`Mod scan failed: ${msg}`);
+    } finally {
+      setModScanBusy(false);
+    }
+  };
+
+  const runAutoFix = async () => {
+    if (!modScanReport?.issues?.length) {
+      toast('Run a mod scan first.', { icon: '🛠️' });
+      return;
+    }
+
+    const autoFixable = modScanReport.issues.filter((issue) => issue.autoFixable);
+    if (autoFixable.length === 0) {
+      toast('No auto-fixable issues found in this report.', { icon: 'ℹ️' });
+      return;
+    }
+
+    const approved = window.confirm(
+      `Apply ${autoFixable.length} auto-fix operation(s)? This can rename files (spaces -> underscores). Back up your mod first.`
+    );
+    if (!approved) {
+      toast('Auto-fix cancelled.', { icon: '✋' });
+      return;
+    }
+
+    const a = api();
+    if (!a) {
+      toast.error('Desktop bridge not available');
+      return;
+    }
+
+    setModAutoFixBusy(true);
+    try {
+      let response: any;
+      if (typeof a.assetValidatorAutoFix === 'function') {
+        response = await a.assetValidatorAutoFix(autoFixable);
+      } else if (typeof a.invoke === 'function') {
+        response = await a.invoke('asset-validator:auto-fix', autoFixable);
+      } else {
+        throw new Error('Auto-fix API not available');
+      }
+
+      if (response?.success === false) {
+        throw new Error(String(response?.error || 'Auto-fix failed'));
+      }
+
+      const payload = response?.data ?? response;
+      const appliedCount = Number(payload?.appliedCount ?? 0);
+      const failedCount = Number(payload?.failedCount ?? 0);
+
+      if (failedCount > 0) {
+        toast(`Auto-fix applied ${appliedCount}, failed ${failedCount}.`, { icon: '⚠️' });
+      } else {
+        toast.success(`Auto-fix applied ${appliedCount} change(s).`);
+      }
+
+      await runModScan();
+    } catch (e: any) {
+      const msg = String(e?.message || e || 'Auto-fix failed');
+      toast.error(`Auto-fix failed: ${msg}`);
+    } finally {
+      setModAutoFixBusy(false);
     }
   };
 
@@ -332,7 +570,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
     try {
       const result = await a.ckCrashAnalyze(logPath);
       if (!result) throw new Error('No diagnosis returned');
-      setCrashDiagnosis(result as CrashDiagnosis);
+      setCrashDiagnosis(result as IpcCrashDiagnosis);
       toast.success(`Diagnosis: ${result.crashType || 'unknown'}`);
     } catch (e: any) {
       const msg = String(e?.message || e);
@@ -486,6 +724,99 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
                         ))}
                       </ol>
                     </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Full mod package scan + real auto-fix */}
+            <div className="space-y-3 rounded border border-mossy-border bg-mossy-bg p-4">
+              <h2 className="font-semibold text-white">Full Mod Scan & Repair</h2>
+              <p className="text-xs text-mossy-text-muted">
+                Scan a full mod folder or ZIP package. Auto-fix runs only real operations currently implemented by Mossy.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={modPackagePath}
+                  onChange={(e) => setModPackagePath(e.target.value)}
+                  placeholder="Mod folder, ZIP, or plugin path..."
+                  className="flex-1 rounded border border-mossy-border bg-mossy-darker px-3 py-2 text-mossy-text placeholder-mossy-text-muted focus:outline-none focus:ring-2 focus:ring-mossy-accent"
+                />
+                <button
+                  onClick={pickModPackage}
+                  className="rounded border border-mossy-border bg-mossy-accent px-3 py-2 text-black font-semibold hover:bg-mossy-accent-hover transition-colors flex items-center gap-1"
+                >
+                  <FolderOpen className="w-4 h-4" /> Load
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={runModScan}
+                  disabled={modScanBusy}
+                  className="flex-1 rounded bg-blue-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {modScanBusy ? <><RefreshCw className="w-4 h-4 animate-spin" /> Scanning…</> : <><Shield className="w-4 h-4" /> Scan Mod Package</>}
+                </button>
+                <button
+                  onClick={runAutoFix}
+                  disabled={modAutoFixBusy || !modScanReport}
+                  className="rounded bg-emerald-700 px-4 py-2 font-semibold text-white transition-colors hover:bg-emerald-600 disabled:opacity-50 flex items-center gap-2"
+                  title="Applies only real supported fixes (currently filename normalization)"
+                >
+                  {modAutoFixBusy ? <><RefreshCw className="w-4 h-4 animate-spin" /> Fixing…</> : <><CheckCircle className="w-4 h-4" /> Auto-Fix</>}
+                </button>
+              </div>
+
+              {modScanPath && (
+                <div className="text-xs text-slate-400">
+                  Scan target: {modScanPath}
+                </div>
+              )}
+
+              {modScanError && (
+                <div className="text-xs text-red-400 bg-red-900/20 border border-red-700/40 rounded px-3 py-2">
+                  ❌ {modScanError}
+                </div>
+              )}
+
+              {modScanReport && (
+                <div className="space-y-3 rounded border border-mossy-border bg-mossy-darker p-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-white">Report Summary</span>
+                    <span className="text-slate-300">
+                      Score {modScanReport.compliance?.score ?? 0} / 100 ({modScanReport.compliance?.rating || 'Unknown'})
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="rounded border border-red-700/40 bg-red-900/20 px-2 py-1 text-red-300">Errors: {modScanReport.summary?.errors ?? 0}</div>
+                    <div className="rounded border border-yellow-700/40 bg-yellow-900/20 px-2 py-1 text-yellow-300">Warnings: {modScanReport.summary?.warnings ?? 0}</div>
+                    <div className="rounded border border-slate-700/40 bg-slate-900/20 px-2 py-1 text-slate-300">Info: {modScanReport.summary?.info ?? 0}</div>
+                  </div>
+
+                  <div className="text-xs text-slate-400">
+                    Files scanned: {modScanReport.totalFiles} · Size: {modScanReport.totalSizeMB || 'n/a'} MB
+                  </div>
+
+                  {modScanReport.issues.length > 0 ? (
+                    <div className="space-y-2 max-h-64 overflow-auto pr-1">
+                      {modScanReport.issues.map((issue, idx) => (
+                        <div key={`${issue.id || issue.type}-${idx}`} className="rounded border border-mossy-border bg-mossy-bg px-3 py-2 text-xs">
+                          <div className={`font-semibold ${modIssueColor(issue.severity)}`}>
+                            [{issue.severity}] {issue.message}
+                          </div>
+                          <div className="text-slate-400 mt-1">Type: {issue.type}</div>
+                          {issue.file && <div className="text-slate-500 break-all">{issue.file}</div>}
+                          <div className="mt-1 text-slate-300">
+                            Fix guidance: {issue.autoFixable ? 'Mossy can auto-fix this now.' : 'Manual repair needed with CK/xEdit/toolchain for this issue type.'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-emerald-400">No issues found in mod package scan.</div>
                   )}
                 </div>
               )}

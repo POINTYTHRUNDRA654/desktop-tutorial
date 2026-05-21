@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { vi } from 'vitest';
 import { ContextAwareAIService } from '../ContextAwareAIService';
 
 // Mock IndexedDB since it's not available in Node.js test environment

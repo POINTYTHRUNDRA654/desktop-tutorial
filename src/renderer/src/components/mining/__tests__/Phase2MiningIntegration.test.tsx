@@ -5,8 +5,7 @@
  * covering UI components, backend integration, and performance
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act } from 'react';
+import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Phase2MiningDashboard } from '../Phase2MiningDashboard';
 import { ContextualMiningEngine } from '../ContextualMiningEngine';
@@ -167,25 +166,13 @@ describe('Phase 2 Mining Engines Integration', () => {
       onConfigure: vi.fn()
     };
 
-    it(
-      'renders with correct status',
-      async () => {
-        vi.useFakeTimers();
+    it('renders with correct status', () => {
+      render(<ContextualMiningEngine {...mockProps} />);
 
-        render(<ContextualMiningEngine {...mockProps} />);
-
-        await act(async () => {
-          vi.runAllTimers();
-        });
-
-        expect(screen.getByText('Contextual Mining Engine')).toBeInTheDocument();
-        expect(screen.getByText('Active')).toBeInTheDocument();
-        expect(screen.getByText('1500')).toBeInTheDocument();
-
-        vi.useRealTimers();
-      },
-      10000
-    );
+      expect(screen.getByText('Contextual Mining Engine')).toBeInTheDocument();
+      expect(screen.getByText('Active')).toBeInTheDocument();
+      expect(screen.getByText('1500')).toBeInTheDocument();
+    });
 
     it('handles engine toggle', () => {
       render(<ContextualMiningEngine {...mockProps} />);

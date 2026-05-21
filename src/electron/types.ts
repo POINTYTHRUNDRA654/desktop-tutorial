@@ -157,6 +157,15 @@ export const IPC_CHANNELS = {
   CK_PLUGIN_VALIDATE: 'ck-plugin-validate',
   CK_LAUNCH_WITH_PLUGIN: 'ck-launch-with-plugin',
 
+  // CK Crash Prevention
+  CK_CRASH_VALIDATE: 'ck-crash-prevention:validate',
+  CK_CRASH_ANALYZE: 'ck-crash-prevention:analyze-crash',
+  CK_CRASH_GENERATE_PLAN: 'ck-crash-prevention:generate-plan',
+  CK_CRASH_PICK_LOG_FILE: 'ck-crash-prevention:pick-log-file',
+  CK_CRASH_PICK_PLUGIN: 'ck-crash-prevention:pick-plugin',
+  CK_CRASH_PICK_MOD_PACKAGE: 'ck-crash-prevention:pick-mod-package',
+  CK_CRASH_EXTRACT_ZIP: 'ck-crash-prevention:extract-zip',
+
   // Project Templates
   PROJECT_TEMPLATE_BROWSE_PATH: 'project-template-browse-path',
   PROJECT_TEMPLATE_CREATE: 'project-template-create',

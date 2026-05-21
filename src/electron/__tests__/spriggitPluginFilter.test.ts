@@ -10,7 +10,7 @@
  *   • The correct error string is returned for empty folders vs vanilla-only folders.
  */
 
-import { describe, it, expect } from 'vitest';
+
 import {
   VANILLA_FO4_PLUGINS,
   isVanillaPlugin,

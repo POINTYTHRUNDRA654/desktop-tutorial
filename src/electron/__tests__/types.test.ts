@@ -2,7 +2,7 @@
  * Tests for Electron types
  */
 
-import { describe, it, expect } from 'vitest';
+
 import { InstalledProgram, IPC_CHANNELS } from '../types';
 
 describe('Electron Types', () => {

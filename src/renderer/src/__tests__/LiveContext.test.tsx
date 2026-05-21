@@ -15,7 +15,7 @@
 
 import React from 'react';
 import { render, act } from '@testing-library/react';
-import { vi, describe, it, expect, beforeAll } from 'vitest';
+import { vi } from 'vitest';
 
 // shim DOM APIs that the provider uses
 beforeAll(() => {

@@ -23,6 +23,8 @@
   "exclude": [
     "node_modules",
     "src/renderer",
-    "src/electron/__tests__"
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+
 import { HardwareAwareMiningEngine } from '../hardware-aware-mining-engine';
 
 describe('HardwareAwareMiningEngine', () => {

@@ -42,6 +42,7 @@ import { spawn, exec } from 'child_process';
 import { auditLogger } from './auditLogger';
 import { BridgeServer } from './BridgeServer';
 import { registerTextureEnhancerHandlers } from './textureEnhancer';
+import { registerCloudSyncHandlers } from './cloudSyncHandlers';
 import BethelIntegration from '../integrations/bethel';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
@@ -6183,7 +6184,7 @@ end.
   });
 
   // --- CK Crash Prevention Handlers ---
-  ipcMain.handle('ck-crash-prevention:validate', async (_event, espPath: string, modName?: string, cellCount?: number) => {
+  registerHandler(IPC_CHANNELS.CK_CRASH_VALIDATE, async (_event, espPath: string, modName?: string, cellCount?: number) => {
     try {
       const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
       const engine = new CKCrashPreventionEngine();
@@ -6195,7 +6196,7 @@ end.
     }
   });
 
-  ipcMain.handle('ck-crash-prevention:analyze-crash', async (_event, logPath: string) => {
+  registerHandler(IPC_CHANNELS.CK_CRASH_ANALYZE, async (_event, logPath: string) => {
     try {
       const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
       const engine = new CKCrashPreventionEngine();
@@ -6207,7 +6208,7 @@ end.
     }
   });
 
-  ipcMain.handle('ck-crash-prevention:generate-plan', async (_event, validation: any) => {
+  registerHandler(IPC_CHANNELS.CK_CRASH_GENERATE_PLAN, async (_event, validation: any) => {
     try {
       const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
       const engine = new CKCrashPreventionEngine();
@@ -6220,7 +6221,7 @@ end.
   });
 
   // File picker for crash logs
-  ipcMain.handle('ck-crash-prevention:pick-log-file', async () => {
+  registerHandler(IPC_CHANNELS.CK_CRASH_PICK_LOG_FILE, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
@@ -6237,7 +6238,7 @@ end.
   });
 
   // Pick ESP/ESM/ELS plugin file
-  ipcMain.handle('ck-crash-prevention:pick-plugin', async () => {
+  registerHandler(IPC_CHANNELS.CK_CRASH_PICK_PLUGIN, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
@@ -6251,6 +6252,77 @@ end.
       return { success: true, path: result.filePaths[0] };
     }
     return { success: false };
+  });
+
+  // Pick mod package (folder or archive)
+  registerHandler(IPC_CHANNELS.CK_CRASH_PICK_MOD_PACKAGE, async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile', 'openDirectory'],
+      filters: [
+        { name: 'Mod Archives', extensions: ['zip', '7z', 'rar', 'ba2', 'bsa'] },
+        { name: 'Plugin Files', extensions: ['esp', 'esm', 'esl'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+      title: 'Select Mod Folder or Archive',
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { success: true, path: result.filePaths[0] };
+    }
+    return { success: false };
+  });
+
+  // Extract zip archive to a unique temp directory for scanning
+  registerHandler(IPC_CHANNELS.CK_CRASH_EXTRACT_ZIP, async (_event, archivePath: string) => {
+    try {
+      if (!archivePath || typeof archivePath !== 'string') {
+        return { success: false, error: 'Invalid archive path' };
+      }
+      const ext = path.extname(archivePath).toLowerCase();
+      if (ext !== '.zip') {
+        return { success: false, error: 'Only .zip archives are supported for extraction' };
+      }
+      if (!fs.existsSync(archivePath)) {
+        return { success: false, error: 'Archive file not found' };
+      }
+
+      const targetDir = path.join(
+        os.tmpdir(),
+        `mossy-mod-scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      );
+      fs.mkdirSync(targetDir, { recursive: true });
+
+      const psQuote = (value: string) => value.replace(/'/g, "''");
+      await new Promise<void>((resolve, reject) => {
+        const ps = spawn(
+          'powershell',
+          [
+            '-NoProfile',
+            '-Command',
+            `Expand-Archive -LiteralPath '${psQuote(archivePath)}' -DestinationPath '${psQuote(targetDir)}' -Force`,
+          ],
+          { windowsHide: true, timeout: 180_000 }
+        );
+        let stderr = '';
+        ps.stderr?.on('data', (chunk: Buffer) => {
+          stderr += chunk.toString();
+        });
+        ps.on('error', reject);
+        ps.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(stderr.trim() || `Expand-Archive exited with code ${code}`));
+          }
+        });
+      });
+
+      return { success: true, extractedPath: targetDir };
+    } catch (error: any) {
+      const msg = String(error?.message || error || 'Unknown extraction error');
+      console.error('[ck-crash-prevention:extract-zip] error:', msg);
+      return { success: false, error: msg };
+    }
   });
 
   // --- Workshop: Browse directory and list files ---
@@ -31083,6 +31155,59 @@ ${steps}
     }
   });
 
+  registerHandler('asset-validator:auto-fix', async (_event, issues: any[]) => {
+    try {
+      if (!Array.isArray(issues)) {
+        return IpcResponseBuilder.error('Issues payload must be an array', IpcErrorCode.EINVAL);
+      }
+
+      const applied: Array<{ id?: string; file: string; action: string }> = [];
+      const failed: Array<{ id?: string; file?: string; error: string }> = [];
+
+      for (const issue of issues) {
+        try {
+          if (!issue || typeof issue !== 'object') continue;
+          const filePath = String(issue.file || '');
+          if (!filePath) continue;
+
+          if (issue.type === 'filename-format' && issue.autoFixable === true) {
+            if (!fs.existsSync(filePath)) {
+              failed.push({ id: issue.id, file: filePath, error: 'File no longer exists' });
+              continue;
+            }
+
+            const dir = path.dirname(filePath);
+            const base = path.basename(filePath);
+            const normalized = base.replace(/\s+/g, '_');
+
+            if (!normalized || normalized === base) continue;
+
+            const targetPath = path.join(dir, normalized);
+            if (fs.existsSync(targetPath)) {
+              failed.push({ id: issue.id, file: filePath, error: `Target exists: ${targetPath}` });
+              continue;
+            }
+
+            fs.renameSync(filePath, targetPath);
+            applied.push({ id: issue.id, file: targetPath, action: 'renamed-spaces-to-underscores' });
+          }
+        } catch (err: any) {
+          failed.push({ id: issue?.id, file: issue?.file, error: String(err?.message || err) });
+        }
+      }
+
+      return IpcResponseBuilder.success({
+        appliedCount: applied.length,
+        failedCount: failed.length,
+        applied,
+        failed,
+      });
+    } catch (error) {
+      console.error('[Asset Validator auto-fix] Error:', error);
+      return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
+    }
+  });
+
   // Image Processing Handlers
   registerHandler('image-suite:generate-pbr', async (_event, params: any) => {
     try {
@@ -31613,6 +31738,9 @@ app.whenReady().then(() => {
 
   // Register Texture Enhancer handlers (uses BridgeServer for Blender integration)
   registerTextureEnhancerHandlers(bridge, mainWindow);
+
+  // Register Cloud Sync handlers exposed by preload cloudSync API.
+  registerCloudSyncHandlers();
 
   // Initialize Bethel Integration (auto mod upload → enhance → export)
   const dataDir = path.join(app.getPath('userData'), '.mossy');
