@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Coffee, Heart, DollarSign, Github, ExternalLink } from 'lucide-react';
+import { Coffee, Heart, DollarSign, ExternalLink } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 export const DonationSupport: React.FC = () => {

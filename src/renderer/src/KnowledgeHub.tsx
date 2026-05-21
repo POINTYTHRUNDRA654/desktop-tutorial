@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Book, Bot, Github } from 'lucide-react';
+import { Book, Bot } from 'lucide-react';
 
 const QuickReference = React.lazy(() =>
   import('./QuickReference').then((m) => ({ default: m.QuickReference }))

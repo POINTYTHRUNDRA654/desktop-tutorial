@@ -4,6 +4,29 @@ import '@testing-library/jest-dom';
 // where `window` is not defined.  Guard all window-based mocks so the file
 // can be imported regardless of environment.
 if (typeof window !== 'undefined') {
+  // Mock localStorage for jsdom environment
+  const localStorageMock = (() => {
+    let store: Record<string, string> = {};
+    return {
+      getItem: (key: string) => store[key] || null,
+      setItem: (key: string, value: string) => { store[key] = value.toString(); },
+      removeItem: (key: string) => { delete store[key]; },
+      clear: () => { store = {}; },
+      get length() { return Object.keys(store).length; },
+      key: (index: number) => Object.keys(store)[index] || null,
+    };
+  })();
+
+  Object.defineProperty(window, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+  });
+
+  Object.defineProperty(window, 'sessionStorage', {
+    value: localStorageMock,
+    writable: true,
+  });
+
   // Mock window.electronAPI for testing
   Object.defineProperty(window, 'electronAPI', {
     value: {
