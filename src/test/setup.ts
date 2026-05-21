@@ -1,4 +1,8 @@
-import '@testing-library/jest-dom';
+import * as matchers from '@testing-library/jest-dom/matchers';
+
+if (typeof expect !== 'undefined' && typeof expect.extend === 'function') {
+  expect.extend(matchers);
+}
 
 // Many tests run in jsdom, but some (BridgeServer) use the `node` environment
 // where `window` is not defined.  Guard all window-based mocks so the file

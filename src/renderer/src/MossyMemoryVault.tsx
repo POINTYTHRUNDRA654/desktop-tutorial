@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
-import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files, Download, Share2, Bell, PackageOpen, RefreshCw, Box } from 'lucide-react';
+import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files, Download, Share2, Bell, PackageOpen, RefreshCw, Box, GitBranch } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
@@ -947,7 +947,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                         className="flex items-center gap-2 px-3 py-2 bg-purple-900/50 hover:bg-purple-800/50 text-purple-100 rounded-lg transition-all border border-purple-700 text-xs font-bold"
                         title="Import shared knowledge from community"
                       >
-                        <Github className="w-4 h-4" />
+                        <GitBranch className="w-4 h-4" />
                         <span className="hidden sm:inline">Import Community</span>
                         <span className="sm:hidden">Import</span>
                       </button>

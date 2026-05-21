@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { vi } from 'vitest';
 import { MLConflictPredictionEngine } from '../ml-conflict-prediction-engine';
 
 describe('MLConflictPredictionEngine', () => {

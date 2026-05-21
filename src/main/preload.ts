@@ -154,6 +154,9 @@ const electronAPI: ElectronAPI = {
   ckGeneratePreventionPlan: (validationResult: any) => ipcRenderer.invoke('ck-crash-prevention:generate-plan', validationResult),
   ckAnalyzeCrash: (logPath: string) => ipcRenderer.invoke('ck-crash-prevention:analyze-crash', logPath),
   ckPickLogFile: () => ipcRenderer.invoke('ck-crash-prevention:pick-log-file'),
+  ckPickPlugin: () => ipcRenderer.invoke('ck-crash-prevention:pick-plugin'),
+  ckPickModPackage: () => ipcRenderer.invoke('ck-crash-prevention:pick-mod-package'),
+  ckExtractZip: (archivePath: string) => ipcRenderer.invoke('ck-crash-prevention:extract-zip', archivePath),
   // DDS Converter
   ddsConvert: (input: any) => ipcRenderer.invoke('dds-converter:convert', input),
   ddsConvertBatch: (files: any[], options?: any) => ipcRenderer.invoke('dds-converter:convert-batch', files, options),

@@ -220,7 +220,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/dev/orchestrator', '/dev/workflow-runner', '/dev/workflow-recorder',
   '/dev/plugin-manager', '/dev/load-order', '/media', '/media/images', '/test',
   '/test/holo', '/test/notification-test', '/test/bridge', '/learn', '/reference',
-  '/knowledge', '/lore', '/memory-vault', '/ck-tools', '/ck-crash-prevention', '/textures', '/dds-converter',
+  '/knowledge', '/knowledge-hub', '/lore', '/memory-vault', '/ck-tools', '/ck-crash-prevention', '/textures', '/dds-converter',
   '/texture-generator', '/guides', '/guides/blender', '/guides/blender/animation',
   '/guides/creation-kit', '/guides/creation-kit/quest-authoring', '/guides/papyrus/guide',
   '/guides/physics', '/guides/mods', '/guides/mods/bodyslide', '/guides/mods/sim-settlements',

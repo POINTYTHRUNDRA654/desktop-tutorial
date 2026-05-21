@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+
 import { modBrowser } from '../modBrowser';
 
 describe('ModBrowserEngine - authentication and local operations', () => {
