@@ -826,7 +826,7 @@ export class AssetValidationEngine {
         const ext = path.extname(file).toLowerCase();
         if (ext === '.nif') byType.nif++;
         else if (ext === '.dds') byType.dds++;
-        else if (ext === '.esp' || ext === '.esm') byType.esp++;
+        else if (ext === '.esp' || ext === '.esm' || ext === '.esl') byType.esp++;
         else if (ext === '.psc') byType.script++;
         else if (ext === '.wav' || ext === '.xwm') byType.sound++;
         else byType.other++;
@@ -945,7 +945,7 @@ export class AssetValidationEngine {
 
   private isSupportedAsset(file: string): boolean {
     const ext = path.extname(file).toLowerCase();
-    return ['.nif', '.dds', '.esp', '.esm', '.psc', '.wav', '.xwm'].includes(ext);
+    return ['.nif', '.dds', '.esp', '.esm', '.esl', '.psc', '.wav', '.xwm'].includes(ext);
   }
 
   private async validateFile(file: string, depth: ValidationDepth): Promise<ValidationIssue[]> {
@@ -961,7 +961,8 @@ export class AssetValidationEngine {
         return ddsResult.issues;
       }
       case '.esp':
-      case '.esm': {
+      case '.esm':
+      case '.esl': {
         const espResult = await this.validateESP(file);
         return espResult.issues;
       }
