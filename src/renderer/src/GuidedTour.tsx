@@ -33,7 +33,17 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
 
   const GuideImage: React.FC<{ names: string[]; alt: string }> = ({ names, alt }) => {
     const [sourceIndex, setSourceIndex] = useState(0);
+    const [allSourcesFailed, setAllSourcesFailed] = useState(false);
     const selected = names[Math.min(sourceIndex, names.length - 1)];
+
+    if (allSourcesFailed) {
+      return (
+        <div className="w-full max-h-40 rounded border border-slate-700/80 bg-slate-900/70 p-3 text-xs text-slate-400 flex items-center justify-center">
+          Screenshot unavailable
+        </div>
+      );
+    }
+
     return (
       <img
         src={visualGuideSrc(selected)}
@@ -41,7 +51,13 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
         className="w-full max-h-40 object-cover rounded"
         loading="lazy"
         onError={() => {
-          setSourceIndex((prev) => (prev < names.length - 1 ? prev + 1 : prev));
+          setSourceIndex((prev) => {
+            if (prev < names.length - 1) {
+              return prev + 1;
+            }
+            setAllSourcesFailed(true);
+            return prev;
+          });
         }}
       />
     );
