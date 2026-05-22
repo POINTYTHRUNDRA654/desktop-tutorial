@@ -68,11 +68,13 @@ interface ModValidationReport {
 
 const api = () => (window as any).electron?.api || (window as any).electronAPI;
 
-const isMissingIpcHandlerError = (error: unknown, channel: string) => {
+const isMissingIpcHandlerError = (error: unknown, channel?: string) => {
   const ipcCode = (error as any)?.code;
   if (ipcCode === 'ERR_IPC_CHANNEL_MISSING') return true;
   const message = String((error as any)?.message || error || '');
-  return message.includes(`No handler registered for '${channel}'`);
+  return channel
+    ? message.includes(`No handler registered for '${channel}'`)
+    : message.includes('No handler registered');
 };
 
 const severityColor = (s: string) => {
@@ -196,8 +198,10 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
             toast.success('Plugin selected');
             return;
           }
-        } catch {
-          // Optional fallback channel may be unavailable in some runtime builds.
+        } catch (error) {
+          if (!isMissingIpcHandlerError(error, 'ck-crash-prevention:pick-plugin')) {
+            throw error;
+          }
         }
       }
 
@@ -305,8 +309,10 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
             toast.success('Mod package selected');
             return;
           }
-        } catch {
-          // Optional fallback channel may be unavailable in some runtime builds.
+        } catch (error) {
+          if (!isMissingIpcHandlerError(error, 'ck-crash-prevention:pick-mod-package')) {
+            throw error;
+          }
         }
       }
 
@@ -572,8 +578,10 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
       if ((!picked?.success || !picked.path) && typeof a.invoke === 'function') {
         try {
           picked = await a.invoke('ck-crash-prevention:pick-log-file');
-        } catch {
-          // Optional fallback channel may be unavailable in some runtime builds.
+        } catch (error) {
+          if (!isMissingIpcHandlerError(error, 'ck-crash-prevention:pick-log-file')) {
+            throw error;
+          }
         }
       }
 
