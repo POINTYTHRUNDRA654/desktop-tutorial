@@ -1,0 +1,23 @@
+import { IPC_CHANNELS } from './types';
+
+export const IPC_HANDLER_CONTRACT_VERSION = '2026-05-22.1';
+export const IPC_REGISTRATION_REPORT_CHANNEL = 'ipc:get-registration-report';
+
+export const REQUIRED_IPC_HANDLER_CHANNELS = [
+  IPC_CHANNELS.DDS_CONVERTER_PICK_FILES,
+  'dds-converter:convert',
+  'dds-converter:convert-batch',
+  'dds-converter:detect-format',
+  'dds-converter:get-all-presets',
+  IPC_CHANNELS.IMAGE_GET_INFO,
+  IPC_CHANNELS.AUTOMATION_START,
+  IPC_CHANNELS.AUTOMATION_STOP,
+  IPC_CHANNELS.AUTOMATION_GET_SETTINGS,
+  IPC_CHANNELS.AUTOMATION_UPDATE_SETTINGS,
+  IPC_CHANNELS.AUTOMATION_TOGGLE_RULE,
+  IPC_CHANNELS.AUTOMATION_TRIGGER_RULE,
+  IPC_CHANNELS.AUTOMATION_GET_STATISTICS,
+  IPC_CHANNELS.AUTOMATION_RESET_STATISTICS,
+] as const;
+
+export type RequiredIpcHandlerChannel = (typeof REQUIRED_IPC_HANDLER_CHANNELS)[number];

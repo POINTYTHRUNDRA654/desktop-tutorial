@@ -79,6 +79,9 @@ jobs:
           Write-Host "npm ci failed after $retries attempts."
           exit 1
 
+      - name: IPC handler contract guardrail
+        run: npm run test:ipc-contract
+
       - name: Verify
         run: npm run verify
 
