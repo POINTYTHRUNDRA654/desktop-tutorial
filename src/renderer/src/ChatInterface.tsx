@@ -1450,7 +1450,7 @@ export const ChatInterface: React.FC = () => {
                 const relevant = buildRelevantKnowledgeVaultContext(query || '', {
                     maxItems: 10,
                     maxChars: 7000,
-                    whitelist: formalSettings?.privacySettings?.modContentWhitelist ?? [],
+                    excludeTerms: formalSettings?.privacySettings?.modContentWhitelist ?? [],
                 });
                 if (manifest || relevant) {
                     knowledgeVaultContext = `\n**MOSSY'S KNOWLEDGE VAULT (CRITICAL):**${manifest}${relevant}`;
@@ -2090,7 +2090,7 @@ export const ChatInterface: React.FC = () => {
         if (wlGuard.blocked) {
             setMessages(prev => [...prev,
             { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() },
-            { id: Date.now().toString() + '-whitelist', role: 'assistant', content: `I can’t help with "${wlGuard.match}" because it is protected in your do-not-touch whitelist. I can help with a different mod or workflow instead.`, timestamp: Date.now() }
+            { id: Date.now().toString() + '-whitelist', role: 'assistant', content: `I can’t help with "${wlGuard.match}" because it is protected in your do-not-touch list. I can help with a different mod or workflow instead.`, timestamp: Date.now() }
             ]);
             setInputText('');
             return;

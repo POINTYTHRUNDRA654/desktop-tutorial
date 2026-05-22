@@ -1618,7 +1618,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const saveIdentitySettings = async () => {
         const name = preferredName.trim() || 'Vault Dweller';
         if (memoryStorageMode === 'custom' && !memoryStoragePath.trim()) {
-            setIdentityError('Please choose a custom storage path or use default app storage.');
+            setIdentityError('Please specify a custom storage path.');
             return false;
         }
         setIdentityError(null);

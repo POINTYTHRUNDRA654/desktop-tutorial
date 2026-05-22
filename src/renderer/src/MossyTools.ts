@@ -26,7 +26,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
     const whitelist: string[] = (settings?.privacySettings?.modContentWhitelist ?? [])
         .map((entry: unknown) => String(entry || '').trim())
         .filter(Boolean);
-    const containsWhitelisted = (value: unknown): string | null => {
+    const findDoNotTouchMatch = (value: unknown): string | null => {
         if (!whitelist.length) return null;
         const haystack = JSON.stringify(value ?? '').toLowerCase();
         for (const item of whitelist) {
@@ -35,7 +35,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
         }
         return null;
     };
-    const blockedItem = containsWhitelisted({ name, args });
+    const blockedItem = findDoNotTouchMatch({ name, args });
     if (blockedItem) {
         return {
             success: false,

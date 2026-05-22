@@ -79,7 +79,8 @@ const SecurityValidator: React.FC = () => {
 
   // ── whitelist actions ───────────────────────────────────────────────────
   const addToWhitelist = () => {
-    if (!wlName.trim() || !settings) { setWlError('Mod name is required'); return; }
+    if (!settings) { setWlError('Settings are not available yet. Please try again.'); return; }
+    if (!wlName.trim()) { setWlError('Mod name is required'); return; }
     setWlError(null);
     const entry = wlName.trim();
     if (whitelist.some(w => w.toLowerCase() === entry.toLowerCase())) {
