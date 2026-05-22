@@ -568,6 +568,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
             throw error;
           }
         }
+      }
       if ((!picked?.success || !picked.path) && typeof a.invoke === 'function') {
         try {
           picked = await a.invoke('ck-crash-prevention:pick-log-file');
