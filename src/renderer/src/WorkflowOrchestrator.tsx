@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { GitBranch, Package, HardDrive, Play, Loader2, CheckCircle2, AlertTriangle, Database, Copy, Shield, Settings, Repeat2, ClipboardList, ArrowDownToLine } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
@@ -177,7 +177,7 @@ const PIPELINES: PipelineDefinition[] = [
 const formatMB = (n: number) => `${n.toFixed(1)} MB`;
 
 const WorkflowOrchestrator = () => {
-    const [assets] = useState<Asset[]>(ASSETS);
+    const [assets, setAssets] = useState<Asset[]>(ASSETS);
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(assets[0]?.id ?? null);
     const [runSteps, setRunSteps] = useState<PipelineRunStep[]>([]);
     const [logs, setLogs] = useState<RunLog[]>([]);
@@ -204,37 +204,54 @@ const WorkflowOrchestrator = () => {
         setLogs(prev => [...prev, { timestamp: new Date().toLocaleTimeString(), message, level }]);
     };
 
-    const handleRun = () => {
-        if (!selectedAsset || !selectedPipeline) return;
+    const interpolateCommand = (command: string, asset: Asset) => {
+        const targetDir = asset.targetPath.includes('/')
+            ? asset.targetPath.slice(0, asset.targetPath.lastIndexOf('/'))
+            : asset.targetPath;
+        const sourceDir = asset.sourcePath.includes('/')
+            ? asset.sourcePath.slice(0, asset.sourcePath.lastIndexOf('/'))
+            : asset.sourcePath;
+        return command
+            .replace('{source}', asset.sourcePath)
+            .replace('{target}', asset.targetPath)
+            .replace('{targetDir}', targetDir)
+            .replace('{sourceDir}', sourceDir);
+    };
+
+    const handleRun = async () => {
+        if (!selectedAsset || !selectedPipeline || isRunning) return;
         setIsRunning(true);
         setLogs([]);
         log(`Starting pipeline '${selectedPipeline.name}' for ${selectedAsset.name}`);
 
+        // Capture asset snapshot — stable across the async run
+        const runAsset = selectedAsset;
         const steps: PipelineRunStep[] = selectedPipeline.steps.map((s) => ({ ...s, status: 'pending' as const }));
-        setRunSteps(steps);
+        setRunSteps([...steps]);
 
-        // Simulate sequential execution without duplicating processes
-        const executedSteps: PipelineRunStep[] = [];
         const startTime = performance.now();
-        for (const step of steps) {
+        const liveSteps: PipelineRunStep[] = [...steps];
+
+        for (let i = 0; i < liveSteps.length; i++) {
+            const step = liveSteps[i];
             const durationMs = 400 + Math.floor(Math.random() * 500);
-            const targetDir = selectedAsset.targetPath.includes('/') ? selectedAsset.targetPath.slice(0, selectedAsset.targetPath.lastIndexOf('/')) : selectedAsset.targetPath;
-            const sourceDir = selectedAsset.sourcePath.includes('/') ? selectedAsset.sourcePath.slice(0, selectedAsset.sourcePath.lastIndexOf('/')) : selectedAsset.sourcePath;
-            const command = step.command
-                .replace('{source}', selectedAsset.sourcePath)
-                .replace('{target}', selectedAsset.targetPath)
-                .replace('{targetDir}', targetDir)
-                .replace('{sourceDir}', sourceDir);
-            const result: PipelineRunStep = { ...step, status: 'completed', output: `${step.tool} ✓`, notes: step.description, durationMs };
-            executedSteps.push(result);
+
+            // Show step as running and flush to UI
+            liveSteps[i] = { ...step, status: 'running' };
+            setRunSteps([...liveSteps]);
+
+            // Await simulated processing time so the 'running' state is visible
+            await new Promise<void>(resolve => setTimeout(resolve, durationMs));
+
+            const command = interpolateCommand(step.command, runAsset);
+            liveSteps[i] = { ...step, status: 'completed', output: `${step.tool} ✓`, notes: step.description, durationMs };
+            setRunSteps([...liveSteps]);
             log(`${step.name} completed via ${step.tool}`);
             log(`Command: ${command}`);
         }
 
-        const endTime = performance.now();
-        const totalDuration = Math.max(1, Math.round(endTime - startTime));
-        setRunSteps(executedSteps);
-        log(`Pipeline finished. Asset staged to ${selectedAsset.targetPath}`);
+        const totalDuration = Math.max(1, Math.round(performance.now() - startTime));
+        log(`Pipeline finished in ${totalDuration} ms. Asset staged to ${runAsset.targetPath}`);
 
         const historyEntry: RunHistoryEntry = {
             id: `run-${Date.now()}`,
@@ -246,8 +263,11 @@ const WorkflowOrchestrator = () => {
 
         setRunHistory(prev => ({
             ...prev,
-            [selectedAsset.id]: [historyEntry, ...(prev[selectedAsset.id] || [])].slice(0, 5)
+            [runAsset.id]: [historyEntry, ...(prev[runAsset.id] || [])].slice(0, 5)
         }));
+
+        // Update asset status to 'processed' after a successful run
+        setAssets(prev => prev.map(a => a.id === runAsset.id ? { ...a, status: 'processed' as const } : a));
 
         setIsRunning(false);
     };
@@ -455,19 +475,9 @@ const WorkflowOrchestrator = () => {
                                                         <div className="mt-2 text-[11px] text-slate-200 bg-black/30 border border-slate-700/60 rounded px-2 py-2">
                                                             <div className="text-[10px] text-slate-400 mb-1">Command</div>
                                                             <div className="flex items-center gap-2 text-[11px] text-slate-200">
-                                                                <span className="truncate">{step.command
-                                                                    .replace('{source}', selectedAsset.sourcePath)
-                                                                    .replace('{target}', selectedAsset.targetPath)
-                                                                    .replace('{targetDir}', selectedAsset.targetPath.includes('/') ? selectedAsset.targetPath.slice(0, selectedAsset.targetPath.lastIndexOf('/')) : selectedAsset.targetPath)
-                                                                    .replace('{sourceDir}', selectedAsset.sourcePath.includes('/') ? selectedAsset.sourcePath.slice(0, selectedAsset.sourcePath.lastIndexOf('/')) : selectedAsset.sourcePath)
-                                                                }</span>
+                                                                <span className="truncate">{interpolateCommand(step.command, selectedAsset)}</span>
                                                                 <button
-                                                                    onClick={() => navigator.clipboard.writeText(step.command
-                                                                        .replace('{source}', selectedAsset.sourcePath)
-                                                                        .replace('{target}', selectedAsset.targetPath)
-                                                                        .replace('{targetDir}', selectedAsset.targetPath.includes('/') ? selectedAsset.targetPath.slice(0, selectedAsset.targetPath.lastIndexOf('/')) : selectedAsset.targetPath)
-                                                                        .replace('{sourceDir}', selectedAsset.sourcePath.includes('/') ? selectedAsset.sourcePath.slice(0, selectedAsset.sourcePath.lastIndexOf('/')) : selectedAsset.sourcePath)
-                                                                    )}
+                                                                    onClick={() => navigator.clipboard.writeText(interpolateCommand(step.command, selectedAsset))}
                                                                     className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 text-[10px] text-slate-200 flex items-center gap-1"
                                                                 >
                                                                     <Copy className="w-3 h-3" /> Copy

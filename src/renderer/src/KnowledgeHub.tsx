@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Book, Bot, Github } from 'lucide-react';
+import { Book, Bot, GitBranch } from 'lucide-react';
 
 const QuickReference = React.lazy(() =>
   import('./QuickReference').then((m) => ({ default: m.QuickReference }))
@@ -19,7 +19,7 @@ type HubTab = 'reference' | 'search' | 'community';
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'reference', icon: Book, label: 'Quick Reference', sublabel: 'Papyrus · FormIDs · Hotkeys' },
   { id: 'search', icon: Bot, label: 'Knowledge Search', sublabel: 'Semantic search · Ollama' },
-  { id: 'community', icon: Github, label: 'Community Learning', sublabel: 'Tips · Shared knowledge' },
+  { id: 'community', icon: GitBranch, label: 'Community Learning', sublabel: 'Tips · Shared knowledge' },
 ];
 
 const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (

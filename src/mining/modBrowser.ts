@@ -1,14 +1,23 @@
 import type { ModListing, ModDetails, SearchFilters, DownloadResult, Review, Collection, AuthResult, ModFile } from '../shared/types';
 import https from 'https';
-import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import { URL } from 'url';
 
 function now() { return Date.now(); }
 function makeId(prefix = 'id') { return `${prefix}_${Math.floor(Math.random() * 90000) + 10000}`; }
+function cloneDeep<T>(value: T): T {
+  if (typeof globalThis.structuredClone === 'function') {
+    return globalThis.structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+}
 
 interface NexusModResponse {
   mod_id: number;
   name: string;
   summary: string;
+  description?: string;
   picture_url: string;
   mod_downloads: number;
   mod_endorsements: number;
@@ -19,12 +28,19 @@ interface NexusModResponse {
   category_id?: number;
 }
 
+interface NexusModFileResponse {
+  file_id: number;
+  name: string;
+  version?: string;
+  size_in_bytes?: number;
+  is_primary?: boolean;
+}
+
 /**
  * ModBrowserEngine - Real Nexus Mods API Integration
- * - Authenticates with Nexus API key
- * - Fetches real mod data from Nexus Mods
- * - Caches results to minimize API calls
- * - Falls back to in-memory mock data if API unavailable
+ * - Requires explicit Nexus API authentication
+ * - Reads live mod metadata from Nexus
+ * - Performs real file downloads for selected mods
  */
 export class ModBrowserEngine {
   private listings: Record<string, ModListing> = {};
@@ -34,94 +50,95 @@ export class ModBrowserEngine {
   private tracked: Set<string> = new Set();
   private nexusApiKey: string | null = null;
   private apiCache: Map<string, { data: any; timestamp: number }> = new Map();
-  private cacheExpiry = 1000 * 60 * 5; // 5 minutes
+  private cacheExpiry = 1000 * 60 * 5;
   private apiBaseUrl = 'api.nexusmods.com';
-  private useRealApi = false;
 
-  constructor() {
-    // Initialize with mock seed data as fallback
-    this.initializeMockData();
-  }
-
-  private initializeMockData() {
-    const nowTs = now();
-    const seed: ModListing[] = [
-      { id: 'm_1001', name: 'VaultTech Overhaul', author: 'VaultDev', summary: 'Graphical overhaul for Vault interiors', category: 'visual', version: '1.2.0', downloads: 12456, endorsements: 321, thumbnailUrl: '', uploadedAt: nowTs - 1000 * 60 * 60 * 24 * 90, updatedAt: nowTs - 1000 * 60 * 60 * 24 * 30 },
-      { id: 'm_1002', name: 'Settlement Plus', author: 'BuildMaster', summary: 'Expanded settlement objects & menus', category: 'gameplay', version: '0.9.3', downloads: 9021, endorsements: 210, thumbnailUrl: '', uploadedAt: nowTs - 1000 * 60 * 60 * 24 * 40, updatedAt: nowTs - 1000 * 60 * 60 * 24 * 7 },
-      { id: 'm_1003', name: 'Papyrus Utils', author: 'ScriptKid', summary: 'Utility scripts for mod authors', category: 'tools', version: '2.0.0', downloads: 4523, endorsements: 512, thumbnailUrl: '', uploadedAt: nowTs - 1000 * 60 * 60 * 24 * 10, updatedAt: nowTs - 1000 * 60 * 60 * 24 * 2 },
-    ];
-
-    for (const l of seed) {
-      this.listings[l.id] = l;
-      const files: ModFile[] = [
-        { id: `${l.id}_f1`, name: `${l.name} v${l.version}`, version: l.version, size: 4_321_000, downloadUrl: `https://example.com/download/${l.id}`, isPrimary: true },
-      ];
-      this.details[l.id] = {
-        ...l,
-        description: `${l.name} — full description (auto-generated).`,
-        requirements: [],
-        files,
-        images: [],
-        videos: [],
-        changelog: `Changelog for ${l.name}`,
-        tags: [l.category],
-      } as ModDetails;
-      this.reviews[l.id] = [{ userId: 'u_alice', username: 'alice', rating: Math.round(Math.min(5, (l.endorsements || 0) / 100)), text: 'Nice mod—stable and well-documented.', helpful: 2, timestamp: now() }];
+  private ensureAuthenticated() {
+    if (!this.nexusApiKey) {
+      throw new Error('Nexus Mods API key is required. Authenticate first.');
     }
   }
 
-  /**
-   * Make HTTP request to Nexus API with caching
-   */
-  private async apiRequest<T>(endpoint: string): Promise<T | null> {
+  private extractNexusModId(modId: string): number {
+    if (!modId) throw new Error('Missing mod id');
+    const normalized = String(modId).trim();
+    let parsed: number;
+    if (normalized.startsWith('nx_')) {
+      parsed = Number.parseInt(normalized.slice(3), 10);
+    } else {
+      parsed = Number.parseInt(normalized, 10);
+    }
+    if (!Number.isFinite(parsed)) throw new Error('Invalid Nexus mod id');
+    return parsed;
+  }
+
+  private async apiRequest<T>(endpoint: string): Promise<T> {
+    this.ensureAuthenticated();
+
     const cacheKey = `${this.nexusApiKey}:${endpoint}`;
     const cached = this.apiCache.get(cacheKey);
-
-    // Return cached result if still valid
     if (cached && now() - cached.timestamp < this.cacheExpiry) {
       return cached.data as T;
     }
 
-    try {
-      return await new Promise((resolve, reject) => {
-        const url = `https://${this.apiBaseUrl}${endpoint}${endpoint.includes('?') ? '&' : '?'}apikey=${this.nexusApiKey}`;
-        https.get(url, { timeout: 5000 }, (res) => {
-          let data = '';
-          res.on('data', chunk => data += chunk);
+    const requestUrl = `https://${this.apiBaseUrl}${endpoint}`;
+    const parsedUrl = new URL(requestUrl);
+
+    const data = await new Promise<T>((resolve, reject) => {
+      const req = https.request(
+        {
+          protocol: parsedUrl.protocol,
+          hostname: parsedUrl.hostname,
+          path: `${parsedUrl.pathname}${parsedUrl.search}`,
+          method: 'GET',
+          timeout: 10000,
+          headers: {
+            apikey: this.nexusApiKey as string,
+            accept: 'application/json',
+            'user-agent': 'Mossy/ModBrowser',
+          },
+        },
+        (res) => {
+          let body = '';
+          res.on('data', (chunk) => {
+            body += String(chunk);
+          });
           res.on('end', () => {
+            if ((res.statusCode || 500) >= 400) {
+              reject(new Error(`Nexus API request failed (${res.statusCode}): ${body || 'Unknown error'}`));
+              return;
+            }
             try {
-              const parsed = JSON.parse(data) as T;
-              // Cache successful response
-              this.apiCache.set(cacheKey, { data: parsed, timestamp: now() });
-              resolve(parsed);
-            } catch (e) {
-              reject(new Error('Failed to parse API response'));
+              resolve(JSON.parse(body) as T);
+            } catch {
+              reject(new Error('Failed to parse Nexus API response'));
             }
           });
-        }).on('error', (e) => reject(e));
-      });
-    } catch (error) {
-      console.error(`Nexus API request failed for ${endpoint}:`, error);
-      return null;
-    }
+        },
+      );
+
+      req.on('error', (error) => reject(error));
+      req.on('timeout', () => req.destroy(new Error('Nexus API request timed out')));
+      req.end();
+    });
+
+    this.apiCache.set(cacheKey, { data, timestamp: now() });
+    return data;
   }
 
-  /**
-   * Convert Nexus API response to ModListing
-   */
   private convertNexusToModListing(nexusMod: NexusModResponse): ModListing {
     return {
       id: `nx_${nexusMod.mod_id}`,
       name: nexusMod.name,
       author: nexusMod.author || 'Unknown',
-      summary: nexusMod.summary,
+      summary: nexusMod.summary || '',
       category: this.getCategoryFromId(nexusMod.category_id),
-      version: nexusMod.version,
-      downloads: nexusMod.mod_downloads,
-      endorsements: nexusMod.mod_endorsements,
+      version: nexusMod.version || 'Unknown',
+      downloads: nexusMod.mod_downloads || 0,
+      endorsements: nexusMod.mod_endorsements || 0,
       thumbnailUrl: nexusMod.picture_url || '',
-      uploadedAt: nexusMod.uploaded_time * 1000,
-      updatedAt: nexusMod.updated_time * 1000,
+      uploadedAt: (nexusMod.uploaded_time || 0) * 1000,
+      updatedAt: (nexusMod.updated_time || 0) * 1000,
       tags: [],
     };
   }
@@ -138,162 +155,242 @@ export class ModBrowserEngine {
     return categories[categoryId || 0] || 'other';
   }
 
-  // Mod discovery
   async searchMods(query: string, filters: SearchFilters = { game: 'fallout4', sortBy: 'trending', nsfw: false }): Promise<ModListing[]> {
-    // Try real API if authenticated
-    if (this.useRealApi && this.nexusApiKey && query.trim()) {
-      try {
-        const game = filters.game === 'skyrim' ? 'skyrimspecialedition' : 'fallout4';
-        const sortMap: Record<string, string> = {
-          trending: 'trending',
-          downloads: 'downloads',
-          recent: 'updated',
-          endorsements: 'endorsements',
-        };
-        const sortParam = sortMap[filters.sortBy] || 'trending';
-        
-        const endpoint = `/v1/games/${game}/mods/latest?sort=${sortParam}&limit=50`;
-        const nexusMods = await this.apiRequest<NexusModResponse[]>(endpoint);
-        
-        if (nexusMods && Array.isArray(nexusMods)) {
-          let results = nexusMods.map(m => this.convertNexusToModListing(m));
-          
-          // Filter by query if provided
-          if (query.trim()) {
-            const q = query.toLowerCase();
-            results = results.filter(m => 
-              m.name.toLowerCase().includes(q) || 
-              m.summary.toLowerCase().includes(q) || 
-              m.author.toLowerCase().includes(q)
-            );
-          }
-          
-          // Filter by category
-          if (filters.category) {
-            results = results.filter(m => m.category === filters.category);
-          }
-          
-          // Cache these results
-          for (const mod of results) {
-            this.listings[mod.id] = mod;
-          }
-          
-          return results.slice(0, 50);
-        }
-      } catch (error) {
-        console.warn('Nexus API search failed, falling back to mock data:', error);
-      }
-    }
+    this.ensureAuthenticated();
 
-    // Fallback to mock data
+    const game = filters.game === 'skyrim' ? 'skyrimspecialedition' : 'fallout4';
+    const sortMap: Record<string, string> = {
+      trending: 'trending',
+      downloads: 'downloads',
+      recent: 'updated',
+      endorsements: 'endorsements',
+    };
+    const sortParam = sortMap[filters.sortBy] || 'trending';
+    const endpoint = `/v1/games/${game}/mods/latest?sort=${sortParam}&limit=50`;
+
+    const nexusMods = await this.apiRequest<NexusModResponse[]>(endpoint);
+    let results = Array.isArray(nexusMods) ? nexusMods.map((mod) => this.convertNexusToModListing(mod)) : [];
+
     const q = (query || '').trim().toLowerCase();
-    let results = Object.values(this.listings);
-    if (q) results = results.filter(r => r.name.toLowerCase().includes(q) || r.summary.toLowerCase().includes(q) || r.author.toLowerCase().includes(q) || (r.tags || []).some(t => t.includes(q)));
-    if (filters.category) results = results.filter(r => r.category === filters.category);
-    if (filters.tags && filters.tags.length) results = results.filter(r => filters.tags!.every(t => (r.tags || []).includes(t)));
-
-    switch (filters.sortBy) {
-      case 'downloads': results = results.sort((a,b) => b.downloads - a.downloads); break;
-      case 'recent': results = results.sort((a,b) => b.updatedAt - a.updatedAt); break;
-      case 'endorsements': results = results.sort((a,b) => b.endorsements - a.endorsements); break;
-      case 'trending':
-      default:
-        results = results.sort((a,b) => (b.endorsements + b.downloads / 100) - (a.endorsements + a.downloads / 100));
-        break;
+    if (q) {
+      results = results.filter((mod) =>
+        mod.name.toLowerCase().includes(q)
+        || mod.summary.toLowerCase().includes(q)
+        || mod.author.toLowerCase().includes(q),
+      );
     }
 
-    // simulate async latency
-    return new Promise(resolve => setTimeout(() => resolve(results.slice(0, 50)), 40));
+    if (filters.category) {
+      results = results.filter((mod) => mod.category === filters.category);
+    }
+
+    for (const mod of results) {
+      this.listings[mod.id] = mod;
+    }
+
+    return results.slice(0, 50);
   }
 
   async getModDetails(modId: string): Promise<ModDetails> {
-    const d = this.details[modId];
-    if (!d) throw new Error('Mod not found');
-    return JSON.parse(JSON.stringify(d));
+    this.ensureAuthenticated();
+
+    if (this.details[modId]) {
+      return cloneDeep(this.details[modId]);
+    }
+
+    const game = 'fallout4';
+    const nexusModId = this.extractNexusModId(modId);
+
+    const detailsResponse = await this.apiRequest<NexusModResponse>(`/v1/games/${game}/mods/${nexusModId}.json`);
+    const filesResponse = await this.apiRequest<{ files?: NexusModFileResponse[] }>(`/v1/games/${game}/mods/${nexusModId}/files.json`);
+
+    const listing = this.convertNexusToModListing(detailsResponse);
+    const files: ModFile[] = Array.isArray(filesResponse?.files)
+      ? filesResponse.files.map((file) => ({
+          id: String(file.file_id),
+          name: file.name || `File ${file.file_id}`,
+          version: file.version || listing.version,
+          size: Number(file.size_in_bytes || 0),
+          downloadUrl: '',
+          isPrimary: !!file.is_primary,
+        }))
+      : [];
+
+    const details: ModDetails = {
+      ...listing,
+      description: detailsResponse.description || listing.summary,
+      requirements: [],
+      files,
+      images: listing.thumbnailUrl ? [listing.thumbnailUrl] : [],
+      videos: [],
+      changelog: '',
+      tags: listing.tags || [],
+      homepage: `https://www.nexusmods.com/${game}/mods/${nexusModId}`,
+    };
+
+    this.details[listing.id] = details;
+    this.listings[listing.id] = listing;
+    return cloneDeep(details);
   }
 
-  async getTrendingMods(timeframe: string = 'week'): Promise<ModListing[]> {
-    return Object.values(this.listings).sort((a,b) => b.endorsements - a.endorsements).slice(0, 10);
+  async getTrendingMods(_timeframe = 'week'): Promise<ModListing[]> {
+    return this.searchMods('', { game: 'fallout4', sortBy: 'trending', nsfw: false });
   }
 
-  // Downloads
+  private async getDownloadLink(modId: string, fileId: string): Promise<string> {
+    this.ensureAuthenticated();
+
+    const game = 'fallout4';
+    const nexusModId = this.extractNexusModId(modId);
+    const nexusFileId = this.extractNexusModId(fileId);
+    const links = await this.apiRequest<Array<{ URI?: string }>>(
+      `/v1/games/${game}/mods/${nexusModId}/files/${nexusFileId}/download_link.json`,
+    );
+
+    const first = Array.isArray(links) ? links[0] : null;
+    if (!first?.URI) throw new Error('No download link returned by Nexus');
+    return first.URI;
+  }
+
   async getDownloadUrl(modId: string): Promise<string> {
-    const d = this.details[modId];
-    if (!d) throw new Error('Mod not found');
-    return d.files[0].downloadUrl;
+    const details = await this.getModDetails(modId);
+    const primary = details.files.find((file) => file.isPrimary) || details.files[0];
+    if (!primary) throw new Error('No downloadable files available for this mod');
+    return this.getDownloadLink(modId, primary.id);
   }
 
   async downloadMod(modId: string, destination: string): Promise<DownloadResult> {
-    const d = this.details[modId];
-    if (!d) return { success: false, filePath: '', size: 0, duration: 0 };
-    const outPath = `${destination.replace(/\\+$/,'')}/${modId}-${d.files[0].id}.zip`;
-    // stubbed duration
-    const duration = 350; // ms
-    return { success: true, filePath: outPath, size: d.files[0].size, duration };
+    this.ensureAuthenticated();
+
+    const startedAt = now();
+    const details = await this.getModDetails(modId);
+    const selectedFile = details.files.find((file) => file.isPrimary) || details.files[0];
+    if (!selectedFile) {
+      throw new Error('No downloadable file found for selected mod');
+    }
+
+    const downloadUrl = await this.getDownloadLink(modId, selectedFile.id);
+    const outputDir = destination.trim();
+    if (!outputDir) throw new Error('A download destination is required');
+
+    fs.mkdirSync(outputDir, { recursive: true });
+    const outputPath = path.join(outputDir, `${modId}-${selectedFile.id}.zip`);
+
+    await new Promise<void>((resolve, reject) => {
+      const fileStream = fs.createWriteStream(outputPath);
+      const request = https.get(downloadUrl, (response) => {
+        if ((response.statusCode || 500) >= 400) {
+          fileStream.close();
+          try {
+            fs.rmSync(outputPath, { force: true });
+          } catch (cleanupError) {
+            console.error('Failed to clean up partial download:', cleanupError);
+          }
+          reject(new Error(`Download failed with status ${response.statusCode}`));
+          return;
+        }
+
+        response.pipe(fileStream);
+        fileStream.on('finish', () => {
+          fileStream.close();
+          resolve();
+        });
+      });
+
+      request.on('error', (error) => {
+        fileStream.close();
+        try {
+          fs.rmSync(outputPath, { force: true });
+        } catch (cleanupError) {
+          console.error('Failed to clean up partial download:', cleanupError);
+        }
+        reject(error);
+      });
+    });
+
+    const stats = fs.statSync(outputPath);
+    return {
+      success: true,
+      filePath: outputPath,
+      size: stats.size,
+      duration: now() - startedAt,
+    };
   }
 
-  // Reviews
   async rateMod(modId: string, rating: number, reviewText: string): Promise<void> {
-    const r: Review = { userId: 'local_user', username: 'you', rating: Math.max(1, Math.min(5, Math.round(rating))), text: reviewText, helpful: 0, timestamp: now() };
+    if (!modId) throw new Error('Missing mod id');
+    const review: Review = {
+      userId: 'local_user',
+      username: 'you',
+      rating: Math.max(1, Math.min(5, Math.round(rating))),
+      text: reviewText || 'Review submitted',
+      helpful: 0,
+      timestamp: now(),
+    };
     this.reviews[modId] = this.reviews[modId] || [];
-    this.reviews[modId].unshift(r);
+    this.reviews[modId].unshift(review);
   }
 
   async getModReviews(modId: string): Promise<Review[]> {
     return (this.reviews[modId] || []).slice(0, 50);
   }
 
-  // Collections
   async createCollection(name: string, mods: string[] = [], description = ''): Promise<Collection> {
     const id = makeId('col');
-    const col: Collection = { id, name, description, mods: mods.slice(0, 100), author: 'local_user', downloads: 0, shareUrl: `https://example.com/collection/${id}` };
-    this.collections[id] = col;
-    return col;
+    const collection: Collection = {
+      id,
+      name,
+      description,
+      mods: mods.slice(0, 100),
+      author: 'local_user',
+      downloads: 0,
+      shareUrl: `https://next.nexusmods.com/fallout4/collections/${id}`,
+    };
+    this.collections[id] = collection;
+    return collection;
   }
 
   async shareCollection(collectionId: string): Promise<{ success: boolean; shareUrl?: string }> {
-    const c = this.collections[collectionId];
-    if (!c) return { success: false };
-    return { success: true, shareUrl: c.shareUrl };
+    const collection = this.collections[collectionId];
+    if (!collection) return { success: false };
+    return { success: true, shareUrl: collection.shareUrl };
   }
 
-  // Nexus Mods Authentication
   async authenticateNexus(apiKey: string): Promise<AuthResult> {
-    if (!apiKey || !apiKey.trim()) return { success: false, error: 'Invalid API key' };
-    
-    this.nexusApiKey = apiKey.trim();
-    
-    // Try to validate by calling the API
-    try {
-      const userEndpoint = '/v1/users/validate';
-      const result = await this.apiRequest<{ user_id: number; key: string; name: string }>(userEndpoint);
-      
-      if (result && result.user_id) {
-        this.useRealApi = true;
-        return { 
-          success: true, 
-          provider: 'nexusmods', 
-          token: this.nexusApiKey, 
-          expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 30 // 30 day validity
-        };
-      }
-    } catch (error) {
-      console.warn('Nexus API validation failed:', error);
+    if (!apiKey || !apiKey.trim()) {
+      return { success: false, error: 'Invalid API key' };
     }
-    
-    // If API validation fails, still accept the key but use mock data
-    this.useRealApi = false;
-    return { 
-      success: true, 
-      provider: 'nexusmods', 
-      token: `token_${makeId('nx')}`, 
-      expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 30 
-    };
+
+    this.nexusApiKey = apiKey.trim();
+    this.apiCache.clear();
+
+    try {
+      const validation = await this.apiRequest<{ user_id: number }>('/v1/users/validate.json');
+      if (!validation?.user_id) {
+        this.nexusApiKey = null;
+        return { success: false, error: 'Nexus API key validation failed' };
+      }
+
+      return {
+        success: true,
+        provider: 'nexusmods',
+        token: this.nexusApiKey,
+        expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 30,
+      };
+    } catch (error) {
+      this.nexusApiKey = null;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Nexus authentication failed',
+      };
+    }
   }
 
   async endorseMod(modId: string): Promise<void> {
-    const m = this.listings[modId];
-    if (m) m.endorsements = (m.endorsements || 0) + 1;
+    this.ensureAuthenticated();
+    const game = 'fallout4';
+    const nexusModId = this.extractNexusModId(modId);
+    await this.apiRequest<any>(`/v1/games/${game}/mods/${nexusModId}/endorse.json`);
   }
 
   async trackMod(modId: string): Promise<void> {

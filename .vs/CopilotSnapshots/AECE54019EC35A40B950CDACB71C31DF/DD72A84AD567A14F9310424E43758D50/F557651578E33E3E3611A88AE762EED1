@@ -1,0 +1,254 @@
+﻿{
+  "name": "mossy-ai",
+  "private": true,
+  "version": "5.4.62",
+  "description": "Mossy v5.4.62 - Professional Fallout 4 modding assistant with AI, full OG/NG/AE/Creations Menu version awareness, and professional asset optimization",
+  "main": "dist-electron/electron/main.js",
+  "author": "POINTYTHRUNDRA654",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/POINTYTHRUNDRA654/mossy-ai.git"
+  },
+  "homepage": "https://github.com/POINTYTHRUNDRA654/mossy-ai#readme",
+  "bugs": {
+    "url": "https://github.com/POINTYTHRUNDRA654/mossy-ai/issues"
+  },
+  "overrides": {
+    "tar": "^7.5.10",
+    "basic-ftp": "^5.2.0",
+    "@tootallnate/once": "^3.0.1",
+    "minimatch": "^10.2.3"
+  },
+  "scripts": {
+    "install:hooks": "sh scripts/setup-git-hooks.sh",
+    "postinstall": "node scripts/postinstall.mjs",
+    "check:visual-guide": "node scripts/check-visual-guide-parity.js",
+    "verify:tutorial-parity": "node scripts/verify-tutorial-text-parity.js && node scripts/verify-tutorial-images.js",
+    "sync:visual-guide-order": "node scripts/sync-visual-guide-order.mjs",
+    "dev:killports": "node scripts/kill-ports.mjs 5174 5173 21337",
+    "dev:clean": "npm run dev:killports && npm run dev",
+    "dev:nemotron": "node scripts/dev-launcher.mjs",
+    "predev": "node scripts/package-blender-addons.mjs",
+    "dev": "npm run predev && concurrently \"npm run dev:vite\" \"npm run dev:tsc\" \"npm run dev:electron\"",
+    "dev:concurrently": "concurrently \"npm run dev:vite\" \"npm run dev:tsc\" \"npm run dev:electron\"",
+    "dev:vite": "vite --strictPort",
+    "dev:tsc": "tsc -p tsconfig.electron.json -w",
+    "dev:electron": "node -e \"const path=require('path'); const { spawn }=require('child_process'); const port=Number(process.env.VITE_DEV_SERVER_PORT||5174); const url='http://127.0.0.1:'+port; const electronBin=process.platform==='win32'?path.join(process.cwd(),'node_modules','.bin','electron.cmd'):'electron'; console.log('[dev:electron] Delaying Electron launch for Vite...'); setTimeout(()=>{ const env={...process.env, ELECTRON_START_URL:url}; const child=spawn(electronBin,['.'],{ stdio:'inherit', env, shell:true, windowsHide:true }); child.on('exit',(code)=>process.exit(code||0)); child.on('error',(err)=>{ console.error('[dev:electron] spawn error:', err?.message||err); process.exit(1); }); }, 2000);\"",
+    "build": "npm run validate-version && npm run build:vite && npm run build:electron",
+    "build:vite": "vite build",
+    "prebuild:vite": "node scripts/fetch-community-knowledge.mjs && node scripts/copy-knowledge.mjs",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "start": "cross-env NODE_ENV=production electron .",
+    "prepackage": "node scripts/clean.mjs --release && npm run validate-version && node scripts/verify-build.mjs && node scripts/package-blender-addons.mjs && node scripts/fetch-python-embedded.mjs",
+    "package": "npm run build && electron-builder",
+    "package:win": "npm run build && electron-builder --win",
+    "package:win:universal": "npm run build && electron-builder --win",
+    "package:win:nvidia": "npm run build && electron-builder --win --config.productName=\"Mossy NVIDIA\" --config.appId=\"com.volttech.desktop-nvidia\" --config.win.artifactName=\"Mossy NVIDIA ${version}.${ext}\"",
+    "setup-keys": "node scripts/setup-keys.mjs",
+    "check-comms": "node scripts/check-comms.mjs",
+    "test-web-search": "node scripts/test-web-search.mjs",
+    "fix-encryption": "node scripts/fix-env-encryption.mjs",
+    "verify-build": "node scripts/verify-build.mjs",
+    "validate-version": "node scripts/validate-version.mjs",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json}\"",
+    "test": "npm run test:unit",
+    "test:all": "npm run test:unit && npm run test:e2e",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:headed": "playwright test --headed",
+    "capture-screenshots": "node scripts/capture-screenshots.mjs",
+    "smoke": "npm run check-conflicts && npm run lint && npm run test",
+    "verify": "npm run smoke && npm run build",
+    "backend:dev": "tsx watch src/backend/index.ts",
+    "backend:build": "tsc -p tsconfig.backend.json",
+    "backend:start": "node dist-backend/index.js",
+    "token-server": "ts-node backend/token-server.ts",
+    "check-conflicts": "node scripts/check-no-conflict-markers.js",
+    "extract-translations": "node scripts/extract-translations.mjs",
+    "release:snapshot": "pwsh -File scripts/Publish-MossyRelease.ps1 -SnapshotOnly",
+    "release:publish:safe": "pwsh -File scripts/Publish-MossyRelease.ps1",
+    "release:publish:draft:safe": "pwsh -File scripts/Publish-MossyRelease.ps1 -Draft",
+    "prebuild:electron": "node scripts/clean.mjs --electron",
+    "clean": "node scripts/clean.mjs"
+  },
+  "dependencies": {
+    "@emnapi/runtime": "1.8.1",
+    "@ffmpeg-installer/ffmpeg": "1.1.0",
+    "@lmstudio/sdk": "1.5.0",
+    "@testing-library/dom": "10.4.1",
+    "@types/archiver": "7.0.0",
+    "@types/sqlite3": "3.1.11",
+    "@types/uuid": "10.0.0",
+    "@upstash/workflow-agents": "^0.1.4",
+    "ag-psd": "17.0.6",
+    "archiver": "7.0.1",
+    "axios": "^1.15.2",
+    "cors": "2.8.6",
+    "dotenv": "17.2.4",
+    "electron-store": "8.2.0",
+    "electron-updater": "6.7.3",
+    "express": "5.2.1",
+    "express-rate-limit": "8.5.1",
+    "fast-xml-parser": "5.7.3",
+    "fluent-ffmpeg": "^2.1.3",
+    "form-data": "^4.0.5",
+    "groq-sdk": "^0.37.0",
+    "helmet": "8.1.0",
+    "idb": "8.0.3",
+    "lowdb": "3.0.0",
+    "lucide-react": "0.563.0",
+    "mic": "2.1.2",
+    "multer": "^2.1.1",
+    "openai": "6.21.0",
+    "pdf-parse": "2.4.5",
+    "playwright": "1.58.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-hot-toast": "2.6.0",
+    "react-joyride": "2.9.3",
+    "react-markdown": "^9.0.1",
+    "react-router-dom": "^6.21.3",
+    "recharts": "^2.10.4",
+    "sharp": "^0.34.5",
+    "sqlite3": "6.0.1",
+    "uuid": "13.0.2",
+    "ws": "8.20.1",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.1",
+    "@tailwindcss/postcss": "4.1.18",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/cors": "2.8.19",
+    "@types/express": "5.0.6",
+    "@types/fluent-ffmpeg": "2.1.28",
+    "@types/jsdom": "28.0.0",
+    "@types/multer": "2.0.0",
+    "@types/node": "20.19.33",
+    "@types/react": "18.3.28",
+    "@types/react-dom": "18.3.7",
+    "@types/ws": "8.18.1",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.23",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "42.0.0",
+    "electron-builder": "^26.7.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "jsdom": "28.0.0",
+    "postcss": "8.5.14",
+    "prettier": "3.8.1",
+    "selenium-webdriver": "4.40.0",
+    "tailwindcss": "4.1.18",
+    "tsx": "4.21.0",
+    "typescript": "5.3.3",
+    "vite": "^7.3.2",
+    "vitest": "4.1.1",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.volttech.desktop",
+    "productName": "Mossy",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "external/volttech-dist/**/*",
+      "public/**/*",
+      ".env.encrypted",
+      "CREDITS.md",
+      "LICENSE",
+      "LICENSE.electron.txt",
+      "!PROJECT_MEMORY.md",
+      "!AGENT_MEMORY.md"
+    ],
+    "extraResources": [
+      {
+        "from": "external/volttech-dist",
+        "to": "external/volttech-dist",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "public",
+        "to": "public",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "resources/python-embedded",
+        "to": "python-embedded",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "CREDITS.md",
+        "to": ".",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "LICENSE",
+        "to": ".",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "POINTYTHRUNDRA654",
+      "repo": "desktop-tutorial",
+      "releaseType": "prerelease",
+      "timeout": 600000,
+      "requestHeaders": {
+        "User-Agent": "electron-builder"
+      }
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "${productName} ${version} Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mossy"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Utility"
+    }
+  }
+}

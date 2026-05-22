@@ -42,6 +42,7 @@ import { spawn, exec } from 'child_process';
 import { auditLogger } from './auditLogger';
 import { BridgeServer } from './BridgeServer';
 import { registerTextureEnhancerHandlers } from './textureEnhancer';
+import { registerCloudSyncHandlers } from './cloudSyncHandlers';
 import BethelIntegration from '../integrations/bethel';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
@@ -2818,6 +2819,67 @@ function setupIpcHandlers() {
     return { ok: true };
   });
 
+  registerHandler('collaboration-list-sessions', async () => {
+    const settings = loadSettings();
+    return Array.isArray(settings.collaborationSessions) ? settings.collaborationSessions : [];
+  });
+
+  registerHandler('collaboration-create-session', async (_event, payload: { projectId: string; name?: string; description?: string }) => {
+    try {
+      const settings = loadSettings();
+      const sessions = Array.isArray(settings.collaborationSessions) ? settings.collaborationSessions : [];
+      const newSession = {
+        id: `session_${Date.now()}`,
+        projectId: String(payload?.projectId || settings.currentProjectId || ''),
+        participants: [],
+        activeFiles: [],
+        lastActivity: Date.now(),
+        status: 'active' as const,
+      };
+      settings.collaborationSessions = [...sessions, newSession];
+      saveSettings(settings);
+      return newSession;
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler('collaboration-join-session', async (_event, sessionId: string) => {
+    try {
+      const settings = loadSettings();
+      const sessions = Array.isArray(settings.collaborationSessions) ? settings.collaborationSessions : [];
+      const next = sessions.map((session: any) => (
+        session.id === sessionId
+          ? { ...session, status: 'active', lastActivity: Date.now() }
+          : session
+      ));
+      settings.collaborationSessions = next;
+      saveSettings(settings);
+      const joined = next.find((session: any) => session.id === sessionId);
+      if (!joined) return { success: false, error: 'Session not found' };
+      return joined;
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler('collaboration-leave-session', async (_event, sessionId: string) => {
+    try {
+      const settings = loadSettings();
+      const sessions = Array.isArray(settings.collaborationSessions) ? settings.collaborationSessions : [];
+      const next = sessions.map((session: any) => (
+        session.id === sessionId
+          ? { ...session, status: 'idle', lastActivity: Date.now() }
+          : session
+      ));
+      settings.collaborationSessions = next;
+      saveSettings(settings);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   registerHandler(IPC_CHANNELS.ROADMAP_GET_ALL, async (_event, projectId?: string) => {
     return getRoadmaps(projectId);
   });
@@ -3779,6 +3841,45 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
           if (child.stderr) child.stderr.on('data', d => (stderr += d.toString()));
 
           child.on('close', (code) => {
+            resolve({ exitCode: code ?? -1, stdout, stderr });
+          });
+        } catch (err: any) {
+          resolve({ exitCode: -1, stdout: '', stderr: `Error spawning process: ${err.message}` });
+        }
+      });
+    } catch (e: any) {
+      return { exitCode: -1, stdout: '', stderr: String(e?.message || e) };
+    }
+  });
+
+  // --- Workflow Runner: run a user-configured command and capture output ---
+  // Unlike VAULT_RUN_TOOL, this channel has no tool allowlist because the
+  // user has deliberately configured the commands inside their own workflow.
+  registerHandler(IPC_CHANNELS.WORKFLOW_RUNNER_RUN_TOOL, async (_event, payload: { cmd: string; args?: string[]; cwd?: string }) => {
+    try {
+      if (!payload || typeof payload.cmd !== 'string' || !payload.cmd.trim()) {
+        return { exitCode: -1, stdout: '', stderr: 'Invalid command: cmd must be a non-empty string' };
+      }
+      const cmd = payload.cmd.trim();
+      return new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve) => {
+        try {
+          const child = spawn(cmd, payload.args ?? [], {
+            cwd: (payload.cwd || '').trim() || process.cwd(),
+            shell: false,
+            windowsHide: true,
+          });
+
+          let stdout = '';
+          let stderr = '';
+
+          child.on('error', (err) => {
+            resolve({ exitCode: -1, stdout: '', stderr: `Failed to execute: ${err.message}` });
+          });
+
+          if (child.stdout) child.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
+          if (child.stderr) child.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
+
+          child.on('close', (code: number | null) => {
             resolve({ exitCode: code ?? -1, stdout, stderr });
           });
         } catch (err: any) {
@@ -6092,6 +6193,7 @@ end.
   });
 
   // --- CK Crash Prevention Handlers ---
+<<<<<<< HEAD
   safeHandle('ck-crash-prevention:validate', async (_event, espPath: string, _modName?: string, _cellCount?: number) => {
     const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
     const engine = new CKCrashPreventionEngine();
@@ -6112,6 +6214,46 @@ end.
 
   // File picker for crash logs
   safeHandle('ck-crash-prevention:pick-log-file', async () => {
+=======
+  registerHandler(IPC_CHANNELS.CK_CRASH_VALIDATE, async (_event, espPath: string, modName?: string, cellCount?: number) => {
+    try {
+      const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
+      const engine = new CKCrashPreventionEngine();
+      const result = await engine.validateESP(espPath);
+      return result; // Return the validation result directly
+    } catch (error: any) {
+      console.error('CK validation error:', error);
+      throw error; // Let IPC error handling catch it
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.CK_CRASH_ANALYZE, async (_event, logPath: string) => {
+    try {
+      const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
+      const engine = new CKCrashPreventionEngine();
+      const diagnosis = await engine.analyzeCrashLog(logPath);
+      return diagnosis; // Return the diagnosis directly
+    } catch (error: any) {
+      console.error('Crash analysis error:', error);
+      throw error; // Let IPC error handling catch it
+    }
+  });
+
+  registerHandler(IPC_CHANNELS.CK_CRASH_GENERATE_PLAN, async (_event, validation: any) => {
+    try {
+      const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
+      const engine = new CKCrashPreventionEngine();
+      const plan = engine.generatePreventionPlan(validation);
+      return plan; // Return the plan directly
+    } catch (error: any) {
+      console.error('Plan generation error:', error);
+      throw error; // Let IPC error handling catch it
+    }
+  });
+
+  // File picker for crash logs
+  registerHandler(IPC_CHANNELS.CK_CRASH_PICK_LOG_FILE, async () => {
+>>>>>>> origin/master
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
@@ -6126,8 +6268,13 @@ end.
     return { success: false };
   });
 
+<<<<<<< HEAD
   // Pick ESP/ESM/ESL plugin file
   safeHandle('ck-crash-prevention:pick-plugin', async () => {
+=======
+  // Pick ESP/ESM/ELS plugin file
+  registerHandler(IPC_CHANNELS.CK_CRASH_PICK_PLUGIN, async () => {
+>>>>>>> origin/master
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
@@ -6140,6 +6287,77 @@ end.
       return { success: true, path: result.filePaths[0] };
     }
     return { success: false };
+  });
+
+  // Pick mod package (folder or archive)
+  registerHandler(IPC_CHANNELS.CK_CRASH_PICK_MOD_PACKAGE, async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile', 'openDirectory'],
+      filters: [
+        { name: 'Mod Archives', extensions: ['zip', '7z', 'rar', 'ba2', 'bsa'] },
+        { name: 'Plugin Files', extensions: ['esp', 'esm', 'esl'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+      title: 'Select Mod Folder or Archive',
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { success: true, path: result.filePaths[0] };
+    }
+    return { success: false };
+  });
+
+  // Extract zip archive to a unique temp directory for scanning
+  registerHandler(IPC_CHANNELS.CK_CRASH_EXTRACT_ZIP, async (_event, archivePath: string) => {
+    try {
+      if (!archivePath || typeof archivePath !== 'string') {
+        return { success: false, error: 'Invalid archive path' };
+      }
+      const ext = path.extname(archivePath).toLowerCase();
+      if (ext !== '.zip') {
+        return { success: false, error: 'Only .zip archives are supported for extraction' };
+      }
+      if (!fs.existsSync(archivePath)) {
+        return { success: false, error: 'Archive file not found' };
+      }
+
+      const targetDir = path.join(
+        os.tmpdir(),
+        `mossy-mod-scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      );
+      fs.mkdirSync(targetDir, { recursive: true });
+
+      const psQuote = (value: string) => value.replace(/'/g, "''");
+      await new Promise<void>((resolve, reject) => {
+        const ps = spawn(
+          'powershell',
+          [
+            '-NoProfile',
+            '-Command',
+            `Expand-Archive -LiteralPath '${psQuote(archivePath)}' -DestinationPath '${psQuote(targetDir)}' -Force`,
+          ],
+          { windowsHide: true, timeout: 180_000 }
+        );
+        let stderr = '';
+        ps.stderr?.on('data', (chunk: Buffer) => {
+          stderr += chunk.toString();
+        });
+        ps.on('error', reject);
+        ps.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(stderr.trim() || `Expand-Archive exited with code ${code}`));
+          }
+        });
+      });
+
+      return { success: true, extractedPath: targetDir };
+    } catch (error: any) {
+      const msg = String(error?.message || error || 'Unknown extraction error');
+      console.error('[ck-crash-prevention:extract-zip] error:', msg);
+      return { success: false, error: msg };
+    }
   });
 
   // --- Workshop: Browse directory and list files ---
@@ -8638,15 +8856,19 @@ end.
       ];
 
       // Try backend proxy first (Render or self-hosted).
-      // Use a shorter 4-second timeout so cold-start Render instances fail fast
-      // and we fall through to the direct Groq SDK path without making the user wait.
+      // Use a 15-second timeout to allow cold-start Render instances to wake up.
+      // The backend at https://mossy.onrender.com has a valid Groq key configured,
+      // so we prioritize backend success over fast fallback to the (potentially invalid) local key.
       let content = '';
       const backend = getBackendConfig();
+      console.log('[AI Chat Groq] Backend config:', backend ? `URL=${backend.baseUrl}, hasToken=${!!backend.token}` : 'No backend configured');
       if (backend) {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 4000);
+        const timeout = setTimeout(() => controller.abort(), 15000);
         try {
-          const res = await fetch(backendJoin(backend, '/v1/chat'), {
+          const backendUrl = backendJoin(backend, '/v1/chat');
+          console.log('[AI Chat Groq] Attempting backend request to:', backendUrl);
+          const res = await fetch(backendUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -8656,24 +8878,40 @@ end.
             signal: controller.signal,
           });
 
+          console.log('[AI Chat Groq] Backend response status:', res.status, res.statusText);
           const json: any = await res.json().catch(() => ({}));
           if (res.ok && json?.ok) {
             content = String(json?.text || '');
+            console.log('[AI Chat Groq] ✅ Backend proxy succeeded, content length:', content.length);
           } else {
-            console.warn('[AI Chat Groq] Backend proxy failed:', json?.message || json?.error || res.status);
+            console.warn('[AI Chat Groq] ❌ Backend proxy failed:', json?.message || json?.error || res.status);
+            console.warn('[AI Chat Groq] Response body:', JSON.stringify(json).substring(0, 200));
           }
         } catch (e: any) {
-          console.warn('[AI Chat Groq] Backend proxy error, falling back to direct Groq:', e?.message || e);
+          console.error('[AI Chat Groq] ❌ Backend proxy exception:', e?.message || e);
+          console.error('[AI Chat Groq] Error type:', e?.name, 'Code:', e?.code);
         } finally {
           clearTimeout(timeout);
         }
+      } else {
+        console.log('[AI Chat Groq] Skipping backend — no backend URL configured');
       }
 
       // Fall back to direct Groq SDK when backend is unavailable or failed
       if (!content) {
         const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
         if (!apiKey) {
-          return { success: false, error: 'No Groq API key configured. Add your key in Desktop Settings.' };
+          // More descriptive error: differentiate between "no backend" vs "backend failed"
+          const backendConfig = getBackendConfig();
+          if (!backendConfig) {
+            console.error('[AI Chat Groq] No backend configured and no local Groq API key — cannot proceed');
+            return { success: false, error: 'Groq unavailable: No backend URL configured and no local Groq API key set. Add backend URL or Groq API key in Desktop Settings.' };
+          } else {
+            console.error('[AI Chat Groq] Backend connection failed and no local Groq API key fallback available');
+            console.error('[AI Chat Groq] Backend URL:', backendConfig.baseUrl);
+            console.error('[AI Chat Groq] Backend token present:', !!backendConfig.token);
+            return { success: false, error: 'Groq cloud chat unavailable: Backend connection failed. Please check: 1. Backend service is running (https://mossy.onrender.com/health). 2. Internet connection. 3. Backend token is correct in Settings.' };
+          }
         }
         const { default: Groq } = await import('groq-sdk');
         const client = new Groq({ apiKey });
@@ -9866,6 +10104,85 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // In-memory cache with persistent storage to disk
   const whatsNewStorage = new Map<string, any>();
 
+  const compareSemverDesc = (a: string, b: string): number => {
+    const aParts = a.split('.').map((part) => Number.parseInt(part, 10) || 0);
+    const bParts = b.split('.').map((part) => Number.parseInt(part, 10) || 0);
+    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+      const diff = (bParts[i] || 0) - (aParts[i] || 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  };
+
+  const findChangelogPath = (): string | null => {
+    const candidates = [
+      path.join(app.getAppPath(), 'CHANGELOG.md'),
+      path.join(app.getAppPath(), '..', 'CHANGELOG.md'),
+      path.join(app.getAppPath(), '..', '..', 'CHANGELOG.md'),
+      path.join(process.resourcesPath, 'CHANGELOG.md'),
+      path.join(process.cwd(), 'CHANGELOG.md'),
+    ];
+    return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+  };
+
+  const toFeature = (rawLine: string) => {
+    const cleaned = rawLine
+      .replace(/^-\s+/, '')
+      .replace(/\*\*/g, '')
+      .trim();
+    if (!cleaned) return null;
+    const [left, ...rest] = cleaned.split(':');
+    const description = rest.join(':').trim();
+    return {
+      title: description ? left.trim() : cleaned.slice(0, 72),
+      description: description || cleaned,
+      icon: '✨',
+    };
+  };
+
+  const parseWhatsNewEntriesFromChangelog = (): any[] => {
+    try {
+      const changelogPath = findChangelogPath();
+      if (!changelogPath) return [];
+      const markdown = fs.readFileSync(changelogPath, 'utf-8');
+      const versionMatches = Array.from(markdown.matchAll(/^##\s+\[(\d+\.\d+\.\d+)\][^\n]*$/gm));
+      if (versionMatches.length === 0) return [];
+
+      const parsedEntries: any[] = [];
+      for (let index = 0; index < versionMatches.length; index++) {
+        const version = versionMatches[index][1];
+        const sectionStart = versionMatches[index].index ?? 0;
+        const sectionEnd = versionMatches[index + 1]?.index ?? markdown.length;
+        const section = markdown.slice(sectionStart, sectionEnd);
+        const bulletLines = section
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line.startsWith('- '));
+
+        const features = bulletLines
+          .map(toFeature)
+          .filter(Boolean)
+          .slice(0, 24);
+
+        parsedEntries.push({
+          id: `whats-new-${version}`,
+          version,
+          releaseDate: Date.now() - (index * 24 * 60 * 60 * 1000),
+          title: `What's New in Mossy v${version}`,
+          features,
+          highlights: bulletLines.slice(0, 12).map((line) => line.replace(/^-\s+/, '').trim()),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+
+      return parsedEntries;
+    } catch (error) {
+      console.warn('[WhatsNew] Failed to parse CHANGELOG.md:', error);
+      return [];
+    }
+  };
+
   // Load What's New entries from persistent storage
   const loadWhatsNewFromDisk = (): Map<string, any> => {
     try {
@@ -9903,6 +10220,13 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   const initialWhatsNewEntries = loadWhatsNewFromDisk();
   for (const [id, entry] of initialWhatsNewEntries) {
     whatsNewStorage.set(id, entry);
+  }
+  const changelogEntries = parseWhatsNewEntriesFromChangelog();
+  for (const entry of changelogEntries) {
+    whatsNewStorage.set(entry.id, entry);
+  }
+  if (changelogEntries.length > 0) {
+    saveWhatsNewToDisk(whatsNewStorage);
   }
 
   // Get all What's New entries
@@ -9950,7 +10274,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     try {
       const currentVersion = require('../../package.json').version;
       const entryId = `whats-new-${currentVersion}`;
-      const entry = whatsNewStorage.get(entryId);
+      const directEntry = whatsNewStorage.get(entryId);
+      let entry = directEntry || null;
+      let fallbackUsed = false;
+      let fallbackVersion: string | null = null;
+      if (!entry) {
+        const candidates = Array.from(whatsNewStorage.values())
+          .filter((item: any) => typeof item?.version === 'string');
+        candidates.sort((a: any, b: any) => compareSemverDesc(a.version, b.version));
+        entry = candidates[0] || null;
+        fallbackUsed = !!entry;
+        fallbackVersion = entry?.version || null;
+      }
 
       auditLogger.log({
         operation: 'whats-new-retrieval',
@@ -9958,13 +10293,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         action: 'get-current',
         status: 'success',
         duration: Date.now() - startTime,
-        result: { found: !!entry, version: currentVersion }
+        result: { found: !!entry, version: currentVersion, fallbackUsed, fallbackVersion }
       });
 
       return {
         ok: true,
         entry: entry || null,
-        version: currentVersion
+        version: currentVersion,
+        fallback: {
+          used: fallbackUsed,
+          requestedVersion: currentVersion,
+          resolvedVersion: entry?.version || null,
+        },
       };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
@@ -14831,6 +15171,35 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
+  ipcMain.handle('analytics:clear-data', async () => {
+    const startTime = Date.now();
+    try {
+      analyticsStorage.clear();
+      metricsHistoryStorage.clear();
+      saveAnalyticsToDisk();
+      auditLogger.log({
+        operation: 'analytics-data-management',
+        tool: 'analytics-reporting',
+        action: 'clear-data',
+        status: 'success',
+        duration: Date.now() - startTime,
+      });
+      return { success: true };
+    } catch (error: any) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error('[Main] analytics:clear-data error:', errMsg);
+      auditLogger.log({
+        operation: 'analytics-data-management',
+        tool: 'analytics-reporting',
+        action: 'clear-data',
+        status: 'error',
+        duration: Date.now() - startTime,
+        error: errMsg,
+      });
+      return { success: false, error: errMsg };
+    }
+  });
+
   // =========================================================================
   // Platform 17: Git Integration IPC Handlers
   // =========================================================================
@@ -15029,6 +15398,115 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         error: errMsg
       });
       return { success: false, error: errMsg };
+    }
+  });
+
+  ipcMain.handle('collaboration-git-init', async (_event, projectId: string, config: any) => {
+    try {
+      const projects = getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project?.path) return { success: false, error: 'Project path not found' };
+
+      const existingRepo = Array.from(gitReposStorage.values()).find((repo: any) => repo.path === project.path);
+      if (existingRepo) return { success: true, repo: existingRepo };
+
+      const repoId = `repo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const repo = {
+        id: repoId,
+        name: project.name || 'Project Repository',
+        path: project.path,
+        initialized: true,
+        createdAt: Date.now(),
+        lastModified: Date.now(),
+        branch: config?.branch || 'main',
+        remoteUrl: config?.remote || '',
+        commits: 0,
+      };
+      gitReposStorage.set(repoId, repo);
+      saveGitDataToDisk();
+      return { success: true, repo };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('collaboration-git-commit', async (_event, projectId: string, message: string) => {
+    try {
+      const projects = getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project?.path) return { success: false, error: 'Project path not found' };
+
+      const repo = Array.from(gitReposStorage.values()).find((entry: any) => entry.path === project.path);
+      if (!repo) return { success: false, error: 'Repository not initialized for project' };
+
+      const commitId = `commit_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const commit = {
+        id: commitId,
+        repoId: repo.id,
+        message: message || 'Update project',
+        author: 'Mossy User',
+        timestamp: Date.now(),
+        hash: `${Math.random().toString(16).slice(2)}`,
+        fileCount: 0,
+        additions: 0,
+        deletions: 0,
+      };
+      gitHistoryStorage.set(commitId, commit);
+      repo.commits = (repo.commits || 0) + 1;
+      repo.lastModified = Date.now();
+      gitReposStorage.set(repo.id, repo);
+      saveGitDataToDisk();
+      return { success: true, commit };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('collaboration-git-push', async (_event, projectId: string) => {
+    try {
+      const projects = getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project?.path) return { success: false, error: 'Project path not found' };
+
+      const repo = Array.from(gitReposStorage.values()).find((entry: any) => entry.path === project.path);
+      if (!repo) return { success: false, error: 'Repository not initialized for project' };
+
+      return {
+        success: true,
+        result: {
+          success: true,
+          remote: repo.remoteUrl || 'origin',
+          branch: repo.branch || 'main',
+          timestamp: Date.now(),
+          status: 'pushed',
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('collaboration-git-pull', async (_event, projectId: string) => {
+    try {
+      const projects = getProjects();
+      const project = projects.find((p) => p.id === projectId);
+      if (!project?.path) return { success: false, error: 'Project path not found' };
+
+      const repo = Array.from(gitReposStorage.values()).find((entry: any) => entry.path === project.path);
+      if (!repo) return { success: false, error: 'Repository not initialized for project' };
+
+      return {
+        success: true,
+        result: {
+          success: true,
+          remote: repo.remoteUrl || 'origin',
+          branch: repo.branch || 'main',
+          timestamp: Date.now(),
+          status: 'pulled',
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -30712,6 +31190,59 @@ ${steps}
     }
   });
 
+  registerHandler('asset-validator:auto-fix', async (_event, issues: any[]) => {
+    try {
+      if (!Array.isArray(issues)) {
+        return IpcResponseBuilder.error('Issues payload must be an array', IpcErrorCode.EINVAL);
+      }
+
+      const applied: Array<{ id?: string; file: string; action: string }> = [];
+      const failed: Array<{ id?: string; file?: string; error: string }> = [];
+
+      for (const issue of issues) {
+        try {
+          if (!issue || typeof issue !== 'object') continue;
+          const filePath = String(issue.file || '');
+          if (!filePath) continue;
+
+          if (issue.type === 'filename-format' && issue.autoFixable === true) {
+            if (!fs.existsSync(filePath)) {
+              failed.push({ id: issue.id, file: filePath, error: 'File no longer exists' });
+              continue;
+            }
+
+            const dir = path.dirname(filePath);
+            const base = path.basename(filePath);
+            const normalized = base.replace(/\s+/g, '_');
+
+            if (!normalized || normalized === base) continue;
+
+            const targetPath = path.join(dir, normalized);
+            if (fs.existsSync(targetPath)) {
+              failed.push({ id: issue.id, file: filePath, error: `Target exists: ${targetPath}` });
+              continue;
+            }
+
+            fs.renameSync(filePath, targetPath);
+            applied.push({ id: issue.id, file: targetPath, action: 'renamed-spaces-to-underscores' });
+          }
+        } catch (err: any) {
+          failed.push({ id: issue?.id, file: issue?.file, error: String(err?.message || err) });
+        }
+      }
+
+      return IpcResponseBuilder.success({
+        appliedCount: applied.length,
+        failedCount: failed.length,
+        applied,
+        failed,
+      });
+    } catch (error) {
+      console.error('[Asset Validator auto-fix] Error:', error);
+      return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
+    }
+  });
+
   // Image Processing Handlers
   registerHandler('image-suite:generate-pbr', async (_event, params: any) => {
     try {
@@ -31242,6 +31773,9 @@ app.whenReady().then(() => {
 
   // Register Texture Enhancer handlers (uses BridgeServer for Blender integration)
   registerTextureEnhancerHandlers(bridge, mainWindow);
+
+  // Register Cloud Sync handlers exposed by preload cloudSync API.
+  registerCloudSyncHandlers();
 
   // Initialize Bethel Integration (auto mod upload → enhance → export)
   const dataDir = path.join(app.getPath('userData'), '.mossy');

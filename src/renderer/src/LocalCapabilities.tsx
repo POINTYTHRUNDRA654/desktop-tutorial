@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { Download } from 'lucide-react';
 
 type CapsStatus = {
   ok: true;
@@ -95,6 +96,9 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
     error: '',
   });
 
+  const [trainingStats, setTrainingStats] = useState<{ total: number; good: number; bad: number; topics: Record<string, number> } | null>(null);
+  const [trainingExportBusy, setTrainingExportBusy] = useState(false);
+
   const preferred: LocalAiPreferred = (settings.localAiPreferredProvider || 'auto') as LocalAiPreferred;
 
   const ollamaModels = useMemo(() => (caps?.ollama.ok ? caps.ollama.models : []), [caps]);
@@ -131,6 +135,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
     if (api?.getMossyEdition) {
       api.getMossyEdition().then((ed: 'nvidia' | 'universal') => setEdition(ed)).catch(() => {});
     }
+    loadTrainingStats();
     // Listen for fine-tune progress events
     const onProgress = (_event: any, data: { message: string }) => {
       setFineTune((ft) => ({ ...ft, log: [...ft.log.slice(-199), data.message] }));
@@ -307,6 +312,34 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
     }
   };
 
+  const loadTrainingStats = async () => {
+    if (!api?.trainingDataGetStats) return;
+    try {
+      const stats = await api.trainingDataGetStats();
+      if (stats && typeof stats.total === 'number') setTrainingStats(stats);
+    } catch { /* non-critical */ }
+  };
+
+  const exportTrainingData = async (goodOnly = false) => {
+    if (!api?.trainingDataExportJsonl) {
+      toast.error('Training data export is not available.');
+      return;
+    }
+    setTrainingExportBusy(true);
+    try {
+      const resp = await api.trainingDataExportJsonl({ goodOnly });
+      if (resp?.ok) {
+        toast.success(`Exported ${resp.count} pair(s) → ${resp.path}`);
+      } else {
+        toast.error(String(resp?.error || 'Export failed.'));
+      }
+    } catch (e: any) {
+      toast.error(String(e?.message || 'Export error'));
+    } finally {
+      setTrainingExportBusy(false);
+    }
+  };
+
   const containerClassName = embedded ? 'p-4 space-y-6' : 'p-6 space-y-6';
 
   return (
@@ -447,6 +480,61 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
         <div className="text-xs text-slate-400">
           Tip: For Cosmos/LM Studio, start the local server and enable the OpenAI-compatible API.
         </div>
+      </div>
+
+      {/* Training Data */}
+      <div className="bg-slate-900/60 border border-purple-800/50 rounded-lg p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-purple-300">📊 Training Data</span>
+          <span className="text-xs text-slate-400">— Export your 👍/👎 chat ratings as a JSONL dataset</span>
+        </div>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Every time you rate a chat response with 👍 or 👎 in AI Chat, the Q&amp;A pair is saved locally.
+          Export here to get a JSONL file you can use directly with Unsloth to fine-tune a local model.
+        </p>
+        {trainingStats ? (
+          <div className="flex flex-wrap gap-3 text-xs">
+            <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+              Total: <strong className="text-white">{trainingStats.total}</strong>
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-900/40 border border-emerald-800/40 text-emerald-300">
+              👍 Good: {trainingStats.good}
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-red-900/40 border border-red-800/40 text-red-300">
+              👎 Bad: {trainingStats.bad}
+            </span>
+          </div>
+        ) : (
+          <div className="text-xs text-slate-500">No ratings yet — start rating chat responses to build your dataset.</div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => exportTrainingData(false)}
+            disabled={trainingExportBusy || !trainingStats?.total}
+            className="flex items-center gap-1.5 text-xs px-3 py-2 rounded bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white font-semibold"
+          >
+            <Download className="w-3.5 h-3.5" />
+            {trainingExportBusy ? 'Exporting…' : 'Export JSONL (all)'}
+          </button>
+          <button
+            onClick={() => exportTrainingData(true)}
+            disabled={trainingExportBusy || !trainingStats?.good}
+            className="flex items-center gap-1.5 text-xs px-3 py-2 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold"
+          >
+            <Download className="w-3.5 h-3.5" />
+            {trainingExportBusy ? 'Exporting…' : 'Export JSONL (👍 only)'}
+          </button>
+          <button
+            onClick={loadTrainingStats}
+            disabled={trainingExportBusy}
+            className="text-xs px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-slate-200"
+          >
+            Refresh stats
+          </button>
+        </div>
+        <p className="text-xs text-slate-500">
+          The exported file is saved to your app data folder. Use the Browse button in the Fine-Tuning section below to load it.
+        </p>
       </div>
 
       {/* GGUF / Unsloth Import */}

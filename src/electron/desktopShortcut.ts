@@ -9,13 +9,38 @@ import fs from 'fs';
 import { execSync } from 'child_process';
 
 export class DesktopShortcutManager {
+  private static getHomeDir(): string {
+    return process.env.USERPROFILE || process.env.HOME || '';
+  }
+
+  private static getDesktopPath(): string {
+    try {
+      return app.getPath('desktop');
+    } catch {
+      return path.join(this.getHomeDir(), 'Desktop');
+    }
+  }
+
+  private static getLinuxApplicationsDir(): string {
+    return path.join(this.getHomeDir(), '.local', 'share', 'applications');
+  }
+
+  private static getLinuxIconPath(): string {
+    const candidates = [
+      path.join(process.resourcesPath, 'public', 'pipboy-icon.svg'),
+      path.join(app.getAppPath(), 'public', 'pipboy-icon.svg'),
+      path.join(__dirname, '../../public/pipboy-icon.svg'),
+    ];
+
+    return candidates.find(candidate => fs.existsSync(candidate)) || '';
+  }
+
   /**
    * Create a desktop shortcut for Windows
    */
   static createWindowsShortcut(): boolean {
     try {
-      const homeDir = process.env.USERPROFILE || process.env.HOME || '';
-      const desktopPath = path.join(homeDir, 'Desktop');
+      const desktopPath = this.getDesktopPath();
       
       if (!fs.existsSync(desktopPath)) {
         console.warn('Desktop folder not found');
@@ -27,7 +52,7 @@ export class DesktopShortcutManager {
       const iconPath = exePath;
       
       // Windows shortcut creation using PowerShell
-      const shortcutName = 'Mossy Pip-Boy';
+      const shortcutName = 'Mossy';
       const shortcutPath = path.join(desktopPath, `${shortcutName}.lnk`);
       
       // For packaged builds the exe IS the app – no --app argument needed.
@@ -64,8 +89,7 @@ export class DesktopShortcutManager {
    */
   static createMacShortcut(): boolean {
     try {
-      const homeDir = process.env.HOME || '';
-      const desktopPath = path.join(homeDir, 'Desktop');
+      const desktopPath = this.getDesktopPath();
       
       if (!fs.existsSync(desktopPath)) {
         console.warn('Desktop folder not found');
@@ -73,7 +97,7 @@ export class DesktopShortcutManager {
       }
 
       const appPath = app.getAppPath();
-      const shortcutPath = path.join(desktopPath, 'Mossy Pip-Boy.app');
+      const shortcutPath = path.join(desktopPath, 'Mossy.app');
       
       // Create simple alias on macOS
       execSync(`ln -s "${appPath}" "${shortcutPath}"`, { stdio: 'pipe' });
@@ -91,8 +115,7 @@ export class DesktopShortcutManager {
    */
   static createLinuxShortcut(): boolean {
     try {
-      const homeDir = process.env.HOME || '';
-      const desktopPath = path.join(homeDir, 'Desktop');
+      const desktopPath = this.getDesktopPath();
       
       if (!fs.existsSync(desktopPath)) {
         console.warn('Desktop folder not found');
@@ -101,24 +124,34 @@ export class DesktopShortcutManager {
 
       const appPath = app.getAppPath();
       const exePath = process.execPath;
-      const iconPath = path.join(__dirname, '../../public/pipboy-icon.svg');
-      const shortcutPath = path.join(desktopPath, 'Mossy-Pip-Boy.desktop');
+      const iconPath = this.getLinuxIconPath();
+      const shortcutPath = path.join(desktopPath, 'Mossy.desktop');
+      const applicationsDir = this.getLinuxApplicationsDir();
+      const appMenuShortcutPath = path.join(applicationsDir, 'Mossy.desktop');
+      const execCommand = app.isPackaged
+        ? `"${exePath}"`
+        : `"${exePath}" --app="${appPath}"`;
       
       const desktopContent = `[Desktop Entry]
 Version=1.0
 Type=Application
-Name=Mossy Pip-Boy
+Name=Mossy
 Comment=Fallout 4 Modding AI Assistant with Pip-Boy Interface
-Exec=${exePath} ${appPath}
+Exec=${execCommand}
 Icon=${iconPath}
 Terminal=false
-Categories=Development;
+Categories=Utility;Development;
+StartupNotify=true
+StartupWMClass=mossy-desktop
 `;
 
       fs.writeFileSync(shortcutPath, desktopContent);
       fs.chmodSync(shortcutPath, 0o755);
+      fs.mkdirSync(applicationsDir, { recursive: true });
+      fs.writeFileSync(appMenuShortcutPath, desktopContent);
+      fs.chmodSync(appMenuShortcutPath, 0o755);
       
-      console.log(`✓ Desktop shortcut created: ${shortcutPath}`);
+      console.log(`✓ Desktop shortcuts created: ${shortcutPath}, ${appMenuShortcutPath}`);
       return true;
     } catch (error) {
       console.error('Failed to create Linux shortcut:', error);
@@ -150,18 +183,24 @@ Categories=Development;
    */
   static shortcutExists(): boolean {
     try {
-      const homeDir = process.env.USERPROFILE || process.env.HOME || '';
-      const desktopPath = path.join(homeDir, 'Desktop');
+      const desktopPath = this.getDesktopPath();
       
       const platform = process.platform;
       let shortcutPath = '';
       
       if (platform === 'win32') {
-        shortcutPath = path.join(desktopPath, 'Mossy Pip-Boy.lnk');
+        const newShortcut = path.join(desktopPath, 'Mossy.lnk');
+        const legacyShortcut = path.join(desktopPath, 'Mossy Pip-Boy.lnk');
+        return fs.existsSync(newShortcut) || fs.existsSync(legacyShortcut);
       } else if (platform === 'darwin') {
-        shortcutPath = path.join(desktopPath, 'Mossy Pip-Boy.app');
+        const newShortcut = path.join(desktopPath, 'Mossy.app');
+        const legacyShortcut = path.join(desktopPath, 'Mossy Pip-Boy.app');
+        return fs.existsSync(newShortcut) || fs.existsSync(legacyShortcut);
       } else if (platform === 'linux') {
-        shortcutPath = path.join(desktopPath, 'Mossy-Pip-Boy.desktop');
+        const desktopShortcut = path.join(desktopPath, 'Mossy.desktop');
+        const legacyDesktopShortcut = path.join(desktopPath, 'Mossy-Pip-Boy.desktop');
+        const appMenuShortcut = path.join(this.getLinuxApplicationsDir(), 'Mossy.desktop');
+        return fs.existsSync(desktopShortcut) || fs.existsSync(appMenuShortcut) || fs.existsSync(legacyDesktopShortcut);
       }
       
       return fs.existsSync(shortcutPath);

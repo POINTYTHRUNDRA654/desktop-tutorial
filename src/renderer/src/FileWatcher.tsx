@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { FolderOpen, Eye, AlertTriangle, FileCode, FileImage, Box, Zap, CheckCircle2, Clock } from 'lucide-react';
 
@@ -17,8 +18,10 @@ interface ContextSuggestion {
 }
 
 export const FileWatcher: React.FC = () => {
+  const navigate = useNavigate();
   const [watchPath, setWatchPath] = useState('');
   const [watching, setWatching] = useState(false);
+  const watchingRef = useRef(false);
   const [recentFiles, setRecentFiles] = useState<WatchedFile[]>([]);
   const [suggestions, setSuggestions] = useState<ContextSuggestion[]>([]);
   const [autoAnalyze, setAutoAnalyze] = useState(true);
@@ -29,10 +32,19 @@ export const FileWatcher: React.FC = () => {
     if (saved) setWatchPath(saved);
   }, []);
 
+  const browseForWatchPath = async () => {
+    const bridge: any = (window as any).electron?.api;
+    try {
+      const dir: string | undefined = await bridge?.pickDirectory?.('Select folder to watch');
+      if (dir) setWatchPath(dir);
+    } catch { /* ignore */ }
+  };
+
   const startWatching = async () => {
     if (!watchPath) return;
     
     localStorage.setItem('mossy_watch_path', watchPath);
+    watchingRef.current = true;
     setWatching(true);
 
     // In real implementation, this would use Desktop Bridge to watch files
@@ -49,17 +61,19 @@ export const FileWatcher: React.FC = () => {
     } catch (error) {
       console.error('File watcher connection failed:', error);
       toast.error('Connection Failed: The Desktop Bridge is not responding on port 21337. File watching requires the active VoltTech Wrapper.');
+      watchingRef.current = false;
       setWatching(false);
     }
   };
 
   const stopWatching = () => {
+    watchingRef.current = false;
     setWatching(false);
   };
 
   const pollForChanges = () => {
     const interval = setInterval(async () => {
-      if (!watching) {
+      if (!watchingRef.current) {
         clearInterval(interval);
         return;
       }
@@ -200,6 +214,13 @@ export const FileWatcher: React.FC = () => {
             placeholder="Path to your Fallout 4 Data folder..."
             className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
           />
+          <button
+            onClick={browseForWatchPath}
+            title="Browse for folder"
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors flex items-center gap-1 text-sm font-bold"
+          >
+            <FolderOpen className="w-4 h-4" />
+          </button>
           {!watching ? (
             <button
               onClick={startWatching}
@@ -263,7 +284,7 @@ export const FileWatcher: React.FC = () => {
                 <h4 className="font-bold text-cyan-300 text-sm mb-1">{sug.title}</h4>
                 <p className="text-xs text-slate-400 mb-3">{sug.message}</p>
                 <button
-                  onClick={() => sug.route && (window.location.hash = sug.route)}
+                  onClick={() => sug.route && navigate(sug.route)}
                   className="w-full px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded transition-colors"
                 >
                   {sug.action}

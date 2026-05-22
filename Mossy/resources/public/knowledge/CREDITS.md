@@ -390,6 +390,21 @@ Mossy integrates with and respects the licenses of the following tools. All are 
 
 Special thanks to the following community members who have generously donated knowledge, data, and resources to Mossy's knowledge base:
 
+- **PJMail (PJM)** - https://www.nexusmods.com/fallout4/mods/69978
+  - Author of **PJM's Precombine - Previs Patching Scripts** (Nexus #69978)
+  - Graciously provided the full text of all his public articles and guides for inclusion in Mossy's knowledge base
+  - Articles included: *Precombine Previs Deep Dive*, *FO4Check_Previsbines Script Guide*, *Creating Lighting and Environment Patches*, *Generating Previsbines for Inclusion in an Existing Mod*, *Resolving Creation Kit Crashes*, *Help and FAQ*, and the full mod installation guide
+  - His scripts (`FO4Check_Previsbines.pas`, `GeneratePrevisibines.bat`, and the full PJMScripts V4.9 bundle) are the definitive tools for Fallout 4 precombine/previs work as of 2026
+  - All content is used here with full credit and is the intellectual property of PJMail
+  - Thank you for your incredible contribution to the Fallout 4 modding community! 🙏
+
+- **Additional community references credited inline in Mossy guides**
+  - **GECK Wiki** — engine/editor workflow reference material
+  - **Sim Settlements community documentation** — modern FO4 navmesh and CK workflow references
+  - **Steam Community guide authors** — Creation Kit shortcut and workflow references
+  - **Felloutislife, Seddon4494, and Art Toots** — tutorial/community references cited where their navmesh workflow information is summarized
+  - These sources are credited directly inside the relevant topical guides where their information is used
+
 - **4estGimp** - https://www.nexusmods.com/fallout4/users/30343500
   - Prolific Fallout 4 mod author and patch creator
   - Donated their comprehensive Fallout 4 patch and compatibility database to Mossy

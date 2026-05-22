@@ -1,49 +1,71 @@
 # PJM's Precombine - Previs Patching Scripts
 
+**Source:** Nexus #69978 — https://www.nexusmods.com/fallout4/mods/69978  
+**Author:** PJMail
+
 For experienced patch mod creators who want to:
 - Find/fix flickering (occlusion) issues in-game
 - Merge Lighting/Weather/etc changes without breaking Previs (see article)
 - Create PRP patches for Mods
 - Add Precombines/Previs to their own Mod (see article)
 
-The Deep Dive article contains the latest information on everything Precombines/Previs (WIP as of 2025), including common CreationKit failures. More details on CK crashes can be found in the Resolving Creation Kit Crashes article. The scripts in this mod are also the most up-to-date for this task. Everything else found on the Internet/Nexus is incomplete.
+The Deep Dive article contains the latest information on everything Precombines/Previs (still a WIP as of 2026), including common CreationKit failures. More details on CK crashes can be found in the Resolving Creation Kit Crashes article. The scripts in this mod are also the most up-to-date for this task. Everything else found on the Internet/Nexus is incomplete.
 
 Version notes:
-- **V4.8g** is the latest version. Simplified GUI, causes less "Masters Limit" issues when generating "Fix all" Patches.
-- **V4.9 (Prerelease)** is available for Testing - Under "Optional Files".
+- **V4.9 PJMScripts bundle** contains the latest released scripts as of **18 Feb 2026**.
+- `FO4_CheckPrevisbines.pas` and `GeneratePrevisibines.bat` found under **Updated Files** are newer than the base kit — use those versions.
 
 ---
 
 ## Mandatory Requirements
 
 - FO4Edit.exe/xEdit (or FO4Edit64.exe) **V4.1.5f or later**.
-- **FO4 CreationKit.** If using the Steam version read the FAQ post for extra steps.
+- **FO4 CreationKit.** If using the Steam version, read the FAQ post for extra steps.
 - **CKPE (Creation Kit Platform Extended)** version appropriate for your CK version.
-  - CKPE 0.6 has not been tested on OG CK, but should be fine for NG - use the latest GitHub version (not Nexus).
-  - **AE version of CK is not yet supported by CKPE.** Author is waiting until Bethesda's final patch in December.
-- The latest **PJMScripts** contents extracted into the directory your FO4Edit.exe/xEdit.exe is located.
-- Any updates to the above scripts (found under "Updated Files" tab).
+  - **CKPE V0.6 b639 or later** is preferred when possible.
+- The latest **PJMScripts V4.9** contents extracted into the directory your FO4Edit.exe/xEdit.exe is located.
+- Any updates to the above scripts (found under the **Updated Files** tab).
 - Willing to read the FAQ post and follow its instructions.
+
+### Optional useful tools
+
+- **Auto Cell Display Ring** — in-game cell/cluster border display.
+- Console commands **TPC** and **TB** for testing whether Previs is enabled in a cell.
+- **Worldspace browser with `PrevisCheck.pas`** — visualizes Precombine/Previs cell conflicts between mods on the worldspace map.
 
 ---
 
 ## Instructions
 
-### 1) Download & extract the latest PJMScripts archive
+### 1) Install FO4Edit/xEdit
 
-- Contains scripts you need (only as of Feb 2025).
-- Manually download this archive (**DO NOT** use a Mod manager).
-- Extract it into your directory containing FO4Edit.exe (all `*.pas` scripts go into the `Edit Scripts` subdirectory).
-- Download ALL updated files (such as `GeneratePrevisibines.bat`) found under Updated Files, to replace those extracted above.
+- Install FO4Edit/xEdit from Nexus or the latest xEdit Discord release.
 
-### 2) Read the stickied posts and articles for How-to information
+### 2) Download & install the Creation Kit and CKPE
 
-- CHECK the stickied post "Your PC setup REQUIRED to successfully build Previsbines!" to prepare your environment.
-- READ the stickied post "Important things to know - READ THIS!" so you know what you are in for.
-- Read the Help and FAQ article for more information/help if you have problems.
-- Read the Previsbines Deep Dive article if you want to understand anything/everything about Precombines/Previs.
+- Install the **Creation Kit** from Steam.
+- Install **CKPE** into the same directory as `Fallout4.exe`.
+- If you downgraded your game from NG/AE to OG, downgrade CK too.
+- If you must use a CKPE version earlier than 0.6 on downgraded CK:
+  - Convert BA2 archives to **V1** with Collective Modding Toolkit.
+  - Replace `Fallout4 - Interface.ba2` and `Fallout4 - Shaders.ba2` with OG versions.
+  - Set `bOwnArchiveLoader=false` and `bBSPointerHandleExtremly=true` in `CreationKitPlatformExtended.ini`.
 
-### 3) Build Previs patches for your game
+### 3) Download & extract the latest PJMScripts archive
+
+- Manually download the archive (**DO NOT** use a mod manager).
+- Extract it into the directory containing FO4Edit/xEdit.
+- All `*.pas` files go into the `Edit Scripts` subdirectory.
+- Download **all updated files** and overwrite the extracted versions.
+
+### 4) Read the stickied posts and articles for how-to information
+
+- Check the stickied post **Your PC setup REQUIRED to successfully build Previsbines!**
+- Read **Important things to know - READ THIS!**
+- Read the **Help and FAQ** article.
+- Read the **Previsbines Deep Dive** article if you want the full technical background.
+
+### 5) Build Previs patches for your game
 
 As per the information on the stickied FAQ post, examples of what you can do:
 - Find all the Cells in your game that will have visual issues (flickering)
@@ -62,9 +84,8 @@ Spoiler:  Show
 - Download all the scripts from this mod (the **PJMScripts** kit + any updates) and put them, and `GeneratePrevisibines.bat`, in xEdit's directories.
 - Run the `Fallout4Launcher.exe` (once) in your Fallout 4 directory and immediately exit (don't start the game) — so it knows where `Fallout4.exe` is.
 - Make sure you have CreationKit installed (from Steam) into this same directory.
-- If using **downgraded FO4** then downgrade CK too, convert all archives (ba2 files) to V1 (via CMT), and replace `Fallout4 - Shaders.ba2` with the FO4 OG version (found in `CreationKitPlatformExtended_FO4_Resources.pak` in the CKPE 0.5 kit — open with 7zip and extract `CreationKit - Shaders - OG.ba2`, then rename to `Fallout4 - Shaders.ba2`).
-- Make sure you have **CKPE** installed — **V0.5** if NextGen CK, **V0.3** for Old-Gen (OG) CK or downgraded FO4.
-- If using OG CK also make sure you set `bOwnArchiveLoader=false` and `bBSPointerHandleExtremly=true` in `CreationKitPlatformExtended.ini`.
+- Make sure you have the latest **CKPE** installed for your CK version.
+- If using downgraded FO4/CK, apply the archive/version fixes from the FAQ and keep `bBSPointerHandleExtremly=true`.
 - If using **MO2** then register FO4edit/xEdit and `GeneratePrevisibines.bat` as "Executable programs" — specifying the AppID **1946160**.
 - If **NOT** using MO2 then create the text file `steam_appid.txt` containing a single line with the text **1946160**.
 - Make sure Steam has been started (running in the background) — otherwise `GeneratePrevisbines.bat` will be messed up by steam prompts.

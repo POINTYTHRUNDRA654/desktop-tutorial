@@ -30,6 +30,8 @@ export const BackupManager: React.FC = () => {
   useEffect(() => {
     loadSnapshots();
     checkGitStatus();
+    const saved = localStorage.getItem('mossy_backup_workspace');
+    if (saved) setWorkspacePath(saved);
 
     if (autoBackup) {
       const interval = setInterval(() => {
@@ -43,8 +45,14 @@ export const BackupManager: React.FC = () => {
   const loadSnapshots = () => {
     const saved = localStorage.getItem('mossy_snapshots');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      setSnapshots(parsed.map((s: any) => ({ ...s, timestamp: new Date(s.timestamp) })));
+      try {
+        const parsed = JSON.parse(saved);
+        setSnapshots(parsed.map((s: any) => ({ ...s, timestamp: new Date(s.timestamp) })));
+      } catch {
+        // Corrupt data — start fresh
+        localStorage.removeItem('mossy_snapshots');
+        setSnapshots([]);
+      }
     } else {
       setSnapshots([]);
     }
@@ -181,6 +189,17 @@ export const BackupManager: React.FC = () => {
     }
   };
 
+  const browseWorkspace = async () => {
+    const bridge: any = (window as any).electron?.api;
+    try {
+      const dir: string | undefined = await bridge?.pickDirectory?.('Select workspace folder to back up');
+      if (dir) {
+        setWorkspacePath(dir);
+        localStorage.setItem('mossy_backup_workspace', dir);
+      }
+    } catch { /* ignore */ }
+  };
+
   const getTypeColor = (type: Snapshot['type']) => {
     switch (type) {
       case 'auto': return 'bg-blue-900/30 text-blue-300';
@@ -228,7 +247,31 @@ export const BackupManager: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-6xl mx-auto space-y-6">
           {/* Settings */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Workspace Path */}
+            <div className="md:col-span-3 bg-slate-900 border border-slate-700 rounded-xl p-4">
+              <h3 className="font-bold text-white mb-3 text-sm flex items-center gap-2">
+                <FolderOpen className="w-4 h-4 text-cyan-400" />
+                Workspace Folder
+              </h3>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={workspacePath}
+                  onChange={(e) => { setWorkspacePath(e.target.value); localStorage.setItem('mossy_backup_workspace', e.target.value); }}
+                  placeholder="Path to your mod project folder…"
+                  className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 placeholder-slate-500"
+                />
+                <button
+                  onClick={browseWorkspace}
+                  className="px-4 py-2 bg-cyan-700 hover:bg-cyan-600 text-white rounded font-bold text-sm transition-colors"
+                >
+                  Browse
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">Snapshots will target this folder.</p>
+            </div>
+
             {/* Auto Backup */}
             <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
               <h3 className="font-bold text-white mb-3 text-sm">Auto Backup</h3>

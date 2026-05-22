@@ -1,7 +1,9 @@
 # Generating Previsbines for inclusion in an existing Mod
 
-Total views
-3.5k
+**Source:** PJM's Precombine - Previs Patching Scripts, Nexus #69978  
+**Author:** PJMail  
+**Total views:** 3.5k  
+**Updated:** Feb 2025
 
 ## Creating Precombine/Previs for a Mod
 

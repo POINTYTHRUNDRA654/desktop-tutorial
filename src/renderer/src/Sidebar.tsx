@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MessageSquare, Radio, Image, Layers, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, FileDigit, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Archive, Eye, Save, FileCode as FileCodeIcon, Bot, Box, Gauge, Clock, Share2, Github, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy, Star, Brain, Target, ExternalLink, Database, Wand2, Zap, Download } from 'lucide-react';
+import { MessageSquare, Radio, Image, Layers, Activity, Heart, Leaf, Monitor, Wifi, WifiOff, Hammer, GitBranch, Network, Gamepad2, Container, SquareTerminal, Aperture, LayoutDashboard, Satellite, Workflow, Hexagon, DraftingCompass, Dna, Sparkles, Flame, Binary, Triangle, PenTool, FlaskConical, FileDigit, Bug, Package, Watch, ShieldCheck, Feather, Power, Volume2, VolumeX, Settings, Coffee, Book, Code, Archive, Eye, Save, FileCode as FileCodeIcon, Bot, Box, Gauge, Clock, Share2, Bone, CheckCircle2, AlertCircle, BookOpen, Wrench, Copy, Star, Brain, Target, ExternalLink, Database, Wand2, Zap, Download } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { useI18n } from './i18n';
 import TourLauncher from './TourLauncher';

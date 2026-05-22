@@ -69,15 +69,29 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
     }
   }, [modPath]);
 
+  const resolveManifestPath = (basePath: string) => {
+    const trimmed = String(basePath || '').trim();
+    if (!trimmed) return '';
+    const normalized = trimmed.replace(/[\\/]+$/, '');
+    if (normalized.endsWith('.mossy_material.json')) {
+      return normalized;
+    }
+    return `${normalized}/.mossy_enhanced/.mossy_material.json`;
+  };
+
   const loadManifest = async (path: string) => {
     try {
-      // Call IPC to load .mossy_material.json from path
-      const result = await window.electronAPI?.invoke?.('material:load-manifest', path);
-      
-      if (result?.success && result?.manifest) {
-        setManifest(result.manifest);
-        if (result.manifest.materials.length > 0) {
-          setSelectedMaterial(result.manifest.materials[0]);
+      const manifestPath = resolveManifestPath(path);
+      if (!manifestPath) return;
+
+      const result = await window.electronAPI?.material?.loadManifest?.(manifestPath)
+        ?? await window.electronAPI?.invoke?.('material:load-manifest', manifestPath);
+
+      const loadedManifest = result?.data?.manifest || result?.manifest;
+      if (result?.success && loadedManifest) {
+        setManifest(loadedManifest);
+        if (loadedManifest.materials.length > 0) {
+          setSelectedMaterial(loadedManifest.materials[0]);
         }
       } else {
         console.warn('Failed to load manifest:', result?.error);
@@ -119,8 +133,12 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
   // Save changes
   const handleSaveChanges = async () => {
     try {
-      // Call IPC to save manifest
-      const result = await window.electronAPI?.invoke?.('material:save-manifest', manifest);
+      if (!manifest || !modPath) return;
+      const filePath = resolveManifestPath(modPath);
+      if (!filePath) return;
+
+      const result = await window.electronAPI?.material?.saveManifest?.({ filePath, manifest })
+        ?? await window.electronAPI?.invoke?.('material:save-manifest', { filePath, manifest });
       
       if (result?.success) {
         setIsDirty(false);

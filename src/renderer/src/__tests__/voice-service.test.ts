@@ -33,7 +33,7 @@
  *     - does NOT restart when using browser STT
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { vi } from 'vitest';
 import { VoiceService } from '../voice-service';
 
 // ─── Mock browserTts (dependency of voice-service) ───────────────────────────

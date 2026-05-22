@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Github, Save, Send, ShieldCheck } from 'lucide-react';
+import { Save, Send, ShieldCheck, GitBranch } from 'lucide-react';
 import type { Settings } from '../../shared/types';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { openExternal } from './utils/openExternal';
@@ -136,7 +136,7 @@ const CommunityLearning: React.FC<CommunityLearningProps> = ({ embedded = false 
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
-            <Github className="w-7 h-7 text-emerald-400" />
+            <GitBranch className="w-7 h-7 text-emerald-400" />
             <div>
               <h1 className="text-2xl font-black text-white tracking-tight">Community Learning</h1>
               <p className="text-sm text-slate-300">

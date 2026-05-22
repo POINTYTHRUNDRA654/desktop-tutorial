@@ -45,17 +45,22 @@ export default function SimSettlementsGuide() {
             </ul>
           </div>
 
-          <div className="bg-black/40 border border-[#004400] rounded p-3">
-            <p className="text-[#00d000] font-bold mb-2">Where to get things (stable links)</p>
-            <div className="flex flex-wrap gap-2">
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openUrl('https://www.nexusmods.com/about/vortex/')}>Vortex (official)</button>
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openNexusSearch('Mod Organizer 2')}>MO2 (Nexus search)</button>
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openNexusSearch('Sim Settlements 2')}>SS2 (Nexus search)</button>
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openNexusSearch('Workshop Framework')}>Workshop Framework</button>
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openNexusSearch('HUD Framework')}>HUD Framework</button>
-              <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openUrl('https://f4se.silverlock.org/')}>F4SE (official)</button>
+            <div className="bg-black/40 border border-[#004400] rounded p-3">
+              <p className="text-[#00d000] font-bold mb-2">Where to get things (stable links)</p>
+              <div className="flex flex-wrap gap-2">
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openUrl('https://www.nexusmods.com/about/vortex/')}>Vortex (official)</button>
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openNexusSearch('Mod Organizer 2')}>MO2 (Nexus search)</button>
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openNexusSearch('Sim Settlements 2')}>SS2 (Nexus search)</button>
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openNexusSearch('Workshop Framework')}>Workshop Framework</button>
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openNexusSearch('HUD Framework')}>HUD Framework</button>
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openUrl('https://www.nexusmods.com/fallout4/mods/48521')}>SS2 Add-On Toolkit (#48521)</button>
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openUrl('https://www.nexusmods.com/fallout4/mods/48960')}>WRK (#48960)</button>
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openUrl('https://www.nexusmods.com/fallout4/mods/50366')}>Contest Assistant (#50366)</button>
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openUrl('https://wiki.simsettlements2.com')}>SS2 Wiki Tutorials</button>
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openUrl('https://www.youtube.com/results?search_query=Bethesda+Mod+School+Sim+Settlements+2')}>Mod School Videos</button>
+                <button className="px-3 py-1 rounded bg-[#002200] hover:bg-[#003300] text-xs" onClick={() => openUrl('https://f4se.silverlock.org/')}>F4SE (official)</button>
+              </div>
             </div>
-          </div>
 
           <div className="bg-black/40 border border-[#004400] rounded p-3">
             <p className="text-[#00d000] font-bold mb-2">Fast verification loop (5–10 minutes)</p>
@@ -76,6 +81,10 @@ export default function SimSettlementsGuide() {
               <li>Installed the wrong SS2 package for your DLC situation (missing required DLC).</li>
               <li>Launching the game outside the mod manager (mods not actually loading).</li>
             </ul>
+          </div>
+          <div className="bg-[#001a00] border border-[#004400] rounded p-3 text-xs text-[#008000]">
+            <p className="text-[#00d000] font-bold mb-1">Beginner / accessibility tip</p>
+            <p>Do one small step at a time: install one item, test, then move to the next. Use the Mod School videos for visual walkthroughs if text-only instructions feel overwhelming.</p>
           </div>
         </div>
       )
@@ -337,7 +346,7 @@ export default function SimSettlementsGuide() {
           <div>
             <h4 className="text-[#00d000] font-bold mb-2">Step 1: Prepare Installation</h4>
             <div className="text-xs space-y-1 ml-2">
-              <p>✓ Install Fallout 4 (version 1.10.163.0+)</p>
+              <p>✓ Install Fallout 4 (version 1.10.163.0+ — SS2 is compatible with OG, NG, and AE; use the matching F4SE build for your runtime)</p>
               <p>✓ Set up Vortex, MO2, or use Xbox Mods</p>
               <p>✓ Download HUD Framework and Workshop Framework</p>
               <p>✓ Download Sim Settlements 2</p>

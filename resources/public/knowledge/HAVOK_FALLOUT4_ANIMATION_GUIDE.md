@@ -983,8 +983,294 @@ Workflow:
 
 ---
 
-**Next: See [HAVOK_QUICK_START_GUIDE.md](HAVOK_QUICK_START_GUIDE.md) to get started immediately.**
+## Part 13: Community Animation Frameworks — Patching Your Mod In
+
+Some of the best animation mods in the FO4 community expose a **keyword-based patching API** — meaning you can make your mod's items play their custom animations without ever touching the animation mod's files. This section documents how to use the two most important ones.
+
+---
+
+### Immersive Animation Framework (IAF) — Ingestible Animations
+
+**Mod:** Immersive Animation Framework by AnotherOne | Nexus #50555  
+**What it adds:** Full 1st/3rd person eat, drink, and drug-use animations for all vanilla ingestibles — plus a keyword system any mod author can use to hook their items in.
+
+See `RECOMMENDED_MODS_LIST.md` for full credits, permissions, and install notes.
+
+#### How IAF's Keyword System Works
+
+IAF detects what animation to play by checking which **keywords** are present on the `ALCH` (consumable) record being used. You do **not** modify IAF's files. You only add keywords to your own item records.
+
+#### Adding Keywords in xEdit
+
+1. Open xEdit with your mod loaded alongside `IAF.esp` (or whatever the IAF plugin is named).
+2. Navigate to your `ALCH` record.
+3. Right-click the `Keywords (KWDA)` subrecord → Add.
+4. Type or paste the IAF keyword FormID/EditorID for the animation category that fits your item.
+5. Save.
+
+#### IAF Keyword Categories
+
+| Keyword EditorID | Animation Played | Use For |
+|---|---|---|
+| `IAF_kFood` | Generic food eating animation | Solid food items |
+| `IAF_kDrink` | Generic drinking animation | Liquid bottles and cans |
+| `IAF_kNukaCola` | Nuka-Cola bottle tilt animation | Any Nuka-Cola variant |
+| `IAF_kWater` | Water drinking animation | Water items (dirty, purified, etc.) |
+| `IAF_kDrug` | Drug injection/inhalation animation | Chems, stimpaks, RadAway |
+| `IAF_kPsycho` | Psycho rage animation (threat-response) | Psycho and psycho-type drugs |
+| `IAF_kMilk` | Milk bottle animation | Extension base — milk-type items |
+| `IAF_kBandage` | Bandage wrap animation | Extension base — medical wraps |
+| `IAF_kDoctorBag` | Doctor bag use animation | Extension base — doctor bags |
+| `IAF_kSarsaparilla` | Vim/Sasparilla bottle animation | Vim! and Sarsaparilla variants |
+| `IAF_kWaterBottle` | FO3/NV-style water bottle animation | Retro water bottle items |
+| `IAF_kWaterFlask` | Canteen/flask animation | Canteen and flask items |
+| `IAF_kNukaBottleWater` | Empty Nuka bottle filled with water | Repurposed Nuka bottles |
+
+> **Note:** Always verify keyword EditorIDs in xEdit against the IAF plugin you have installed — the author may have updated them between versions. The EditorIDs above reflect the current release as of 2026.
+
+#### CK Method (Alternative to xEdit)
+
+1. Open the CK with IAF as an active file (or as a master).
+2. Open your `ALCH` record → Keywords tab.
+3. Click the keyword picker → search for `IAF_` → add the matching keyword.
+4. Save your plugin.
+
+#### Minimal Papyrus Patch (if xEdit/CK method isn't sufficient)
+
+For dynamically spawned items (e.g., items added at runtime by a script), you can add keywords via Papyrus if the item is a non-base-game form:
+
+```papyrus
+; Add IAF keyword to a custom item at runtime (only works on non-reference forms you own)
+Form Property MyCustomFood Auto
+Keyword Property IAF_kFood Auto     ; fill with the IAF keyword form
+
+Event OnInit()
+    ; Note: AddKeyword is only available via F4SE extension — check F4SE Papyrus docs
+    ; For most cases, just add the keyword directly in xEdit instead
+EndEvent
+```
+
+For most mods the xEdit/CK method is cleaner — runtime keyword injection requires F4SE and is rarely needed.
+
+#### Testing Your Patch
+
+1. Load the game with your patched ESP and IAF both active.
+2. Spawn your item via console: `player.additem [FormID] 1`
+3. Consume the item.
+4. Verify the correct animation plays in both 1st and 3rd person.
+5. Test multiple times — IAF randomizes animation variants, so play it 4–5 times to see the full set.
+
+---
+
+### First-Person Swimming Animations — No Patching Required
+
+**Mod:** First-Person Swimming Animations by neeher | Nexus #62123  
+**What it adds:** Visible player arms in all first-person swimming animations.
+
+See `RECOMMENDED_MODS_LIST.md` for full credits, permissions, and install notes.
+
+This mod replaces vanilla `.hkx` behavior files for the player swimming state — it requires no patching and has no keyword API. If you are creating a **custom player race** or a mod that **replaces the player skeleton**, test swimming animations to confirm compatibility. The mod installs via ESL, loose files, or archive — see the recommended mods list for which to choose.
+
+**Known behavior graph limitation:** The vanilla FO4 behavior graph has no strafing or backward-swimming states. This mod (and any swimming animation mod) defaults to the idle swimming pose for those directions — this is an engine constraint, not a mod flaw.
+
+---
+
+### Kicks And Punches — Unarmed Animation Replacer
+
+**Mod:** Kicks And Punches — Unarmed Animations Mod by Flovici (Florent Leibovici) | Nexus #45402  
+**What it adds:** Martial arts replacer for all unarmed/boxing glove combat animations — kicks, backflip, power punch.
+
+See `RECOMMENDED_MODS_LIST.md` for full credits, permissions, and install notes.
+
+This is the simplest possible animation mod architecture and an excellent study reference:
+
+#### How It Works (Pure Directory Replacer)
+
+No plugin, no keywords, no F4SE. The mod works by placing replacement `.hkx` files directly into the vanilla animation directories that the behavior graph already points to:
+
+```
+Data\Meshes\Actors\Character\Animations\BoxingGlove\   ← boxing gloves / knuckles
+Data\Meshes\Actors\Character\Animations\H2H\           ← hand-to-hand (bare fist)
+```
+
+The Creation Engine's behavior graph references these paths by convention. When your file is present at the expected path, it is loaded in place of the vanilla file — no record changes needed.
+
+#### What Mod Authors Can Learn From This
+
+- **Animation directory conventions**: `Meshes\Actors\Character\Animations\[WeaponType]\` is the standard path the behavior graph uses for weapon-type–specific animations.
+- **Shared actor pools**: Replacing an animation in these directories affects **all humanoid actors** that use the same behavior graph — not just the player. If you want player-only animations, you need a framework like Open Animation Replacer (OAR).
+- **No-plugin distribution**: For a pure animation replacer with no new records, no plugin is the cleanest approach. BA2 archive or loose files, installed via Vortex or manual copy.
+- **Permissions to build on**: Flovici's mod has notably open permissions — modification, asset use, and DP-earning are all allowed with credit. This makes it a legal foundation for derivative unarmed animation projects.
+
+#### Compatibility Pattern
+
+```
+Unarmed animation priority (highest to lowest):
+  1. Open Animation Replacer (OAR) conditions — if installed
+  2. Files in Data\Meshes\Actors\Character\Animations\H2H\ or \BoxingGlove\
+  3. Vanilla behavior graph defaults (BA2-packed vanilla files)
+```
+
+This mod sits at level 2. OAR (if installed) can override it per-condition. It coexists cleanly with **Unarmed Gameplay Overhaul** because that mod changes stats and perks, not animation files.
+
+---
+
+### NAF — Native Animation Framework (ESP-less Packs & Face Animations)
+
+**Mod:** Native Animation Framework by Snapdragon (Deweh) | Nexus #73889  
+**What it adds:** A complete multi-character animation framework built in native F4SE C++ — successor to AAF.
+
+See `RECOMMENDED_MODS_LIST.md` for full credits, permissions, requirements, and install notes.
+
+#### Creating an ESP-less Animation Pack for NAF
+
+NAF can play any HKX animation without a plugin by referencing file paths directly in XML. Place XML files in `Data\NAF\` — NAF discovers them automatically on startup.
+
+**Basic `animationData` XML (ESP-less):**
+
+```xml
+<animationData>
+  <!-- Replace formId with file= to go ESP-less -->
+  <animation id="myMod_idle01"
+             file="MyMod/Animations/MyIdle01.hkx"
+             type="body" />
+
+  <animation id="myMod_idle02"
+             file="MyMod/Animations/MyIdle02.hkx"
+             type="body" />
+</animationData>
+```
+
+File paths are relative to `Data\Meshes\`. So `file="MyMod/Animations/MyIdle01.hkx"` maps to `Data\Meshes\MyMod\Animations\MyIdle01.hkx`.
+
+#### raceData — Supporting Non-Human Races
+
+By default, ESP-less packs use the `dyn_ActivationLoop` animation event. For non-human races, or races whose behavior graph root path NAF can't auto-detect, define them explicitly:
+
+```xml
+<raceData>
+  <!-- Custom race with non-standard graph and start event -->
+  <race formId="MyMod.esp|0x123456"
+        graph="Actors\MyCreature\Behaviors\MyCreatureRootBehavior.hkx"
+        startEvent="dyn_ActivationLoop" />
+</raceData>
+```
+
+For humans, the graph is already known:
+```
+Actors\Character\Behaviors\RaiderRootBehavior.hkx
+```
+
+#### faceAnim XML — NAF's Own Type
+
+NAF introduces a new XML type for face animations that no other framework supports:
+
+```xml
+<faceAnim id="myMod_smile01"
+          file="MyMod/FaceAnims/smile01.naff" />
+```
+
+`.naff` (NAF Face File) is a binary format generated by NAF's in-game face animation creator. Export from the in-game creator, then reference the file in XML.
+
+#### NAF.ini — HeadPart Morph Patch
+
+For mods adding custom face morphs without an ESP editing every headpart:
+
+```ini
+[Values]
+bHeadPartMorphPatch=true
+sHeadPartPatchTriPath=Actors\Character\CharacterAssets\FaceParts\MyCustomMorph.tri
+sHeadPartPatchType=Eyes
+; Supported types: Eyes, Misc (others may be added — check NAF release notes)
+```
+
+Save `NAF.ini` and restart the game. The morph is dynamically injected into all matching headparts at load time.
+
+#### AAF Animation Pack Compatibility
+
+Existing AAF XML files work in NAF without changes — copy them into `Data\NAF\`. NAF understands all major AAF XML types: `animationData`, `raceData`, `positionData`, `morphSetData`, `equipmentSetData`, `actionData`, `animationGroupData`, `furnitureData`, `positionTreeData`, `tagData`.
+
+---
+
+### MaikCG F4Biped — The Professional Animation Pipeline
+
+**Tool:** MaikCG F4Biped Animation Rig | Nexus #16691  
+**What it is:** The definitive rigging kit for creating Fallout 4 animations in 3ds Max, Maya, and MotionBuilder.
+
+See `RECOMMENDED_MODS_LIST.md` for full credits, permissions, and file descriptions.
+
+F4Biped is already cited in the Credits & Sources of this guide. This section documents the complete pipeline workflow that the rig enables.
+
+#### Full Import Pipeline (Vanilla → 3ds Max)
+
+```
+1. Open 3ds Max with F4Animation.hko preset in HCT
+2. Select: ConvertAnimation_x32
+   - Merge Asset filter: choose vanilla .hkx file
+   - Write to Platform: set output folder, format = Binary/Packfile/Win32MSVC
+   - Click Run Configuration → outputs .hkx in 32-bit format
+
+3. Place skeleton.hkx and converted .hkx in havok2fbx folder
+4. Run: havok2fbx.exe -hk_skeleton skeleton.hkx -hk_anim MyAnim.hkx -fbx MyAnim.fbx
+
+5. Open F4BipedImport.max in 3ds Max
+6. Import the .fbx → File content: "Update animation" (NOT "Add and update animation")
+7. Select Root bone → rotate to +Y (havok2fbx outputs at +X; Fallout 4 faces +Y)
+8. In Named Selection Sets → choose "SaveAnimation"
+   Menu: Animation → Save Animation...
+   Settings: Animated tracks OFF, Include constraints OFF, Keyable tracks OFF,
+             Segment ON (set frame range), Key per frame ON
+   Save as .haf
+
+9. Open F4Biped.max
+   Named Selection Sets → "LoadAnimation"
+   Menu: Animation → Load Animation...
+   Settings: Load Into Active Layer OFF, Absolute ON, Replace ON,
+             Motion Mapping/Retargeting → SaveLoadMapping.xmm
+```
+
+#### 1st Person vs 3rd Person — Key Differences
+
+| Aspect | 1st Person | 3rd Person |
+|---|---|---|
+| File path | `Actors\Character\_1stPerson\Animations\` | `Actors\Character\Animations\` |
+| Weapon facing | +Y axis | +Y axis (same) |
+| Head/neck | Rotated back 90° (stays out of camera view) | Normal position |
+| Body movement | Minimal — just to prevent arm-stretching | Mostly in-place; locomotion uses actual root displacement |
+| Camera bones | CamTarget **absent** from Rig1st.txt | Bip_Camera and Bip_CamTarget must be manually positioned |
+| HCT preset | `AnimationExport1stPerson` | `AnimationExport3rdPerson` |
+| Skeleton difference | 14 skinning bones absent (no effect on animation) | Full skeleton |
+
+#### Weapon Animation Directories
+
+```
+Actors\Character\Animations\            ← shared base animations for all weapons
+Actors\Character\Animations\Weapon\     ← per-weapon pose bones (mostly static poses, no movement)
+```
+
+Weapon animations store just a pose in the `\Weapon\` directory — no motion data, only bone positions.
+
+#### Annotations (Audio Events)
+
+All animation events (including audio triggers) are stored in the **Note Track** of the Root object — specifically on the transformation track, not the main track. To view/edit them:
+- In 3ds Max: open the Track View (Dope Sheet), navigate to the Root object's transformation track, find the Note Track.
+- Event names in annotations control things like audio file playback and engine callbacks.
+- To extract annotation names from a vanilla .hkx: use the Tagfile/XML export option in HCT (outputs `.hkt` which opens in notepad — search for `annotation`).
+
+#### CAT Rig Workflow (Simpler Alternative)
+
+For users who find Biped complex, especially for hand-keyed 1st-person work:
+
+```
+1. Import .fbx into F4BipedCATImport.max
+2. Select Cat Root (_Bip) → Bake animation to new layer
+3. Layer !ConstraintLayer! contains the skeleton constraints — DO NOT delete it
+4. Save only the new CollapsedLayer with baked animations
+5. Upload (load) to F4BipedCAT.max
+```
+
+---**
 
 **Version**: 1.0  
 **Scope**: Professional Fallout 4 animation development  
-**Updated**: January 2026
+**Updated**: May 2026

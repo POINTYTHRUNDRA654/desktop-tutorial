@@ -235,8 +235,8 @@ const ExternalToolsHub: React.FC = () => {
 
       setAutoConnectTools(
         AUTO_CONNECT_TOOLS.map((tool) => {
-          const installed = tool.match.some((needle) => installedHaystack.some((entry) => entry.includes(needle)));
-          const running = tool.match.some((needle) => runningHaystack.some((entry) => entry.includes(needle)));
+          const installed = tool.match.some((needle) => installedHaystack.some((entry: string) => entry.includes(needle)));
+          const running = tool.match.some((needle) => runningHaystack.some((entry: string) => entry.includes(needle)));
           return { ...tool, installed, running };
         })
       );

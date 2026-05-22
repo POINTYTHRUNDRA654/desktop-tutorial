@@ -271,11 +271,11 @@ export default function SimSettlementsAddonGuide({ embedded = false }: SimSettle
             </div>
             <div className="border-l border-[#00ff00] pl-2">
               <p className="text-[#00d000]">04 - Updating Room Designs</p>
-              <p className="text-[#008000]">Edit and fix designs (COMING SOON)</p>
+              <p className="text-[#008000]">Open the HQ Room Form in CK, edit the NAVM-linked furniture markers and idle markers, then re-export. Use xEdit to verify no ITMs were introduced. Re-run the SS2 HQ build to test (1-2 hours)</p>
             </div>
             <div className="border-l border-[#00ff00] pl-2">
               <p className="text-[#00d000]">05 - Room Upgrades</p>
-              <p className="text-[#008000]">Layer upgrades and tech trees (COMING SOON)</p>
+              <p className="text-[#008000]">Define upgrade tiers in the Room Data Form (RD_*). Each tier adds a new LVLI entry; set the unlock condition via a SS2 Tech Tree node FormID. Test each tier with the SS2 holotape debug menu (2-3 hours)</p>
             </div>
             <div className="border-l border-[#00ff00] pl-2">
               <p className="text-[#00d000]">07 - Allies and Advisors</p>

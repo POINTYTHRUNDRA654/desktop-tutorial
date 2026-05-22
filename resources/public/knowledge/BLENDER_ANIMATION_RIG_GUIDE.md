@@ -4,7 +4,7 @@ Version 2.0 Automation Update – includes Python automation for import/export, 
 
 ## What This Rig Is For
 - Create custom Fallout 4 animations and poses in Blender (what was previously 3ds Max–only workflows).
-- Works for 3rd person rigs; separate link mentioned for Power Armor rig.
+- Works for 3rd person rigs; see **Shiagur's Blender Animation Rig Suite** section below for the dedicated rigs (Nexus #82537 human, #81279 power armor).
 - Not an animation fundamentals tutorial; assumes Blender animation experience.
 
 ## Requirements
@@ -64,7 +64,7 @@ Version 2.0 Automation Update – includes Python automation for import/export, 
 - Keep scene units at meters, scale 1.0.
 - Root bone: avoid scaling/rotating the armature object; animate on bones only.
 - Use pose markers for events (annotations) so script carries them through.
-- For Power Armor: use the dedicated PA rig (linked separately) to avoid skeleton mismatches.
+- For Power Armor: use **Shiagur's PA rig** (Nexus #81279) — see the Shiagur Rig section below for the full workflow.
 
 ## Skeleton Rigging Notes
 - Keep the vanilla hierarchy and names intact (FO4 human rigs: `Root` → `COM` → `Pelvis` etc.; plants/creatures: use the extracted HKX/FBX skeleton as reference). Do not rename deform bones.
@@ -2287,6 +2287,145 @@ Common choices for Fallout 4 mods:
 - Release follow-up mods that expand on first (build fanbase).
 - Cross-promote your mods in descriptions.
 - Share modding tips/tutorials (builds community respect).
+
+---
+
+## Shiagur's Blender Animation Rig Suite — Complete Reference
+
+**Human Rig:** https://www.nexusmods.com/fallout4/mods/82537  
+**Power Armor Rig:** https://www.nexusmods.com/fallout4/mods/81279  
+**Author:** Shiagur (Nexus: Shiagur42) | Discord: https://discord.gg/5ydKyYSy6U  
+**Version:** 2.6.0 — the v2.0 guide merged both rigs; Python automation replaced manual HCT steps.
+
+See `RECOMMENDED_MODS_LIST.md` for full credits, per-mod permissions (they differ!), toolchain requirements, and install notes.
+
+### The FO4 Tools Panels (N-Key Panels in 3D Viewport)
+
+The entire import/export/annotation workflow lives in N-key panels in the 3D viewport. Press **N** to open them.
+
+| Panel | Purpose |
+|---|---|
+| **Main** | Shows warnings, current framerate, and the active animation's frame range. The frame range shown here — not the timeline preview bar — is what gets exported. Tick "Animation Range" to lock it. |
+| **Tool Paths** | Set filepaths for all four tools (Blender, HCT, FBX Converter, havok2fbx/HKXPackUI). Required for the Python script to work. Saved to `assets/programm_paths.txt` — copy this file to new projects. |
+| **Annotations** | Overview of all Havok annotations in the active animation. Edit here or in the Action Editor (shown as Pose Markers). |
+| **Attach** | Attach weapons and animated objects to the rig. Import parts with PyNifly, select the target rig, then use: *Set active Target* / *Attach selected to WEAPON* / *Bone Empties to bones* / *Attach Selected to Active*. |
+| **Export** | Select animation type (with or without root motion). Toggle "Use Action name for Filename" or pick a name in the file browser. |
+| **Import** | Import an animation — match the animation type to the skeleton selected in the menu. |
+
+> **First-time setup:** Open the .blend file → press N → open Tool Paths → fill in all four tool paths → done. The paths persist in `programm_paths.txt`.
+
+### Key Bones Reference
+
+| Bone | Function |
+|---|---|
+| **WeaponParent** | Detaches weapon bones from the hand without breaking hierarchy; sets weapon orientation |
+| **Root** | Base of the rig — only moved for locomotion (walk, run, finisher attacks). Usually untouched. |
+| **COM** | Center of mass — moves/rotates the whole rig with all controller bones except Fixed bones and WeaponParent |
+| **Pelvis** | Leave mostly untouched; prone to stretching if rotated aggressively |
+| **Camera** | Numpad 0 enters this camera's view. 3rd person: static behind rig. 1st person: rotated/moved to accentuate movement. Bone visible at view border — no need to exit camera view to select it. |
+| **Hand Controller** | Controls hands in IK mode — forearm and upper arm follow automatically |
+| **Hand Fixed / Foot Fixed** | When driver set to Fixed, controller bones are locked and these square bones drive hands/feet independently |
+| **Arm Twist** | Corrects forearm twist if IK produces an unnatural result |
+| **Finger Bones** | With Fingers driver ON: rotate only the knuckle bone to curl the whole finger. Auto IK works — disable Fingers driver first. |
+| **Toe Pivot** | Stand on tiptoes. Select both Toe Pivot + Toe Controller to move the whole foot. |
+| **Knee/Arm IK Target** | Pole target — arms/knees point toward this bone in IK mode |
+
+**Bone colour system:** Red = right side, Green = left side, Purple = moveable only in FK mode (locked during IK).
+
+### Driver System (Yellow Cross Bone in Pose Mode)
+
+Move the yellow cross bone to toggle drivers. Left = OFF, Right = ON (or similar — check rig).
+
+| Driver | Effect |
+|---|---|
+| **ALL** | Disables ALL bone constraints and IK. **Enable this when importing vanilla animations** so imported data maps correctly to FK bones. |
+| **Stretch** | Allows limbs to stretch beyond normal range — useful for extreme poses or motion capture cleanup |
+| **Spine** | Disabled by default (slightly unpredictable) — alternative upper body control |
+| **Fingers** | Curl all finger segments by rotating only the knuckle bone |
+| **IK/FK Arm/Leg** | Toggle IK on/off per limb. FK uses standard forward-kinematics bone chains. |
+| **Hands/Feet Free/Fixed** | Free = hands/feet move with the rig. Fixed = hands/feet locked in world space (use square Fixed bones to drive them). Useful for held poses. |
+| **1st Person Drivers** | `X` = off, `O` = on. First word = child, second = parent. Example: enable `LHand > Magazine` so the left hand moves with the magazine during a reload — animate only the magazine bone. |
+
+### Bone Collections (Visibility Management)
+
+Click the eye icons to show/hide groups. Click the star to isolate a group (hides all others — works even on hidden groups).
+
+| Collection | Contains |
+|---|---|
+| **Hide** | Skin bones, IK helper bones, parent bones — not animated directly |
+| **Weapon Bones** | All weapon bones on the right hand, WeaponLeft (mines/grenades), WeaponParent |
+| **Controller Bones** | All driver bones and IK controller bones |
+| **IK Left / IK Right** | Green (left) and red (right) IK bones |
+| **Center** | All bones between left and right sides |
+| **FK Bones** | Every vanilla FO4 skeleton bone (no rig additions). **Use the star on this when ALL driver is OFF** to see only moveable vanilla bones — useful when inspecting imported vanilla animations. |
+
+### Extracting Vanilla Annotations (3 Methods)
+
+Annotations are timestamps that trigger in-game events (sounds, camera shakes, reload actions, item spawns). You need them when making animations that interact with game systems.
+
+#### Method 1 — HCT Filter Manager (XML export)
+
+1. Open `hctStandAloneFilterManager.exe`.
+2. Load the vanilla `.hkx` file → click Load, Done, OK until you reach the filter window.
+3. In "configuration set" on the right: click `<< Remove` until it's empty.
+4. Core tab → select "View XML" → click `Add >>`.
+5. Click **Run Configuration** (not "Run All Configurations").
+6. Open the output file in the subfolder shown — annotations appear as time/text pairs:
+   ```
+   0.166677  SoundPlay.WPNPistol10mmReloadMagOut
+   ```
+
+#### Method 2 — F4AK_HKXPackUI (HKX → XML)
+
+1. Open `f4ak_hkxpack_UI.exe` (ignore the error message).
+2. Drag one or more vanilla `.hkx` files into the window.
+3. Click **HKX ↔ XML** — converts to `.xml` files.
+4. Open the `.xml` in Notepad++ or VS Code.
+5. Scroll near the top — annotations are listed there as time/text pairs.
+
+#### Method 3 — Havok Viewer (visual inspection)
+
+1. Open `ToolStandAlone.exe`.
+2. Drag in `skeleton PA for Havok Viewer.hkx` (or the Human 1stP/3rdP skeleton) → click "add for this asset".
+3. If view is sideways: right-click the 3D view → Camera → World up Vector → Z+.
+4. Drag in the vanilla animation `.hkx` → click "add for this asset".
+5. In the tree view, navigate to the animation → hover over **AnnotationTrackAnnotations**.
+6. Times and annotation strings appear in the tooltip.
+
+### Previewing Your Animation (Before Testing In-Game)
+
+1. Open `ToolStandAlone.exe`.
+2. Drag in the matching skeleton file → click "add for this asset":
+   - 1st person: `skeleton Human 1stP for Havok Viewer.hkx`
+   - 3rd person: `skeleton Human 3rdP for Havok Viewer.hkx`
+   - Power Armor: `skeleton PA for Havok Viewer.hkx`
+3. If view is sideways: right-click → Camera → World up Vector → Z+.
+4. Confirm skeleton checkbox is ticked in the animation tab on the right.
+5. Drag in your exported `.hkx` → click "add for this asset".
+6. If you see a dotted line from the grid centre: the animation contains root motion data. Add this by moving the Root bone in Blender and selecting "Anims 3rd H Motion" in the HCT filter step.
+
+### 1st Person vs 3rd Person Conventions
+
+| Aspect | 1st Person | 3rd Person |
+|---|---|---|
+| Default pose | Create first — all other animations start/end here. Copy as basis for every new action with correct FPS already set. | Assembly pose used as blend base — keep it clean (3 frames minimum). |
+| Weapon direction | +Y axis | +Y axis |
+| Body movement | Minimal — only enough to prevent arm-stretching artifacts | Mostly in-place; locomotion uses actual Root displacement |
+| Camera bone | Rotated/moved to accentuate movement; stay in camera view (Numpad 0) while working | Stays static behind the rig |
+| Additive animations | Common — `*add` suffix and `WPNIdleSightedWobble` layer on top of base anims | Less common |
+| Subgraph reference | Use target weapon's vanilla `*add` anims as-is or borrow from similar weapons | Template vanilla weapon anims form the base lasagna; adjust weapon bones and left arm only |
+
+**Power Armor 1st person:** Same skeleton and animations as human 1st person — the in-game subgraph data overrides specific animations with slower, heavier PA variants. No separate export needed.
+
+**3rd person reload workflow:** Import the template vanilla weapon's animations → set ALL drivers to FK → adjust only weapon bones and left arm → leave the rest (overwritten by the animation lasagna). Most anims blend with the assembly pose.
+
+### Actions (Multiple Animations in One File)
+
+- Use the Action Editor (bottom of screen) to manage multiple animations.
+- **Always protect actions with the shield icon** before switching — unprotected actions can be garbage collected.
+- Set each action to **30 FPS** in Output > Format.
+- Set a **manual frame range** per action using the two fields in the Main Panel (not the timeline preview bar).
+- Tick "Animation Range" — if both fields are 0, it auto-sets to the last keyframe.
 
 ---
 

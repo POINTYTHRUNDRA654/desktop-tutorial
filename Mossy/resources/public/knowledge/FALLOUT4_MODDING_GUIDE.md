@@ -1008,6 +1008,93 @@ ModName/
 
 ---
 
+## Engine Architecture and Streaming Optimization
+
+### RAM vs VRAM Streaming Boundaries
+
+- Geometry/collision/animation payloads are loaded through system-memory paths during cell transitions.
+- Texture payloads stream through GPU memory (VRAM) via mipmap chains.
+- Missing mipmaps cause more aggressive high-resolution pulls and increase stutter risk.
+
+### Draw Call Discipline
+
+- Over-split meshes increase CPU draw-call overhead.
+- For static props, merge non-essential sub-mesh fragments before export to reduce submission cost.
+
+### FO4 Packed Specular Strategy (`_s.dds`)
+
+Use packed channel maps to reduce runtime texture lookup overhead:
+
+- Red: Glossiness (inverse roughness)
+- Green: Ambient Occlusion
+- Blue: Metalness
+
+### Compression Baseline
+
+- `_d.dds`: BC7 (alpha variant when needed)
+- `_n.dds`: BC5 tangent-space normal
+- `_s.dds`: BC7 for packed-channel fidelity
+- `_g.dds`: BC1/BC7 based on alpha requirements
+
+### Workspace Layout Baseline
+
+```text
+C:\Fallout4ModdingWorkspace\
+├── 01_RawSourceAssets\
+├── 02_BlenderStaging\
+└── 03_GameReadyStaging\
+    ├── Meshes\ModName\
+    ├── Textures\ModName\
+    └── Materials\ModName\
+```
+
+### Precombines and Previs Rebuild Rule
+
+- Editing worldspace cells can invalidate precombined geometry and previs visibility optimization.
+- After structural exterior edits, rebuild:
+  - `World -> PreCombine Geometry ...`
+  - `Visibility -> Generate Visibility ...`
+- Include generated outputs in release packaging:
+  - `Data/Meshes/Precombined/`
+  - `Data/Vis/`
+
+### Papyrus VM Metrics Baseline
+
+- `fUpdateBudgetMS` / `fExtraTaskletBudgetMS` define per-frame script budget windows.
+- Keep hot-path function work small and avoid heavy polling loops.
+- Monitor suspended stacks with `DumpPapyrusStacks`; persistent backlog indicates queue saturation.
+- Track listener/event memory usage against `iMaxAllocatedMemoryBytes` limits.
+
+### Queue-Safe Papyrus Rule
+
+Papyrus is frame-budgeted and queue-driven. Prefer state/event-driven logic over persistent polling loops so scripts yield naturally and avoid long-term backlog buildup.
+
+### Cinematic VFX Modernization Snapshot
+
+- Build lightweight mesh-particle systems for sparks/embers/spores and cap emitter counts for stability.
+- Use smoke/fluid materials with soft-depth blending and UV scrolling for believable motion.
+- Tune screen-space post effects (SSAO/SSR and weather records) for consistent photoreal lighting.
+- Use screen-space refraction materials and safe Papyrus triggers for lens/visor impact effects.
+- Validate VFX under stress scenarios to ensure frame-time stability in dense combat/environment scenes.
+
+### Deep FX Metrics Quick Limits
+
+- Track particle pool usage against configured emitter limits to prevent dropped effects.
+- Keep SSAO/sample settings in balanced ranges to avoid disproportionate GPU cost.
+- Keep active ImageSpaceModifier overlays low and verify runtime stacks with `showimagespacemodifiers`.
+
+### Quest Architecture Quick Reference
+
+- Set quest priority between `50–70`; avoid values near `100` to prevent overriding core engine processes.
+- Use clean stage milestones: `0` (init), `10` (objective dispatched), `100` (objective reached), `200` (completed/stop).
+- Mark all non-essential quest aliases as **Optional** to prevent save file bloat from stranded persistent references.
+- Call `Stop()` at quest completion stage to release the Papyrus memory footprint.
+- Keep Story Manager conditions specific — generic event triggers (e.g., every cell crossing) flood the SM wakeup queue.
+- Voice files must be mono, 44.1 kHz, 16-bit PCM; keep dialogue lines under 20 seconds to avoid lip-sync buffer overflow.
+- Clean plugins with FO4Edit (remove ITMs and resolve UDRs) before distribution.
+
+---
+
 **Document Version:** 2.0  
 **Last Updated:** January 2026  
 **For Mossy AI Assistant v3.0**

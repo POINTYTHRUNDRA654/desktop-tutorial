@@ -85,7 +85,7 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             0 0 24px rgba(0,255,0,0.10);
           border: 20px solid #141414;
           z-index: 2;
-          transform: perspective(1000px) rotateX(0.5deg);
+          /* Removed problematic perspective transform that was causing content inversion */
         }
 
         body.pip-boy-mode .pipboy-screen-area::before {
@@ -145,6 +145,7 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           background: #000;
           display: flex;
           flex-direction: column;
+          scrollbar-gutter: stable;
         }
 
         body.pip-boy-mode .pipboy-content {

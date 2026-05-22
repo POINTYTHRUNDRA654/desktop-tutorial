@@ -4,7 +4,7 @@
  * Tests for leaveCollaborationSession and endCollaborationSession methods
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { vi } from 'vitest';
 import { CloudSyncEngine } from '../cloudSync';
 import type { CollaborationSession, ProjectChange } from '../../shared/types';
 

@@ -51,7 +51,9 @@ export interface TutorialPageContext {
       | 'text'
       | 'card'
       | 'controls'
-      | 'input/button';
+      | 'input/button'
+      | 'tab'
+      | 'tabs';
     description: string;
     whenToUse: string;
   }[];
@@ -135,6 +137,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Missing the Ctrl+K command palette for fast navigation across all 22 platforms',
       'Clicking "Help" and expecting it to open external docs — it opens the in-app FO4 Knowledge Hub',
       'Not checking the UPLINK badge before expecting local tool integrations to work',
+      'Starting the Stability step (Step 5) without knowing your game version — OG (1.10.163), NG (1.10.980–984), and AE/1.11.x all require different F4SE, Address Library, and crash tool builds',
     ],
     guides: [
       {
@@ -169,6 +172,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'How do I start my first Fallout 4 mod?',
       'What is the difference between the hubs?',
       'How do I open the command palette?',
+      'How do I find out which game version I am running?',
+      'What is the difference between NG and AE for my mod setup?',
     ],
   },
   
@@ -180,7 +185,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     purpose: 'Primary Fallout 4 command-and-guidance console with chat, voice input, live tool telemetry, and citations',
     features: [
       'FO4-locked assistant with content guard for non-FO4 prompts',
-      'Quick FO4 prompt chips (load order, ESL, BA2, FOMOD, precombines, DDS formats, crash triage, etc.)',
+      'Quick FO4 prompt chips (load order, ESL, BA2 V1/V2, FOMOD, precombines, DDS formats, crash triage, deprecated frameworks, game version check, etc.)',
       'Live citations panel on assistant answers ("Explain why")',
       'Voice input via microphone and optional TTS playback',
       'Desktop Bridge + Blender Link awareness for tool execution',
@@ -231,6 +236,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Keeping monitoring paused and expecting live tool-aware guidance',
       'Sending broad prompts instead of FO4-specific records/files/goals',
       'Ignoring the 👍/👎 buttons — rating responses builds a free training dataset you can use to fine-tune Mossy later',
+      'Not specifying your game version (OG 1.10.163 / NG 1.10.980–984 / AE 1.11.x) — version changes everything for F4SE, BA2 headers, Address Library, and crash tools',
+      'Using AWKCR, Armorsmith Extended, or DEF_UI on NG/AE — these are deprecated and cause CTDs. Use ECO/NEO, LEO, and FallUI Suite instead.',
     ],
     guides: [
       {
@@ -256,7 +263,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         steps: [
           'Chat normally and click 👍 on responses you want to keep',
           'Click 👎 on responses that were wrong or unhelpful',
-          'Open Settings → Local AI → Export Training Data to download the JSONL file',
+          'Open System Hub → Capabilities tab → Training Data → click "Export JSONL" to download the file',
           'Use the JSONL with Unsloth to fine-tune your own local model',
         ],
       },
@@ -273,6 +280,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'How do I use citations to verify an answer?',
       'What should I include in a good FO4 troubleshooting prompt?',
       'How do I export my training data from the chat ratings?',
+      'I have AWKCR installed — is it safe on my version of the game?',
+      'What is the difference between BA2 Header V1 and V2 and which do I need?',
+      'How do I read an X-Cell crash log to find the broken mod?',
     ],
   },
 
@@ -951,7 +961,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     features: [
       'Three-tab layout: Quick Reference, Knowledge Search, and Community Learning',
       'Tab selection persists for the session via sessionStorage key `knowledge_hub_tab`',
-      'Quick Reference for Papyrus, FormIDs, and practical FO4 cheatsheets',
+      'Quick Reference for Papyrus, FormIDs, CK hotkeys, xEdit shortcuts, and practical FO4 cheatsheets — now includes Deprecated Frameworks (AWKCR/DEF_UI/Armorsmith) and NG/AE version guidance',
       'Knowledge Search for semantic retrieval and indexed in-app docs',
       'Community Learning for shared tips and curated knowledge',
     ],
@@ -986,6 +996,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Ignoring tab context and expecting Quick Reference content while Search/Community tab is active',
       'Assuming search is external-only instead of using in-app FO4 indexed knowledge first',
       'Forgetting that tab state restores from session storage between visits',
+      'Installing AWKCR, Armorsmith Extended, or DEF_UI on NG/AE — check the Deprecated Frameworks section of Quick Reference for safe replacements',
     ],
     guides: [
       {
@@ -1009,6 +1020,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Why did the hub reopen on the same tab I used earlier?',
       'Where can I find in-app FO4 references before asking chat?',
       'How do I search indexed knowledge from this hub?',
+      'Where can I look up which frameworks are deprecated on NG/AE?',
+      'What is the ESL FormID limit and why does it matter?',
     ],
   },
 
@@ -1021,7 +1034,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     features: [
       'Step 1 — Privacy & Security: control data collection, analytics opt-out, and security rule defaults',
       'Step 2 — Language: choose UI language and request new translations',
-      'Step 3 — AI Engine: select Groq primary model (Llama 3.1 8B, Llama 3.3 70B, DeepSeek R1, Gemma 2, Mixtral), max response tokens (512–4096), and self-critique loop toggle',
+      'Step 3 — AI Engine: select Groq primary model (Llama 3.1 8B, Llama 3.2 11B Vision, Llama 3.3 70B, DeepSeek R1, Gemma 2, Mixtral), max response tokens (512–4096), and self-critique loop toggle',
       'Step 3b — Local LLM (Ollama): connect to a local Ollama endpoint for offline AI assistance and check model pull status',
       'Step 4 — External Tools: browse and test-launch paths for all FO4 modding tools — xEdit (FO4Edit), Creation Kit, Fallout 4 game root, Papyrus compiler, F4SE, Archive2, LOOT, Mod Organizer 2, Wrye Bash, NifSkope, Blender, BodySlide, Outfit Studio, Vortex, FOMOD Creator, Upscayl, GIMP, and more; auto-detect for common install locations',
       'Step 5 — Backup & Restore: export or import a complete settings snapshot (JSON) for quick recovery after reinstall or machine migration',
@@ -1052,7 +1065,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'Groq primary model selector',
         type: 'dropdown',
-        description: 'Choices include llama-3.1-8b-instant (fastest), llama-3.3-70b-versatile (best reasoning), deepseek-r1-distill-llama-70b (chain-of-thought), llama-3.2-90b-vision-preview (smartest + vision), gemma2-9b-it (Google compact), mixtral-8x7b-32768 (32K context)',
+        description: 'Choices include llama-3.1-8b-instant (fastest), llama-3.2-11b-vision-preview (fast vision), llama-3.3-70b-versatile (best reasoning), deepseek-r1-distill-llama-70b (chain-of-thought), llama-3.2-90b-vision-preview (smartest + vision), gemma2-9b-it (Google compact), mixtral-8x7b-32768 (32K context)',
         whenToUse: 'Switch to llama-3.3-70b-versatile for complex Creation Kit scripting or asset pipeline questions; stay on 8b-instant for real-time voice and quick lookups',
       },
       {
@@ -1602,6 +1615,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Assuming the wizard installs external apps for you (it verifies and links only)',
       'Marking steps complete without performing the verification steps',
       'Not saving or exporting wizard progress before resetting',
+      'Not identifying your game version first (OG 1.10.163 / NG 1.10.980–984 / AE 1.11.x) — the correct F4SE build, Address Library build, and BA2 header version all depend on this',
+      'Installing Buffout 4 standalone on NG/AE — use X-Cell (Addictol successor) instead',
     ],
     guides: [
       {
@@ -1642,6 +1657,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'How do I reset the Install Wizard progress?',
       'What does the PRP Patch Builder generated README contain?',
       'Why does a wizard checklist not persist after refresh?',
+      'How do I know if I should install the NG or AE build of Address Library?',
+      'My game is v1.11.191 — what version of F4SE and Address Library do I need?',
+      'What BA2 header version do I need for NG/AE?',
     ],
   },
 
@@ -1650,91 +1668,129 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 Creation Kit Hub',
     visualGuidePage: 9,
     route: '/ck-tools',
-    purpose: 'Unified Creation Kit workspace for safety checks, extension tooling, and an embedded FO4 CK reference guide.',
+    purpose: 'Unified Creation Kit workspace with 8 tabs: CK Safety, CK Extension, FO4 CK Guide, Quest Editor, Animation, Save Parser, Live Monitor, and Game Link.',
     features: [
-      'Three-tab consolidated workflow: CK Safety, CK Extension, FO4 CK Guide',
+      'Eight-tab consolidated workflow: CK Safety · CK Extension · FO4 CK Guide · Quest Editor · Animation · Save Parser · Live Monitor · Game Link',
       'Session tab persistence via sessionStorage (restores last active tab)',
-      'Deep-link support with query param routing (/ck-tools?tab=safety|extension|guide)',
-      'Embedded FO4 Creation Kit reference: crash causes, best practices, Papyrus tips, and ESL/FormID rules',
-      'Integrated tool references for CK Platform Extended, Buffout 4, CLASSIC, xEdit, and related utilities',
+      'Deep-link support with query param routing (/ck-tools?tab=safety|extension|guide|quests|anim|saves|livemon|gameint)',
+      'Embedded FO4 CK reference: crash causes, best practices, Papyrus tips, ESL/FormID rules, NG/AE version guidance, and deprecated framework warnings (AWKCR/DEF_UI/Armorsmith Extended)',
+      'Integrated tool references for CK Platform Extended, Addictol (all-in-one stability, Nexus #84214), CLASSIC, xEdit, and related utilities',
+      'CK Safety tab: plugin validation, Spriggit serialization (ESP → YAML for Git version control), and live CK process monitor',
+      'CK Extension tab: auto-save timer (timestamp only — CK IPC save bridge not yet wired), script compiler log, connection status',
+      'Quest Editor tab: quest stage and alias authoring helpers',
+      'Animation tab: Havok/HKX workflow guidance — covers behavior graph editing, HKX export pipelines, community rig setup (Shiagur Blender rigs #81279/#82537, MaikCG F4Biped #16691), and animation framework integration (IAF #50555 keyword patching, NAF #73889 ESP-less XML packs, AWF #100946 world-object interactions)',
+      'Save Parser tab: save game data inspection and script residue analysis',
+      'Live Monitor tab: runtime event monitoring',
+      'Game Link tab: F4SE bridge status and integration',
     ],
     controls: [
       {
         name: 'CK Safety Tab',
         type: 'button',
-        description: 'Opens crash-prevention and validation workflows for CK editing stability',
-        whenToUse: 'Use first when preparing a CK session or troubleshooting reproducible editor/game crashes',
+        description: 'Plugin validation, Spriggit ESP→YAML conversion (wire to Git), and live CK process monitoring',
+        whenToUse: 'Use first when preparing a CK session, before distributing a plugin, or after any crash',
       },
       {
         name: 'CK Extension Tab',
         type: 'button',
-        description: 'Opens extension utilities for auto-save and script-compilation support',
-        whenToUse: 'Use while actively authoring to reduce data loss risk and keep compile loops consistent',
+        description: 'Auto-save timer (logs timestamps only — not a real CK save) and script compiler output log',
+        whenToUse: 'Keep open while actively editing; use File > Save in CK manually to protect your work',
       },
       {
         name: 'FO4 CK Guide Tab',
         type: 'button',
-        description: 'Shows in-app CK reference content (pitfalls, practices, tooling, ESL/FormID quick reference)',
-        whenToUse: 'Use when confirming workflow rules before editing cells, navmesh, scripts, or load-order dependencies',
+        description: 'In-app CK reference: crash pitfalls, NG/AE version matrix (OG CK vs NG CK, CKPE 0.3.x vs 0.5+), deprecated framework warnings, Papyrus tips, ESL/FormID rules, essential tool list',
+        whenToUse: 'Use before any release, when checking NG/AE compatibility, or looking up ESL limits and deprecated mods',
       },
       {
-        name: 'Tab Memory Restore',
+        name: 'Quest Editor Tab',
         type: 'button',
-        description: 'Remembers and restores your last active CK hub tab in-session',
-        whenToUse: 'Use when returning to CK work and you want to continue exactly where you left off',
+        description: 'Quest stage and alias authoring helpers for CK quest workflows',
+        whenToUse: 'Use when designing or debugging quest logic, alias fill conditions, or dialogue staging',
       },
       {
-        name: 'Deep Link Tab Query',
+        name: 'Animation Tab',
         type: 'button',
-        description: 'Directly opens a specific tab using URL query (e.g., ?tab=extension)',
-        whenToUse: 'Use for support handoff links or repeat workflows that should start on a specific tab',
+        description: 'Havok/HKX workflow guidance covering: behavior graph editing, rig export pipelines, Shiagur Blender rig suite (human #82537 + PA #81279), MaikCG F4Biped #16691, IAF keyword-dispatch patching, NAF ESP-less animation packs, and AWF world-object interaction animations',
+        whenToUse: 'Use when working on custom animations, HKX export pipelines, Havok behavior graphs, or integrating animation frameworks (IAF/NAF/AWF) into your mod',
+      },
+      {
+        name: 'Save Parser Tab',
+        type: 'button',
+        description: 'Inspect save game data, identify orphaned script instances, and check for save bloat',
+        whenToUse: 'Use when diagnosing save corruption, bloat, or orphaned Papyrus script residue',
+      },
+      {
+        name: 'Live Monitor Tab',
+        type: 'button',
+        description: 'Runtime event monitoring for in-game script and system events via the CK bridge',
+        whenToUse: 'Use while running Fallout 4 to observe live script events',
+      },
+      {
+        name: 'Game Link Tab',
+        type: 'button',
+        description: 'F4SE bridge status and game integration connection state',
+        whenToUse: 'Use to verify the F4SE IPC bridge is active before requesting in-game operations',
       },
     ],
     commonMistakes: [
-      'Editing CK data without first checking safety/crash prevention guidance',
-      'Skipping extension setup and losing progress during unstable CK sessions',
-      'Ignoring master/plugin dependency order before script or cell edits',
-      'Treating the FO4 CK Guide as optional and missing ESL/FormID or precombine rules',
+      'Editing CK data without running plugin validation in the CK Safety tab first',
+      'Relying on the auto-save timer in CK Extension to protect CK work — it logs timestamps only; use File > Save in CK manually',
+      'Using CKPE 0.3.x on NG/AE (1.10.982+) — install CKPE 0.5+ for NG/AE; 0.3.x is OG (1.10.163) only',
+      'Distributing a mod built with the NG CK to OG users without warning about BA2 V7/V8 incompatibility',
+      'Installing AWKCR, Armorsmith Extended, or DEF_UI/DEF_HUD in any NG/AE mod — these are deprecated; see FO4 CK Guide tab',
+      'Installing standalone Buffout 4 NG alongside Addictol — Addictol already includes it; installing both causes crashes',
+      'Treating the FO4 CK Guide tab as optional and missing ESL FormID limits (0x000–0xFFF) or precombine rules',
     ],
     guides: [
       {
-        title: 'Start with CK Safety before editing',
+        title: 'Pre-flight before any CK editing session',
         steps: [
-          'Open FO4 Creation Kit Hub and select the CK Safety tab',
-          'Run through crash-prevention checks and confirm your working profile is stable',
-          'Only then move into active CK editing tasks',
+          'Open FO4 Creation Kit Hub → CK Safety tab',
+          'Select your plugin file and run validation — check for deleted refs, missing masters, crash patterns',
+          'Open the FO4 CK Guide tab → check NG/AE Compatibility section to confirm you have the right CK + CKPE version',
+          'If any deprecated frameworks (AWKCR, DEF_UI, etc.) are present, swap them before editing',
+          'Only then open the CK and begin editing',
         ],
       },
       {
-        title: 'Use CK Extension during active authoring',
+        title: 'Active authoring session with CK Extension',
         steps: [
-          'Switch to the CK Extension tab',
-          'Configure auto-save and script-compilation helpers for your current project',
-          'Keep extension support active while iterating on scripts/cell edits',
+          'Open the CK Extension tab',
+          'Note: auto-save only logs timestamps — press Ctrl+S or File > Save in CK frequently',
+          'Watch the script compiler log for Papyrus errors as you compile PSC files',
         ],
       },
       {
-        title: 'Reference FO4 CK Guide for release-safe workflows',
+        title: 'Release-safe workflow checklist',
         steps: [
-          'Open the FO4 CK Guide tab before packaging/releasing edits',
-          'Validate ESL/FormID boundaries, crash-risk patterns, and toolchain prerequisites',
-          'Apply the checklist to final QA before handing off to packaging/load-order stages',
+          'Open FO4 CK Guide tab → review Deprecated Frameworks and NG/AE sections',
+          'Validate ESL FormID boundary (0x000–0xFFF limit) — run xEdit Compact FormIDs if needed',
+          'Check BA2 header version matches your target runtime (V1 for OG, V2 for NG/AE)',
+          'Run Spriggit (CK Safety tab) to serialize your ESP to YAML for Git before releasing',
         ],
       },
     ],
     tutorialSections: [
-      'CK Safety (Crash Prevention)',
-      'CK Extension (Auto-save & Script Compile)',
-      'FO4 CK Guide (Best Practices & Tooling)',
+      'CK Safety (Plugin Validation + Spriggit + Live Monitor)',
+      'CK Extension (Auto-save timer & Script Compile — timestamp logging only)',
+      'FO4 CK Guide (Crash Causes, Best Practices, NG/AE Compatibility, Deprecated Frameworks)',
+      'Quest Editor (Stages & Aliases)',
+      'Animation (Havok/HKX Workflow — Shiagur Blender rigs, MaikCG F4Biped, IAF/NAF/AWF framework integration)',
+      'Save Parser (Save Game Data Inspection)',
+      'Live Monitor (Runtime Events)',
+      'Game Link (F4SE Bridge)',
     ],
     suggestedQuestions: [
       'When should I use CK Safety versus CK Extension?',
-      'How do I deep-link directly to the CK Extension tab?',
-      'What does the FO4 CK Guide cover before release?',
-      'Why does the CK hub reopen on the last tab I used?',
+      'Which CKPE version do I need for NG (1.10.982+) vs OG (1.10.163)?',
+      'Why does auto-save in CK Extension not actually save my CK file?',
+      'What deprecated frameworks should I avoid on NG/AE mods?',
+      'What is the ESL FormID limit and what happens if I exceed 0xFFF?',
+      'How do I use Spriggit to serialize my plugin to YAML for Git?',
+      'Why are BA2 archives from the NG CK incompatible with OG users?',
     ],
   },
-
   'blueprint': {
     pageId: 'blueprint',
     pageName: 'The Blueprint',
@@ -2308,10 +2364,10 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     route: '/asset-analysis',
     purpose: 'FO4 Asset Analysis Hub centralizes quality workflows for Fallout 4 assets: mining dependency data, conflict/performance analysis, duplicate reduction, and in-app optimization guidance.',
     features: [
-      'Four-tab workflow: Mining Dashboard, Advanced Analysis, Asset Deduplicator, and FO4 Asset Guide',
+      'Five-tab workflow: Mining Dashboard, Advanced Analysis, Asset Deduplicator, FO4 Asset Guide, and 3D Viewer',
       'Session tab persistence via `asset_hub_tab` so the last active tab restores automatically',
       'Lazy-loaded analysis panels for heavy workflows while keeping the hub responsive',
-      'Unified QA flow from scan/mining insights to dedupe cleanup and optimization reference',
+      'Unified QA flow from scan/mining insights to dedupe cleanup, optimization reference, and NIF preview',
     ],
     controls: [
       {
@@ -2338,6 +2394,12 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         description: 'Built-in Fallout 4 reference covering budgets, conflicts, and optimization practices',
         whenToUse: 'Use as the authoritative in-app reference while triaging and fixing asset issues',
       },
+      {
+        name: '3D Viewer tab',
+        type: 'tab',
+        description: 'Load and preview NIF meshes with collision, wireframe, and bounds overlays; shows vertex/triangle counts and material slots',
+        whenToUse: 'Use to quickly inspect a mesh before or after optimization — verify poly counts, collision presence, and LOD availability without leaving Mossy',
+      },
     ],
     commonMistakes: [
       'Only running one tab workflow and missing issues visible in the other analysis tabs',
@@ -2353,6 +2415,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
           'Switch to Advanced Analysis to inspect conflicts, memory pressure, and performance warnings',
           'Use Asset Deduplicator to consolidate repeated files and reduce runtime overhead',
           'Review FO4 Asset Guide thresholds before final packaging and release checks',
+          'Open the 3D Viewer to spot-check optimized NIF meshes — confirm poly counts and collision are within budget',
         ],
       },
       {
@@ -2366,13 +2429,15 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
     tutorialSections: [
       'FO4 Asset Analysis Hub - Quality Workflow',
-      'Mining, Analysis, Deduplication & FO4 Guide',
+      'Mining, Analysis, Deduplication, FO4 Guide & 3D Viewer',
     ],
     suggestedQuestions: [
       'Which tab should I start with in FO4 Asset Analysis Hub?',
       'When do I use Mining Dashboard versus Advanced Analysis?',
       'How does Asset Deduplicator help with VRAM and archive size?',
       'Why does FO4 Asset Analysis Hub reopen on the previous tab?',
+      'How do I preview a NIF mesh in the 3D Viewer?',
+      'What does the 3D Viewer show about my mesh?',
     ],
   },
 
@@ -2853,22 +2918,24 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 System & Diagnostics Hub',
     visualGuidePage: 21,
     route: '/system-hub',
-    purpose: 'Five-tab system hub for runtime diagnostics, local AI/hardware capability checks, blacklist/security rule management, asset vault manifest verification, and Mossy development support.',
+    purpose: 'Seven-tab system hub for runtime diagnostics, local AI/hardware capability checks, blacklist/security rule management, asset vault manifest verification, Mossy development support, backup snapshot management, and context-aware file watching.',
     features: [
-      'Five-tab layout: Diagnostics, Capabilities, Blacklist Manager, Asset Vault, Support Mossy',
+      'Seven-tab layout: Diagnostics, Capabilities, Blacklist Manager, Asset Vault, Support Mossy, Backup Manager, File Watcher',
       'Session-persistent tab selection via sessionStorage key `system_hub_tab`',
       'Diagnostics — full runtime check suite: bridge, storage, mic, secrets, TTS voices, and exportable diagnostic snapshots',
-      'Capabilities — local AI runtime detection: Ollama, GPU, RAM, voice model availability',
-      'Blacklist Manager — safety rule management for flagged mods, authors, and pattern-based content filters',
-      'Asset Vault — manifest-driven asset registry with integrity verification and deduplication checks',
+      'Capabilities — local AI runtime detection: Ollama, Cosmos, OpenAI-compat, GGUF import, and LoRA fine-tune launcher',
+      'Blacklist Manager — safety rule management for flagged mods, programs, and a do-not-touch whitelist',
+      'Asset Vault — manifest-driven asset registry with integrity verification, tool path config, and BA2 staging',
       'Support Mossy — development support links, donation options, and community entry points',
+      'Backup Manager — snapshot creation (auto/manual/pre-compile/pre-launch), git commit/push integration, workspace path config',
+      'File Watcher — context-aware live folder monitoring with smart suggestions for scripts, meshes, textures, and plugins',
     ],
     controls: [
       {
         name: 'Hub tab strip',
         type: 'tabs',
-        description: 'Switch between Diagnostics, Capabilities, Blacklist Manager, Asset Vault, and Support in one workspace',
-        whenToUse: 'Move between system checks, capability scans, security rules, vault operations, and support without leaving the hub',
+        description: 'Switch between all seven system tabs in one workspace',
+        whenToUse: 'Move between system checks, capability scans, security rules, vault, support, backups, and file watching without leaving the hub',
       },
       {
         name: 'Diagnostics tab',
@@ -2879,19 +2946,19 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'Capabilities tab',
         type: 'panel',
-        description: 'Scan local hardware and AI runtime availability (Ollama, GPU, RAM, voice models)',
-        whenToUse: 'When evaluating whether local AI workflows or offline voice features can be enabled',
+        description: 'Scan local hardware and AI runtime availability; import GGUF models; launch LoRA fine-tune',
+        whenToUse: 'When evaluating whether local AI workflows or offline voice features can be enabled, or to fine-tune Mossy on your own data',
       },
       {
         name: 'Blacklist Manager tab',
         type: 'panel',
-        description: 'Add, review, and remove safety rules for flagged mods, authors, or content patterns',
+        description: 'Add, review, and remove safety rules for flagged mods, programs, or do-not-touch whitelist entries',
         whenToUse: 'When configuring content filters or investigating why a mod is being excluded',
       },
       {
         name: 'Asset Vault tab',
         type: 'panel',
-        description: 'Inspect the asset manifest, run integrity verification, and identify duplicate entries',
+        description: 'Inspect the asset manifest, run integrity verification, configure tool paths, and stage assets for BA2',
         whenToUse: 'When verifying tracked assets before packaging or after a deduplication pass',
       },
       {
@@ -2900,12 +2967,26 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         description: 'Access donation links, premium feature info, and Mossy community resources',
         whenToUse: 'When you want to contribute to the project or connect with the community',
       },
+      {
+        name: 'Backup Manager tab',
+        type: 'panel',
+        description: 'Create named snapshots, manage auto-backup interval, commit/push via git integration, and set workspace path',
+        whenToUse: 'Before major script compilations or game launches, or to recover work from a previous snapshot',
+      },
+      {
+        name: 'File Watcher tab',
+        type: 'panel',
+        description: 'Point to your Data folder and start live monitoring; get smart next-step suggestions as files change',
+        whenToUse: 'During active mod authoring sessions to get automatic Mossy prompts when scripts, meshes, textures, or plugins are saved',
+      },
     ],
     commonMistakes: [
       'Not running Diagnostics after a tool installation or Desktop Bridge reconnect',
       'Assuming Capabilities scan reflects real-time state without re-running it after hardware changes',
       'Adding blacklist rules without understanding pattern-matching scope',
       'Skipping Asset Vault verification before a BA2 packaging or release pass',
+      'Forgetting to set a workspace path in Backup Manager before taking snapshots',
+      'Not stopping the File Watcher before closing the hub (interval keeps running in background)',
     ],
     guides: [
       {
@@ -2918,16 +2999,28 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
           'Open Asset Vault and run manifest verification before your next packaging session',
         ],
       },
+      {
+        title: 'Set up live file monitoring',
+        steps: [
+          'Open the File Watcher tab',
+          'Click the Browse button and select your Fallout 4 Data folder',
+          'Click Start Watching — Mossy will begin polling for file changes',
+          'Save a script, mesh, or plugin; a smart suggestion will appear on the left panel',
+          'Click the suggestion action to jump directly to the relevant Mossy tool',
+        ],
+      },
     ],
     tutorialSections: [
-      'FO4 System & Diagnostics Hub - 5-Tab System Workflow',
-      'Diagnostics, Capabilities, Blacklist, Vault, and Support',
+      'FO4 System & Diagnostics Hub - 7-Tab System Workflow',
+      'Diagnostics, Capabilities, Blacklist, Vault, Support, Backup, and File Watcher',
     ],
     suggestedQuestions: [
       'How do I run a full diagnostic check and export the report?',
       'Why is my local Ollama / GPU capability not detected?',
       'How do I add or remove blacklist rules for specific mods?',
       'What does Asset Vault manifest verification check for?',
+      'How do I create a snapshot before compiling my Papyrus scripts?',
+      'How does the File Watcher suggest next steps when I save a .nif file?',
     ],
   },
 
@@ -2940,7 +3033,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     features: [
       'Three-tab layout: Animation & Rigging, Quest Authoring, LOD & Precombine',
       'Tab selection persists for the session via sessionStorage key `guides_hub_tab`',
-      'Animation & Rigging — full Blender + Havok pipeline (skeleton, weights, FBX export, HKX conversion)',
+      'Animation & Rigging — full Blender + Havok pipeline (skeleton, weights, FBX export, HKX conversion) + Shiagur rig suite, MaikCG F4Biped, IAF/NAF/AWF framework integration',
       'Quest Authoring — CK + Papyrus + F4SE workflow from smoke test to release',
       'LOD & Precombine — xLODGen + DynDOLOD + PRP end-to-end generation and validation',
     ],
@@ -2975,6 +3068,10 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Exporting animations with renamed deform bones (breaks in-game rigging)',
       'Editing exterior cells without running precombines afterward',
       'Confusing the Animation tab with the LOD tab when looking for Havok vs xLODGen guides',
+      'Using RegisterForUpdate() as a polling loop in Papyrus — use event-driven handlers (RegisterForRemoteEvent, RegisterForCustomEvent) instead',
+      'Using the OG Creation Kit (1.10.163 build) on a NG/AE installation — install the NG CK + CKPE 0.5+ for 1.10.980+/1.11.x',
+      'Installing standalone Buffout 4 on NG/AE — use Addictol (Nexus #84214) which bundles Buffout 4, X-Cell, and Papyrus VM patches',
+      'Not specifying runtime target (OG 1.10.163 / NG 1.10.980–984 / AE 1.11.x) before writing F4SE scripts or DLL plugins',
     ],
     guides: [
       {
@@ -2996,6 +3093,13 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'How do I start a quest smoke test in the CK?',
       'What is the correct order for LOD generation and PRP precombine rebuilds?',
       'How do I switch between Animation, Quest, and LOD guides without losing my place?',
+      'What version of CKPE do I need for NG (1.10.980+) vs OG (1.10.163)?',
+      'Why should I avoid RegisterForUpdate() in Papyrus scripts?',
+      'Do I need Addictol or standalone Buffout 4 for NG/AE?',
+      'What PRP version supports NG/AE precombine rebuilds?',
+      'Which Blender rig should I use for FO4 animations — Shiagur or MaikCG F4Biped?',
+      'What is the difference between IAF, NAF, and AWF for animation modding?',
+      'How do I use the Animated World Framework to add animations to world-object interactions?',
     ],
   },
 
@@ -3003,7 +3107,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'blender-animation-guide',
     pageName: 'Animation Guide',
     route: '/guides-hub',
-    purpose: 'End-to-end Fallout 4 animation pipeline: skeleton import, rigging, authoring, FBX export and HKX conversion, validation and in‑game testing.',
+    purpose: 'End-to-end Fallout 4 animation pipeline: skeleton import, rigging, authoring, FBX export and HKX conversion, validation, in-game testing, and community rig/framework integration.',
     features: [
       'Reference & skeleton import (preserve vanilla bone names)',
       'Rigging & weight painting checklists',
@@ -3011,6 +3115,12 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'FBX export guidance and Havok (FBX → HKX) conversion notes',
       'Animation Validator + common error troubleshooting',
       'Embedded helper panels (skeleton reference, export settings, rigging gallery, Havok guides)',
+      'Shiagur Blender Rig suite — Human 1st/3rd person rig (#82537) and Power Armor rig (#81279): FO4 Tools N-key panels, IK/FK driver system, 3-method annotation extraction, Havok Viewer preview workflow',
+      'MaikCG F4Biped (#16691) — 3ds Max / Maya / MotionBuilder pipeline: HCT export presets, 1st vs 3rd person skeleton conventions, vanilla animation import via havok2fbx',
+      'IAF — Immersive Animation Framework (#50555): keyword-dispatch patching for ingestible animations; patch author keyword table',
+      'NAF — Native Animation Framework (#73889): ESP-less XML animation packs, raceData graph/startEvent, face animation creation, NAF.ini HeadPart Morph Patch, AAF XML compatibility',
+      'AWF — Animated World Framework (#100946): F4SE-native world-object interaction animations; no-scripting CK workflow for patch authors',
+      'JNFA2026 (#100034), RAF (#90839), Witch\'s Nature (#89664), HIT THE MASS (#90416) — community animation mods as learning references',
     ],
     controls: [
       {
@@ -3107,6 +3217,13 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Which FBX export flags are required for Havok import?',
       'How do I convert FBX to HKX for Fallout 4?',
       'What common weight‑painting mistakes cause in‑game mesh explosions?',
+      'How do I use the Shiagur Blender rig FO4 Tools panel to import and export animations?',
+      'What is the difference between Shiagur\'s human rig (#82537) and the Power Armor rig (#81279)?',
+      'How do I extract vanilla annotations from an HKX file using the three available methods?',
+      'How do I add keyword patching to make my ingestible mod compatible with IAF (#50555)?',
+      'How do I create an ESP-less animation pack for NAF (#73889)?',
+      'How do I add a world-object activation animation using the Animated World Framework (#100946)?',
+      'What animation frameworks exist for Fallout 4 and when should I use each one?',
     ],
   },
 
@@ -3123,6 +3240,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Leveled-list injection guidance and safety checks',
       'Precombine / PRP rebuild checklist and helper utilities',
       'Papyrus scripting patterns, logging and debug workflows',
+      'Dynamic Spawn Framework (DSFW #96276) integration notes for creature/NPC spawn systems (F4SE + Garden of Eden Papyrus extender requirements)',
+      'Fallout4.esm Records Spreadsheet resource (#100679) for fast FormID/EditorID lookups during CK/xEdit authoring',
+      'Custom radio authoring workflow reference (#101520): Sound Descriptors, quest scenes, randomization scripts, and BA2 packaging safety',
       'Validation & release checklist (testing, packaging, docs)',
     ],
     controls: [
@@ -3233,6 +3353,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'When should I rebuild precombines?',
       'How do I safely inject items into a leveled list?',
       'What are the minimum Papyrus logging practices for debugging?',
+      'How do I set up a non-repeating custom radio station quest in Creation Kit?',
+      'When should I use Dynamic Spawn Framework (#96276) instead of custom one-off spawn scripts?',
+      'How can I use the Fallout4.esm spreadsheet resource (#100679) to speed up CK/xEdit record lookups?',
     ],
   },
 
