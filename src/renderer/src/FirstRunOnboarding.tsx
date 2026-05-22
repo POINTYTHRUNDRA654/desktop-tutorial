@@ -32,6 +32,8 @@ interface RecommendedDownload {
      *  Set to false for mods/plugins that are installed via mod manager (e.g., Address Library, Addictol).
      *  When false, "I have it" browse button will not be shown. Defaults to true if omitted. */
     hasExecutable?: boolean;
+    /** Optional Fallout 4 versions this item is relevant for in onboarding. */
+    supportedFo4Versions?: Array<'og' | 'ng' | 'ae'>;
 }
 
 const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
@@ -146,7 +148,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'Universal Patch Installer (GitHub)',
-        description: "Community-driven centralised installer and database for compatibility patches across popular Fallout 4 mods, created by RageYT. Rather than hunting down individual compatibility patches yourself, Universal Patch Installer provides a single location to find and apply the patches needed when running multiple mods together. The maintained source is now hosted on GitHub (Rage-GitHub/Universal-Patch-Installer), where releases and community contributions are published. ⚠️ This is a volunteer project that relies entirely on community support to stay maintained and up to date — if you find it useful, consider donating or helping on the Discord (discord.gg/8tps9Hc).",
+        description: "Community-driven centralised installer and database for compatibility patches across popular Fallout 4 mods, created by RageYT. Rather than hunting down individual compatibility patches yourself, Universal Patch Installer provides a single location to find and apply the patches needed when running multiple mods together. The maintained source is now hosted on GitHub (Rage-GitHub/Universal-Patch-Installer), where releases and community contributions are published. ⚠️ This listing is only relevant for OG/NG setups right now, so Mossy will hide it for AE / 1.11.x users. This is a volunteer project that relies entirely on community support to stay maintained and up to date — if you find it useful, consider donating or helping on the Discord (discord.gg/8tps9Hc).",
         detectKeywords: ['universal patch installer', 'universal patcher', 'rageyt patch'],
         url: 'https://github.com/Rage-GitHub/Universal-Patch-Installer/releases',
         urlLabel: 'GitHub Releases',
@@ -154,6 +156,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         required: false,
         ifMissing: 'You will need to manually locate and install compatibility patches between your mods individually, which requires knowing which mod combinations need patches and where to find them.',
         hasExecutable: false,
+        supportedFo4Versions: ['og', 'ng'],
     },
     {
         name: 'Mod Organizer 2',
@@ -273,7 +276,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     {
         name: 'HaBCR Patcher (created by Bingle, uploaded by jarari)',
         description: 'Drag-and-drop utility that converts BCR-compatible reload animations into HaBCR loop-style animations. It cleans BCR annotations, detects and preserves a single loop, then rewrites timing and adds HaBCR loop start/end annotations. Designed to reduce manual animation patching work for Havok Aware Bullet Counted Reload (HaBCR). Credit: Dexesttp for hkx class structures.',
-        detectKeywords: ['habcr', 'habcr patcher', 'habcrpatcher'],
+        detectKeywords: ['habcr patcher', 'habcrpatcher'],
         url: 'https://www.nexusmods.com/fallout4/mods/103682',
         urlLabel: 'Nexus Mods #103682',
         category: 'modding',
@@ -390,14 +393,14 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         hasExecutable: false,
     },
     {
-        name: 'Bullet Counted Reload System — BCR (by Shavkacagarikia)',
-        description: 'F4SE engine-level fix that makes tube-fed and rotary weapons (lever-action rifles, pump shotguns, revolvers) reload only the exact number of rounds fired instead of always playing a full-cycle animation. Also adds an interruptible-reload window so you can fire mid-reload. ⚠️ Install via mod manager (MO2/Vortex). Requires F4SE and Address Library. Install weapon-specific BCR patches for full coverage.',
-        detectKeywords: ['bullet counted reload', 'bcr', 'bcrs'],
-        url: 'https://www.nexusmods.com/fallout4/mods/42676',
-        urlLabel: 'Nexus Mods #42676',
+        name: 'Havok Aware Bullet Counted Reload — HaBCR (by MasterShrew)',
+        description: 'Modern bullet-counted reload framework for Fallout 4 and the recommended replacement for classic BCR. Handles tube-fed and rotary reload loops through Havok-aware annotations, supports interruptible reload behavior, and is designed for current runtimes where the original BCR listing is no longer a dependable recommendation source. ⚠️ Install via mod manager (MO2/Vortex). Requires F4SE and Address Library; use HaBCR-ready animation patches where needed.',
+        detectKeywords: ['havok aware bullet counted reload', 'habcr'],
+        url: 'https://www.nexusmods.com/fallout4/mods/103627',
+        urlLabel: 'Nexus Mods #103627',
         category: 'modding',
         required: false,
-        ifMissing: 'Lever-action rifles, shotguns, and revolvers will always animate a full reload regardless of rounds remaining, breaking immersion during combat.',
+        ifMissing: 'Lever-action rifles, shotguns, and revolvers will fall back to standard reload behavior unless a mod ships its own HaBCR-ready implementation.',
         hasExecutable: false,
     },
     {
@@ -2084,7 +2087,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {[
                                 { label: 'Core', color: 'amber', items: ['Electron v35', 'React v18', 'TypeScript v5', 'Vite v7'] },
                                 { label: 'AI', color: 'emerald', items: ['OpenAI SDK', 'Groq SDK', 'Anthropic Claude', 'PyTorch (CPU & CUDA)'] },
-                                { label: 'Modding Tools', color: 'blue', items: ["xEdit / FO4Edit by ElminsterAU & xEdit Team (Nexus #2737; MPL 1.1; team: Hlp, Zilav, Sharlikran)", "Pra's xEdit Scripts by Pra (Nexus #28898)", "Pra's zEdit Patchers by Pra (Nexus #33858)", 'Creation Kit by Bethesda', 'Papyrus Compiler Patched — NoDox (Nexus #44959)', 'Creation Club ESL Stubs (Nexus #38029)', 'FallrimTools — ReSaver by MarkDFSoftware (Nexus #22633; Apache 2.0)', 'Universal Patch Installer by RageYT (GitHub: Rage-GitHub/Universal-Patch-Installer)', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'PLOPTOP / ProtoLLOverridePatchNPCs by LeafTongue (Nexus #84615)', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree (Nexus #64943)', 'Base Object Swapper v2 by powerofthree (Nexus #67528; credit: SniffleMan for CommonLibF4)', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Papyrus Condition Functions by LarannKiar (Nexus #88104; requires Garden of Eden)', 'Papyrus Common Library by SkyHorizon3 (Nexus #86222; deprecated — prefer Hydra)', 'Hydra by SoleVaultBoy'] },
+                                { label: 'Modding Tools', color: 'blue', items: ["xEdit / FO4Edit by ElminsterAU & xEdit Team (Nexus #2737; MPL 1.1; team: Hlp, Zilav, Sharlikran)", "Pra's xEdit Scripts by Pra (Nexus #28898)", "Pra's zEdit Patchers by Pra (Nexus #33858)", 'Creation Kit by Bethesda', 'Papyrus Compiler Patched — NoDox (Nexus #44959)', 'Creation Club ESL Stubs (Nexus #38029)', 'FallrimTools — ReSaver by MarkDFSoftware (Nexus #22633; Apache 2.0)', 'Universal Patch Installer by RageYT (GitHub: Rage-GitHub/Universal-Patch-Installer)', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'PLOPTOP / ProtoLLOverridePatchNPCs by LeafTongue (Nexus #84615)', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'HaBCR (Havok Aware Bullet Counted Reload) by MasterShrew', 'Base Object Swapper by powerofthree (Nexus #64943)', 'Base Object Swapper v2 by powerofthree (Nexus #67528; credit: SniffleMan for CommonLibF4)', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Papyrus Condition Functions by LarannKiar (Nexus #88104; requires Garden of Eden)', 'Papyrus Common Library by SkyHorizon3 (Nexus #86222; deprecated — prefer Hydra)', 'Hydra by SoleVaultBoy'] },
                                 { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope Next-Gen Fork by hexabit (credit: Niftools team & contributors)', 'BodySlide & Outfit Studio by Caliente &amp; ousnius (Nexus #25; GPLv3+; credit: NifTools team)', 'B.A.E. by jonwd7', 'HkxTools by Bingle / jarari (credit: Dexesttp)', 'HaBCR Patcher by Bingle / jarari (credit: Dexesttp)', 'Fallout 4 Animation Kit — F4AK by ShadeAnimator (Nexus #16694; credits: DexesTTP, MaikCG, NifTools team)', 'FO4 Batch Material Editor (Nexus #103044; based on Material Editor by ousnius)', 'AutoVideo by TheDestroyerOfWorlds (requires ffmpeg)', 'Fallout 4 Music Replacer (Nexus #6095; credit: ffmpeg team, Microsoft xWMAEncode, 7-Zip)', 'Commonwealth Cartography by AHeroicLlama (Nexus #73559; GitHub repo: Mappalachia/Commonwealth_Cartography)', 'SpreadSheetInator (Nexus #67616) — SS2 stage item CSV tool', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'F4SE Plugin Template by Ryan-rsm-McKenzie', 'vcpkg by Microsoft', 'FOMOD Creator by Wenderer'] },
                                 { label: 'Diagnostics & Monitoring', color: 'amber', items: ['GPU-Z by TechPowerUp (freeware)', 'HWiNFO64 by Martin Malik (freeware)', 'Display Driver Uninstaller (DDU) by Wagnardsoft (freeware)', 'RivaTuner Statistics Server (RTSS) by Alexey Nicolaychuk — bundled with MSI Afterburner (freeware)'] },
                                 { label: 'Community', color: 'rose', items: ['Nexus Mods community', 'Fallout 4 modding community', 'GitHub contributors', 'Everyone who tests &amp; supports Mossy'] },
@@ -2349,7 +2352,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         </div>
 
                         <div className="space-y-3 mb-6 max-h-[52vh] overflow-y-auto pr-1">
-                            {RECOMMENDED_DOWNLOADS.map((dl) => {
+                            {RECOMMENDED_DOWNLOADS.filter((dl) => {
+                                if (!dl.supportedFo4Versions) return true;
+                                if (fo4Version !== 'og' && fo4Version !== 'ng' && fo4Version !== 'ae') return true;
+                                return dl.supportedFo4Versions.includes(fo4Version);
+                            }).map((dl) => {
                                 const alreadyInstalled = allApps && allApps.length > 0 && allApps.some((app: { displayName?: string; name?: string }) => {
                                     const n = (app.displayName || app.name || '').toLowerCase();
                                     return dl.detectKeywords.some((kw) => n.includes(kw));
