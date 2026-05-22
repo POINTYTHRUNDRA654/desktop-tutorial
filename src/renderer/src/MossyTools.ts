@@ -22,6 +22,26 @@ export const executeMossyTool = async (name: string, args: any, context: {
     setShowProjectPanel: (s: boolean) => void
 }) => {
     const api = (window as any).electronAPI || (window as any).electron?.api;
+    const settings = await api?.getSettings?.().catch(() => null);
+    const whitelist: string[] = (settings?.privacySettings?.modContentWhitelist ?? [])
+        .map((entry: unknown) => String(entry || '').trim())
+        .filter(Boolean);
+    const containsWhitelisted = (value: unknown): string | null => {
+        if (!whitelist.length) return null;
+        const haystack = JSON.stringify(value ?? '').toLowerCase();
+        for (const item of whitelist) {
+            if (item.length < 2) continue;
+            if (haystack.includes(item.toLowerCase())) return item;
+        }
+        return null;
+    };
+    const blockedItem = containsWhitelisted({ name, args });
+    if (blockedItem) {
+        return {
+            success: false,
+            result: `Blocked by do-not-touch whitelist: "${blockedItem}" is protected and cannot be referenced, downloaded, or acted on.`,
+        };
+    }
 
     const sanitizeBasename = (raw: string): string => {
         const trimmed = String(raw || '').trim();

@@ -27,6 +27,8 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   });
   const [showDetails, setShowDetails] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [listSyncStatus, setListSyncStatus] = useState<{ lastSyncAt?: number; lastError?: string; pendingPush?: boolean }>({});
+  const [listSyncBusy, setListSyncBusy] = useState(false);
 
   // Mod Content Whitelist
   const [whitelistInput, setWhitelistInput] = useState<string>('');
@@ -35,10 +37,22 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   const [modBlacklistInput, setModBlacklistInput] = useState<string>('');
   const [programBlacklistInput, setProgramBlacklistInput] = useState<string>('');
 
+  async function refreshListSyncStatus() {
+    const api = getElectronApi();
+    if (!api?.listSyncGetStatus) return;
+    try {
+      const status = await api.listSyncGetStatus();
+      setListSyncStatus(status || {});
+    } catch {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     console.log('[PrivacySettings] useEffect running');
     loadSettings();
     calculateStorageInfo();
+    refreshListSyncStatus();
   }, []);
 
   const loadSettings = async () => {
@@ -76,10 +90,23 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
       await api.setSettings(newSettings);
       setSettings(newSettings);
       setSaveStatus('saved');
+      refreshListSyncStatus();
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (e) {
       console.error('Failed to save settings:', e);
       setSaveStatus('idle');
+    }
+  };
+
+  const handleSyncNow = async () => {
+    const api = getElectronApi();
+    if (!api?.listSyncSyncNow) return;
+    setListSyncBusy(true);
+    try {
+      await api.listSyncSyncNow();
+      await refreshListSyncStatus();
+    } finally {
+      setListSyncBusy(false);
     }
   };
 
@@ -520,6 +547,95 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
             </span>
           </div>
         )}
+
+        <div className="mb-8 bg-slate-800/50 rounded-lg p-6 border border-slate-700/50 space-y-5">
+          <h2 className="text-xl font-semibold text-slate-100">Identity, Memory & List Sync</h2>
+
+          <div>
+            <label className="block text-sm text-slate-300 mb-2">Preferred name</label>
+            <input
+              type="text"
+              value={settings.userPreferredName || ''}
+              onChange={(e) => saveSettings({ userPreferredName: e.target.value })}
+              placeholder="How Mossy should address you"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input
+                type="radio"
+                checked={(settings.memoryStorageMode || 'userData') === 'userData'}
+                onChange={() => saveSettings({ memoryStorageMode: 'userData', memoryStoragePath: '' })}
+              />
+              Store memory in app userData
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input
+                type="radio"
+                checked={(settings.memoryStorageMode || 'userData') === 'custom'}
+                onChange={() => saveSettings({ memoryStorageMode: 'custom' })}
+              />
+              Store memory in custom path
+            </label>
+          </div>
+          {(settings.memoryStorageMode || 'userData') === 'custom' && (
+            <input
+              type="text"
+              value={settings.memoryStoragePath || ''}
+              onChange={(e) => saveSettings({ memoryStoragePath: e.target.value })}
+              placeholder="Absolute folder path"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100"
+            />
+          )}
+
+          <div className="space-y-3 border-t border-slate-700 pt-4">
+            <p className="text-xs text-slate-400">
+              When enabled, Mossy syncs whitelist/blacklist changes to GitHub and pulls latest list data on startup.
+            </p>
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={!!settings.listSyncEnabled}
+                onChange={(e) => saveSettings({ listSyncEnabled: e.target.checked })}
+              />
+              Enable GitHub list sync
+            </label>
+            <input
+              type="text"
+              value={settings.listSyncRepo || ''}
+              onChange={(e) => saveSettings({ listSyncRepo: e.target.value })}
+              placeholder="owner/repo"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100"
+            />
+            <input
+              type="text"
+              value={settings.listSyncBranch || 'main'}
+              onChange={(e) => saveSettings({ listSyncBranch: e.target.value })}
+              placeholder="branch"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100"
+            />
+            <input
+              type="password"
+              value={settings.githubToken || ''}
+              onChange={(e) => saveSettings({ githubToken: e.target.value })}
+              placeholder="GitHub token (repo content write)"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100"
+            />
+            <div className="text-xs text-slate-400">
+              Last sync: {listSyncStatus.lastSyncAt ? new Date(listSyncStatus.lastSyncAt).toLocaleString() : 'never'}{listSyncStatus.pendingPush ? ' • pending retry' : ''}
+              {listSyncStatus.lastError ? ` • Error: ${listSyncStatus.lastError}` : ''}
+            </div>
+            <button
+              onClick={handleSyncNow}
+              disabled={listSyncBusy}
+              className="px-4 py-2 bg-blue-700 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+            >
+              {listSyncBusy ? 'Syncing…' : 'Sync now'}
+            </button>
+          </div>
+        </div>
 
         {/* Privacy Settings */}
         <div className="space-y-8">

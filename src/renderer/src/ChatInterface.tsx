@@ -1076,12 +1076,13 @@ export const ChatInterface: React.FC = () => {
     }, [isLiveActive]);
 
     const initMossy = () => {
+        const preferredName = String(formalSettings?.userPreferredName || 'Vault Dweller').trim() || 'Vault Dweller';
         const hasApps = localStorage.getItem('mossy_apps') || localStorage.getItem('mossy_integrated_tools');
         const toolAck = localStorage.getItem('mossy_tool_connection_ack') === 'true';
         if (hasApps) {
             const message = toolAck
-                ? "👋 **Welcome back, Vault Dweller!**\n\nWhat are we working on today?"
-                : "👋 **Welcome back, Vault Dweller!**\n\nI remember the tools and integrations you approved. I can use those permissions to help teach you workflows and (when the Desktop Bridge is online) interact with supported apps to automate steps.\n\nWhat are we working on today?";
+                ? `👋 **Welcome back, ${preferredName}!**\n\nWhat are we working on today?`
+                : `👋 **Welcome back, ${preferredName}!**\n\nI remember the tools and integrations you approved. I can use those permissions to help teach you workflows and (when the Desktop Bridge is online) interact with supported apps to automate steps.\n\nWhat are we working on today?`;
 
             setMessages([{
                 id: 'init',
@@ -1094,14 +1095,14 @@ export const ChatInterface: React.FC = () => {
             }
             setOnboardingState('ready');
             // Speak the returning-user greeting if TTS is enabled.
-            speakMossy("Welcome back, Vault Dweller! What are we working on today?", { cancelExisting: true });
+            speakMossy(`Welcome back, ${preferredName}! What are we working on today?`, { cancelExisting: true });
             return;
         }
 
         setMessages([{
             id: 'init',
             role: 'assistant',
-            content: "👋 **Hello, Vault Dweller!**\n\nI'm **Mossy**, your dedicated AI assistant for Fallout 4 modding.\n\nTo provide the best assistance, I need to perform a **Deep Scan** to identify your modding tools (Creation Kit, xEdit, Blender, etc.) across all your system drives. I will remember these so we only need to do this once.\n\n**Ready to begin the scan?**",
+            content: `👋 **Hello, ${preferredName}!**\n\nI'm **Mossy**, your dedicated AI assistant for Fallout 4 modding.\n\nTo provide the best assistance, I need to perform a **Deep Scan** to identify your modding tools (Creation Kit, xEdit, Blender, etc.) across all your system drives. I will remember these so we only need to do this once.\n\n**Ready to begin the scan?**`,
             timestamp: Date.now()
         }]);
         setOnboardingState('init');
@@ -1446,7 +1447,11 @@ export const ChatInterface: React.FC = () => {
             let knowledgeVaultContext = "";
             try {
                 const manifest = buildKnowledgeManifestForModel();
-                const relevant = buildRelevantKnowledgeVaultContext(query || '', { maxItems: 10, maxChars: 7000 });
+                const relevant = buildRelevantKnowledgeVaultContext(query || '', {
+                    maxItems: 10,
+                    maxChars: 7000,
+                    whitelist: formalSettings?.privacySettings?.modContentWhitelist ?? [],
+                });
                 if (manifest || relevant) {
                     knowledgeVaultContext = `\n**MOSSY'S KNOWLEDGE VAULT (CRITICAL):**${manifest}${relevant}`;
                 }
@@ -1937,6 +1942,14 @@ export const ChatInterface: React.FC = () => {
     const executeTool = async (name: string, args: any) => {
         // Record tool usage for Modding Journey
         await LocalAIEngine.recordAction('tool_execution', { tool: name, args });
+        try {
+            window.electron?.api?.appendMemoryEvent?.({
+                type: 'tool_execution_started',
+                tool: name,
+                args,
+                project: projectData?.name || null,
+            }).catch(() => { });
+        } catch { /* non-critical */ }
 
         // Track tool execution start
         trackEvent('tool_execution_started', {
@@ -1964,6 +1977,14 @@ export const ChatInterface: React.FC = () => {
             success: !(result as any)?.error,
             hasResult: !!result
         });
+        try {
+            window.electron?.api?.appendMemoryEvent?.({
+                type: 'tool_execution_completed',
+                tool: name,
+                success: !(result as any)?.error,
+                result: String((result as any)?.result || ''),
+            }).catch(() => { });
+        } catch { /* non-critical */ }
 
         return result;
     };
@@ -2006,6 +2027,35 @@ export const ChatInterface: React.FC = () => {
         setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: "**[Generation Stopped by User]**", timestamp: Date.now() }]);
     };
 
+    const checkWhitelistGuard = (message: string): { blocked: boolean; match?: string } => {
+        const whitelist: string[] = (formalSettings?.privacySettings?.modContentWhitelist ?? [])
+            .map((entry: unknown) => String(entry || '').trim())
+            .filter(Boolean);
+        const lower = message.toLowerCase();
+        for (const item of whitelist) {
+            if (item.length < 2) continue;
+            if (lower.includes(item.toLowerCase())) {
+                return { blocked: true, match: item };
+            }
+        }
+        return { blocked: false };
+    };
+
+    const findBlacklistMatch = (message: string): { kind: 'mod' | 'program'; name: string; reason?: string } | null => {
+        const lower = message.toLowerCase();
+        const modList = (formalSettings?.privacySettings?.modContentBlacklist ?? []).map((e: any) => typeof e === 'string' ? { name: e } : e);
+        for (const item of modList) {
+            const name = String(item?.name || '').trim();
+            if (name && lower.includes(name.toLowerCase())) return { kind: 'mod', name, reason: item?.reason };
+        }
+        const progList = (formalSettings?.privacySettings?.programBlacklist ?? []).map((e: any) => typeof e === 'string' ? { name: e } : e);
+        for (const item of progList) {
+            const name = String(item?.name || '').trim();
+            if (name && lower.includes(name.toLowerCase())) return { kind: 'program', name, reason: item?.reason };
+        }
+        return null;
+    };
+
     const handleSend = async (overrideText?: string) => {
         const textToSend = overrideText || inputText;
         if ((!textToSend.trim() && !selectedFile) || isLoading || isStreaming || isConversationPaused) return;
@@ -2036,6 +2086,24 @@ export const ChatInterface: React.FC = () => {
             return;
         }
 
+        const wlGuard = checkWhitelistGuard(textToSend);
+        if (wlGuard.blocked) {
+            setMessages(prev => [...prev,
+            { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() },
+            { id: Date.now().toString() + '-whitelist', role: 'assistant', content: `I can’t help with "${wlGuard.match}" because it is protected in your do-not-touch whitelist. I can help with a different mod or workflow instead.`, timestamp: Date.now() }
+            ]);
+            setInputText('');
+            return;
+        }
+
+        const blacklistHit = findBlacklistMatch(textToSend);
+        if (blacklistHit) {
+            const warning = blacklistHit.kind === 'mod'
+                ? `⚠️ **Safety warning:** "${blacklistHit.name}" is on your mod blacklist${blacklistHit.reason ? ` — ${blacklistHit.reason}` : ''}. I'll warn about risks and suggest safer alternatives.`
+                : `⚠️ **Safety warning:** "${blacklistHit.name}" is on your program blacklist${blacklistHit.reason ? ` — ${blacklistHit.reason}` : ''}. I'll discourage usage and suggest safer tools.`;
+            setMessages(prev => [...prev, { id: Date.now().toString() + '-blacklist-warning', role: 'assistant', content: warning, timestamp: Date.now() }]);
+        }
+
         const userMessage: Message = {
             id: Date.now().toString(),
             role: 'user',
@@ -2055,6 +2123,16 @@ export const ChatInterface: React.FC = () => {
             .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
         setMessages(prev => [...prev, userMessage]);
+        try {
+            window.electron?.api?.appendMemoryEvent?.({
+                type: 'chat_message',
+                content: textToSend,
+                context: {
+                    project: projectData?.name || null,
+                    onboardingState,
+                },
+            }).catch(() => { });
+        } catch { /* non-critical */ }
         setInputText('');
         setIsLoading(true);
         stopAudio();
