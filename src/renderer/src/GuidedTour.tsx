@@ -23,11 +23,49 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
   const [run, setRun] = useState(false);
   const [pendingRoute, setPendingRoute] = useState<string | null>(null);
   const lastSpokenStepId = useRef<string | null>(null);
-  const visualGuideSrc = (name: string) => `/visual-guide-images/${encodeURIComponent(name)}`;
+  const visualGuideSrc = (name: string) => {
+    const encoded = encodeURIComponent(name);
+    if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+      return `./visual-guide-images/${encoded}`;
+    }
+    return `/visual-guide-images/${encoded}`;
+  };
 
-  const renderGuideImage = (name: string, alt: string) => (
+  const GuideImage: React.FC<{ names: string[]; alt: string }> = ({ names, alt }) => {
+    const [sourceIndex, setSourceIndex] = useState(0);
+    const [allSourcesFailed, setAllSourcesFailed] = useState(false);
+    const selected = names[Math.min(sourceIndex, names.length - 1)];
+
+    if (allSourcesFailed) {
+      return (
+        <div className="w-full max-h-40 rounded border border-slate-700/80 bg-slate-900/70 p-3 text-xs text-slate-400 flex items-center justify-center">
+          Screenshot unavailable
+        </div>
+      );
+    }
+
+    return (
+      <img
+        src={visualGuideSrc(selected)}
+        alt={alt}
+        className="w-full max-h-40 object-cover rounded"
+        loading="lazy"
+        onError={() => {
+          setSourceIndex((prev) => {
+            if (prev < names.length - 1) {
+              return prev + 1;
+            }
+            setAllSourcesFailed(true);
+            return prev;
+          });
+        }}
+      />
+    );
+  };
+
+  const renderGuideImage = (name: string | string[], alt: string) => (
     <div className="mt-3 rounded border border-slate-700/80 bg-slate-950/60 p-2">
-      <img src={visualGuideSrc(name)} alt={alt} className="w-full max-h-40 object-cover rounded" loading="lazy" />
+      <GuideImage names={Array.isArray(name) ? name : [name]} alt={alt} />
     </div>
   );
 
@@ -286,7 +324,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                   <div className="text-slate-400 text-sm mt-1">What are we working on today?</div>
                 </div>
 
-                {renderGuideImage('Page two. AI Chat..png', 'Chat interface')}
+                {renderGuideImage(['Page 2 AI Chat.png', 'page-2-ai-chat.png'], 'Chat interface')}
               </div>
             ),
             data: {
@@ -329,7 +367,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                   <div className="text-slate-400">Off</div>
                 </div>
 
-                {renderGuideImage('page-3-ai-mod-assistant.png', 'AI Mod Assistant')}
+                {renderGuideImage(['Page 3 AI Mod Assistant.png', 'page-3-ai-mod-assistant.png'], 'AI Mod Assistant')}
               </div>
             ),
             data: {
@@ -376,7 +414,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                   <div className="mt-3 text-slate-400">Done with the basics? Explore advanced modules when you are ready using the sidebar.</div>
                 </div>
 
-                {renderGuideImage('page-4-first-success.png', 'First Success Wizard')}
+                {renderGuideImage(['Page 4 FO4 Mod Journey Hub.png', 'page-4-first-success.png'], 'First Success Wizard')}
               </div>
             ),
             data: {
@@ -455,7 +493,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 <p className="text-slate-300 text-sm">
                   The Workshop is your scripting and automation hub.
                 </p>
-                {renderGuideImage('Page 19, the workshop..png', 'Workshop')}
+                {renderGuideImage('page-24-the-workshop.png', 'Workshop')}
               </div>
             ),
             data: {
@@ -474,7 +512,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 <p className="text-slate-300 text-sm">
                   Scan assets and plugins to catch issues and optimize performance.
                 </p>
-                {renderGuideImage('Page 21 the auditor..png', 'Auditor')}
+                {renderGuideImage('page-25-the-auditor.png', 'Auditor')}
               </div>
             ),
             data: {
@@ -493,7 +531,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 <p className="text-slate-300 text-sm">
                   Generate textures, tweak PBR maps, and manage images.
                 </p>
-                {renderGuideImage('Page 34 image Studio..png', 'Image suite')}
+                {renderGuideImage('page-38-image-studio.png', 'Image suite')}
               </div>
             ),
             data: {
@@ -512,7 +550,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 <p className="text-slate-300 text-sm">
                   Build releases and package your mods for distribution.
                 </p>
-                {renderGuideImage('Page 11. Packaging and release..png', 'Packaging and release')}
+                {renderGuideImage('page-16-packaging-release.png', 'Packaging and release')}
               </div>
             ),
             data: {
@@ -531,7 +569,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 <p className="text-slate-300 text-sm">
                   Find guides, documentation, and curated modding knowledge.
                 </p>
-                {renderGuideImage('Page 8 knowledge search..png', 'Learning hub')}
+                {renderGuideImage('page-9-knowledge-search.png', 'Learning hub')}
               </div>
             ),
             data: {
@@ -712,4 +750,3 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
 };
 
 export default GuidedTour;
-

@@ -14,8 +14,8 @@ const TourLauncher: React.FC<TourLauncherProps> = ({ className = '' }) => {
     window.dispatchEvent(new CustomEvent('start-feature-tour'));
   };
 
-  const startModuleTour = (module: string) => {
-    window.dispatchEvent(new CustomEvent('start-module-tour', { detail: { module } }));
+  const startInitialInstall = () => {
+    window.dispatchEvent(new CustomEvent('start-initial-install'));
   };
 
   return (
@@ -43,11 +43,11 @@ const TourLauncher: React.FC<TourLauncherProps> = ({ className = '' }) => {
         </button>
 
         <button
-          onClick={() => startModuleTour('workshop')}
+          onClick={startInitialInstall}
           className="w-full flex items-center gap-2 px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded text-sm text-purple-300 hover:text-purple-200 transition-colors"
         >
           <Play className="w-3 h-3" />
-          Workshop Tour
+          Initial Install
         </button>
       </div>
 

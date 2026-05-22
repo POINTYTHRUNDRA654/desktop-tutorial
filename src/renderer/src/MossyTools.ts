@@ -22,6 +22,26 @@ export const executeMossyTool = async (name: string, args: any, context: {
     setShowProjectPanel: (s: boolean) => void
 }) => {
     const api = (window as any).electronAPI || (window as any).electron?.api;
+    const settings = await api?.getSettings?.().catch(() => null);
+    const whitelist: string[] = (settings?.privacySettings?.modContentWhitelist ?? [])
+        .map((entry: unknown) => String(entry || '').trim())
+        .filter(Boolean);
+    const findDoNotTouchMatch = (value: unknown): string | null => {
+        if (!whitelist.length) return null;
+        const haystack = JSON.stringify(value ?? '').toLowerCase();
+        for (const item of whitelist) {
+            if (item.length < 2) continue;
+            if (haystack.includes(item.toLowerCase())) return item;
+        }
+        return null;
+    };
+    const blockedItem = findDoNotTouchMatch({ name, args });
+    if (blockedItem) {
+        return {
+            success: false,
+            result: `Blocked by do-not-touch whitelist: "${blockedItem}" is protected and cannot be referenced, downloaded, or acted on.`,
+        };
+    }
 
     const sanitizeBasename = (raw: string): string => {
         const trimmed = String(raw || '').trim();
@@ -1850,7 +1870,7 @@ Check your Downloads folder or the location where files are saved.`;
                         report += `**File size:** ${sizeMB} MB  |  **Masters:** ${masters.length > 0 ? masters.join(', ') : 'none declared'}  |  **Flags:** ${[flags.isESM && 'ESM', flags.isESL && 'ESL', flags.isLocalized && 'Localized'].filter(Boolean).join(', ') || 'standard ESP'}\n\n`;
 
                         if (issues.length === 0) {
-                            report += `✅ **No issues detected.** This plugin looks clean — no deleted navmesh, UDRs, broken precombines, absolute paths, or missing masters found.\n`;
+                            report += `✅ **No issues detected.** This plugin looks clean — no deleted navmesh, UDRs, broken precombines, or absolute paths found.\n`;
                         } else {
                             const errors   = issues.filter((i: any) => i.severity === 'error');
                             const warnings = issues.filter((i: any) => i.severity === 'warning');
