@@ -508,8 +508,8 @@ const MossyObserver: React.FC = () => {
             setTimeout(() => {
                 setMessage(text);
                 setVisible(true);
-                setTimeout(() => { setVisible(false); setIsAlert(false); }, 5000);
-            }, 1500); 
+                setTimeout(() => { setVisible(false); setIsAlert(false); }, 450);
+            }, 120); 
         }
     }, [location.pathname]);
 
@@ -525,7 +525,7 @@ const MossyObserver: React.FC = () => {
             setTimeout(() => {
                 setVisible(false);
                 setIsAlert(false);
-            }, 6000);
+            }, 700);
         };
 
         const handleShortcut = (e: CustomEvent<{keys: string, description: string}>) => {
@@ -537,7 +537,7 @@ const MossyObserver: React.FC = () => {
             setTimeout(() => {
                 setVisible(false);
                 setIsAlert(false);
-            }, 3000);
+            }, 500);
         };
 
         window.addEventListener('mossy-blender-command', handleBlenderCommand as EventListener);
@@ -569,13 +569,13 @@ const MossyObserver: React.FC = () => {
                         } else {
                             setMessage(`Analysis complete for ${filename}. Standard Fallout 4 headers detected.`);
                         }
-                    }, 4000);
+                    }, 350);
 
-                    // Fade out after 10s
+                    // Fade out quickly to keep it unobtrusive
                     setTimeout(() => {
                         setVisible(false);
                         setIsAlert(false);
-                    }, 10000);
+                    }, 900);
                 }
             });
             return () => {
@@ -611,7 +611,7 @@ const MossyObserver: React.FC = () => {
             setIsAlert(false);
             setMessage(`[${label}] ${eventType}${detailSuffix}`);
             setVisible(true);
-            setTimeout(() => setVisible(false), 4000);
+            setTimeout(() => setVisible(false), 450);
         });
 
         return () => {
@@ -635,7 +635,7 @@ const MossyObserver: React.FC = () => {
             setIsAlert(false);
             setMessage(`Observing${event.panel ? ` [${event.panel}]` : ''} — ${event.eventType}${detailSuffix}`);
             setVisible(true);
-            setTimeout(() => setVisible(false), 3500);
+            setTimeout(() => setVisible(false), 400);
         };
 
         window.addEventListener('mossy-activity-event', handleActivity);
@@ -643,7 +643,7 @@ const MossyObserver: React.FC = () => {
     }, []);
 
     return (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-30 transition-all duration-500 transform ${visible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'}`}>
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-30 transition-all duration-150 transform ${visible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'}`}>
             <div className="flex items-end gap-3">
                 <div className={`backdrop-blur-md border p-4 rounded-2xl rounded-br-none shadow-[0_0_30px_rgba(16,185,129,0.15)] max-w-xs relative animate-slide-up ${
                     isAlert 
