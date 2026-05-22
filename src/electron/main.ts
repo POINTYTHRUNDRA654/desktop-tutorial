@@ -1766,6 +1766,15 @@ function setupIpcHandlers() {
     }
   };
 
+  // Register all platform handlers that were missing from this file
+  try {
+    const { registerPlatformHandlers } = require('./handlers/platformHandlers');
+    registerPlatformHandlers(safeHandle);
+    console.log('[Main] ✅ Platform handlers registered');
+  } catch (platformErr: any) {
+    console.error('[Main] ❌ Failed to register platform handlers:', platformErr?.message || platformErr);
+  }
+
   forceHandle('dds-converter:get-all-presets', async () => {
     try {
       const presets = getDdsConversionPresets();
@@ -6083,44 +6092,26 @@ end.
   });
 
   // --- CK Crash Prevention Handlers ---
-  ipcMain.handle('ck-crash-prevention:validate', async (_event, espPath: string, modName?: string, cellCount?: number) => {
-    try {
-      const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
-      const engine = new CKCrashPreventionEngine();
-      const result = await engine.validateESP(espPath);
-      return result; // Return the validation result directly
-    } catch (error: any) {
-      console.error('CK validation error:', error);
-      throw error; // Let IPC error handling catch it
-    }
+  safeHandle('ck-crash-prevention:validate', async (_event, espPath: string, _modName?: string, _cellCount?: number) => {
+    const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
+    const engine = new CKCrashPreventionEngine();
+    return engine.validateESP(espPath);
   });
 
-  ipcMain.handle('ck-crash-prevention:analyze-crash', async (_event, logPath: string) => {
-    try {
-      const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
-      const engine = new CKCrashPreventionEngine();
-      const diagnosis = await engine.analyzeCrashLog(logPath);
-      return diagnosis; // Return the diagnosis directly
-    } catch (error: any) {
-      console.error('Crash analysis error:', error);
-      throw error; // Let IPC error handling catch it
-    }
+  safeHandle('ck-crash-prevention:analyze-crash', async (_event, logPath: string) => {
+    const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
+    const engine = new CKCrashPreventionEngine();
+    return engine.analyzeCrashLog(logPath);
   });
 
-  ipcMain.handle('ck-crash-prevention:generate-plan', async (_event, validation: any) => {
-    try {
-      const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
-      const engine = new CKCrashPreventionEngine();
-      const plan = engine.generatePreventionPlan(validation);
-      return plan; // Return the plan directly
-    } catch (error: any) {
-      console.error('Plan generation error:', error);
-      throw error; // Let IPC error handling catch it
-    }
+  safeHandle('ck-crash-prevention:generate-plan', async (_event, validation: any) => {
+    const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
+    const engine = new CKCrashPreventionEngine();
+    return engine.generatePreventionPlan(validation);
   });
 
   // File picker for crash logs
-  ipcMain.handle('ck-crash-prevention:pick-log-file', async () => {
+  safeHandle('ck-crash-prevention:pick-log-file', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
@@ -6129,24 +6120,22 @@ end.
       ],
       title: 'Select CK Crash Log'
     });
-
     if (!result.canceled && result.filePaths.length > 0) {
       return { success: true, path: result.filePaths[0] };
     }
     return { success: false };
   });
 
-  // Pick ESP/ESM/ELS plugin file
-  ipcMain.handle('ck-crash-prevention:pick-plugin', async () => {
+  // Pick ESP/ESM/ESL plugin file
+  safeHandle('ck-crash-prevention:pick-plugin', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
         { name: 'Plugin Files', extensions: ['esp', 'esm', 'esl'] },
         { name: 'All Files', extensions: ['*'] }
       ],
-      title: 'Select ESP/ESM/ELS Plugin File'
+      title: 'Select ESP/ESM/ESL Plugin File'
     });
-
     if (!result.canceled && result.filePaths.length > 0) {
       return { success: true, path: result.filePaths[0] };
     }
