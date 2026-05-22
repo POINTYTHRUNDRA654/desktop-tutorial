@@ -64,13 +64,14 @@ const Workshop: React.FC = () => {
   // Browse directory and load files
   const browseDirectory = async (dirPath?: string) => {
     if (!api) return;
+    const path = dirPath || currentPath;
+    if (!path) {
+      setConsoleOutput(prev => [...prev, '> Select a working directory to start browsing.']);
+      return;
+    }
+
     setLoading(true);
     try {
-      const path = dirPath || currentPath;
-      if (!path) {
-        setConsoleOutput(prev => [...prev, '> Select a working directory to start browsing.']);
-        return;
-      }
       const entries = await api.browseDirectory(path);
       setCurrentPath(path);
       

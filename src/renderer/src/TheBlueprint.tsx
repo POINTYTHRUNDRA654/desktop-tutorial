@@ -341,17 +341,7 @@ const TheBlueprint: React.FC = () => {
                                 {selectedTemplate.structure.map((item, idx) => (
                                     <div
                                         key={idx}
-                                        onClick={() => handleCopyPath(item.path)}
-                                        onKeyDown={(event) => {
-                                            if (event.key === 'Enter' || event.key === ' ') {
-                                                event.preventDefault();
-                                                handleCopyPath(item.path);
-                                            }
-                                        }}
-                                        role="button"
-                                        tabIndex={0}
-                                        className="w-full text-left bg-[#252526] border border-slate-700 rounded p-3 hover:border-amber-500/60 hover:bg-[#2d2d30] transition-colors cursor-pointer"
-                                        title="Click to copy path"
+                                        className="w-full text-left bg-[#252526] border border-slate-700 rounded p-3 hover:border-amber-500/60 hover:bg-[#2d2d30] transition-colors"
                                     >
                                         <div className="flex items-start justify-between mb-1">
                                             <div className="flex items-center gap-2">
@@ -369,16 +359,27 @@ const TheBlueprint: React.FC = () => {
                                                     }}
                                                     className="p-1 rounded hover:bg-slate-700/80 transition-colors"
                                                     title={item.type === 'folder' ? 'Select source folder' : 'Select source file'}
+                                                    aria-controls={`blueprint-source-input-${idx}`}
+                                                    aria-label={item.type === 'folder' ? `Select source folder for ${item.path}` : `Select source file for ${item.path}`}
                                                 >
                                                     <Upload className={`w-3 h-3 ${attachedSources[item.path] ? 'text-green-400' : 'text-slate-500'}`} />
                                                 </button>
-                                                <span className="p-1" aria-hidden="true">
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        handleCopyPath(item.path);
+                                                    }}
+                                                    className="p-1 rounded hover:bg-slate-700/80 transition-colors"
+                                                    title="Copy path"
+                                                    aria-label={`Copy path ${item.path}`}
+                                                >
                                                     {copiedPath === item.path ? (
                                                         <CheckCircle2 className="w-3 h-3 text-green-400" />
                                                     ) : (
                                                         <Copy className="w-3 h-3 text-slate-500" />
                                                     )}
-                                                </span>
+                                                </button>
                                             </div>
                                         </div>
                                         <p className="text-[10px] text-slate-500 pl-6">{item.description}</p>
@@ -389,10 +390,12 @@ const TheBlueprint: React.FC = () => {
                                         )}
                                         {item.type === 'file' && (
                                             <input
+                                                id={`blueprint-source-input-${idx}`}
                                                 ref={(el) => { fileInputRefs.current[item.path] = el; }}
                                                 type="file"
                                                 className="hidden"
                                                 accept={getAcceptForPath(item.path)}
+                                                aria-label={`Source file input for ${item.path}`}
                                                 onClick={(event) => { event.stopPropagation(); }}
                                                 onChange={(event) => handleFileSelected(item.path, event.target.files)}
                                             />
