@@ -725,6 +725,7 @@ const App: React.FC = () => {
     const handleStartInitialInstall = () => {
       console.log('[App] Initial install replay requested from Guided Tours');
       try {
+        localStorage.removeItem('mossy_force_onboarding');
         localStorage.removeItem('mossy_onboarding_complete');
         localStorage.removeItem('mossy_onboarding_completed');
         localStorage.removeItem('mossy_tutorial_completed');
@@ -1165,6 +1166,7 @@ const App: React.FC = () => {
               try {
                 localStorage.setItem('mossy_onboarding_complete', 'true');
                 localStorage.setItem('mossy_onboarding_completed', 'true');
+                localStorage.removeItem('mossy_force_onboarding');
               } catch { /* ignore */ }
 
               setShowFirstRun(false);
