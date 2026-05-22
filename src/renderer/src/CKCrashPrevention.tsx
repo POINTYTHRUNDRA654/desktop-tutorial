@@ -1,30 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Shield, AlertTriangle, Activity, Play, Square, Brain, FolderOpen, GitBranch, ChevronDown, ChevronUp, CheckCircle, XCircle, RefreshCw, FileText, Clipboard, Lightbulb } from 'lucide-react';
-import { analyzeCrashLogText, generatePreventionPlan, type CrashDiagnosis as EngineDiagnosis } from './ckCrashEngine';
+import { analyzeCrashLogText, type CrashDiagnosis as EngineDiagnosis } from './ckCrashEngine';
 
 interface Props {
   onClose?: () => void;
 }
 
 // --- result shapes returned by the IPC handlers ---
-
-interface ValidationIssue {
-  type: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  message: string;
-  solution: string;
-  affectedRecords?: string[];
-}
-
-interface ESPValidationResult {
-  valid: boolean;
-  crashRisk: number;
-  memoryEstimateMB?: number;
-  issues: ValidationIssue[];
-  warnings: string[];
-  recommendations: string[];
-}
 
 // IPC-returned crash diagnosis shape (may differ slightly from engine's pure type)
 interface IpcCrashDiagnosis {
@@ -77,15 +60,6 @@ const isMissingIpcHandlerError = (error: unknown, channel?: string) => {
     : message.includes('No handler registered');
 };
 
-const severityColor = (s: string) => {
-  switch (s) {
-    case 'critical': return 'text-red-400';
-    case 'high': return 'text-orange-400';
-    case 'medium': return 'text-yellow-400';
-    default: return 'text-slate-400';
-  }
-};
-
 const modIssueColor = (s: string) => {
   switch (s) {
     case 'error': return 'text-red-400';
@@ -104,10 +78,8 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
   const [spriggitCliPath, setSpriggitCliPath] = useState('');
   const [spriggitDataPath, setSpriggitDataPath] = useState('');
 
-  // Validation state
+  // Plugin scan state
   const [validating, setValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState<ESPValidationResult | null>(null);
-  const [validationError, setValidationError] = useState('');
 
   // Spriggit state
   const [converting, setConverting] = useState(false);
@@ -129,9 +101,6 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
   // Paste-log (client-side instant analysis — no file picker needed)
   const [pastedLog, setPastedLog] = useState('');
   const [pasteAnalysis, setPasteAnalysis] = useState<EngineDiagnosis | null>(null);
-
-  // Prevention plan (generated client-side after validation)
-  const [preventionPlan, setPreventionPlan] = useState<ReturnType<typeof generatePreventionPlan> | null>(null);
 
   // Full mod package scan state
   const [modPackagePath, setModPackagePath] = useState('');
@@ -334,8 +303,8 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
     }
   };
 
-  const runModScan = async () => {
-    const rawPath = modPackagePath.trim();
+  const runModScanForPath = async (scanPath: string) => {
+    const rawPath = scanPath.trim();
     if (!rawPath) {
       toast('Select a mod folder or ZIP first.', { icon: '📦' });
       return;
@@ -406,6 +375,10 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
     }
   };
 
+  const runModScan = async () => {
+    await runModScanForPath(modPackagePath);
+  };
+
   const runAutoFix = async () => {
     if (!modScanReport?.issues?.length) {
       toast('Run a mod scan first.', { icon: '🛠️' });
@@ -466,37 +439,18 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
     }
   };
 
-  // ── Validate plugin ───────────────────────────────────
-
-  const runValidation = async (pluginPath?: string) => {
+  // ── Scan plugin using the same full scan pipeline ─────
+  const runPluginScan = async (pluginPath?: string) => {
     const path = (pluginPath ?? selectedPlugin).trim();
     if (!path) { toast('Select a plugin first.', { icon: '📁' }); return; }
-    const a = api();
-    if (!a?.ckCrashValidate) { toast.error('Validation API not available'); return; }
-
     setActiveTab('preflight');
     setValidating(true);
-    setValidationResult(null);
-    setValidationError('');
     try {
-      const result = await a.ckCrashValidate(path);
-      if (!result) throw new Error('No result returned');
-      setValidationResult(result as ESPValidationResult);
-      // Generate a client-side prevention plan from validation results
-      setPreventionPlan(generatePreventionPlan({
-        crashRisk: result.crashRisk ?? 0,
-        issues: result.issues ?? [],
-        hasNavmesh: result.issues?.some((i: ValidationIssue) => i.type === 'navmesh_conflict'),
-        hasPrecombines: result.issues?.some((i: ValidationIssue) => i.message?.toLowerCase().includes('precombine')),
-      }));
-      const risk = result.crashRisk ?? 0;
-      if (risk > 60) toast.error(`High crash risk detected: ${risk}%`);
-      else if (risk > 30) toast(`Moderate crash risk: ${risk}%`, { icon: '⚠️' });
-      else toast.success('Plugin validated — low crash risk');
+      setModPackagePath(path);
+      await runModScanForPath(path);
     } catch (e: any) {
       const msg = String(e?.message || e);
-      setValidationError(msg);
-      toast.error(`Validation failed: ${msg}`);
+      toast.error(`Plugin scan failed: ${msg}`);
     } finally {
       setValidating(false);
     }
@@ -651,7 +605,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
             <Shield className="h-6 w-6 text-mossy-accent" />
             <div>
               <h1 className="text-xl font-bold">Creation Kit Crash Prevention</h1>
-              <p className="text-sm text-mossy-text-muted">Validate plugins and monitor CK stability</p>
+              <p className="text-sm text-mossy-text-muted">Scan plugins/mods and monitor CK stability</p>
             </div>
           </div>
           {onClose && (
@@ -689,7 +643,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
           <div className="space-y-4">
             {/* Plugin picker */}
             <div className="space-y-3 rounded border border-mossy-border bg-mossy-bg p-4">
-              <h2 className="font-semibold text-white">Select Plugin to Validate</h2>
+              <h2 className="font-semibold text-white">Select Plugin to Scan</h2>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -706,76 +660,15 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
                 </button>
               </div>
               <button
-                onClick={() => runValidation()}
+                onClick={() => void runPluginScan()}
                 disabled={validating}
                 className="w-full rounded bg-emerald-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                {validating ? <><RefreshCw className="w-4 h-4 animate-spin" /> Validating…</> : <><Shield className="w-4 h-4" /> Validate Plugin</>}
+                {validating ? <><RefreshCw className="w-4 h-4 animate-spin" /> Scanning…</> : <><Shield className="w-4 h-4" /> Scan Plugin</>}
               </button>
-
-              {/* Validation results */}
-              {validationError && (
-                <div className="text-xs text-red-400 bg-red-900/20 border border-red-700/40 rounded px-3 py-2">
-                  ❌ {validationError}
-                </div>
-              )}
-              {validationResult && (
-                <div className="space-y-3">
-                  {/* Risk header */}
-                  <div className={`flex items-center justify-between rounded border px-3 py-2 ${validationResult.crashRisk > 60 ? 'border-red-700/60 bg-red-900/20' : validationResult.crashRisk > 30 ? 'border-yellow-700/60 bg-yellow-900/20' : 'border-emerald-700/60 bg-emerald-900/20'}`}>
-                    <span className="font-semibold text-white">
-                      {validationResult.valid ? '✅ Plugin OK' : '⚠️ Issues found'}
-                    </span>
-                    <span className={`text-sm font-bold ${validationResult.crashRisk > 60 ? 'text-red-400' : validationResult.crashRisk > 30 ? 'text-yellow-400' : 'text-emerald-400'}`}>
-                      Crash risk: {validationResult.crashRisk ?? 0}%
-                    </span>
-                  </div>
-
-                  {/* Issues */}
-                  {validationResult.issues?.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-xs font-bold text-slate-300">Issues ({validationResult.issues.length})</div>
-                      {validationResult.issues.map((issue, i) => (
-                        <div key={i} className="rounded border border-mossy-border bg-mossy-darker px-3 py-2 text-xs">
-                          <div className={`font-semibold ${severityColor(issue.severity)}`}>[{issue.severity}] {issue.message}</div>
-                          <div className="text-slate-400 mt-1">💡 {issue.solution}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Recommendations */}
-                  {validationResult.recommendations?.length > 0 && (
-                    <div className="space-y-1">
-                      <div className="text-xs font-bold text-slate-300">Recommendations</div>
-                      {validationResult.recommendations.map((r, i) => (
-                        <div key={i} className="text-xs text-slate-300">{r}</div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Prevention plan */}
-                  {preventionPlan && (
-                    <div className="rounded border border-blue-700/40 bg-blue-950/20 p-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Lightbulb className="w-4 h-4 text-blue-300" />
-                        <span className="text-xs font-bold text-blue-300">Prevention Plan</span>
-                        <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded border ${preventionPlan.priority === 'critical' ? 'border-red-500/50 text-red-300 bg-red-900/20' : preventionPlan.priority === 'high' ? 'border-orange-500/50 text-orange-300 bg-orange-900/20' : 'border-blue-500/50 text-blue-300 bg-blue-900/20'}`}>
-                          {preventionPlan.priority.toUpperCase()} · −{preventionPlan.estimatedRiskReduction}% risk · {preventionPlan.estimatedTime}
-                        </span>
-                      </div>
-                      <ol className="space-y-1">
-                        {preventionPlan.steps.map((step) => (
-                          <li key={step.order} className="text-xs text-slate-300 flex gap-2">
-                            <span className="text-blue-400 font-bold flex-shrink-0">{step.order}.</span>
-                            <span><span className="font-semibold text-white">{step.action}</span> — {step.description}{step.tool ? <span className="text-slate-400"> [{step.tool}]</span> : null}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="rounded border border-blue-700/40 bg-blue-950/20 px-3 py-2 text-xs text-blue-200">
+                Plugin scan uses the same deep scan engine as Full Mod Scan and supports Auto-Fix for compatible issues.
+              </div>
             </div>
 
             {/* Full mod package scan + real auto-fix */}
