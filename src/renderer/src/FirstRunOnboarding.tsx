@@ -695,6 +695,12 @@ const MAX_SPRIGGIT_PARTIAL_ERROR_PREVIEW = 300;
 const DOTNET_RECHECK_BADGE_DURATION_MS = 6000;
 /** Message shown when a manual .NET recheck still cannot find the runtime. */
 const DOTNET_STILL_NOT_DETECTED_MSG = '⚠️ Still not detected — try restarting Mossy after install. To confirm .NET is present, open a Command Prompt and run: Spriggit.CLI.exe --version';
+/** While detectPrograms runs, keep progress visibly moving up to this ceiling before handoff to stage milestones. */
+const SCAN_DETECTION_PROGRESS_CAP = 68;
+/** Convert elapsed milliseconds into faux progress steps so users see steady movement during long detection calls. */
+const SCAN_DETECTION_MS_PER_PROGRESS_POINT = 300;
+/** UI refresh cadence for interim detection progress updates. */
+const SCAN_DETECTION_PROGRESS_TICK_MS = 150;
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
@@ -719,6 +725,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [languageReady, setLanguageReady] = useState(false);
     const [scanTutorialRequested, setScanTutorialRequested] = useState(false);
     const [scanTutorialOpenedAt, setScanTutorialOpenedAt] = useState<string | null>(null);
+    const detectionProgressTimerRef = useRef<number | null>(null);
     /** Timer used to auto-dismiss the .NET recheck result badge. */
     const dotnetRecheckTimerRef = useRef<number | null>(null);
 
@@ -998,6 +1005,15 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         void speakSequence();
     }, [step]);
 
+    useEffect(() => {
+        return () => {
+            if (detectionProgressTimerRef.current !== null) {
+                window.clearInterval(detectionProgressTimerRef.current);
+                detectionProgressTimerRef.current = null;
+            }
+        };
+    }, []);
+
     // Speak an explanation of whitelist and blacklist when arriving at the lists step.
     useEffect(() => {
         if (step !== 'lists') return;
@@ -1157,8 +1173,6 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             triggerScanTutorial();
         }, 250);
 
-        let detectionProgressTimer: number | null = null;
-
         try {
             const api = getElectronApi();
             console.log('[FirstRunOnboarding] Electron API check:', {
@@ -1180,23 +1194,26 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
             // Keep visible progress moving while program detection runs.
             const detectStartedAt = Date.now();
-            detectionProgressTimer = window.setInterval(() => {
+            if (detectionProgressTimerRef.current !== null) {
+                window.clearInterval(detectionProgressTimerRef.current);
+            }
+            detectionProgressTimerRef.current = window.setInterval(() => {
                 setScanProgress(prev => {
-                    if (prev >= 68) return prev;
+                    if (prev >= SCAN_DETECTION_PROGRESS_CAP) return prev;
                     const elapsedMs = Date.now() - detectStartedAt;
-                    const elapsedProgress = 25 + Math.floor(elapsedMs / 300);
-                    return Math.max(prev, Math.min(68, elapsedProgress));
+                    const elapsedProgress = 25 + Math.floor(elapsedMs / SCAN_DETECTION_MS_PER_PROGRESS_POINT);
+                    return Math.max(prev, Math.min(SCAN_DETECTION_PROGRESS_CAP, elapsedProgress));
                 });
-            }, 150);
+            }, SCAN_DETECTION_PROGRESS_TICK_MS);
 
             // Detect all programs
             console.log('[FirstRunOnboarding] Calling detectPrograms...');
             const allDetectedApps = await api.detectPrograms();
             console.log('[FirstRunOnboarding] Detected programs:', allDetectedApps?.length || 0);
             setAllApps(allDetectedApps);
-            if (detectionProgressTimer !== null) {
-                window.clearInterval(detectionProgressTimer);
-                detectionProgressTimer = null;
+            if (detectionProgressTimerRef.current !== null) {
+                window.clearInterval(detectionProgressTimerRef.current);
+                detectionProgressTimerRef.current = null;
             }
             setScanProgress(70);
 
@@ -1363,8 +1380,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setStep('credits');
 
         } catch (error) {
-            if (detectionProgressTimer !== null) {
-                window.clearInterval(detectionProgressTimer);
+            if (detectionProgressTimerRef.current !== null) {
+                window.clearInterval(detectionProgressTimerRef.current);
+                detectionProgressTimerRef.current = null;
             }
             console.error('[FirstRunOnboarding] Scan failed:', error);
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1786,7 +1804,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             This will help me provide personalized recommendations and boost my capabilities.
                         </p>
                         <p className="text-slate-500 text-sm max-w-3xl mx-auto mb-8">
-                            <strong className="text-amber-300">Important:</strong> Mossy is not affiliated with, endorsed by, or officially connected to any third-party tools or add-ons shown here (xEdit, MO2, Vortex, LOOT, Spriggit, Blender, BodySlide, NifSkope, etc.). Always download tools from official sources.
+                            <strong className="text-amber-300">Important:</strong> Mossy is not affiliated with, endorsed by, or officially connected to third-party tools or add-ons shown in this app. Always download tools from official sources.
                         </p>
 
                         <div className="max-w-md mx-auto mb-8 text-left bg-slate-900/40 border border-slate-700 rounded-xl p-4">
