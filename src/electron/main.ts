@@ -6193,28 +6193,6 @@ end.
   });
 
   // --- CK Crash Prevention Handlers ---
-<<<<<<< HEAD
-  safeHandle('ck-crash-prevention:validate', async (_event, espPath: string, _modName?: string, _cellCount?: number) => {
-    const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
-    const engine = new CKCrashPreventionEngine();
-    return engine.validateESP(espPath);
-  });
-
-  safeHandle('ck-crash-prevention:analyze-crash', async (_event, logPath: string) => {
-    const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
-    const engine = new CKCrashPreventionEngine();
-    return engine.analyzeCrashLog(logPath);
-  });
-
-  safeHandle('ck-crash-prevention:generate-plan', async (_event, validation: any) => {
-    const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
-    const engine = new CKCrashPreventionEngine();
-    return engine.generatePreventionPlan(validation);
-  });
-
-  // File picker for crash logs
-  safeHandle('ck-crash-prevention:pick-log-file', async () => {
-=======
   registerHandler(IPC_CHANNELS.CK_CRASH_VALIDATE, async (_event, espPath: string, modName?: string, cellCount?: number) => {
     try {
       const { CKCrashPreventionEngine } = await import('../mining/ckCrashPrevention');
@@ -6253,7 +6231,6 @@ end.
 
   // File picker for crash logs
   registerHandler(IPC_CHANNELS.CK_CRASH_PICK_LOG_FILE, async () => {
->>>>>>> origin/master
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
@@ -6268,13 +6245,8 @@ end.
     return { success: false };
   });
 
-<<<<<<< HEAD
   // Pick ESP/ESM/ESL plugin file
-  safeHandle('ck-crash-prevention:pick-plugin', async () => {
-=======
-  // Pick ESP/ESM/ELS plugin file
   registerHandler(IPC_CHANNELS.CK_CRASH_PICK_PLUGIN, async () => {
->>>>>>> origin/master
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
