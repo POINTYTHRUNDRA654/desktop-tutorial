@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, useState } from 'react';
+import React, { useEffect, Suspense, useMemo, useRef, useState } from 'react';
 import packageJson from '../../../package.json';
 import { HashRouter, MemoryRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
@@ -33,6 +33,7 @@ import { GlobalSearch } from './GlobalSearch';
 import { useWhatsNew } from './WhatsNewDialog';
 import WhatsNewPage from './WhatsNewPage';
 import { getPublicAssetUrl } from './utils/publicAssetUrl';
+import { createInteractiveTutorialLauncher } from './interactiveTutorialLaunch';
 import {
   backupCriticalProgressSnapshotSync,
   backupCriticalProgressToDisk,
@@ -517,29 +518,32 @@ const App: React.FC = () => {
   // Tutorial state
   const [showTutorialLaunch, setShowTutorialLaunch] = useState(false);
   const [showInteractiveTutorialOverlay, setShowInteractiveTutorialOverlay] = useState(false);
+  const showFirstRunRef = useRef(showFirstRun);
   const getTutorialReturnHash = () => {
     const stored = localStorage.getItem('mossy_tutorial_return');
     if (stored && stored.startsWith('#/')) return stored;
     return '#/';
   };
 
-  const startInteractiveTutorial = () => {
-    // If we're in FirstRunOnboarding, show tutorial as overlay
-    if (showFirstRun) {
-      setShowInteractiveTutorialOverlay(true);
-      return;
-    }
+  useEffect(() => {
+    showFirstRunRef.current = showFirstRun;
+  }, [showFirstRun]);
 
-    // Otherwise navigate to tutorial route
-    const currentHash = window.location.hash || '#/';
-    const returnHash = currentHash.startsWith('#/tutorial') ? '#/' : currentHash;
-    try {
-      localStorage.setItem('mossy_tutorial_return', returnHash);
-    } catch {
-      // ignore
-    }
-    window.location.hash = '#/tutorial';
-  };
+  const startInteractiveTutorial = useMemo(() => createInteractiveTutorialLauncher({
+    getIsFirstRunActive: () => showFirstRunRef.current,
+    getCurrentHash: () => window.location.hash || '#/',
+    showOverlay: () => setShowInteractiveTutorialOverlay(true),
+    persistReturnHash: (returnHash) => {
+      try {
+        localStorage.setItem('mossy_tutorial_return', returnHash);
+      } catch {
+        // ignore
+      }
+    },
+    navigateToTutorial: () => {
+      window.location.hash = '#/tutorial';
+    },
+  }), []);
 
   const exitInteractiveTutorial = () => {
     // If shown as overlay, just hide it
