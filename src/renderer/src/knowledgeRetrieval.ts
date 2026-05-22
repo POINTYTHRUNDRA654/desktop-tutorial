@@ -199,15 +199,15 @@ export const buildKnowledgeManifestForModel = (): string => {
 
 export const getRelevantKnowledgeVaultItems = (
   query: string,
-  opts?: { maxItems?: number; whitelist?: string[] }
+  opts?: { maxItems?: number; excludeTerms?: string[] }
 ): KnowledgeCitation[] => {
   const items = loadKnowledgeVault();
   if (items.length === 0) return [];
-  const wl = (opts?.whitelist || []).map((w) => normalize(w)).filter(Boolean);
-  const visibleItems = wl.length
+  const blockedTerms = (opts?.excludeTerms || []).map((w) => normalize(w)).filter(Boolean);
+  const visibleItems = blockedTerms.length
     ? items.filter((it) => {
       const text = `${normalize(it.title)} ${normalize(it.content)} ${normalize(it.source)}`;
-      return !wl.some((w) => text.includes(w));
+      return !blockedTerms.some((w) => text.includes(w));
     })
     : items;
   if (visibleItems.length === 0) return [];
@@ -237,15 +237,15 @@ export const getRelevantKnowledgeVaultItems = (
 export const buildRelevantKnowledgeVaultContext = (query: string, opts?: {
   maxItems?: number;
   maxChars?: number;
-  whitelist?: string[];
+  excludeTerms?: string[];
 }): string => {
   const items = loadKnowledgeVault();
   if (items.length === 0) return '';
-  const wl = (opts?.whitelist || []).map((w) => normalize(w)).filter(Boolean);
-  const visibleItems = wl.length
+  const blockedTerms = (opts?.excludeTerms || []).map((w) => normalize(w)).filter(Boolean);
+  const visibleItems = blockedTerms.length
     ? items.filter((it) => {
       const text = `${normalize(it.title)} ${normalize(it.content)} ${normalize(it.source)}`;
-      return !wl.some((w) => text.includes(w));
+      return !blockedTerms.some((w) => text.includes(w));
     })
     : items;
   if (visibleItems.length === 0) return '';
