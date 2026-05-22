@@ -68,6 +68,11 @@ interface ModValidationReport {
 
 const api = () => (window as any).electron?.api || (window as any).electronAPI;
 
+const isMissingIpcHandlerError = (error: unknown, channel: string) => {
+  const message = String((error as any)?.message || error || '');
+  return message.includes(`No handler registered for '${channel}'`);
+};
+
 const severityColor = (s: string) => {
   switch (s) {
     case 'critical': return 'text-red-400';
@@ -158,11 +163,17 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
     try {
       // Prefer dedicated CK picker, then fallback to generic invoke and tool picker.
       if (typeof a.ckPickPlugin === 'function') {
-        const result = await a.ckPickPlugin();
-        if (result?.success && result.path) {
-          setSelectedPlugin(result.path);
-          toast.success('Plugin selected');
-          return;
+        try {
+          const result = await a.ckPickPlugin();
+          if (result?.success && result.path) {
+            setSelectedPlugin(result.path);
+            toast.success('Plugin selected');
+            return;
+          }
+        } catch (error) {
+          if (!isMissingIpcHandlerError(error, 'ck-crash-prevention:pick-plugin')) {
+            throw error;
+          }
         }
       }
 
@@ -252,14 +263,20 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
     if (!a) { toast.error('Desktop bridge not available'); return; }
     try {
       if (typeof a.ckPickModPackage === 'function') {
-        const picked = await a.ckPickModPackage();
-        if (picked?.success && picked.path) {
-          setModPackagePath(String(picked.path));
-          setModScanPath('');
-          setModScanReport(null);
-          setModScanError('');
-          toast.success('Mod package selected');
-          return;
+        try {
+          const picked = await a.ckPickModPackage();
+          if (picked?.success && picked.path) {
+            setModPackagePath(String(picked.path));
+            setModScanPath('');
+            setModScanReport(null);
+            setModScanError('');
+            toast.success('Mod package selected');
+            return;
+          }
+        } catch (error) {
+          if (!isMissingIpcHandlerError(error, 'ck-crash-prevention:pick-mod-package')) {
+            throw error;
+          }
         }
       }
 
@@ -542,9 +559,23 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
 
       let picked: { success?: boolean; path?: string } | null = null;
       if (typeof a.ckPickLogFile === 'function') {
-        picked = await a.ckPickLogFile();
+        try {
+          picked = await a.ckPickLogFile();
+        } catch (error) {
+          if (!isMissingIpcHandlerError(error, 'ck-crash-prevention:pick-log-file')) {
+            throw error;
+          }
+        }
       } else if (typeof a.invoke === 'function') {
         picked = await a.invoke('ck-crash-prevention:pick-log-file');
+      }
+
+      if ((!picked?.success || !picked.path) && typeof a.invoke === 'function') {
+        try {
+          picked = await a.invoke('ck-crash-prevention:pick-log-file');
+        } catch {
+          // Optional fallback channel may be unavailable in some runtime builds.
+        }
       }
 
       if (!picked?.success || !picked.path) {
@@ -1045,4 +1076,3 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
 };
 
 export default CKCrashPrevention;
-
