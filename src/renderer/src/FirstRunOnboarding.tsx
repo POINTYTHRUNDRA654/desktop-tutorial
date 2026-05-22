@@ -1102,8 +1102,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         setLanguageReady(true);
     };
 
-    const triggerScanTutorial = useCallback(() => {
-        if (scanTutorialStartedRef.current) return;
+    const triggerScanTutorial = useCallback((forceRetry = false) => {
+        if (scanTutorialStartedRef.current && !forceRetry) return;
         scanTutorialStartedRef.current = true;
         try {
             localStorage.setItem('mossy_force_scan_tutorial', 'true');
@@ -1125,9 +1125,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     if (Number.isFinite(ts)) {
                         setScanTutorialOpenedAt(new Date(ts).toLocaleTimeString());
                     }
+                } else {
+                    // Allow manual retries if auto-launch did not succeed.
+                    scanTutorialStartedRef.current = false;
                 }
             } catch {
                 // ignore
+                scanTutorialStartedRef.current = false;
             }
         }, 200);
     }, []);
@@ -1136,6 +1140,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         setStep('scanning');
         setScanProgress(10);
         setScanError(null); // Clear any previous error
+        setScanTutorialRequested(false);
+        setScanTutorialOpenedAt(null);
+        scanTutorialStartedRef.current = false;
+        try {
+            localStorage.removeItem('mossy_scan_tutorial_opened_at');
+        } catch {
+            // ignore
+        }
 
         if (shouldSpeak()) {
             void speakMossy('Starting system scan. While I scan, I will walk you through the tutorial so you can get oriented.', { cancelExisting: true });
@@ -1143,6 +1155,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         window.setTimeout(() => {
             triggerScanTutorial();
         }, 250);
+
+        let detectionProgressTimer: number | null = null;
 
         try {
             const api = getElectronApi();
@@ -1161,13 +1175,28 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             console.log('[FirstRunOnboarding] Calling getSystemInfo...');
             const systemInfo = await api.getSystemInfo();
             console.log('[FirstRunOnboarding] System info received:', systemInfo);
-            setScanProgress(30);
+            setScanProgress(25);
+
+            // Keep visible progress moving while program detection runs.
+            const detectStartedAt = Date.now();
+            detectionProgressTimer = window.setInterval(() => {
+                setScanProgress(prev => {
+                    if (prev >= 68) return prev;
+                    const elapsedMs = Date.now() - detectStartedAt;
+                    const elapsedProgress = 25 + Math.floor(elapsedMs / 300);
+                    return Math.max(prev, Math.min(68, elapsedProgress));
+                });
+            }, 150);
 
             // Detect all programs
             console.log('[FirstRunOnboarding] Calling detectPrograms...');
             const allDetectedApps = await api.detectPrograms();
             console.log('[FirstRunOnboarding] Detected programs:', allDetectedApps?.length || 0);
             setAllApps(allDetectedApps);
+            if (detectionProgressTimer !== null) {
+                window.clearInterval(detectionProgressTimer);
+                detectionProgressTimer = null;
+            }
             setScanProgress(70);
 
             // Check .NET Runtime — required by Spriggit and other .NET tools.
@@ -1333,6 +1362,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setStep('credits');
 
         } catch (error) {
+            if (detectionProgressTimer !== null) {
+                window.clearInterval(detectionProgressTimer);
+            }
             console.error('[FirstRunOnboarding] Scan failed:', error);
             const errorMessage = error instanceof Error ? error.message : String(error);
             setScanError(errorMessage);
@@ -1985,7 +2017,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 <div className="mt-6">
                                     <button
                                         type="button"
-                                        onClick={triggerScanTutorial}
+                                        onClick={() => triggerScanTutorial(true)}
                                         className="px-5 py-2 bg-emerald-600/30 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-100 rounded-lg text-sm font-semibold transition-colors"
                                     >
                                         Start walkthrough
