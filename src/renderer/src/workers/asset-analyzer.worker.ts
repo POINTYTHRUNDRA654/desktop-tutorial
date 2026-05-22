@@ -378,17 +378,6 @@ function analyzeESP(buffer: ArrayBuffer, filename: string): ESPAnalysis {
   // Add any absolute path issues collected during subrecord scan
   issues.push(...absoluteMeshIssues);
 
-  const hasFO4Master = masters.some(m => m.toLowerCase() === 'fallout4.esm');
-  if (!hasFO4Master && !isESM) {
-    issues.push({
-      category: 'Masters',
-      severity: 'error',
-      message: 'Missing Fallout4.esm Master — Plugin Will Not Load',
-      details: 'This plugin does not declare Fallout4.esm as a master file. Every non-base Fallout 4 plugin must list it as its first dependency. Without it the game will refuse to load the plugin.',
-      fix: 'In xEdit: open the plugin header → Master Files → add Fallout4.esm as the first entry. Save and re-test. If the plugin was created for a different game, it requires more extensive conversion.'
-    });
-  }
-
   const newRecordCount = hdrNextObjectId & 0x00FFFFFF;
   if (!isESL && !isESM && newRecordCount < 2048 && maxLocalFormId < 0x1000) {
     issues.push({

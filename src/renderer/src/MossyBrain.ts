@@ -1277,7 +1277,7 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n- **Quality Assurance & Asset Scanning (The Auditor (/auditor))**: This is your primary tool for plugin, mesh, texture, and material quality control. THE AUDITOR IS ESSENTIAL FOR MOD SCANNING AND REPAIR.' +
       '\n  **When to recommend The Auditor:**' +
       '\n  • User asks to "scan my mod", "check my plugin", "find issues in my ESP", "look for errors", "scan for problems", or anything about mod QA/integrity' +
-      '\n  • User mentions crashes, CTDs, deleted navmesh, precombines, FPS drops, missing masters, textures, meshes, materials, or asset issues' +
+      '\n  • User mentions crashes, CTDs, deleted navmesh, precombines, FPS drops, textures, meshes, materials, or asset issues' +
       '\n  • User wants to analyze an existing mod or plugin before packaging/uploading to Nexus' +
       '\n  • User is preparing a mod for release and wants a final integrity check' +
       '\n  **How to direct them — STEP BY STEP:**' +
@@ -1291,7 +1291,7 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  • Use the one-click "Open in xEdit / CK / NifSkope / Blender" buttons in The Auditor to launch the appropriate tool with the file loaded. Tell the user which button to click.' +
       '\n  • Deleted navmesh → xEdit: right-click record → Change FormID to new ID, or use Undelete and Disable References script.' +
       '\n  • Broken precombines → CK: rebuild previsibines for the affected cells, or install PRP if not already installed.' +
-      '\n  • Missing masters → only treat as a primary issue when the scan explicitly flags a broken plugin header (e.g., missing Fallout4.esm) or the user provided full load-order context. For single-plugin uploads, focus first on structural/plugin-quality issues.' +
+      '\n  • Missing masters → load-order context only. For single-plugin uploads, do not surface this as the primary issue; focus on structural/plugin-quality findings.' +
       '\n  • UDRs (deleted references) → xEdit Undelete and Disable References script (run on the plugin).' +
       '\n  • Absolute mesh paths → xEdit: find MODEL subrecords, remove the drive-letter prefix so paths are relative.' +
       '\n  • ESL eligibility → xEdit: Compact FormIDs for ESL → add ESL flag in plugin header.' +
@@ -1304,7 +1304,7 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  • **Deleted References (REFR/ACHR)** — UDR detection with xEdit Undelete script instructions.' +
       '\n  • **Papyrus Scripts (VMAD)** — extracts script names, flags F4SE dependencies, checks for missing .pex files.' +
       '\n  • **Absolute Mesh Paths** — detects hardcoded drive-letter paths in MODEL subrecords.' +
-      '\n  • **Missing Masters (context-aware)** — only actionable when plugin-header dependency data is clearly invalid or full load-order context is available.' +
+      '\n  • **Load-order dependencies** — evaluate master/dependency gaps only when analyzing a full load order.' +
       '\n  • **ESL Eligibility** — checks if the plugin can be light-flagged to save a load order slot.' +
       '\n  • **File Size** — flags oversized plugins with optimization guidance.' +
       '\n  • **NIF meshes**: Vertex/triangle counts, absolute texture paths, block integrity.' +
@@ -1323,7 +1323,7 @@ export const getFullSystemInstruction = (contextStr?: string): string => {
       '\n  • **Deleted navmesh (NAVM)** — Must use xEdit "Change FormID" on specific [D] records.' +
       '\n  • **Broken precombines** — Must rebuild in CK or install PRP.' +
       '\n  • **Absolute mesh paths** — Must edit MODEL subrecords in xEdit to remove drive-letter prefix.' +
-      '\n  • **Missing masters** — Only prescribe this when scan output explicitly confirms an invalid plugin-header dependency.' +
+      '\n  • **Missing masters** — treat this as a load-order diagnosis item, not a standalone plugin-upload blocker.' +
       '\n  • **DDS texture compression** — Must re-export in GIMP/Photopea with correct DXT format.' +
       '\n  • **NIF mesh issues** — Must edit in NifSkope or Blender.' +
       '\n  NEVER claim to have fixed something unless I actually called `apply_esp_fix` and it returned success. For everything else, provide exact manual instructions.' +
@@ -12968,7 +12968,6 @@ Mossy is a desktop AI assistant for Fallout 4 modding. I run as an Electron desk
 Beyond FO4-specific tuning, Mossy can help with general PC gaming performance: Thermal paste replacement: every 3–5 years on CPU/GPU die. Arctic MX-6 or Thermal Grizzly Kryonaut recommended. Badly dried paste can cause CPU to thermal throttle at 90°C+ reducing performance 20–40%. RAM XMP/EXPO profile: enable in BIOS (XMP for Intel, EXPO for AMD) — unoptimized DDR4/DDR5 runs at 2133 MHz by default, XMP enables rated speed (3200–7200 MHz). 3200MHz DDR4 vs 2133MHz: ~15% gaming FPS difference in CPU-bound scenarios. Dual-channel: ALWAYS populate both RAM slots (slot 2 + slot 4 for most boards) — dual-channel nearly doubles memory bandwidth. CPU overclocking: Intel Z-series motherboard + K-series CPU required. AMD Ryzen: PBO (Precision Boost Overdrive) + auto-OC safe for most users. GPU overclocking: MSI Afterburner → +150 MHz core clock (conservative), +500 MHz VRAM (try 1000 MHz for GDDR6X — lower if artifacts). NVIDIA Resizable BAR / AMD Smart Access Memory: enable in BIOS UEFI (UEFI mode, not Legacy) → improves GPU frame buffer access for VRAM-bound games 5–15%. DirectX 12 vs 11 in FO4: FO4 is DX11 — DX12 wrapper (DXVK) can improve CPU overhead but may introduce compatibility issues. Monitor settings: calibrate display profile (ICC profile from manufacturer); ensure 144Hz/165Hz/240Hz is actually set in Windows Display Settings → Advanced Display → Refresh Rate. VSync: NEVER use VSync in-game with FO4 + ENB — use NVIDIA Control Panel Adaptive Sync or FastSync at GPU driver level, or cap framerate with RivaTuner to target-5 (e.g. 141 for 144Hz monitor). Frame generation (DLSS 3+ / FSR 3): adds latency of 1 frame — not recommended for competitive games; acceptable for FO4 single-player. GPU undervolting: reduces heat + power consumption without performance loss — use Afterburner Curve Editor to find stable minimum voltage at max boost clock.
 
 `;
-
 
 
 
