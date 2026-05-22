@@ -677,11 +677,24 @@ Enhanced with Mossy v5.4.41
     const MAX_SCAN_DEPTH = 10;
 
     const sanitizeRelativePath = (relativePath: string): string => {
-      const normalized = relativePath
-        .replace(/\\/g, '/')
-        .replace(/^\/+/, '')
-        .replace(/^data\//i, '');
+      const decoded = (() => {
+        try {
+          return decodeURIComponent(relativePath);
+        } catch {
+          return relativePath;
+        }
+      })();
+      const normalized = path.posix.normalize(decoded.replace(/\\/g, '/'));
+      if (
+        normalized.startsWith('/') ||
+        normalized === '..' ||
+        normalized.startsWith('../')
+      ) {
+        return '';
+      }
       return normalized
+        .replace(/^\/+/, '')
+        .replace(/^data\//i, '')
         .split('/')
         .filter((segment) => segment && segment !== '.' && segment !== '..')
         .join('/');
@@ -693,7 +706,8 @@ Enhanced with Mossy v5.4.41
       let entries: fs.Dirent[];
       try {
         entries = fs.readdirSync(dirPath, { withFileTypes: true });
-      } catch {
+      } catch (error) {
+        console.warn(`[Bethel] Skipping unreadable directory while collecting plugins: ${dirPath}`, error);
         return;
       }
 
