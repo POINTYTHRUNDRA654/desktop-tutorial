@@ -143,8 +143,19 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
 
   const unwrapModReport = (raw: any): ModValidationReport | null => {
     if (!raw) return null;
+    const looksLikeReport = (value: any): value is ModValidationReport => {
+      return Boolean(
+        value &&
+        typeof value === 'object' &&
+        typeof value.modPath === 'string' &&
+        typeof value.totalFiles === 'number' &&
+        Array.isArray(value.issues)
+      );
+    };
     if (raw?.success === true && raw?.data?.report) return raw.data.report as ModValidationReport;
+    if (raw?.success === true && looksLikeReport(raw?.data)) return raw.data as ModValidationReport;
     if (raw?.report) return raw.report as ModValidationReport;
+    if (looksLikeReport(raw)) return raw as ModValidationReport;
     return null;
   };
 
