@@ -34,10 +34,38 @@ import { speakMossy } from './mossyTts';
 
 // Map a tutorial pageId to its visual guide image asset with alias fallbacks for legacy ids
 const resolveImageUrl = (filename: string): string => {
-  // In Vite/Electron, images in public/ are served from dist root in production
-  // Use relative path with ./ to work with file:// protocol in packaged Electron app
-  // In development, both absolute and relative paths work, but relative is safer
-  return `./visual-guide-images/${filename}`;
+  const encoded = encodeURIComponent(filename);
+  // file:// packaged builds resolve best with relative paths; dev/prod HTTP uses root-relative.
+  if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+    return `./visual-guide-images/${encoded}`;
+  }
+  return `/visual-guide-images/${encoded}`;
+};
+
+const legacyVisualGuideImagesByPage: Partial<Record<number, string>> = {
+  1: 'Page 1 Mossy Space.png',
+  2: 'Page 2 AI Chat.png',
+  3: 'Page 3 AI Mod Assistant.png',
+  4: 'Page 4 FO4 Mod Journey Hub.png',
+  5: 'Page 5 FO4 What`s New.png',
+  6: 'Page 6 FO4 Knowledge Hub.png',
+  7: 'Page 7 FO4 Memory Vault.png',
+  8: 'Page 8 FO4 Setup Wizards.png',
+  9: 'Page 9 FO4 Creation Kit Hub.png',
+  10: 'Page 10 FO4 Textures & Materials.png',
+  11: 'Page 11 FO4 Packaging & Release.png',
+  12: 'Page 12 FO4 Guides Hub.png',
+  13: 'Page 13 FO4 Automation Studio.png',
+  14: 'Page 14 FO4 Mod Builder Hub.png',
+  15: 'Page 15 FO4 Asset Analysis Hub.png',
+  16: 'Page 16 FO4 Automation Orchestrator.png',
+  17: 'Page 17 FO4 Automation Runner.png',
+  18: 'Page 18 FO4 Runtime Hub.png',
+  19: 'Page 19 FO4 External Intergrations Hub.png',
+  20: 'Page 20 FO4 Plugin & Load Order Hub.png',
+  21: 'Page 21 FO4 System & Diagnostics Hub.png',
+  22: 'Page 22 Settings.png',
+  23: 'Page 23 Guided Tours.png',
 };
 
 const getImageForPage = (pageId: keyof typeof imageMap | string): string | undefined => {
@@ -85,6 +113,12 @@ const getImageForPage = (pageId: keyof typeof imageMap | string): string | undef
 
   const resolvedId = (imageMap as Record<string, string>)[pageId] ? (pageId as keyof typeof imageMap) : alias[pageId];
   const filename = resolvedId ? imageMap[resolvedId] : missingImages[pageId];
+  return filename ? resolveImageUrl(filename) : undefined;
+};
+
+const getLegacyImageForVisualGuidePage = (visualGuidePage?: number): string | undefined => {
+  if (!visualGuidePage) return undefined;
+  const filename = legacyVisualGuideImagesByPage[visualGuidePage];
   return filename ? resolveImageUrl(filename) : undefined;
 };
 
@@ -224,7 +258,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       route: '/',
       action: 'Get familiar with The Nexus dashboard — your home base',
       icon: <Home className="w-8 h-8" />,
-      image: getImageForPage('mossy-space'),
+        image: getImageForPage('mossy-space') ?? getLegacyImageForVisualGuidePage(1),
     },
     // Dynamically generate steps from tutorial contexts
     ...orderedContexts.map((context, index) => {
@@ -236,7 +270,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
         route: context.route,
         action: `Explore ${context.pageName} and try the main features`,
         icon: getIconForPage(context.pageId),
-        image: getImageForPage(context.pageId as keyof typeof imageMap),
+        image: getImageForPage(context.pageId as keyof typeof imageMap) ?? getLegacyImageForVisualGuidePage(context.visualGuidePage),
       };
     }),
     {
@@ -247,7 +281,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       route: '/',
       action: 'Start exploring — try the Chat or Learning Hub first!',
       icon: <CheckCircle2 className="w-8 h-8" />,
-      image: getImageForPage('mossy-space'),
+      image: getImageForPage('mossy-space') ?? getLegacyImageForVisualGuidePage(1),
     },
   ];
 
