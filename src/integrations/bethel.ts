@@ -38,6 +38,11 @@ export interface BethelJob {
   expiresAt?: number; // Auto-cleanup after 7 days
 }
 
+interface PluginFileEntry {
+  sourcePath: string;
+  dataRelativePath: string;
+}
+
 /**
  * Bethel job registry - in-memory + persistent
  */
@@ -313,6 +318,7 @@ export class BethelIntegration {
         exportPath = await this.createFOMODPackage(
           jobId,
           job.modName,
+          job.modPath,
           enhancedDir,
           exportsDir,
           job.textureStats
@@ -320,6 +326,7 @@ export class BethelIntegration {
       } else {
         // Default to ZIP
         exportPath = await this.createZIPPackage(
+          job.modPath,
           enhancedDir,
           exportsDir,
           exportName,
@@ -354,6 +361,7 @@ export class BethelIntegration {
    * Create ZIP package from enhanced mod
    */
   private async createZIPPackage(
+    modPath: string,
     enhancedDir: string,
     exportsDir: string,
     exportName: string,
@@ -388,6 +396,12 @@ export class BethelIntegration {
       // Add all enhanced textures
       archive.directory(enhancedDir, 'Data');
 
+      // Preserve original plugin files so the exported package remains installable
+      const pluginFiles = this.collectPluginFiles(modPath);
+      for (const pluginFile of pluginFiles) {
+        archive.file(pluginFile.sourcePath, { name: `Data/${pluginFile.dataRelativePath}` });
+      }
+
       // Add README
       const readme = this.generateModReadme(manifest);
       archive.append(readme, { name: 'README.txt' });
@@ -402,6 +416,7 @@ export class BethelIntegration {
   private async createFOMODPackage(
     jobId: string,
     modName: string,
+    modPath: string,
     enhancedDir: string,
     exportsDir: string,
     textureStats?: TextureAnalysis
@@ -427,6 +442,14 @@ export class BethelIntegration {
         // Copy enhanced textures to Data directory
         const dataDir = path.join(fomodDir, 'Data');
         this.copyDirectory(enhancedDir, dataDir);
+
+        // Preserve original plugin files so full mod exports keep ESP/ESM/ESL content
+        const pluginFiles = this.collectPluginFiles(modPath);
+        for (const pluginFile of pluginFiles) {
+          const targetPath = path.join(dataDir, ...pluginFile.dataRelativePath.split('/'));
+          fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+          fs.copyFileSync(pluginFile.sourcePath, targetPath);
+        }
 
         // Create the FOMOD archive
         const fomodZipPath = path.join(
@@ -643,6 +666,62 @@ Enhanced with Mossy v5.4.41
       return fs.createReadStream(job.enhancedModPath);
     }
     return null;
+  }
+
+  /**
+   * Collect ESP/ESM/ESL files from the original mod folder for final packaging.
+   */
+  private collectPluginFiles(modPath: string): PluginFileEntry[] {
+    const pluginFiles: PluginFileEntry[] = [];
+    const pluginExtensions = new Set(['.esp', '.esm', '.esl']);
+    const MAX_SCAN_DEPTH = 10;
+
+    const sanitizeRelativePath = (relativePath: string): string => {
+      const normalized = relativePath
+        .replace(/\\/g, '/')
+        .replace(/^\/+/, '')
+        .replace(/^data\//i, '');
+      return normalized
+        .split('/')
+        .filter((segment) => segment && segment !== '.' && segment !== '..')
+        .join('/');
+    };
+
+    const scanDirectory = (dirPath: string, depth = 0): void => {
+      if (depth > MAX_SCAN_DEPTH) return;
+
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      } catch {
+        return;
+      }
+
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === '.mossy_enhanced') continue;
+          scanDirectory(fullPath, depth + 1);
+          continue;
+        }
+
+        if (!entry.isFile()) continue;
+        const ext = path.extname(entry.name).toLowerCase();
+        if (!pluginExtensions.has(ext)) continue;
+
+        const relativeFromRoot = path.relative(modPath, fullPath);
+        const dataRelativePath = sanitizeRelativePath(relativeFromRoot);
+        if (!dataRelativePath) continue;
+
+        pluginFiles.push({
+          sourcePath: fullPath,
+          dataRelativePath,
+        });
+      }
+    };
+
+    scanDirectory(modPath);
+    return pluginFiles;
   }
 }
 
