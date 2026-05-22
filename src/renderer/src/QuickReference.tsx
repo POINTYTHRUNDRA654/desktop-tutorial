@@ -413,7 +413,7 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
                             )}
                           </div>
                           {isOpen && (
-                            <div id={`${itemId}-details`}>
+                            <div id={`quick-ref-${itemId}-details`}>
                               <p className="text-sm text-slate-300">{item.description}</p>
                               {item.example && (
                                 <pre className="mt-2 text-xs font-mono text-slate-400 bg-slate-950 p-2 rounded border border-slate-800 overflow-x-auto">
@@ -428,7 +428,7 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
                           className="shrink-0 text-slate-500 hover:text-emerald-400 transition-colors"
                           title={isOpen ? 'Hide item details' : 'Open item details'}
                           aria-expanded={isOpen}
-                          aria-controls={`${itemId}-details`}
+                          aria-controls={`quick-ref-${itemId}-details`}
                           aria-label={isOpen ? `Hide details for ${item.name}` : `Open details for ${item.name}`}
                         >
                           {isOpen
