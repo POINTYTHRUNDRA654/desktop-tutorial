@@ -578,8 +578,10 @@ async function checkVCRedistInstalled(): Promise<InstalledProgram | null> {
     try {
       const { stdout } = await execAsync(`reg query "${hive}" /f "Microsoft Visual C++" /s /t REG_SZ /v DisplayName`, { timeout: 8000 });
       if (stdout && stdout.toLowerCase().includes('microsoft visual c++')) {
-        // Extract a version hint from the output if available
-        const versionMatch = stdout.match(/Microsoft Visual C\+\+ (\d{4}[^"]*?)(?:\s+\(|"|$)/i);
+        // Extract the year from the first matching DisplayName line (e.g. "2022", "2015-2022").
+        // Anchoring to the 4-digit year avoids false-positives from parenthesised arch
+        // suffixes like "(x64)" that may appear later on the same line.
+        const versionMatch = stdout.match(/Microsoft Visual C\+\+\s+((?:\d{4})(?:-\d{4})?)/i);
         const versionHint = versionMatch ? versionMatch[1].trim() : '';
         console.log(`[Program Detection] Visual C++ Redistributable confirmed via registry (${hive})`);
         return {
