@@ -33,7 +33,7 @@ import { GlobalSearch } from './GlobalSearch';
 import { useWhatsNew } from './WhatsNewDialog';
 import WhatsNewPage from './WhatsNewPage';
 import { getPublicAssetUrl } from './utils/publicAssetUrl';
-import { createInteractiveTutorialLauncher } from './tutorialLaunch';
+import { createInteractiveTutorialLauncher } from './interactiveTutorialLaunch';
 import {
   backupCriticalProgressSnapshotSync,
   backupCriticalProgressToDisk,

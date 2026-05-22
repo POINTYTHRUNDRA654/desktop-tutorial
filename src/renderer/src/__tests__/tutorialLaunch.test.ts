@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createInteractiveTutorialLauncher,
   resolveInteractiveTutorialReturnHash,
-} from '../tutorialLaunch';
+} from '../interactiveTutorialLaunch';
 
 describe('tutorialLaunch', () => {
   it('opens the overlay when first-run becomes active after the launcher is created', () => {
