@@ -5,8 +5,7 @@ import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useI18n } from './i18n';
 import { openExternal } from './utils/openExternal';
 import { getPublicAssetUrl } from './utils/publicAssetUrl';
-
-type WizardTopic = 'xedit' | 'ss2' | 'prp' | 'patching';
+import { installWizardBuiltInLinks, type InstallWizardTopic } from './installWizardResources';
 
 type WizardStep = {
   id: string;
@@ -22,7 +21,7 @@ type WizardSection = {
 };
 
 type WizardState = {
-  topic: WizardTopic;
+  topic: InstallWizardTopic;
   checked: Record<string, boolean>; // key = `${topic}:${sectionId}:${stepId}`
   modManager: 'mo2' | 'vortex' | 'manual';
 };
@@ -103,35 +102,11 @@ const vaultKey = (item: KnowledgeVaultItem) => {
   return `t:${title.toLowerCase()}|c:${content.slice(0, 160).toLowerCase()}`;
 };
 
-const topicKeywords: Record<WizardTopic, string[]> = {
+const topicKeywords: Record<InstallWizardTopic, string[]> = {
   xedit: ['xedit', 'fo4edit', 'apply script', 'edit scripts', 'conflict', 'override'],
   ss2: ['ss2', 'sim settlements 2', 'plot', 'plot building', 'city plan', 'workshop framework'],
   prp: ['prp', 'previs', 'precombine', 'previsibines repair pack', 'optimization', 'pjm', 'pjmscripts', 'patching scripts', 'fo4check_previsbines'],
   patching: ['patch', 'patches', 'conflict', 'load order', 'merge', 'override', 'xedit'],
-};
-
-const builtInLinks: Record<WizardTopic, Array<{ label: string; url: string; note?: string }>> = {
-  xedit: [
-    { label: 'xEdit (GitHub repository)', url: 'https://github.com/TES5Edit/TES5Edit', note: 'Primary upstream source for xEdit/FO4Edit builds.' },
-  ],
-  ss2: [
-    { label: 'Sim Settlements 2 (official site)', url: 'https://simsettlements2.com', note: 'Official hub; downloads are typically linked from there.' },
-    { label: "SS2 Add-On Maker's Toolkit (Nexus #48521)", url: 'https://www.nexusmods.com/fallout4/mods/48521', note: 'Beginner-focused toolkit with guided tutorials and helper files.' },
-    { label: 'Wasteland Reconstruction Kit (Nexus #48960)', url: 'https://www.nexusmods.com/fallout4/mods/48960', note: '10,000+ SS2-ready buildable assets and prefab resources.' },
-    { label: 'City Plan Contest Assistant (Nexus #50366)', url: 'https://www.nexusmods.com/fallout4/mods/50366', note: 'Contest-focused utility for fast setup, checks, and export helpers.' },
-    { label: 'SS2 Wiki Tutorials', url: 'https://wiki.simsettlements2.com', note: 'Core docs and learning references.' },
-    { label: 'Bethesda Mod School / SS2 videos', url: 'https://www.youtube.com/results?search_query=Bethesda+Mod+School+Sim+Settlements+2', note: 'Video learning path for beginners and visual learners.' },
-    { label: 'Nexus search: Sim Settlements 2', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=Sim%20Settlements%202&gsearchtype=mods', note: 'Search results in case you install via Nexus.' },
-  ],
-  prp: [
-    { label: "PJM's Previs Patching Scripts (Nexus #69978)", url: 'https://www.nexusmods.com/fallout4/mods/69978', note: 'By PJMail. V4.9 PJMScripts bundle (Feb 2026). Manual download ONLY — do NOT use a mod manager. Also grab every file under the "Updated Files" tab to replace older copies.' },
-    { label: 'CKPE — Creation Kit Platform Extended (Nexus #51165)', url: 'https://www.nexusmods.com/fallout4/mods/51165', note: 'Credit/source: Creation Kit Platform Extended by perchik71 (Nexus #51165). Open-source CK fixes/enhancements project; manual install to Fallout4/CreationKit folder. Requires FO4 CK + Microsoft Visual C++ 2022 Redistributable (x64).'},
-    { label: 'Nexus search: PRP', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=PRP&gsearchtype=mods', note: 'Search for "Previsibines Repair Pack (PRP)".' },
-    { label: 'Nexus search: Previsibines Repair Pack', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=Previsibines%20Repair%20Pack&gsearchtype=mods' },
-  ],
-  patching: [
-    { label: 'Nexus search: xEdit scripts', url: 'https://www.nexusmods.com/fallout4/search/?gsearch=xEdit%20script&gsearchtype=mods', note: 'Useful for automation scripts and helpers.' },
-  ],
 };
 
 const openUrl = (url: string) => {
@@ -313,7 +288,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
     return uniq(urls).slice(0, 12);
   }, [vault, state.topic]);
 
-  const toggleChecked = (topic: WizardTopic, sectionId: string, stepId: string) => {
+  const toggleChecked = (topic: InstallWizardTopic, sectionId: string, stepId: string) => {
     const key = `${topic}:${sectionId}:${stepId}`;
     setState((s) => ({
       ...s,
@@ -321,7 +296,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
     }));
   };
 
-  const isChecked = (topic: WizardTopic, sectionId: string, stepId: string) => {
+  const isChecked = (topic: InstallWizardTopic, sectionId: string, stepId: string) => {
     const key = `${topic}:${sectionId}:${stepId}`;
     return !!state.checked[key];
   };
@@ -887,7 +862,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
   } as const;
 
   const activeMeta = topicMeta[state.topic];
-  const topicOptions: Array<{ id: WizardTopic; label: string }> = [
+  const topicOptions: Array<{ id: InstallWizardTopic; label: string }> = [
     { id: 'xedit', label: t('installWizard.topicSelector.xedit', 'xEdit / FO4Edit') },
     { id: 'ss2', label: t('installWizard.topicSelector.ss2', 'Sim Settlements 2') },
     { id: 'prp', label: t('installWizard.topicSelector.prp', 'PRP (Previs/Precombine)') },
@@ -1037,7 +1012,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               </div>
 
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                {builtInLinks[state.topic].map((l) => (
+                {installWizardBuiltInLinks[state.topic].map((l) => (
                   <button
                     key={l.url}
                     type="button"

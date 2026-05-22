@@ -1,3 +1,5 @@
+import { installWizardResources } from './installWizardResources';
+
 export type KnowledgeVaultItem = {
   id?: string;
   title?: string;
@@ -136,6 +138,42 @@ const scoreItem = (item: KnowledgeVaultItem, keywords: string[]): number => {
   return score;
 };
 
+const getInstallWizardKnowledgeItems = (): KnowledgeVaultItem[] => {
+  return Object.entries(installWizardResources).flatMap(([topic, resources]) =>
+    resources.map((resource, index) => ({
+      id: `install-wizard-${topic}-${index}`,
+      title: resource.label,
+      content: `${resource.content}${resource.note ? ` Source note: ${resource.note}` : ''}`,
+      source: resource.url,
+      creditName: 'Mossy Install Wizard',
+      trustLevel: 'official' as const,
+      tags: Array.from(new Set([...resource.tags, topic, 'downloads', 'sources'])),
+      status: 'built-in',
+    }))
+  );
+};
+
+const filterVisibleKnowledgeItems = (items: KnowledgeVaultItem[], excludeTerms?: string[]): KnowledgeVaultItem[] => {
+  const blockedTerms = (excludeTerms || []).map((w) => normalize(w)).filter(Boolean);
+  if (blockedTerms.length === 0) return items;
+
+  return items.filter((it) => {
+    const text = `${normalize(it.title)} ${normalize(it.content)} ${normalize(it.source)}`;
+    return !blockedTerms.some((w) => text.includes(w));
+  });
+};
+
+const rankKnowledgeItems = (items: KnowledgeVaultItem[], keywords: string[], maxItems: number): KnowledgeVaultItem[] => {
+  if (keywords.length === 0) return items.slice(-maxItems).reverse();
+
+  return items
+    .map((it) => ({ it, s: scoreItem(it, keywords) }))
+    .sort((a, b) => b.s - a.s)
+    .filter((x) => x.s > 0)
+    .slice(0, Math.max(maxItems, 3))
+    .map((x) => x.it);
+};
+
 export const loadKnowledgeVault = (): KnowledgeVaultItem[] => {
   return safeParse(typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null);
 };
@@ -201,28 +239,18 @@ export const getRelevantKnowledgeVaultItems = (
   query: string,
   opts?: { maxItems?: number; excludeTerms?: string[] }
 ): KnowledgeCitation[] => {
-  const items = loadKnowledgeVault();
-  if (items.length === 0) return [];
-  const blockedTerms = (opts?.excludeTerms || []).map((w) => normalize(w)).filter(Boolean);
-  const visibleItems = blockedTerms.length
-    ? items.filter((it) => {
-      const text = `${normalize(it.title)} ${normalize(it.content)} ${normalize(it.source)}`;
-      return !blockedTerms.some((w) => text.includes(w));
-    })
-    : items;
-  if (visibleItems.length === 0) return [];
-
   const maxItems = opts?.maxItems ?? 6;
   const keywords = extractKeywords(query);
-
-  const ranked = keywords.length
-    ? visibleItems
-      .map((it) => ({ it, s: scoreItem(it, keywords) }))
-      .sort((a, b) => b.s - a.s)
-      .filter((x) => x.s > 0)
-      .slice(0, Math.max(maxItems, 3))
-      .map((x) => x.it)
-    : visibleItems.slice(-maxItems).reverse();
+  const visibleItems = filterVisibleKnowledgeItems(loadKnowledgeVault(), opts?.excludeTerms);
+  const visibleInstallWizardItems = keywords.length
+    ? filterVisibleKnowledgeItems(getInstallWizardKnowledgeItems(), opts?.excludeTerms)
+    : [];
+  const ranked = rankKnowledgeItems(
+    [...visibleItems, ...visibleInstallWizardItems],
+    keywords,
+    maxItems
+  );
+  if (ranked.length === 0) return [];
 
   return ranked.slice(0, maxItems).map((it) => ({
     title: String(it.title || 'Untitled').trim(),
@@ -239,35 +267,22 @@ export const buildRelevantKnowledgeVaultContext = (query: string, opts?: {
   maxChars?: number;
   excludeTerms?: string[];
 }): string => {
-  const items = loadKnowledgeVault();
-  if (items.length === 0) return '';
-  const blockedTerms = (opts?.excludeTerms || []).map((w) => normalize(w)).filter(Boolean);
-  const visibleItems = blockedTerms.length
-    ? items.filter((it) => {
-      const text = `${normalize(it.title)} ${normalize(it.content)} ${normalize(it.source)}`;
-      return !blockedTerms.some((w) => text.includes(w));
-    })
-    : items;
-  if (visibleItems.length === 0) return '';
-
   const maxItems = opts?.maxItems ?? 8;
   const maxChars = opts?.maxChars ?? 5000;
-
   const keywords = extractKeywords(query);
-
-  // If query has no useful keywords, just show recent titles
-  const ranked = keywords.length
-    ? visibleItems
-      .map((it) => ({ it, s: scoreItem(it, keywords) }))
-      .sort((a, b) => b.s - a.s)
-      .filter((x) => x.s > 0)
-      .slice(0, Math.max(maxItems, 3))
-      .map((x) => x.it)
-    : visibleItems.slice(-maxItems).reverse();
+  const visibleItems = filterVisibleKnowledgeItems(loadKnowledgeVault(), opts?.excludeTerms);
+  const visibleInstallWizardItems = keywords.length
+    ? filterVisibleKnowledgeItems(getInstallWizardKnowledgeItems(), opts?.excludeTerms)
+    : [];
+  const ranked = rankKnowledgeItems(
+    [...visibleItems, ...visibleInstallWizardItems],
+    keywords,
+    maxItems
+  );
 
   if (ranked.length === 0) {
-    // No keyword matches; show small recent index
     const recent = visibleItems.slice(-maxItems).reverse();
+    if (recent.length === 0) return '';
     const list = recent
       .map((it) => `- ${String(it.title || 'Untitled').trim()}`)
       .join('\n');
