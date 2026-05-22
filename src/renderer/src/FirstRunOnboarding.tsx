@@ -633,6 +633,56 @@ interface ToolRecommendation {
     boostsMossy: boolean;
 }
 
+const loadStoredToolChoices = (): Record<string, boolean> => {
+    try {
+        const parseJson = (raw: string | null) => {
+            try {
+                return JSON.parse(raw || 'null');
+            } catch {
+                return null;
+            }
+        };
+        const isRecord = (value: unknown): value is Record<string, unknown> => (
+            typeof value === 'object' && value !== null && !Array.isArray(value)
+        );
+
+        const storedPrefsRaw = parseJson(localStorage.getItem('mossy_tool_preferences'));
+        const storedPrefs = isRecord(storedPrefsRaw) ? storedPrefsRaw : {};
+        const fromPrefs = Object.fromEntries(
+            Object.entries(storedPrefs).filter(([, value]) => typeof value === 'boolean')
+        ) as Record<string, boolean>;
+
+        const integratedToolsRaw = parseJson(localStorage.getItem('mossy_integrated_tools'));
+        const integratedTools = Array.isArray(integratedToolsRaw) ? integratedToolsRaw : [];
+        const fromIntegrated = Array.isArray(integratedTools)
+            ? Object.fromEntries(
+                integratedTools
+                    .map((tool: any) => tool?.name)
+                    .filter((name: unknown): name is string => typeof name === 'string' && name.length > 0)
+                    .map((name: string) => [name, true])
+            )
+            : {};
+
+        const approvedAppsRaw = parseJson(localStorage.getItem('mossy_apps'));
+        const approvedApps = Array.isArray(approvedAppsRaw) ? approvedAppsRaw : [];
+        const fromApprovedApps = Array.isArray(approvedApps)
+            ? Object.fromEntries(
+                approvedApps
+                    .filter((app: any) => app?.checked === true && typeof app?.name === 'string' && app.name.length > 0)
+                    .map((app: any) => [app.name, true])
+            )
+            : {};
+
+        return {
+            ...fromPrefs,
+            ...fromIntegrated,
+            ...fromApprovedApps,
+        };
+    } catch {
+        return {};
+    }
+};
+
 /** Delay (ms) before calling onComplete after the "complete" screen appears. */
 const COMPLETE_TRANSITION_DELAY_MS = 2000;
 /** Shorter delay when Spriggit digest already ran — the user just clicked Continue. */
@@ -648,7 +698,7 @@ const DOTNET_STILL_NOT_DETECTED_MSG = '⚠️ Still not detected — try restart
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
-    const [step, setStep] = useState<'edition' | 'welcome' | 'version' | 'scanning' | 'credits' | 'lists' | 'recommendations' | 'downloads' | 'spriggit-digest' | 'complete'>('edition');
+    const [step, setStep] = useState<'edition' | 'welcome' | 'version' | 'scanning' | 'credits' | 'lists' | 'recommendations' | 'downloads' | 'spriggit-digest' | 'identity' | 'complete'>('edition');
     const [fo4Version, setFo4Version] = useState<string>(() => {
         try { return localStorage.getItem('mossy_fo4_version') || ''; } catch { return ''; }
     });
@@ -657,7 +707,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [recommendations, setRecommendations] = useState<ToolRecommendation[]>([]);
     const [filteredRecommendations, setFilteredRecommendations] = useState<ToolRecommendation[]>([]);
     const [allApps, setAllApps] = useState<any[]>([]);
-    const [userChoices, setUserChoices] = useState<Record<string, boolean>>({});
+    const [userChoices, setUserChoices] = useState<Record<string, boolean>>(() => loadStoredToolChoices());
     const [showAllPrograms, setShowAllPrograms] = useState(false);
     const [showTutorialVideo, setShowTutorialVideo] = useState(false);
     const hasSpokenIntro = useRef(false);
@@ -677,6 +727,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     // Scan error state
     const [scanError, setScanError] = useState<string | null>(null);
     const [scanRetryCount, setScanRetryCount] = useState(0);
+    const [preferredName, setPreferredName] = useState<string>('Vault Dweller');
+    const [memoryStorageMode, setMemoryStorageMode] = useState<'userData' | 'custom'>('userData');
+    const [memoryStoragePath, setMemoryStoragePath] = useState<string>('');
+    const [identityError, setIdentityError] = useState<string | null>(null);
 
     // Spriggit digest step state
     const [spriggitCliPath, setSpriggitCliPath] = useState('');
@@ -999,6 +1053,17 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         };
     }, [setUiLanguagePref]);
 
+    useEffect(() => {
+        const api = getElectronApi();
+        if (!api?.getSettings) return;
+        void api.getSettings().then((s: any) => {
+            setPreferredName(String(s?.userPreferredName || 'Vault Dweller').trim() || 'Vault Dweller');
+            const mode = String(s?.memoryStorageMode || 'userData').toLowerCase() === 'custom' ? 'custom' : 'userData';
+            setMemoryStorageMode(mode);
+            setMemoryStoragePath(String(s?.memoryStoragePath || '').trim());
+        }).catch(() => { /* ignore */ });
+    }, []);
+
     const applyLanguage = async (value: string) => {
         setUiLanguage(value);
 
@@ -1259,6 +1324,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setScanProgress(100);
             setRecommendations(recs);
             setFilteredRecommendations(recs);
+            setUserChoices(prev => ({
+                // Stored choices are the baseline; preserve in-session toggles on top.
+                ...loadStoredToolChoices(),
+                ...prev
+            }));
             setScanRetryCount(0); // Reset retry count on success
             setStep('credits');
 
@@ -1545,8 +1615,38 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         }
     };
 
-    /** Advance from the spriggit-digest step to complete, using a shorter delay if the digest ran. */
+    const saveIdentitySettings = async () => {
+        const name = preferredName.trim() || 'Vault Dweller';
+        if (memoryStorageMode === 'custom' && !memoryStoragePath.trim()) {
+            setIdentityError('Please specify a custom storage path.');
+            return false;
+        }
+        setIdentityError(null);
+        const api = getElectronApi();
+        if (api?.setSettings) {
+            try {
+                const current = await api.getSettings?.();
+                await api.setSettings({
+                    ...(current || {}),
+                    userPreferredName: name,
+                    memoryStorageMode,
+                    memoryStoragePath: memoryStorageMode === 'custom' ? memoryStoragePath.trim() : '',
+                });
+            } catch (e) {
+                console.warn('[FirstRunOnboarding] Failed to save identity settings:', e);
+            }
+        }
+        return true;
+    };
+
+    /** Advance from the spriggit-digest step to identity prompt. */
     const handleSpriggitContinue = () => {
+        setStep('identity');
+    };
+
+    const handleIdentityContinue = async () => {
+        const ok = await saveIdentitySettings();
+        if (!ok) return;
         setStep('complete');
         setTimeout(onComplete, (spriggitFileCount > 0 || spriggitStatus === 'partial') ? SPRIGGIT_DONE_TRANSITION_DELAY_MS : COMPLETE_TRANSITION_DELAY_MS);
     };
@@ -3249,6 +3349,69 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 className="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-slate-200 rounded-lg font-semibold transition-colors"
                             >
                                 {(spriggitStatus === 'done' || spriggitStatus === 'partial') ? <><Check className="w-5 h-5 inline-block mr-1" /> Continue to Mossy</> : 'Skip for now'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {step === 'identity' && (
+                    <div className="animate-fade-in max-w-2xl mx-auto">
+                        <div className="text-center mb-6">
+                            <Brain className="w-14 h-14 mx-auto mb-3 text-emerald-400" />
+                            <h2 className="text-2xl font-bold text-white mb-2">Before we finish</h2>
+                            <p className="text-slate-400 text-sm">
+                                Tell me how you want to be addressed and where to store your persistent memory files.
+                            </p>
+                        </div>
+
+                        <div className="space-y-5 bg-slate-800/60 border border-slate-700 rounded-xl p-5">
+                            <div>
+                                <label className="block text-sm text-slate-300 mb-2">How should I call you?</label>
+                                <input
+                                    type="text"
+                                    value={preferredName}
+                                    onChange={(e) => setPreferredName(e.target.value)}
+                                    placeholder="e.g. Alex, Captain, Vault Dweller"
+                                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-100 text-sm"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-slate-300 mb-2">Memory storage location</label>
+                                <div className="space-y-2 text-sm text-slate-300">
+                                    <label className="flex items-center gap-2">
+                                        <input type="radio" checked={memoryStorageMode === 'userData'} onChange={() => setMemoryStorageMode('userData')} />
+                                        Use default app storage (recommended)
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                        <input type="radio" checked={memoryStorageMode === 'custom'} onChange={() => setMemoryStorageMode('custom')} />
+                                        Use a custom folder path
+                                    </label>
+                                </div>
+                                {memoryStorageMode === 'custom' && (
+                                    <input
+                                        type="text"
+                                        value={memoryStoragePath}
+                                        onChange={(e) => setMemoryStoragePath(e.target.value)}
+                                        placeholder="Absolute folder path"
+                                        className="mt-3 w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-100 text-sm"
+                                    />
+                                )}
+                            </div>
+
+                            <div className="rounded-lg border border-emerald-600/30 bg-emerald-900/20 p-3 text-xs text-emerald-200">
+                                Mossy stores chat history, Knowledge Vault items, and work-memory events locally so she can remember your conversations and cross-platform work.
+                            </div>
+                            {identityError && <div className="text-sm text-red-400">{identityError}</div>}
+                        </div>
+
+                        <div className="mt-6 flex justify-center">
+                            <button
+                                type="button"
+                                onClick={() => void handleIdentityContinue()}
+                                className="px-8 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold"
+                            >
+                                Save & Continue
                             </button>
                         </div>
                     </div>

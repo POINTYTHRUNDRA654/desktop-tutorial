@@ -629,6 +629,9 @@ export interface ElectronAPI {
   getSettings: () => Promise<any>;
   setSettings: (settings: any) => Promise<void>;
   onSettingsUpdated: (callback: (settings: any) => void) => void;
+  listSyncGetStatus?: () => Promise<any>;
+  listSyncSyncNow?: () => Promise<any>;
+  appendMemoryEvent?: (entry: unknown) => Promise<{ ok: boolean; error?: string }>;
 
   // Audio - TTS (Text-to-Speech)
   ttsSpeak: (text: string) => Promise<void>;

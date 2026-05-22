@@ -199,22 +199,30 @@ export const buildKnowledgeManifestForModel = (): string => {
 
 export const getRelevantKnowledgeVaultItems = (
   query: string,
-  opts?: { maxItems?: number }
+  opts?: { maxItems?: number; excludeTerms?: string[] }
 ): KnowledgeCitation[] => {
   const items = loadKnowledgeVault();
   if (items.length === 0) return [];
+  const blockedTerms = (opts?.excludeTerms || []).map((w) => normalize(w)).filter(Boolean);
+  const visibleItems = blockedTerms.length
+    ? items.filter((it) => {
+      const text = `${normalize(it.title)} ${normalize(it.content)} ${normalize(it.source)}`;
+      return !blockedTerms.some((w) => text.includes(w));
+    })
+    : items;
+  if (visibleItems.length === 0) return [];
 
   const maxItems = opts?.maxItems ?? 6;
   const keywords = extractKeywords(query);
 
   const ranked = keywords.length
-    ? items
+    ? visibleItems
       .map((it) => ({ it, s: scoreItem(it, keywords) }))
       .sort((a, b) => b.s - a.s)
       .filter((x) => x.s > 0)
       .slice(0, Math.max(maxItems, 3))
       .map((x) => x.it)
-    : items.slice(-maxItems).reverse();
+    : visibleItems.slice(-maxItems).reverse();
 
   return ranked.slice(0, maxItems).map((it) => ({
     title: String(it.title || 'Untitled').trim(),
@@ -229,9 +237,18 @@ export const getRelevantKnowledgeVaultItems = (
 export const buildRelevantKnowledgeVaultContext = (query: string, opts?: {
   maxItems?: number;
   maxChars?: number;
+  excludeTerms?: string[];
 }): string => {
   const items = loadKnowledgeVault();
   if (items.length === 0) return '';
+  const blockedTerms = (opts?.excludeTerms || []).map((w) => normalize(w)).filter(Boolean);
+  const visibleItems = blockedTerms.length
+    ? items.filter((it) => {
+      const text = `${normalize(it.title)} ${normalize(it.content)} ${normalize(it.source)}`;
+      return !blockedTerms.some((w) => text.includes(w));
+    })
+    : items;
+  if (visibleItems.length === 0) return '';
 
   const maxItems = opts?.maxItems ?? 8;
   const maxChars = opts?.maxChars ?? 5000;
@@ -240,17 +257,17 @@ export const buildRelevantKnowledgeVaultContext = (query: string, opts?: {
 
   // If query has no useful keywords, just show recent titles
   const ranked = keywords.length
-    ? items
+    ? visibleItems
       .map((it) => ({ it, s: scoreItem(it, keywords) }))
       .sort((a, b) => b.s - a.s)
       .filter((x) => x.s > 0)
       .slice(0, Math.max(maxItems, 3))
       .map((x) => x.it)
-    : items.slice(-maxItems).reverse();
+    : visibleItems.slice(-maxItems).reverse();
 
   if (ranked.length === 0) {
     // No keyword matches; show small recent index
-    const recent = items.slice(-maxItems).reverse();
+    const recent = visibleItems.slice(-maxItems).reverse();
     const list = recent
       .map((it) => `- ${String(it.title || 'Untitled').trim()}`)
       .join('\n');

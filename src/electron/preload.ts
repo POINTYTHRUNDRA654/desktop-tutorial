@@ -1011,6 +1011,18 @@ const electronAPI = {
     return ipcRenderer.invoke(IPC_CHANNELS.LOAD_CHAT_HISTORY);
   },
 
+  listSyncGetStatus: (): Promise<{ enabled: boolean; repo: string; branch: string; lastSyncAt?: number; lastError?: string; pendingPush?: boolean }> => {
+    return ipcRenderer.invoke('list-sync:get-status');
+  },
+
+  listSyncSyncNow: (): Promise<{ ok: boolean; pull?: any; push?: any }> => {
+    return ipcRenderer.invoke('list-sync:sync-now');
+  },
+
+  appendMemoryEvent: (entry: unknown): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke('memory:append-event', entry);
+  },
+
   /**
    * Workshop: Browse directory and list files/folders
    */
