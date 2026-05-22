@@ -66,7 +66,11 @@ const Workshop: React.FC = () => {
     if (!api) return;
     setLoading(true);
     try {
-      const path = dirPath || currentPath || 'D:\\';
+      const path = dirPath || currentPath;
+      if (!path) {
+        setConsoleOutput(prev => [...prev, '> Select a working directory to start browsing.']);
+        return;
+      }
       const entries = await api.browseDirectory(path);
       setCurrentPath(path);
       
@@ -82,6 +86,24 @@ const Workshop: React.FC = () => {
       setConsoleOutput(prev => [...prev, `> Error browsing directory: ${err}`]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const pickAndBrowseDirectory = async () => {
+    if (!api) return;
+    const picker = api.pickDirectory || api.selectDirectory;
+    if (!picker) {
+      setConsoleOutput(prev => [...prev, '> Folder picker is unavailable in this build.']);
+      return;
+    }
+
+    try {
+      const selected = await picker('Select mod workspace folder');
+      if (selected) {
+        await browseDirectory(selected);
+      }
+    } catch (err) {
+      setConsoleOutput(prev => [...prev, `> Error selecting directory: ${err}`]);
     }
   };
 
@@ -164,13 +186,16 @@ const Workshop: React.FC = () => {
   // Navigate up directory
   const navigateUp = () => {
     if (!currentPath) return;
-    const parent = currentPath.substring(0, currentPath.lastIndexOf('\\'));
-    browseDirectory(parent || 'D:\\');
+    const lastSlash = Math.max(currentPath.lastIndexOf('\\'), currentPath.lastIndexOf('/'));
+    const parent = currentPath.substring(0, lastSlash);
+    if (parent) {
+      browseDirectory(parent);
+    }
   };
 
   // Navigate to home
   const navigateHome = () => {
-    browseDirectory('D:\\');
+    void pickAndBrowseDirectory();
   };
 
   const renderFileIcon = (fileType?: string) => {
@@ -209,6 +234,14 @@ const Workshop: React.FC = () => {
             className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200"
             placeholder="Enter directory path..."
           />
+          <button
+            onClick={() => void pickAndBrowseDirectory()}
+            disabled={loading}
+            className="p-1.5 hover:bg-slate-700 rounded transition-colors disabled:opacity-50"
+            title="Pick directory"
+          >
+            <Folder className="w-4 h-4" />
+          </button>
           <button 
             onClick={() => browseDirectory()}
             disabled={loading}

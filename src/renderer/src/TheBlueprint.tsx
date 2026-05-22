@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { DraftingCompass, Briefcase, CheckCircle2, Copy, ChevronRight, AlertCircle, FileText, Plus, Trash2 } from 'lucide-react';
+import { DraftingCompass, Briefcase, CheckCircle2, Copy, ChevronRight, AlertCircle, FileText, Plus, Trash2, Upload } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 
@@ -148,8 +148,10 @@ const TheBlueprint: React.FC = () => {
     const [selectedTemplate, setSelectedTemplate] = useState<ModTemplate>(MOD_TEMPLATES[0]);
     const [activeTab, setActiveTab] = useState<string>('structure');
     const [copiedPath, setCopiedPath] = useState<string | null>(null);
+    const [attachedSources, setAttachedSources] = useState<Record<string, string>>({});
 
     const detailsScrollRef = useRef<HTMLDivElement | null>(null);
+    const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
     const wheelProxy = useWheelScrollProxy(detailsScrollRef);
 
     const handleCopyStructure = async () => {
@@ -166,6 +168,40 @@ const TheBlueprint: React.FC = () => {
         navigator.clipboard.writeText(path);
         setCopiedPath(path);
         setTimeout(() => setCopiedPath(null), 2000);
+    };
+
+    const getSelectedName = (sourcePath: string) => {
+        const segments = sourcePath.split(/[\\/]/).filter(Boolean);
+        return segments.length > 0 ? segments[segments.length - 1] : sourcePath;
+    };
+
+    const getAcceptForPath = (path: string) => {
+        const match = path.match(/\.([a-z0-9]+)$/i);
+        return match ? `.${match[1].toLowerCase()}` : undefined;
+    };
+
+    const handlePickSource = async (item: FileStructure) => {
+        const api = (window as any).electron?.api || (window as any).electronAPI;
+        if (item.type === 'folder') {
+            const picker = api?.pickDirectory || api?.selectDirectory;
+            if (!picker) return;
+            const selected = await picker(`Select source for ${item.path}`);
+            if (selected) {
+                setAttachedSources(prev => ({ ...prev, [item.path]: selected }));
+            }
+            return;
+        }
+
+        const input = fileInputRefs.current[item.path];
+        input?.click();
+    };
+
+    const handleFileSelected = (itemPath: string, files: FileList | null) => {
+        if (!files || files.length === 0) return;
+        const selected = files[0] as File & { path?: string };
+        const resolvedPath = selected.path || selected.name;
+        if (!resolvedPath) return;
+        setAttachedSources(prev => ({ ...prev, [itemPath]: resolvedPath }));
     };
 
     return (
@@ -303,9 +339,17 @@ const TheBlueprint: React.FC = () => {
                                     </button>
                                 </div>
                                 {selectedTemplate.structure.map((item, idx) => (
-                                    <button
+                                    <div
                                         key={idx}
                                         onClick={() => handleCopyPath(item.path)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter' || event.key === ' ') {
+                                                event.preventDefault();
+                                                handleCopyPath(item.path);
+                                            }
+                                        }}
+                                        role="button"
+                                        tabIndex={0}
                                         className="w-full text-left bg-[#252526] border border-slate-700 rounded p-3 hover:border-amber-500/60 hover:bg-[#2d2d30] transition-colors cursor-pointer"
                                         title="Click to copy path"
                                     >
@@ -316,16 +360,44 @@ const TheBlueprint: React.FC = () => {
                                                 </span>
                                                 <code className="text-slate-300 font-mono text-xs">{item.path}</code>
                                             </div>
-                                            <span className="p-1 shrink-0" aria-hidden="true">
-                                                {copiedPath === item.path ? (
-                                                    <CheckCircle2 className="w-3 h-3 text-green-400" />
-                                                ) : (
-                                                    <Copy className="w-3 h-3 text-slate-500" />
-                                                )}
-                                            </span>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        void handlePickSource(item);
+                                                    }}
+                                                    className="p-1 rounded hover:bg-slate-700/80 transition-colors"
+                                                    title={item.type === 'folder' ? 'Select source folder' : 'Select source file'}
+                                                >
+                                                    <Upload className={`w-3 h-3 ${attachedSources[item.path] ? 'text-green-400' : 'text-slate-500'}`} />
+                                                </button>
+                                                <span className="p-1" aria-hidden="true">
+                                                    {copiedPath === item.path ? (
+                                                        <CheckCircle2 className="w-3 h-3 text-green-400" />
+                                                    ) : (
+                                                        <Copy className="w-3 h-3 text-slate-500" />
+                                                    )}
+                                                </span>
+                                            </div>
                                         </div>
                                         <p className="text-[10px] text-slate-500 pl-6">{item.description}</p>
-                                    </button>
+                                        {attachedSources[item.path] && (
+                                            <p className="text-[10px] text-green-400/90 pl-6 mt-1">
+                                                Selected source: {getSelectedName(attachedSources[item.path])}
+                                            </p>
+                                        )}
+                                        {item.type === 'file' && (
+                                            <input
+                                                ref={(el) => { fileInputRefs.current[item.path] = el; }}
+                                                type="file"
+                                                className="hidden"
+                                                accept={getAcceptForPath(item.path)}
+                                                onClick={(event) => { event.stopPropagation(); }}
+                                                onChange={(event) => handleFileSelected(item.path, event.target.files)}
+                                            />
+                                        )}
+                                    </div>
                                 ))}
                             </div>
                         )}
