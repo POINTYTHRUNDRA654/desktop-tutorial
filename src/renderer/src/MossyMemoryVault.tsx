@@ -31,7 +31,7 @@ type MossyMemoryVaultProps = {
 };
 
 const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false }) => {
-    const whisperModelPageUrl = 'https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-base.en.bin';
+    const whisperModelFileUrl = 'https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-base.en.bin';
     const contentScrollRef = useRef<HTMLDivElement>(null);
     const onWheel = useWheelScrollProxy(contentScrollRef);
 
@@ -1094,7 +1094,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                         {
                             label: 'Hugging Face model file (example: ggml-base.en.bin)'
                             ,
-                            href: whisperModelPageUrl
+                            href: whisperModelFileUrl
                             ,
                             kind: 'official'
                             ,
@@ -1145,7 +1145,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                         </div>
                         <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-400 ml-1">
                             <li><code className="text-cyan-400 font-mono">whisper.cpp.exe</code> - Get from <a href="https://github.com/ggerganov/whisper.cpp/releases" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">whisper.cpp releases</a></li>
-                            <li><code className="text-cyan-400 font-mono">ggml-base.en.bin</code> - Download from <a href={whisperModelPageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">HuggingFace</a> (~150MB)</li>
+                            <li><code className="text-cyan-400 font-mono">ggml-base.en.bin</code> - Download from <a href={whisperModelFileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">HuggingFace</a> (~150MB)</li>
                         </ul>
                         <div className="text-[10px] text-slate-500 mt-1">Or add an OpenAI API key for cloud transcription (optional)</div>
                     </div>
