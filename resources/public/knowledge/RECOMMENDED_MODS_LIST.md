@@ -862,7 +862,7 @@ Previously, creating FO4 animations required 3ds Max (see MaikCG F4Biped above).
 - havok2fbx OR F4AK_HKXPackUI (Nexus #16694): https://www.nexusmods.com/fallout4/mods/16694
 - Autodesk FBX Converter: https://aps.autodesk.com/developer/overview/fbx-converter-archives
 - A .ba2 extractor — any of: BAE (#78), BSA Browser (#17061), Archive2 (CK), BSArchPro (#63243)
-- PyNifly (for importing .nif weapon/mesh files): https://github.com/BadDogSkyrim/PyNifly/releases
+- PyNifly (for importing/exporting .nif mesh files): Nexus #52319 — https://www.nexusmods.com/fallout4/mods/52319 | GitHub releases — https://github.com/BadDogSkyrim/PyNifly/releases
 
 **Suggested Blender add-ons (all free, two built-in):**
 - Animation: Copy Global Transform (built-in Blender)
@@ -900,6 +900,90 @@ These five mods and tools — IAF, First-Person Swimming, Kicks And Punches, NAF
 | **NAF — Native Animation Framework** (#73889) | Native F4SE C++ framework | Multi-character scene architecture; ESP-less XML-driven animation packs; face animation systems; framework-level performance engineering |
 
 **Study approach:** Start with F4Biped to understand the raw pipeline → Kicks And Punches for the simplest in-game result → First-Person Swimming for behavior graph work → IAF for keyword dispatch → NAF for full framework design. Each level builds on concepts from the last. Cross-reference with `HAVOK_FALLOUT4_ANIMATION_GUIDE.md` at every step.
+
+---
+
+### PyNifly — Blender NIF Import/Export Add-on
+
+| Field | Details |
+|---|---|
+| **Author** | BadDogSkyrim |
+| **Nexus** | https://www.nexusmods.com/fallout4/mods/52319 |
+| **GitHub** | https://github.com/BadDogSkyrim/PyNifly |
+| **GitHub Releases** | https://github.com/BadDogSkyrim/PyNifly/releases |
+| **Latest Version** | V25.15.1 (Collision fix — May 2026) |
+| **Category** | Modder's Resource — Blender add-on for NIF import/export |
+| **Blender Required** | 4.4 or later (official releases only) |
+| **Platform** | Windows only |
+| **License** | GNU General Public License v3.0 (GPL-3.0) |
+| **Console (Bethesda.net)** | ❌ Not applicable — authoring tool, not an in-game mod |
+
+#### What It Does
+
+PyNifly is a Blender add-on that provides direct import and export between Blender and Fallout 4's NIF mesh format. It is built on top of the nifly library from Bodyslide/Outfit Studio, which handles the low-level NIF read/write. This makes it the recommended path for working with FO4 meshes directly in Blender without needing to round-trip through NifSkope or Outfit Studio for every change.
+
+Key features for Fallout 4 workflows:
+
+- Full NIF import and export for Fallout 4 meshes (armor, weapons, workshop objects, head parts, creatures)
+- Handles tris and base mesh in one step — no need to manually separate UV seams or triangulate before export
+- Handles expression and chargen tri files for FO4 face/head work
+- Import tris into an existing mesh or as standalone
+- Supports Bodyslide tri files on import and export for body morphs
+- Handles FO4 partitions and FO4 segments correctly
+- Handles skinned and unskinned meshes — exports head parts correctly
+- Shader setup: configure shaders in Blender and export directly
+- Collision handling — collisions are represented as editable meshes in Blender
+- Animation: direct import/export to HKX files for FO4
+- Special handling for FO4 connect points on weapons, armor, and workshop parts
+- Supports animated NIFs
+- Import-and-forget design: what you import will export correctly without manual re-configuration
+
+> **Download from Nexus** as well as GitHub so BadDogSkyrim gets credit for the work. The Nexus page (#52319) is the official distribution point for Fallout 4 users.
+
+> 🛠️ **A note from Mossy:** The Mossy Blender add-on that is currently in development works **because of BadDogSkyrim's efforts on PyNifly**. The NIF import/export capability it provides is the foundation our Blender integration is built on. None of that would be possible without his work. Please support him — download from his Nexus page, endorse the mod, and credit him if you use his tool in your own work.
+
+#### Permissions Summary
+
+PyNifly is released under the **GPL-3.0** open-source license. As a GPL project:
+
+| Permission | Status |
+|---|---|
+| Use the add-on freely | ✅ Allowed |
+| Modify the source code | ✅ Allowed — must keep GPL-3.0 and credit source |
+| Redistribute modified versions | ✅ Allowed — must be GPL-3.0 and disclose source |
+| Use in your own mods/tools | ✅ Allowed (it is an authoring tool, not a runtime mod dependency) |
+| Close-source commercial redistribution | ❌ Not permitted under GPL-3.0 |
+
+> Always check the Nexus page (https://www.nexusmods.com/fallout4/mods/52319) for any additional distribution or use terms the author has listed there beyond the GPL license.
+
+#### Credits (as listed by the author)
+
+**Core technology**
+
+- **Ousnius** — creator of the nifly library that PyNifly is built on (from Bodyslide/Outfit Studio)
+
+**Critical information on NIF/HKX encoding**
+
+- Candoran2
+- DagobaKing
+- Nikolivanov
+- Nitaigao
+- PredatorCZ
+
+**Contributions to the tool**
+
+- bitbanger
+- jgernandt
+- Reddraconi
+- ShroomTip
+- ZenithVal
+
+#### Author & Support
+
+- **GitHub:** https://github.com/BadDogSkyrim/PyNifly
+- **GitHub Releases (latest builds):** https://github.com/BadDogSkyrim/PyNifly/releases
+- **Nexus page (Fallout 4):** https://www.nexusmods.com/fallout4/mods/52319
+- **Documentation:** Full documentation is in the GitHub wiki at https://github.com/BadDogSkyrim/PyNifly/wiki
 
 ---
 
