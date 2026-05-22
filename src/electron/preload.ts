@@ -4339,6 +4339,8 @@ aiTextureEnhancer: {
   bethel: {
     createSession: (): Promise<any> =>
       ipcRenderer.invoke('bethel:create-session'),
+    setModPath: (jobId: string, modPath: string): Promise<any> =>
+      ipcRenderer.invoke('bethel:set-mod-path', jobId, modPath),
     analyzeUploadedMod: (jobId: string): Promise<any> =>
       ipcRenderer.invoke('bethel:analyze', jobId),
     enhanceMod: (jobId: string, enhancementLevel?: 4 | 8 | 16): Promise<any> =>
@@ -4463,6 +4465,28 @@ aiTextureEnhancer: {
     validateCKPlugin: (pluginPath: string): Promise<IpcResponse<any>> =>
       ipcRenderer.invoke('ck-plugin-validate', pluginPath),
   },
+
+  // Version Control API
+  versionControlHistory: (limit?: number) =>
+    ipcRenderer.invoke('git:get-history', undefined, limit ?? 50),
+  versionControlListBackups: () =>
+    ipcRenderer.invoke('git:get-history', undefined, 20),
+  versionControlShowChanges: (hash: string) =>
+    ipcRenderer.invoke('git:get-diff', 'default', hash, undefined),
+  versionControlCommit: (message: string) =>
+    ipcRenderer.invoke('git:commit', 'default', message, 'Mossy User'),
+  versionControlCreateBranch: (branchName: string) =>
+    ipcRenderer.invoke('git:create-branch', 'default', branchName),
+  versionControlMergeBranch: (sourceBranch: string, targetBranch?: string) =>
+    ipcRenderer.invoke('git:merge-branch', 'default', sourceBranch, targetBranch),
+  versionControlBackup: (path: string) =>
+    ipcRenderer.invoke('git:init-repo', path, `Backup-${new Date().toISOString().split('T')[0]}`),
+  versionControlRestore: (id: string, _path: string) =>
+    ipcRenderer.invoke('git:get-diff', id, undefined, undefined),
+  versionControlCreateBackup: (payload?: any) =>
+    ipcRenderer.invoke('git:init-repo', payload?.path || '', `Backup-${new Date().toISOString().split('T')[0]}`),
+  versionControlDeleteBackup: (_id?: string) =>
+    Promise.resolve({ success: true }),
 };
 
 /**

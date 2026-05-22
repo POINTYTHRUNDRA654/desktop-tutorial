@@ -32,6 +32,8 @@ interface RecommendedDownload {
      *  Set to false for mods/plugins that are installed via mod manager (e.g., Address Library, Addictol).
      *  When false, "I have it" browse button will not be shown. Defaults to true if omitted. */
     hasExecutable?: boolean;
+    /** Optional Fallout 4 versions this item is relevant for in onboarding. */
+    supportedFo4Versions?: Array<'og' | 'ng' | 'ae'>;
 }
 
 const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
@@ -145,15 +147,16 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         hasExecutable: false,
     },
     {
-        name: 'Universal Patch Installer (Nexus #34825)',
-        description: "Community-driven centralised installer and database for compatibility patches across popular Fallout 4 mods, created by RageYT. Rather than hunting down individual compatibility patches yourself, Universal Patch Installer provides a single location to find and apply the patches needed when running multiple mods together. The project is modular and community-expandable, with a GitHub repository (Rage-GitHub/Universal-Patch-Installer) that accepts contributions. ⚠️ This is a volunteer project that relies entirely on community support to stay maintained and up to date — if you find it useful, consider donating or helping on the Discord (discord.gg/8tps9Hc). Note: the mod has occasionally been hidden on Nexus pending updates; if the page is unavailable, check the GitHub repo directly.",
+        name: 'Universal Patch Installer (GitHub)',
+        description: "Community-driven centralised installer and database for compatibility patches across popular Fallout 4 mods, created by RageYT. Rather than hunting down individual compatibility patches yourself, Universal Patch Installer provides a single location to find and apply the patches needed when running multiple mods together. The maintained source is now hosted on GitHub (Rage-GitHub/Universal-Patch-Installer), where releases and community contributions are published. ⚠️ This listing is only relevant for OG/NG setups right now, so Mossy will hide it for AE / 1.11.x users. This is a volunteer project that relies entirely on community support to stay maintained and up to date — if you find it useful, consider donating or helping on the Discord (discord.gg/8tps9Hc).",
         detectKeywords: ['universal patch installer', 'universal patcher', 'rageyt patch'],
-        url: 'https://www.nexusmods.com/fallout4/mods/34825',
-        urlLabel: 'Nexus Mods #34825',
+        url: 'https://github.com/Rage-GitHub/Universal-Patch-Installer/releases',
+        urlLabel: 'GitHub Releases',
         category: 'modding',
         required: false,
         ifMissing: 'You will need to manually locate and install compatibility patches between your mods individually, which requires knowing which mod combinations need patches and where to find them.',
         hasExecutable: false,
+        supportedFo4Versions: ['og', 'ng'],
     },
     {
         name: 'Mod Organizer 2',
@@ -273,7 +276,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     {
         name: 'HaBCR Patcher (created by Bingle, uploaded by jarari)',
         description: 'Drag-and-drop utility that converts BCR-compatible reload animations into HaBCR loop-style animations. It cleans BCR annotations, detects and preserves a single loop, then rewrites timing and adds HaBCR loop start/end annotations. Designed to reduce manual animation patching work for Havok Aware Bullet Counted Reload (HaBCR). Credit: Dexesttp for hkx class structures.',
-        detectKeywords: ['habcr', 'habcr patcher', 'habcrpatcher'],
+        detectKeywords: ['habcr patcher', 'habcrpatcher'],
         url: 'https://www.nexusmods.com/fallout4/mods/103682',
         urlLabel: 'Nexus Mods #103682',
         category: 'modding',
@@ -390,30 +393,19 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
         hasExecutable: false,
     },
     {
-        name: 'Bullet Counted Reload System — BCR (by Shavkacagarikia)',
-        description: 'F4SE engine-level fix that makes tube-fed and rotary weapons (lever-action rifles, pump shotguns, revolvers) reload only the exact number of rounds fired instead of always playing a full-cycle animation. Also adds an interruptible-reload window so you can fire mid-reload. ⚠️ Install via mod manager (MO2/Vortex). Requires F4SE and Address Library. Install weapon-specific BCR patches for full coverage.',
-        detectKeywords: ['bullet counted reload', 'bcr', 'bcrs'],
-        url: 'https://www.nexusmods.com/fallout4/mods/42676',
-        urlLabel: 'Nexus Mods #42676',
+        name: 'Havok Aware Bullet Counted Reload — HaBCR (by MasterShrew)',
+        description: 'Modern bullet-counted reload framework for Fallout 4 and the recommended replacement for classic BCR. Handles tube-fed and rotary reload loops through Havok-aware annotations, supports interruptible reload behavior, and is designed for current runtimes where the original BCR listing is no longer a dependable recommendation source. ⚠️ Install via mod manager (MO2/Vortex). Requires F4SE and Address Library; use HaBCR-ready animation patches where needed.',
+        detectKeywords: ['havok aware bullet counted reload', 'bullet counted reload ha'],
+        url: 'https://www.nexusmods.com/fallout4/mods/103627',
+        urlLabel: 'Nexus Mods #103627',
         category: 'modding',
         required: false,
-        ifMissing: 'Lever-action rifles, shotguns, and revolvers will always animate a full reload regardless of rounds remaining, breaking immersion during combat.',
+        ifMissing: 'Lever-action rifles, shotguns, and revolvers will fall back to standard reload behavior unless a mod ships its own HaBCR-ready implementation.',
         hasExecutable: false,
     },
     {
-        name: 'Base Object Swapper — BOS (by powerofthree)',
-        description: 'Framework that swaps base game objects (static meshes, flora, fauna, trees) game-wide at runtime using .ini rule files — no ESP slot required. Conditions include weather FormID, worldspace, cell coordinate range, time of day, and season. Essential for dynamic environment overhauls (e.g. Glowing Sea mutation, seasonal foliage changes). ⚠️ Install via mod manager (MO2/Vortex). Requires F4SE and Address Library.',
-        detectKeywords: ['base object swapper'],
-        url: 'https://www.nexusmods.com/fallout4/mods/64943',
-        urlLabel: 'Nexus Mods #64943',
-        category: 'modding',
-        required: false,
-        ifMissing: 'Mods that ship BOS .ini swap rules will not apply their object replacements. Dynamic flora/fauna overhauls and weather-conditional mesh swaps will be inactive.',
-        hasExecutable: false,
-    },
-    {
-        name: 'Base Object Swapper v2 — BOS v2 (Nexus #67528)',
-        description: 'Updated F4SE port of Base Object Swapper. Swaps both base objects and specific world-space references via _SWAP.ini config files placed in the Data folder — no ESP slot required. Supports form swaps, reference swaps, locational filters (location/cell/keyword/region EditorID), random multi-target swaps with per-session or per-load-order seed, transform overrides (position, rotation, random scale), and record-flag set/clear operations. ⚠️ Due to Fallout 4\'s precombine system, swapping statics and static collections is not recommended. Credit: Ryan (SniffleMan) for CommonLibF4. Requires F4SE, Address Library, Visual C++ Redistributables 2019, and Baka Framework.',
+        name: 'Base Object Swapper — BOS (Nexus #67528)',
+        description: 'F4SE port of Base Object Swapper by powerofthree for Fallout 4. Swaps both base objects and specific world-space references via _SWAP.ini config files placed in the Data folder — no ESP slot required. Supports form swaps, reference swaps, locational filters (location/cell/keyword/region EditorID), random multi-target swaps with per-session or per-load-order seed, transform overrides (position, rotation, random scale), and record-flag set/clear operations. ⚠️ Due to Fallout 4\'s precombine system, swapping statics and static collections is not recommended. Credit: Ryan (SniffleMan) for CommonLibF4. Requires F4SE, Address Library, Visual C++ Redistributables 2019, and Baka Framework.',
         detectKeywords: ['base object swapper', 'bos v2', 'base object swapper v2', 'swap ini'],
         url: 'https://www.nexusmods.com/fallout4/mods/67528',
         urlLabel: 'Nexus Mods #67528',
@@ -480,14 +472,14 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     // ── C++ / F4SE plugin development ─────────────────────────────────────────
     {
-        name: 'F4SE Plugin Template (Ryan-rsm-McKenzie / Expired6978)',
-        description: 'Pre-configured CMake + vcpkg GitHub starter kit for building F4SE DLL plugins. Provides: F4SE_PLUGIN_VERSION boilerplate, F4SEPlugin_Load entry point, CommonLibF4 as a git submodule, spdlog file logging, vcpkg.json for dependency management, and a post-build copy step to deploy directly to Data\\F4SE\\Plugins\\. Clone with --recurse-submodules, run cmake + vcpkg, build Release. ⚠️ Development tool — not installed via mod manager. Requires Visual Studio 2022 + CMake + vcpkg.',
+        name: 'F4SE Plugin Template (libxse CommonLibF4 template)',
+        description: 'Active GitHub starter template for building F4SE DLL plugins with CommonLibF4. Provides a working plugin skeleton, CommonLibF4 integration, and setup docs for modern Fallout 4 plugin development. Clone with --recurse-submodules, generate a VS project with xmake if needed, and build in Release. ⚠️ Development tool — not installed via mod manager. Requires Visual Studio 2022 or another C++23-capable compiler plus XMake.',
         detectKeywords: ['f4se plugin template'],
-        url: 'https://github.com/Ryan-rsm-McKenzie/f4se_plugin_template',
-        urlLabel: 'GitHub (f4se_plugin_template)',
+        url: 'https://github.com/libxse/commonlibf4-template',
+        urlLabel: 'GitHub (commonlibf4-template)',
         category: 'modding',
         required: false,
-        ifMissing: 'Starting a new F4SE DLL plugin project will require manually writing all CMake configuration, version boilerplate, and logging setup from scratch.',
+        ifMissing: 'Starting a new F4SE DLL plugin project will require manually assembling a plugin skeleton, build configuration, and CommonLibF4 integration from scratch.',
         hasExecutable: false,
     },
     {
@@ -695,6 +687,12 @@ const MAX_SPRIGGIT_PARTIAL_ERROR_PREVIEW = 300;
 const DOTNET_RECHECK_BADGE_DURATION_MS = 6000;
 /** Message shown when a manual .NET recheck still cannot find the runtime. */
 const DOTNET_STILL_NOT_DETECTED_MSG = '⚠️ Still not detected — try restarting Mossy after install. To confirm .NET is present, open a Command Prompt and run: Spriggit.CLI.exe --version';
+/** While detectPrograms runs, keep progress visibly moving up to this ceiling before handoff to stage milestones. */
+const SCAN_DETECTION_PROGRESS_CAP = 68;
+/** Convert elapsed milliseconds into faux progress steps so users see steady movement during long detection calls. */
+const SCAN_DETECTION_MS_PER_PROGRESS_POINT = 300;
+/** UI refresh cadence for interim detection progress updates. */
+const SCAN_DETECTION_PROGRESS_TICK_MS = 150;
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
@@ -719,6 +717,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [languageReady, setLanguageReady] = useState(false);
     const [scanTutorialRequested, setScanTutorialRequested] = useState(false);
     const [scanTutorialOpenedAt, setScanTutorialOpenedAt] = useState<string | null>(null);
+    const detectionProgressTimerRef = useRef<number | null>(null);
     /** Timer used to auto-dismiss the .NET recheck result badge. */
     const dotnetRecheckTimerRef = useRef<number | null>(null);
 
@@ -744,6 +743,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [cacheClearResult, setCacheClearResult] = useState<'ok' | 'error' | null>(null);
     const [unblockInProgress, setUnblockInProgress] = useState(false);
     const [unblockResult, setUnblockResult] = useState<{ ok: boolean; unblocked?: number; folderPath?: string; error?: string } | null>(null);
+    const scopedFo4Version = fo4Version === 'og' || fo4Version === 'ng' || fo4Version === 'ae'
+        ? fo4Version
+        : null;
     /**
      * Tracks the automatic "unblock freshly extracted assemblies → retry" step that runs
      * after a "Clear Cache & Retry" still fails with 0xFFFFFFFF.  Clearing the cache causes
@@ -977,6 +979,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             await new Promise(resolve => setTimeout(resolve, 800));
             await speakMossy("Hello, I'm Mossy.");
             await speakMossy('Pick your language to begin.');
+            await speakMossy('Important note: I am not affiliated with, endorsed by, or officially connected to third-party tools or add-ons shown in this app.');
             await speakMossy('When you are ready, press Next.');
         };
 
@@ -996,6 +999,15 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
         void speakSequence();
     }, [step]);
+
+    useEffect(() => {
+        return () => {
+            if (detectionProgressTimerRef.current !== null) {
+                window.clearInterval(detectionProgressTimerRef.current);
+                detectionProgressTimerRef.current = null;
+            }
+        };
+    }, []);
 
     // Speak an explanation of whitelist and blacklist when arriving at the lists step.
     useEffect(() => {
@@ -1102,8 +1114,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         setLanguageReady(true);
     };
 
-    const triggerScanTutorial = useCallback(() => {
-        if (scanTutorialStartedRef.current) return;
+    const triggerScanTutorial = useCallback((forceRetry = false) => {
+        if (scanTutorialStartedRef.current && !forceRetry) return;
         scanTutorialStartedRef.current = true;
         try {
             localStorage.setItem('mossy_force_scan_tutorial', 'true');
@@ -1125,9 +1137,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     if (Number.isFinite(ts)) {
                         setScanTutorialOpenedAt(new Date(ts).toLocaleTimeString());
                     }
+                } else {
+                    // Allow manual retries if auto-launch did not succeed.
+                    scanTutorialStartedRef.current = false;
                 }
             } catch {
                 // ignore
+                scanTutorialStartedRef.current = false;
             }
         }, 200);
     }, []);
@@ -1136,6 +1152,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         setStep('scanning');
         setScanProgress(10);
         setScanError(null); // Clear any previous error
+        setScanTutorialRequested(false);
+        setScanTutorialOpenedAt(null);
+        scanTutorialStartedRef.current = false;
+        try {
+            localStorage.removeItem('mossy_scan_tutorial_opened_at');
+        } catch {
+            // ignore
+        }
 
         if (shouldSpeak()) {
             void speakMossy('Starting system scan. While I scan, I will walk you through the tutorial so you can get oriented.', { cancelExisting: true });
@@ -1161,13 +1185,31 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             console.log('[FirstRunOnboarding] Calling getSystemInfo...');
             const systemInfo = await api.getSystemInfo();
             console.log('[FirstRunOnboarding] System info received:', systemInfo);
-            setScanProgress(30);
+            setScanProgress(25);
+
+            // Keep visible progress moving while program detection runs.
+            const detectStartedAt = Date.now();
+            if (detectionProgressTimerRef.current !== null) {
+                window.clearInterval(detectionProgressTimerRef.current);
+            }
+            detectionProgressTimerRef.current = window.setInterval(() => {
+                setScanProgress(prev => {
+                    if (prev >= SCAN_DETECTION_PROGRESS_CAP) return prev;
+                    const elapsedMs = Date.now() - detectStartedAt;
+                    const elapsedProgress = 25 + Math.floor(elapsedMs / SCAN_DETECTION_MS_PER_PROGRESS_POINT);
+                    return Math.max(prev, Math.min(SCAN_DETECTION_PROGRESS_CAP, elapsedProgress));
+                });
+            }, SCAN_DETECTION_PROGRESS_TICK_MS);
 
             // Detect all programs
             console.log('[FirstRunOnboarding] Calling detectPrograms...');
             const allDetectedApps = await api.detectPrograms();
             console.log('[FirstRunOnboarding] Detected programs:', allDetectedApps?.length || 0);
             setAllApps(allDetectedApps);
+            if (detectionProgressTimerRef.current !== null) {
+                window.clearInterval(detectionProgressTimerRef.current);
+                detectionProgressTimerRef.current = null;
+            }
             setScanProgress(70);
 
             // Check .NET Runtime — required by Spriggit and other .NET tools.
@@ -1333,6 +1375,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setStep('credits');
 
         } catch (error) {
+            if (detectionProgressTimerRef.current !== null) {
+                window.clearInterval(detectionProgressTimerRef.current);
+                detectionProgressTimerRef.current = null;
+            }
             console.error('[FirstRunOnboarding] Scan failed:', error);
             const errorMessage = error instanceof Error ? error.message : String(error);
             setScanError(errorMessage);
@@ -1752,6 +1798,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             Let me scan your system to discover tools I can integrate with.
                             This will help me provide personalized recommendations and boost my capabilities.
                         </p>
+                        <p className="text-slate-500 text-sm max-w-3xl mx-auto mb-8">
+                            <strong className="text-amber-300">Important:</strong> Mossy is not affiliated with, endorsed by, or officially connected to third-party tools or add-ons shown in this app. Always download tools from official sources.
+                        </p>
 
                         <div className="max-w-md mx-auto mb-8 text-left bg-slate-900/40 border border-slate-700 rounded-xl p-4">
                             <div className="flex items-center gap-2 text-white font-bold text-sm">
@@ -1985,7 +2034,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 <div className="mt-6">
                                     <button
                                         type="button"
-                                        onClick={triggerScanTutorial}
+                                        onClick={() => triggerScanTutorial(true)}
                                         className="px-5 py-2 bg-emerald-600/30 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-100 rounded-lg text-sm font-semibold transition-colors"
                                     >
                                         Start walkthrough
@@ -2030,7 +2079,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {[
                                 { label: 'Core', color: 'amber', items: ['Electron v35', 'React v18', 'TypeScript v5', 'Vite v7'] },
                                 { label: 'AI', color: 'emerald', items: ['OpenAI SDK', 'Groq SDK', 'Anthropic Claude', 'PyTorch (CPU & CUDA)'] },
-                                { label: 'Modding Tools', color: 'blue', items: ["xEdit / FO4Edit by ElminsterAU & xEdit Team (Nexus #2737; MPL 1.1; team: Hlp, Zilav, Sharlikran)", "Pra's xEdit Scripts by Pra (Nexus #28898)", "Pra's zEdit Patchers by Pra (Nexus #33858)", 'Creation Kit by Bethesda', 'Papyrus Compiler Patched — NoDox (Nexus #44959)', 'Creation Club ESL Stubs (Nexus #38029)', 'FallrimTools — ReSaver by MarkDFSoftware (Nexus #22633; Apache 2.0)', 'Universal Patch Installer by RageYT (Nexus #34825)', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'PLOPTOP / ProtoLLOverridePatchNPCs by LeafTongue (Nexus #84615)', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'BCR (Bullet Counted Reload) by Shavkacagarikia', 'Base Object Swapper by powerofthree (Nexus #64943)', 'Base Object Swapper v2 by powerofthree (Nexus #67528; credit: SniffleMan for CommonLibF4)', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Papyrus Condition Functions by LarannKiar (Nexus #88104; requires Garden of Eden)', 'Papyrus Common Library by SkyHorizon3 (Nexus #86222; deprecated — prefer Hydra)', 'Hydra by SoleVaultBoy'] },
+                                { label: 'Modding Tools', color: 'blue', items: ["xEdit / FO4Edit by ElminsterAU & xEdit Team (Nexus #2737; MPL 1.1; team: Hlp, Zilav, Sharlikran)", "Pra's xEdit Scripts by Pra (Nexus #28898)", "Pra's zEdit Patchers by Pra (Nexus #33858)", 'Creation Kit by Bethesda', 'Papyrus Compiler Patched — NoDox (Nexus #44959)', 'Creation Club ESL Stubs (Nexus #38029)', 'FallrimTools — ReSaver by MarkDFSoftware (Nexus #22633; Apache 2.0)', 'Universal Patch Installer by RageYT (GitHub: Rage-GitHub/Universal-Patch-Installer)', 'LOOT by WrinklyNinja', 'Mod Organizer 2 by Tannin42', 'PLOPTOP / ProtoLLOverridePatchNPCs by LeafTongue (Nexus #84615)', 'RobCo Patcher by Zzyxzz', 'Scourge by Geluxrum', 'HaBCR (Havok Aware Bullet Counted Reload) by MasterShrew', 'Base Object Swapper by powerofthree (Nexus #67528; credit: SniffleMan for CommonLibF4)', 'Addictol / Buffout 4 by Perchik71', 'CLASSIC by evildarkarchon', 'Address Library by meh321', 'Lighthouse Papyrus Extender by GELUXRUM', 'Garden of Eden Papyrus Extender by LarannKiar', 'Papyrus Condition Functions by LarannKiar (Nexus #88104; requires Garden of Eden)', 'Papyrus Common Library by SkyHorizon3 (Nexus #86222; deprecated — prefer Hydra)', 'Hydra by SoleVaultBoy'] },
                                 { label: 'Asset Tools', color: 'purple', items: ['Blender by Blender Foundation', 'NifSkope Next-Gen Fork by hexabit (credit: Niftools team & contributors)', 'BodySlide & Outfit Studio by Caliente &amp; ousnius (Nexus #25; GPLv3+; credit: NifTools team)', 'B.A.E. by jonwd7', 'HkxTools by Bingle / jarari (credit: Dexesttp)', 'HaBCR Patcher by Bingle / jarari (credit: Dexesttp)', 'Fallout 4 Animation Kit — F4AK by ShadeAnimator (Nexus #16694; credits: DexesTTP, MaikCG, NifTools team)', 'FO4 Batch Material Editor (Nexus #103044; based on Material Editor by ousnius)', 'AutoVideo by TheDestroyerOfWorlds (requires ffmpeg)', 'Fallout 4 Music Replacer (Nexus #6095; credit: ffmpeg team, Microsoft xWMAEncode, 7-Zip)', 'Commonwealth Cartography by AHeroicLlama (Nexus #73559; GitHub repo: Mappalachia/Commonwealth_Cartography)', 'SpreadSheetInator (Nexus #67616) — SS2 stage item CSV tool', 'ENB Series by Boris Vorontsov', 'CommonLibF4 by Ryan-rsm-McKenzie &amp; contributors', 'F4SE Plugin Template by Ryan-rsm-McKenzie', 'vcpkg by Microsoft', 'FOMOD Creator by Wenderer'] },
                                 { label: 'Diagnostics & Monitoring', color: 'amber', items: ['GPU-Z by TechPowerUp (freeware)', 'HWiNFO64 by Martin Malik (freeware)', 'Display Driver Uninstaller (DDU) by Wagnardsoft (freeware)', 'RivaTuner Statistics Server (RTSS) by Alexey Nicolaychuk — bundled with MSI Afterburner (freeware)'] },
                                 { label: 'Community', color: 'rose', items: ['Nexus Mods community', 'Fallout 4 modding community', 'GitHub contributors', 'Everyone who tests &amp; supports Mossy'] },
@@ -2295,7 +2344,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         </div>
 
                         <div className="space-y-3 mb-6 max-h-[52vh] overflow-y-auto pr-1">
-                            {RECOMMENDED_DOWNLOADS.map((dl) => {
+                            {RECOMMENDED_DOWNLOADS.filter((dl) => {
+                                if (!dl.supportedFo4Versions) return true;
+                                if (!scopedFo4Version) return true;
+                                return dl.supportedFo4Versions.includes(scopedFo4Version);
+                            }).map((dl) => {
                                 const alreadyInstalled = allApps && allApps.length > 0 && allApps.some((app: { displayName?: string; name?: string }) => {
                                     const n = (app.displayName || app.name || '').toLowerCase();
                                     return dl.detectKeywords.some((kw) => n.includes(kw));
@@ -2425,7 +2478,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                             <ExternalLink className="w-3.5 h-3.5" />
                                                             {dl.urlLabel}
                                                         </button>
-                                                        {/* Only show "I have it" button for items with locatable executables */}
+                                                        {/* For items with a locatable executable, open a file picker */}
                                                         {dl.hasExecutable !== false && (
                                                             <button
                                                                 type="button"
@@ -2450,6 +2503,21 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                             >
                                                                 <FolderOpen className="w-3 h-3" />
                                                                 I have it
+                                                            </button>
+                                                        )}
+                                                        {/* For system-level installs with no locatable .exe (e.g. VC++ Redistributable),
+                                                            show a simple "Add" toggle so users can manually confirm installation */}
+                                                        {dl.hasExecutable === false && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setManuallyLocated((prev) => ({ ...prev, [dl.name]: '__confirmed__' }));
+                                                                }}
+                                                                className="flex items-center gap-1 px-2 py-1 rounded border border-slate-600 hover:border-slate-400 text-slate-400 hover:text-slate-200 text-xs transition-colors"
+                                                                title="Already have it installed? Click to mark as installed"
+                                                            >
+                                                                <Check className="w-3 h-3" />
+                                                                Add
                                                             </button>
                                                         )}
                                                     </>
@@ -3389,13 +3457,32 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     </label>
                                 </div>
                                 {memoryStorageMode === 'custom' && (
-                                    <input
-                                        type="text"
-                                        value={memoryStoragePath}
-                                        onChange={(e) => setMemoryStoragePath(e.target.value)}
-                                        placeholder="Absolute folder path"
-                                        className="mt-3 w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-100 text-sm"
-                                    />
+                                    <div className="mt-3">
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={memoryStoragePath}
+                                                onChange={(e) => setMemoryStoragePath(e.target.value)}
+                                                placeholder="Absolute folder path"
+                                                className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-100 text-sm"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    const api = getElectronApi();
+                                                    if (!api?.pickDirectory) return;
+                                                    const pickedPath = await api.pickDirectory('Select memory storage folder');
+                                                    if (pickedPath) setMemoryStoragePath(pickedPath);
+                                                }}
+                                                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded text-slate-200 text-sm flex items-center gap-1.5 transition-colors"
+                                            >
+                                                <FolderOpen className="w-4 h-4" /> Browse
+                                            </button>
+                                        </div>
+                                        <p className="mt-2 text-xs text-slate-500">
+                                            Paste a path or click Browse to choose a folder.
+                                        </p>
+                                    </div>
                                 )}
                             </div>
 

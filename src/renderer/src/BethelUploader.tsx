@@ -91,13 +91,11 @@ export const BethelUploader: React.FC = () => {
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
-    // TODO: Handle actual file drop - would need to implement file selection
-    // For now, show a placeholder
-    alert('Mod folder selection not implemented yet. Use button below.');
+    // Drag-drop gives DataTransferItemList; open folder picker since Electron needs the path
+    await handleCreateSession();
   };
 
-  // Create new session and start workflow
+  // Create new session, then let user pick their mod folder
   const handleCreateSession = async () => {
     try {
       const response = await window.electronAPI?.bethel?.createSession?.();
@@ -109,8 +107,20 @@ export const BethelUploader: React.FC = () => {
       setJobs(prev => [newJob, ...prev]);
       setActiveJobId(newJob.jobId);
 
-      // TODO: Open file picker to upload mod
-      alert('Upload location created. Now select your mod folder (feature coming soon)');
+      // Prompt the user to pick their mod folder
+      const pickedPath = await (window.electronAPI as any)?.pickDirectory?.('Select your Fallout 4 mod folder');
+      if (!pickedPath) return; // user cancelled
+
+      const pathResult = await window.electronAPI?.bethel?.setModPath?.(newJob.jobId, pickedPath);
+      if (!pathResult?.success) {
+        throw new Error(pathResult?.error || 'Failed to set mod path');
+      }
+
+      // Refresh to show updated modName
+      const jobResult = await window.electronAPI?.bethel?.getJob?.(newJob.jobId);
+      if (jobResult?.success && jobResult?.job) {
+        updateJob(newJob.jobId, jobResult.job);
+      }
     } catch (err) {
       console.error('Failed to create session:', err);
     }

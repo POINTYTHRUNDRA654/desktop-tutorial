@@ -179,6 +179,19 @@ export class BethelIntegration {
   }
 
   /**
+   * Update the mod path for an existing job (after user picks a folder)
+   */
+  setModPath(jobId: string, modPath: string): void {
+    const job = this.jobRegistry.get(jobId);
+    if (!job) throw new Error(`Job ${jobId} not found`);
+    this.jobRegistry.update(jobId, {
+      modPath,
+      status: 'uploading',
+      message: `Mod folder selected: ${path.basename(modPath)}`,
+    });
+  }
+
+  /**
    * Process uploaded mod - analyze textures
    */
   async analyzeUploadedMod(jobId: string): Promise<BethelJob> {

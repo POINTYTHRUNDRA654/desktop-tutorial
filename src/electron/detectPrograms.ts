@@ -62,14 +62,33 @@ export async function detectPrograms(): Promise<InstalledProgram[]> {
     console.warn('Special programs scan failed:', error);
   }
 
+  // SPECIAL: Detect Visual C++ Redistributable via DLL presence + registry
+  // (It has no standalone .exe so normal scanning misses it entirely)
+  try {
+    const vcRedistEntry = await checkVCRedistInstalled();
+    if (vcRedistEntry) {
+      const key = vcRedistEntry.path.toLowerCase();
+      if (!programs.has(key)) {
+        programs.set(key, vcRedistEntry);
+      }
+    }
+  } catch (error) {
+    console.warn('VC++ Redistributable check failed:', error);
+  }
+
   const finalList = Array.from(programs.values())
     .filter(p => {
         const pathLower = p.path.toLowerCase();
-        // Eliminate typical installer/helper noise that isn't the primary tool
+        // Eliminate typical installer/helper noise that isn't the primary tool.
+        // Note: vcruntime140.dll and msvcp140.dll paths do NOT contain these strings,
+        // so the VC++ synthetic entry added above is never filtered out here.
         return !pathLower.includes('unins') && 
                !pathLower.includes('helper') && 
                !pathLower.includes('crashpad') &&
-               !pathLower.includes('redist');
+               // Only filter standalone redist installer EXEs (e.g. vc_redist.x64.exe),
+               // not system DLLs. Check the filename, not the full path.
+               !path.basename(pathLower).startsWith('vc_redist') &&
+               !path.basename(pathLower).startsWith('vcredist');
     })
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
   
@@ -509,6 +528,79 @@ export async function openProgram(programPath: string): Promise<void> {
   } catch (error) {
     throw new Error(`Failed to open program at "${programPath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+
+/**
+ * Detect whether Visual C++ Redistributable is installed.
+ *
+ * VC++ Redistributable has no standalone launcher .exe — it installs runtime
+ * DLLs into C:\Windows\System32 (x64) and C:\Windows\SysWOW64 (x86).
+ * Normal registry scanning skips it because it cannot find an executable path.
+ *
+ * Strategy (first match wins):
+ *   1. Check for vcruntime140.dll / msvcp140.dll in System32 (most reliable)
+ *   2. Query the Uninstall registry for a "Microsoft Visual C++" DisplayName
+ *      (covers older 2013/2015/2017/2019/2022 installs in both 32- and 64-bit hives)
+ */
+async function checkVCRedistInstalled(): Promise<InstalledProgram | null> {
+  // ── Strategy 1: DLL existence check ─────────────────────────────────────
+  // vcruntime140.dll is present for both x64 (System32) and x86 (SysWOW64) installs.
+  const dllCandidates = [
+    'C:\\Windows\\System32\\vcruntime140.dll',
+    'C:\\Windows\\System32\\msvcp140.dll',
+    'C:\\Windows\\SysWOW64\\vcruntime140.dll',
+    'C:\\Windows\\SysWOW64\\msvcp140.dll',
+  ];
+
+  for (const dllPath of dllCandidates) {
+    try {
+      await fs.access(dllPath);
+      console.log(`[Program Detection] Visual C++ Redistributable confirmed via DLL: ${dllPath}`);
+      return {
+        name: 'vcruntime140',
+        displayName: 'Microsoft Visual C++ Redistributable',
+        path: dllPath,
+        publisher: 'Microsoft Corporation',
+      };
+    } catch {
+      // DLL not found at this path, try next
+    }
+  }
+
+  // ── Strategy 2: Registry DisplayName scan ───────────────────────────────
+  const regHives = [
+    'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+    'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+    'HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+  ];
+
+  for (const hive of regHives) {
+    try {
+      const { stdout } = await execAsync(`reg query "${hive}" /f "Microsoft Visual C++" /s /t REG_SZ /v DisplayName`, { timeout: 8000 });
+      if (stdout && stdout.toLowerCase().includes('microsoft visual c++')) {
+        // Extract the year from the first matching DisplayName line (e.g. "2022", "2015-2022").
+        // Anchoring to the 4-digit year avoids false-positives from parenthesised arch
+        // suffixes like "(x64)" that may appear later on the same line.
+        const versionMatch = stdout.match(/Microsoft Visual C\+\+\s+((?:\d{4})(?:-\d{4})?)/i);
+        const versionHint = versionMatch ? versionMatch[1].trim() : '';
+        console.log(`[Program Detection] Visual C++ Redistributable confirmed via registry (${hive})`);
+        return {
+          name: 'vcruntime140',
+          displayName: versionHint
+            ? `Microsoft Visual C++ ${versionHint} Redistributable`
+            : 'Microsoft Visual C++ Redistributable',
+          // Use a path that exists on any Windows system so the entry survives validation
+          path: 'C:\\Windows\\System32\\vcruntime140.dll',
+          publisher: 'Microsoft Corporation',
+        };
+      }
+    } catch {
+      // reg query returned non-zero (no match) or timed out — try next hive
+    }
+  }
+
+  console.log('[Program Detection] Visual C++ Redistributable not found');
+  return null;
 }
 
 /**

@@ -15,6 +15,12 @@ Consolidated quick-start and onboarding material.
 3. Launch Mossy from your desktop or start menu
 4. Complete the first-run tutorial
 
+### Initial Install Walkthrough (with image)
+
+During the initial scan, Mossy now shows live progress while it detects installed tools.
+
+![Initial install scan screen](https://github.com/user-attachments/assets/f2557adb-7555-4646-9649-6c5df7ab74d8)
+
 **Upgrading an Existing Installation:**
 
 If you already have Mossy installed on your desktop:
