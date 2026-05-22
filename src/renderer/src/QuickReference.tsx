@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import toast from 'react-hot-toast';
-import { Book, Code, Keyboard, Hash, ChevronDown, ChevronUp, Zap, FileCode, Terminal, Palette, Copy, Check } from 'lucide-react';
+import { Book, Code, Keyboard, Hash, ChevronDown, ChevronUp, Zap, FileCode, Terminal, Palette } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface ReferenceSection {
@@ -25,7 +24,7 @@ type QuickReferenceProps = {
 export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false }) => {
   const [expandedSections, setExpandedSections] = useState<string[]>(['papyrus']);
   const [searchQuery, setSearchQuery] = useState('');
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [openedItemId, setOpenedItemId] = useState<string | null>(null);
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections(prev =>
@@ -35,21 +34,8 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
     );
   };
 
-  const copyToClipboard = (text: string, itemKey: string) => {
-    const doWrite = (t: string) =>
-      navigator.clipboard
-        ? navigator.clipboard.writeText(t)
-        : Promise.reject(new Error('Clipboard API unavailable'));
-
-    doWrite(text)
-      .then(() => {
-        setCopiedId(itemKey);
-        toast.success('Copied to clipboard!');
-        setTimeout(() => setCopiedId(prev => (prev === itemKey ? null : prev)), 1500);
-      })
-      .catch(() => {
-        toast.error('Copy failed — please select and copy manually.');
-      });
+  const toggleItemInfo = (itemId: string) => {
+    setOpenedItemId((prev) => (prev === itemId ? null : itemId));
   };
 
   const references: ReferenceSection[] = [
@@ -406,12 +392,15 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
               {/* Section Content */}
               {isExpanded && (
                 <div className="p-4 pt-0 space-y-2">
-                  {section.items.map((item, index) => (
-                    <div
-                      key={index}
-                      className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/30 hover:border-emerald-500/30 transition-colors group"
-                    >
-                      <div className="flex items-start justify-between gap-3">
+                  {section.items.map((item, index) => {
+                    const itemId = `${section.id}-${index}`;
+                    const isOpen = openedItemId === itemId;
+                    return (
+                      <div
+                        key={index}
+                        className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/30 hover:border-emerald-500/30 transition-colors group"
+                      >
+                        <div className="flex items-start justify-between gap-3">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <code className="text-sm font-mono text-emerald-400 bg-slate-950 px-2 py-0.5 rounded">
@@ -423,26 +412,34 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
                               </span>
                             )}
                           </div>
-                          <p className="text-sm text-slate-300">{item.description}</p>
-                          {item.example && (
-                            <pre className="mt-2 text-xs font-mono text-slate-400 bg-slate-950 p-2 rounded border border-slate-800 overflow-x-auto">
-                              {item.example}
-                            </pre>
+                          {isOpen && (
+                            <div id={`${itemId}-details`}>
+                              <p className="text-sm text-slate-300">{item.description}</p>
+                              {item.example && (
+                                <pre className="mt-2 text-xs font-mono text-slate-400 bg-slate-950 p-2 rounded border border-slate-800 overflow-x-auto">
+                                  {item.example}
+                                </pre>
+                              )}
+                            </div>
                           )}
                         </div>
                         <button
-                          onClick={() => copyToClipboard(item.example || item.name, `${section.id}-${index}`)}
+                          onClick={() => toggleItemInfo(itemId)}
                           className="shrink-0 text-slate-500 hover:text-emerald-400 transition-colors"
-                          title="Copy to clipboard"
+                          title={isOpen ? 'Hide item details' : 'Open item details'}
+                          aria-expanded={isOpen}
+                          aria-controls={`${itemId}-details`}
+                          aria-label={isOpen ? `Hide details for ${item.name}` : `Open details for ${item.name}`}
                         >
-                          {copiedId === `${section.id}-${index}`
-                            ? <Check className="w-4 h-4 text-emerald-400" />
-                            : <Copy className="w-4 h-4" />
+                          {isOpen
+                            ? <ChevronUp className="w-4 h-4 text-emerald-400" />
+                            : <ChevronDown className="w-4 h-4" />
                           }
                         </button>
                       </div>
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
