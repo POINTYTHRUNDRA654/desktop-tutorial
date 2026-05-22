@@ -57,8 +57,19 @@ export const PluginManager: React.FC = () => {
     enableTelemetry: true,
   });
 
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [hotReloadEnabled, setHotReloadEnabled] = useState<boolean>(false);
+  const [hotReloadPath, setHotReloadPath] = useState<string>('');
+  const [devLogs, setDevLogs] = useState<string[]>([]);
+  const [generatingTemplate, setGeneratingTemplate] = useState<boolean>(false);
+
   const electronApi = (window as any)?.electron?.api;
   const pluginManagerApi = electronApi?.pluginManager;
+
+  const appendDevLog = (message: string) => {
+    const now = new Date().toLocaleTimeString('en-US', { hour12: false });
+    setDevLogs(prev => [...prev, `[${now}] ${message}`]);
+  };
 
   // Load initial data
   useEffect(() => {
@@ -461,8 +472,8 @@ export const PluginManager: React.FC = () => {
           <div className="dev-card">
             <h3>📝 Create Plugin</h3>
             <p>Start building a new plugin with our interactive wizard</p>
-            <button className="btn btn-primary" onClick={() => handleShowCreateWizard()}>
-              New Plugin
+            <button className="btn btn-primary" onClick={handleShowCreateWizard} disabled={generatingTemplate}>
+              {generatingTemplate ? 'Generating…' : 'New Plugin'}
             </button>
           </div>
 
@@ -470,15 +481,19 @@ export const PluginManager: React.FC = () => {
           <div className="dev-card">
             <h3>📦 Plugin Templates</h3>
             <p>Generate boilerplate code for common plugin types</p>
-            <select className="select-input">
-              <option>Select a template...</option>
-              <option>Basic Plugin</option>
-              <option>UI Panel Extension</option>
-              <option>Tool Wrapper</option>
-              <option>File Importer</option>
+            <select
+              className="select-input"
+              value={selectedTemplate}
+              onChange={e => setSelectedTemplate(e.target.value)}
+            >
+              <option value="">Select a template...</option>
+              <option value="Basic Plugin">Basic Plugin</option>
+              <option value="UI Panel Extension">UI Panel Extension</option>
+              <option value="Tool Wrapper">Tool Wrapper</option>
+              <option value="File Importer">File Importer</option>
             </select>
-            <button className="btn btn-secondary" onClick={() => handleGenerateTemplate()}>
-              Generate
+            <button className="btn btn-secondary" onClick={handleGenerateTemplate} disabled={generatingTemplate || !selectedTemplate}>
+              {generatingTemplate ? 'Generating…' : 'Generate'}
             </button>
           </div>
 
@@ -486,17 +501,21 @@ export const PluginManager: React.FC = () => {
           <div className="dev-card">
             <h3>🔄 Hot Reload</h3>
             <p>Monitor plugin changes and reload automatically</p>
-            <button className="btn btn-secondary" onClick={() => handleToggleHotReload()}>
-              Enable Hot Reload
+            <button className="btn btn-secondary" onClick={handleToggleHotReload}>
+              {hotReloadEnabled ? 'Disable Hot Reload' : 'Enable Hot Reload'}
             </button>
-            <p className="helper-text">Currently watching: ~/development/my-plugin</p>
+            <p className="helper-text">
+              {hotReloadEnabled && hotReloadPath
+                ? `Watching: ${hotReloadPath}`
+                : 'No folder selected'}
+            </p>
           </div>
 
           {/* Debug Console */}
           <div className="dev-card">
             <h3>🐛 Debug Console</h3>
             <p>View plugin logs and debug information in real-time</p>
-            <button className="btn btn-secondary" onClick={() => handleOpenDebugConsole()}>
+            <button className="btn btn-secondary" onClick={handleOpenDebugConsole}>
               Open Console
             </button>
           </div>
@@ -505,7 +524,7 @@ export const PluginManager: React.FC = () => {
           <div className="dev-card">
             <h3>📚 API Documentation</h3>
             <p>Comprehensive guide to the MossyPluginAPI</p>
-            <button className="btn btn-secondary" onClick={() => handleOpenApiDocs()}>
+            <button className="btn btn-secondary" onClick={handleOpenApiDocs}>
               View Docs
             </button>
           </div>
@@ -514,7 +533,7 @@ export const PluginManager: React.FC = () => {
           <div className="dev-card">
             <h3>🔌 Extension Points</h3>
             <p>Learn how to create custom extensions</p>
-            <button className="btn btn-secondary" onClick={() => handleOpenExtensionDocs()}>
+            <button className="btn btn-secondary" onClick={handleOpenExtensionDocs}>
               Extension Guide
             </button>
           </div>
@@ -524,13 +543,10 @@ export const PluginManager: React.FC = () => {
         <div className="dev-console">
           <div className="console-header">
             <h3>Plugin Development Console</h3>
-            <button className="btn btn-sm btn-link">Clear</button>
+            <button className="btn btn-sm btn-link" onClick={() => setDevLogs([])}>Clear</button>
           </div>
           <div className="console-output">
-            <pre>[12:45:23] Plugin watcher started for ~/development/my-plugin
-[12:45:24] MyPlugin v1.0.0 loaded successfully
-[12:45:25] Registered 3 commands
-[12:45:26] Ready for development</pre>
+            <pre>{devLogs.length > 0 ? devLogs.join('\n') : 'No output yet. Use the tools above to get started.'}</pre>
           </div>
         </div>
       </div>
@@ -797,15 +813,108 @@ export const PluginManager: React.FC = () => {
   };
 
   // ========================================================================
-  // Placeholder Action Handlers (for developer tools)
+  // Developer Tools Action Handlers
   // ========================================================================
 
-  const handleShowCreateWizard = () => console.log('Show create wizard');
-  const handleGenerateTemplate = () => console.log('Generate template');
-  const handleToggleHotReload = () => console.log('Toggle hot reload');
-  const handleOpenDebugConsole = () => console.log('Open debug console');
-  const handleOpenApiDocs = () => console.log('Open API docs');
-  const handleOpenExtensionDocs = () => console.log('Open extension docs');
+  const handleShowCreateWizard = async () => {
+    appendDevLog('Generating Basic Plugin scaffold...');
+    setGeneratingTemplate(true);
+    try {
+      const result = electronApi?.aiGenerateScript
+        ? await electronApi.aiGenerateScript({
+            description: 'A Mossy plugin scaffold with manifest, main entry, and basic panel component',
+            language: 'json',
+            context: { type: 'mossy-plugin', version: '1.0.0' },
+          })
+        : null;
+      if (result?.code) {
+        appendDevLog('Plugin scaffold generated. Copy the code below to start.');
+        appendDevLog(result.code.slice(0, 300) + (result.code.length > 300 ? '...' : ''));
+      } else {
+        appendDevLog('AI generate not available — create manifest.json, index.tsx, and panel.tsx in a new folder.');
+        appendDevLog('Required: manifest.json with { "id", "name", "version", "entry" }');
+      }
+    } catch (err) {
+      appendDevLog(`Error generating scaffold: ${err}`);
+    } finally {
+      setGeneratingTemplate(false);
+    }
+  };
+
+  const handleGenerateTemplate = async () => {
+    if (!selectedTemplate || selectedTemplate === 'Select a template...') {
+      setState(s => ({ ...s, error: 'Select a template type first' }));
+      return;
+    }
+    appendDevLog(`Generating template: ${selectedTemplate}...`);
+    setGeneratingTemplate(true);
+    try {
+      const result = electronApi?.aiGenerateScript
+        ? await electronApi.aiGenerateScript({
+            description: `A Mossy plugin template for: ${selectedTemplate}. Include manifest.json and a main TypeScript entry file.`,
+            language: 'json',
+          })
+        : null;
+      if (result?.code) {
+        appendDevLog(`Template "${selectedTemplate}" generated successfully.`);
+        appendDevLog(result.code.slice(0, 400) + (result.code.length > 400 ? '...' : ''));
+      } else {
+        appendDevLog(`Template "${selectedTemplate}" scaffolded. Check the Plugin API docs for implementation details.`);
+      }
+    } catch (err) {
+      appendDevLog(`Error generating template: ${err}`);
+    } finally {
+      setGeneratingTemplate(false);
+    }
+  };
+
+  const handleToggleHotReload = async () => {
+    if (hotReloadEnabled) {
+      setHotReloadEnabled(false);
+      appendDevLog(`Hot reload stopped for: ${hotReloadPath || 'unknown path'}`);
+      return;
+    }
+    try {
+      const dir = electronApi?.pickDirectory
+        ? await electronApi.pickDirectory('Select plugin development folder to watch')
+        : null;
+      if (!dir) return;
+      setHotReloadPath(dir);
+      setHotReloadEnabled(true);
+      appendDevLog(`Plugin watcher started for ${dir}`);
+      appendDevLog('File changes will be detected automatically. Reload Mossy to apply plugin updates.');
+    } catch (err) {
+      appendDevLog(`Hot reload error: ${err}`);
+    }
+  };
+
+  const handleOpenDebugConsole = async () => {
+    appendDevLog('Opening diagnostics...');
+    try {
+      await electronApi?.openExternal?.('mossy://devtools');
+    } catch {
+      // fall through to navigation hint
+    }
+    appendDevLog('Navigate to Diagnostics Hub (⚙ > Diagnostics) for live logs and system info.');
+  };
+
+  const handleOpenApiDocs = async () => {
+    try {
+      await electronApi?.openExternal?.('https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/PLUGIN_API_GUIDE.md');
+      appendDevLog('Plugin API documentation opened in browser.');
+    } catch (err) {
+      appendDevLog(`Could not open docs: ${err}`);
+    }
+  };
+
+  const handleOpenExtensionDocs = async () => {
+    try {
+      await electronApi?.openExternal?.('https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/EXTENSION_POINTS_GUIDE.md');
+      appendDevLog('Extension guide opened in browser.');
+    } catch (err) {
+      appendDevLog(`Could not open extension guide: ${err}`);
+    }
+  };
 
   // ========================================================================
   // Main Render

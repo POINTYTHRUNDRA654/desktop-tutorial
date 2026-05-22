@@ -222,7 +222,8 @@ const WorkflowOrchestrator = () => {
         if (!selectedAsset || !selectedPipeline || isRunning) return;
         setIsRunning(true);
         setLogs([]);
-        log(`Starting pipeline '${selectedPipeline.name}' for ${selectedAsset.name}`);
+        log(`[DRY RUN] Planning pipeline '${selectedPipeline.name}' for ${selectedAsset.name}`);
+        log(`Showing commands that would be executed. Run them manually with the listed tools installed.`);
 
         // Capture asset snapshot — stable across the async run
         const runAsset = selectedAsset;
@@ -234,24 +235,24 @@ const WorkflowOrchestrator = () => {
 
         for (let i = 0; i < liveSteps.length; i++) {
             const step = liveSteps[i];
-            const durationMs = 400 + Math.floor(Math.random() * 500);
 
             // Show step as running and flush to UI
             liveSteps[i] = { ...step, status: 'running' };
             setRunSteps([...liveSteps]);
 
-            // Await simulated processing time so the 'running' state is visible
-            await new Promise<void>(resolve => setTimeout(resolve, durationMs));
+            // Brief pause to make progress visible in the UI
+            await new Promise<void>(resolve => setTimeout(resolve, 150));
 
             const command = interpolateCommand(step.command, runAsset);
-            liveSteps[i] = { ...step, status: 'completed', output: `${step.tool} ✓`, notes: step.description, durationMs };
+            liveSteps[i] = { ...step, status: 'completed', output: `[planned] ${step.tool}`, notes: step.description, durationMs: 0 };
             setRunSteps([...liveSteps]);
-            log(`${step.name} completed via ${step.tool}`);
-            log(`Command: ${command}`);
+            log(`Step ${i + 1}: ${step.name} (${step.tool})`);
+            log(`  $ ${command}`);
         }
 
         const totalDuration = Math.max(1, Math.round(performance.now() - startTime));
-        log(`Pipeline finished in ${totalDuration} ms. Asset staged to ${runAsset.targetPath}`);
+        log(`Dry run complete in ${totalDuration} ms — ${liveSteps.length} command(s) planned for ${runAsset.targetPath}`);
+        log(`Install the required tools and run the commands above to process this asset.`);
 
         const historyEntry: RunHistoryEntry = {
             id: `run-${Date.now()}`,
@@ -266,8 +267,8 @@ const WorkflowOrchestrator = () => {
             [runAsset.id]: [historyEntry, ...(prev[runAsset.id] || [])].slice(0, 5)
         }));
 
-        // Update asset status to 'processed' after a successful run
-        setAssets(prev => prev.map(a => a.id === runAsset.id ? { ...a, status: 'processed' as const } : a));
+        // Mark asset as 'in-progress' — commands are planned but not yet executed
+        setAssets(prev => prev.map(a => a.id === runAsset.id ? { ...a, status: 'in-progress' as const } : a));
 
         setIsRunning(false);
     };
@@ -401,9 +402,10 @@ const WorkflowOrchestrator = () => {
                                             onClick={handleRun}
                                             disabled={isRunning}
                                             className="px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded border border-purple-500 text-xs font-semibold text-white flex items-center gap-2 transition-colors disabled:opacity-50"
+                                            title="Preview the commands this pipeline would run (dry run — no files are modified)"
                                         >
                                             {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                                            {isRunning ? 'Running' : 'Run Pipeline'}
+                                            {isRunning ? 'Planning…' : 'Dry Run'}
                                         </button>
                                     </div>
                                 </div>
