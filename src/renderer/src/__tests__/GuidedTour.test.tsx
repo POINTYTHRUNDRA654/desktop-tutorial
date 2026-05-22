@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { vi } from 'vitest';
 
 // Mock speakMossy to avoid using Speech APIs during tests
 vi.mock('../mossyTts', () => ({

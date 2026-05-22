@@ -17,7 +17,7 @@
  * project (diagnostics.test.tsx, GuidedTour.test.tsx, LiveContext.test.tsx).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { vi } from 'vitest';
 
 // ─── Module mocks (must be at the top level before any imports) ─────────────
 

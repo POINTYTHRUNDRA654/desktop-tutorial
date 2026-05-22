@@ -37,6 +37,7 @@ export const IPC_CHANNELS = {
   // Vault integration
   VAULT_RUN_TOOL: 'vault-run-tool',
   VAULT_SAVE_MANIFEST: 'vault-save-manifest',
+  WORKFLOW_RUNNER_RUN_TOOL: 'workflow-runner:run-tool',
   VAULT_LOAD_MANIFEST: 'vault-load-manifest',
   VAULT_GET_DDS_DIMENSIONS: 'vault-get-dds-dimensions',
   VAULT_GET_IMAGE_DIMENSIONS: 'vault-get-image-dimensions',
@@ -155,6 +156,15 @@ export const IPC_CHANNELS = {
   XEDIT_SCRIPT_EXECUTE_SCRIPT: 'xedit-script-execute-script',
   CK_PLUGIN_VALIDATE: 'ck-plugin-validate',
   CK_LAUNCH_WITH_PLUGIN: 'ck-launch-with-plugin',
+
+  // CK Crash Prevention
+  CK_CRASH_VALIDATE: 'ck-crash-prevention:validate',
+  CK_CRASH_ANALYZE: 'ck-crash-prevention:analyze-crash',
+  CK_CRASH_GENERATE_PLAN: 'ck-crash-prevention:generate-plan',
+  CK_CRASH_PICK_LOG_FILE: 'ck-crash-prevention:pick-log-file',
+  CK_CRASH_PICK_PLUGIN: 'ck-crash-prevention:pick-plugin',
+  CK_CRASH_PICK_MOD_PACKAGE: 'ck-crash-prevention:pick-mod-package',
+  CK_CRASH_EXTRACT_ZIP: 'ck-crash-prevention:extract-zip',
 
   // Project Templates
   PROJECT_TEMPLATE_BROWSE_PATH: 'project-template-browse-path',
@@ -682,6 +692,8 @@ export interface ElectronAPI {
   }>;
   // Vault
   runTool: (payload: { cmd: string; args?: string[]; cwd?: string }) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
+  /** Workflow Runner: run a user-configured tool/command and capture output (no Vault allowlist) */
+  workflowRunnerRunTool: (payload: { cmd: string; args?: string[]; cwd?: string }) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
   saveVaultManifest: (assets: unknown) => Promise<{ ok: boolean; file?: string; error?: string }>;
   loadVaultManifest: () => Promise<unknown[]>;
   getDdsDimensions: (filePath: string) => Promise<{ width: number; height: number }>;
@@ -995,6 +1007,31 @@ export interface ElectronAPI {
   systemMetricsPoll: () => Promise<SystemMetricsResponse>;
   systemMetricsGet: () => Promise<SystemMetricsResponse>;
   onSystemMetricsUpdate: (callback: (metrics: SystemMetrics) => void) => (() => void);
+
+  // TextureEnhancer IPC listeners
+  onEnhancerProgress?: (callback: (data: any) => void) => (() => void);
+  onEnhancerComplete?: (callback: (data: any) => void) => (() => void);
+  onEnhancerError?: (callback: (data: any) => void) => (() => void);
+  onEnhancerJobStarted?: (callback: (data: any) => void) => (() => void);
+  selectDirectory?: () => Promise<string | null>;
+
+  // BethelUploader IPC listeners & API
+  onBethelAnalyzed?: (callback: (job: any) => void) => (() => void);
+  onBethelEnhancementComplete?: (callback: (job: any) => void) => (() => void);
+  onBethelExportComplete?: (callback: (job: any) => void) => (() => void);
+  bethel?: {
+    listJobs?: (limit?: number) => Promise<{ success: boolean; jobs?: any[]; error?: string }>;
+    createSession?: () => Promise<{ success: boolean; job?: any; error?: string }>;
+    analyzeUploadedMod?: (jobId: string) => Promise<{ success: boolean; job?: any; error?: string }>;
+    enhanceMod?: (jobId: string, level: number) => Promise<{ success: boolean; job?: any; error?: string }>;
+    exportEnhancedMod?: (jobId: string, format: string) => Promise<{ success: boolean; job?: any; error?: string }>;
+  };
+
+  // OllamaSettings (legacy ml namespace — wraps the flat mlLlmStatus/mlLlmGenerate API)
+  ml?: {
+    getOllamaStatus?: (baseUrl?: string) => Promise<{ ok: boolean; baseUrl?: string; models?: string[]; error?: string }>;
+    ollamaPull?: (model: string, opts?: { baseUrl?: string }) => Promise<{ ok: boolean; error?: string }>;
+  };
 }
 
 export interface VoiceChatPayload {

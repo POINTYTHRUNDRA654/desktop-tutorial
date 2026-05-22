@@ -5,7 +5,6 @@
  * are correctly structured and accessible.
  */
 
-import { describe, it, expect } from 'vitest';
 import { DEFAULT_SETTINGS, IPC_CHANNELS, Message, Settings } from '../types';
 
 describe('Shared Types', () => {

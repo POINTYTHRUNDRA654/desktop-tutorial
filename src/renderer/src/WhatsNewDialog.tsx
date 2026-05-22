@@ -7,10 +7,22 @@ interface WhatsNewDialogProps {
   onClose: () => void;
 }
 
+interface WhatsNewFeature {
+  title: string;
+  description: string;
+  icon: string;
+}
+
+interface WhatsNewEntry {
+  version: string;
+  features?: WhatsNewFeature[];
+}
+
 export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose }) => {
   const [dontShowAgain, setDontShowAgain] = useState(false);
-  const [entry, setEntry] = useState<any>(null);
+  const [entry, setEntry] = useState<WhatsNewEntry | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fallbackInfo, setFallbackInfo] = useState<{ used: boolean; requestedVersion: string; resolvedVersion: string | null } | null>(null);
 
   // Load current version's What's New entry from server
   useEffect(() => {
@@ -21,8 +33,9 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose 
         setLoading(true);
         const result = await window.electron.api.invoke('whats-new-get-current');
         
-        if (result?.ok && result.entry) {
-          setEntry(result.entry);
+        if (result?.ok) {
+          setEntry(result.entry || null);
+          setFallbackInfo(result.fallback || null);
           // Mark current version as seen
           await window.electron.api.invoke('whats-new-mark-seen', { 
             version: packageJson.version 
@@ -38,40 +51,7 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose 
     loadWhatsNew();
   }, [isOpen]);
 
-  const defaultFeatures = [
-    {
-      title: "Enhanced AI Chat",
-      description: "Improved conversation memory and context awareness for better assistance.",
-      icon: "🤖"
-    },
-    {
-      title: "Project Management",
-      description: "Create, switch, and manage multiple modding projects with ease.",
-      icon: "📁"
-    },
-    {
-      title: "Neural Link Integration",
-      description: "Real-time monitoring of Blender, Creation Kit, and other modding tools.",
-      icon: "🧠"
-    },
-    {
-      title: "Advanced Asset Analysis",
-      description: "Comprehensive NIF, DDS, and ESP file validation with performance warnings.",
-      icon: "🔍"
-    },
-    {
-      title: "Global Search",
-      description: "Search across all modules and features with Ctrl+K shortcut.",
-      icon: "🔎"
-    },
-    {
-      title: "Favorites System",
-      description: "Bookmark frequently used tools for quick access.",
-      icon: "⭐"
-    }
-  ];
-
-  const features = entry?.features || defaultFeatures;
+  const features: WhatsNewFeature[] = Array.isArray(entry?.features) ? entry.features : [];
 
   const handleClose = () => {
     if (dontShowAgain) {
@@ -112,7 +92,22 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({ isOpen, onClose 
 
         {/* Content */}
         <div className="p-6">
+          {fallbackInfo?.used && (
+            <div className="mb-4 rounded-lg border border-amber-400/40 bg-amber-500/10 p-3 text-sm text-amber-100">
+              Showing fallback notes from v{fallbackInfo.resolvedVersion || 'unknown'} because v{fallbackInfo.requestedVersion} has no dedicated section yet.
+            </div>
+          )}
           <div className="grid gap-4">
+            {loading && (
+              <div className="rounded-lg border border-slate-700 bg-slate-800/40 p-4 text-sm text-slate-300">
+                Loading release notes...
+              </div>
+            )}
+            {!loading && features.length === 0 && (
+              <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                No changelog highlights are available for this build yet.
+              </div>
+            )}
             {features.map((feature, index) => (
               <div key={index} className="flex items-start gap-4 p-4 bg-slate-800/50 rounded-lg">
                 <div className="text-2xl">{feature.icon}</div>

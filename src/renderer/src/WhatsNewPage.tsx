@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle, Sparkles } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import packageJson from '../../../package.json';
@@ -7,12 +7,25 @@ interface WhatsNewPageProps {
   onDismiss?: () => void;
 }
 
+interface WhatsNewFeatureItem {
+  title: string;
+  description: string;
+  icon: string;
+}
+
+interface WhatsNewEntry {
+  version: string;
+  features?: WhatsNewFeatureItem[];
+  highlights?: string[];
+}
+
 const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [dontShowAgain, setDontShowAgain] = useState(false);
-  const [entry, setEntry] = useState<any>(null);
+  const [entry, setEntry] = useState<WhatsNewEntry | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fallbackInfo, setFallbackInfo] = useState<{ used: boolean; requestedVersion: string; resolvedVersion: string | null } | null>(null);
 
   // Load current version's What's New entry from server
   useEffect(() => {
@@ -21,8 +34,9 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
         setLoading(true);
         const result = await window.electron.api.invoke('whats-new-get-current');
         
-        if (result?.ok && result.entry) {
-          setEntry(result.entry);
+        if (result?.ok) {
+          setEntry(result.entry || null);
+          setFallbackInfo(result.fallback || null);
           // Mark current version as seen
           await window.electron.api.invoke('whats-new-mark-seen', { 
             version: packageJson.version 
@@ -38,44 +52,8 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
     loadWhatsNew();
   }, []);
 
-  // Fallback features if no data from server
-  const defaultFeatures = useMemo(
-    () => [
-      {
-        title: 'Enhanced AI Chat',
-        description: 'Improved conversation memory and context awareness for better assistance.',
-        icon: '🤖',
-      },
-      {
-        title: 'Project Management',
-        description: 'Create, switch, and manage multiple modding projects with ease.',
-        icon: '📁',
-      },
-      {
-        title: 'Neural Link Integration',
-        description: 'Real-time monitoring of Blender, Creation Kit, and other modding tools.',
-        icon: '🧠',
-      },
-      {
-        title: 'Advanced Asset Analysis',
-        description: 'Comprehensive NIF, DDS, and ESP file validation with performance warnings.',
-        icon: '🔍',
-      },
-      {
-        title: 'Global Search',
-        description: 'Search across all modules and features with Ctrl+K shortcut.',
-        icon: '🔎',
-      },
-      {
-        title: 'Favorites System',
-        description: 'Bookmark frequently used tools for quick access.',
-        icon: '⭐',
-      },
-    ],
-    []
-  );
-
-  const features = entry?.features || defaultFeatures;
+  const features: WhatsNewFeatureItem[] = Array.isArray(entry?.features) ? entry.features : [];
+  const highlights: string[] = Array.isArray(entry?.highlights) ? entry.highlights : [];
 
   const handleBack = () => {
     if (dontShowAgain) {
@@ -141,6 +119,16 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
             </button>
           </div>
 
+          {fallbackInfo?.used && (
+            <div className="mt-6 rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-amber-100">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">Fallback Notice</p>
+              <p className="mt-1 text-sm">
+                Current version <strong>{fallbackInfo.requestedVersion}</strong> has no dedicated changelog section yet.
+                Showing latest available notes from <strong>{fallbackInfo.resolvedVersion || 'unknown version'}</strong>.
+              </p>
+            </div>
+          )}
+
           <div className="mt-10 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
             <section className="rounded-3xl border border-emerald-500/20 bg-black/40 p-6 shadow-2xl shadow-emerald-900/30">
               <div className="flex items-center justify-between">
@@ -150,9 +138,19 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
                 </span>
               </div>
               <div className="mt-6 grid gap-4">
-                {features.map((feature) => (
+                {loading && (
+                  <div className="rounded-2xl border border-emerald-500/20 bg-black/30 p-4 text-sm text-emerald-200/80">
+                    Loading changelog notes...
+                  </div>
+                )}
+                {!loading && features.length === 0 && (
+                  <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                    No changelog highlights are available yet for this build.
+                  </div>
+                )}
+                {features.map((feature, index) => (
                   <div
-                    key={feature.title}
+                    key={index}
                     className="group flex items-start gap-4 rounded-2xl border border-emerald-500/10 bg-gradient-to-br from-emerald-500/10 via-transparent to-transparent p-4 transition-transform hover:-translate-y-1"
                   >
                     <div className="text-2xl">{feature.icon}</div>
@@ -164,6 +162,16 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
                   </div>
                 ))}
               </div>
+              {!loading && highlights.length > 0 && (
+                <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-black/30 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">Release Highlights</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-emerald-100/80">
+                    {highlights.map((line, index) => (
+                      <li key={index}>{line}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </section>
 
             <section className="space-y-6">

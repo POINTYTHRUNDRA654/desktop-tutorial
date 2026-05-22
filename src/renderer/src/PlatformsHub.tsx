@@ -13,6 +13,7 @@ import {
   Mic,
   Film,
   ScrollText,
+  Home,
 } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { openExternal } from './utils/openExternal';
@@ -62,6 +63,27 @@ export const PlatformsHub: React.FC<PlatformsHubProps> = ({ embedded = false }) 
       description: 'Tool installs and setup: xEdit, SS2, PRP, patching.',
       to: '/wizards',
       icon: Wrench,
+    },
+    {
+      title: 'Deep Scan Platform',
+      description: 'Run full environment diagnostics, system scan, and Fallout 4 tool detection in one place.',
+      to: '/diagnostics',
+      icon: ShieldCheck,
+      badge: 'Deep Scan',
+    },
+    {
+      title: 'SS2 Creator Learning Path',
+      description: 'Beginner-friendly step-by-step path for SS2 tools, city plans, and creator workflows.',
+      to: '/guides/mods/sim-settlements',
+      icon: Home,
+      badge: 'Learning Path',
+    },
+    {
+      title: 'All 22 Tutorial Platforms',
+      description: 'Open the complete FO4 tutorial platform index and browse every platform guide in one place.',
+      to: '/guides-hub',
+      icon: BookOpen,
+      badge: '22 Platforms',
     },
     {
       title: 'Precombine & PRP Guide',

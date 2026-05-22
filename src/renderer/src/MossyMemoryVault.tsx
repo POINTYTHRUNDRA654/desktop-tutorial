@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
-import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files, Download, Share2, Github, Bell, PackageOpen, RefreshCw, Box } from 'lucide-react';
+import { Book, Upload, Trash2, Search, Brain, FileText, CheckCircle2, Loader2, Sparkles, Database, Plus, X, Activity, Cloud, Files, Download, Share2, Bell, PackageOpen, RefreshCw, Box, GitBranch } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
@@ -516,6 +516,10 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
     // Import community knowledge pack
     const importCommunityPack = async (pack: any) => {
         try {
+            if (!pack?.items || !Array.isArray(pack.items)) {
+                toast.error('Invalid community pack format');
+                return;
+            }
             const currentMemories = [...memories];
             const newItems = pack.items.map((item: any) => ({
                 ...item,
@@ -548,33 +552,20 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
     };
 
     // Export knowledge for sharing
-    const handleExportShared = () => {
-        const selectedItems = memories.filter(m => m.trustLevel === 'community' || m.trustLevel === 'official');
-        
-        if (selectedItems.length === 0) {
-            toast.error('No community or official knowledge to export. Mark items as "Community" trust level to share them.');
+    const handleExportShared = async () => {
+        const sharedItems = memories.filter(m => m.shareWithCommunity);
+
+        if (sharedItems.length === 0) {
+            toast.error('No shared items to export. Mark items as "Share with Community" first.');
             return;
         }
-        
-        const packData = {
-            packId: `custom-pack-${Date.now()}`,
-            packName: 'Custom Knowledge Pack',
-            packVersion: '1.0.0',
-            exportDate: new Date().toISOString().split('T')[0],
-            description: 'Custom knowledge pack for Mossy',
-            author: 'Community Member',
-            items: selectedItems
-        };
-        
-        const blob = new Blob([JSON.stringify(packData, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${packData.packId}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+
+        try {
+            await handleSyncCommunityKnowledge(sharedItems);
+        } catch (error) {
+            console.error('Community export error:', error);
+            toast.error('Failed to export community knowledge. Please try again.');
+        }
     };
 
     const handleUpload = async () => {
@@ -739,15 +730,6 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         input.click();
     };
 
-    const handleExportSharedOnly = () => {
-        const sharedItems = memories.filter(m => m.shareWithCommunity);
-        if (sharedItems.length === 0) {
-            toast.error('No shared items to export. Mark items as "Share with Community" first.');
-            return;
-        }
-        handleSyncCommunityKnowledge(sharedItems);
-    };
-
     const handleBrowseKnowledgeLibrary = async () => {
         setIsLoadingLibrary(true);
         setShowKnowledgeLibrary(true);
@@ -845,6 +827,11 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         : 'h-full min-h-0 flex flex-col bg-[#0f120f] text-slate-200 font-sans overflow-hidden';
 
     const overlayPositionClass = embedded ? 'absolute inset-0' : 'fixed inset-0';
+    const learnedCount = memories.filter((m) => m.status === 'learned').length;
+    const sharedCount = memories.filter((m) => m.shareWithCommunity).length;
+    const personalCount = memories.filter((m) => (m.trustLevel || 'personal') === 'personal').length;
+    const communityCount = memories.filter((m) => m.trustLevel === 'community').length;
+    const officialCount = memories.filter((m) => m.trustLevel === 'official').length;
 
     return (
         <div className={containerClass} onWheel={onWheel}>
@@ -960,19 +947,9 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                         className="flex items-center gap-2 px-3 py-2 bg-purple-900/50 hover:bg-purple-800/50 text-purple-100 rounded-lg transition-all border border-purple-700 text-xs font-bold"
                         title="Import shared knowledge from community"
                       >
-                        <Github className="w-4 h-4" />
+                        <GitBranch className="w-4 h-4" />
                         <span className="hidden sm:inline">Import Community</span>
                         <span className="sm:hidden">Import</span>
-                      </button>
-
-                      <button
-                        onClick={handleExportSharedOnly}
-                        className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 bg-blue-900/50 hover:bg-blue-800 text-blue-100 rounded-lg transition-all border border-blue-700 text-xs font-bold"
-                        title="Export items marked for sharing"
-                      >
-                        <Share2 className="w-4 h-4" />
-                        <span className="hidden md:inline">Export Shared</span>
-                        <span className="md:hidden sm:inline">Share</span>
                       </button>
 
                       <button
@@ -1144,15 +1121,15 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             <div className="px-6 py-3 bg-[#1a1f1a] border-b border-emerald-900/20 flex items-center gap-6 text-[10px] font-mono text-emerald-300">
                 <div className="flex items-center gap-2">
                     <Database className="w-3 h-3" />
-                    <span>LOCAL VECTOR DB: {(memories.length * 0.45).toFixed(2)} MB INDEXED</span>
+                    <span>MEMORIES: {memories.length} TOTAL / {learnedCount} LEARNED / {sharedCount} SHARED</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-400">
                     <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                    <span>SYNCED TO LOCAL AI ENGINE (OLLAMA)</span>
+                    <span>TRUST SPLIT: P{personalCount} · C{communityCount} · O{officialCount}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Activity className="w-3 h-3 text-cyan-400" />
-                    <span>NEURAL DENSITY: {(memories.length * 0.12).toFixed(2)} pts</span>
+                    <span>SEARCH VIEW: {filteredMemories.length} MATCHING</span>
                 </div>
             </div>
 

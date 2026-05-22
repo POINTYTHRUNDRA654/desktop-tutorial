@@ -20,9 +20,29 @@ export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({ embedded = f
 
   const loadAnalyticsData = async () => {
     try {
-      const settings = await window.electronAPI?.getSettings?.();
-      if (settings?.analytics) {
-        setConfig(settings.analytics);
+      if (window.electronAPI?.getAnalyticsConfig) {
+        const analyticsConfig = await window.electronAPI.getAnalyticsConfig();
+        const normalizedConfig: AnalyticsConfig = {
+          enabled: !!analyticsConfig?.enabled,
+          anonymousId: analyticsConfig?.anonymousId || 'Not generated',
+          dataRetentionDays: analyticsConfig?.dataRetentionDays || analyticsConfig?.dataRetention || 90,
+          categories: analyticsConfig?.categories || {
+            usage: true,
+            performance: true,
+            errors: true,
+            features: true,
+          },
+          destinations: analyticsConfig?.destinations || {
+            local: true,
+            remote: false,
+          },
+        };
+        setConfig(normalizedConfig);
+      } else {
+        const settings = await window.electronAPI?.getSettings?.();
+        if (settings?.analytics) {
+          setConfig(settings.analytics);
+        }
       }
 
       if (window.electronAPI?.getAnalyticsMetrics) {
@@ -45,11 +65,7 @@ export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({ embedded = f
     try {
       if (window.electronAPI?.updateAnalyticsConfig) {
         await window.electronAPI.updateAnalyticsConfig(updates);
-        // Reload config to get updated values
-        const settings = await window.electronAPI?.getSettings?.();
-        if (settings?.analytics) {
-          setConfig(settings.analytics);
-        }
+        await loadAnalyticsData();
       }
     } catch (error) {
       console.error('Failed to update analytics config:', error);
@@ -81,8 +97,12 @@ export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({ embedded = f
     }
 
     try {
-      // In a real implementation, you'd have a clear method
-      // For now, we'll just reload
+      if (window.electronAPI?.clearAnalyticsData) {
+        const result = await window.electronAPI.clearAnalyticsData();
+        if (result?.success === false) throw new Error(result.error || 'Failed to clear analytics data');
+      }
+      setEvents([]);
+      setMetrics(null);
       await loadAnalyticsData();
     } catch (error) {
       console.error('Failed to clear analytics data:', error);

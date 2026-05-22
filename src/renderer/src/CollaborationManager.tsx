@@ -22,12 +22,15 @@ export const CollaborationManager: React.FC<CollaborationManagerProps> = ({ embe
 
   const loadCollaborationData = async () => {
     try {
-      const settings = await window.electronAPI?.getSettings?.();
-      if (settings?.collaborationEnabled && settings?.collaborationSessions) {
-        setSessions(settings.collaborationSessions);
+      if (window.electronAPI?.listCollaborationSessions) {
+        const collaborationSessions = await window.electronAPI.listCollaborationSessions();
+        setSessions(Array.isArray(collaborationSessions) ? collaborationSessions : []);
+      } else {
+        const settings = await window.electronAPI?.getSettings?.();
+        if (settings?.collaborationEnabled && settings?.collaborationSessions) {
+          setSessions(settings.collaborationSessions);
+        }
       }
-      // Git config would be per-project, so we'd need to get current project
-      // For now, we'll initialize it as needed
     } catch (error) {
       console.error('Failed to load collaboration data:', error);
     } finally {
@@ -39,28 +42,25 @@ export const CollaborationManager: React.FC<CollaborationManagerProps> = ({ embe
     if (!newSessionName.trim()) return;
 
     try {
-      // For now, we'll create a session by updating settings
-      // In a real implementation, this would call an IPC method
       const settings = await window.electronAPI?.getSettings?.();
-      if (settings) {
-        const newSession: CollaborationSession = {
-          id: `session_${Date.now()}`,
-          projectId: settings.currentProjectId || '',
-          participants: [],
-          activeFiles: [],
-          lastActivity: Date.now(),
-          status: 'active'
-        };
-        const updatedSessions = [...(settings.collaborationSessions || []), newSession];
-        await window.electronAPI?.setSettings?.({
-          ...settings,
-          collaborationSessions: updatedSessions
+      const projectId = settings?.currentProjectId || '';
+      if (!projectId) return;
+
+      if (window.electronAPI?.createCollaborationSession) {
+        const session = await window.electronAPI.createCollaborationSession({
+          projectId,
+          name: newSessionName.trim(),
+          description: newSessionDescription.trim(),
         });
-        setSessions(updatedSessions);
-        setNewSessionName('');
-        setNewSessionDescription('');
-        setShowCreateSession(false);
+        if (session?.success === false) {
+          throw new Error(session.error || 'Failed to create collaboration session');
+        }
       }
+
+      await loadCollaborationData();
+      setNewSessionName('');
+      setNewSessionDescription('');
+      setShowCreateSession(false);
     } catch (error) {
       console.error('Failed to create session:', error);
     }

@@ -1,783 +1,391 @@
 # Precombine Previs Deep Dive
 
-**Total views: 12.3k**
+**Source:** PJM's Precombine - Previs Patching Scripts, Nexus #69978  
+**Author:** PJMail  
+**Total views:** 14.2k  
+**Last updated:** Mar 2026
 
-## Terminology used in this guide
+---
+
+## Terminology Used in This Guide
 
 | Term | Definition |
-|------|-----------|
-| **Cell (CELL)** | A 4096x4096 square of an exterior Worldspace, or an entire Interior space |
+|---|---|
+| **Cell (CELL)** | A 4096×4096 square of an exterior Worldspace, or an entire Interior space |
 | **Cell Reference (REFR)** | A placed object in that CELL |
-| **Version Control Information (VCI1)** | Field on a Cell Reference specifying when that Reference was created/Modified |
-| **Material Swap (MSWP)** | A record that specifies Textures to be swapped; can be applied to a Cell Reference to change appearance |
+| **Version Control Information (VCI1)** | Field on a Cell Reference specifying when that Reference was created/modified |
+| **Material Swap (MSWP)** | A record specifying Textures to be swapped; can be applied to a Cell Reference to give an object a different look |
 | **Precombineable Reference** | A Reference of base type Static (STAT) or Static Collection (SCOL) that can be included in a precombine |
-| **Precombined Reference** | A Precombineable Reference included in a Precombine; no longer separately rendered |
-| **Precombine Mesh** | Modified mesh file (.nif) composed of multiple meshes from precombined References; optimizes rendering |
-| **Combined References (XCRI)** | Field on a Cell listing all Precombined References and Precombine Meshes; also called "Cell's Precombines" |
-| **PCMB** | Field on a Cell specifying when Precombine meshes were created |
-| **Physics Mesh** | One per Cell; contains Collision parts of Precombined References in that Cell's Precombine Meshes |
-| **Previs** | Occlusion (PreCulling) mechanism reducing rendered objects by not rendering hidden objects; improves FPS |
-| **Previs Cluster** | 9 Exterior Cells in a 3x3 pattern; a Cell can only be member of one Cluster |
-| **RVIS** | Field on an Exterior Cell specifying the ID of the middle Cell of the Previs Cluster it is in |
-| **Previs File** | Pre-generated file (.uvd) containing Occlusion information for a Previs Cluster or entire Interior Cell |
-| **Previs Objects** | Cell references whose rendering is controlled by Previs system; in FO4 all Precombined references are "effectively" Previs Objects |
-| **Landscape (LAND)** | One per Exterior Cell; defines shape and texture of landscape; used in Previs file |
+| **Precombined Reference** | A Precombineable Reference that has been included in a Precombine and is no longer separately rendered |
+| **Precombine Mesh** | A modified mesh file (.nif) composed of multiple meshes from Precombined References, pre-created to optimise rendering |
+| **Combined References (XCRI)** | Field on a Cell listing all Precombined References and Precombine Meshes in that Cell (the Cell's Precombines) |
+| **PCMB** | Field on a Cell specifying when the Precombine meshes for that Cell were created |
+| **Physics Mesh** | One per Cell; contains the Collision parts of Precombined References in that Cell's Precombine Meshes |
+| **Previs** | The Occlusion (PreCulling) mechanism used to improve FPS by not rendering objects hidden behind other objects |
+| **Previs Cluster** | 9 Exterior Cells in a 3×3 pattern; a Cell can only be a member of one Cluster |
+| **RVIS** | Field on an Exterior Cell specifying the ID of the middle Cell of the Previs Cluster it belongs to |
+| **Previs File** | Pre-generated file (.uvd) containing Occlusion information for a Previs Cluster or an entire Interior Cell |
+| **Previs Objects** | Cell references whose rendering is controlled by the Previs system; in FO4 all Precombined references are effectively Previs Objects |
+| **Landscape (LAND)** | One per Exterior Cell; defines the shape and texture of the landscape; also used in the Previs file |
 | **XPRI** | Field on a Cell listing special non-precombineable references treated as Previs Objects |
-| **VISI** | Field on a Cell specifying when Previs for that Interior cell (or Cell Cluster) was created |
-| **Previsbines** | Unofficial term meaning Precombines and Previs for a Cell or the whole Mod |
+| **VISI** | Field on a Cell specifying when the Previs for that Interior Cell (or Cell Cluster) was created |
+| **Previsbines** | Unofficial term meaning the Precombines and Previs for a Cell or the whole Mod |
 | **Plugin** | Another term for a "Mod" |
-| **Lowest Plugin** | Plugins get "lower" reaching the bottom of Load order (Mod# gets higher) |
-| **Winning Object (Last Override)** | The override of that object in the Lowest Plugin |
+| **Lowest Plugin** | Plugins get "lower" as they reach the bottom of the Load Order (their Mod# gets higher) |
+| **Winning Object / Last Override** | The override of that object in the Lowest Plugin |
 
 ---
 
 ## Precombine/Previs Basics
 
-### Overview
+- Previsbines are pre-generated CELL information and files used by the game to reduce what it needs to render, increasing FPS — especially on low-end graphics systems.
+- Previsbines are either **On or Off** for each Cell, determined during **Game startup** (based on loaded plugins), not during play. They are **not** stored in saves.
+- A Cell can have Precombines without Previs, but the game does not allow Previs without Precombines enabled (even if there are none).
+- Precombines (and thus Previs) can be deliberately disabled per Cell by removing either the Cell's XCRI or PCMB fields.
+- Previs can be disabled alone by removing the Cell VISI field or setting the Cell flag **"No Previs"**.
+- The game can also decide to disable Precombines during startup — see *Game Startup Previsbine Checks* below.
+- Precombines can be disabled game-wide via `Fallout4.ini` setting `General:bUseCombinedObjects=0`. This also disables Previs of precombined objects (though the Previs system still runs). FPS will drop significantly. This setting only takes effect after a fast travel if changed via the console `Setini`.
 
-Previsbines are pre-generated CELL information and files used by the game to reduce what needs to be rendered, increasing game FPS (especially on low-end Graphics systems).
+**Physical storage:**
+- Precombine meshes: `Data\Meshes\Precombined\` (loose or in a `- main.ba2`)
+- Associated `.csg` and `.cdx` files: in `Data\` if built "clean"
+- Previs files: `Data\vis\` (loose or in a `- main.ba2`) as `.uvd` files
+- Matching CELL fields PCMB/XCRI and VISI/XPRI must all be consistent for everything to work correctly
 
-**Key Points:**
-- Previsbines are either On or Off for each Cell
-- Determination occurs during Game startup (based on loaded plugins), not during play
-- Not kept in save files
-- A Cell can have Precombines without Previs, but game doesn't allow Previs without Precombines
+The game will run with Previsbines disabled for a Cell — your FPS will drop when that Cell is rendered. Remember: all Cells within `uGridsToLoad` range are rendered, so you can get FPS drops from Cells with disabled Previsbines that are some distance away.
 
-### Enabling/Disabling Previsbines
+> **Note:** The game does not support Previsbines for new cells created (mastered) in an ESL-flagged plugin. Do not create new worldspaces or interiors in `.esl` or ESL-flagged `.esp` plugins and expect to build Previsbines for them. This is a game bug.
 
-Precombines and Previs can be deliberately disabled per Cell by:
-- Removing the Cell's XCRI or PCMB Fields (disables Precombines and thus Previs)
-- Removing the Cell VISI field or setting the "No Previs" flag (disables Previs only)
+---
 
-**Game-Level Control:**
-- Game can disable Precombines during Game startup (see "Game Startup Previsbine checks")
-- Whole-game disabling via `Fallout4.ini` setting: `General:bUseCombinedObjects=0`
-  - Disables Previs of precombined objects (though Previs system still runs)
-  - Results in significant FPS drop
-  - Takes effect after fast travel if changed in-game via console
+## How a Precombined Reference Works
 
-### File Storage
+A Precombined reference is a reference on a Cell (master or override) that:
+- Places a precombineable object into the Cell
+- Is specified in the XCRI field of the winning Cell override as being included in a Precombine Mesh
+- Is **NOT** rendered directly — the Precombined mesh it is included in is rendered instead (it contains a snapshot of the reference)
+- This means **subsequent changes to this reference are ignored** until the Precombine containing it is rebuilt
 
-**Precombines:**
-- Physical Precombines: `Data\Meshes\Precombined` (loose or in "- main.ba2")
-- Associated files: `.csg` and `.cdx` in Data (if built 'clean')
-- Matching information in CELL fields PCMB and XCRI
-- All must be consistent for proper function
+**Important:** VCI1 of the reference is checked during startup. Manual editing via FO4Edit normally sets VCI1 to 'None' (interpreted as a far future date). Editing via the CK sets VCI1 to today.
 
-**Important Notes:**
-- Game runs with disabled Previsbines, but FPS drops in rendered Cells
-- Interior Cells may have other issues
-- All Cells rendered within "uGridsToLoad" range; FPS drops from distant Cells with disabled Previsbines possible
-- **Game does NOT support previsbines for new cells (mastered) in "ESL" flagged plugins (Game bug)**
+---
 
-### Precombined References
+## How a Precombine Mesh Works
 
-A Precombined reference is a reference on a Cell that:
-- Is specified in the winning Cell override's XCRI field as included in a Precombine Mesh
-- Is NOT rendered separately; Precombined mesh renders instead
-- Subsequent changes ignored until precombine rebuilt
-- **UP TO YOU** to rebuild Precombine meshes if you or a mod changes references
+- A Precombine Mesh is a single mesh built from all the individual meshes of the Precombined Objects it contains. Displaying one big mesh is less GPU-intensive (fewer draw calls) than many smaller ones.
+- Both the Precombine Mesh **and** the Precombined References they are built from **must** be declared in the Cell's XCRI field for the game to use them.
+- Files are stored in `Data/meshes/precombine/` (or in the plugin's `- Main.ba2` archive).
 
-**VCI1 (Version Control Information):**
-- Game checks if references changed but relies on VCI1 being updated
-- FO4Edit manual editing normally sets VCI1 to 'None' (interpreted as far future date)
-- Creation Kit editing sets VCI1 to today
+---
 
-### Precombine Meshes
+## How the Previs File Works
 
-A Precombine Mesh is:
-- Single mesh built from multiple individual meshes of Precombined Objects
-- Less GPU intensive (fewer Draw calls) than rendering multiple smaller meshes
-- **Both the Precombine Mesh AND precombined References must be declared in XCRI**
-- Stored in `Data/meshes/precombine` directory (or equivalent path in plugin's "- Main.ba2" archive)
+The Previs file is essentially an index into all the Precombine meshes of a Cluster:
+- Contains **3D positional information** of every object in those Precombine Meshes — Previs cannot be correctly built until all Precombine Meshes are built first.
+- The game uses this information to render only the parts of Precombine meshes visible to the player.
+- A Previs file only works correctly with the **exact Precombine meshes it was built from**. A mismatch causes flickering.
+- The Previs file also includes all **Landscape heightmap** information for the cluster — changing a Cell's LAND record causes flickering until Previs is rebuilt.
+- Previs also contains occlusion information for some Static but non-precombineable objects (like Furniture), listed in XPRI records. Moving such objects without rebuilding Previs makes them disappear at certain angles.
 
-### Previs Files
+---
 
-The Previs file functions as an 'index' into all Precombine meshes of a Cluster and:
+## Previs Clusters
 
-**Contains:**
-- 3D positional information of every object in Precombine Meshes
-  - Cannot build Previs correctly until all Precombine Meshes are built first
-- Landscape heightmap information for a cluster (hills occlude objects behind them)
-- Occlusion information for some Static but non-precombineable objects (Furniture, etc.)
+A Previs Cluster is 9 Exterior Cells (3×3) sharing a common Previs file (`<ClusterCenterID>.uvd`):
+- The Cluster Center Cell ID is specified in the RVIS of every Cell in that Cluster.
+- The Center Cell has a Grid (XCLC) X,Y coordinate that is a multiple of 3 (e.g. `0,0`, `-21,12`), with the remaining cells at ±1 in X and Y.
+- A Cell cannot be part of more than one cluster. Interior Cells are not in a Cluster (they are effectively their own Cluster).
 
-**Critical Note:**
-- Previs file only works correctly with the Precombine meshes it was originally built with
-- Mismatch causes incorrect object display based on Player view (flickering)
-- Changing Landscape (LAND) record causes flickering until Previs rebuilt
+> **Note:** Removing the RVIS field on exterior cells does nothing (but is not recommended).
 
-**Dynamic Rendering:**
-- Game uses Previs information to render only parts of Precombine meshes that are visible
-- Objects in XPRI records only rendered if not occluded
-- Moving non-precombineable objects without rebuilding Previs causes incorrect 'disappearance'
+---
 
-**Physical Storage:**
-- Located in `Data\vis` path (or equivalent in plugin's "- Main.ba2" archive) as `.uvd` files
-- Matching information in CELL fields VISI and XPRI
-- All must be consistent for proper function
+## The Rule of 1 — Winning Overrides
 
-**Rebuilding Previs:**
-- Can create new Previs for Cells/Cluster using existing precombines at any time
-- Must overwrite VISI and XPRI information of ALL CELLs in same cluster with new versions generated by CK
+The game follows a **"Rule of 1"** — only the **last override** of a Cell matters. This applies to:
+- PCMB/XCRI/XPRI fields
+- Previs Files and Precombine Mesh files (the file in the archive of the **lowest** Plugin with that file is used)
+- A Plugin's archive can contain these files even if it has no relevant CELL records in its .esp file — but this makes tracking difficult and is ill-advised.
 
-### Previs Clusters
-
-A Previs Cluster is:
-- 9 Exterior Cells (3x3) sharing common Previs file (`<ClusterCenterID>.uvd`)
-- Cluster Center Cell ID specified in RVIS of every cell in that Cluster (mostly)
-- Center Cell has Grid (XCLC) X,Y coordinate that is multiple of 3 ("0,0", "-21,12" etc)
-- Remaining cells at +1 or -1 (X and Y) from center
-- A Cell cannot be part of more than one cluster
-- Interior Cells not in a Cluster (effectively their own Cluster)
-
-**Note:** Removing RVIS field on exterior cells does nothing (not recommended)
-
-### Load Order and Winning Objects
-
-The Game follows a **"Rule of 1"** for everything:
-- Only the last override of a Cell matters (wins)
-- Winning override specifies PCMB/XCRI/XPRI/etc Fields used by game
-- Applies to Previs Files and Precombine Mesh files: lowest Plugin version is used
-- Plugin archive can contain these files even with no relevant CELL records
-- **Loose versions in Data/Meshes/Precombines and Data/vis ALWAYS used instead**
+> **Important:** A **loose** version of these files (in `Data/Meshes/Precombines` or `Data/vis`) will **always** be used instead of any archived version.
 
 ---
 
 ## Common Visual Faults (Summary)
 
-**In-Game Symptoms:**
-
-| Symptom | Cause |
-|---------|-------|
-| **Lower FPS in certain Exterior locations** | Mod's changes to precombined references caused game to disable precombines for that cell |
-| **Voids in interior locations** | Previs mismatch (mismatched to Precombines) |
-| **Workshop items cannot be placed on floor (Interior Settlements)** | Precombines are disabled |
-| **Changes by a Mod not taking effect** | Cell's precombine meshes not rebuilt |
-| **Deleted/disabled objects still appearing** | Precombine meshes not rebuilt |
-| **Changes visible in-game until moved higher in Load order** | Only 'working' because broken (disabled) precombines |
-| **Invisible objects/walls** | Objects in XCRI or XPRI but not in Precombine meshes/occlusion files |
-| **Objects moved appear in old AND new position** | Precombined object moved to different exterior cell by override |
-| **Large thin walls of colour at certain angles** | Precombined mesh built from incompatible object mesh (high precision) |
-| **Parts of buildings flicker on/off during movement** | Precombines not matching those used to create Previs (.uvd) |
-| **Objects flicker crossing 'invisible line' (Cluster boundary)** | Objects in both clusters but only one cluster .uvd knows this |
-| **Flickering of objects in distance** | LOD issue, NOT previsbines |
-| **Transparent objects only correct with Precombines disabled** | XALP value ignored when Precombined |
+| Symptom | Likely Cause |
+|---|---|
+| Lower FPS in exterior locations | Mod changes to precombined references disabled precombines for that cell |
+| Voids in interior locations | Previs is wrong (mismatched to Precombines) |
+| Workshop items cannot be placed on floor (interior settlements) | Precombines are disabled |
+| Mod changes not taking effect | Changes to precombined objects are ignored until the Precombine mesh is rebuilt |
+| Deleted/disabled objects still appearing | Same as above |
+| Mod changes only visible until you move it higher in load order | It was only "working" because it broke (disabled) precombines |
+| Invisible objects/walls | Objects in XCRI or XPRI but not in Precombine meshes/uvd files |
+| Object in both old and new position | Precombined object was overridden to move to a new exterior cell |
+| Large thin walls of colour at certain angles | Precombined mesh built from an incompatible object mesh (e.g. high precision) |
+| Parts of buildings flicker on/off as you move | Cell's Precombines are not the ones used to create the Previs (uvd) |
+| Objects flicker as you cross an invisible line (cluster boundary) | Objects are in both clusters but only one cluster uvd knows this |
+| Distant object flickering | LOD issue, not Previsbines |
+| Partially transparent objects (tattered pictures) only correct with Precombines disabled | XALP value is ignored when Precombined |
 
 ---
 
-## Previs in Interior Cells (Voids, Roombounds, etc)
+## Previs in Interior Cells (Voids, Roombounds, etc.)
 
-### Roombounds and Portals
+Interior Cells can use an older system of **Roombounds & Portals** if standard Previs is not enabled:
+- Roombounds determine the boundaries of a room; Portals are gaps through which you can see other rooms.
+- If an Interior Cell was meant to use Previs but a mod broke it, you may see "voids" in walls/doors.
+- Disabled precombines in interior cells can cause issues with floors: inability to place workshop objects or the player falling through.
 
-Interior Cells can use older "Roombounds & Portals" system if standard Previs not enabled:
-- **Roombounds:** Determine boundaries of a room
-- **Portals:** Gaps in roombounds for line-of-sight to other rooms
-- Used to limit rendering (don't render past roombounds unless line-of-sight through Portal)
-
-### Previs Issues in Interiors
-
-If Interior Cell was meant to use Previs but mod broke it:
-- **Voids in walls/doors:** "Interior" version of flickering
-- **Floor issues:** Workshop objects cannot be placed or Player falls through
-  - Precombined ground considered floor even if base object isn't
-
-### Interior Cell Previsbines Status
-
-- Many interior cells don't benefit from optimization; normal if lacking Previsbines
-- Issues occur when they DO have previsbines but mod override disabled/broken them
+Note: Lack of Previsbines in an interior cell is normal — many interior cells do not benefit from optimisation and Bethesda didn't add them.
 
 ---
 
-## How Game Determines Precombines/Previs State During Startup
+## How the Game Determines Precombine/Previs State During Startup
 
-### Process Overview
+The following process occurs when **each Cell override** (in a Plugin) is read — the precomb/previs state changes after each override. The game does **not** just look at the winning override.
 
-The following process occurs when EACH cell override is read (precomb/previs state changes after each):
-- Game maintains internal 'NoPrecomb' and 'NoPrevis' state during process
-- Game DOES NOT just look at winning override to determine state
-- First Plugin declaring cell is considered Master (must not be set Partial)
-- Subsequent overrides are processed in FO4Edit load order
+For each subsequent Cell override in load order:
+1. If the override is not flagged PartialForm, its Record Header flags become current (the "No Previs" flag sets the internal NoPrevis state).
+2. If the override is not flagged PartialForm, its PCMB becomes current (even if blank). A blank PCMB sets the internal NoPrecomb state.
+3. If the override is not flagged PartialForm and its XCRI is not blank, its XCRI becomes current.
+4. If the override is not flagged PartialForm and its XPRI is not blank, its XPRI becomes current.
+5. If the override is not flagged PartialForm, its VISI becomes current (even if blank). A blank VISI sets the NoPrevis state.
+6. If the Cell is Exterior and has a LAND override with a VCI1 of 'none' OR newer than the current PCMB, the NoPrecomb state is set.
+7. For non-persistent exterior Cells, each XCRI reference override is checked. A reference sets NoPrecomb if its VCI1 is 'none' or newer than PCMB, and it meets all these conditions:
+   - Is an override
+   - Does not have X,Y coordinates placing it outside this Cell or in a different Worldspace/Interior
+   - Is not set as Persistent (for exterior references)
+   - Its Master is in the same plugin as the Cell's Master
+   - Its override is in the same plugin as the Cell's non-partial override, OR is an interior reference in an ESM-flagged plugin
+8. If the final NoPrecomb state is set, the NoPrevis state is also set.
 
-### Processing Steps for Each Cell Override
-
-1. **Record Flags:** If override NOT flagged PartialForm, its Record Header flags become current
-   - 'No Previs' flag sets internal 'NoPrevis' state
-
-2. **PCMB Field:** If override NOT flagged PartialForm, its PCMB becomes current (even if blank)
-   - Blank PCMB sets internal 'NoPrecomb' state (otherwise cleared)
-
-3. **XCRI Field:** If override NOT flagged PartialForm AND XCRI not blank, XCRI becomes current
-
-4. **XPRI Field:** If override NOT flagged PartialForm AND XPRI not blank, XPRI becomes current
-
-5. **VISI Field:** If override NOT flagged PartialForm, VISI becomes current (even if blank)
-   - Blank VISI sets internal 'NoPrevis' state
-
-6. **LAND Record Check:** If Cell is Exterior with LAND override having:
-   - VCI1 date of 'none', OR
-   - VCI1 > current PCMB
-   - Then internal 'NoPrecomb' state is set
-
-7. **Reference Checks:** If Cell is NOT Persistent Exterior Cell, check latest override of each XCRI Reference
-   - Only check overrides matching:
-     - Are an override
-     - X,Y coordinate places them in this Cell
-     - Same Worldspace/Interior cell (or Master in same plugin as Cell's Master)
-     - Not set as 'Persistent' (exterior references only)
-   - Check VCI1 date like LAND record above
-   - Override in same plugin as Cell's override OR
-   - Override is Interior reference in ESM flagged plugin
-
-8. **Cascade:** If resulting 'NoPrecomb' state is set, then 'NoPrevis' state also Set
-
-### Global Disabling
-
-- All Precombines in entire game disabled via `bUseCombinedObjects=0` ini setting
-- Disables most Previs optimization
-
-### Console Commands
-
-- `tpc` - toggle Previs off and on (if disabled by game, cannot turn on)
-- `tb` - toggle borders (Yellow borders visible if Previs disabled; appears even if enabled when flying)
+> **Tip:** The console command `tpc` toggles Previs off/on (if the game has not disabled it — you'll get a message). The command `tb` (toggle borders) shows yellow borders on cells where Previs is disabled.
 
 ---
 
-## How Game Renders References in a Cell (In-Game)
+## How the Optimisation System Renders References In-Game
 
-### When Precombines Enabled
+**If Precombines are enabled:**
+- References in the Cell's XPRI or XCRI lists are **not** rendered directly.
+- All remaining objects (except Landscape) are rendered normally.
+- Collision of Precombined objects comes from the Precombine meshes/physics files, not the references themselves.
+- The current state of precombined objects (REFR) is ignored — even if deleted or moved.
 
-- **NO references** in Cell's resulting XPRI or XCRI lists are rendered
-- All remaining objects (except LANDscape) rendered normally
-- All Collision enabled; collision of Precombined objects from precombine meshes/physics files, not references
-- Current state of precombined objects (REFR) ignored (even if deleted/moved); rendered from precombine meshes
+**If Previs is also enabled:**
+- The system dynamically renders only those parts of Precombined meshes not occluded.
+- XPRI references are rendered only if not occluded.
+- Landscape is rendered with occlusion applied.
 
-### When Previs Also Enabled
-
-- System dynamically renders parts of precombined meshes NOT occluded
-- Dynamically renders XPRI references if NOT occluded
-- Dynamically renders LANDscape parts NOT occluded
-
-### When Previs Disabled (but Precombines Enabled)
-
-- All LANDscape and Precombine meshes/XPRI objects fully rendered
+**If Previs is disabled (but Precombines still on):**
+- All Landscape and Precombine meshes/XPRI objects are fully rendered.
 
 ---
 
-## Altered Precombined Object References
+## What Happens If a Precombined Reference Is Altered by a Later Override
 
-### Reference Changes via Override
+**Nothing** — precombined references are always rendered at their original location (snapshotted into the precombine mesh). Overrides — including deletions or moves — are ignored.
 
-**Nothing.** Precombined references ALWAYS rendered in original location (snapshot in precombine mesh).
+**Exception — duplication:** The object reference will **also** be rendered in its new location if the winning override:
+- Has not deleted/disabled it, AND
+- Changes its coordinates so it moves into a different Cell, OR
+- Moves it to a different Worldspace, OR
+- Changes it from interior to exterior (or vice versa)
 
-**However,** reference ALSO rendered in new location (duplicated) if winning override:
-- Has NOT deleted/disabled it AND
-- Changes coordinates moving it to different cell OR
-- Moves it to cell in different Worldspace OR
-- Changes from interior to exterior (or Vice-Versa)
-
-**Important Notes:**
-- Persistence changes ignored; above still applies
-- Changing Persistent REFR to Temporary NOT supported by game (will probably stay persistent)
-- VCI1 no longer checked during game startup if move to different Cell (including Persistent Cell)
+> Note: Changing a Ref's persistence is ignored for this purpose. Changing a Persistent REFR to Temporary is not supported by the game.
 
 ---
 
-## XPRI References, Invisibility, and Other Issues
+## XPRI References, Invisible Objects, and Bugs
 
-### XPRI Function
+References in XPRI are non-precombineable, non-moveable, non-scrappable objects that also have occlusion data in the uvd file. They are only rendered if not 100% occluded, reducing rendering load.
 
-References in Cell's XPRI are:
-- Non-precombineable, non-moveable, non-scrapable objects
-- Have occlusion information in .uvd file
-- Only rendered if NOT 100% occluded by another object
-- Reduces cell rendering load and improves FPS
+Base object types used in XPRI: STAT, SCOL, FURN, CONT, MSTT, ACTI, TACT, FLOR, HAZD, PROJ, TERM. Both Persistent and Temporary references can be in XPRI. Deleted or Initially Disabled references are not included by the CK.
 
-**Used Base Object Types:** STAT, SCOL, FURN, CONT, MSTT, ACTI, TACT, FLOR, HAZD, PROJ, TERM
+**Invisible XPRI objects:** Adding objects to XPRI that the uvd knows nothing about causes those references to **never be rendered** — though they can still be interacted with (sat on, activated, collided with).
 
-**Reference Status:**
-- Both Persistent and Temporary references can be in XPRI
-- Regardless of interior or exterior cell
-- Deleted or Initially Disabled references NOT included by CK
+### Game (and CK) XPRI Bugs
 
-### Visibility and Occlusion
+**Bug 1:** A CELL override with a **blank (empty) XPRI field is ignored** — the game uses the last override with a non-empty XPRI. This means those XPRI entries won't be in the winning uvd and will be invisible.
 
-- XPRI references only rendered if .uvd says NOT occluded
-- Adding objects to XPRI that .uvd knows nothing about causes NEVER rendered (invisible)
-- Invisible objects can still be interacted with (sat on, Activated, collided with)
-
-### Game and CK XPRI Bugs
-
-#### Bug 1: Blank XPRI Field Ignored
-
-**Issue:** CELL override with blank (empty) XPRI field is IGNORED
-- Cell's current XPRI from previous override used
-- If empty XPRI meant 'no XPRI references', previous override's non-empty XPRI used
-- XPRI entries won't be in winning .uvd and thus be invisible
-
-#### Bug 2: XPRI Local FormID Mapping
-
-**Issue:** Game bug where XPRI (and RVIS) local formIDs NOT mapped to Load Order ID
-- If internal 'local' FormID of XPRI reference differs from Load Order ID, basically ignored
-- Treated as object not in that cell (may not be valid)
-- All CELL overrides with XPRI need same Masters list (same order) as Load order for XPRI references
-
-**Practical Impact (TLDR):**
-- Easy to manage with Base Game and DLCs (include all)
-- Almost impossible with Mod-supplied new Cells/references
-- **In practice: XPRI only benefits Base Game/DLC references, NOT user-added content**
+**Bug 2:** XPRI (and RVIS) local FormIDs are **not mapped to Load Order IDs**. If the internal local FormID of an XPRI reference differs from its Load Order ID, it is effectively ignored. In practice: XPRI only gives a performance benefit for references defined in the **Base Game/DLCs**, not user-added content.
 
 ---
 
 ## Static Object Meshes That Crash the CK
 
-If any of following found in Static's mesh (.nif), CK will crash trying to precombine it:
-
-- **Any *Trishape node with Full Precision Vertexes** (VertexDesc flag "Full Precision")
-- **Any *Trishape node without "Shader Property" linked to valid BSEffectShaderProperty node** (or is corrupt)
+The CK will crash trying to precombine any mesh (nif) with:
+- Any `*Trishape` node with **Full Precision Vertices** (VertexDesc flag "Full Precision")
+- Any `*Trishape` node without the "Shader Property" linked to a valid `BSEffectShaderProperty` node
+- Any corrupt node
 
 ---
 
 ## Previsbine Visual Faults (Detailed)
 
-### Overview
-
-Different Plugins can "win" different parts of Cell's Precombine (CELL information, files, etc) - mismatches occur.
+Since different plugins can "win" different parts of a Cell's Precombine (the CELL record, the mesh files, etc.), mismatches are common.
 
 ### Precombine Faults
 
-**Fault 1: Reference Change Without Mesh Change**
-- Plugin "changes" (deleted/moved/disabled) a Precombined Reference
-- No corresponding change to Precombine Mesh
-- Change ignored in-game
-
-**Fault 2: Reference in XCRI But Not in Winning Precombine Mesh**
-- Cell Reference in XCRI not in Winning Precombine Mesh
-- Object not seen in-game (invisible)
-
-**Fault 3: Invisible But Interactive Objects (Previs Issue)**
-- Object listed in XPRI but Previs (.uvd) mismatched (built without object)
-- Object invisible but still interactive
-- Can occur if winning CELL override's XPRI is empty (blank XPRI ignored; game uses last non-blank XPRI override)
-
-**Core Rule:** Winning XCRI must match winning Precombine meshes and their composed Precombined References
-- Blank XCRI fields ignored; 'winning' XCRI from last override with actual XCRI field
-
-**Fault 4: Collision Issues (Rare)**
-- Misplaced Collision; some precombined objects have collision in separate "Physics" file (per cell)
-- Improper override/replacement causes weird collision issues
-
-**Fault 5: Duplicated Objects**
-- Override moves precombined object to different Cell (changes X,Y coordinates)
-- Still rendered in original location (precombines & XCRI)
-- Also rendered in new Cell (normal)
-- Results in duplication
-
-**Fault 6: Texture Smearing**
-- Sky-high black or colored walls
-- Caused by malformed mesh on precombineable Static Object
-- When included in precombine mesh by CK, causes 'wall/smear' effect
-- Solution: Fix mesh (run through 'Elric') or exclude from precombines before building
-- FO4FindPCStatics.pas script finds Bad meshes for exclusion
+1. A plugin changes (deletes/moves/disables) a Precombined Reference with no corresponding change to the Precombine Mesh → the change is ignored.
+2. A Cell Reference is in XCRI but not in the winning Precombine Mesh → the object is invisible in-game.
+3. An object is in XPRI but the Previs uvd was built without it → the object is invisible but still interactable. (Note: blank XPRI is ignored, so the last non-blank XPRI override is used.)
+4. Misplaced collision (invisible walls) — occurs when a mod improperly overrides/replaces the Physics file for a Cell.
+5. Duplicated objects — a precombined object's override moves it to a different Cell, so it appears in both the original and new location.
+6. **Texture "Smearing"** (sky-high wall of colour) — a malformed mesh (often a high-precision SCOL used as a STAT) was included in a Precombine. Run `FO4FindPCStatics.pas` to find and exclude it, then rebuild.
 
 ### Previs (Occlusion) Faults
 
-Previs generated from 9 Cells (Cluster) worth of Precombine Meshes = 9x more mismatch opportunities (Previs faults very common)
+Previs is generated from 9 Cells (a Cluster) of Precombine Meshes — 9× more mismatch opportunities.
 
-**Previs Faults Display as:** Flickering (parts of structures disappear/reappear as you move)
-- Previs (Occlusion) information points to wrong Precombined Objects
-- Hides/Shows wrong things
-
-**Common Situation:**
-- Plugin changes Precombines in one Cell of Cluster
-- Previs File built without knowledge of change
-- Now Previs faults (flickering) in that cell
-
-**Adjacent Cluster Effect:**
-- Plugin supplies updated Previs file (fix one Cell)
-- Other 8 Cells could have Previs faults
-
-**Less Annoying Category:**
-- Objects apparently occluded by "nothing" from certain angles
-- Happens if Landscape for Cell changed (say removing hill) but Previs not rebuilt
-- Previs still encodes old landscaped hill - would hide objects
-- Worse: Objects in XPRI not known to Previs system invisible; original objects 'hidden' behind
-
-**Another Common Issue: Previs Build Failure**
-- CK times-out while building Previs (gets into loop)
-- Common with too many objects in same location
-- Very common with 'object sink' locations near 0,0 Cell (deleted objects placed here)
-- Example: Cell 0,-1 had 286 objects at 1128.798340,-1837.827637,-938.216370 (failed Previs generation)
+- **Flickering** — Previs information points to the wrong Precombined objects, hiding/showing wrong things.
+- **Occluded by "nothing"** — Landscape was changed (e.g. a hill removed) but Previs not rebuilt; the old hill still occludes objects.
+- **Adjacent cluster overlap** — a large building straddles two clusters; Cluster B's Previs includes geometry from Cluster A's Precombines. Rebuilding Cluster A's Precombines without also rebuilding Cluster B's Previs causes flickering along the boundary. The solution is to rebuild Previs for your cell while the other cluster/mod is also loaded. If only one reference overlaps, excluding it from Precombines may suffice.
+- **Transparent windows** — windows close to each other or to the player may not render correctly. Exclude problem windows via `BlockPreVis` (XLRT).
+- **CK timeout during Previs** — too many objects in the same location (often an object "dumping ground" near cell 0,0). Examine the Cell in the CK and disable unwanted refs.
 
 ---
 
-## Which Cell References are Precombineable
+## Which Cell References Are Precombineable
 
-### Base Requirements
+Only Cell references with a base type of **STAT** or **SCOL** can be precombined. Even then, a reference is **excluded** if the REFR has:
+- Disabled or Deleted flag
+- Any of these fields: XLRT, XESP, XATR, or XEMI (`NoObjectCombinationRefType` or `BlockPreVis` in XLRT is the standard exclusion method)
+- Linked References (XKLR) with a keyword other than `MultirefLOD`
+- Is linked by another linked ref
 
-Only Cell references with base type **Static (STAT)** or **Static Collection (SCOL)** can be precombined, but excluded if REFR:
+A reference is also excluded if its **base object** (STAT/SCOL) has:
+- A Workshop recipe (for cells in a settlement)
+- The "Forced Location Type" (FTYP) set to any value (a reliable way to exclude all references using that base mesh)
+- A mesh with any of: BSXFlags with "Animated", or "Havok" AND "Dynamic"; node block types of NiBillboardNode, NiSwitchNode, NiParticleSystem, NiParticles, or BSBehaviorGraphExtraData
 
-- Is Disabled or Deleted
-- Has any of: XLRT, XESP, XATR, or XEMI fields
-- Has Linked References (XKLR) with keyword other than MultirefLOD
-- Linked to by another linked ref (on another object's linked reference)
-
-### Base Object Exclusions
-
-Reference also excluded if its base type has:
-
-- **Workshop recipe** (only for Cells in Settlement)
-- **"Forced Location Type" (FTYP)** set with ANY value (useful exclusion method)
-- **Mesh (MODL) with certain configurations** (visible in NifScope):
-  - BSXFlags with "Animated", "External Emit", or "Havok"
-  - Nodes with Block types: NiBillboardNode, NiSwitchNode, or NiParticleSystem
-
-### Special Case
-
-- **All Persistent Exterior Refs** (in "Worldspace Persistent Cell") will be precombined into Cell if coordinates place them in it
+> **Note:** All Persistent Exterior Refs in the Worldspace Persistent Cell will be precombined into a Cell if their coordinates place them in it.
 
 ---
 
-## Using CreationKit to Generate Previsbines
+## Using the Creation Kit to Generate Previsbines
 
-### Overview
+### Methods
+There are only two ways to generate Precombines and Previs — via the **CK GUI** or via the **CK command line**. Generating Precombines and Previs are two separate operations either way.
 
-Only 2 ways to generate Precombines and Previs:
-1. Creation Kit GUI
-2. Creation Kit command line
+| Method | Precombine Type | Notes |
+|---|---|---|
+| CK GUI | "Filtered" only | Simpler but generates larger files |
+| CK Command Line | "Clean" or "Filtered" | Required for production builds |
 
-**These are 2 separate operations either way**
+**"Clean" Precombines** (command line only): Meshes are de-duplicated; common object meshes go into a separate `Plugin - Geometry.csg` file, reducing overall size. Not supported on XBOX (Bethesda.net won't allow uploading `.csg`/`.cdx` files).
 
-### GUI vs Command Line
-
-- **GUI:** Can only create "Filtered" Precombines
-- **Command Line:** Can create "Clean" or "Filtered" Precombines
-- Same options exist for Previs (mostly meaningless; Previs files basically "Filtered" only)
-
-### Clean vs Filtered
-
-**"Clean" Precombines:**
-- De-duped; common object meshes in separate "Plugin - Geometry.csg" file
-- Reduces overall Cell Precombines size
-- Only possible via Command Line options
-- **XBOX does NOT support** (Bethesda.net won't allow .csg/.cdx upload)
-
-**"Filtered" Precombines:**
-- Not de-duped
-- Generally 5-10x bigger than Clean
-- Generated via GUI or Command Line
+**"Filtered" Precombines**: Not de-duplicated; generally 5–10× larger than Clean.
 
 ### CK Precombine Generation Bugs
 
-**Bug 1: Material Swaps on Base Object Ignored**
-- Material Swaps only on Base Object of Precombineable reference are ignored
-- References revert to default (Mesh-specified) textures
-- Solution: Scripts add Base material swaps to Precombineable references (Seed Builder does automatically)
-
-**Bug 2: Alpha Channel (XALP) Ignored**
-- Precombineable references' XALP ignored
-- Example: Paintings using alpha for 'moth eaten' look become 'pristine'
-- Solution: Exclude from precombining (Seed Builder does automatically)
-
-**Bug 3: Faulty Static Meshes Crash**
-- Static Meshes from SCOLs or "kitbashed" objects can crash Precombine Process
-- Need collision rebuilt and changed from 'high precision'
-
-### CK Command Line Notes
-
-- Cannot have spaces in mod name (CK doesn't support spaces in .cdx filename) for Clean method
-- **Won't build precombines for Exterior CELLS outside Border Region(s)**
-  - If Border Region covers only half of Worldspace, can't build precombines for Cells outside region
+- **Material Swaps** on the Base Object of a Precombineable reference are ignored — references revert to default textures. PJM's seed builder adds these swaps to the references automatically.
+- The **Alpha channel field (XALP)** of Precombineable references is ignored — e.g. "moth-eaten" paintings become pristine. The only solution is to exclude these from precombining. PJM's seed builder does this automatically.
+- **SCOLs / kitbashed objects**: Static meshes created from SCOLs or kitbashing can crash the Precombine process — rebuild their collision and change it away from "high precision".
+- If using "Clean" method: **no spaces** in the mod name (CK cannot create `.cdx` files with spaces).
+- CK command line **will not** build Precombines for Exterior CELLS outside the Border Region(s) of a Worldspace.
 
 ### CK Previs Generation Issues
 
-**Building Requirements:**
-- CK must see all Precombine meshes (.nif) of all 9 Cells in Cluster
-- Meshes can be in BA2 archives (speeds up) or loose files
-- Previs operation does NOT use textures; remove for reduced CK memory usage
-- **Previs operation requires A LOT of memory** (may be critical)
-
-**Hanging Issues:**
-- Some unknown conditions cause CK to hang when building some clusters
-- Eventually timeout with error in log
-
-**Critical Issue: CK Handle Array Limit**
-- **IMPORTANT:** Unpatched CK has limit on unique references loaded (2,097,152)
-- Base game + DLC = 86% of limit; adding new content easily exceeds
-- **Recommended solution:** Set "BSPointerHandleExtremly=true" (in CKPE) vastly increases limit
-
-**General Notes:**
-- CK is delicate; DO NOT do anything else while running previsbine tasks
-- Running out of memory (browser windows, etc.) sure way to corrupt Previs
-- Original Bethesda CK extensively tested for previsbines
-- New Steam version can be used; must ensure it determines steam 'appid' or will fail
-  - File `steam_appid.txt` in same CK directory containing single line: `1946160`
-  - If running via MO2, specify appid in external CK settings
-
-### Recommended CreationKit Environment
-
-- Original Bethesda version of CK extensively tested
-- **Steam version:** Requires `steam_appid.txt` with `1946160`
-- **Recommended:** Use Creation Kit Platform Extended (CKPE)
-  - Fixes great number of Precombine/Previs issues ("Must Have")
-  - Edit `CreationKitPlatformExtended.ini` and set `bBSPointerHandleExtremly=true`
-  - Optional file download provided with config
-  - **NOTE:** As of Oct 2025, CKPE V0.4/0.5 does NOT work with OG CK version
-    - CKPE V0.3 does, but can't handle V7/8 BA2 Archives (must downgrade and set `bOwnArchiveLoader=false`)
+- The CK must be able to see all Precombine mesh (.nif) files for all 9 Cells in a Cluster during Previs building (in BA2 archives or as loose files).
+- Previs does **not** use textures — removing texture archives before Previs generation reduces CK memory usage (critical, as Previs requires a lot of memory; 48 GB usage is not unknown).
+- Some conditions cause the CK to hang when building certain clusters — these time out with an error in the log.
+- **IMPORTANT:** The unpatched CK has a limit of **2,097,152** unique references. The base game and DLCs consume ~86% of this limit. The only recommended solution is `bBSPointerHandleExtremly=true` in CKPE, which vastly increases the limit.
+- **Do not use your computer for anything else while building Previsbines.** Running out of memory (e.g. from browser windows) will corrupt Previs.
 
 ---
 
-## Generating Previsbines Manually via CreationKit GUI
+## Recommended Creation Kit Environment
 
-### Process
-
-Best to do in Clusters to reduce build time:
-
-1. **Group Cells** into Clusters they're part of
-2. **For each Cluster:**
-   - Find Cell in "Cell View" list
-   - Select 'view' and wait for render
-   - Select "Precombine Geometry for Current Cell" from "World" Menu
-   - Wait for Cell Preview window to become active
-   - Repeat with next Cell in Cluster
-   - **Regularly save** (CK prone to crashing)
-
-3. **After all Cells in Cluster done:**
-   - Select "Generate Precombined Visibility for Current Cell" from "Visibility" menu
-   - **Will take a long time**
-   - Finishes with confirmation box
-   - Save again
-
-4. **Repeat for next Cluster until done**
-
-### Known Issue
-
-Due to current bug: Archives of currently "active" Plugin NOT used by CK
-- Need to extract them as loose files
+- Use the **Steam version of the CK** with `steam_appid.txt` (containing `1946160`) in the same directory as `CreationKit.exe`.
+- If running the CK via MO2, also specify the AppID in that executable's settings.
+- **Use CKPE (Creation Kit Platform Extended)** — it fixes a large number of Precombine generation issues and is a must-have.
+- In CKPE's config (`CreationKitPlatformExtended.ini`): set `bBSPointerHandleExtremly=true`.
+- As of Oct 2025: CKPE V0.4/0.5 does **not** work properly with the OG CK. Use CKPE V0.3 for OG CK (but it cannot handle V7/V8 BA2 archives — downgrade them with CMT and set `bOwnArchiveLoader=false`).
 
 ---
 
-## Generating Previsbines via CreationKit Command Line
+## Generating Previsbines Manually via the Creation Kit GUI
 
-### Overview
+1. Group Cells you plan to build Precombines for by the Clusters they belong to.
+2. For each Cell in a Cluster: open it in the Cell View list, wait for it to render, then select **World → Precombine Geometry for Current Cell**. Wait for the Cell Preview to become active again before proceeding to the next Cell.
+3. Save regularly — the CK is prone to crashing.
+4. Once all Cells in a Cluster are done, select **Visibility → Generate Precombined Visibility for Current Cell**. This takes a long time and finishes with a confirmation box.
+5. Save again and repeat for each Cluster.
 
-CreationKit.exe has 2 options:
-- `-GeneratePrecombined`
-- `-GeneratePreVisData`
-
-**This process has many more steps** involving merging results back into Previsbines Plugin
-
-### Process Documentation
-
-Not detailed here (author and others created procedures); check separate article
-
-For manual/old scripts:
-- **Know how Command Line determines Cells to build:**
-  - Plugin (seed mod) must contain Cell record (override or Master) for EVERY Cell you want Precombines for
-  - Cells must each contain AT LEAST one Cell reference (doesn't need precombineable)
-  - Triggers CK to build Precombines for it
-  - Cluster AND any adjacent Clusters also get Previs built (-GeneratePrevisData)
-  - Corner Cell potentially causes 4 Clusters to have Previs generated; middle cell only generates own Cluster
-
-### Command Line Results
-
-**Note1: -GeneratePrecombined**
-- Creates mod "CombinedObjects.esp" containing ONLY Cells with new Precombines
-- Only PCMB, XCRI, and Cell VCI1 are valid; rest is rubbish
-
-**Note2: -GeneratePrevisData**
-- REQUIRES cells to have new PCMB and XCRI values BEFORE running
-- Creates "Previs.esp" for every Cluster with Previs
-- Only VISI, RVIS, and XPRI fields important
-
-**Note3: Previs Memory**
-- Takes A LOT of memory
-- Running out causes corrupted Visibility or crash
-- Reduce risk by removing `<mod> - Textures.ba2` files temporarily
-- Previs doesn't require textures; CK loads them and wastes memory
+> **Note:** Due to a current bug, archives of the currently "active" Plugin are not used by the CK during Previs — extract them as loose files first.
 
 ---
 
-## Common CreationKit Failures
+## Generating Previsbines via the Creation Kit Command Line
 
-### Access violation 0xc000005 (or similar) During Precombine Building
+The CK has two command-line options: `-GeneratePrecombined` and `-GeneratePreVisData`. This process has many additional steps (merging results back into your plugin) and is handled automatically by PJM's `GeneratePrevisibines.bat`.
 
-**Cause:** Corrupt/incompatible Mesh on Precombineable Reference (REFR base type STAT or SCOL)
+**How the command line determines which Cells to build Previsbines for:**
+- The "seed" plugin must contain a Cell record (override or master) for **every** Cell you want Precombines for.
+- Those Cells must each contain **at least one** Cell reference (need not be precombineable).
+- For Previs (`-GeneratePreVisData`): the Cluster of that Cell **and all adjacent Clusters** will also have Previs generated.
+  - A Cluster "corner" Cell potentially generates Previs for 4 Clusters; a "middle" Cell generates Previs for only its own Cluster.
 
-**Common Sources:**
-- New mesh/object from Mod
-- Using SCOL mesh as STAT
-- Mesh with 'high precision' set (SCOL meshes; always cause crash)
-- Rare: Bad Texture on Precombineable object (texture replacer Mod)
-
-### Error -1073740771 (STATUS_FATAL_USER_CALLBACK_EXCEPTION or 0xC000041D) End of CK Phase
-
-- If CK saved successfully beforehand, probably can ignore
-
-### Hundreds of "DEFAULT: OUT OF HANDLE ARRAY ENTRIES" Errors During Precombine Building
-
-**Cause:** Total of more than 2 million (2,097,152) Cell references
-- Base game + DLC = 1.8 million; easy to exceed with new content Plugins
-
-**Solution:** Use CKPE and set `bBSPointerHandleExtremly=true`
-
-### "ERROR: visibility task did not complete." During Previs Building
-
-**Meaning:** Cluster Previs file couldn't be built (CK hung)
-- Doesn't crash CK or stop other Clusters' Previs
-- That Cluster has no Previs file (as if set to 'no Previs')
-
-**Cause:** Some NON-PRECOMBINED, enabled reference(s) in 9 Cells has Occlusion build problem
-- Common: Too many objects in exact same location (usually underground - unused reference dump)
-- **Solution:** Visually examine every Cell in Cluster using CK; find and disable unwanted Refs
-
-### Running Out of Memory During Previs Building
-
-**Issue:** Previs at least 2x longer than Precombine phase; huge memory consumption (48GB not unknown)
-
-**Solutions:**
-- Have as little as possible running
-- Possibly disable Antivirus
-- Remove Texture archives before building Previs
-- Stops CK loading them and wasting memory
-
-### Too Many Masters
-
-**Issue:** CK includes ALL loaded Masters into Precombine/Previs Plugin's Masters list
-- Example: Your Mod has Fallout4.esm and UFO4P; UFO4P has NukaWorld.esm etc as Masters
-- Result: All become Masters of updated Plugin
-- **FO4 Masters limit: 255**
-- CK CANNOT build if resulting Plugin has more than 255
+**Output files:**
+- `-GeneratePrecombined` creates `CombinedObjects.esp` containing only Cells the CK generated new Precombines for (only PCMB, XCRI, and Cell VCI1 are valid in this file).
+- `-GeneratePreVisData` **requires** that seed Cells already have the new PCMB and XCRI values before it runs. It creates `Previs.esp` with Cells for every Cluster it processes (only VISI, RVIS, and XPRI fields are important).
 
 ---
 
-## Possible Faults in Generated Previsbines
+## Common CK Failures
 
-### Flickering Despite Correct Build
+| Failure | Cause | Fix |
+|---|---|---|
+| Access violation 0xC0000005 during Precombine building | Corrupt/incompatible mesh on a Precombineable Reference (STAT/SCOL); high-precision mesh; bad texture from a replacer mod | Run `FO4FindNewPCStatics.pas`; fix or exclude the mesh |
+| Error -1073740771 / 0xC000041D at end of a CK phase | If CK saved successfully beforehand: can be ignored. If it prevents completion: resource issue (memory or file handles) | Close other applications; remove texture archives |
+| Hundreds of "DEFAULT: OUT OF HANDLE ARRAY ENTRIES" during Precombine building | Total references exceed 2,097,152 (base game + DLCs is ~86% of limit) | Set `bBSPointerHandleExtremly=true` in CKPE |
+| "ERROR: visibility task did not complete." during Previs building | CK hung during Previs for a Cluster; too many objects in the same location | Use CK to examine every Cell in the Cluster; disable unwanted refs at the problem location |
+| Running out of memory during Previs building | 48 GB usage is possible | Remove texture archives; close other applications; disable antivirus |
+| Too Many Masters | CK includes all loaded Masters into the resulting Precombine/Previs plugin; FO4 has a 255-Master limit | Reduce loaded masters; break the patch into smaller pieces |
 
-If 100% sure:
-- No errors during build
-- Left computer alone
-- Followed all guides
+---
 
-May still not be your fault
+## Possible Faults in Newly Generated Previsbines
 
-**Solution:** Some objects just don't work well with preculling (thin objects, see-through railings)
-- Give Precombineable References Location Ref Type (XLRT) of BlockPreVis (exclude from Previs)
-- Rebuild that Previs file
-- OR exclude Base object from all Previs by setting Base Object's "non-occluder" Flag
+If Previsbines are built correctly but an area still flickers, some objects don't work well with preculling (thin objects, see-through railings):
+- Give the problematic Reference an XLRT of `BlockPreVis` to exclude it from Previs, then rebuild.
+- Alternatively, set the **"non-occluder" flag** on the Base Object to exclude all references using it.
 
-### Large Objects Straddling Two Cluster Boundaries
+**Adjacent Cluster Overlap (Severe Flickering):**
+Large precombineable objects straddling two Clusters (e.g. buildings in a town) cause mismatch between the Clusters' Previs files. The solution is to rebuild Previs for your Cell while the adjacent mod/cluster is also loaded, producing a version of your Previsbines that is compatible with it (e.g. a PRP-specific version). If only one overlapping reference is the issue, excluding it from Precombines may be enough.
 
-**Severe Flickering Cause:**
-- Large precombineable objects span two adjacent clusters (buildings in Town)
-- Object in precombines of Cell in one cluster (A); precombine mesh extends into neighboring Cell in different cluster (B)
-- Cluster B's Previs includes information from Cluster A's precombines
-- Rebuilding Cluster A's precombines makes Cluster B's Previs mismatch; classic Previs faults result
+**Transparent Windows:** Windows close together or near the player may not render correctly. Exclude them via `BlockPreVis`.
 
-**Example:** Cliff Edge Hotel (example shown in original guide)
-
-**When This Occurs:**
-- Rebuild Precombines for whole Cluster
-- Adjacent cluster from different Mod (say PRP)
-- Building, road section, etc. with parts from adjacent cluster in rebuilt cluster
-
-**Solution:** Rebuild Previs for cell while other cluster/mod also loaded
-- If say PRP: Make PRP-specific version of Previsbines
-- If only one reference overlaps (road chunk): Exclude from precombines entirely
-  - Only works if reference declared outside cluster
-  - If in your Cluster extending into another: Rebuild that Cluster and include in mod
-
-### Transparent Windows
-
-**Issue:** As you walk past, some may not accurately render view (or render no view)
-- Also happens when windows close together
-
-**Solution:** Exclude problem window from Previs via BlockPrevis method (or other Previs removal method)
-
-### Smeared Textures (Sky-High Black or Colored Walls)
-
-**Cause:** Faulty Reference (Static Mesh) included in Precombines
-- Breaks resulting Precombined mesh; causes smear error
-- High Precision meshes always do this
-- Common if using SCOL mesh as STAT ('High Precision' causing issue)
-
-**Solution:** Find and remove reference from precombines; rebuild precombines
+**Smeared Textures (sky-high walls):** A high-precision mesh (e.g. an SCOL used as a STAT) was included in a Precombine. Find and exclude the reference, then rebuild.
 
 ---
 
 ## Renaming a Plugin with Precombines/Previs
 
-### Overview
+Renaming is **not recommended** if Precombines were generated "Clean" (with a `.csg` file), because:
+- Clean Precombine meshes contain `BSPackedCombinedSharedGeomExtraData` nodes with the **hash of the `.csg` filename**.
+- Renaming `<plugin> - geometry.csg` breaks this — you would still need the original `.esp` in your load order, making renaming pointless.
 
-Possible but requires extra work; NOT recommended if precombines generated 'Clean'
-
-### Clean Precombines Issue
-
-- 'Clean' precombine meshes contain "BSPackedCombinedSharedGeomExtraData" nodes
-- Contain "hash" of filename of shared Geometry (.csg) file used
-- Cannot rename `<plugin> - geometry.csg` when renaming `<plugin>.esp`
-- Still need `<plugin>.esp` in load order (game loads csg file) making renaming pointless
-
-- Unclear what renaming `<plugin>.cdx` does
-- Any attempt pointless/causes issues due to above
-
-### Filtered Precombines Renaming
-
-**CAN rename plugin if using "Filtered" precombines (no shared Geometry)**
-
-**HOWEVER:** If plugin 'mastered' any cells (new interior Cells or exterior Worldspaces):
-- Must rename subdirectory all Precombined meshes (.nif) stored under
-- Must rename subdirectory all Previs (.uvd) files stored under
-- Whether loose or in ba2 archives
-- Game looks for paths: `Meshes/Precombined/<MasterModname>/` and `vis/<MasterModname/`
-- If renamed MasterModname plugin, MUST rename these subdirectories too
-
-**Path Storage Note:**
-- These paths NOT stored in Plugin; determined at runtime
-- xEdit displays paths for convenience (XCRI "Combined Mesh" field)
-- Actually stored: Only 'Hex ID' in mesh filename `<CellFormID>_<HexID>_OC.nif`
-
-**Previs Filenames:**
-- `<PrevisCellFormID>.uvd` where <PrevisCellID> is Interior Cell ID or Exterior Cell ID of Cluster Center
-- (Strangely) Game does NOT use RVIS field as <PrevisCellID>; works it out at runtime (RVIS ignored)
+**For "Filtered" Precombines (no shared Geometry):**
+- Renaming the plugin is possible, but if the plugin **mastered** any cells (new interior cells or exterior Worldspaces), you must also rename the subdirectory all its Precombine mesh (.nif) and Previs (.uvd) files are stored under.
+- The game looks for these under `Meshes/Precombined/<MasterModname>/` and `vis/<MasterModname>/`.
+- **These paths are not stored in the plugin** — they are determined at runtime. The XCRI "Combined Mesh" field only stores the Hex ID used in the mesh filename (`<CellFormID>_<HexID>_OC.nif`). Do not try to edit these paths in xEdit.
+- The Previs filename is `<PrevisCellFormID>.uvd` where PrevisCellFormID is the Interior Cell ID or the center Exterior Cell ID of the Cluster. The game does **not** use the RVIS field for this — it works it out at runtime.
 
 ---
 
-## Advanced: Partial Form (flag14) on CELLs
+## (Advanced) Partial Form (Flag 14) on CELLs
 
-### Context
+Adding the "Partial Form" flag to a Cell override tells the game to ignore that override, which prevents it from overriding the Cell's PCMB etc. fields.
 
-To add any Object into Cell, need:
-- Cell Reference creation
-- Associated CELL record override in Plugin
+**Only use this if:**
+- You are 100% certain the Cell override before yours is from an **esp-type** plugin (such as PRP.esp), AND
+- The Cell was mastered in an **esm-type** plugin (like Fallout4.esm).
 
-Plugin could have winning Cell override in Load Order - then would override Cell's PCMB etc and possibly cause Previsbine mismatches/visual faults
-
-### Partial Form Flag Solution
-
-Adding "Partial Form" flag to Cell override tells game to ignore that override - prevents Previsbine issues
-
-### Important Caveat
-
-**NOT good idea unless 100% certain** the Cell's override before yours was from "esp" type plugin (such as PRP.esp)
-
-**Why:** Using "Partial Form" has problems if:
-- Plugin has the only override for Cell
-- Cell was created in "esm" type plugin (like fallout4.esm)
-
-### Recommendation
-
-**NOT recommended using "Partial Form" on cells** unless making Patch requiring PRP.esp
-
-- Some odd effects with persistence allow Partial Form to work otherwise
-- Would not rely on it
+Due to a FormID processing bug, only use Partial Forms on Cells mastered in `Fallout4.esm`. This approach is only recommended when making a patch that requires PRP.esp and the Cell comes from Fallout4.esm.
 
 ---
 
-## Acknowledgements
-
-- PJM: Author of Previs/Precombines guidance and tooling.
-- ElminsterAU and the xEdit team: FO4Edit/xEdit platform and scripting.
-- CKPE maintainers: Creation Kit Platform Extended improvements for stability and scale.
-- Bethesda Game Studios: Fallout 4 and the Creation Kit.
-
+*Credit: All content by PJMail — PJM's Precombine - Previs Patching Scripts, Nexus #69978. Last updated Mar 2026.*

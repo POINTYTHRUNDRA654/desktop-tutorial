@@ -79,6 +79,7 @@ const IPC_CHANNELS = {
   SEND_BLENDER_COMMAND: 'send-blender-command',
   VAULT_RUN_TOOL: 'vault-run-tool',
   VAULT_SAVE_MANIFEST: 'vault-save-manifest',
+  WORKFLOW_RUNNER_RUN_TOOL: 'workflow-runner:run-tool',
   VAULT_LOAD_MANIFEST: 'vault-load-manifest',
   VAULT_GET_DDS_DIMENSIONS: 'vault-get-dds-dimensions',
   VAULT_GET_IMAGE_DIMENSIONS: 'vault-get-image-dimensions',
@@ -305,7 +306,10 @@ const IPC_CHANNELS = {
   CK_CRASH_VALIDATE: 'ck-crash-prevention:validate',
   CK_CRASH_ANALYZE: 'ck-crash-prevention:analyze-crash',
   CK_CRASH_GENERATE_PLAN: 'ck-crash-prevention:generate-plan',
-  CK_CRASH_PICK_LOG: 'ck-crash-prevention:pick-log-file',
+  CK_CRASH_PICK_LOG_FILE: 'ck-crash-prevention:pick-log-file',
+  CK_CRASH_PICK_PLUGIN: 'ck-crash-prevention:pick-plugin',
+  CK_CRASH_PICK_MOD_PACKAGE: 'ck-crash-prevention:pick-mod-package',
+  CK_CRASH_EXTRACT_ZIP: 'ck-crash-prevention:extract-zip',
 
   // Mod Projects persistence
   SAVE_MOD_PROJECTS: 'save-mod-projects',
@@ -627,6 +631,15 @@ const electronAPI = {
   },
 
   /**
+   * Workflow Runner: run a user-configured tool/command and capture output.
+   * Uses a dedicated channel that is not subject to the Vault allowlist so that
+   * any executable the user has configured in their workflow can be launched.
+   */
+  workflowRunnerRunTool: (payload: { cmd: string; args?: string[]; cwd?: string }): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RUNNER_RUN_TOOL, payload);
+  },
+
+  /**
    * Vault: Save/Load manifest to userData
    */
   saveVaultManifest: (assets: unknown): Promise<{ ok: boolean; file?: string; error?: string }> => {
@@ -642,6 +655,9 @@ const electronAPI = {
   getProjects: (): Promise<any[]> => {
     return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_LIST);
   },
+  listProjects: (): Promise<any[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_LIST);
+  },
   createProject: (project: any): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_CREATE, project);
   },
@@ -653,6 +669,33 @@ const electronAPI = {
   },
   getCurrentProject: (): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_GET_CURRENT);
+  },
+  switchProject: (projectId: string): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_SWITCH, projectId);
+  },
+  joinCollaborationSession: (sessionId: string): Promise<any> => {
+    return ipcRenderer.invoke('collaboration-join-session', sessionId);
+  },
+  leaveCollaborationSession: (sessionId: string): Promise<any> => {
+    return ipcRenderer.invoke('collaboration-leave-session', sessionId);
+  },
+  listCollaborationSessions: (): Promise<any[]> => {
+    return ipcRenderer.invoke('collaboration-list-sessions');
+  },
+  createCollaborationSession: (payload: { projectId: string; name?: string; description?: string }): Promise<any> => {
+    return ipcRenderer.invoke('collaboration-create-session', payload);
+  },
+  initGitRepository: (projectId: string, config: any): Promise<any> => {
+    return ipcRenderer.invoke('collaboration-git-init', projectId, config);
+  },
+  gitCommit: (projectId: string, message: string): Promise<any> => {
+    return ipcRenderer.invoke('collaboration-git-commit', projectId, message);
+  },
+  gitPush: (projectId: string): Promise<any> => {
+    return ipcRenderer.invoke('collaboration-git-push', projectId);
+  },
+  gitPull: (projectId: string): Promise<any> => {
+    return ipcRenderer.invoke('collaboration-git-pull', projectId);
   },
 
   /**
@@ -1189,7 +1232,7 @@ const electronAPI = {
    * CK Crash Prevention: Pick plugin file (ESP/ESM/ELS)
    */
   ckPickPlugin: (): Promise<{ success: boolean; path?: string; error?: string }> => {
-    return ipcRenderer.invoke('ck-crash-prevention:pick-plugin');
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_PICK_PLUGIN);
   },
 
   /**
@@ -1939,6 +1982,13 @@ const electronAPI = {
    * Used for configuring tool-related directories.
    */
   pickDirectory: (title?: string): Promise<string> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.PICK_DIRECTORY, title);
+  },
+
+  /**
+   * Legacy alias for folder picker used by some renderer modules.
+   */
+  selectDirectory: (title?: string): Promise<string> => {
     return ipcRenderer.invoke(IPC_CHANNELS.PICK_DIRECTORY, title);
   },
 
@@ -2782,10 +2832,17 @@ const electronAPI = {
   },
 
   /**
-   * CK Crash Prevention: Pick log file via dialog
+   * CK Crash Prevention: Pick a full mod package path (folder/archive)
    */
-  ckCrashPickLog: (): Promise<any> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_PICK_LOG);
+  ckPickModPackage: (): Promise<{ success: boolean; path?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_PICK_MOD_PACKAGE);
+  },
+
+  /**
+   * CK Crash Prevention: Extract a .zip archive to temporary directory for scan
+   */
+  ckExtractZip: (archivePath: string): Promise<{ success: boolean; extractedPath?: string; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_EXTRACT_ZIP, archivePath);
   },
 
   // =========================================================================
@@ -3513,7 +3570,46 @@ const electronAPI = {
       ipcRenderer.invoke('analytics:get-analytics-config'),
     updateAnalyticsConfig: (updates: any): Promise<any> =>
       ipcRenderer.invoke('analytics:update-analytics-config', updates),
+    clearData: (): Promise<any> =>
+      ipcRenderer.invoke('analytics:clear-data'),
   },
+
+  getAnalyticsMetrics: async (): Promise<any> => {
+    const response = await ipcRenderer.invoke('analytics:get-metrics-summary');
+    if (response?.success === false) {
+      throw new Error(response.error || 'Failed to get analytics metrics');
+    }
+    const summary = response?.summary || {};
+    return {
+      sessionDuration: (summary.timeSpent || 0) * 60 * 1000,
+      featuresUsed: Array.isArray(summary.topFeatures) ? summary.topFeatures.map((item: any) => item.feature) : [],
+      filesProcessed: summary.assetsCreated || 0,
+      errorsEncountered: summary.errorsEncountered || 0,
+      toolsLaunched: [],
+    };
+  },
+  exportAnalyticsData: async (): Promise<string> => {
+    const response = await ipcRenderer.invoke('analytics:get-dashboard-data');
+    if (response?.success === false) {
+      throw new Error(response.error || 'Failed to export analytics data');
+    }
+    return JSON.stringify(response?.dashboardData?.recentEvents || [], null, 2);
+  },
+  getAnalyticsConfig: async (): Promise<any> => {
+    const response = await ipcRenderer.invoke('analytics:get-analytics-config');
+    if (response?.success === false) {
+      throw new Error(response.error || 'Failed to load analytics config');
+    }
+    return response?.config || response;
+  },
+  updateAnalyticsConfig: async (updates: any): Promise<any> => {
+    const response = await ipcRenderer.invoke('analytics:update-analytics-config', updates);
+    if (response?.success === false) {
+      throw new Error(response.error || 'Failed to update analytics config');
+    }
+    return response?.config || response;
+  },
+  clearAnalyticsData: (): Promise<any> => ipcRenderer.invoke('analytics:clear-data'),
 
   // Platform 17: Git Integration API
   gitIntegration: {

@@ -58,7 +58,8 @@ export const BlenderAnimationGuide: React.FC = () => {
         `A practical, modern FO4 animation pipeline is:\n\n` +
         `1) Blender (authoring) → create/clean keys + annotations\n` +
         `2) Havok Content Tools 2014 → convert FBX → HKX (FO4 2010.2.0-r1)\n` +
-        `3) HKXPackUI → pack/inspect as needed\n\n` +
+        `3) HKXPackUI → pack/inspect as needed\n` +
+        `4) Runtime integration layer → vanilla replacer or framework route (IAF / NAF / AWF)\n\n` +
         `Key constraint: do NOT rename deform bones on vanilla skeletons.\n` +
         `FPS note: FO4 humanoid animations are commonly 30 FPS, but the safe rule is “match the vanilla animation you’re targeting” and keep Blender + Havok consistent.\n` +
         `Scale note: pick a single unit/scale convention and keep it consistent end-to-end (don’t mix 1.0 and 0.1 mid-pipeline).`,
@@ -69,6 +70,7 @@ export const BlenderAnimationGuide: React.FC = () => {
         'Animate in Pose mode; keep Root stable unless you know why you’re moving it',
         'Export FBX with Only Deform Bones + baked animation',
         'Convert FBX → HKX using Havok 2010.2.0-r1 profile',
+        'Choose integration route: vanilla replacer, IAF keyword patch, NAF XML pack, or AWF object-interaction patch',
         'Test in-game early (loose files first, then BA2)',
       ],
     },
@@ -192,6 +194,13 @@ export const BlenderAnimationGuide: React.FC = () => {
       content:
         `There are multiple ways to get animations “working” in FO4.\n\n` +
         `Fastest reliable test path: an animation replacer (same file name + same relative folder path as the vanilla HKX).\n\n` +
+        `Framework routes:\n` +
+        `• IAF (#50555): gameplay item/action dispatch via keywords (ingestibles/equipment)\n` +
+        `• NAF (#73889): ESP-less XML packs and multi-actor runtime orchestration\n` +
+        `• AWF (#100946): world-object interaction triggers with no object edits (F4SE-native)\n\n` +
+        `Dependencies by route:\n` +
+        `• All framework routes: F4SE + Address Library\n` +
+        `• AWF route: MCM required; FallSouls required if you want menu-time playback\n\n` +
         `Brand-new animations usually require behavior/graph work. Use the Havok FO4 Guide for behavior graph context.`,
       actions: [],
       steps: [
@@ -199,6 +208,7 @@ export const BlenderAnimationGuide: React.FC = () => {
         'Export/convert your animation to HKX',
         'Place your HKX at the same relative path (loose files for iteration)',
         'Test in-game; if speed is wrong, fix FPS at source and rebuild HKX',
+        'If not using replacers, wire one route: IAF keyword dispatch, NAF XML package, or AWF CK animation category entries',
         'When stable, package into BA2 and retest',
       ],
     },
@@ -241,7 +251,7 @@ export const BlenderAnimationGuide: React.FC = () => {
       icon: <Zap className="w-5 h-5" />,
       content:
         `Tools you’ll typically need, plus “install/verify” checks:\n\n` +
-        `1) Blender (authoring)\n` +
+        `1) Blender (authoring) — use 3.6 LTS or 4.x (both work with PyNifly; 3.6 LTS preferred for maximum add-on compatibility)\n` +
         `   Verify: Blender launches; you can save a .blend.\n\n` +
         `2) PyNifly (NIF import/export in Blender)\n` +
         `   Verify: NIF import/export entries show up in Blender.\n\n` +
@@ -251,6 +261,10 @@ export const BlenderAnimationGuide: React.FC = () => {
         `   Verify: HKX opens; you can view annotations/events.\n\n` +
         `5) BAE (extract vanilla references)\n` +
         `   Verify: you can extract a BA2 and browse the output.\n\n` +
+        `6) Runtime dependencies (framework routes)\n` +
+        `   Verify: F4SE + Address Library are loaded before testing IAF/NAF/AWF; for AWF confirm MCM is installed.\n\n` +
+        `7) Framework-specific dependency note\n` +
+        `   Verify: if animations must play while menu is open, install FallSouls for AWF workflows.\n\n` +
         `Link policy: use Nexus searches for community tools (versions move), and avoid hardcoding uncertain URLs.`,
       actions: [
         { label: 'Blender Download', externalUrl: 'https://www.blender.org/download/' },
@@ -266,12 +280,29 @@ export const BlenderAnimationGuide: React.FC = () => {
           label: 'Search Nexus: BAE',
           externalUrl: 'https://www.nexusmods.com/fallout4/search/?gsearch=BAE&gsearchtype=mods',
         },
+        {
+          label: 'Search Nexus: F4SE',
+          externalUrl: 'https://www.nexusmods.com/fallout4/search/?gsearch=F4SE&gsearchtype=mods',
+        },
+        {
+          label: 'Search Nexus: Address Library for F4SE Plugins',
+          externalUrl: 'https://www.nexusmods.com/fallout4/search/?gsearch=Address%20Library%20for%20F4SE%20Plugins&gsearchtype=mods',
+        },
+        {
+          label: 'Search Nexus: Mod Configuration Menu',
+          externalUrl: 'https://www.nexusmods.com/fallout4/search/?gsearch=Mod%20Configuration%20Menu&gsearchtype=mods',
+        },
+        {
+          label: 'Search Nexus: FallSouls',
+          externalUrl: 'https://www.nexusmods.com/fallout4/search/?gsearch=FallSouls&gsearchtype=mods',
+        },
       ],
       steps: [
         'Install Blender and confirm it runs',
         'Install PyNifly and confirm NIF import/export shows',
         'Set up conversion tooling and validate on a tiny test clip',
         'Extract vanilla references (skeleton + a vanilla HKX target)',
+        'If using IAF/NAF/AWF, validate runtime dependencies before in-game tests (F4SE, Address Library, and route-specific requirements)',
       ],
     },
   ];
@@ -415,20 +446,28 @@ export const BlenderAnimationGuide: React.FC = () => {
               { label: 'Nexus search: PyNifly', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=PyNifly&gsearchtype=mods', kind: 'search', note: 'NIF import/export add-on used by this guide.' },
               { label: 'Nexus search: HKXPackUI', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=HKXPackUI&gsearchtype=mods', kind: 'search', note: 'For inspecting/packing HKX files (optional).' },
               { label: 'Nexus search: BAE', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=BAE&gsearchtype=mods', kind: 'search', note: 'Bethesda Archive Extractor (reference extraction).' },
+              { label: 'Nexus search: IAF (Immersive Animation Framework)', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=Immersive%20Animation%20Framework&gsearchtype=mods', kind: 'search', note: 'Gameplay animation framework route.' },
+              { label: 'Nexus search: NAF (Native Animation Framework)', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=Native%20Animation%20Framework&gsearchtype=mods', kind: 'search', note: 'ESP-less XML framework route.' },
+              { label: 'Nexus search: Animated World Framework (AWF)', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=Animated%20World%20Framework&gsearchtype=mods', kind: 'search', note: 'World-object interaction framework route.' },
+              { label: 'Nexus search: Shiagur42 Blender rigs', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=Shiagur42%20blender%20animation%20rig&gsearchtype=mods', kind: 'search', note: 'Current FO4 rig workflow references (human + PA).' },
+              { label: 'Nexus: MaikCG F4Biped', href: 'https://www.nexusmods.com/fallout4/mods/16691', kind: 'official', note: 'Alternative DCC rig pipeline reference.' },
             ]}
             verify={[
               'Expand “Step 1: Reference & Skeleton” and confirm the pipeline sections open without layout jumps.',
               'Confirm Blender can import the FO4 skeleton and the bone names are unchanged (case-sensitive).',
-              'Export a tiny 10–30 frame FBX and confirm it contains animation keyframes.'
+              'Export a tiny 10–30 frame FBX and confirm it contains animation keyframes.',
+              'If you use framework integration, verify F4SE + Address Library load before launching test profiles.'
             ]}
             firstTestLoop={[
               'Import skeleton → animate 1 bone for ~20 frames → export FBX.',
               'Convert FBX → FO4 HKX using your chosen toolchain → inspect/pack if needed.',
-              'Test in-game as loose files first; only then package to BA2.'
+              'Test in-game as loose files first; only then package to BA2.',
+              'After replacer validation, wire one framework route (IAF/NAF/AWF) and re-test trigger logic.'
             ]}
             troubleshooting={[
               'If the in-game scale is wrong, fix Blender unit scale + FBX export scale together (don’t “half-fix” one side).',
-              'If animations do nothing in-game, verify bone names were not renamed and the target skeleton matches.'
+              'If animations do nothing in-game, verify bone names were not renamed and the target skeleton matches.',
+              'If framework-triggered animations fail, check route dependencies (F4SE, Address Library, and AWF route extras like MCM/FallSouls).'
             ]}
           />
 

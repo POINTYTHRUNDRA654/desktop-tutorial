@@ -40,7 +40,8 @@ export const QuestModAuthoringGuide: React.FC = () => {
             <h4 className="font-bold text-white mb-2">What you need (minimum)</h4>
             <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
               <li><strong>Fallout 4 + DLC</strong> installed and launching clean</li>
-              <li><strong>Creation Kit</strong> (for quests, dialogue, scenes, lip generation)</li>
+              <li><strong>Creation Kit</strong> (for quests, dialogue, scenes, lip generation) — use the OG CK on 1.10.163; use the NG CK (shipped via Steam) on 1.10.980+/1.11.x</li>
+              <li><strong>CKPE (Creation Kit Platform Extended)</strong> — strongly recommended on NG/AE; install CKPE 0.5+ for NG (1.10.980+), CKPE 0.3.x is OG-only</li>
               <li><strong>xEdit (FO4Edit)</strong> for conflict checks, quick fixes, and sanity validation</li>
               <li><strong>Mod manager</strong> (MO2/Vortex) for predictable testing and clean profiles</li>
               <li><strong>Archive2</strong> (bundled with CK) if you ship BA2 archives</li>

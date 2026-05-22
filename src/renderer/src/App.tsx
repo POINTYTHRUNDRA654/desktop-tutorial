@@ -220,7 +220,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/dev/orchestrator', '/dev/workflow-runner', '/dev/workflow-recorder',
   '/dev/plugin-manager', '/dev/load-order', '/media', '/media/images', '/test',
   '/test/holo', '/test/notification-test', '/test/bridge', '/learn', '/reference',
-  '/knowledge', '/lore', '/memory-vault', '/ck-tools', '/ck-crash-prevention', '/textures', '/dds-converter',
+  '/knowledge', '/knowledge-hub', '/lore', '/memory-vault', '/ck-tools', '/ck-crash-prevention', '/textures', '/dds-converter',
   '/texture-generator', '/guides', '/guides/blender', '/guides/blender/animation',
   '/guides/creation-kit', '/guides/creation-kit/quest-authoring', '/guides/papyrus/guide',
   '/guides/physics', '/guides/mods', '/guides/mods/bodyslide', '/guides/mods/sim-settlements',
@@ -1124,6 +1124,7 @@ const App: React.FC = () => {
     if (!hasBooted) {
       return (
         <PipBoyStartup
+          duration={500}
           onComplete={() => {
             localStorage.setItem('mossy_has_booted', 'true');
             setHasBooted(true);
@@ -1320,12 +1321,13 @@ const App: React.FC = () => {
               // Layout fail-safe
               flex: '1 1 auto',
               minWidth: 0,
+              scrollbarGutter: 'stable',
               outline: import.meta.env.DEV ? '2px solid rgba(0,255,255,0.8)' : undefined,
             }}
             role="main"
             aria-label="Main content"
           >
-            <div className="relative z-10">
+            <div className="flex flex-col relative z-10 flex-1 min-h-0">
               <MossyObserver />
 
               {/*
@@ -1486,7 +1488,6 @@ const App: React.FC = () => {
               {/* Plugin & Load Order Hub */}
               <KeepAlivePanel path="/plugin-tools"><ErrorBoundary><PluginLoadOrderHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/xedit"><ErrorBoundary><XEditTools /></ErrorBoundary></KeepAlivePanel>
-              <KeepAlivePanel path="/tools/ck-extension"><ErrorBoundary><CKExtension /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/project-templates"><ErrorBoundary><ProjectTemplates /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/formid-remapper"><ErrorBoundary><FormIdRemapper /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/precombine-generator"><ErrorBoundary><PrecombineGenerator /></ErrorBoundary></KeepAlivePanel>

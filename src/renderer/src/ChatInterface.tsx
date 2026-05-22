@@ -224,12 +224,14 @@ const QUICK_PROMPTS: { label: string; prompt: string; emoji: string }[] = [
     { emoji: '🔧', label: 'Fix dark face bug', prompt: 'How do I fix the dark face bug on a custom NPC in Fallout 4?' },
     { emoji: '📋', label: 'Sort my load order', prompt: 'What is the correct load order structure for a heavily modded Fallout 4? Walk me through it.' },
     { emoji: '🌿', label: 'Generate LOD', prompt: 'What are all the steps to generate LOD for a mod that adds outdoor objects — xLODGen, TexGen, and DynDOLOD?' },
-    { emoji: '💥', label: 'Analyse a crash', prompt: 'My game crashed and Buffout 4 made a log. How do I use CLASSIC to diagnose it?' },
-    { emoji: '🎯', label: 'ESL-flag a plugin', prompt: 'How do I safely ESL-flag an ESP in xEdit? What are the requirements and risks?' },
+    { emoji: '💥', label: 'Analyse a crash', prompt: 'My game crashed and X-Cell made a crash log. How do I read the call stack and use CLASSIC to figure out which mod caused it?' },
+    { emoji: '🎯', label: 'ESL-flag a plugin', prompt: 'How do I safely ESL-flag an ESP in xEdit? What are the FormID limits (0x000–0xFFF) and what happens if I go over them?' },
     { emoji: '🏗️', label: 'Precombines explained', prompt: 'Why are precombines important and how do I avoid breaking them in my mod?' },
-    { emoji: '🖼️', label: 'DDS texture formats', prompt: 'Which DDS format should I use for each texture type in Fallout 4 — diffuse, normal, specular, and height map?' },
+    { emoji: '🖼️', label: 'DDS texture formats', prompt: 'Which DDS format should I use for each texture type in Fallout 4 — diffuse, normal, specular (_s.dds channels), and height map?' },
     { emoji: '⚙️', label: 'xEdit conflict patch', prompt: 'Two mods conflict on the same NPC record. Walk me through creating a compatibility patch in xEdit.' },
-    { emoji: '📦', label: 'Pack a BA2', prompt: 'How do I pack my mod assets into a BA2 archive with Archive2.exe? What are the correct format settings?' },
+    { emoji: '📦', label: 'Pack a BA2', prompt: 'How do I pack my mod assets into a BA2 archive? What is the difference between BA2 Header V1 (pre-NG) and V2 (NG/AE/1.11.x) and which do I need?' },
+    { emoji: '🚫', label: 'Deprecated frameworks', prompt: 'I have AWKCR, Armorsmith Extended, and DEF_UI in my load order. Are these safe on NG/AE (v1.10.984 / 1.11.x) and what modern replacements should I use?' },
+    { emoji: '🔧', label: 'Check my game version', prompt: 'How do I find out whether I am running Legacy (1.10.163), Next-Gen (1.10.980–984), or Anniversary Edition (1.11.x)? What changes for each version — F4SE, Address Library, BA2 headers, crash tools?' },
     { emoji: '📝', label: 'FOMOD installer', prompt: 'How do I create a FOMOD installer for my mod so users get options in MO2 and Vortex?' },
     { emoji: '🔊', label: 'Add custom sound', prompt: 'How do I add a custom ambient sound to an interior cell using SNDR and ASPC records in the Creation Kit?' },
     { emoji: '🚀', label: 'Release checklist', prompt: 'What is the complete checklist for releasing a mod on Nexus — packaging, screenshots, description, FOMOD, and versioning?' },
@@ -258,7 +260,7 @@ const QuickPromptChips: React.FC<{ onSelect: (prompt: string) => void }> = ({ on
 );
 
 // Memoized Message Item to prevent re-rendering list on typing
-const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (msgId: string, rating: 'good' | 'bad') => void }) => {
+const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (msgId: string, rating: 'good' | 'bad', editedAnswer?: string) => void }) => {
     MessageItem.displayName = 'MessageItem';
     const [showCitations, setShowCitations] = useState(false);
     const [rating, setRating] = useState<'good' | 'bad' | null>(null);
@@ -394,15 +396,17 @@ const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (m
                             title="Bad answer — save to training dataset to improve"
                             aria-label="Rate response bad"
                             onClick={() => {
+                                // `rating` is set immediately for UI feedback (button highlight).
+                                // The training-data save is deferred — it happens when the user
+                                // confirms via the "Save correction" button below.
                                 setRating('bad');
                                 setShowEditBox(true);
-                                onRate?.(msg.id, 'bad');
                             }}
                             className={`px-2 py-0.5 rounded text-xs transition-colors ${rating === 'bad' ? 'bg-red-800/60 text-red-200 border border-red-700' : 'bg-slate-800/60 text-slate-400 hover:text-red-300 border border-slate-700'}`}
                         >
                             👎
                         </button>
-                        {rating && <span className="text-[10px] text-slate-500">{rating === 'good' ? 'Saved to training data ✓' : 'Saved — edit to improve:'}</span>}
+                        {rating && <span className="text-[10px] text-slate-500">{rating === 'good' ? 'Saved to training data ✓' : 'Edit the correct answer below and click Save:'}</span>}
                         {showEditBox && (
                             <div className="w-full mt-1 space-y-1">
                                 <textarea
@@ -415,12 +419,15 @@ const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (m
                                 <div className="flex gap-2">
                                     <button
                                         type="button"
-                                        onClick={() => { onRate?.(msg.id, 'bad'); setShowEditBox(false); }}
+                                        onClick={() => {
+                                            onRate?.(msg.id, 'bad', editedAnswer || msg.content);
+                                            setShowEditBox(false);
+                                        }}
                                         className="text-xs px-2 py-1 rounded bg-emerald-800 hover:bg-emerald-700 text-white"
                                     >
                                         Save correction
                                     </button>
-                                    <button type="button" onClick={() => setShowEditBox(false)} className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">Cancel</button>
+                                    <button type="button" onClick={() => { setShowEditBox(false); setRating(null); }} className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">Cancel</button>
                                 </div>
                             </div>
                         )}
@@ -442,6 +449,7 @@ const MessageList = React.memo(({ messages, onRate, ...props }: any) => {
             ref={messageListRef}
             onWheel={wheelHandler}
             className="flex-1 overflow-y-auto overflow-x-auto p-4 space-y-6 scroll-smooth"
+            style={{ scrollbarGutter: 'stable' }}
         >
             {messages.length === 0 && <QuickPromptChips onSelect={props.onQuickPrompt ?? (() => {})} />}
             {messages.map((msg: ChatMessage) => (
@@ -1863,7 +1871,7 @@ export const ChatInterface: React.FC = () => {
     };
 
     // ── Training data: rate a message 👍/👎 ──────────────────────────────────
-    const handleRateMessage = React.useCallback(async (msgId: string, rating: 'good' | 'bad') => {
+    const handleRateMessage = React.useCallback(async (msgId: string, rating: 'good' | 'bad', editedAnswer?: string) => {
         const api = (window as any).electron?.api;
         if (!api?.trainingDataAddPair) return;
         // Find the Q&A pair: the user message just before this assistant message
@@ -1887,6 +1895,10 @@ export const ChatInterface: React.FC = () => {
             await api.trainingDataAddPair({
                 question: userMsg.content,
                 answer: assistantMsg.content,
+                // If the user provided a correction, save it as editedAnswer so the
+                // IPC handler writes that text into the training pair instead of the
+                // original (possibly wrong) answer.
+                editedAnswer: editedAnswer && editedAnswer !== assistantMsg.content ? editedAnswer : undefined,
                 rating,
                 topic,
             });
@@ -2159,7 +2171,7 @@ export const ChatInterface: React.FC = () => {
     };
 
     return (
-        <div data-testid="chat-container" className="flex flex-col h-full bg-forge-dark text-slate-200">
+        <div data-testid="chat-container" className="flex flex-col h-full bg-forge-dark text-slate-200" style={{ scrollbarGutter: 'stable' }}>
             {/* Header */}
             <div className="p-4 border-b border-slate-700 flex flex-wrap justify-between items-center bg-forge-panel gap-y-2">
                 <div className="flex items-center gap-3 min-w-0 flex-shrink overflow-hidden">

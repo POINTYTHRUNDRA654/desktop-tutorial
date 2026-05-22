@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Wrench, Save, Code, AlertTriangle, CheckCircle2, FileText, Play, RefreshCw, Terminal, Clock, MapPin } from 'lucide-react';
 
@@ -62,6 +62,11 @@ export const CKExtension: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const performAutoSave = useCallback(() => {
+    setLastAutoSave(new Date());
+    setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save timestamp logged (CK IPC save bridge not yet wired — use File > Save in CK manually)`]);
+  }, []);
+
   // Auto-save timer
   useEffect(() => {
     if (!isConnected || !autoSaveEnabled) return;
@@ -71,7 +76,7 @@ export const CKExtension: React.FC = () => {
     }, autoSaveInterval * 60 * 1000);
 
     return () => clearInterval(saveInterval);
-  }, [isConnected, autoSaveEnabled, autoSaveInterval]);
+  }, [isConnected, autoSaveEnabled, autoSaveInterval, performAutoSave]);
 
   const loadCKData = async () => {
     // Try to load recently compiled scripts from settings if the IPC is available
@@ -86,16 +91,11 @@ export const CKExtension: React.FC = () => {
     // Active cell is only knowable via a live CK IPC; leave as null until connected
   };
 
-  const performAutoSave = () => {
-    setLastAutoSave(new Date());
-    setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save completed`]);
-  };
-
   const toggleAutoSave = () => {
-    const newValue = !autoSaveEnabled;
-    setAutoSaveEnabled(newValue);
-    localStorage.setItem('ck_autosave_enabled', newValue.toString());
-    setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save ${newValue ? 'enabled' : 'disabled'}`]);
+    const next = !autoSaveEnabled;
+    setAutoSaveEnabled(next);
+    localStorage.setItem('ck_autosave_enabled', next.toString());
+    setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save ${next ? 'enabled' : 'disabled'}`]);
   };
 
   const updateAutoSaveInterval = (minutes: number) => {
@@ -194,7 +194,7 @@ export const CKExtension: React.FC = () => {
             <div>
               <span className="font-bold text-amber-300 uppercase tracking-wide text-sm">Under Development</span>
               <p className="text-amber-200/80 text-xs mt-0.5">
-                The CK Extension is actively being built. Some features may be incomplete or non-functional.
+                <strong>Auto-save logs timestamps only</strong> — the CK IPC save bridge is not yet wired. Use <strong>File &gt; Save</strong> inside the Creation Kit manually to protect your work. Script compiler requires a configured Papyrus compiler path in Settings.
               </p>
             </div>
           </div>

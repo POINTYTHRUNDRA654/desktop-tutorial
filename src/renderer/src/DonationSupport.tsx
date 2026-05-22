@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Coffee, Heart, DollarSign, Github, ExternalLink } from 'lucide-react';
+import { Coffee, Heart, DollarSign, ExternalLink, GitBranch } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 export const DonationSupport: React.FC = () => {
@@ -130,7 +130,7 @@ export const DonationSupport: React.FC = () => {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <Github className="w-12 h-12 text-white" />
+                  <GitBranch className="w-12 h-12 text-white" />
                   <div>
                     <h3 className="text-xl font-bold text-white">GitHub Sponsors</h3>
                     <p className="text-purple-100">Monthly or one-time support</p>

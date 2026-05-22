@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Play, Pause, Volume2, VolumeX, Maximize, Minimize, ExternalLink, Youtube, Video } from 'lucide-react';
+import { X, Play, Pause, Volume2, VolumeX, Maximize, Minimize, ExternalLink, Video } from 'lucide-react';
 import { speakMossy } from './mossyTts';
 
 interface VideoTutorialProps {
@@ -231,7 +231,7 @@ export const VideoTutorial: React.FC<VideoTutorialProps> = ({ isOpen, onClose })
                         // No video configured
                         <div className="flex flex-col items-center justify-center h-full p-8 text-center">
                             <div className="mb-6 p-6 bg-slate-800 rounded-full">
-                                <Youtube className="w-16 h-16 text-slate-400" />
+                                <Video className="w-16 h-16 text-slate-400" />
                             </div>
                             <h3 className="text-xl font-bold text-white mb-2">No Tutorial Video Configured</h3>
                             <p className="text-slate-400 mb-6 max-w-md">
