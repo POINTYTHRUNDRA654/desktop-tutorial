@@ -12516,18 +12516,19 @@ Key capabilities: per-item indexed inventory manipulation (find/copy/transfer/re
 
 Use for environmental mutation: raycasting to detect if player can see a glowing flora before triggering emittance burst; physics queries for radiation-burst fog displacement; silent console commands for rapid prototyping of region-level state changes.
 
-**F4SE Plugin Template (by Ryan-rsm-McKenzie / Expired6978)**
+**F4SE Plugin Template (libxse/commonlibf4-template)**
 
-The F4SE Plugin Template (github.com/Ryan-rsm-McKenzie/f4se_plugin_template) is a pre-configured CMake + vcpkg starter kit for building F4SE DLL plugins. Provides: F4SE_PLUGIN_VERSION boilerplate, F4SEPlugin_Load entry point, CommonLibF4 as git submodule, spdlog file logging, vcpkg.json for dependency management, post-build copy to Data\F4SE\Plugins\.
+The active F4SE/CommonLibF4 starter template is github.com/libxse/commonlibf4-template. It provides a maintained plugin skeleton for Fallout 4 DLL development using CommonLibF4, with submodules ready to clone and modern XMake-based project setup.
 
 Setup:
 \`\`\`cmd
-git clone --recurse-submodules https://github.com/Ryan-rsm-McKenzie/f4se_plugin_template.git MutatedSeaPlugin
-cmake -B build -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake"
-cmake --build build --config Release
+git clone --recurse-submodules https://github.com/libxse/commonlibf4-template.git MutatedSeaPlugin
+cd MutatedSeaPlugin
+xmake project -k vsxmake
+xmake build
 \`\`\`
 
-Add your hook source files with target_sources() in the existing CMakeLists.txt. Always build Release — debug DLLs are incompatible with the retail F4SE loader.
+Add your hook source files in the template project, generate a Visual Studio solution with \`xmake project -k vsxmake\` if desired, and build Release — debug DLLs are incompatible with the retail F4SE loader.
 
 ---
 
@@ -12829,7 +12830,7 @@ Vanilla BSDecalNode uses a simplified shader path that skips SF2_PARALLAX_OCCLUS
 
 **F4SE C++ DEVELOPMENT ENVIRONMENT (Visual Studio 2022 + CommonLibF4)**
 
-To build F4SE engine-level plugins in 2026: install Visual Studio 2022 Community with "Desktop development with C++" workload (MSVC v143, Windows SDK 10.0.22621+, CMake tools). Install Git, CMake 3.26+, and vcpkg (\`git clone https://github.com/microsoft/vcpkg C:\vcpkg && .\bootstrap-vcpkg.bat && .\vcpkg integrate install\`; set VCPKG_ROOT env var). Clone CommonLibF4: \`git clone https://github.com/Ryan-rsm-McKenzie/CommonLibF4\` — this gives RE:: class headers for BSLightingShaderProperty, BSDecalNode, TESWeather, bhkWorld, etc. Start from the F4SE Plugin Template (Expired6978/F4SEPluginTemplate) which includes a working CMakeLists.txt, vcpkg.json manifest, F4SE entry point, and GitHub Actions CI for OG/NG/AE DLL builds (BUILD_OG=1.10.163, BUILD_NG=1.10.980–1.10.984, BUILD_AE=1.11.169+ using NG headers + AiO Address Library). CMake configure: generator "Visual Studio 17 2022", platform x64, toolchain C:\vcpkg\scripts\buildsystems\vcpkg.cmake, triplet x64-windows-static. Always build Release (not Debug) — Debug builds cause timing-related crashes in-game. Set post-build event to xcopy the compiled .dll to Data/F4SE/Plugins/. Runtime library must be /MT (static CRT). F4SE entry point is F4SE_InitPlugin(const F4SE::LoadInterface*) — register it with F4SE::Init(a_f4se), allocate trampoline (F4SE::AllocTrampoline(1<<10)), set up spdlog file sink to Documents\My Games\Fallout4\F4SE\MyPlugin.log. Verify hook loaded: check for your log line in that file after launching via f4se_loader.exe. Never hard-code hex offsets — use REL::ID with the Fallout 4 Address Library (nikitalita/address_library on GitHub) which maps function IDs to correct offsets for OG (1.10.163), NG (1.10.980–1.10.984), and AE (1.11.169+, official Anniversary Edition Nov 2025) versions. Ship three DLLs (OG/NG/AE) in FOMOD; AE uses the same CommonLibF4-NG headers but the AiO Anniversary Address Library build (Nexus #47327). FOMOD installer selects correct DLL per game version. Use xbyak or Detours (via vcpkg) for write_call<5> function hooks. Run CLASSIC crash log analyzer (Nexus #56255) to diagnose hook crashes. BSLightingShaderProperty.h and BSDecalNode.h live in CommonLibF4/include/RE/B/.
+To build F4SE engine-level plugins in 2026: install Visual Studio 2022 Community with "Desktop development with C++" workload (MSVC v143, Windows SDK 10.0.22621+), plus Git and XMake 3.0+; CMake/vcpkg are still useful for other Fallout 4 tooling, but the active starter template is now libxse/commonlibf4-template rather than the old dead GitHub template repo. Clone CommonLibF4 if you want the library directly: \`git clone https://github.com/Ryan-rsm-McKenzie/CommonLibF4\` — this gives RE:: class headers for BSLightingShaderProperty, BSDecalNode, TESWeather, bhkWorld, etc. Then clone the maintained template with submodules: \`git clone --recurse-submodules https://github.com/libxse/commonlibf4-template MyPlugin\`. Generate a Visual Studio solution with \`xmake project -k vsxmake\` or build directly with \`xmake build\`. Always build Release (not Debug) — Debug DLLs cause timing-related crashes in-game. F4SE entry points, logging, and CommonLibF4 integration are already scaffolded in the template; verify your hook loaded by checking for your plugin log after launching via f4se_loader.exe. Never hard-code hex offsets — use REL::ID with the Fallout 4 Address Library (nikitalita/address_library on GitHub) which maps function IDs to correct offsets for OG (1.10.163), NG (1.10.980–1.10.984), and AE (1.11.169+, official Anniversary Edition Nov 2025) versions. Ship separate DLLs when version-specific builds are required, and run CLASSIC crash log analyzer (Nexus #56255) to diagnose hook crashes. BSLightingShaderProperty.h and BSDecalNode.h live in CommonLibF4/include/RE/B/.
 
 
 ---
@@ -12968,8 +12969,6 @@ Mossy is a desktop AI assistant for Fallout 4 modding. I run as an Electron desk
 Beyond FO4-specific tuning, Mossy can help with general PC gaming performance: Thermal paste replacement: every 3–5 years on CPU/GPU die. Arctic MX-6 or Thermal Grizzly Kryonaut recommended. Badly dried paste can cause CPU to thermal throttle at 90°C+ reducing performance 20–40%. RAM XMP/EXPO profile: enable in BIOS (XMP for Intel, EXPO for AMD) — unoptimized DDR4/DDR5 runs at 2133 MHz by default, XMP enables rated speed (3200–7200 MHz). 3200MHz DDR4 vs 2133MHz: ~15% gaming FPS difference in CPU-bound scenarios. Dual-channel: ALWAYS populate both RAM slots (slot 2 + slot 4 for most boards) — dual-channel nearly doubles memory bandwidth. CPU overclocking: Intel Z-series motherboard + K-series CPU required. AMD Ryzen: PBO (Precision Boost Overdrive) + auto-OC safe for most users. GPU overclocking: MSI Afterburner → +150 MHz core clock (conservative), +500 MHz VRAM (try 1000 MHz for GDDR6X — lower if artifacts). NVIDIA Resizable BAR / AMD Smart Access Memory: enable in BIOS UEFI (UEFI mode, not Legacy) → improves GPU frame buffer access for VRAM-bound games 5–15%. DirectX 12 vs 11 in FO4: FO4 is DX11 — DX12 wrapper (DXVK) can improve CPU overhead but may introduce compatibility issues. Monitor settings: calibrate display profile (ICC profile from manufacturer); ensure 144Hz/165Hz/240Hz is actually set in Windows Display Settings → Advanced Display → Refresh Rate. VSync: NEVER use VSync in-game with FO4 + ENB — use NVIDIA Control Panel Adaptive Sync or FastSync at GPU driver level, or cap framerate with RivaTuner to target-5 (e.g. 141 for 144Hz monitor). Frame generation (DLSS 3+ / FSR 3): adds latency of 1 frame — not recommended for competitive games; acceptable for FO4 single-player. GPU undervolting: reduces heat + power consumption without performance loss — use Afterburner Curve Editor to find stable minimum voltage at max boost clock.
 
 `;
-
-
 
 
 

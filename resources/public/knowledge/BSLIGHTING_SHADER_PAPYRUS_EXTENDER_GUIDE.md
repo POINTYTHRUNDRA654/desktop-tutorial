@@ -288,8 +288,8 @@ endif
 
 The F4SE Plugin Template is a GitHub-hosted CMake starter project for building Fallout 4 F4SE plugin DLLs. It removes the boilerplate of setting up includes, linking, versioning, and deployment so you can focus on the hook logic.
 
-**Primary Template:** https://github.com/Ryan-rsm-McKenzie/f4se_plugin_template  
-**Alternative:** https://github.com/Expired6978/f4se_plugin_template
+**Primary Template:** https://github.com/libxse/commonlibf4-template  
+**Fallback Reference:** https://github.com/Ryan-rsm-McKenzie/CommonLibF4
 
 ### What It Provides Out of the Box
 
@@ -305,7 +305,7 @@ The F4SE Plugin Template is a GitHub-hosted CMake starter project for building F
 
 ```cmd
 REM 1. Clone (use your repo name)
-git clone --recurse-submodules https://github.com/Ryan-rsm-McKenzie/f4se_plugin_template.git MutatedSeaPlugin
+git clone --recurse-submodules https://github.com/libxse/commonlibf4-template.git MutatedSeaPlugin
 cd MutatedSeaPlugin
 
 REM 2. Install vcpkg dependencies
@@ -405,7 +405,7 @@ OnUpdateGameTime() fires every 0.1h  →   BSLightingShaderProperty hook
 |---|---|---|---|
 | Lighthouse Papyrus Extender | GELUXRUM | Nexus #71420 + GitHub | 180+ new Papyrus functions |
 | Garden of Eden Papyrus Script Extender | LarannKiar | Nexus #74160 | 1150+ new Papyrus functions |
-| F4SE Plugin Template | Ryan-rsm-McKenzie / Expired6978 | GitHub | CMake DLL starter kit |
+| F4SE Plugin Template | libxse | GitHub | Active CommonLibF4 starter template |
 | CommonLibF4 | Ryan-rsm-McKenzie & contributors | GitHub | RE:: engine headers |
 | F4SE | Ian Patterson (ianpatt) | f4se.silverlock.org | Script Extender base |
 | Address Library | meh321 | Nexus #47327 | Cross-version address resolution |
