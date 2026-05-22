@@ -722,6 +722,27 @@ const App: React.FC = () => {
       startInteractiveTutorial();
     };
 
+    const handleStartInitialInstall = () => {
+      console.log('[App] Initial install replay requested from Guided Tours');
+      try {
+        localStorage.removeItem('mossy_onboarding_complete');
+        localStorage.removeItem('mossy_onboarding_completed');
+        localStorage.removeItem('mossy_tutorial_completed');
+        localStorage.removeItem('mossy_tutorial_autostart');
+        localStorage.removeItem('mossy_voice_setup_complete');
+        localStorage.setItem('mossy_force_onboarding', 'true');
+        localStorage.setItem('mossy_has_booted', 'true');
+      } catch (err) {
+        console.warn('[App] Failed preparing initial install replay:', err);
+      }
+      setShowTutorialLaunch(false);
+      setShowInteractiveTutorialOverlay(false);
+      setShowVoiceSetup(false);
+      setShowOnboarding(false);
+      setHasBooted(true);
+      setShowFirstRun(true);
+    };
+
     // Expose the scan tutorial function for FirstRunOnboarding to call directly.
     // FirstRunOnboarding tries direct function call first (synchronous), then falls back
     // to dispatching events if the function doesn't exist. This dual approach ensures
@@ -736,6 +757,7 @@ const App: React.FC = () => {
     window.addEventListener('start-interactive-tutorial', handleStartInteractiveTutorial);
     // Event listener for scan tutorial (backup mechanism if direct function call fails)
     window.addEventListener('start-scan-tutorial', handleStartScanTutorial);
+    window.addEventListener('start-initial-install', handleStartInitialInstall);
 
     return () => {
       window.removeEventListener('start-welcome-tour', handleStartWelcomeTour);
@@ -744,6 +766,7 @@ const App: React.FC = () => {
       window.removeEventListener('start-tutorial', handleStartInteractiveTutorial);
       window.removeEventListener('start-interactive-tutorial', handleStartInteractiveTutorial);
       window.removeEventListener('start-scan-tutorial', handleStartScanTutorial);
+      window.removeEventListener('start-initial-install', handleStartInitialInstall);
       delete (window as any).mossyOpenScanTutorial;
     };
   }, []);
