@@ -6285,7 +6285,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             const veins = Math.sin((nx * 10 + ny * 6 + random() * 0.1) * Math.PI);
             value = 150 + veins * 55 + noise * 0.15;
           } else if (type === 'fabric') {
-            const weave = ((x % 6 < 3) ^ (y % 6 < 3)) ? 1 : -1;
+            const weave = ((x % 6 < 3) !== (y % 6 < 3)) ? 1 : -1;
             value = 128 + weave * 25 + noise * 0.25;
           }
 
