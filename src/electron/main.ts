@@ -1209,7 +1209,7 @@ const settingsPath = (() => {
   }
 })();
 
-type SecretField = 'openaiApiKey' | 'groqApiKey' | 'backendToken';
+type SecretField = 'openaiApiKey' | 'groqApiKey' | 'backendToken' | 'githubToken';
 const secretEncKey = (k: SecretField) => `${k}Enc` as const;
 const hasOwn = (obj: any, key: string) => Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -1271,7 +1271,7 @@ const migratePlainSecretsToEncrypted = (settings: any): { next: any; migrated: b
   const next = { ...settings };
   let migrated = false;
 
-  const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken'];
+  const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken'];
   for (const field of fields) {
     const encKey = secretEncKey(field);
     const plain = String(next?.[field] || '').trim();
@@ -1372,7 +1372,8 @@ const loadSettings = (): any => {
       
       const seeded =
         seedSecretFromEnv(next, 'openaiApiKey', 'OPENAI_API_KEY') ||
-        seedSecretFromEnv(next, 'groqApiKey', 'GROQ_API_KEY');
+        seedSecretFromEnv(next, 'groqApiKey', 'GROQ_API_KEY') ||
+        seedSecretFromEnv(next, 'githubToken', 'GITHUB_TOKEN');
 
       // Initialize Blender token on first run
       let tokenInitialized = false;
@@ -1490,6 +1491,13 @@ const loadSettings = (): any => {
     communityRepo: '',
     communityContributorName: '',
     communityContributorLink: '',
+    listSyncEnabled: false,
+    listSyncRepo: '',
+    listSyncBranch: 'main',
+    listSyncLastSyncAt: undefined,
+    listSyncLastError: '',
+    githubToken: '',
+    githubTokenEnc: '',
 
     // Workflow Runner
     workflowRunnerWorkflows: [],
@@ -1502,6 +1510,9 @@ const loadSettings = (): any => {
     backendBaseUrl: defaultBackendBaseUrl,
     backendToken: '',
     backendTokenEnc: '',
+    userPreferredName: 'Vault Dweller',
+    memoryStorageMode: 'userData',
+    memoryStoragePath: '',
 
     // Cloud API keys (stored locally; never exposed to renderer)
     openaiApiKey: '',
@@ -1518,7 +1529,8 @@ const loadSettings = (): any => {
   const seeded =
     seedSecretFromEnv(defaults, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
     seedSecretFromEnv(defaults, 'openaiApiKey', 'OPENAI_API_KEY') ||
-    seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY');
+    seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY') ||
+    seedSecretFromEnv(defaults, 'githubToken', 'GITHUB_TOKEN');
   if (seeded) {
     try {
       fs.writeFileSync(settingsPath, JSON.stringify(defaults, null, 2), 'utf-8');
@@ -1541,6 +1553,8 @@ const redactSettingsForRenderer = (settings: any): any => {
   if (clone.openaiApiKeyEnc) clone.openaiApiKeyEnc = '';
   if (clone.groqApiKey) clone.groqApiKey = '';
   if (clone.groqApiKeyEnc) clone.groqApiKeyEnc = '';
+  if (clone.githubToken) clone.githubToken = '';
+  if (clone.githubTokenEnc) clone.githubTokenEnc = '';
   return clone;
 };
 
@@ -1557,6 +1571,210 @@ const saveSettings = (settings: any): void => {
     throw e;
   }
 };
+
+const MEMORY_FILE_NAMES = [
+  'chat-history.json',
+  'knowledge-vault.json',
+  'vault-assets.json',
+  'mod-projects.json',
+  'mossy-work-memory-events.jsonl',
+];
+
+const normalizeMemoryRoot = (settings: any): string => {
+  const mode = String(settings?.memoryStorageMode || 'userData').toLowerCase();
+  if (mode === 'custom') {
+    const custom = String(settings?.memoryStoragePath || '').trim();
+    if (custom) return custom;
+  }
+  return app.getPath('userData');
+};
+
+const ensureDir = (dirPath: string): void => {
+  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+};
+
+const getMemoryFilePath = (fileName: string, settings?: any): string => {
+  const root = normalizeMemoryRoot(settings || loadSettings());
+  ensureDir(root);
+  return path.join(root, fileName);
+};
+
+const migrateMemoryStorageIfNeeded = (prevSettings: any, nextSettings: any): void => {
+  const prevRoot = normalizeMemoryRoot(prevSettings);
+  const nextRoot = normalizeMemoryRoot(nextSettings);
+  if (prevRoot === nextRoot) return;
+
+  try {
+    ensureDir(nextRoot);
+    for (const fileName of MEMORY_FILE_NAMES) {
+      const from = path.join(prevRoot, fileName);
+      const to = path.join(nextRoot, fileName);
+      if (!fs.existsSync(from) || fs.existsSync(to)) continue;
+      fs.copyFileSync(from, to);
+    }
+    console.log('[MemoryStorage] Migrated memory files:', { from: prevRoot, to: nextRoot });
+  } catch (error) {
+    console.error('[MemoryStorage] Migration failed:', error);
+  }
+};
+
+type ListsPayload = {
+  whitelist: string[];
+  modBlacklist: Array<{ name: string; reason?: string }>;
+  programBlacklist: Array<{ name: string; reason?: string }>;
+  updatedAt: string;
+};
+
+const normalizeListName = (v: unknown): string => String(v || '').trim();
+const normalizeReason = (v: unknown): string | undefined => {
+  const s = String(v || '').trim();
+  return s ? s : undefined;
+};
+
+const buildListsPayloadFromSettings = (settings: any): ListsPayload => {
+  const ps = settings?.privacySettings || {};
+  const whitelist = Array.isArray(ps.modContentWhitelist)
+    ? ps.modContentWhitelist.map(normalizeListName).filter(Boolean)
+    : [];
+  const modBlacklist = Array.isArray(ps.modContentBlacklist)
+    ? ps.modContentBlacklist
+      .map((e: any) => (typeof e === 'string' ? { name: normalizeListName(e) } : { name: normalizeListName(e?.name), reason: normalizeReason(e?.reason) }))
+      .filter((e: any) => e.name)
+    : [];
+  const programBlacklist = Array.isArray(ps.programBlacklist)
+    ? ps.programBlacklist
+      .map((e: any) => (typeof e === 'string' ? { name: normalizeListName(e) } : { name: normalizeListName(e?.name), reason: normalizeReason(e?.reason) }))
+      .filter((e: any) => e.name)
+    : [];
+
+  return {
+    whitelist,
+    modBlacklist,
+    programBlacklist,
+    updatedAt: new Date().toISOString(),
+  };
+};
+
+const parseGitHubRepo = (repoRaw: unknown): { owner: string; repo: string } | null => {
+  const raw = String(repoRaw || '').trim();
+  const m = raw.match(/^([\w.-]+)\/([\w.-]+)$/);
+  if (!m) return null;
+  return { owner: m[1], repo: m[2] };
+};
+
+const getListSyncStatePath = (): string => getMemoryFilePath('list-sync-state.json');
+const loadListSyncState = (): any => {
+  try {
+    const file = getListSyncStatePath();
+    if (!fs.existsSync(file)) return {};
+    return JSON.parse(fs.readFileSync(file, 'utf-8'));
+  } catch {
+    return {};
+  }
+};
+const saveListSyncState = (state: any): void => {
+  try {
+    fs.writeFileSync(getListSyncStatePath(), JSON.stringify(state, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('[ListSync] Failed to persist sync state:', e);
+  }
+};
+
+const LISTS_REMOTE_PATH = '.mossy/privacy-lists.json';
+let listSyncPullAttempted = false;
+
+const githubRequest = async (url: string, init: RequestInit, token: string): Promise<Response> => {
+  const headers = {
+    Accept: 'application/vnd.github+json',
+    Authorization: `Bearer ${token}`,
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+    ...(init.headers || {}),
+  };
+  return fetch(url, { ...init, headers });
+};
+
+const syncListsToGitHub = async (settings: any): Promise<{ ok: boolean; error?: string }> => {
+  try {
+    if (!settings?.listSyncEnabled) return { ok: true };
+    const repo = parseGitHubRepo(settings?.listSyncRepo || settings?.communityRepo);
+    if (!repo) return { ok: false, error: 'Set listSyncRepo to owner/repo.' };
+    const token = getSecretValue(settings, 'githubToken', 'GITHUB_TOKEN');
+    if (!token) return { ok: false, error: 'GitHub token is not configured.' };
+    const branch = String(settings?.listSyncBranch || 'main').trim() || 'main';
+    const payload = buildListsPayloadFromSettings(settings);
+    const bodyText = JSON.stringify(payload, null, 2);
+    const bodyB64 = Buffer.from(bodyText, 'utf-8').toString('base64');
+    const baseUrl = `https://api.github.com/repos/${repo.owner}/${repo.repo}/contents/${encodeURIComponent(LISTS_REMOTE_PATH)}`;
+
+    let sha: string | undefined;
+    const existing = await githubRequest(`${baseUrl}?ref=${encodeURIComponent(branch)}`, { method: 'GET' }, token);
+    if (existing.ok) {
+      const json = await existing.json();
+      sha = json?.sha;
+    }
+
+    const putResp = await githubRequest(baseUrl, {
+      method: 'PUT',
+      body: JSON.stringify({
+        message: `Mossy: sync privacy lists (${new Date().toISOString()})`,
+        content: bodyB64,
+        branch,
+        sha,
+      }),
+    }, token);
+
+    if (!putResp.ok) {
+      const t = await putResp.text();
+      return { ok: false, error: `GitHub push failed (${putResp.status}): ${t.slice(0, 240)}` };
+    }
+    return { ok: true };
+  } catch (error: any) {
+    return { ok: false, error: String(error?.message || error) };
+  }
+};
+
+const syncListsFromGitHub = async (settings: any): Promise<{ ok: boolean; updated?: boolean; error?: string }> => {
+  try {
+    if (!settings?.listSyncEnabled) return { ok: true, updated: false };
+    const repo = parseGitHubRepo(settings?.listSyncRepo || settings?.communityRepo);
+    if (!repo) return { ok: false, error: 'Set listSyncRepo to owner/repo.' };
+    const token = getSecretValue(settings, 'githubToken', 'GITHUB_TOKEN');
+    if (!token) return { ok: false, error: 'GitHub token is not configured.' };
+    const branch = String(settings?.listSyncBranch || 'main').trim() || 'main';
+    const url = `https://api.github.com/repos/${repo.owner}/${repo.repo}/contents/${encodeURIComponent(LISTS_REMOTE_PATH)}?ref=${encodeURIComponent(branch)}`;
+    const resp = await githubRequest(url, { method: 'GET' }, token);
+    if (resp.status === 404) return { ok: true, updated: false };
+    if (!resp.ok) {
+      const t = await resp.text();
+      return { ok: false, error: `GitHub pull failed (${resp.status}): ${t.slice(0, 240)}` };
+    }
+
+    const json = await resp.json();
+    const content = String(json?.content || '').replace(/\n/g, '');
+    if (!content) return { ok: true, updated: false };
+    const decoded = Buffer.from(content, 'base64').toString('utf-8');
+    const parsed = JSON.parse(decoded) as Partial<ListsPayload>;
+    const nextPrivacy = {
+      ...(settings?.privacySettings || {}),
+      modContentWhitelist: Array.isArray(parsed?.whitelist) ? parsed.whitelist.map(normalizeListName).filter(Boolean) : (settings?.privacySettings?.modContentWhitelist || []),
+      modContentBlacklist: Array.isArray(parsed?.modBlacklist) ? parsed.modBlacklist.map((e: any) => ({ name: normalizeListName(e?.name), reason: normalizeReason(e?.reason) })).filter((e: any) => e.name) : (settings?.privacySettings?.modContentBlacklist || []),
+      programBlacklist: Array.isArray(parsed?.programBlacklist) ? parsed.programBlacklist.map((e: any) => ({ name: normalizeListName(e?.name), reason: normalizeReason(e?.reason) })).filter((e: any) => e.name) : (settings?.privacySettings?.programBlacklist || []),
+    };
+
+    const updatedSettings = { ...settings, privacySettings: nextPrivacy };
+    saveSettings(updatedSettings);
+    return { ok: true, updated: true };
+  } catch (error: any) {
+    return { ok: false, error: String(error?.message || error) };
+  }
+};
+
+const updateListSyncState = (patch: any): void => {
+  const current = loadListSyncState();
+  saveListSyncState({ ...current, ...patch });
+};
+
 
 // Primary Groq model used across IPC handlers and the Blender bridge HTTP server.
 // Defined at module level so it is accessible from both setupIpcHandlers() and
@@ -2735,12 +2953,34 @@ function setupIpcHandlers() {
   ipcMain.handle('get-settings', async () => {
     console.log('[Settings] get-settings called');
     const settings = loadSettings();
+    const syncState = loadListSyncState();
+    if (!listSyncPullAttempted && settings?.listSyncEnabled) {
+      listSyncPullAttempted = true;
+      const pull = await syncListsFromGitHub(settings);
+      if (!pull.ok) {
+        updateListSyncState({
+          lastAttemptAt: Date.now(),
+          lastError: pull.error || 'GitHub pull failed',
+        });
+      }
+    }
+    if (settings?.listSyncEnabled && syncState?.pendingPush) {
+      const push = await syncListsToGitHub(settings);
+      updateListSyncState({
+        pendingPush: !push.ok,
+        lastAttemptAt: Date.now(),
+        lastError: push.ok ? '' : (push.error || 'GitHub push retry failed'),
+        lastSyncAt: push.ok ? Date.now() : syncState?.lastSyncAt,
+      });
+    }
     const backendBaseUrl = String(settings?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
     const backendTokenConfigured = Boolean(getSecretValue(settings, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
+    const githubTokenConfigured = Boolean(getSecretValue(settings, 'githubToken', 'GITHUB_TOKEN'));
     return redactSettingsForRenderer({
       ...settings,
       backendBaseUrl,
       backendTokenConfigured,
+      githubTokenConfigured,
     });
   });
 
@@ -2756,12 +2996,13 @@ function setupIpcHandlers() {
     // be able to directly inject pre-computed encrypted values — all secret fields
     // must go through encryptSecretForStorage() in this process.
     const sanitizedInput: any = { ...(newSettings || {}) };
-    const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken'];
+    const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken'];
     for (const field of fields) {
       delete sanitizedInput[secretEncKey(field)];
     }
 
     const updated = { ...current, ...sanitizedInput };
+    const beforeLists = JSON.stringify(buildListsPayloadFromSettings(current));
 
     // Never persist plaintext secrets. If renderer provides them, encrypt into *Enc fields.
     // If the renderer sends an empty string (redacted value), preserve the existing encrypted key.
@@ -2779,14 +3020,79 @@ function setupIpcHandlers() {
       next[field] = '';
     }
 
+    migrateMemoryStorageIfNeeded(current, next);
     saveSettings(next);
+
+    const afterLists = JSON.stringify(buildListsPayloadFromSettings(next));
+    if (beforeLists !== afterLists) {
+      const push = await syncListsToGitHub(next);
+      updateListSyncState({
+        lastAttemptAt: Date.now(),
+        lastError: push.ok ? '' : (push.error || 'GitHub push failed'),
+        lastSyncAt: push.ok ? Date.now() : undefined,
+        pendingPush: !push.ok,
+      });
+      if (push.ok) {
+        const refreshed = { ...next, listSyncLastSyncAt: Date.now(), listSyncLastError: '' };
+        saveSettings(refreshed);
+      } else {
+        const refreshed = { ...next, listSyncLastError: push.error || 'GitHub push failed' };
+        saveSettings(refreshed);
+      }
+    }
     return;
+  });
+
+  ipcMain.handle('list-sync:get-status', async () => {
+    const settings = loadSettings();
+    const state = loadListSyncState();
+    return {
+      enabled: !!settings?.listSyncEnabled,
+      repo: settings?.listSyncRepo || settings?.communityRepo || '',
+      branch: settings?.listSyncBranch || 'main',
+      lastSyncAt: settings?.listSyncLastSyncAt || state?.lastSyncAt,
+      lastError: settings?.listSyncLastError || state?.lastError || '',
+      pendingPush: !!state?.pendingPush,
+    };
+  });
+
+  ipcMain.handle('list-sync:sync-now', async () => {
+    const settings = loadSettings();
+    const pull = await syncListsFromGitHub(settings);
+    const refreshed = loadSettings();
+    const push = await syncListsToGitHub(refreshed);
+    const ok = pull.ok && push.ok;
+    updateListSyncState({
+      lastAttemptAt: Date.now(),
+      lastError: ok ? '' : [pull.error, push.error].filter(Boolean).join(' | '),
+      lastSyncAt: ok ? Date.now() : undefined,
+      pendingPush: !ok,
+    });
+    if (ok) {
+      saveSettings({ ...refreshed, listSyncLastSyncAt: Date.now(), listSyncLastError: '' });
+    } else {
+      saveSettings({ ...refreshed, listSyncLastError: [pull.error, push.error].filter(Boolean).join(' | ') });
+    }
+    return { ok, pull, push };
+  });
+
+  ipcMain.handle('memory:append-event', async (_event, entry: any) => {
+    try {
+      const filePath = getMemoryFilePath('mossy-work-memory-events.jsonl');
+      const payload = {
+        at: new Date().toISOString(),
+        ...(entry && typeof entry === 'object' ? entry : { value: entry }),
+      };
+      fs.appendFileSync(filePath, `${JSON.stringify(payload)}\n`, 'utf-8');
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
+    }
   });
 
   // --- Chat History Persistence ---
   const getChatHistoryFilePath = () => {
-    const userData = app.getPath('userData');
-    return path.join(userData, 'chat-history.json');
+    return getMemoryFilePath('chat-history.json');
   };
 
   ipcMain.handle('save-chat-history', async (_event, messages: any[]) => {
@@ -3923,7 +4229,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // --- Vault: Save/Load manifest under app data ---
   registerHandler(IPC_CHANNELS.VAULT_SAVE_MANIFEST, async (_event, assets: unknown) => {
     try {
-      const file = path.join(app.getPath('userData'), 'vault-assets.json');
+      const file = getMemoryFilePath('vault-assets.json');
       fs.writeFileSync(file, JSON.stringify(assets, null, 2), 'utf-8');
       return { ok: true, file };
     } catch (e: any) {
@@ -3933,7 +4239,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
   registerHandler(IPC_CHANNELS.VAULT_LOAD_MANIFEST, async () => {
     try {
-      const file = path.join(app.getPath('userData'), 'vault-assets.json');
+      const file = getMemoryFilePath('vault-assets.json');
       if (!fs.existsSync(file)) return [];
       const raw = fs.readFileSync(file, 'utf-8');
       const parsed = JSON.parse(raw);
@@ -3949,7 +4255,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // persists independently of Electron's browser storage).
   registerHandler(IPC_CHANNELS.SAVE_KNOWLEDGE_VAULT, async (_event, items: unknown) => {
     try {
-      const file = path.join(app.getPath('userData'), 'knowledge-vault.json');
+      const file = getMemoryFilePath('knowledge-vault.json');
       const data = Array.isArray(items) ? items : [];
       fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
       return { ok: true };
@@ -3961,7 +4267,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
   registerHandler(IPC_CHANNELS.LOAD_KNOWLEDGE_VAULT, async () => {
     try {
-      const file = path.join(app.getPath('userData'), 'knowledge-vault.json');
+      const file = getMemoryFilePath('knowledge-vault.json');
       if (!fs.existsSync(file)) return [];
       const raw = fs.readFileSync(file, 'utf-8');
       const parsed = JSON.parse(raw);
@@ -5265,7 +5571,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // localStorage clears, using the same dual-persistence pattern.
   registerHandler(IPC_CHANNELS.SAVE_CHAT_HISTORY, async (_event, messages: unknown) => {
     try {
-      const file = path.join(app.getPath('userData'), 'chat-history.json');
+      const file = getMemoryFilePath('chat-history.json');
       const data = Array.isArray(messages) ? messages : [];
       fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
       return { ok: true };
@@ -5277,7 +5583,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
   registerHandler(IPC_CHANNELS.LOAD_CHAT_HISTORY, async () => {
     try {
-      const file = path.join(app.getPath('userData'), 'chat-history.json');
+      const file = getMemoryFilePath('chat-history.json');
       if (!fs.existsSync(file)) return [];
       const raw = fs.readFileSync(file, 'utf-8');
       const parsed = JSON.parse(raw);

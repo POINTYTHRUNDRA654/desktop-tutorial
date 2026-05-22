@@ -550,6 +550,7 @@ export interface Settings {
   // Behavior
   autoStart: boolean;
   globalHotkey?: string;
+  userPreferredName?: string;
 
   // External Modding Tools
   xeditPath?: string;
@@ -610,6 +611,12 @@ export interface Settings {
   communityRepo?: string; // GitHub repo in the form "owner/repo"
   communityContributorName?: string;
   communityContributorLink?: string;
+  githubToken?: string; // encrypted in main process
+  listSyncEnabled?: boolean;
+  listSyncRepo?: string;
+  listSyncBranch?: string;
+  listSyncLastSyncAt?: number;
+  listSyncLastError?: string;
 
   // Load Order Lab (experimental)
   loadOrderLabXeditPresetId?: string;
@@ -620,6 +627,10 @@ export interface Settings {
   // Workflow Runner
   workflowRunnerWorkflows?: WorkflowRunnerWorkflow[];
   workflowRunnerRunHistory?: WorkflowRunnerRun[];
+
+  // Durable memory storage
+  memoryStorageMode?: 'userData' | 'custom';
+  memoryStoragePath?: string;
 
   // Privacy & Security Settings
   privacySettings: {
@@ -989,6 +1000,7 @@ export const DEFAULT_SETTINGS: Settings = {
   alwaysOnTop: false,
   startMinimized: false,
   autoStart: false,
+  userPreferredName: 'Vault Dweller',
   // Tool paths empty by default; user configures in settings
   xeditPath: '',
   xeditScriptsDirOverride: '',
@@ -1039,6 +1051,12 @@ export const DEFAULT_SETTINGS: Settings = {
   communityRepo: '',
   communityContributorName: '',
   communityContributorLink: '',
+  githubToken: '',
+  listSyncEnabled: false,
+  listSyncRepo: '',
+  listSyncBranch: 'main',
+  listSyncLastSyncAt: undefined,
+  listSyncLastError: '',
 
   // Load Order Lab (experimental)
   loadOrderLabXeditPresetId: 'fo4edit-script-quoted',
@@ -1049,6 +1067,8 @@ export const DEFAULT_SETTINGS: Settings = {
   // Workflow Runner
   workflowRunnerWorkflows: [],
   workflowRunnerRunHistory: [],
+  memoryStorageMode: 'userData',
+  memoryStoragePath: '',
 
   // Privacy & Security Settings
   privacySettings: {

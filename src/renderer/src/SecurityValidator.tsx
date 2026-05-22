@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Shield, Ban, AlertTriangle, Plus, X, Cpu } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { DEFAULT_SETTINGS, BlacklistEntry, Settings } from '../../shared/types';
@@ -40,16 +40,6 @@ async function savePrivacy(
   return next;
 }
 
-// ── whitelist (do-not-touch list) stored separately via localStorage ─────────
-const WL_KEY = 'security:whitelist';
-interface WLEntry { modName: string; author: string }
-function readWL(): WLEntry[] {
-  try { return JSON.parse(localStorage.getItem(WL_KEY) || '[]') ?? []; } catch { return []; }
-}
-function writeWL(list: WLEntry[]) {
-  localStorage.setItem(WL_KEY, JSON.stringify(list));
-}
-
 // ── tab type ─────────────────────────────────────────────────────────────────
 type Tab = 'whitelist' | 'mod-blacklist' | 'program-blacklist';
 
@@ -60,10 +50,8 @@ const SecurityValidator: React.FC = () => {
   // settings-backed blacklists
   const [settings, setSettings] = useState<Settings | null>(null);
 
-  // whitelist (localStorage)
-  const [whitelist, setWhitelist] = useState<WLEntry[]>(readWL);
+  // whitelist (settings-backed)
   const [wlName, setWlName] = useState('');
-  const [wlAuthor, setWlAuthor] = useState('');
   const [wlError, setWlError] = useState<string | null>(null);
 
   // mod blacklist fields
@@ -78,28 +66,37 @@ const SecurityValidator: React.FC = () => {
     loadSettings().then(setSettings);
   }, []);
 
-  // ── persist whitelist ────────────────────────────────────────────────────
-  useEffect(() => { writeWL(whitelist); }, [whitelist]);
-
   const modBlacklist: BlacklistEntry[] = (settings?.privacySettings?.modContentBlacklist ?? []).map(
     (e: any) => (typeof e === 'string' ? { name: e } : e)
   );
   const programBlacklist: BlacklistEntry[] = (settings?.privacySettings?.programBlacklist ?? []).map(
     (e: any) => (typeof e === 'string' ? { name: e } : e)
   );
+  const whitelist = useMemo(
+    () => (settings?.privacySettings?.modContentWhitelist ?? []).map((e: any) => String(e || '').trim()).filter(Boolean),
+    [settings]
+  );
 
   // ── whitelist actions ───────────────────────────────────────────────────
   const addToWhitelist = () => {
-    if (!wlName.trim()) { setWlError('Mod name is required'); return; }
+    if (!wlName.trim() || !settings) { setWlError('Mod name is required'); return; }
     setWlError(null);
-    const entry: WLEntry = { modName: wlName.trim(), author: wlAuthor.trim() };
-    if (whitelist.some(w => w.modName.toLowerCase() === entry.modName.toLowerCase())) {
+    const entry = wlName.trim();
+    if (whitelist.some(w => w.toLowerCase() === entry.toLowerCase())) {
       toast.error('Already on the do-not-touch list');
       return;
     }
-    setWhitelist(s => [entry, ...s]);
-    setWlName(''); setWlAuthor('');
-    toast.success(`"${entry.modName}" added to do-not-touch list`);
+    void savePrivacy(settings, { modContentWhitelist: [entry, ...whitelist] }).then(setSettings);
+    setWlName('');
+    toast.success(`"${entry}" added to do-not-touch list`);
+  };
+
+  const removeFromWhitelist = async (entry: string) => {
+    if (!settings) return;
+    const next = await savePrivacy(settings, {
+      modContentWhitelist: whitelist.filter((e) => e !== entry),
+    });
+    setSettings(next);
   };
 
   // ── mod blacklist actions ───────────────────────────────────────────────
@@ -358,16 +355,6 @@ const SecurityValidator: React.FC = () => {
                 />
                 {wlError && <p className="mt-1 text-xs text-rose-400">{wlError}</p>}
               </div>
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">Author <span className="text-slate-600">(optional)</span></label>
-                <input
-                  className={inputCls}
-                  value={wlAuthor}
-                  onChange={e => setWlAuthor(e.target.value)}
-                  placeholder="e.g. kinggath"
-                  onKeyDown={e => e.key === 'Enter' && addToWhitelist()}
-                />
-              </div>
               <button
                 className={addBtnCls('bg-emerald-800/40 hover:bg-emerald-700/50 border border-emerald-700/50 text-emerald-300')}
                 onClick={addToWhitelist}
@@ -385,14 +372,13 @@ const SecurityValidator: React.FC = () => {
                 ? <p className="text-xs text-slate-500 italic">No mods protected yet.</p>
                 : (
                   <ul className="space-y-2">
-                    {whitelist.map((e, i) => (
-                      <li key={i} className="flex items-center justify-between gap-3 p-2.5 bg-slate-900/60 rounded border border-emerald-800/50">
+                    {whitelist.map((e) => (
+                      <li key={e} className="flex items-center justify-between gap-3 p-2.5 bg-slate-900/60 rounded border border-emerald-800/50">
                         <div className="min-w-0">
-                          <div className="text-sm font-medium text-slate-200 truncate">{e.modName}</div>
-                          {e.author && <div className="text-xs text-slate-400 truncate">by {e.author}</div>}
+                          <div className="text-sm font-medium text-slate-200 truncate">{e}</div>
                         </div>
                         <button
-                          onClick={() => setWhitelist(s => s.filter((_, j) => j !== i))}
+                          onClick={() => void removeFromWhitelist(e)}
                           className="shrink-0 p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-900/20 transition-colors"
                           title="Remove"
                         >
@@ -413,4 +399,3 @@ const SecurityValidator: React.FC = () => {
 };
 
 export default SecurityValidator;
-
