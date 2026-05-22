@@ -27,12 +27,10 @@ function readRegisteredChannelsFromMainSource(): Set<string> {
     }
   };
 
-  const registrations = [
-    /registerHandler\(\s*(?:IPC_CHANNELS\.([A-Z0-9_]+)|['"`]([^'"`]+)['"`])/g,
-    /safeHandle\(\s*(?:IPC_CHANNELS\.([A-Z0-9_]+)|['"`]([^'"`]+)['"`])/g,
-    /forceHandle\(\s*(?:IPC_CHANNELS\.([A-Z0-9_]+)|['"`]([^'"`]+)['"`])/g,
-    /ipcMain\.handle\(\s*(?:IPC_CHANNELS\.([A-Z0-9_]+)|['"`]([^'"`]+)['"`])/g,
-  ];
+  const registrationFunctionNames = ['registerHandler', 'safeHandle', 'forceHandle', 'ipcMain\\.handle'];
+  const registrations = registrationFunctionNames.map(
+    name => new RegExp(`${name}\\(\\s*(?:IPC_CHANNELS\\.([A-Z0-9_]+)|['"\`]([^'"\`]+)['"\`])`, 'g')
+  );
 
   for (const pattern of registrations) {
     for (const match of source.matchAll(pattern)) {
