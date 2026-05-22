@@ -984,7 +984,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             await new Promise(resolve => setTimeout(resolve, 800));
             await speakMossy("Hello, I'm Mossy.");
             await speakMossy('Pick your language to begin.');
-            await speakMossy('Important note: I am not affiliated with, endorsed by, or officially connected to any third-party modding tools.');
+            await speakMossy('Important note: I am not affiliated with, endorsed by, or officially connected to third-party tools or add-ons shown in this app.');
             await speakMossy('When you are ready, press Next.');
         };
 
