@@ -1310,6 +1310,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setRecommendations(recs);
             setFilteredRecommendations(recs);
             setUserChoices(prev => ({
+                // Stored choices are the baseline; preserve in-session toggles on top.
                 ...loadStoredToolChoices(),
                 ...prev
             }));
