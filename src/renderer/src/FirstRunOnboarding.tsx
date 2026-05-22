@@ -2479,7 +2479,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                             <ExternalLink className="w-3.5 h-3.5" />
                                                             {dl.urlLabel}
                                                         </button>
-                                                        {/* Only show "I have it" button for items with locatable executables */}
+                                                        {/* For items with a locatable executable, open a file picker */}
                                                         {dl.hasExecutable !== false && (
                                                             <button
                                                                 type="button"
@@ -2504,6 +2504,21 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                             >
                                                                 <FolderOpen className="w-3 h-3" />
                                                                 I have it
+                                                            </button>
+                                                        )}
+                                                        {/* For system-level installs with no locatable .exe (e.g. VC++ Redistributable),
+                                                            show a simple "Add" toggle so users can manually confirm installation */}
+                                                        {dl.hasExecutable === false && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setManuallyLocated((prev) => ({ ...prev, [dl.name]: '__confirmed__' }));
+                                                                }}
+                                                                className="flex items-center gap-1 px-2 py-1 rounded border border-slate-600 hover:border-slate-400 text-slate-400 hover:text-slate-200 text-xs transition-colors"
+                                                                title="Already have it installed? Click to mark as installed"
+                                                            >
+                                                                <Check className="w-3 h-3" />
+                                                                Add
                                                             </button>
                                                         )}
                                                     </>
