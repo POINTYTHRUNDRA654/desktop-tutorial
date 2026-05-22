@@ -395,7 +395,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     {
         name: 'Havok Aware Bullet Counted Reload — HaBCR (by MasterShrew)',
         description: 'Modern bullet-counted reload framework for Fallout 4 and the recommended replacement for classic BCR. Handles tube-fed and rotary reload loops through Havok-aware annotations, supports interruptible reload behavior, and is designed for current runtimes where the original BCR listing is no longer a dependable recommendation source. ⚠️ Install via mod manager (MO2/Vortex). Requires F4SE and Address Library; use HaBCR-ready animation patches where needed.',
-        detectKeywords: ['havok aware bullet counted reload', 'habcr'],
+        detectKeywords: ['havok aware bullet counted reload', 'bullet counted reload ha'],
         url: 'https://www.nexusmods.com/fallout4/mods/103627',
         urlLabel: 'Nexus Mods #103627',
         category: 'modding',
@@ -743,6 +743,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [cacheClearResult, setCacheClearResult] = useState<'ok' | 'error' | null>(null);
     const [unblockInProgress, setUnblockInProgress] = useState(false);
     const [unblockResult, setUnblockResult] = useState<{ ok: boolean; unblocked?: number; folderPath?: string; error?: string } | null>(null);
+    const scopedFo4Version = fo4Version === 'og' || fo4Version === 'ng' || fo4Version === 'ae'
+        ? fo4Version
+        : null;
     /**
      * Tracks the automatic "unblock freshly extracted assemblies → retry" step that runs
      * after a "Clear Cache & Retry" still fails with 0xFFFFFFFF.  Clearing the cache causes
@@ -2343,8 +2346,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         <div className="space-y-3 mb-6 max-h-[52vh] overflow-y-auto pr-1">
                             {RECOMMENDED_DOWNLOADS.filter((dl) => {
                                 if (!dl.supportedFo4Versions) return true;
-                                if (fo4Version !== 'og' && fo4Version !== 'ng' && fo4Version !== 'ae') return true;
-                                return dl.supportedFo4Versions.includes(fo4Version);
+                                if (!scopedFo4Version) return true;
+                                return dl.supportedFo4Versions.includes(scopedFo4Version);
                             }).map((dl) => {
                                 const alreadyInstalled = allApps && allApps.length > 0 && allApps.some((app: { displayName?: string; name?: string }) => {
                                     const n = (app.displayName || app.name || '').toLowerCase();
