@@ -12,6 +12,11 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcResponse, IpcErrorCode, SimpleResponse, FilePathResponse, ArrayResponse, ItemResponse } from './types/ipcErrors';
+import {
+  IPC_HANDLER_CONTRACT_VERSION,
+  IPC_REGISTRATION_REPORT_CHANNEL,
+  REQUIRED_IPC_HANDLER_CHANNELS,
+} from './ipc-required-handlers';
 
 // tests rely on boot/onboarding flags being present before React loads.  Preload
 // runs before any renderer scripts, so we can safely mutate localStorage here
@@ -760,6 +765,15 @@ const electronAPI = {
    */
   getDiagnostics: (): Promise<any> => {
     return ipcRenderer.invoke('app:get-diagnostics');
+  },
+  getIpcRegistrationReport: (): Promise<any> => {
+    return ipcRenderer.invoke(IPC_REGISTRATION_REPORT_CHANNEL);
+  },
+  getRequiredIpcHandlerContract: () => {
+    return {
+      version: IPC_HANDLER_CONTRACT_VERSION,
+      requiredChannels: [...REQUIRED_IPC_HANDLER_CHANNELS],
+    };
   },
 
   /**

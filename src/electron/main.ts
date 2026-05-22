@@ -43,6 +43,11 @@ import { auditLogger } from './auditLogger';
 import { BridgeServer } from './BridgeServer';
 import { registerTextureEnhancerHandlers } from './textureEnhancer';
 import { registerCloudSyncHandlers } from './cloudSyncHandlers';
+import {
+  IPC_HANDLER_CONTRACT_VERSION,
+  IPC_REGISTRATION_REPORT_CHANNEL,
+  REQUIRED_IPC_HANDLER_CHANNELS,
+} from './ipc-required-handlers';
 import BethelIntegration from '../integrations/bethel';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
@@ -1557,6 +1562,21 @@ const saveSettings = (settings: any): void => {
 // Defined at module level so it is accessible from both setupIpcHandlers() and
 // the app.whenReady() callback without requiring a re-declaration.
 const GROQ_PRIMARY_MODEL = 'llama-3.1-8b-instant';
+let lastIpcRegistrationReport: {
+  contractVersion: string;
+  totalRegistered: number;
+  registeredHandlers: string[];
+  requiredHandlers: string[];
+  missingRequiredHandlers: string[];
+  timestamp: string;
+} = {
+  contractVersion: IPC_HANDLER_CONTRACT_VERSION,
+  totalRegistered: 0,
+  registeredHandlers: [],
+  requiredHandlers: [...REQUIRED_IPC_HANDLER_CHANNELS],
+  missingRequiredHandlers: [...REQUIRED_IPC_HANDLER_CHANNELS],
+  timestamp: new Date(0).toISOString(),
+};
 
 /**
  * Register Bethel Integration handlers
@@ -1721,6 +1741,7 @@ function setupIpcHandlers() {
     try {
       console.log(`[Main] 📝 Registering handler for '${channel}'...`);
       ipcMain.handle(channel, handler);
+      registeredHandlers.add(channel);
       console.log(`[Main] ✅ Registered handler for '${channel}'`);
     } catch (error: any) {
       console.error(`[Main] ❌ FAILED to register '${channel}':`, error?.message || error);
@@ -1733,6 +1754,7 @@ function setupIpcHandlers() {
       ipcMain.removeHandler(channel);
       console.log(`[Main] ♻️ Re-registering critical handler for '${channel}'...`);
       ipcMain.handle(channel, handler);
+      registeredHandlers.add(channel);
       console.log(`[Main] ✅ Force-registered handler for '${channel}'`);
     } catch (error: any) {
       console.error(`[Main] ❌ FAILED to force-register '${channel}':`, error?.message || error);
@@ -1775,6 +1797,13 @@ function setupIpcHandlers() {
   } catch (platformErr: any) {
     console.error('[Main] ❌ Failed to register platform handlers:', platformErr?.message || platformErr);
   }
+
+  forceHandle(IPC_REGISTRATION_REPORT_CHANNEL, async () => {
+    return {
+      ...lastIpcRegistrationReport,
+      requiredHandlers: [...REQUIRED_IPC_HANDLER_CHANNELS],
+    };
+  });
 
   forceHandle('dds-converter:get-all-presets', async () => {
     try {
@@ -5430,24 +5459,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     return result.filePaths;
   });
 
-  // --- DDS Converter: Pick texture file(s) via native dialog ---
-  registerHandler(IPC_CHANNELS.DDS_CONVERTER_PICK_FILES, async (_event) => {
-    const result = await dialog.showOpenDialog({
-      title: 'Select Texture File(s)',
-      properties: ['openFile', 'multiSelections'],
-      filters: [
-        { name: 'Texture Files', extensions: ['dds', 'png', 'tga', 'bmp', 'jpg', 'jpeg'] },
-        { name: 'DDS Files', extensions: ['dds'] },
-        { name: 'PNG Files', extensions: ['png'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
-    });
-    if (result.canceled || !result.filePaths?.length) return { success: false };
-    return { success: true, paths: result.filePaths };
-  });
-
   // --- DDS Converter: Convert single texture ---
-  ipcMain.handle('dds-converter:convert', async (_event, input: any) => {
+  forceHandle('dds-converter:convert', async (_event, input: any) => {
     try {
       // Renderer sends `inputPath`; accept both spellings.
       const sourcePath: string = input?.inputPath || input?.source || '';
@@ -5491,7 +5504,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // --- DDS Converter: Batch convert multiple textures ---
-  ipcMain.handle('dds-converter:convert-batch', async (_event, files: any[], options?: any) => {
+  forceHandle('dds-converter:convert-batch', async (_event, files: any[], options?: any) => {
     try {
       if (!Array.isArray(files) || files.length === 0) {
         return { success: false, error: 'No files provided' };
@@ -5540,7 +5553,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // --- DDS Converter: Detect texture format ---
-  ipcMain.handle('dds-converter:detect-format', async (_event, filePath: string) => {
+  forceHandle('dds-converter:detect-format', async (_event, filePath: string) => {
     try {
       if (!filePath || !fs.existsSync(filePath)) {
         return { success: false, error: 'File not found' };
@@ -5572,7 +5585,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // --- DDS Converter: Pick files for conversion ---
-  ipcMain.handle('dds-converter:pick-files', async () => {
+  forceHandle('dds-converter:pick-files', async () => {
     try {
       const result = await dialog.showOpenDialog(mainWindow!, {
         title: 'Select DDS/Texture Files to Convert',
@@ -5616,7 +5629,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // --- Image Info: Get image metadata ---
-  ipcMain.handle('image-get-info', async (_event, filePath: string) => {
+  forceHandle('image-get-info', async (_event, filePath: string) => {
     try {
       if (!filePath || typeof filePath !== 'string') {
         return null;
@@ -31612,6 +31625,30 @@ ${steps}
       return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
     }
   });
+
+  const missingRequiredHandlers = REQUIRED_IPC_HANDLER_CHANNELS.filter(
+    channel => !registeredHandlers.has(channel)
+  );
+  const registeredHandlersList = Array.from(registeredHandlers).sort();
+  lastIpcRegistrationReport = {
+    contractVersion: IPC_HANDLER_CONTRACT_VERSION,
+    totalRegistered: registeredHandlersList.length,
+    registeredHandlers: registeredHandlersList,
+    requiredHandlers: [...REQUIRED_IPC_HANDLER_CHANNELS],
+    missingRequiredHandlers,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (missingRequiredHandlers.length > 0) {
+    const message = `[Main] IPC contract ${IPC_HANDLER_CONTRACT_VERSION} missing required handlers: ${missingRequiredHandlers.join(', ')}`;
+    console.error(message);
+    writeMainLog(message);
+    if (!app.isPackaged || process.env.CI || process.env.NODE_ENV === 'test') {
+      console.assert(missingRequiredHandlers.length === 0, message);
+    }
+  } else {
+    console.log(`[Main] IPC contract ${IPC_HANDLER_CONTRACT_VERSION} validated (${REQUIRED_IPC_HANDLER_CHANNELS.length}/${REQUIRED_IPC_HANDLER_CHANNELS.length})`);
+  }
 
   // Flag already set at START of function to prevent double-registration
   console.log('[Main] ✅ IPC HANDLERS REGISTRATION COMPLETE - All handlers should now be available to renderer');
