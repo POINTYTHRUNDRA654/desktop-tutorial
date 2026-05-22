@@ -635,12 +635,25 @@ interface ToolRecommendation {
 
 const loadStoredToolChoices = (): Record<string, boolean> => {
     try {
-        const storedPrefs = JSON.parse(localStorage.getItem('mossy_tool_preferences') || '{}');
+        const parseJson = (raw: string | null) => {
+            try {
+                return JSON.parse(raw || 'null');
+            } catch {
+                return null;
+            }
+        };
+        const isRecord = (value: unknown): value is Record<string, unknown> => (
+            typeof value === 'object' && value !== null && !Array.isArray(value)
+        );
+
+        const storedPrefsRaw = parseJson(localStorage.getItem('mossy_tool_preferences'));
+        const storedPrefs = isRecord(storedPrefsRaw) ? storedPrefsRaw : {};
         const fromPrefs = Object.fromEntries(
             Object.entries(storedPrefs).filter(([, value]) => typeof value === 'boolean')
         ) as Record<string, boolean>;
 
-        const integratedTools = JSON.parse(localStorage.getItem('mossy_integrated_tools') || '[]');
+        const integratedToolsRaw = parseJson(localStorage.getItem('mossy_integrated_tools'));
+        const integratedTools = Array.isArray(integratedToolsRaw) ? integratedToolsRaw : [];
         const fromIntegrated = Array.isArray(integratedTools)
             ? Object.fromEntries(
                 integratedTools
@@ -650,7 +663,8 @@ const loadStoredToolChoices = (): Record<string, boolean> => {
             )
             : {};
 
-        const approvedApps = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+        const approvedAppsRaw = parseJson(localStorage.getItem('mossy_apps'));
+        const approvedApps = Array.isArray(approvedAppsRaw) ? approvedAppsRaw : [];
         const fromApprovedApps = Array.isArray(approvedApps)
             ? Object.fromEntries(
                 approvedApps
