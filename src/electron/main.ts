@@ -30988,7 +30988,7 @@ ${steps}
                 }
 
                 // ESP/ESM plugin validation
-                if (ext === '.esp' || ext === '.esm') {
+                if (ext === '.esp' || ext === '.esm' || ext === '.esl') {
                   if (stat.size < 100) {
                     issues.push({
                       id: `esp-${filesScanned}`,
@@ -31122,7 +31122,7 @@ ${steps}
       }
 
       // ESP/ESM validation
-      if (ext === '.esp' || ext === '.esm') {
+      if (ext === '.esp' || ext === '.esm' || ext === '.esl') {
         if (stat.size < 100) {
           issues.push({
             id: 'esp-small',
