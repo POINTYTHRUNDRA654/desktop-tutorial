@@ -79,8 +79,11 @@
   },
   "dependencies": {
     "@emnapi/runtime": "1.8.1",
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.1",
     "@ffmpeg-installer/ffmpeg": "1.1.0",
     "@lmstudio/sdk": "1.5.0",
+    "@mui/material": "9.0.1",
     "@testing-library/dom": "10.4.1",
     "@types/archiver": "7.0.0",
     "@types/sqlite3": "3.1.11",

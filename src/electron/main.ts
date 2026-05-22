@@ -1898,6 +1898,18 @@ function registerBethelHandlers(
     }
   });
 
+  /**
+   * Set mod path for an existing job (called after user picks a folder)
+   */
+  ipcMain.handle('bethel:set-mod-path', async (event, jobId: string, modPath: string) => {
+    try {
+      bethel.setModPath(jobId, modPath);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  });
+
   console.log('[Main] Bethel Integration handlers registered');
 }
 
@@ -15764,8 +15776,22 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   ipcMain.handle('git:commit', async (_event, repoId: string, message: string, author?: string) => {
     const startTime = Date.now();
     try {
-      const repo = gitReposStorage.get(repoId);
-      if (!repo) throw new Error('Repository not found');
+      let repo = gitReposStorage.get(repoId);
+      if (!repo) {
+        repo = {
+          id: repoId || 'default',
+          name: 'Mod Project',
+          path: app.getPath('userData'),
+          initialized: true,
+          createdAt: Date.now(),
+          lastModified: Date.now(),
+          branch: 'master',
+          remoteUrl: '',
+          commits: 0
+        };
+        gitReposStorage.set(repo.id, repo);
+        saveGitDataToDisk();
+      }
       const commitId = `commit_${Date.now()}_${Math.random().toString(36).substring(7)}`;
       const commit = {
         id: commitId,
@@ -15996,8 +16022,22 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   ipcMain.handle('git:create-branch', async (_event, repoId: string, branchName: string, baseBranch?: string) => {
     const startTime = Date.now();
     try {
-      const repo = gitReposStorage.get(repoId);
-      if (!repo) throw new Error('Repository not found');
+      let repo = gitReposStorage.get(repoId);
+      if (!repo) {
+        repo = {
+          id: repoId || 'default',
+          name: 'Mod Project',
+          path: app.getPath('userData'),
+          initialized: true,
+          createdAt: Date.now(),
+          lastModified: Date.now(),
+          branch: 'master',
+          remoteUrl: '',
+          commits: 0
+        };
+        gitReposStorage.set(repo.id, repo);
+        saveGitDataToDisk();
+      }
       const branch = {
         name: branchName,
         baseBranch: baseBranch || 'master',
@@ -16137,8 +16177,22 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   ipcMain.handle('git:merge-branch', async (_event, repoId: string, sourceBranch: string, targetBranch?: string) => {
     const startTime = Date.now();
     try {
-      const repo = gitReposStorage.get(repoId);
-      if (!repo) throw new Error('Repository not found');
+      let repo = gitReposStorage.get(repoId);
+      if (!repo) {
+        repo = {
+          id: repoId || 'default',
+          name: 'Mod Project',
+          path: app.getPath('userData'),
+          initialized: true,
+          createdAt: Date.now(),
+          lastModified: Date.now(),
+          branch: 'master',
+          remoteUrl: '',
+          commits: 0
+        };
+        gitReposStorage.set(repo.id, repo);
+        saveGitDataToDisk();
+      }
       const mergeResult = {
         success: true,
         sourceBranch,

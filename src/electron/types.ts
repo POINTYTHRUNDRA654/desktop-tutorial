@@ -952,6 +952,10 @@ export interface ElectronAPI {
   versionControlRestore: (payload?: any) => Promise<any>;
   versionControlCreateBackup: (payload?: any) => Promise<any>;
   versionControlDeleteBackup: (payload?: any) => Promise<any>;
+  versionControlCreateBranch: (branchName: string) => Promise<any>;
+  versionControlMergeBranch: (sourceBranch: string, targetBranch?: string) => Promise<any>;
+  versionControlBackup: (path: string) => Promise<any>;
+  aiChatOpenAI?: (prompt: string, systemPrompt?: string, model?: string) => Promise<{ success: boolean; content?: string; error?: string }>;
   webSearch: (query: string, type?: string) => Promise<any>;
   browseWeb: (url: string) => Promise<any>;
   testInternetAccess: () => Promise<{
@@ -1025,6 +1029,8 @@ export interface ElectronAPI {
   bethel?: {
     listJobs?: (limit?: number) => Promise<{ success: boolean; jobs?: any[]; error?: string }>;
     createSession?: () => Promise<{ success: boolean; job?: any; error?: string }>;
+    setModPath?: (jobId: string, modPath: string) => Promise<{ success: boolean; error?: string }>;
+    getJob?: (jobId: string) => Promise<{ success: boolean; job?: any; error?: string }>;
     analyzeUploadedMod?: (jobId: string) => Promise<{ success: boolean; job?: any; error?: string }>;
     enhanceMod?: (jobId: string, level: number) => Promise<{ success: boolean; job?: any; error?: string }>;
     exportEnhancedMod?: (jobId: string, format: string) => Promise<{ success: boolean; job?: any; error?: string }>;

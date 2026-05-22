@@ -314,21 +314,27 @@ export const TextureEnhancer: React.FC = () => {
 
           {showAdvanced && (
             <div className="advanced-options">
-              <p className="info">Select specific materials to enhance (leave empty for all):</p>
+              <p className="info">Select specific material types to generate (leave all unchecked for default enhancement only):</p>
               <div className="material-list">
-                {/* Material selection will be populated after analysis */}
-                <label>
-                  <input type="checkbox" disabled />
-                  Generate Metallic Maps
-                </label>
-                <label>
-                  <input type="checkbox" disabled />
-                  Generate Ambient Occlusion
-                </label>
-                <label>
-                  <input type="checkbox" disabled />
-                  Generate Cavity Maps
-                </label>
+                {[
+                  { key: 'metallic', label: 'Generate Metallic Maps' },
+                  { key: 'ao', label: 'Generate Ambient Occlusion' },
+                  { key: 'cavity', label: 'Generate Cavity Maps' },
+                ].map(({ key, label }) => (
+                  <label key={key}>
+                    <input
+                      type="checkbox"
+                      checked={selectedMaterials.includes(key)}
+                      disabled={isProcessing}
+                      onChange={(e) =>
+                        setSelectedMaterials(prev =>
+                          e.target.checked ? [...prev, key] : prev.filter(m => m !== key)
+                        )
+                      }
+                    />
+                    {label}
+                  </label>
+                ))}
               </div>
             </div>
           )}
