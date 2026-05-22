@@ -529,7 +529,7 @@ fUVScaleV = 0.25    ; 1/4 atlas height per variant
 |---|---|
 | CommonLibF4 (Ryan-rsm-McKenzie, GitHub) | Reverse-engineered headers for BSLightingShaderProperty, BSDecalNode, bhkWorld |
 | Fallout 4 Address Library (nikitalita, GitHub) | Version-independent function ID mapping for all REL::ID lookups |
-| F4SE Plugin Template (Expired6978/Ryan-rsm-McKenzie) | CMake project scaffold with Detours/xbyak pre-configured |
+| F4SE Plugin Template (libxse/commonlibf4-template) | Active CommonLibF4 starter template for F4SE plugin scaffolding |
 | FO4 Shader Research repo | Documented pixel/vertex shader structures for decals and lighting |
 | xbyak (herumi) | x86-64 JIT assembler for inline hook trampolines (preferred over raw Detours) |
 | ENB enbeffect.fx | Post-process depth-based soft edge blending (no C++ required) |

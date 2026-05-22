@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { BarChart3, ChevronDown, ChevronUp, FolderOpen, Settings as SettingsIcon, Trophy, Users } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronUp, FolderOpen, GitBranch, Settings as SettingsIcon, Trophy, Users } from 'lucide-react';
 import ModProjectManager from './ModProjectManager';
 import ModdingJourney from './ModdingJourney';
 import { CollaborationManager } from './CollaborationManager';
 import { AnalyticsManager } from './AnalyticsManager';
 import { ProjectManager } from './ProjectManager';
+import { VersionControl } from './VersionControl';
 
 type HubSection = {
   id: string;
@@ -42,6 +43,13 @@ const ProjectHub: React.FC = () => {
       description: 'Sessions and version control workflows.',
       icon: Users,
       content: <CollaborationManager embedded />,
+    },
+    {
+      id: 'version-control',
+      title: 'Step 3b: Version Control',
+      description: 'Git commits, branches, backups, and history.',
+      icon: GitBranch,
+      content: <VersionControl />,
     },
     {
       id: 'analytics',

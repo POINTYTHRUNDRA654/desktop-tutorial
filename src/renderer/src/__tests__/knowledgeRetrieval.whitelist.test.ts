@@ -20,4 +20,14 @@ describe('knowledge retrieval do-not-touch filtering', () => {
     expect(context).not.toContain('Secret Mod Alpha');
     expect(context).toContain('Safe mod guide');
   });
+
+  it('surfaces built-in install wizard download guidance when relevant', () => {
+    const items = getRelevantKnowledgeVaultItems('How do I use CKPE for PRP patching?', { maxItems: 6 });
+    expect(items.some((item) => item.title.includes('CKPE'))).toBe(true);
+
+    const context = buildRelevantKnowledgeVaultContext('How do I use CKPE for PRP patching?');
+    expect(context).toContain('CKPE');
+    expect(context).toContain('Creation Kit Platform Extended');
+    expect(context).toContain('manual');
+  });
 });

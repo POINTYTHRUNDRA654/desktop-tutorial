@@ -1898,6 +1898,18 @@ function registerBethelHandlers(
     }
   });
 
+  /**
+   * Set mod path for an existing job (called after user picks a folder)
+   */
+  ipcMain.handle('bethel:set-mod-path', async (event, jobId: string, modPath: string) => {
+    try {
+      bethel.setModPath(jobId, modPath);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  });
+
   console.log('[Main] Bethel Integration handlers registered');
 }
 
@@ -5979,26 +5991,70 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         return { success: false, error: `Source image not found: ${input.sourceImage}` };
       }
 
+      const sharp = (await import('sharp')).default;
+      const startedAt = Date.now();
       const baseName = path.basename(input.sourceImage, path.extname(input.sourceImage));
-      const outputDir = input.outputDir || path.dirname(input.sourceImage);
+      const outputDir = String(input.outputDir || path.dirname(input.sourceImage));
+      fs.mkdirSync(outputDir, { recursive: true });
 
-      // Generate an entry for every map type the renderer requested.
       const requestedMaps: string[] = Array.isArray(input.generateMaps) && input.generateMaps.length > 0
         ? input.generateMaps
         : ['diffuse', 'normal', 'roughness', 'metallic', 'ao'];
 
       const maps: Record<string, any> = {};
+      let totalSize = 0;
+
       for (const mapType of requestedMaps) {
+        const outPath = path.join(outputDir, `${baseName}_${mapType}.png`);
+        let pipeline = sharp(input.sourceImage).png();
+
+        switch (String(mapType).toLowerCase()) {
+          case 'diffuse':
+            pipeline = sharp(input.sourceImage).png();
+            break;
+          case 'normal':
+            pipeline = sharp(input.sourceImage)
+              .greyscale()
+              .normalize()
+              .tint({ r: 128, g: 128, b: 255 })
+              .png();
+            break;
+          case 'height':
+            pipeline = sharp(input.sourceImage).greyscale().normalize().png();
+            break;
+          case 'roughness':
+            pipeline = sharp(input.sourceImage).greyscale().negate().linear(1.2, -20).png();
+            break;
+          case 'metallic':
+            pipeline = sharp(input.sourceImage).greyscale().linear(1.4, -40).png();
+            break;
+          case 'ao':
+            pipeline = sharp(input.sourceImage).greyscale().blur(1.5).linear(0.75, 0).png();
+            break;
+          case 'emissive':
+            pipeline = sharp(input.sourceImage).modulate({ brightness: 1.2, saturation: 1.3 }).png();
+            break;
+          case 'specular':
+            pipeline = sharp(input.sourceImage).greyscale().linear(1.3, -20).png();
+            break;
+          default:
+            pipeline = sharp(input.sourceImage).png();
+            break;
+        }
+
+        await pipeline.toFile(outPath);
+        const stat = fs.statSync(outPath);
+        totalSize += stat.size;
         maps[mapType] = {
           type: mapType,
-          path: path.join(outputDir, `${baseName}_${mapType}.png`),
+          path: outPath,
           success: true,
-          preview: undefined
+          preview: undefined,
         };
       }
 
-      const totalSize = requestedMaps.length * 1024 * 1024; // Simulated size per map
-      console.log('[Texture Generator] Generating material set for:', baseName, '| maps:', requestedMaps.join(', '));
+      const totalProcessingTime = Date.now() - startedAt;
+      console.log('[Texture Generator] Generated material set:', baseName, '| maps:', requestedMaps.join(', '));
 
       return {
         success: true,
@@ -6006,7 +6062,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         outputDir,
         maps,
         totalSize,
-        totalProcessingTime: 0,
+        totalProcessingTime,
         style: input.style || 'pbr',
         message: `Material set generated for ${baseName}`
       };
@@ -6027,10 +6083,33 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         return { success: false, error: 'Map type not specified' };
       }
 
+      const sharp = (await import('sharp')).default;
       const baseName = path.basename(sourceImage, path.extname(sourceImage));
-      const outputPath = `${baseName}_${mapType}.png`;
+      const outputDir = path.dirname(sourceImage);
+      const outputPath = path.join(outputDir, `${baseName}_${mapType}.png`);
+      const normalizedType = String(mapType).toLowerCase();
+      const startedAt = Date.now();
 
-      console.log(`[Texture Generator] Generating ${mapType} map for:`, sourceImage);
+      let pipeline = sharp(sourceImage).png();
+      if (normalizedType === 'normal') {
+        pipeline = sharp(sourceImage).greyscale().normalize().tint({ r: 128, g: 128, b: 255 }).png();
+      } else if (normalizedType === 'roughness') {
+        pipeline = sharp(sourceImage).greyscale().negate().linear(1.2, -20).png();
+      } else if (normalizedType === 'height') {
+        pipeline = sharp(sourceImage).greyscale().normalize().png();
+      } else if (normalizedType === 'metallic') {
+        pipeline = sharp(sourceImage).greyscale().linear(1.4, -40).png();
+      } else if (normalizedType === 'ao') {
+        pipeline = sharp(sourceImage).greyscale().blur(1.5).linear(0.75, 0).png();
+      } else if (normalizedType === 'specular') {
+        pipeline = sharp(sourceImage).greyscale().linear(1.3, -20).png();
+      } else if (normalizedType === 'emissive') {
+        pipeline = sharp(sourceImage).modulate({ brightness: 1.2, saturation: 1.3 }).png();
+      }
+
+      await pipeline.toFile(outputPath);
+
+      console.log(`[Texture Generator] Generated ${mapType} map for:`, sourceImage);
 
       return {
         success: true,
@@ -6038,6 +6117,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         sourceImage,
         outputPath,
         settings: settings || {},
+        processingTime: Date.now() - startedAt,
         message: `${mapType} map generated successfully`
       };
     } catch (e: any) {
@@ -6053,14 +6133,38 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         return { success: false, error: `Image not found: ${imagePath}` };
       }
 
-      const radius = blendRadius || 20;
-      console.log(`[Texture Generator] Making texture seamless with radius ${radius}:`, imagePath);
+      const sharp = (await import('sharp')).default;
+      const startedAt = Date.now();
+      const outputPath = imagePath.replace(/\.[^.]+$/, '_seamless.png');
+      const metadata = await sharp(imagePath).metadata();
+      const width = Number(metadata.width || 0);
+      const height = Number(metadata.height || 0);
+      if (!width || !height) {
+        return { success: false, error: 'Unable to read source image dimensions' };
+      }
+
+      const radius = Math.max(4, Math.min(Number(blendRadius || 20), Math.floor(Math.min(width, height) / 4)));
+      const left = await sharp(imagePath).extract({ left: 0, top: 0, width: radius, height }).blur(2).toBuffer();
+      const right = await sharp(imagePath).extract({ left: width - radius, top: 0, width: radius, height }).blur(2).toBuffer();
+      const top = await sharp(imagePath).extract({ left: 0, top: 0, width, height: radius }).blur(2).toBuffer();
+      const bottom = await sharp(imagePath).extract({ left: 0, top: height - radius, width, height: radius }).blur(2).toBuffer();
+
+      await sharp(imagePath)
+        .composite([
+          { input: right, left: 0, top: 0, blend: 'screen' },
+          { input: left, left: width - radius, top: 0, blend: 'screen' },
+          { input: bottom, left: 0, top: 0, blend: 'screen' },
+          { input: top, left: 0, top: height - radius, blend: 'screen' },
+        ])
+        .png()
+        .toFile(outputPath);
 
       return {
         success: true,
         sourceImage: imagePath,
         blendRadius: radius,
-        outputPath: imagePath.replace(/\.[^.]+$/, '_seamless.png'),
+        outputPath,
+        processingTime: Date.now() - startedAt,
         message: `Texture made seamless with blend radius ${radius}`
       };
     } catch (e: any) {
@@ -6076,18 +6180,39 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         return { success: false, error: `Image not found: ${imagePath}` };
       }
 
-      const upscaleFactor = factor || 2;
+      const sharp = (await import('sharp')).default;
+      const startedAt = Date.now();
+      const upscaleFactor = Number(factor || 2);
       if (![2, 4].includes(upscaleFactor)) {
         return { success: false, error: 'Upscale factor must be 2 or 4' };
       }
 
-      console.log(`[Texture Generator] Upscaling texture ${upscaleFactor}x:`, imagePath);
+      const metadata = await sharp(imagePath).metadata();
+      const originalWidth = Number(metadata.width || 0);
+      const originalHeight = Number(metadata.height || 0);
+      if (!originalWidth || !originalHeight) {
+        return { success: false, error: 'Unable to read source image dimensions' };
+      }
+
+      const upscaledWidth = originalWidth * upscaleFactor;
+      const upscaledHeight = originalHeight * upscaleFactor;
+      const outputPath = imagePath.replace(/\.[^.]+$/, `_upscaled_${upscaleFactor}x.png`);
+
+      await sharp(imagePath)
+        .resize(upscaledWidth, upscaledHeight, { fit: 'fill', kernel: 'lanczos3' })
+        .png()
+        .toFile(outputPath);
 
       return {
         success: true,
         sourceImage: imagePath,
         factor: upscaleFactor,
-        outputPath: imagePath.replace(/\.[^.]+$/, `_upscaled_${upscaleFactor}x.png`),
+        originalWidth,
+        originalHeight,
+        upscaledWidth,
+        upscaledHeight,
+        outputPath,
+        processingTime: Date.now() - startedAt,
         message: `Texture upscaled ${upscaleFactor}x successfully`
       };
     } catch (e: any) {
@@ -6103,21 +6228,100 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         return { success: false, error: 'Texture type not specified' };
       }
 
-      const supportedTypes = ['noise', 'marble', 'wood', 'fabric', 'metal', 'stone'];
-      if (!supportedTypes.includes(textureType.toLowerCase())) {
+      const type = String(textureType).toLowerCase();
+      const supportedTypes = ['noise', 'marble', 'wood', 'fabric', 'metal', 'stone', 'checkerboard', 'brick', 'grid', 'concrete'];
+      if (!supportedTypes.includes(type)) {
         return { success: false, error: `Unsupported texture type: ${textureType}. Supported: ${supportedTypes.join(', ')}` };
       }
 
-      const outputPath = `procedural_${textureType}_${Date.now()}.png`;
-      console.log(`[Texture Generator] Generating procedural ${textureType} texture`);
+      const sharp = (await import('sharp')).default;
+      const startedAt = Date.now();
+      const width = Number(settings?.width) > 0 ? Number(settings.width) : 1024;
+      const height = Number(settings?.height) > 0 ? Number(settings.height) : width;
+      const scale = Math.max(4, Number(settings?.scale || 64));
+      const variation = Math.max(0, Math.min(1, Number(settings?.variation ?? 0.5)));
+      const weathering = Math.max(0, Math.min(1, Number(settings?.weathering ?? 0.3)));
+      let seed = Number(settings?.seed || Date.now()) >>> 0;
+      const random = () => {
+        seed = (seed * 1664525 + 1013904223) >>> 0;
+        return seed / 0x100000000;
+      };
+
+      const outputDir = path.join(app.getPath('userData'), 'generated-textures');
+      fs.mkdirSync(outputDir, { recursive: true });
+      const outputPath = path.join(outputDir, `procedural_${type}_${Date.now()}.png`);
+
+      const buffer = Buffer.alloc(width * height * 3);
+      const setPixel = (x: number, y: number, v: number) => {
+        const value = Math.max(0, Math.min(255, Math.round(v)));
+        const i = (y * width + x) * 3;
+        buffer[i] = value;
+        buffer[i + 1] = value;
+        buffer[i + 2] = value;
+      };
+
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const nx = x / Math.max(1, width - 1);
+          const ny = y / Math.max(1, height - 1);
+          const noise = (random() - 0.5) * 255 * variation;
+          let value = 128;
+
+          if (type === 'noise') {
+            value = 128 + noise;
+          } else if (type === 'checkerboard') {
+            const tile = Math.max(4, Math.floor(scale / 8));
+            value = ((Math.floor(x / tile) + Math.floor(y / tile)) % 2 === 0) ? 210 : 50;
+          } else if (type === 'grid') {
+            const line = Math.max(8, Math.floor(scale / 6));
+            const onLine = (x % line < 2) || (y % line < 2);
+            value = onLine ? 220 : 80 + noise * 0.2;
+          } else if (type === 'brick') {
+            const brickW = Math.max(24, Math.floor(scale));
+            const brickH = Math.max(12, Math.floor(scale / 2));
+            const rowOffset = (Math.floor(y / brickH) % 2) * Math.floor(brickW / 2);
+            const localX = (x + rowOffset) % brickW;
+            const localY = y % brickH;
+            const mortar = localX < 2 || localY < 2;
+            value = mortar ? 70 : 145 + noise * 0.35;
+          } else if (type === 'concrete' || type === 'stone') {
+            const speckle = random() > 0.985 ? 55 : 0;
+            value = 125 + noise * 0.45 - speckle;
+          } else if (type === 'metal') {
+            const grain = Math.sin((x + y * 0.2) / Math.max(4, scale / 3)) * 28;
+            value = 160 + grain + noise * 0.2;
+          } else if (type === 'wood') {
+            const rings = Math.sin((nx * 12 + ny * 2) * Math.PI);
+            value = 125 + rings * 45 + noise * 0.2;
+          } else if (type === 'marble') {
+            const veins = Math.sin((nx * 10 + ny * 6 + random() * 0.1) * Math.PI);
+            value = 150 + veins * 55 + noise * 0.15;
+          } else if (type === 'fabric') {
+            const weave = ((x % 6 < 3) !== (y % 6 < 3)) ? 1 : -1;
+            value = 128 + weave * 25 + noise * 0.25;
+          }
+
+          value = value * (1 - weathering * 0.2);
+          setPixel(x, y, value);
+        }
+      }
+
+      await sharp(buffer, { raw: { width, height, channels: 3 } })
+        .png()
+        .toFile(outputPath);
+      const stat = fs.statSync(outputPath);
 
       return {
         success: true,
-        textureType,
+        textureType: type,
         settings: settings || {},
         outputPath,
-        resolution: settings?.resolution || 2048,
-        message: `Procedural ${textureType} texture generated successfully`
+        resolution: settings?.resolution || width,
+        width,
+        height,
+        fileSize: stat.size,
+        processingTime: Date.now() - startedAt,
+        message: `Procedural ${type} texture generated successfully`
       };
     } catch (e: any) {
       console.error('[Texture Generator] Procedural generation error:', e);
@@ -15572,8 +15776,22 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   ipcMain.handle('git:commit', async (_event, repoId: string, message: string, author?: string) => {
     const startTime = Date.now();
     try {
-      const repo = gitReposStorage.get(repoId);
-      if (!repo) throw new Error('Repository not found');
+      let repo = gitReposStorage.get(repoId);
+      if (!repo) {
+        repo = {
+          id: repoId || 'default',
+          name: 'Mod Project',
+          path: app.getPath('userData'),
+          initialized: true,
+          createdAt: Date.now(),
+          lastModified: Date.now(),
+          branch: 'master',
+          remoteUrl: '',
+          commits: 0
+        };
+        gitReposStorage.set(repo.id, repo);
+        saveGitDataToDisk();
+      }
       const commitId = `commit_${Date.now()}_${Math.random().toString(36).substring(7)}`;
       const commit = {
         id: commitId,
@@ -15804,8 +16022,22 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   ipcMain.handle('git:create-branch', async (_event, repoId: string, branchName: string, baseBranch?: string) => {
     const startTime = Date.now();
     try {
-      const repo = gitReposStorage.get(repoId);
-      if (!repo) throw new Error('Repository not found');
+      let repo = gitReposStorage.get(repoId);
+      if (!repo) {
+        repo = {
+          id: repoId || 'default',
+          name: 'Mod Project',
+          path: app.getPath('userData'),
+          initialized: true,
+          createdAt: Date.now(),
+          lastModified: Date.now(),
+          branch: 'master',
+          remoteUrl: '',
+          commits: 0
+        };
+        gitReposStorage.set(repo.id, repo);
+        saveGitDataToDisk();
+      }
       const branch = {
         name: branchName,
         baseBranch: baseBranch || 'master',
@@ -15945,8 +16177,22 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   ipcMain.handle('git:merge-branch', async (_event, repoId: string, sourceBranch: string, targetBranch?: string) => {
     const startTime = Date.now();
     try {
-      const repo = gitReposStorage.get(repoId);
-      if (!repo) throw new Error('Repository not found');
+      let repo = gitReposStorage.get(repoId);
+      if (!repo) {
+        repo = {
+          id: repoId || 'default',
+          name: 'Mod Project',
+          path: app.getPath('userData'),
+          initialized: true,
+          createdAt: Date.now(),
+          lastModified: Date.now(),
+          branch: 'master',
+          remoteUrl: '',
+          commits: 0
+        };
+        gitReposStorage.set(repo.id, repo);
+        saveGitDataToDisk();
+      }
       const mergeResult = {
         success: true,
         sourceBranch,
