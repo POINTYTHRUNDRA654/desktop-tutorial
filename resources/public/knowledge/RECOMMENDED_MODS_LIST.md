@@ -1057,6 +1057,8 @@ Recent release highlights:
 - **v0.6.0**: initial Anniversary Edition support
 - **v0.6.1**: AE texture patch detection + improved OG/NG/AE DLL detection + archive patcher fixes
 
+> 🛠️ **A note from Mossy:** Mossy's Fallout 4 troubleshooting and environment-check workflow directly benefits from **wxMichael's CMT**. The OG/NG/AE diagnostics and archive-patcher quality-of-life work in CMT materially improve how we validate setup states before deeper modding support.
+
 #### Permissions / Usage Notes
 
 - Distributed from the project’s official GitHub releases.
@@ -1084,6 +1086,8 @@ Recent release highlights:
 - The current project README points to the live “What’s New” stream and active build channels, which is important for post-update modding cycles.
 - Use xEdit docs (`tes5edit.github.io/docs`) for current workflow details instead of older PDF-era guides.
 
+> 🛠️ **A note from Mossy:** Mossy's Fallout 4 data-layer guidance and conflict-resolution workflows rely on **xEdit/FO4Edit** conventions and capabilities. Credit to ElminsterAU and the FO4-era xEdit maintainers for the toolchain foundation this work is built on.
+
 #### Credits (from the official project summary)
 
 - **ElminsterAU** — original xEdit foundation
@@ -1109,6 +1113,8 @@ Recent release highlights:
 - Live diagnostics while authoring scripts
 
 This is a major quality-of-life accelerator for authors maintaining larger script-heavy mods in 2025/2026.
+
+> 🛠️ **A note from Mossy:** Mossy's Papyrus authoring workflow benefits from **papyrus-lang** for modern script editing, navigation, and diagnostics. Credit to joelday and contributors for the tooling that makes this part of the pipeline practical at scale.
 
 #### Credits (from project README/license)
 
