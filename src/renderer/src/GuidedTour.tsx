@@ -23,7 +23,13 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
   const [run, setRun] = useState(false);
   const [pendingRoute, setPendingRoute] = useState<string | null>(null);
   const lastSpokenStepId = useRef<string | null>(null);
-  const visualGuideSrc = (name: string) => `/visual-guide-images/${encodeURIComponent(name)}`;
+  const visualGuideSrc = (name: string) => {
+    const encoded = encodeURIComponent(name);
+    if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+      return `./visual-guide-images/${encoded}`;
+    }
+    return `/visual-guide-images/${encoded}`;
+  };
 
   const renderGuideImage = (name: string, alt: string) => (
     <div className="mt-3 rounded border border-slate-700/80 bg-slate-950/60 p-2">
@@ -286,7 +292,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                   <div className="text-slate-400 text-sm mt-1">What are we working on today?</div>
                 </div>
 
-                {renderGuideImage('Page two. AI Chat..png', 'Chat interface')}
+                {renderGuideImage('page-2-ai-chat.png', 'Chat interface')}
               </div>
             ),
             data: {
@@ -455,7 +461,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 <p className="text-slate-300 text-sm">
                   The Workshop is your scripting and automation hub.
                 </p>
-                {renderGuideImage('Page 19, the workshop..png', 'Workshop')}
+                {renderGuideImage('page-24-the-workshop.png', 'Workshop')}
               </div>
             ),
             data: {
@@ -474,7 +480,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 <p className="text-slate-300 text-sm">
                   Scan assets and plugins to catch issues and optimize performance.
                 </p>
-                {renderGuideImage('Page 21 the auditor..png', 'Auditor')}
+                {renderGuideImage('page-25-the-auditor.png', 'Auditor')}
               </div>
             ),
             data: {
@@ -493,7 +499,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 <p className="text-slate-300 text-sm">
                   Generate textures, tweak PBR maps, and manage images.
                 </p>
-                {renderGuideImage('Page 34 image Studio..png', 'Image suite')}
+                {renderGuideImage('page-38-image-studio.png', 'Image suite')}
               </div>
             ),
             data: {
@@ -512,7 +518,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 <p className="text-slate-300 text-sm">
                   Build releases and package your mods for distribution.
                 </p>
-                {renderGuideImage('Page 11. Packaging and release..png', 'Packaging and release')}
+                {renderGuideImage('page-16-packaging-release.png', 'Packaging and release')}
               </div>
             ),
             data: {
@@ -531,7 +537,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                 <p className="text-slate-300 text-sm">
                   Find guides, documentation, and curated modding knowledge.
                 </p>
-                {renderGuideImage('Page 8 knowledge search..png', 'Learning hub')}
+                {renderGuideImage('page-9-knowledge-search.png', 'Learning hub')}
               </div>
             ),
             data: {
@@ -712,4 +718,3 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
 };
 
 export default GuidedTour;
-

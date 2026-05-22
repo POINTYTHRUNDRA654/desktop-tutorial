@@ -633,6 +633,42 @@ interface ToolRecommendation {
     boostsMossy: boolean;
 }
 
+const loadStoredToolChoices = (): Record<string, boolean> => {
+    try {
+        const storedPrefs = JSON.parse(localStorage.getItem('mossy_tool_preferences') || '{}');
+        const fromPrefs = Object.fromEntries(
+            Object.entries(storedPrefs).filter(([, value]) => typeof value === 'boolean')
+        ) as Record<string, boolean>;
+
+        const integratedTools = JSON.parse(localStorage.getItem('mossy_integrated_tools') || '[]');
+        const fromIntegrated = Array.isArray(integratedTools)
+            ? Object.fromEntries(
+                integratedTools
+                    .map((tool: any) => tool?.name)
+                    .filter((name: unknown): name is string => typeof name === 'string' && name.length > 0)
+                    .map((name: string) => [name, true])
+            )
+            : {};
+
+        const approvedApps = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+        const fromApprovedApps = Array.isArray(approvedApps)
+            ? Object.fromEntries(
+                approvedApps
+                    .filter((app: any) => app?.checked === true && typeof app?.name === 'string' && app.name.length > 0)
+                    .map((app: any) => [app.name, true])
+            )
+            : {};
+
+        return {
+            ...fromPrefs,
+            ...fromIntegrated,
+            ...fromApprovedApps,
+        };
+    } catch {
+        return {};
+    }
+};
+
 /** Delay (ms) before calling onComplete after the "complete" screen appears. */
 const COMPLETE_TRANSITION_DELAY_MS = 2000;
 /** Shorter delay when Spriggit digest already ran — the user just clicked Continue. */
@@ -657,7 +693,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const [recommendations, setRecommendations] = useState<ToolRecommendation[]>([]);
     const [filteredRecommendations, setFilteredRecommendations] = useState<ToolRecommendation[]>([]);
     const [allApps, setAllApps] = useState<any[]>([]);
-    const [userChoices, setUserChoices] = useState<Record<string, boolean>>({});
+    const [userChoices, setUserChoices] = useState<Record<string, boolean>>(() => loadStoredToolChoices());
     const [showAllPrograms, setShowAllPrograms] = useState(false);
     const [showTutorialVideo, setShowTutorialVideo] = useState(false);
     const hasSpokenIntro = useRef(false);
@@ -1259,6 +1295,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setScanProgress(100);
             setRecommendations(recs);
             setFilteredRecommendations(recs);
+            setUserChoices(prev => ({
+                ...loadStoredToolChoices(),
+                ...prev
+            }));
             setScanRetryCount(0); // Reset retry count on success
             setStep('credits');
 
