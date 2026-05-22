@@ -3457,13 +3457,32 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                     </label>
                                 </div>
                                 {memoryStorageMode === 'custom' && (
-                                    <input
-                                        type="text"
-                                        value={memoryStoragePath}
-                                        onChange={(e) => setMemoryStoragePath(e.target.value)}
-                                        placeholder="Absolute folder path"
-                                        className="mt-3 w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-100 text-sm"
-                                    />
+                                    <div className="mt-3">
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={memoryStoragePath}
+                                                onChange={(e) => setMemoryStoragePath(e.target.value)}
+                                                placeholder="Absolute folder path"
+                                                className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-100 text-sm"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    const api = getElectronApi();
+                                                    if (!api?.pickDirectory) return;
+                                                    const pickedPath = await api.pickDirectory('Select memory storage folder');
+                                                    if (pickedPath) setMemoryStoragePath(pickedPath);
+                                                }}
+                                                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded text-slate-200 text-sm flex items-center gap-1.5 transition-colors"
+                                            >
+                                                <FolderOpen className="w-4 h-4" /> Browse
+                                            </button>
+                                        </div>
+                                        <p className="mt-2 text-xs text-slate-500">
+                                            Paste a path or click Browse to choose a folder.
+                                        </p>
+                                    </div>
                                 )}
                             </div>
 
