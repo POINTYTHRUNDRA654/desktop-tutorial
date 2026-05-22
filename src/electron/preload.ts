@@ -388,7 +388,7 @@ const IPC_CHANNELS = {
 } as const;
 
 const REQUIRED_IPC_HANDLER_CHANNELS = [
-  IPC_CHANNELS.DDS_CONVERTER_PICK_FILES,
+  'dds-converter:pick-files',
   'dds-converter:convert',
   'dds-converter:convert-batch',
   'dds-converter:detect-format',
