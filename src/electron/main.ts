@@ -15751,6 +15751,33 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
+  function createNexusUploadBackup(filePath: string, modId: string) {
+    if (!filePath || typeof filePath !== 'string') {
+      throw new Error('A valid file path is required for upload');
+    }
+
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Upload file not found: ${filePath}`);
+    }
+
+    const backupRoot = path.join(app.getPath('userData'), 'nexus-upload-backups', modId);
+    const timestamp = Date.now();
+    const backupDir = path.join(backupRoot, timestamp.toString());
+    fs.mkdirSync(backupDir, { recursive: true });
+
+    const originalFileName = path.basename(filePath);
+    const backupPath = path.join(backupDir, originalFileName);
+    fs.copyFileSync(filePath, backupPath);
+
+    const originalStats = fs.statSync(filePath);
+    return {
+      backupPath,
+      backupCreatedAt: timestamp,
+      originalFileName,
+      originalSize: originalStats.size
+    };
+  }
+
   loadNexusDataFromDisk();
 
   ipcMain.handle('nexus:init-config', async (_event, apiKey?: string, apiUrl?: string) => {
@@ -15942,16 +15969,19 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     try {
       const mod = nexusModsStorage.get(modId);
       if (!mod) throw new Error('Mod not found');
-      const fileSize = Math.floor(Math.random() * 1000000000) + 1000000;
+      const backupInfo = createNexusUploadBackup(filePath, modId);
+      const fileSize = backupInfo.originalSize;
       const uploadResult = {
         fileId: `file_${Date.now()}`,
         modId,
-        filename: 'mod-archive.zip',
+        filename: backupInfo.originalFileName,
         size: fileSize,
         version: version || '1.0.0',
         uploadedAt: Date.now(),
         status: 'uploaded',
-        downloadUrl: `https://www.nexusmods.com/fallout4/mods/download/${modId}`
+        downloadUrl: `https://www.nexusmods.com/fallout4/mods/download/${modId}`,
+        backupPath: backupInfo.backupPath,
+        backupCreatedAt: backupInfo.backupCreatedAt
       };
       const historyEntry = { id: `upload_${Date.now()}`, ...uploadResult };
       uploadHistoryStorage.set(historyEntry.id, historyEntry);
@@ -15962,7 +15992,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         action: 'upload-file',
         status: 'success',
         duration: Date.now() - startTime,
-        result: { fileId: uploadResult.fileId, size: fileSize }
+        result: { fileId: uploadResult.fileId, size: fileSize, backupPath: backupInfo.backupPath }
       });
       return { success: true, result: uploadResult };
     } catch (error: any) {
