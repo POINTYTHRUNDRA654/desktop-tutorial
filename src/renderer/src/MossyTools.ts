@@ -1850,7 +1850,7 @@ Check your Downloads folder or the location where files are saved.`;
                         report += `**File size:** ${sizeMB} MB  |  **Masters:** ${masters.length > 0 ? masters.join(', ') : 'none declared'}  |  **Flags:** ${[flags.isESM && 'ESM', flags.isESL && 'ESL', flags.isLocalized && 'Localized'].filter(Boolean).join(', ') || 'standard ESP'}\n\n`;
 
                         if (issues.length === 0) {
-                            report += `✅ **No issues detected.** This plugin looks clean — no deleted navmesh, UDRs, broken precombines, absolute paths, or missing masters found.\n`;
+                            report += `✅ **No issues detected.** This plugin looks clean — no deleted navmesh, UDRs, broken precombines, or absolute paths found.\n`;
                         } else {
                             const errors   = issues.filter((i: any) => i.severity === 'error');
                             const warnings = issues.filter((i: any) => i.severity === 'warning');

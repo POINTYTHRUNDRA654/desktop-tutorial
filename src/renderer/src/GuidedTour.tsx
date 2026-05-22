@@ -31,9 +31,25 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
     return `/visual-guide-images/${encoded}`;
   };
 
-  const renderGuideImage = (name: string, alt: string) => (
+  const GuideImage: React.FC<{ names: string[]; alt: string }> = ({ names, alt }) => {
+    const [sourceIndex, setSourceIndex] = useState(0);
+    const selected = names[Math.min(sourceIndex, names.length - 1)];
+    return (
+      <img
+        src={visualGuideSrc(selected)}
+        alt={alt}
+        className="w-full max-h-40 object-cover rounded"
+        loading="lazy"
+        onError={() => {
+          setSourceIndex((prev) => (prev < names.length - 1 ? prev + 1 : prev));
+        }}
+      />
+    );
+  };
+
+  const renderGuideImage = (name: string | string[], alt: string) => (
     <div className="mt-3 rounded border border-slate-700/80 bg-slate-950/60 p-2">
-      <img src={visualGuideSrc(name)} alt={alt} className="w-full max-h-40 object-cover rounded" loading="lazy" />
+      <GuideImage names={Array.isArray(name) ? name : [name]} alt={alt} />
     </div>
   );
 
@@ -292,7 +308,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                   <div className="text-slate-400 text-sm mt-1">What are we working on today?</div>
                 </div>
 
-                {renderGuideImage('page-2-ai-chat.png', 'Chat interface')}
+                {renderGuideImage(['Page 2 AI Chat.png', 'page-2-ai-chat.png'], 'Chat interface')}
               </div>
             ),
             data: {
@@ -335,7 +351,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                   <div className="text-slate-400">Off</div>
                 </div>
 
-                {renderGuideImage('page-3-ai-mod-assistant.png', 'AI Mod Assistant')}
+                {renderGuideImage(['Page 3 AI Mod Assistant.png', 'page-3-ai-mod-assistant.png'], 'AI Mod Assistant')}
               </div>
             ),
             data: {
@@ -382,7 +398,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                   <div className="mt-3 text-slate-400">Done with the basics? Explore advanced modules when you are ready using the sidebar.</div>
                 </div>
 
-                {renderGuideImage('page-4-first-success.png', 'First Success Wizard')}
+                {renderGuideImage(['Page 4 FO4 Mod Journey Hub.png', 'page-4-first-success.png'], 'First Success Wizard')}
               </div>
             ),
             data: {
