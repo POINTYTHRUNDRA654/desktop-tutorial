@@ -6103,12 +6103,14 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         return { success: false, error: 'Texture type not specified' };
       }
 
-      const supportedTypes = ['noise', 'marble', 'wood', 'fabric', 'metal', 'stone'];
+      const supportedTypes = ['noise', 'marble', 'wood', 'fabric', 'metal', 'stone', 'checkerboard', 'brick', 'grid', 'concrete'];
       if (!supportedTypes.includes(textureType.toLowerCase())) {
         return { success: false, error: `Unsupported texture type: ${textureType}. Supported: ${supportedTypes.join(', ')}` };
       }
 
       const outputPath = `procedural_${textureType}_${Date.now()}.png`;
+      const width = Number(settings?.width) > 0 ? Number(settings.width) : 2048;
+      const height = Number(settings?.height) > 0 ? Number(settings.height) : width;
       console.log(`[Texture Generator] Generating procedural ${textureType} texture`);
 
       return {
@@ -6116,7 +6118,10 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         textureType,
         settings: settings || {},
         outputPath,
-        resolution: settings?.resolution || 2048,
+        resolution: settings?.resolution || width,
+        width,
+        height,
+        fileSize: Math.max(1, Math.floor((width * height) / 2)),
         message: `Procedural ${textureType} texture generated successfully`
       };
     } catch (e: any) {

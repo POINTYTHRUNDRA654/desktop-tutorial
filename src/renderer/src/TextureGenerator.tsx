@@ -64,6 +64,34 @@ interface ToolOperation {
 // ============================================================================
 
 export const TextureGenerator: React.FC = () => {
+  const getElectronApi = () => ((window as any).electron?.api || (window as any).electronAPI) as any;
+
+  const pickTextureFile = async () => {
+    const a = getElectronApi();
+    if (!a) {
+      toast.error('Desktop bridge not available');
+      return null;
+    }
+
+    if (typeof a.ddsPickFiles === 'function') {
+      const result = await a.ddsPickFiles();
+      if (Array.isArray(result) && result.length > 0) return String(result[0]);
+      if (result?.success && Array.isArray(result.paths) && result.paths.length > 0) return String(result.paths[0]);
+      if (result?.error && result.error !== 'No files selected') toast.error(result.error);
+      return null;
+    }
+
+    if (typeof a.invoke === 'function') {
+      const result = await a.invoke('dds-converter:pick-files');
+      if (result?.success && Array.isArray(result.paths) && result.paths.length > 0) return String(result.paths[0]);
+      if (result?.error && result.error !== 'No files selected') toast.error(result.error);
+      return null;
+    }
+
+    toast.error('File picker API not available');
+    return null;
+  };
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('material');
 
   // Material Generator State
@@ -113,24 +141,12 @@ export const TextureGenerator: React.FC = () => {
 
   const handleImageUpload = async () => {
     try {
-      const result = await (window.electron.api as any).ddsPickFiles();
-
-      if (!result) {
-        toast.error('No files selected');
+      const pickedPath = await pickTextureFile();
+      if (!pickedPath) {
+        toast('No files selected', { icon: '📁' });
         return;
       }
-
-      if (!result.success) {
-        toast.error(result.error || 'Failed to pick file');
-        return;
-      }
-
-      if (!result.paths || result.paths.length === 0) {
-        toast.error('No files selected');
-        return;
-      }
-
-      setSourceImage(result.paths[0]);
+      setSourceImage(pickedPath);
       setGeneratedMaterial(null);
     } catch (error) {
       console.error('Image upload error:', error);
@@ -148,11 +164,18 @@ export const TextureGenerator: React.FC = () => {
     setGeneratedMaterial(null);
 
     try {
+      const a = getElectronApi();
+      if (!a?.textureGenerateMaterialSet) {
+        toast.error('Texture generator API not available');
+        return;
+      }
+
+      const lastSeparator = Math.max(sourceImage.lastIndexOf('\\'), sourceImage.lastIndexOf('/'));
       const input = {
         name: `material_${Date.now()}`,
         sourceImage: sourceImage,
         basePath: sourceImage,
-        outputDir: sourceImage.substring(0, sourceImage.lastIndexOf('\\')),
+        outputDir: lastSeparator > 0 ? sourceImage.substring(0, lastSeparator) : undefined,
         resolution: 1024,
         style: materialStyle,
         generateMaps: selectedMaps,
@@ -160,7 +183,7 @@ export const TextureGenerator: React.FC = () => {
         upscale: undefined
       };
 
-      const result = await (window.electron.api as any).textureGenerateMaterialSet(input);
+      const result = await a.textureGenerateMaterialSet(input);
 
       if (result.success) {
         setGeneratedMaterial({
@@ -211,6 +234,12 @@ export const TextureGenerator: React.FC = () => {
     setProceduralPreview(null);
 
     try {
+      const a = getElectronApi();
+      if (!a?.textureGenerateProcedural) {
+        toast.error('Procedural texture API not available');
+        return;
+      }
+
       const settings = {
         width: proceduralSettings.width,
         height: proceduralSettings.height,
@@ -220,11 +249,14 @@ export const TextureGenerator: React.FC = () => {
         groutWidth: Math.floor(proceduralSettings.scale / 20)
       };
 
-      const result = await (window.electron.api as any).textureGenerateProcedural(proceduralType, settings);
+      const result = await a.textureGenerateProcedural(proceduralType, settings);
 
       if (result.success) {
         setProceduralPreview(result.outputPath);
-        toast.success(`Procedural texture generated!. Size: ${result.width}x${result.height}. File: ${(result.fileSize / 1024).toFixed(2)} KB`);
+        const width = Number(result.width ?? proceduralSettings.width);
+        const height = Number(result.height ?? proceduralSettings.height);
+        const fileSizeKb = Number(result.fileSize ?? 0) / 1024;
+        toast.success(`Procedural texture generated!. Size: ${width}x${height}. File: ${fileSizeKb.toFixed(2)} KB`);
       } else {
         toast.error(`Procedural generation failed: ${result.error}`);
       }
@@ -246,24 +278,12 @@ export const TextureGenerator: React.FC = () => {
 
   const handleToolFileSelect = async () => {
     try {
-      const result = await (window.electron.api as any).ddsPickFiles();
-
-      if (!result) {
-        toast.error('No files selected');
+      const pickedPath = await pickTextureFile();
+      if (!pickedPath) {
+        toast('No files selected', { icon: '📁' });
         return;
       }
-
-      if (!result.success) {
-        toast.error(result.error || 'Failed to pick file');
-        return;
-      }
-
-      if (!result.paths || result.paths.length === 0) {
-        toast.error('No files selected');
-        return;
-      }
-
-      setToolInputFile(result.paths[0]);
+      setToolInputFile(pickedPath);
     } catch (error) {
       console.error('File selection error:', error);
       toast.error('Failed to open file picker: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -279,7 +299,12 @@ export const TextureGenerator: React.FC = () => {
     setToolOperation({ type: 'seamless', status: 'processing', progress: 50 });
 
     try {
-      const result = await (window.electron.api as any).textureMakeSeamless(toolInputFile, seamlessRadius);
+      const a = getElectronApi();
+      if (!a?.textureMakeSeamless) {
+        throw new Error('Seamless texture API not available');
+      }
+
+      const result = await a.textureMakeSeamless(toolInputFile, seamlessRadius);
 
       if (result.success) {
         setToolOperation({
@@ -318,7 +343,12 @@ export const TextureGenerator: React.FC = () => {
     setToolOperation({ type: 'upscale', status: 'processing', progress: 50 });
 
     try {
-      const result = await (window.electron.api as any).textureUpscale(toolInputFile, upscaleFactor);
+      const a = getElectronApi();
+      if (!a?.textureUpscale) {
+        throw new Error('Upscale API not available');
+      }
+
+      const result = await a.textureUpscale(toolInputFile, upscaleFactor);
 
       if (result.success) {
         setToolOperation({
