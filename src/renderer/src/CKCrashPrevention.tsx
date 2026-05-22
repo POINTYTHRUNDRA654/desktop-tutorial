@@ -69,6 +69,8 @@ interface ModValidationReport {
 const api = () => (window as any).electron?.api || (window as any).electronAPI;
 
 const isMissingIpcHandlerError = (error: unknown, channel: string) => {
+  const ipcCode = (error as any)?.code;
+  if (ipcCode === 'ERR_IPC_CHANNEL_MISSING') return true;
   const message = String((error as any)?.message || error || '');
   return message.includes(`No handler registered for '${channel}'`);
 };
@@ -566,10 +568,6 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
             throw error;
           }
         }
-      } else if (typeof a.invoke === 'function') {
-        picked = await a.invoke('ck-crash-prevention:pick-log-file');
-      }
-
       if ((!picked?.success || !picked.path) && typeof a.invoke === 'function') {
         try {
           picked = await a.invoke('ck-crash-prevention:pick-log-file');
