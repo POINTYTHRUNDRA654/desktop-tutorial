@@ -5,7 +5,7 @@ import {
   resolveInteractiveTutorialReturnHash,
 } from '../interactiveTutorialLaunch';
 
-describe('tutorialLaunch', () => {
+describe('interactiveTutorialLaunch', () => {
   it('opens the overlay when first-run becomes active after the launcher is created', () => {
     let isFirstRunActive = false;
     const showOverlay = vi.fn();
