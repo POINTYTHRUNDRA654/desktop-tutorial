@@ -96,6 +96,7 @@ export interface ESPValidation {
     itms: number;
     deletedNavmeshes: number;
     formIDPrefix: string;
+    missingMasters?: string[];
   };
 }
 
@@ -543,16 +544,6 @@ export class AssetValidationEngine {
       const masterPath = path.join(path.dirname(espPath), master);
       if (!fs.existsSync(masterPath)) {
         missingMasters.push(master);
-        issues.push(
-          this.createIssue(
-            espPath,
-            'missing_master',
-            'error',
-            `Required master file not found: ${master}`,
-            false,
-            'Ensure all master files are installed'
-          )
-        );
       }
     }
 
@@ -621,7 +612,8 @@ export class AssetValidationEngine {
         description: this.extractDescription(buffer),
         itms: potentialITMs,
         deletedNavmeshes: hasDeletedNavmeshes ? 1 : 0,
-        formIDPrefix
+        formIDPrefix,
+        missingMasters
       }
     };
   }
