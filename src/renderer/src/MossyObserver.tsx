@@ -508,8 +508,8 @@ const MossyObserver: React.FC = () => {
             setTimeout(() => {
                 setMessage(text);
                 setVisible(true);
-                setTimeout(() => { setVisible(false); setIsAlert(false); }, 5000);
-            }, 1500); 
+                setTimeout(() => { setVisible(false); setIsAlert(false); }, 1200);
+            }, 300); 
         }
     }, [location.pathname]);
 
@@ -525,7 +525,7 @@ const MossyObserver: React.FC = () => {
             setTimeout(() => {
                 setVisible(false);
                 setIsAlert(false);
-            }, 6000);
+            }, 1800);
         };
 
         const handleShortcut = (e: CustomEvent<{keys: string, description: string}>) => {
@@ -537,7 +537,7 @@ const MossyObserver: React.FC = () => {
             setTimeout(() => {
                 setVisible(false);
                 setIsAlert(false);
-            }, 3000);
+            }, 1200);
         };
 
         window.addEventListener('mossy-blender-command', handleBlenderCommand as EventListener);
@@ -569,13 +569,13 @@ const MossyObserver: React.FC = () => {
                         } else {
                             setMessage(`Analysis complete for ${filename}. Standard Fallout 4 headers detected.`);
                         }
-                    }, 4000);
+                    }, 900);
 
                     // Fade out after 10s
                     setTimeout(() => {
                         setVisible(false);
                         setIsAlert(false);
-                    }, 10000);
+                    }, 2200);
                 }
             });
             return () => {
@@ -611,7 +611,7 @@ const MossyObserver: React.FC = () => {
             setIsAlert(false);
             setMessage(`[${label}] ${eventType}${detailSuffix}`);
             setVisible(true);
-            setTimeout(() => setVisible(false), 4000);
+            setTimeout(() => setVisible(false), 1200);
         });
 
         return () => {
@@ -635,7 +635,7 @@ const MossyObserver: React.FC = () => {
             setIsAlert(false);
             setMessage(`Observing${event.panel ? ` [${event.panel}]` : ''} — ${event.eventType}${detailSuffix}`);
             setVisible(true);
-            setTimeout(() => setVisible(false), 3500);
+            setTimeout(() => setVisible(false), 1000);
         };
 
         window.addEventListener('mossy-activity-event', handleActivity);
