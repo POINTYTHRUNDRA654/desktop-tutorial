@@ -977,6 +977,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             await new Promise(resolve => setTimeout(resolve, 800));
             await speakMossy("Hello, I'm Mossy.");
             await speakMossy('Pick your language to begin.');
+            await speakMossy('Important note: I am not affiliated with, endorsed by, or officially connected to any third-party modding tools.');
             await speakMossy('When you are ready, press Next.');
         };
 
@@ -1783,6 +1784,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         <p className="text-slate-400 mb-8">
                             Let me scan your system to discover tools I can integrate with.
                             This will help me provide personalized recommendations and boost my capabilities.
+                        </p>
+                        <p className="text-slate-500 text-sm max-w-3xl mx-auto mb-8">
+                            <strong className="text-amber-300">Important:</strong> Mossy is not affiliated with, endorsed by, or officially connected to any third-party tools or add-ons shown here (xEdit, MO2, Vortex, LOOT, Spriggit, Blender, BodySlide, NifSkope, etc.). Always download tools from official sources.
                         </p>
 
                         <div className="max-w-md mx-auto mb-8 text-left bg-slate-900/40 border border-slate-700 rounded-xl p-4">
