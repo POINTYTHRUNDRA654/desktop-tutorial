@@ -12,11 +12,10 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcResponse, IpcErrorCode, SimpleResponse, FilePathResponse, ArrayResponse, ItemResponse } from './types/ipcErrors';
-import {
-  IPC_HANDLER_CONTRACT_VERSION,
-  IPC_REGISTRATION_REPORT_CHANNEL,
-  REQUIRED_IPC_HANDLER_CHANNELS,
-} from './ipc-required-handlers';
+
+// Keep contract constants local so sandboxed preload does not require additional files.
+const IPC_HANDLER_CONTRACT_VERSION = '2026-05-22.1';
+const IPC_REGISTRATION_REPORT_CHANNEL = 'ipc:get-registration-report';
 
 // tests rely on boot/onboarding flags being present before React loads.  Preload
 // runs before any renderer scripts, so we can safely mutate localStorage here
@@ -387,6 +386,23 @@ const IPC_CHANNELS = {
   SYSTEM_METRICS_GET: 'system-metrics-get',
   SYSTEM_METRICS_SUBSCRIBE: 'system-metrics-subscribe',
 } as const;
+
+const REQUIRED_IPC_HANDLER_CHANNELS = [
+  'dds-converter:pick-files',
+  'dds-converter:convert',
+  'dds-converter:convert-batch',
+  'dds-converter:detect-format',
+  'dds-converter:get-all-presets',
+  IPC_CHANNELS.IMAGE_GET_INFO,
+  IPC_CHANNELS.AUTOMATION_START,
+  IPC_CHANNELS.AUTOMATION_STOP,
+  IPC_CHANNELS.AUTOMATION_GET_SETTINGS,
+  IPC_CHANNELS.AUTOMATION_UPDATE_SETTINGS,
+  IPC_CHANNELS.AUTOMATION_TOGGLE_RULE,
+  IPC_CHANNELS.AUTOMATION_TRIGGER_RULE,
+  IPC_CHANNELS.AUTOMATION_GET_STATISTICS,
+  IPC_CHANNELS.AUTOMATION_RESET_STATISTICS,
+] as const;
 
 const isNoHandlerRegisteredError = (error: unknown): boolean => {
   const message = error instanceof Error ? error.message : String(error ?? '');
