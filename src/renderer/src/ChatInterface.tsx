@@ -476,6 +476,15 @@ export const ChatInterface: React.FC = () => {
 
     // Activity Monitoring Hook
     const { logActivity, suggestions, getTopSuggestions } = useActivityMonitor();
+    const [dismissedSuggestionIds, setDismissedSuggestionIds] = useState<Set<string>>(new Set());
+
+    const handleDismissSuggestion = (id: string) => {
+      setDismissedSuggestionIds(prev => new Set([...prev, id]));
+    };
+
+    const handleAcceptSuggestion = (id: string) => {
+      setDismissedSuggestionIds(prev => new Set([...prev, id]));
+    };
 
     // Analytics Hook
     const { trackEvent, trackPageView } = useAnalytics();
@@ -2527,11 +2536,11 @@ export const ChatInterface: React.FC = () => {
 
                     <div className="p-4 bg-forge-panel border-t border-slate-700 z-10">
                         {/* Suggestion Panel */}
-                        {suggestions.length > 0 && (
+                        {suggestions.filter(s => !dismissedSuggestionIds.has(s.id)).length > 0 && (
                             <SuggestionPanel
-                                suggestions={getTopSuggestions(3)}
-                                onDismiss={(id) => console.log('Dismissed suggestion:', id)}
-                                onAccept={(id) => console.log('Accepted suggestion:', id)}
+                                suggestions={getTopSuggestions(3).filter(s => !dismissedSuggestionIds.has(s.id))}
+                                onDismiss={handleDismissSuggestion}
+                                onAccept={handleAcceptSuggestion}
                                 showAll={false}
                             />
                         )}
