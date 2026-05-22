@@ -244,7 +244,7 @@ const WorkflowOrchestrator = () => {
             await new Promise<void>(resolve => setTimeout(resolve, 150));
 
             const command = interpolateCommand(step.command, runAsset);
-            liveSteps[i] = { ...step, status: 'completed', output: `[planned] ${step.tool}`, notes: step.description, durationMs: 0 };
+            liveSteps[i] = { ...step, status: 'completed', output: `[planned] ${step.tool}`, notes: step.description };
             setRunSteps([...liveSteps]);
             log(`Step ${i + 1}: ${step.name} (${step.tool})`);
             log(`  $ ${command}`);
