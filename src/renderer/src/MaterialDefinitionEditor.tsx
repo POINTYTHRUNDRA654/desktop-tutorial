@@ -467,16 +467,23 @@ const TextureMapCard: React.FC<{
   onUpdate: (path: string) => void;
 }> = ({ name, path, type, generated, editable, onUpdate }) => {
   const [availableTextures, setAvailableTextures] = React.useState<string[]>([]);
+  const [showPicker, setShowPicker] = React.useState(false);
 
   const handleBrowse = async () => {
     try {
-      // Load available textures
+      // Try native DDS file picker first
+      const picked = await (window.electronAPI as any)?.pickDdsFile?.();
+      if (picked && (Array.isArray(picked) ? picked.length > 0 : picked)) {
+        const selectedPath = Array.isArray(picked) ? picked[0] : picked;
+        onUpdate(selectedPath);
+        return;
+      }
+
+      // Fallback: load available textures from the project directory and show inline list
       const result = await window.electronAPI?.invoke?.('material:browse-textures', '.');
-      
-      if (result?.success) {
+      if (result?.success && Array.isArray(result.textures) && result.textures.length > 0) {
         setAvailableTextures(result.textures);
-        // TODO: Show texture picker dialog
-        console.log('Available textures:', result.textures);
+        setShowPicker(true);
       }
     } catch (err) {
       console.error('Browse failed:', err);
@@ -502,9 +509,28 @@ const TextureMapCard: React.FC<{
       <div className="map-path">{path ? path.split('\\').pop() : 'Not assigned'}</div>
 
       {editable && (
-        <button className="btn-browse" onClick={handleBrowse}>
-          Browse
-        </button>
+        <>
+          <button className="btn-browse" onClick={handleBrowse}>
+            Browse
+          </button>
+          {showPicker && availableTextures.length > 0 && (
+            <select
+              className="texture-picker-select"
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  onUpdate(e.target.value);
+                  setShowPicker(false);
+                }
+              }}
+            >
+              <option value="" disabled>— select texture —</option>
+              {availableTextures.map(t => (
+                <option key={t} value={t}>{t.split(/[\\/]/).pop()}</option>
+              ))}
+            </select>
+          )}
+        </>
       )}
     </div>
   );
