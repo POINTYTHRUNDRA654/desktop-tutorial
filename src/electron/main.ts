@@ -1767,6 +1767,15 @@ function setupIpcHandlers() {
     }
   };
 
+  // Register all platform handlers that were missing from this file
+  try {
+    const { registerPlatformHandlers } = require('./handlers/platformHandlers');
+    registerPlatformHandlers(safeHandle);
+    console.log('[Main] ✅ Platform handlers registered');
+  } catch (platformErr: any) {
+    console.error('[Main] ❌ Failed to register platform handlers:', platformErr?.message || platformErr);
+  }
+
   forceHandle('dds-converter:get-all-presets', async () => {
     try {
       const presets = getDdsConversionPresets();
@@ -6230,14 +6239,13 @@ end.
       ],
       title: 'Select CK Crash Log'
     });
-
     if (!result.canceled && result.filePaths.length > 0) {
       return { success: true, path: result.filePaths[0] };
     }
     return { success: false };
   });
 
-  // Pick ESP/ESM/ELS plugin file
+  // Pick ESP/ESM/ESL plugin file
   registerHandler(IPC_CHANNELS.CK_CRASH_PICK_PLUGIN, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
@@ -6245,9 +6253,8 @@ end.
         { name: 'Plugin Files', extensions: ['esp', 'esm', 'esl'] },
         { name: 'All Files', extensions: ['*'] }
       ],
-      title: 'Select ESP/ESM/ELS Plugin File'
+      title: 'Select ESP/ESM/ESL Plugin File'
     });
-
     if (!result.canceled && result.filePaths.length > 0) {
       return { success: true, path: result.filePaths[0] };
     }
