@@ -71,19 +71,19 @@ cd CommonLibF4
 
 ## 3. Creating Your Plugin Project
 
-### Option A: Clone the Official Plugin Template (Recommended)
+### Option A: Clone an Active CommonLibF4 Plugin Template (Recommended)
 
 ```powershell
 cd C:\FO4Modding
-git clone https://github.com/Expired6978/F4SEPluginTemplate MyOvergrowthPlugin
+git clone --recurse-submodules https://github.com/libxse/commonlibf4-template MyOvergrowthPlugin
 cd MyOvergrowthPlugin
 ```
 
 The template includes:
-- `CMakeLists.txt` pre-configured for CommonLibF4 + vcpkg
-- `src/main.cpp` with the F4SE plugin entry point (`F4SEAPI F4SE_InitPlugin`)
-- `vcpkg.json` manifest listing all dependencies
-- GitHub Actions CI workflow for OG/NG/AE DLL builds
+- CommonLibF4 wired into an active Fallout 4 plugin starter
+- `xmake.lua` project configuration with optional Visual Studio project generation
+- A working plugin skeleton and modern setup docs
+- Easy `git clone --recurse-submodules` bootstrap for a fresh project
 
 ### Option B: Manual CMakeLists.txt
 
@@ -326,7 +326,7 @@ REL::Relocation<SetupMaterial_t> target{ kBSDecalNodeSetupMaterialID };
 
 ### Three-Version Build
 
-The F4SE Plugin Template (Expired6978) and its GitHub Actions CI produce three DLLs:
+For OG/NG/AE support, a version-aware F4SE plugin build commonly produces three DLLs:
 - `MyOvergrowthPlugin.dll` — OG (1.10.163)
 - `MyOvergrowthPlugin_ng.dll` — NG (1.10.980–1.10.984)
 - `MyOvergrowthPlugin_ae.dll` — AE (1.11.169+)
@@ -391,7 +391,7 @@ MyOvergrowthPlugin/
 | Resource | URL / Location | Purpose |
 |---|---|---|
 | CommonLibF4 (Ryan-rsm-McKenzie) | github.com/Ryan-rsm-McKenzie/CommonLibF4 | RE:: engine class headers |
-| F4SE Plugin Template (Expired6978) | github.com/Expired6978/F4SEPluginTemplate | CMake scaffold with CI |
+| F4SE Plugin Template (libxse) | github.com/libxse/commonlibf4-template | Active CommonLibF4 starter template |
 | Fallout 4 Address Library (nikitalita) | github.com/nikitalita/address_library | REL::ID ↔ offset mapping for all versions |
 | vcpkg | github.com/microsoft/vcpkg | C++ dependency manager |
 | F4SE Loader | f4se.silverlock.org | Loads plugins, writes F4SE log |

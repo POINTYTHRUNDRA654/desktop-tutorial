@@ -472,14 +472,14 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     // ── C++ / F4SE plugin development ─────────────────────────────────────────
     {
-        name: 'F4SE Plugin Template (Ryan-rsm-McKenzie / Expired6978)',
-        description: 'Pre-configured CMake + vcpkg GitHub starter kit for building F4SE DLL plugins. Provides: F4SE_PLUGIN_VERSION boilerplate, F4SEPlugin_Load entry point, CommonLibF4 as a git submodule, spdlog file logging, vcpkg.json for dependency management, and a post-build copy step to deploy directly to Data\\F4SE\\Plugins\\. Clone with --recurse-submodules, run cmake + vcpkg, build Release. ⚠️ Development tool — not installed via mod manager. Requires Visual Studio 2022 + CMake + vcpkg.',
+        name: 'F4SE Plugin Template (libxse CommonLibF4 template)',
+        description: 'Active GitHub starter template for building F4SE DLL plugins with CommonLibF4. Provides a working plugin skeleton, CommonLibF4 integration, and setup docs for modern Fallout 4 plugin development. Clone with --recurse-submodules, generate a VS project with xmake if needed, and build in Release. ⚠️ Development tool — not installed via mod manager. Requires Visual Studio 2022 or another C++23-capable compiler plus XMake.',
         detectKeywords: ['f4se plugin template'],
-        url: 'https://github.com/Ryan-rsm-McKenzie/f4se_plugin_template',
-        urlLabel: 'GitHub (f4se_plugin_template)',
+        url: 'https://github.com/libxse/commonlibf4-template',
+        urlLabel: 'GitHub (commonlibf4-template)',
         category: 'modding',
         required: false,
-        ifMissing: 'Starting a new F4SE DLL plugin project will require manually writing all CMake configuration, version boilerplate, and logging setup from scratch.',
+        ifMissing: 'Starting a new F4SE DLL plugin project will require manually assembling a plugin skeleton, build configuration, and CommonLibF4 integration from scratch.',
         hasExecutable: false,
     },
     {
