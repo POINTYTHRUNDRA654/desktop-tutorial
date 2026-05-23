@@ -61,7 +61,7 @@ If you are brand new, read the first-run checklist first, then move through the 
 
 ## Page 01 - Mossy.Space (Home Dashboard)
 
-![Page 01 - Mossy.Space (Home Dashboard)](visual-guide-images/Page 1 Mossy Space.png)
+![Page 01 - Mossy.Space (Home Dashboard)](visual-guide-images/page-1-mossy-space.png)
 
 **What this page is for**
 Mossy.Space is the front door of the app. It gives you a clean overview of the most important hubs, current health indicators, and the fastest ways to start working.
@@ -84,7 +84,7 @@ Mossy.Space is the front door of the app. It gives you a clean overview of the m
 
 ## Page 02 - AI Chat
 
-![Page 02 - AI Chat](visual-guide-images/Page 2 AI Chat.png)
+![Page 02 - AI Chat](visual-guide-images/page-2-ai-chat.png)
 
 **What this page is for**
 AI Chat is the fastest place to ask Mossy questions, troubleshoot issues, and get workflow guidance in plain language.
@@ -107,7 +107,7 @@ AI Chat is the fastest place to ask Mossy questions, troubleshoot issues, and ge
 
 ## Page 03 - AI Mod Assistant
 
-![Page 03 - AI Mod Assistant](visual-guide-images/Page 3 AI Mod Assistant.png)
+![Page 03 - AI Mod Assistant](visual-guide-images/page-3-ai-mod-assistant.png)
 
 **What this page is for**
 AI Mod Assistant is the guided AI workspace for mod-specific help. It is meant for practical Fallout 4 modding tasks, not just generic chat.
@@ -130,7 +130,7 @@ AI Mod Assistant is the guided AI workspace for mod-specific help. It is meant f
 
 ## Page 04 - FO4 Mod Journey Hub
 
-![Page 04 - FO4 Mod Journey Hub](visual-guide-images/Page 4 FO4 Mod Journey Hub.png)
+![Page 04 - FO4 Mod Journey Hub](visual-guide-images/page-7-mod-projects.png)
 
 **What this page is for**
 FO4 Mod Journey Hub is the main project-planning and progress-tracking platform. It combines project management, first-success guidance, and roadmap thinking so you can move from idea to finished mod with structure.
@@ -153,7 +153,7 @@ FO4 Mod Journey Hub is the main project-planning and progress-tracking platform.
 
 ## Page 05 - FO4 What's New
 
-![Page 05 - FO4 What's New](visual-guide-images/Page 5 FO4 What`s New.png)
+![Page 05 - FO4 What's New](visual-guide-images/page-6-whats-new.png)
 
 **What this page is for**
 FO4 What's New is the release-notes page for the current version of Mossy. It tells you what changed, what matters, and what you may want to revisit after an update.
@@ -176,7 +176,7 @@ FO4 What's New is the release-notes page for the current version of Mossy. It te
 
 ## Page 06 - FO4 Knowledge Hub
 
-![Page 06 - FO4 Knowledge Hub](visual-guide-images/Page 6 FO4 Knowledge Hub.png)
+![Page 06 - FO4 Knowledge Hub](visual-guide-images/page-8-quick-reference.png)
 
 **What this page is for**
 FO4 Knowledge Hub is the learning and reference center. It brings together quick reference material, searchable knowledge, and community learning in one place.
@@ -199,7 +199,7 @@ FO4 Knowledge Hub is the learning and reference center. It brings together quick
 
 ## Page 07 - FO4 Memory Vault
 
-![Page 07 - FO4 Memory Vault](visual-guide-images/Page 7 FO4 Memory Vault.png)
+![Page 07 - FO4 Memory Vault](visual-guide-images/page-10-memory-vault.png)
 
 **What this page is for**
 FO4 Memory Vault stores reusable knowledge, saved project context, and durable references so you do not have to reconstruct everything every session.
@@ -222,7 +222,7 @@ FO4 Memory Vault stores reusable knowledge, saved project context, and durable r
 
 ## Page 08 - FO4 Setup Wizards
 
-![Page 08 - FO4 Setup Wizards](visual-guide-images/Page 8 FO4 Setup Wizards.png)
+![Page 08 - FO4 Setup Wizards](visual-guide-images/page-11-wizards.png)
 
 **What this page is for**
 FO4 Setup Wizards is the guided setup platform for getting the right workflow, tools, and prerequisites in place without guesswork.
@@ -245,7 +245,7 @@ FO4 Setup Wizards is the guided setup platform for getting the right workflow, t
 
 ## Page 09 - FO4 Creation Kit Hub
 
-![Page 09 - FO4 Creation Kit Hub](visual-guide-images/Page 9 FO4 Creation Kit Hub.png)
+![Page 09 - FO4 Creation Kit Hub](visual-guide-images/page-13-ck-safety.png)
 
 **What this page is for**
 FO4 Creation Kit Hub is the unified CK platform. It brings together safety guidance, extension setup, and practical CK help so you can work in the Creation Kit with fewer avoidable mistakes.
@@ -268,7 +268,7 @@ FO4 Creation Kit Hub is the unified CK platform. It brings together safety guida
 
 ## Page 10 - FO4 Textures & Materials
 
-![Page 10 - FO4 Textures & Materials](visual-guide-images/Page 10 FO4 Textures & Materials.png)
+![Page 10 - FO4 Textures & Materials](visual-guide-images/page-15-texture-generator.png)
 
 **What this page is for**
 FO4 Textures & Materials is the texture workflow platform. It combines DDS conversion, material generation, image editing support, and FO4 texture-format guidance.
@@ -291,7 +291,7 @@ FO4 Textures & Materials is the texture workflow platform. It combines DDS conve
 
 ## Page 11 - FO4 Packaging & Release
 
-![Page 11 - FO4 Packaging & Release](visual-guide-images/Page 11 FO4 Packaging & Release.png)
+![Page 11 - FO4 Packaging & Release](visual-guide-images/page-16-packaging-release.png)
 
 **What this page is for**
 FO4 Packaging & Release is the shipping platform. It helps you package files, verify release readiness, compare outputs, check conflicts, and prepare the final deliverable.
@@ -314,7 +314,7 @@ FO4 Packaging & Release is the shipping platform. It helps you package files, ve
 
 ## Page 12 - FO4 Guides Hub
 
-![Page 12 - FO4 Guides Hub](visual-guide-images/Page 12 FO4 Guides Hub.png)
+![Page 12 - FO4 Guides Hub](visual-guide-images/page-17-animation-guide.png)
 
 **What this page is for**
 FO4 Guides Hub is the deep-dive learning platform for bigger guided subjects. It groups together long-form help for animation, quest authoring, and LOD/precombine workflows.
@@ -337,7 +337,7 @@ FO4 Guides Hub is the deep-dive learning platform for bigger guided subjects. It
 
 ## Page 13 - FO4 Automation Studio
 
-![Page 13 - FO4 Automation Studio](visual-guide-images/Page 13 FO4 Automation Studio.png)
+![Page 13 - FO4 Automation Studio](visual-guide-images/page-21-cosmos-workflow.png)
 
 **What this page is for**
 FO4 Automation Studio is the automation workspace for Cosmos-related repo and knowledge workflows. It helps you connect a repo, point at local knowledge, and validate search/index behavior.
@@ -360,7 +360,7 @@ FO4 Automation Studio is the automation workspace for Cosmos-related repo and kn
 
 ## Page 14 - FO4 Mod Builder Hub
 
-![Page 14 - FO4 Mod Builder Hub](visual-guide-images/Page 14 FO4 Mod Builder Hub.png)
+![Page 14 - FO4 Mod Builder Hub](visual-guide-images/page-24-the-workshop.png)
 
 **What this page is for**
 FO4 Mod Builder Hub is the creation-and-build platform. It connects planning, workshop-style file work, developer tooling, and documentation support in one build-focused hub.
@@ -383,7 +383,7 @@ FO4 Mod Builder Hub is the creation-and-build platform. It connects planning, wo
 
 ## Page 15 - FO4 Asset Analysis Hub
 
-![Page 15 - FO4 Asset Analysis Hub](visual-guide-images/Page 15 FO4 Asset Analysis Hub.png)
+![Page 15 - FO4 Asset Analysis Hub](visual-guide-images/page-27-mining-and-analysis-hub.png)
 
 **What this page is for**
 FO4 Asset Analysis Hub is the quality and analysis platform for mod assets. It helps you inspect assets, run deeper analysis, identify duplicates, and understand optimization concerns.
@@ -406,7 +406,7 @@ FO4 Asset Analysis Hub is the quality and analysis platform for mod assets. It h
 
 ## Page 16 - FO4 Automation Orchestrator
 
-![Page 16 - FO4 Automation Orchestrator](visual-guide-images/Page 16 FO4 Automation Orchestrator.png)
+![Page 16 - FO4 Automation Orchestrator](visual-guide-images/page-30-the-orchestrator.png)
 
 **What this page is for**
 FO4 Automation Orchestrator is the platform for higher-level asset pipeline coordination. It is built for sequencing work, tracking pipeline runs, and managing automation state at the orchestration level.
@@ -429,7 +429,7 @@ FO4 Automation Orchestrator is the platform for higher-level asset pipeline coor
 
 ## Page 17 - FO4 Automation Runner
 
-![Page 17 - FO4 Automation Runner](visual-guide-images/Page 17 FO4 Automation Runner.png)
+![Page 17 - FO4 Automation Runner](visual-guide-images/page-31-workflow-runner.png)
 
 **What this page is for**
 FO4 Automation Runner is the execution platform for typed automation steps. It is where you author, import, run, review, and export concrete workflow runs.
@@ -452,7 +452,7 @@ FO4 Automation Runner is the execution platform for typed automation steps. It i
 
 ## Page 18 - FO4 Runtime Hub
 
-![Page 18 - FO4 Runtime Hub](visual-guide-images/Page 18 FO4 Runtime Hub.png)
+![Page 18 - FO4 Runtime Hub](visual-guide-images/page-39-live-synapse.png)
 
 **What this page is for**
 FO4 Runtime Hub is the live runtime platform. It groups together Live Synapse, Desktop Bridge connectivity, and Holodeck testing so you can manage live behavior and connected tools from one place.
@@ -475,7 +475,7 @@ FO4 Runtime Hub is the live runtime platform. It groups together Live Synapse, D
 
 ## Page 19 - FO4 External Integrations Hub
 
-![Page 19 - FO4 External Integrations Hub](visual-guide-images/Page 19 FO4 External Intergrations Hub.png)
+![Page 19 - FO4 External Integrations Hub](visual-guide-images/page-41-mo2-extension.png)
 
 **What this page is for**
 FO4 External Integrations Hub is the platform for non-Mossy desktop-tool connections. It is where MO2, ComfyUI, Upscayl, and similar integrations are organized and managed.
@@ -498,7 +498,7 @@ FO4 External Integrations Hub is the platform for non-Mossy desktop-tool connect
 
 ## Page 20 - FO4 Plugin & Load Order Hub
 
-![Page 20 - FO4 Plugin & Load Order Hub](visual-guide-images/Page 20 FO4 Plugin & Load Order Hub.png)
+![Page 20 - FO4 Plugin & Load Order Hub](visual-guide-images/page-42-xedit-tools.png)
 
 **What this page is for**
 FO4 Plugin & Load Order Hub is the platform for plugin health and ordering workflows. It combines xEdit tools, PRP-patch support, load-order analysis, and plugin reference guidance.
@@ -521,7 +521,7 @@ FO4 Plugin & Load Order Hub is the platform for plugin health and ordering workf
 
 ## Page 21 - FO4 System & Diagnostics Hub
 
-![Page 21 - FO4 System & Diagnostics Hub](visual-guide-images/Page 21 FO4 System & Diagnostics Hub.png)
+![Page 21 - FO4 System & Diagnostics Hub](visual-guide-images/page-50-diagnostic-tools.png)
 
 **What this page is for**
 FO4 System & Diagnostics Hub is the system-health platform. It combines diagnostics, local capability checks, security or blacklist management, asset-vault verification, and support access.
@@ -544,7 +544,7 @@ FO4 System & Diagnostics Hub is the system-health platform. It combines diagnost
 
 ## Page 22 - Settings
 
-![Page 22 - Settings](visual-guide-images/Page 22 Settings.png)
+![Page 22 - Settings](visual-guide-images/page-49-settings.png)
 
 **What this page is for**
 Settings is where you configure everything that affects how Mossy behaves across all 22 platforms. It is organized as a nine-step accordion flow so you always know what to configure and in what order. Changes made here — especially tool paths and AI engine settings — affect every other hub in the app.
