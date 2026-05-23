@@ -329,4 +329,33 @@ describe('FirstRunOnboarding — spriggit-digest 0xFFFFFFFF error recovery', () 
     },
     30_000
   );
+
+  test(
+    'force onboarding replay does not auto-complete when cached scan data exists',
+    async () => {
+      localStorage.setItem('mossy_force_onboarding', 'true');
+      localStorage.setItem('mossy_scan_summary', JSON.stringify({
+        totalPrograms: 1,
+        nvidiaTools: 0,
+        aiTools: 0,
+        systemInfo: { os: 'Windows' },
+      }));
+      localStorage.setItem(
+        'mossy_all_detected_apps',
+        JSON.stringify([{ name: 'FO4Edit', path: 'C:\\Program Files\\FO4Edit\\FO4Edit.exe' }])
+      );
+
+      render(<FirstRunOnboarding onComplete={mockOnComplete} />, {
+        wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter>,
+      });
+
+      await waitFor(
+        () => expect(screen.getByRole('button', { name: /continue/i })).toBeInTheDocument(),
+        { timeout: 5000 }
+      );
+
+      expect(mockOnComplete).not.toHaveBeenCalled();
+    },
+    30_000
+  );
 });

@@ -675,6 +675,44 @@ const loadStoredToolChoices = (): Record<string, boolean> => {
     }
 };
 
+const parseArray = (raw: string | null): any[] => {
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
+const normalizeProgramKey = (app: any) => {
+    const path = String(app?.path || '').trim().toLowerCase();
+    const name = String(app?.displayName || app?.name || '').trim().toLowerCase();
+    if (path.length) return `path:${path}`;
+    if (name.length) return `name:${name}`;
+    return '';
+};
+
+const mergeDetectedPrograms = (existing: any[], fresh: any[]) => {
+    const merged = new Map<string, any>();
+    [...existing, ...fresh].forEach(app => {
+        const key = normalizeProgramKey(app);
+        if (!key) return;
+        const previous = merged.get(key);
+        merged.set(key, previous ? { ...previous, ...app } : app);
+    });
+    return Array.from(merged.values());
+};
+
+const mergeToolsByKey = (existing: any[], additions: any[]) => {
+    const additionKeys = new Set(additions.map(normalizeProgramKey).filter(Boolean));
+    const preserved = existing.filter(item => {
+        const key = normalizeProgramKey(item);
+        return key ? !additionKeys.has(key) : false;
+    });
+    return [...preserved, ...additions];
+};
+
 /** Delay (ms) before calling onComplete after the "complete" screen appears. */
 const COMPLETE_TRANSITION_DELAY_MS = 2000;
 /** Shorter delay when Spriggit digest already ran — the user just clicked Continue. */
@@ -915,21 +953,18 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     }, [step]);
 
     useEffect(() => {
+        const forceOnboarding = localStorage.getItem('mossy_force_onboarding') === 'true';
+        if (forceOnboarding) {
+            console.log('[FirstRunOnboarding] Force onboarding flag detected. Running full onboarding flow.');
+            return; // Don't skip - let the user go through onboarding
+        }
+
         // If onboarding was already completed, skip straight through.
         const hasOnboarded = localStorage.getItem('mossy_onboarding_complete');
         if (hasOnboarded) {
             console.log('[FirstRunOnboarding] User already completed onboarding. Skipping wizard.');
             onComplete();
             return;
-        }
-
-        // Check if user explicitly wants to redo onboarding (from Tutorial Reset in Settings)
-        // If so, ignore any leftover scan data and let them go through the full flow again.
-        const forceOnboarding = localStorage.getItem('mossy_force_onboarding') === 'true';
-        if (forceOnboarding) {
-            console.log('[FirstRunOnboarding] Force onboarding flag detected. Running full onboarding flow.');
-            localStorage.removeItem('mossy_force_onboarding'); // Clear the flag
-            return; // Don't skip - let the user go through onboarding
         }
 
         // If scan data already exists from a previous run (preserved during reinstall),
@@ -1203,8 +1238,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
 
             // Detect all programs
             console.log('[FirstRunOnboarding] Calling detectPrograms...');
-            const allDetectedApps = await api.detectPrograms();
-            console.log('[FirstRunOnboarding] Detected programs:', allDetectedApps?.length || 0);
+            const detectedApps = await api.detectPrograms();
+            console.log('[FirstRunOnboarding] Detected programs:', detectedApps?.length || 0);
+            const previousDetectedApps = parseArray(localStorage.getItem('mossy_all_detected_apps'));
+            const allDetectedApps = mergeDetectedPrograms(previousDetectedApps, detectedApps);
+            console.log('[FirstRunOnboarding] Merged program list includes:', allDetectedApps.length, 'entries');
             setAllApps(allDetectedApps);
             if (detectionProgressTimerRef.current !== null) {
                 window.clearInterval(detectionProgressTimerRef.current);
@@ -1415,22 +1453,27 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         localStorage.setItem('mossy_onboarding_complete', 'true');
 
         // Build integrated tools list for Mossy
-        const integratedTools = recommendations
+        const selectedIntegratedTools = recommendations
             .filter(r => userChoices[r.name] === true)
             .map(r => ({ name: r.name, path: r.path, category: r.category }));
 
-        localStorage.setItem('mossy_integrated_tools', JSON.stringify(integratedTools));
+        const existingIntegratedTools = parseArray(localStorage.getItem('mossy_integrated_tools'));
+        const mergedIntegratedTools = mergeToolsByKey(existingIntegratedTools, selectedIntegratedTools);
+        localStorage.setItem('mossy_integrated_tools', JSON.stringify(mergedIntegratedTools));
 
         // Promote to the unified scan/permissions store used across the app.
         // These are the tools the user explicitly approved for Mossy to know about and interact with.
-        const promotedApps = integratedTools.map((t, idx) => ({
+        const promotedApps = mergedIntegratedTools.map((t, idx) => ({
             id: `onboard-${idx}-${Math.random().toString(36).slice(2, 7)}`,
             name: t.name,
             category: t.category,
             checked: true,
             path: t.path
         }));
-        localStorage.setItem('mossy_apps', JSON.stringify(promotedApps));
+
+        const existingApprovedApps = parseArray(localStorage.getItem('mossy_apps'));
+        const mergedApprovedApps = mergeToolsByKey(existingApprovedApps, promotedApps);
+        localStorage.setItem('mossy_apps', JSON.stringify(mergedApprovedApps));
 
         // Offer the Spriggit digest step before showing "complete".
         setStep('spriggit-digest');
