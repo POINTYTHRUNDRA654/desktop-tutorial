@@ -1,41 +1,41 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\",
+  "WorkspaceRootPath": "D:\\Projects\\desktop-tutorial\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\electron\\main.ts||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\electron\\main.ts||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\electron\\main.ts||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\CommunityLearning.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\CommunityLearning.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\renderer\\src\\CommunityLearning.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\DonationSupport.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\DonationSupport.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\renderer\\src\\DonationSupport.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\KnowledgeHub.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\KnowledgeHub.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\renderer\\src\\KnowledgeHub.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\MossyMemoryVault.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\MossyMemoryVault.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\renderer\\src\\MossyMemoryVault.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\Sidebar.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\Sidebar.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\renderer\\src\\Sidebar.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\test\\setup.ts||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\test\\setup.ts||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\test\\setup.ts||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\package.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\package.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:package.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\VideoTutorial.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\VideoTutorial.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\renderer\\src\\VideoTutorial.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
     }
   ],
@@ -46,8 +46,12 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 2,
+          "SelectedChildIndex": 3,
           "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{c6f34f0d-7ae5-4f3a-be61-fe0c21ae9eb8}"
+            },
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
@@ -56,9 +60,9 @@
               "$type": "Document",
               "DocumentIndex": 8,
               "Title": "VideoTutorial.tsx",
-              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\VideoTutorial.tsx",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\VideoTutorial.tsx",
               "RelativeDocumentMoniker": "src\\renderer\\src\\VideoTutorial.tsx",
-              "ToolTip": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\VideoTutorial.tsx",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\VideoTutorial.tsx",
               "RelativeToolTip": "src\\renderer\\src\\VideoTutorial.tsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
@@ -68,9 +72,9 @@
               "$type": "Document",
               "DocumentIndex": 0,
               "Title": "main.ts",
-              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\electron\\main.ts",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\electron\\main.ts",
               "RelativeDocumentMoniker": "src\\electron\\main.ts",
-              "ToolTip": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\electron\\main.ts",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\electron\\main.ts",
               "RelativeToolTip": "src\\electron\\main.ts",
               "ViewState": "AgIAAAUjAAAAAAAAAAAgwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
@@ -81,9 +85,9 @@
               "$type": "Document",
               "DocumentIndex": 7,
               "Title": "package.json",
-              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\package.json",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\package.json",
               "RelativeDocumentMoniker": "package.json",
-              "ToolTip": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\package.json",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\package.json",
               "RelativeToolTip": "package.json",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
@@ -93,9 +97,9 @@
               "$type": "Document",
               "DocumentIndex": 6,
               "Title": "setup.ts",
-              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\test\\setup.ts",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\test\\setup.ts",
               "RelativeDocumentMoniker": "src\\test\\setup.ts",
-              "ToolTip": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\test\\setup.ts",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\test\\setup.ts",
               "RelativeToolTip": "src\\test\\setup.ts",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
@@ -105,9 +109,9 @@
               "$type": "Document",
               "DocumentIndex": 5,
               "Title": "Sidebar.tsx",
-              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\Sidebar.tsx",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\Sidebar.tsx",
               "RelativeDocumentMoniker": "src\\renderer\\src\\Sidebar.tsx",
-              "ToolTip": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\Sidebar.tsx",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\Sidebar.tsx",
               "RelativeToolTip": "src\\renderer\\src\\Sidebar.tsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
@@ -117,9 +121,9 @@
               "$type": "Document",
               "DocumentIndex": 4,
               "Title": "MossyMemoryVault.tsx",
-              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\MossyMemoryVault.tsx",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\MossyMemoryVault.tsx",
               "RelativeDocumentMoniker": "src\\renderer\\src\\MossyMemoryVault.tsx",
-              "ToolTip": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\MossyMemoryVault.tsx",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\MossyMemoryVault.tsx",
               "RelativeToolTip": "src\\renderer\\src\\MossyMemoryVault.tsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
@@ -129,9 +133,9 @@
               "$type": "Document",
               "DocumentIndex": 3,
               "Title": "KnowledgeHub.tsx",
-              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\KnowledgeHub.tsx",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\KnowledgeHub.tsx",
               "RelativeDocumentMoniker": "src\\renderer\\src\\KnowledgeHub.tsx",
-              "ToolTip": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\KnowledgeHub.tsx",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\KnowledgeHub.tsx",
               "RelativeToolTip": "src\\renderer\\src\\KnowledgeHub.tsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
@@ -141,9 +145,9 @@
               "$type": "Document",
               "DocumentIndex": 2,
               "Title": "DonationSupport.tsx",
-              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\DonationSupport.tsx",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\DonationSupport.tsx",
               "RelativeDocumentMoniker": "src\\renderer\\src\\DonationSupport.tsx",
-              "ToolTip": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\DonationSupport.tsx",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\DonationSupport.tsx",
               "RelativeToolTip": "src\\renderer\\src\\DonationSupport.tsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
@@ -153,9 +157,9 @@
               "$type": "Document",
               "DocumentIndex": 1,
               "Title": "CommunityLearning.tsx",
-              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\CommunityLearning.tsx",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\CommunityLearning.tsx",
               "RelativeDocumentMoniker": "src\\renderer\\src\\CommunityLearning.tsx",
-              "ToolTip": "D:\\Projects\\desktop-tutorial\\POINTYTHRUNDRA654\\desktop-tutorial\\src\\renderer\\src\\CommunityLearning.tsx",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\CommunityLearning.tsx",
               "RelativeToolTip": "src\\renderer\\src\\CommunityLearning.tsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",

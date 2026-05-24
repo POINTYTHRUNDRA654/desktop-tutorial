@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Electron Main Process for Volt Tech Desktop Wrapper
  * 
  * This is the entry point for the Electron main process.
@@ -21481,7 +21481,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         memoryLeaks: Math.random() > 0.7,
         scriptErrors: Math.floor(Math.random() * 5),
         stabilityScore: Math.floor(Math.random() * 30) + 70,
-        verdict: 'stable' || 'unstable',
+        verdict: Math.random() > 0.5 ? 'stable' : 'unstable',
         testedAt: Date.now()
       };
       diagnosticsDataStorage.set(stability.id, stability);
