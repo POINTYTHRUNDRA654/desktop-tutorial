@@ -2035,6 +2035,22 @@ function setupIpcHandlers() {
     };
   });
 
+  // Pick directory handler - used by renderer to browse for folders (Onboarding, Settings, etc.)
+  safeHandle(IPC_CHANNELS.PICK_DIRECTORY, async (_event, title?: string) => {
+    try {
+      const options: any = { properties: ['openDirectory'] };
+      if (title) options.title = String(title);
+      // Use mainWindow as parent when available to keep dialog on top
+      const win = mainWindow || null;
+      const result = await dialog.showOpenDialog(win, options);
+      if (result.canceled || !result.filePaths || result.filePaths.length === 0) return '';
+      return result.filePaths[0];
+    } catch (e: any) {
+      console.error('[Main] pick-directory error:', e?.message || e);
+      return '';
+    }
+  });
+
   forceHandle('dds-converter:get-all-presets', async () => {
     try {
       const presets = getDdsConversionPresets();
