@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import { LocalAIEngine } from './LocalAIEngine';
@@ -508,6 +508,7 @@ export const ChatInterface: React.FC = () => {
     const [isListening, setIsListening] = useState(false);
     const [isPlayingAudio, setIsPlayingAudio] = useState(false);
     const [audioLevel, setAudioLevel] = useState(0); // Audio meter level (0-100)
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
     // Bridge State
     const [isBridgeActive, setIsBridgeActive] = useState(false);
@@ -1284,6 +1285,7 @@ export const ChatInterface: React.FC = () => {
             recordingStartTime = Date.now();
 
             const mediaRecorder = new MediaRecorder(mediaStream);
+            mediaRecorderRef.current = mediaRecorder;
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
 
             mediaRecorder.onstop = async () => {
@@ -1411,6 +1413,13 @@ export const ChatInterface: React.FC = () => {
             console.error('[VoiceInput] Mic access failed:', err);
             setIsListening(false);
             toast.error(`Microphone access failed: ${err instanceof Error ? err.message : 'Unknown error'}. Check your microphone permissions.`);
+        }
+    };
+
+    const stopListening = async () => {
+        console.log('[VoiceInput] Stopping recording...');
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
         }
     };
 
@@ -2609,17 +2618,17 @@ export const ChatInterface: React.FC = () => {
                                     </label>
 
                                     <button
-                                        onClick={startListening}
-                                        disabled={isListening || isLiveActive}
+                                        onClick={isListening ? stopListening : startListening}
+                                        disabled={isLiveActive}
                                         className={`p-3 rounded-xl transition-all border ${isListening
-                                            ? 'bg-red-500/20 text-red-400 border-red-500/50 animate-pulse'
+                                            ? 'bg-red-500/20 text-red-400 border-red-500/50 animate-pulse hover:bg-red-500/30'
                                             : isLiveActive
                                                 ? 'bg-slate-900 text-slate-600 cursor-not-allowed border-transparent'
                                                 : 'bg-slate-800 text-slate-400 hover:text-white border-transparent hover:border-slate-600 hover:bg-slate-700'
                                             }`}
-                                        title={isLiveActive ? "Microphone in use by Live Interface" : "Voice Input"}
+                                        title={isLiveActive ? "Microphone in use by Live Interface" : isListening ? "Stop Recording" : "Start Recording"}
                                     >
-                                        <Mic className="w-5 h-5" />
+                                        {isListening ? <StopCircle className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                                     </button>
 
                                     {isListening && (
