@@ -201,7 +201,73 @@ const sendDiagnosticsToRenderer = (webContents: any) => {
     backendTokenLength: process.env.MOSSY_BACKEND_TOKEN ? process.env.MOSSY_BACKEND_TOKEN.length : 0,
     backendUrl: process.env.MOSSY_BACKEND_URL || 'not set',
   }
-webContents.send('main:diagnostics', diagnostics);
+// --- Local Whisper transcription IPC handler ---
+// Handles audio ArrayBuffer from renderer, writes to temp file, invokes
+// a local Python whisper service (if available) and returns JSON result.
+ipcMain.handle(IPC_CHANNELS.TRANSCRIBE_AUDIO, async (_event, arrayBuffer: ArrayBuffer, mimeType?: string) => {
+  try {
+    // Choose a safe temporary filename
+    const tmpDir = os.tmpdir();
+    const tmpName = mossy_transcribe_;
+    const ext = (typeof mimeType === 'string' && mimeType.includes('ogg')) ? '.ogg' : '.webm';
+    const tmpPath = path.join(tmpDir, tmpName + ext);
+
+    // Buffer the incoming ArrayBuffer and write to disk
+    const buffer = Buffer.from(arrayBuffer);
+    fs.writeFileSync(tmpPath, buffer);
+
+    // Determine python executable and script path. Allow override via env var
+    const pythonPath = process.env.LOCAL_WHISPER_PYTHON || 'python';
+    // Script is expected at resources/python/whisper_service.py or src/python during dev
+    const candidateScriptPaths = [
+      path.join(app.getAppPath(), 'src', 'python', 'whisper_service.py'),
+      path.join(app.getAppPath(), 'python', 'whisper_service.py'),
+      path.join(process.resourcesPath || '', 'python', 'whisper_service.py'),
+      path.join(process.cwd(), 'src', 'python', 'whisper_service.py'),
+    ];
+    const scriptPath = candidateScriptPaths.find(p => fs.existsSync(p));
+    if (!scriptPath) {
+      try { fs.unlinkSync(tmpPath); } catch {}
+      return { success: false, error: 'whisper_script_missing' };
+    }
+
+    writeMainLog([TRANSCRIBE] Spawning whisper:   );
+
+    // Spawn python process
+    const child = spawn(pythonPath, [scriptPath, tmpPath], { windowsHide: true });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (d) => { stdout += String(d); });
+    child.stderr?.on('data', (d) => { stderr += String(d); });
+
+    const exitCode: number = await new Promise((resolve) => {
+      child.on('close', (code) => resolve(code ?? 0));
+      child.on('error', () => resolve(-1));
+    });
+
+    // Clean up temp file
+    try { fs.unlinkSync(tmpPath); } catch (e) { /* ignore */ }
+
+    if (exitCode !== 0) {
+      writeMainLog([TRANSCRIBE] Whisper failed (code=): );
+      return { success: false, error: 'whisper_process_failed', details: stderr.slice(0,200) };
+    }
+
+    // Parse stdout (should be JSON object)
+    try {
+      const parsed = JSON.parse(stdout || '{}');
+      return parsed;
+    } catch (e) {
+      writeMainLog('[TRANSCRIBE] Failed to parse whisper JSON output: ' + String(e));
+      return { success: false, error: 'parse_error', raw: stdout };
+    }
+  } catch (err) {
+    console.error('[Main] transcribe-audio handler error:', err);
+    return { success: false, error: String(err?.message || err) };
+  }
+});;
+  
+  webContents.send('main:diagnostics', diagnostics);
 }
 
 const getDdsConversionPresets = () => [
@@ -32742,6 +32808,4 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason) => {
   console.error('[CRITICAL] Unhandled Rejection:', reason);
 });
-
-
 
