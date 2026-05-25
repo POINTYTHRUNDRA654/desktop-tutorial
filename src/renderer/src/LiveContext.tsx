@@ -704,6 +704,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const status = await api.getSecretStatus();
         hasOpenAI = Boolean(status?.ok && status.openai);
       }
+      // Whisper/back-end STT is preferred for faster/more reliable transcription.
+      // Browser speech recognition is used as a fallback when backend transcription
+      // is unavailable or fails during the live voice session.
       const preferredSttProvider = whisperLocalUrl || backendBaseUrl || hasOpenAI ? 'backend' : hasBrowserStt ? 'browser' : 'backend';
       voiceServiceRef.current.setSttProvider(preferredSttProvider);
       console.log('[LiveContext] Selected initial STT provider:', preferredSttProvider, { whisperLocalUrl, backendBaseUrl, hasOpenAI, hasBrowserStt });

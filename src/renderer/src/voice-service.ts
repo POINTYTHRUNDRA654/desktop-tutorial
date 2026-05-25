@@ -182,6 +182,8 @@ export class VoiceService {
     this.onError = onError;
     this.onModeChange = onModeChange;
 
+    // Use backend STT as the primary path, with browser speech recognition as
+    // a fallback if backend transcription is unavailable or fails.
     if (this.config.sttProvider === 'browser') {
       this.startBrowserSTT();
     } else if (this.config.sttProvider === 'backend') {
@@ -257,6 +259,21 @@ export class VoiceService {
       this.currentAudioElement.src = "";
       this.currentAudioElement = null;
     }
+  }
+
+  private canUseBrowserStt(): boolean {
+    return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  }
+
+  private fallbackToBrowserStt(reason?: string): boolean {
+    if (!this.canUseBrowserStt() || this.isUsingBrowserStt) {
+      return false;
+    }
+    console.warn('[VoiceService] Falling back to browser STT:', reason);
+    this.config.sttProvider = 'browser';
+    this.isUsingBrowserStt = true;
+    this.startBrowserSTT();
+    return true;
   }
 
   private async startBrowserSTT(): Promise<void> {
@@ -509,6 +526,9 @@ export class VoiceService {
             const api = (window as any).electronAPI || (window as any).electron?.api;
             if (!api?.transcribeAudio) {
               console.error('Transcription API not available');
+              if (this.fallbackToBrowserStt('transcribeAudio unavailable')) {
+                return;
+              }
               this.onError?.('Speech recognition not available. Please check your configuration.');
               return;
             }
@@ -550,6 +570,9 @@ export class VoiceService {
             if (!this.shouldStop) {
               const errorMessage = error?.message || 'Unknown error';
               console.error(`[VoiceService] ❌ Transcription failed: ${errorMessage}. Duration: ${recordingDuration}ms, Size: ${fileSizeKB} KB`);
+              if (this.fallbackToBrowserStt(errorMessage)) {
+                return;
+              }
               // Show error to user for all failures (including auth errors) so they know what's wrong
               this.onError?.(`Speech recognition failed: ${errorMessage}`);
               this.hadRecentTranscriptionError = true; // Flag for delayed restart
