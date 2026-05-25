@@ -521,17 +521,36 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setStatus(`Voice Error: ${error}`);
     setMode('idle');
 
+    const currentProvider = voiceServiceRef.current?.getSttProvider?.();
+    const browserSupported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+    if (currentProvider === 'backend' && browserSupported) {
+      console.warn('[LiveContext] Backend STT failure detected; falling back to browser STT:', error);
+      if (voiceServiceRef.current) {
+        setStatus('Switching to browser STT...');
+        voiceServiceRef.current.stopListening();
+        voiceServiceRef.current.setSttProvider('browser');
+        voiceServiceRef.current.startListening(
+          (t, sid) => handleTranscription(t, sid),
+          handleVoiceError,
+          handleModeChange
+        );
+      }
+      sttErrorsRef.current = 0;
+      setSttErrors(0);
+      return;
+    }
+
     // detect backend/transcription/auth related errors
     if (sttFallbackErrorPattern.test(error)) {
       sttErrorsRef.current += 1;
       setSttErrors(sttErrorsRef.current);
     }
 
-    // if we've seen two failures in a row, switch to browser STT for stability
-    if (sttErrorsRef.current >= 1) {
-      console.warn('[LiveContext] falling back to browser STT due to repeated errors');
+    // if we've seen repeated backend-like failures, switch to browser STT for stability
+    if (sttErrorsRef.current >= 2 && browserSupported && currentProvider !== 'browser') {
+      console.warn('[LiveContext] falling back to browser STT due to repeated transcription errors');
       if (voiceServiceRef.current) {
-        // stop current listening session and restart with new provider
         setStatus('Switching to browser STT...');
         voiceServiceRef.current.stopListening();
         voiceServiceRef.current.setSttProvider('browser');
@@ -619,8 +638,8 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     //  c) OpenAI API key (checked below)
     const hasAnyProvider = Boolean(whisperLocalUrl || backendBaseUrl);
 
-    if (backendBaseUrl) {
-      // If a backend is configured, verify it is reachable.
+    if (backendBaseUrl && !whisperLocalUrl) {
+      // If a backend is configured but no local Whisper server is set, verify it is reachable.
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 6000);
       try {
@@ -631,23 +650,24 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } catch (e: any) {
         const msg = e?.name === 'AbortError' ? 'Voice backend health check timed out.' : (e?.message || String(e));
         // Only hard-fail if no other provider is available
-        if (!whisperLocalUrl) {
+        if (!hasAnyProvider || !whisperLocalUrl) {
           throw new Error(msg);
         }
-        console.warn('[LiveContext] Backend unreachable, will use local Whisper:', msg);
+        console.warn('[LiveContext] Backend unreachable, using configured local Whisper instead:', msg);
       } finally {
         clearTimeout(timeout);
       }
     }
 
+    const hasBrowserStt = typeof window !== 'undefined' && (!!window.SpeechRecognition || !!window.webkitSpeechRecognition);
+    let hasOpenAI = false;
     if (typeof api?.getSecretStatus === 'function') {
       const status = await api.getSecretStatus();
-      const hasOpenAI = Boolean(status?.ok && status.openai);
-      if (!hasAnyProvider && !hasOpenAI) {
-        throw new Error('No voice provider configured. Set a Local Whisper URL or add an OpenAI key in Settings.');
-      }
-    } else if (!hasAnyProvider) {
-      throw new Error('No voice provider configured. Set a Local Whisper URL or backend URL in Settings → Privacy/API.');
+      hasOpenAI = Boolean(status?.ok && status.openai);
+    }
+
+    if (!hasAnyProvider && !hasOpenAI && !hasBrowserStt) {
+      throw new Error('No voice provider configured. Set a Local Whisper URL, backend URL, add an OpenAI key, or use browser speech recognition.');
     }
   };
 
@@ -677,6 +697,16 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       setIsActive(true);
       isFreshlyConnectedRef.current = true;
+
+      const hasBrowserStt = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+      let hasOpenAI = false;
+      if (typeof api?.getSecretStatus === 'function') {
+        const status = await api.getSecretStatus();
+        hasOpenAI = Boolean(status?.ok && status.openai);
+      }
+      const preferredSttProvider = whisperLocalUrl || backendBaseUrl || hasOpenAI ? 'backend' : hasBrowserStt ? 'browser' : 'backend';
+      voiceServiceRef.current.setSttProvider(preferredSttProvider);
+      console.log('[LiveContext] Selected initial STT provider:', preferredSttProvider, { whisperLocalUrl, backendBaseUrl, hasOpenAI, hasBrowserStt });
 
       console.log('[LiveContext] Calling voiceService.startListening()');
       voiceServiceRef.current.startListening(

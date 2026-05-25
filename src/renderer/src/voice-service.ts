@@ -155,6 +155,11 @@ export class VoiceService {
     this.config.sttProvider = provider;
   }
 
+  /** Returns the current STT provider in use. */
+  getSttProvider(): VoiceServiceConfig['sttProvider'] {
+    return this.config.sttProvider;
+  }
+
   async initialize(): Promise<void> {
     // Get available audio inputs
     try {
