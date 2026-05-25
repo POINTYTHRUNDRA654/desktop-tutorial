@@ -405,6 +405,41 @@ describe('VoiceService — startRecording() shouldStop guard', () => {
 
     expect(getUserMediaMock).toHaveBeenCalledOnce();
   });
+
+  it('falls back to browser STT when backend transcription is unavailable and browser STT is supported', () => {
+    const service = makeBackendService();
+    Object.defineProperty(global, 'SpeechRecognition', {
+      value: class MockRecognition {},
+      configurable: true,
+      writable: true,
+    });
+    // Replace internal startBrowserSTT implementation to avoid browser-specific behavior.
+    priv(service).startBrowserSTT = vi.fn();
+
+    const result = priv(service).fallbackToBrowserStt('transcribeAudio unavailable');
+
+    expect(result).toBe(true);
+    expect(priv(service).config.sttProvider).toBe('browser');
+    expect(priv(service).isUsingBrowserStt).toBe(true);
+    expect(priv(service).startBrowserSTT).toHaveBeenCalled();
+  });
+
+  it('does not fallback to browser STT when browser support is unavailable', () => {
+    const service = makeBackendService();
+    Object.defineProperty(global, 'SpeechRecognition', {
+      value: undefined,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(global, 'webkitSpeechRecognition', {
+      value: undefined,
+      configurable: true,
+      writable: true,
+    });
+    const result = priv(service).fallbackToBrowserStt('no browser STT');
+    expect(result).toBe(false);
+    expect(priv(service).isUsingBrowserStt).toBe(false);
+  });
 });
 
 // ─── Suite 4: stopSpeaking() — mic restart after TTS stop ─────────────────────
