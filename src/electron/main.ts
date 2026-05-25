@@ -200,9 +200,8 @@ const sendDiagnosticsToRenderer = (webContents: any) => {
     backendTokenLoaded: !!process.env.MOSSY_BACKEND_TOKEN,
     backendTokenLength: process.env.MOSSY_BACKEND_TOKEN ? process.env.MOSSY_BACKEND_TOKEN.length : 0,
     backendUrl: process.env.MOSSY_BACKEND_URL || 'not set',
-  };
-  
-  webContents.send('main:diagnostics', diagnostics);
+  }
+webContents.send('main:diagnostics', diagnostics);
 }
 
 const getDdsConversionPresets = () => [
@@ -32743,3 +32742,6 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason) => {
   console.error('[CRITICAL] Unhandled Rejection:', reason);
 });
+
+
+

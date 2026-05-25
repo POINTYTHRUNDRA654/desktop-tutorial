@@ -39,6 +39,7 @@ const VoiceChat: React.FC = () => {
   const liveContext = useLive() || fallbackLive;
   const { isActive, isMuted, toggleMute, disconnect, stopSpeaking, mode, connect, transcription, lastResponse, micLevel, audioInputs, selectedInputId, setSelectedInputId, sendTextMessage } = liveContext;
   const [isConnecting, setIsConnecting] = useState(false);
+  const [micDisabled, setMicDisabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedStep, setExpandedStep] = useState<string>('live-session');
   const [textInput, setTextInput] = useState('');
@@ -177,7 +178,7 @@ const VoiceChat: React.FC = () => {
             className="w-full bg-black/60 text-blue-100 border border-blue-500/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
             value={selectedInputId}
             onChange={(e) => setSelectedInputId(e.target.value)}
-            disabled={isConnecting}
+            disabled={isConnecting || micDisabled}
           >
             <option value="">System Default</option>
             {audioInputs.map((d, idx) => (
@@ -187,7 +188,7 @@ const VoiceChat: React.FC = () => {
           <p className="text-[10px] text-blue-200/60 mt-1">If Mossy hears herself, pick your physical mic (not Stereo Mix).</p>
         </div>
         <button
-          onClick={() => isActive ? disconnect() : handleConnect()}
+          onClick={() => { if (micDisabled) return; setMicDisabled(true); setTimeout(()=>setMicDisabled(false),500); isActive ? disconnect() : handleConnect(); }}
           disabled={isConnecting}
           className={`group relative flex items-center justify-center w-24 h-24 rounded-full transition-all duration-500 shadow-2xl ${isActive
             ? 'bg-red-600 shadow-red-600/40 hover:bg-red-500'
@@ -213,7 +214,7 @@ const VoiceChat: React.FC = () => {
         {isActive && (
           <div className="flex gap-3">
             <button
-              onClick={toggleMute}
+              onClick={() => { if (micDisabled) return; setMicDisabled(true); setTimeout(()=>setMicDisabled(false),500); toggleMute(); }}
               className={`p-3 rounded-xl border transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest ${isMuted
                 ? 'bg-red-500/10 border-red-500/50 text-red-400'
                 : 'bg-blue-500/10 border-blue-500/50 text-blue-400 hover:bg-blue-500/20'
