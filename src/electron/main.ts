@@ -208,7 +208,7 @@ ipcMain.handle(IPC_CHANNELS.TRANSCRIBE_AUDIO, async (_event, arrayBuffer: ArrayB
   try {
     // Choose a safe temporary filename
     const tmpDir = os.tmpdir();
-    const tmpName = mossy_transcribe_;
+    const tmpName = 'mossy_transcribe_';
     const ext = (typeof mimeType === 'string' && mimeType.includes('ogg')) ? '.ogg' : '.webm';
     const tmpPath = path.join(tmpDir, tmpName + ext);
 
@@ -231,7 +231,7 @@ ipcMain.handle(IPC_CHANNELS.TRANSCRIBE_AUDIO, async (_event, arrayBuffer: ArrayB
       return { success: false, error: 'whisper_script_missing' };
     }
 
-    writeMainLog([TRANSCRIBE] Spawning whisper:   );
+    writeMainLog('[TRANSCRIBE] Spawning whisper:   ');
 
     // Spawn python process
     const child = spawn(pythonPath, [scriptPath, tmpPath], { windowsHide: true });
@@ -249,7 +249,7 @@ ipcMain.handle(IPC_CHANNELS.TRANSCRIBE_AUDIO, async (_event, arrayBuffer: ArrayB
     try { fs.unlinkSync(tmpPath); } catch (e) { /* ignore */ }
 
     if (exitCode !== 0) {
-      writeMainLog([TRANSCRIBE] Whisper failed (code=): );
+      writeMainLog(`[TRANSCRIBE] Whisper failed (code=${exitCode}): `);
       return { success: false, error: 'whisper_process_failed', details: stderr.slice(0,200) };
     }
 
