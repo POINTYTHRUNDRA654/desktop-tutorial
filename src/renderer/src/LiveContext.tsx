@@ -198,7 +198,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Initialize voice service
   useEffect(() => {
     const config: VoiceServiceConfig = {
-      sttProvider: 'backend', // Use backend STT if available, fallback to browser
+      sttProvider: 'local', // Use local Whisper (on-device, offline); falls back to browser STT on error
       ttsProvider: 'browser',
     };
 
@@ -447,9 +447,25 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const aiStartTime = Date.now();
       console.log('[LiveContext] 🎯 Calling LocalAIEngine.generateResponse for voice');
       const systemContext = await generateSystemContextFromStorage(text);
-      const systemInstruction = getFullSystemInstruction(systemContext);
-      const priorHistory = conversationHistoryRef.current.slice(-30);
-      const aiResult = await LocalAIEngine.generateResponse(text, systemInstruction, priorHistory);
+      const baseSystemInstruction = getFullSystemInstruction(systemContext);
+
+      // VOICE MODE: append a hard length cap so responses are speakable.
+      // The AI tends to generate 500-1000 char answers by default; for voice
+      // that translates to 60-120 seconds of TTS — way too long. Cap at ~60 words.
+      // Also trim history to the last 6 messages (3 exchanges) to reduce the
+      // context payload sent to Groq, which significantly cuts response latency.
+      const voiceModeDirective = '\n\n### VOICE RESPONSE MODE ###\n' +
+        'You are responding to a spoken voice query. Your answer will be read aloud by text-to-speech. ' +
+        'STRICT RULES: (1) Keep your response under 60 words. (2) No bullet points, no numbered lists, no markdown. ' +
+        '(3) Speak in plain conversational sentences only. (4) If the answer genuinely needs more detail, give the short version and offer to elaborate.';
+      const systemInstruction = baseSystemInstruction + voiceModeDirective;
+
+      // Use only the 6 most recent history messages (3 exchanges) for voice —
+      // reduces Groq payload size and cuts response latency significantly.
+      const priorHistory = conversationHistoryRef.current.slice(-6);
+      // voiceMode=true: skips the response guard (which makes a second full API
+      // call and doubles voice latency to 100+ seconds).
+      const aiResult = await LocalAIEngine.generateResponse(text, systemInstruction, priorHistory, true);
       const aiDuration = Date.now() - aiStartTime;
       console.log('[LiveContext] ✅ AI response received - duration:', aiDuration, 'ms');
       const response = aiResult.content || 'Sorry, I encountered an error processing your request.';
@@ -585,17 +601,20 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // watchdog: if we remain in processing state for too long, restart the link
-  // Cloud LLM APIs can take 30-40+ seconds, so use 50s threshold
+  // watchdog: if we remain in processing state for too long, restart the link.
+  // Raised from 50s → 120s: the backend proxy is on Render.com free tier which
+  // can take 30-60s to cold-start, then Groq needs time to process the (large)
+  // system prompt. 50s was too aggressive and triggered mid-response, causing
+  // the disconnect/reconnect loop the user sees.
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
     if (mode === 'processing' && isActive) {
-      const PROCESSING_TIMEOUT = 50000; // 50 seconds for LLM response (allows slow networks/APIs)
-      const CHECK_INTERVAL = 51000;     // Check after timeout + 1s buffer
+      const PROCESSING_TIMEOUT = 120000; // 120 seconds — accounts for Render cold-start + Groq latency
+      const CHECK_INTERVAL = 121000;     // Check after timeout + 1s buffer
       timer = setTimeout(() => {
         if (Date.now() - processingStartRef.current > PROCESSING_TIMEOUT) {
           setStatus('Processing taking too long, restarting link...');
-          console.warn('[LiveContext] Voice AI stuck; reconnecting (exceeded 50s timeout)');
+          console.warn('[LiveContext] Voice AI stuck; reconnecting (exceeded 120s timeout)');
           disconnect();
           setTimeout(() => connect().catch(() => { }), 1000);
         }
@@ -627,19 +646,20 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error('Voice pipeline unavailable: Electron API not ready.');
     }
 
+    // Local Whisper via IPC is always available as long as the Electron API is
+    // present — it runs on the user's PC without any server URL needed.
+    const hasLocalWhisperIpc = typeof api?.transcribeAudio === 'function';
+    if (hasLocalWhisperIpc) {
+      // Local Whisper is the primary path; no backend health check needed.
+      console.log('[LiveContext] checkVoicePipeline: local Whisper IPC available, skipping backend check.');
+      return;
+    }
+
+    // Fallback: check if a cloud backend or browser STT is available.
     const settings = await api.getSettings();
     const backendBaseUrl = String(settings?.backendBaseUrl || '').trim().replace(/\/$/, '');
-    const whisperLocalUrl = String(settings?.whisperLocalUrl || '').trim();
-    const backendTokenConfigured = Boolean(settings?.backendTokenConfigured);
 
-    // Accept the session if at least one STT provider is available:
-    //  a) local Whisper server (whisperLocalUrl set)
-    //  b) cloud backend proxy (backendBaseUrl set)
-    //  c) OpenAI API key (checked below)
-    const hasAnyProvider = Boolean(whisperLocalUrl || backendBaseUrl);
-
-    if (backendBaseUrl && !whisperLocalUrl) {
-      // If a backend is configured but no local Whisper server is set, verify it is reachable.
+    if (backendBaseUrl) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 6000);
       try {
@@ -647,13 +667,11 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (!resp.ok) {
           throw new Error(`Voice backend health check failed (${resp.status}).`);
         }
+        return; // backend is reachable, we're good
       } catch (e: any) {
         const msg = e?.name === 'AbortError' ? 'Voice backend health check timed out.' : (e?.message || String(e));
-        // Only hard-fail if no other provider is available
-        if (!hasAnyProvider || !whisperLocalUrl) {
-          throw new Error(msg);
-        }
-        console.warn('[LiveContext] Backend unreachable, using configured local Whisper instead:', msg);
+        console.warn('[LiveContext] Backend unreachable:', msg);
+        // fall through to browser STT check below
       } finally {
         clearTimeout(timeout);
       }
@@ -666,8 +684,12 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       hasOpenAI = Boolean(status?.ok && status.openai);
     }
 
-    if (!hasAnyProvider && !hasOpenAI && !hasBrowserStt) {
-      throw new Error('No voice provider configured. Set a Local Whisper URL, backend URL, add an OpenAI key, or use browser speech recognition.');
+    if (!hasOpenAI && !hasBrowserStt) {
+      throw new Error(
+        'No voice provider available. ' +
+        'Local speech recognition (faster-whisper) may still be installing — ' +
+        'try again in a moment, or enable browser speech recognition in Settings.'
+      );
     }
   };
 
@@ -680,6 +702,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!voiceServiceRef.current.isSupported()) {
       throw new Error('Voice features not supported in this browser');
     }
+
+    // Resolve the Electron API once here so it's available throughout connect().
+    const api = (window as any).electron?.api || (window as any).electronAPI;
 
     try {
       console.log('[LiveContext] Resetting flags before starting');
@@ -698,18 +723,14 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsActive(true);
       isFreshlyConnectedRef.current = true;
 
+      // Pick the best available STT provider.
+      // Priority: local Whisper IPC (on-device, fastest) → browser Web Speech API (fallback)
+      // 'local' routes through whisper_service.py running on the user's PC.
       const hasBrowserStt = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-      let hasOpenAI = false;
-      if (typeof api?.getSecretStatus === 'function') {
-        const status = await api.getSecretStatus();
-        hasOpenAI = Boolean(status?.ok && status.openai);
-      }
-      // Whisper/back-end STT is preferred for faster/more reliable transcription.
-      // Browser speech recognition is used as a fallback when backend transcription
-      // is unavailable or fails during the live voice session.
-      const preferredSttProvider = whisperLocalUrl || backendBaseUrl || hasOpenAI ? 'backend' : hasBrowserStt ? 'browser' : 'backend';
+      const hasLocalWhisperIpc = typeof api?.transcribeAudio === 'function';
+      const preferredSttProvider = hasLocalWhisperIpc ? 'local' : hasBrowserStt ? 'browser' : 'local';
       voiceServiceRef.current.setSttProvider(preferredSttProvider);
-      console.log('[LiveContext] Selected initial STT provider:', preferredSttProvider, { whisperLocalUrl, backendBaseUrl, hasOpenAI, hasBrowserStt });
+      console.log('[LiveContext] Selected initial STT provider:', preferredSttProvider, { hasLocalWhisperIpc, hasBrowserStt });
 
       console.log('[LiveContext] Calling voiceService.startListening()');
       voiceServiceRef.current.startListening(

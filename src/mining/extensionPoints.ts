@@ -355,7 +355,7 @@ export class ExtensionPointManager {
 
     const running = await tool.isRunning();
     if (!running) {
-      await tool.launch();
+      await tool.launch!();
     }
 
     return await tool.execute(command, args);

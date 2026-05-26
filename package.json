@@ -1,8 +1,8 @@
 {
   "name": "mossy-ai",
   "private": true,
-  "version": "5.4.62",
-  "description": "Mossy v5.4.62 - Professional Fallout 4 modding assistant with AI, full OG/NG/AE/Creations Menu version awareness, and professional asset optimization",
+  "version": "5.4.64",
+  "description": "Mossy Universal v5.4.64 - Professional Fallout 4 modding assistant with AI, full OG/NG/AE/Creations Menu version awareness, and professional asset optimization",
   "main": "dist-electron/electron/main.js",
   "author": "POINTYTHRUNDRA654",
   "license": "MIT",
@@ -79,11 +79,8 @@
   },
   "dependencies": {
     "@emnapi/runtime": "1.8.1",
-    "@emotion/react": "11.14.0",
-    "@emotion/styled": "11.14.1",
     "@ffmpeg-installer/ffmpeg": "1.1.0",
     "@lmstudio/sdk": "1.5.0",
-    "@mui/material": "9.0.1",
     "@testing-library/dom": "10.4.1",
     "@types/archiver": "7.0.0",
     "@types/sqlite3": "3.1.11",
@@ -157,14 +154,14 @@
     "selenium-webdriver": "4.44.0",
     "tailwindcss": "4.3.0",
     "tsx": "4.22.3",
-    "typescript": "5.3.3",
+    "typescript": "^5.8.3",
     "vite": "^7.3.2",
     "vitest": "4.1.7",
     "wait-on": "^7.2.0"
   },
   "build": {
     "appId": "com.volttech.desktop",
-    "productName": "Mossy",
+    "productName": "Mossy Universal",
     "directories": {
       "output": "release"
     },
@@ -248,7 +245,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Mossy"
+      "shortcutName": "Mossy Universal"
     },
     "linux": {
       "target": "AppImage",

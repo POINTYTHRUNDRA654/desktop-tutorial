@@ -6,9 +6,9 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Image, Layers, Wand2, BookOpen, AlertCircle, ChevronRight, Zap, Sparkles } from 'lucide-react';
+import { Image, Layers, Wand2, BookOpen, AlertCircle, ChevronRight, Zap, Sparkles, FileCode2, SlidersHorizontal, Package } from 'lucide-react';
 
-// Lazy-load the three existing tool panels so the hub stays lightweight
+// Lazy-load tool panels — hub stays lightweight
 const DDSConverter = React.lazy(() =>
   import('./DDSConverter').then((m) => ({ default: m.DDSConverter }))
 );
@@ -22,20 +22,26 @@ const MaterialEditor = React.lazy(() =>
 const AssetOptimizer = React.lazy(() =>
   import('./AssetOptimizer').then((m) => ({ default: m.AssetOptimizer }))
 );
-const TextureEnhancer = React.lazy(() =>
-  import('./TextureEnhancer').then((m) => ({ default: m.TextureEnhancer }))
+const TextureEnhancer = React.lazy(() => import('./TextureEnhancer'));
+const BGSMEditor = React.lazy(() =>
+  import('./BGSMEditor').then((m) => ({ default: m.BGSMEditor }))
+);
+const MaterialDefinitionEditor = React.lazy(() =>
+  import('./MaterialDefinitionEditor').then((m) => ({ default: m.MaterialDefinitionEditor }))
 );
 
-type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'materials' | 'optimizer' | 'enhancer';
+type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'bgsm' | 'materials' | 'matdefs' | 'optimizer' | 'enhancer';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
-  { id: 'dds', icon: Image, label: 'DDS Converter', sublabel: 'BC1·BC3·BC5·BC7' },
-  { id: 'generator', icon: Wand2, label: 'Texture Generator', sublabel: 'PBR · Procedural' },
-  { id: 'images', icon: Layers, label: 'Image Studio', sublabel: 'PBR maps · Convert' },
-  { id: 'guide', icon: BookOpen, label: 'FO4 Texture Guide', sublabel: 'Formats · Channels' },
-  { id: 'materials', icon: Layers, label: 'Mat Editor', sublabel: 'BGSM/BGEM' },
-  { id: 'optimizer', icon: Zap, label: 'Optimizer', sublabel: 'Batch compress' },
-  { id: 'enhancer', icon: Sparkles, label: 'Enhancer', sublabel: 'AI upscale' },
+  { id: 'dds',       icon: Image,             label: 'DDS Converter',     sublabel: 'BC1·BC3·BC4·BC5·BC7' },
+  { id: 'generator', icon: Wand2,             label: 'Texture Generator', sublabel: 'PBR · Procedural' },
+  { id: 'images',    icon: SlidersHorizontal, label: 'Image Studio',      sublabel: 'PBR maps · Convert' },
+  { id: 'guide',     icon: BookOpen,          label: 'FO4 Texture Guide', sublabel: 'Formats · Channels' },
+  { id: 'bgsm',      icon: FileCode2,         label: 'BGSM Editor',       sublabel: 'Shader flags · PBR' },
+  { id: 'materials', icon: Layers,            label: 'Mat Editor',        sublabel: 'Shader graph' },
+  { id: 'matdefs',   icon: Package,           label: 'Mat Definitions',   sublabel: 'RMAOS manifest' },
+  { id: 'optimizer', icon: Zap,               label: 'Optimizer',         sublabel: 'Batch compress' },
+  { id: 'enhancer',  icon: Sparkles,          label: 'Enhancer',          sublabel: 'AI upscale' },
 ];
 
 // ============================================================================
@@ -352,7 +358,7 @@ const TextureMaterialsHub: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl font-black text-white tracking-tight">FO4 Textures &amp; Materials</h1>
-            <p className="text-xs text-slate-400">Convert · Generate · Reference — all texture work in one place</p>
+            <p className="text-xs text-slate-400">Convert · Generate · BGSM · Reference — complete FO4 texture &amp; material pipeline</p>
           </div>
         </div>
 
@@ -396,9 +402,19 @@ const TextureMaterialsHub: React.FC = () => {
           </PanelLoader>
         )}
         {activeTab === 'guide' && <FO4TextureGuide />}
+        {activeTab === 'bgsm' && (
+          <PanelLoader>
+            <BGSMEditor />
+          </PanelLoader>
+        )}
         {activeTab === 'materials' && (
           <PanelLoader>
             <MaterialEditor />
+          </PanelLoader>
+        )}
+        {activeTab === 'matdefs' && (
+          <PanelLoader>
+            <MaterialDefinitionEditor />
           </PanelLoader>
         )}
         {activeTab === 'optimizer' && (

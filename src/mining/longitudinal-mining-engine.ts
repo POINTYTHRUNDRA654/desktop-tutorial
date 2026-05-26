@@ -148,8 +148,8 @@ export class LongitudinalMiningEngineImpl extends EventEmitter implements Longit
       sessions.sort((a, b) => a.startTime - b.startTime);
 
       // Extract performance metrics
-      const fpsValues = sessions.map(s => s.averageFPS);
-      const memoryValues = sessions.map(s => s.peakRAM);
+      const fpsValues = sessions.map(s => s.averageFPS ?? 0);
+      const memoryValues = sessions.map(s => s.peakRAM ?? 0);
       const loadTimeValues = sessions.map(s => s.endTime - s.startTime); // Approximate load time
       const stabilityValues = sessions.map(s => 1.0); // Placeholder for stability
 
@@ -643,12 +643,12 @@ export class LongitudinalMiningEngineImpl extends EventEmitter implements Longit
       const prev = sessions[i - 1];
       const curr = sessions[i];
 
-      const fpsChange = curr.averageFPS - prev.averageFPS;
-      const memoryChange = curr.peakRAM - prev.peakRAM;
+      const fpsChange = curr.averageFPS! - prev.averageFPS!;
+      const memoryChange = curr.peakRAM! - prev.peakRAM!;
       const loadTimeChange = (curr.endTime - curr.startTime) - (prev.endTime - prev.startTime);
 
       // Detect significant changes (more than 10% or 5 FPS)
-      if (Math.abs(fpsChange) > 5 || Math.abs(fpsChange / prev.averageFPS) > 0.1) {
+      if (Math.abs(fpsChange) > 5 || Math.abs(fpsChange / prev.averageFPS!) > 0.1) {
         changes.push({
           timestamp: curr.startTime,
           changeType: fpsChange > 0 ? 'improvement' : 'degradation',
@@ -658,7 +658,7 @@ export class LongitudinalMiningEngineImpl extends EventEmitter implements Longit
         });
       }
 
-      if (Math.abs(memoryChange) > 100 || Math.abs(memoryChange / prev.peakRAM) > 0.1) {
+      if (Math.abs(memoryChange) > 100 || Math.abs(memoryChange / prev.peakRAM!) > 0.1) {
         changes.push({
           timestamp: curr.startTime,
           changeType: memoryChange > 0 ? 'degradation' : 'improvement',

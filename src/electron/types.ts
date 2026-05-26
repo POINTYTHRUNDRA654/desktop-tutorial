@@ -1041,6 +1041,9 @@ export interface ElectronAPI {
     getOllamaStatus?: (baseUrl?: string) => Promise<{ ok: boolean; baseUrl?: string; models?: string[]; error?: string }>;
     ollamaPull?: (model: string, opts?: { baseUrl?: string }) => Promise<{ ok: boolean; error?: string }>;
   };
+
+  /** Show a native confirm dialog — resolves true if user confirms, false/undefined otherwise */
+  showConfirm?: (message: string, detail?: string) => Promise<boolean | undefined>;
 }
 
 export interface VoiceChatPayload {

@@ -97,7 +97,7 @@ export class QuestEditorEngine {
 
     const validation = this.validateQuest(questId);
     if (!validation.isValid) {
-      return { success: false, errors: validation.errors };
+      return { success: false, errors: validation.errors ?? [] };
     }
 
     this.quests.set(questId, quest);
@@ -134,8 +134,8 @@ export class QuestEditorEngine {
       },
     };
 
-    quest.stages.push(stage);
-    quest.stages.sort((a, b) => a.index - b.index);
+    quest.stages!.push(stage);
+    quest.stages!.sort((a, b) => a.index - b.index);
     return stage;
   }
 
@@ -150,7 +150,7 @@ export class QuestEditorEngine {
     const quest = this.quests.get(questId);
     if (!quest) return false;
 
-    const stage = quest.stages.find((s) => s.index === stageIndex);
+    const stage = quest.stages!.find((s) => s.index === stageIndex);
     if (!stage) return false;
 
     stage.conditions = conditions;
@@ -183,8 +183,8 @@ export class QuestEditorEngine {
     };
 
     // Add objective to first stage if available
-    if (quest.stages.length > 0) {
-      quest.stages[0].objectives.push(objective);
+    if (quest.stages!.length > 0) {
+      quest.stages![0].objectives.push(objective);
     }
 
     return objective;
@@ -202,7 +202,7 @@ export class QuestEditorEngine {
     if (!quest) return false;
 
     // Find objective across all stages
-    for (const stage of quest.stages) {
+    for (const stage of quest.stages!) {
       const objective = stage.objectives.find((o) => o.id === objectiveId);
       if (objective) {
         // Store marker location in target
@@ -303,7 +303,7 @@ export class QuestEditorEngine {
     const quest = this.quests.get(questId);
     if (!quest) return null;
 
-    const scriptName = this.sanitizeScriptName(quest.questName);
+    const scriptName = this.sanitizeScriptName(quest.questName ?? '');
     const questFormId = this.generateFormId();
 
     const template = `
@@ -405,7 +405,7 @@ EndFunction
 
     const fragments: string[] = [];
 
-    for (const branchId of quest.dialogueLinks) {
+    for (const branchId of quest.dialogueLinks!) {
       const branch = this.dialogueBranches.get(branchId);
       if (!branch) continue;
 
@@ -471,41 +471,41 @@ ${this.generateDialogueConditionChecks(branch)}
     }
 
     // Validate stages
-    if (quest.stages.length === 0) {
+    if (quest.stages!.length === 0) {
       warnings.push('Quest has no stages defined');
     } else {
-      const stageIndices = new Set(quest.stages.map((s) => s.stageIndex));
+      const stageIndices = new Set(quest.stages!.map((s) => s.stageIndex));
       if (stageIndices.size !== quest.stages.length) {
         errors.push('Duplicate stage indices detected');
       }
     }
 
     // Validate objectives
-    if (quest.objectives.length === 0) {
+    if (quest.objectives!.length === 0) {
       warnings.push('Quest has no objectives');
     } else {
-      const objectiveIds = new Set(quest.objectives.map((o) => o.objectiveId));
-      if (objectiveIds.size !== quest.objectives.length) {
+      const objectiveIds = new Set(quest.objectives!.map((o) => o.objectiveId));
+      if (objectiveIds.size !== quest.objectives!.length) {
         errors.push('Duplicate objective IDs detected');
       }
     }
 
     // Validate dialogue links
-    for (const branchId of quest.dialogueLinks) {
+    for (const branchId of quest.dialogueLinks!) {
       if (!this.dialogueBranches.has(branchId)) {
         errors.push(`Referenced dialogue branch not found: ${branchId}`);
       }
     }
 
     // Validate objective markers
-    for (const objective of quest.objectives) {
+    for (const objective of quest.objectives!) {
       if (objective.marker && !objective.marker.formId && !objective.marker.coordinate) {
         warnings.push(`Objective ${objective.objectiveId} has insufficient marker data`);
       }
     }
 
     // Validate rewards
-    if (quest.rewards.length === 0) {
+    if (quest.rewards!.length === 0) {
       warnings.push('Quest has no rewards defined');
     }
 
@@ -543,9 +543,9 @@ ${this.generateDialogueConditionChecks(branch)}
     const issues: string[] = [];
 
     // Simulate stage progression
-    for (const stage of quest.stages) {
-      executedStages.push(stage.stageIndex);
-      completionPath.push(stage.description);
+    for (const stage of quest.stages!) {
+      executedStages.push(stage.stageIndex ?? 0);
+      completionPath.push(stage.description ?? '');
 
       // Check stage conditions
       if (stage.conditions.length === 0) {
@@ -553,7 +553,7 @@ ${this.generateDialogueConditionChecks(branch)}
       }
 
       // Estimate time based on objectives
-      const stageObjectives = quest.objectives.filter((o) => o.stageIndex === stage.stageIndex);
+      const stageObjectives = quest.objectives!.filter((o) => o.stageIndex === stage.stageIndex);
 
     }
 
@@ -562,16 +562,16 @@ ${this.generateDialogueConditionChecks(branch)}
 
     return {
       questId,
-      path: quest.stages,
+      path: quest.stages!,
       choices: [],
-      totalStages: quest.stages.length,
+      totalStages: quest.stages!.length,
       executedStages,
       completionPath,
-      finalStage: quest.stages.length,
+      finalStage: quest.stages!.length,
 
-      issues: [...issues, ...validation.errors],
+      issues: [...issues, ...(validation.errors ?? [])],
       warnings: [],
-      success: validation.isValid,
+      success: validation.isValid ?? false,
     };
   }
 
@@ -582,21 +582,21 @@ ${this.generateDialogueConditionChecks(branch)}
     const validation = this.validateQuest(questId);
     const suggestions: string[] = [];
 
-    if (validation.warnings.includes('Quest has no stages defined')) {
+    if (validation.warnings!.includes('Quest has no stages defined')) {
       suggestions.push('Consider adding at least 2 stages: initial and completion');
     }
 
-    if (validation.warnings.includes('Quest has no objectives')) {
+    if (validation.warnings!.includes('Quest has no objectives')) {
       suggestions.push('Add objectives to guide the player through the quest');
     }
 
-    if (validation.warnings.includes('Quest has no rewards defined')) {
+    if (validation.warnings!.includes('Quest has no rewards defined')) {
       suggestions.push('Define rewards (items, gold, experience) for quest completion');
     }
 
     return {
-      errors: validation.errors,
-      warnings: validation.warnings,
+      errors: validation.errors ?? [],
+      warnings: validation.warnings ?? [],
       suggestions,
     };
   }
@@ -627,9 +627,9 @@ ${this.generateDialogueConditionChecks(branch)}
   }
 
   private generateStageInitialization(quest: Quest): string {
-    if (quest.stages.length === 0) return '';
+    if (quest.stages!.length === 0) return '';
 
-    const lines = quest.stages.map((stage) => {
+    const lines = quest.stages!.map((stage) => {
       return `  SetStage(${stage.stageIndex}) ; ${stage.description}`;
     });
 
@@ -637,7 +637,7 @@ ${this.generateDialogueConditionChecks(branch)}
   }
 
   private generateCompletionHandler(quest: Quest): string {
-    const rewardLines = quest.rewards
+    const rewardLines = quest.rewards!
       .map((reward) => {
         if (reward.type === 'item') {
           return `  Game.GetPlayer().AddItem(Game.GetFormFromFile(${reward.formId}, "${quest.questName}.esp"), ${reward.amount || 1})`;
@@ -652,7 +652,7 @@ ${this.generateDialogueConditionChecks(branch)}
   }
 
   private generateStageHandlers(quest: Quest): string {
-    const handlers = quest.stages
+    const handlers = quest.stages!
       .map((stage) => {
         return `
 ; Stage ${stage.stageIndex}: ${stage.description}
@@ -668,7 +668,7 @@ EndFunction`.trim();
   }
 
   private generateObjectiveTracking(quest: Quest): string {
-    const objectives = quest.objectives
+    const objectives = quest.objectives!
       .map((obj) => {
         return `
 ; Objective: ${obj.description}
@@ -683,9 +683,9 @@ EndFunction`.trim();
   }
 
   private generateRewardDistribution(quest: Quest): string {
-    if (quest.rewards.length === 0) return '; No rewards';
+    if (quest.rewards!.length === 0) return '; No rewards';
 
-    return quest.rewards
+    return quest.rewards!
       .map((reward, index) => {
         return `
 ; Reward ${index + 1}: ${reward.description}
@@ -711,9 +711,9 @@ EndFunction`.trim();
   }
 
   private generateDialogueConditionChecks(branch: DialogueBranch): string {
-    if (branch.conditions.length === 0) return '; No special conditions';
+    if (branch.conditions!.length === 0) return '; No special conditions';
 
-    return branch.conditions
+    return branch.conditions!
       .map((cond, index) => {
         return `
 ; Condition ${index + 1}
@@ -728,7 +728,7 @@ EndFunction`.trim();
     const dependencies: Set<string> = new Set();
 
     // Add stage dependencies
-    for (const stage of quest.stages) {
+    for (const stage of quest.stages!) {
       for (const condition of stage.conditions || []) {
         if ((condition as any).type === 'quest') {
           dependencies.add(`Quest.${(condition as any).questId}`);
@@ -737,7 +737,7 @@ EndFunction`.trim();
     }
 
     // Add objective dependencies
-    for (const objective of quest.objectives) {
+    for (const objective of quest.objectives!) {
       if (objective.marker?.formId) {
         dependencies.add(`Actor.${objective.targetFormId}`);
       }

@@ -412,13 +412,13 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
     onComplete();
   };
 
-  const handleSkipTutorial = () => {
-    if (confirm('Are you sure you want to exit the tutorial? You can always access it later from the guide menu.')) {
-      localStorage.setItem('mossy_tutorial_skipped', 'true');
-      localStorage.removeItem('mossy_tutorial_step');
-      localStorage.removeItem('mossy_tutorial_completed_steps');
-      onSkip();
-    }
+  const handleSkipTutorial = async () => {
+    const ok = await window.electronAPI?.showConfirm?.('Exit the tutorial?', 'You can always access it later from the guide menu.');
+    if (!ok) return;
+    localStorage.setItem('mossy_tutorial_skipped', 'true');
+    localStorage.removeItem('mossy_tutorial_step');
+    localStorage.removeItem('mossy_tutorial_completed_steps');
+    onSkip();
   };
 
   const renderInline = (text: string) => {

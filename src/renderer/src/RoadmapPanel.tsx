@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { 
   CheckCircle2, 
   Circle, 
@@ -82,24 +83,30 @@ const RoadmapPanel: React.FC = () => {
   const handleGenerateAI = async () => {
     if (!newGoal.trim()) return;
     if (!currentProjectId) {
-      console.error('Cannot generate roadmap: no active project selected');
+      toast.error('No active project selected. Open the Project Hub and select a project first.');
       return;
     }
-    
+
     try {
       setGenerating(true);
-      const result = await window.electron.api.invoke('roadmap-generate-ai', { 
+      toast.loading('Mossy is building your roadmap…', { id: 'roadmap-gen', duration: 30000 });
+      const result = await window.electron.api.invoke('roadmap-generate-ai', {
         prompt: newGoal,
         projectId: currentProjectId
       });
-      
+
       if (result.ok) {
         setRoadmaps([result.roadmap, ...roadmaps]);
         setActiveRoadmap(result.roadmap);
         setNewGoal('');
+        const label = result.roadmap.aiGenerated ? 'Mossy built your roadmap!' : 'Roadmap created!';
+        toast.success(label, { id: 'roadmap-gen' });
+      } else {
+        toast.error(result.error || 'Failed to generate roadmap', { id: 'roadmap-gen' });
       }
     } catch (error) {
       console.error('AI Generation failed:', error);
+      toast.error('Failed to generate roadmap — check your connection.', { id: 'roadmap-gen' });
     } finally {
       setGenerating(false);
     }
@@ -210,8 +217,12 @@ const RoadmapPanel: React.FC = () => {
         {activeRoadmap ? (
           <div className="max-w-2xl mx-auto">
             <div className="mb-8">
-              <div className="flex items-center gap-2 text-blue-400 text-sm font-semibold uppercase tracking-wider mb-1">
-                <span>Active Objective</span>
+              <div className="flex items-center gap-3 mb-1">
+                <span className="text-blue-400 text-sm font-semibold uppercase tracking-wider">Active Objective</span>
+                {(activeRoadmap as any).aiGenerated
+                  ? <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">✦ Mossy-Generated</span>
+                  : <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-700/50 text-slate-400 border border-slate-700">Template</span>
+                }
               </div>
               <h2 className="text-2xl font-bold text-white capitalize">{activeRoadmap.title}</h2>
               <p className="text-slate-400 mt-2">"{activeRoadmap.goal}"</p>

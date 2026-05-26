@@ -15,6 +15,9 @@ export const CollaborationManager: React.FC<CollaborationManagerProps> = ({ embe
   const [showCreateSession, setShowCreateSession] = useState(false);
   const [newSessionName, setNewSessionName] = useState('');
   const [newSessionDescription, setNewSessionDescription] = useState('');
+  // Inline commit message — replaces window.prompt() which throws in Electron
+  const [showCommitInput, setShowCommitInput] = useState(false);
+  const [commitMessage, setCommitMessage] = useState('');
 
   useEffect(() => {
     loadCollaborationData();
@@ -260,15 +263,44 @@ export const CollaborationManager: React.FC<CollaborationManagerProps> = ({ embe
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center p-4 bg-gray-700/50 rounded">
                   <GitCommit className="w-8 h-8 text-green-400 mx-auto mb-2" />
-                  <button
-                    onClick={() => {
-                      const message = prompt('Commit message:');
-                      if (message) handleGitCommit(message);
-                    }}
-                    className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
-                  >
-                    Commit Changes
-                  </button>
+                  {showCommitInput ? (
+                    <div className="space-y-2 text-left">
+                      <input
+                        autoFocus
+                        type="text"
+                        value={commitMessage}
+                        onChange={e => setCommitMessage(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && commitMessage.trim()) {
+                            handleGitCommit(commitMessage.trim());
+                            setCommitMessage('');
+                            setShowCommitInput(false);
+                          }
+                          if (e.key === 'Escape') { setShowCommitInput(false); setCommitMessage(''); }
+                        }}
+                        placeholder="Commit message…"
+                        className="w-full px-2 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm focus:outline-none focus:border-green-500"
+                      />
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={() => { if (commitMessage.trim()) { handleGitCommit(commitMessage.trim()); setCommitMessage(''); setShowCommitInput(false); } }}
+                          disabled={!commitMessage.trim()}
+                          className="px-3 py-1 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white rounded text-xs transition-colors"
+                        >Commit</button>
+                        <button
+                          onClick={() => { setShowCommitInput(false); setCommitMessage(''); }}
+                          className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white rounded text-xs transition-colors"
+                        >Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowCommitInput(true)}
+                      className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
+                    >
+                      Commit Changes
+                    </button>
+                  )}
                 </div>
                 <div className="text-center p-4 bg-gray-700/50 rounded">
                   <GitPullRequest className="w-8 h-8 text-blue-400 mx-auto mb-2" />

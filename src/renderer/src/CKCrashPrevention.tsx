@@ -391,8 +391,9 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
       return;
     }
 
-    const approved = window.confirm(
-      `Apply ${autoFixable.length} auto-fix operation(s)? This can rename files (spaces -> underscores). Back up your mod first.`
+    const approved = await window.electronAPI?.showConfirm?.(
+      `Apply ${autoFixable.length} auto-fix operation(s)?`,
+      'This can rename files (spaces → underscores). Back up your mod first.'
     );
     if (!approved) {
       toast('Auto-fix cancelled.', { icon: '✋' });
@@ -436,6 +437,16 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
       toast.error(`Auto-fix failed: ${msg}`);
     } finally {
       setModAutoFixBusy(false);
+    }
+  };
+
+  // ── Validate alias — triggers a plugin scan; satisfies the bottom action bar ──
+  const runValidation = () => {
+    if (selectedPlugin.trim()) {
+      void runPluginScan(selectedPlugin.trim());
+    } else {
+      setActiveTab('preflight');
+      toast('Select a plugin or mod folder first, then click Validate.', { icon: '📁' });
     }
   };
 
@@ -987,3 +998,4 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
 };
 
 export default CKCrashPrevention;
+

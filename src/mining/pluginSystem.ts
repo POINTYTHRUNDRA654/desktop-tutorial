@@ -68,7 +68,7 @@ export class PluginSystemEngine {
       // Validate plugin before loading
       const validation = await this.validatePlugin(pluginPath);
       if (!validation.valid) {
-        throw new Error(`Plugin validation failed: ${validation.errors.join(', ')}`);
+        throw new Error(`Plugin validation failed: ${(validation.errors ?? []).join(', ')}`);
       }
 
       this.plugins.set(plugin.id, plugin);
@@ -174,7 +174,7 @@ export class PluginSystemEngine {
 
     // Remove plugin directory
     try {
-      await fs.rm(plugin.path, { recursive: true, force: true });
+      await fs.rm(plugin.path!, { recursive: true, force: true });
     } catch (error) {
       console.warn(`Failed to remove plugin directory: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -228,8 +228,8 @@ export class PluginSystemEngine {
     for (const listing of this.marketplace.values()) {
       if (
         listing.name.toLowerCase().includes(lowerQuery) ||
-        listing.description.toLowerCase().includes(lowerQuery) ||
-        listing.tags.some((t) => t.toLowerCase().includes(lowerQuery))
+        (listing.description ?? '').toLowerCase().includes(lowerQuery) ||
+        (listing.tags ?? []).some((t) => t.toLowerCase().includes(lowerQuery))
       ) {
         results.push(listing);
       }
@@ -310,7 +310,7 @@ export class PluginSystemEngine {
       }
 
       // Check manifest version format
-      if (!this.isValidVersion(manifest.version)) {
+      if (!this.isValidVersion(manifest.version ?? '')) {
         warnings.push('Invalid version format in manifest');
       }
 
@@ -337,7 +337,7 @@ export class PluginSystemEngine {
    */
   async checkPermissions(plugin: Plugin, requiredPermissions: string[]): Promise<boolean> {
     for (const required of requiredPermissions) {
-      if (!plugin.permissions.includes(required)) {
+      if (!(plugin.permissions ?? []).includes(required)) {
         return false;
       }
     }
@@ -376,7 +376,7 @@ export class PluginSystemEngine {
     const results: any[] = [];
 
     for (const point of points) {
-      const plugin = this.plugins.get(point.pluginId);
+      const plugin = this.plugins.get(point.pluginId!);
       if (plugin && plugin.enabled) {
         try {
           const result = await point.handler(context);
@@ -448,7 +448,7 @@ export class PluginSystemEngine {
   private async checkDependencies(plugin: Plugin): Promise<string[]> {
     const warnings: string[] = [];
 
-    for (const dep of plugin.dependencies) {
+    for (const dep of (plugin.dependencies ?? [])) {
       if (!this.plugins.has(dep)) {
         warnings.push(`Dependency ${dep} is not installed or loaded`);
       }

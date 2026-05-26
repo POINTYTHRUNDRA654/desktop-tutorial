@@ -45,11 +45,11 @@ export class PerformanceAnalyzer implements IPerformanceAnalyzer {
 
   private findBaselineMetrics(metrics: PerformanceMetric[]): PerformanceMetric {
     // Find metrics with minimal or no mods
-    let baseline = metrics.find(m => m.modCombination.length === 0);
+    let baseline = metrics.find(m => m.modCombination!.length === 0);
     if (!baseline) {
       // Find combination with least mods
       baseline = metrics.reduce((min, current) =>
-        current.modCombination.length < min.modCombination.length ? current : min
+        current.modCombination!.length < min.modCombination!.length ? current : min
       );
     }
     return baseline;
@@ -62,7 +62,7 @@ export class PerformanceAnalyzer implements IPerformanceAnalyzer {
     const modMetrics = new Map<string, PerformanceMetric[]>();
 
     for (const metric of metrics) {
-      for (const mod of metric.modCombination) {
+      for (const mod of metric.modCombination!) {
         if (!modMetrics.has(mod)) {
           modMetrics.set(mod, []);
         }
@@ -76,9 +76,9 @@ export class PerformanceAnalyzer implements IPerformanceAnalyzer {
 
       for (const metric of modMetricsList) {
         // Find comparable metric without this mod
-        const withoutMod = metric.modCombination.filter(m => m !== mod);
+        const withoutMod = metric.modCombination!.filter(m => m !== mod);
         const comparableMetric = metrics.find(m =>
-          this.arraysEqual(m.modCombination.sort(), withoutMod.sort())
+          this.arraysEqual(m.modCombination!.sort(), withoutMod.sort())
         );
 
         if (comparableMetric && this.baselineMetrics) {
@@ -171,21 +171,21 @@ export class PerformanceAnalyzer implements IPerformanceAnalyzer {
     const pairs: Array<[string, string, PerformanceImpact]> = [];
 
     for (const metric of metrics) {
-      if (metric.modCombination.length >= 2 && (typeof metric.fps === 'number' ? metric.fps : 0) < 30) { // Very low FPS
+      if (metric.modCombination!.length >= 2 && (typeof metric.fps === 'number' ? metric.fps : 0) < 30) { // Very low FPS
         // Check if individual mods perform better
-        for (let i = 0; i < metric.modCombination.length; i++) {
-          for (let j = i + 1; j < metric.modCombination.length; j++) {
-            const mod1 = metric.modCombination[i];
-            const mod2 = metric.modCombination[j];
+        for (let i = 0; i < metric.modCombination!.length; i++) {
+          for (let j = i + 1; j < metric.modCombination!.length; j++) {
+            const mod1 = metric.modCombination![i];
+            const mod2 = metric.modCombination![j];
 
             // Find metrics with just mod1
             const mod1Only = metrics.find(m =>
-              m.modCombination.length === 1 && m.modCombination[0] === mod1
+              m.modCombination!.length === 1 && m.modCombination![0] === mod1
             );
 
             // Find metrics with just mod2
             const mod2Only = metrics.find(m =>
-              m.modCombination.length === 1 && m.modCombination[0] === mod2
+              m.modCombination!.length === 1 && m.modCombination![0] === mod2
             );
 
             if (mod1Only && mod2Only) {
@@ -216,7 +216,7 @@ export class PerformanceAnalyzer implements IPerformanceAnalyzer {
     // Get all unique mods
     const allMods = new Set<string>();
     for (const metric of metrics) {
-      metric.modCombination.forEach(mod => allMods.add(mod));
+      metric.modCombination!.forEach(mod => allMods.add(mod));
     }
 
     // Initialize matrix
@@ -229,8 +229,8 @@ export class PerformanceAnalyzer implements IPerformanceAnalyzer {
 
     // Calculate compatibility scores
     for (const metric of metrics) {
-      if (metric.modCombination.length === 2) {
-        const [mod1, mod2] = metric.modCombination.sort();
+      if (metric.modCombination!.length === 2) {
+        const [mod1, mod2] = metric.modCombination!.sort();
         const score = this.calculateCompatibilityScore(metric);
         matrix.get(mod1)!.set(mod2, score);
         matrix.get(mod2)!.set(mod1, score);
@@ -272,7 +272,7 @@ export class PerformanceAnalyzer implements IPerformanceAnalyzer {
 
   private calculateConfidence(mod: string, metrics: PerformanceMetric[]): number {
     // Count how many times this mod appears in metrics
-    const appearances = metrics.filter(m => m.modCombination.includes(mod)).length;
+    const appearances = metrics.filter(m => m.modCombination!.includes(mod)).length;
     return Math.min(95, appearances * 10 + 50); // More data = higher confidence
   }
 

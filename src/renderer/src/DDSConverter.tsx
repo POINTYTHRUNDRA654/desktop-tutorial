@@ -16,9 +16,34 @@ import {
 // Types
 // ============================================================================
 
-type TextureFormat = 'DDS_DXT1' | 'DDS_DXT3' | 'DDS_DXT5' | 'DDS_BC5' | 'DDS_BC7' | 'DDS_UNCOMPRESSED' | 'PNG' | 'TGA' | 'BMP' | 'JPG';
-type TextureType = 'diffuse' | 'normal' | 'specular' | 'emissive' | 'roughness' | 'metallic';
+type TextureFormat = 'DDS_DXT1' | 'DDS_DXT3' | 'DDS_DXT5' | 'DDS_BC5' | 'DDS_BC7' | 'DDS_BC4' | 'DDS_BC6H' | 'DDS_UNCOMPRESSED' | 'PNG' | 'TGA' | 'BMP' | 'JPG';
+type TextureType = 'diffuse' | 'normal' | 'specular' | 'emissive' | 'height' | 'roughness' | 'metallic' | 'ao' | 'cubemap' | 'rmaos';
 type ActiveSection = 'single' | 'batch' | 'guide';
+
+// FO4 smart format suggestions based on filename suffix
+const FO4_SUFFIX_MAP: Record<string, { format: TextureFormat; type: TextureType; label: string }> = {
+  '_d':     { format: 'DDS_DXT1', type: 'diffuse',   label: 'Diffuse (opaque)' },
+  '_da':    { format: 'DDS_DXT5', type: 'diffuse',   label: 'Diffuse (alpha)' },
+  '_n':     { format: 'DDS_BC5',  type: 'normal',    label: 'Normal Map' },
+  '_s':     { format: 'DDS_DXT5', type: 'specular',  label: 'Specular/PBR Pack' },
+  '_g':     { format: 'DDS_DXT1', type: 'emissive',  label: 'Glow/Emissive' },
+  '_e':     { format: 'DDS_DXT1', type: 'emissive',  label: 'Emissive' },
+  '_h':     { format: 'DDS_BC4',  type: 'height',    label: 'Height/Parallax' },
+  '_m':     { format: 'DDS_DXT1', type: 'metallic',  label: 'Metallic/Highlight' },
+  '_r':     { format: 'DDS_BC7',  type: 'roughness', label: 'Roughness (PBR)' },
+  '_ao':    { format: 'DDS_BC4',  type: 'ao',        label: 'Ambient Occlusion' },
+  '_rmaos': { format: 'DDS_BC7',  type: 'rmaos',     label: 'PBR Pack (RMAOS)' },
+  '_cube':  { format: 'DDS_BC6H', type: 'cubemap',   label: 'HDR Cubemap' },
+  '_env':   { format: 'DDS_BC6H', type: 'cubemap',   label: 'Environment Map' },
+};
+
+function detectFO4Suffix(filename: string): typeof FO4_SUFFIX_MAP[string] | null {
+  const base = filename.replace(/\.[^.]+$/, '').toLowerCase();
+  for (const [suffix, info] of Object.entries(FO4_SUFFIX_MAP)) {
+    if (base.endsWith(suffix)) return info;
+  }
+  return null;
+}
 
 interface ConversionSettings {
   format: TextureFormat;
@@ -70,6 +95,7 @@ export const DDSConverter: React.FC = () => {
     quality: 'high',
     flipY: false
   });
+  const [fo4Suggestion, setFo4Suggestion] = useState<typeof FO4_SUFFIX_MAP[string] | null>(null);
   const [singleConverting, setSingleConverting] = useState(false);
   const [singleResult, setSingleResult] = useState<any>(null);
 
@@ -84,12 +110,22 @@ export const DDSConverter: React.FC = () => {
   });
   const [formatMappingEnabled, setFormatMappingEnabled] = useState(true);
   const [formatRules, setFormatRules] = useState<FormatMappingRule[]>([
-    { pattern: '*_n.png', format: 'DDS_BC5', enabled: true },
-    { pattern: '*_d.png', format: 'DDS_DXT1', enabled: true },
-    { pattern: '*_s.png', format: 'DDS_DXT5', enabled: true },
-    { pattern: '*_g.png', format: 'DDS_DXT1', enabled: true },
-    { pattern: '*_m.png', format: 'DDS_BC7', enabled: true },
-    { pattern: '*_r.png', format: 'DDS_BC7', enabled: true }
+    { pattern: '*_n.png',     format: 'DDS_BC5',  enabled: true  },
+    { pattern: '*_n.tga',     format: 'DDS_BC5',  enabled: true  },
+    { pattern: '*_d.png',     format: 'DDS_DXT1', enabled: true  },
+    { pattern: '*_d.tga',     format: 'DDS_DXT1', enabled: true  },
+    { pattern: '*_da.png',    format: 'DDS_DXT5', enabled: true  },
+    { pattern: '*_s.png',     format: 'DDS_DXT5', enabled: true  },
+    { pattern: '*_s.tga',     format: 'DDS_DXT5', enabled: true  },
+    { pattern: '*_g.png',     format: 'DDS_DXT1', enabled: true  },
+    { pattern: '*_e.png',     format: 'DDS_DXT1', enabled: true  },
+    { pattern: '*_h.png',     format: 'DDS_BC4',  enabled: true  },
+    { pattern: '*_h.tga',     format: 'DDS_BC4',  enabled: true  },
+    { pattern: '*_ao.png',    format: 'DDS_BC4',  enabled: true  },
+    { pattern: '*_rmaos.png', format: 'DDS_BC7',  enabled: true  },
+    { pattern: '*_m.png',     format: 'DDS_DXT1', enabled: true  },
+    { pattern: '*_r.png',     format: 'DDS_BC7',  enabled: true  },
+    { pattern: '*_cube.dds',  format: 'DDS_BC6H', enabled: false },
   ]);
   const [batchConverting, setBatchConverting] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, currentFile: '' });
@@ -143,6 +179,19 @@ export const DDSConverter: React.FC = () => {
         size: 0,
         preview: undefined
       });
+
+      // FO4 smart suggestion
+      const suggestion = detectFO4Suffix(fileName);
+      setFo4Suggestion(suggestion);
+      if (suggestion) {
+        setSingleSettings(prev => ({
+          ...prev,
+          format: suggestion.format,
+          textureType: suggestion.type,
+          // Normal maps should never have flipY on FO4 (DX normal convention)
+          flipY: false,
+        }));
+      }
 
       // Detect format
       const formatResult = await (window.electron.api as any).ddsDetectFormat(filePath);
@@ -456,6 +505,24 @@ export const DDSConverter: React.FC = () => {
               Conversion Settings
             </h2>
 
+            {/* FO4 Smart Suggestion Banner */}
+            {fo4Suggestion && (
+              <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-emerald-900/40 border border-emerald-500/50 rounded-lg">
+                <CheckCircle size={16} className="text-emerald-400 flex-shrink-0" />
+                <div className="flex-1 text-sm">
+                  <span className="font-semibold text-emerald-300">FO4 Auto-Detected: </span>
+                  <span className="text-slate-200">{fo4Suggestion.label}</span>
+                  <span className="text-slate-400 ml-2">→ {fo4Suggestion.format.replace('DDS_', '')}</span>
+                </div>
+                <button
+                  onClick={() => setFo4Suggestion(null)}
+                  className="text-slate-500 hover:text-slate-300 text-xs"
+                >
+                  dismiss
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               {/* Format Selection */}
               <div>
@@ -465,29 +532,39 @@ export const DDSConverter: React.FC = () => {
                   onChange={(e) => setSingleSettings({ ...singleSettings, format: e.target.value as TextureFormat })}
                   className="w-full bg-slate-700 border border-gray-600 rounded px-3 py-2"
                 >
-                  <option value="DDS_DXT1">BC1 (DXT1) - No Alpha</option>
-                  <option value="DDS_DXT3">BC2 (DXT3) - Sharp Alpha</option>
-                  <option value="DDS_DXT5">BC3 (DXT5) - Smooth Alpha</option>
-                  <option value="DDS_BC5">BC5 - Normal Maps</option>
-                  <option value="DDS_BC7">BC7 - High Quality</option>
-                  <option value="DDS_UNCOMPRESSED">Uncompressed</option>
+                  <optgroup label="Block Compression (Recommended)">
+                    <option value="DDS_DXT1">BC1 / DXT1 — Diffuse, no alpha</option>
+                    <option value="DDS_DXT3">BC2 / DXT3 — Sharp alpha (rare)</option>
+                    <option value="DDS_DXT5">BC3 / DXT5 — Diffuse with alpha, specular</option>
+                    <option value="DDS_BC4">BC4 — Height / Parallax / AO (1-channel)</option>
+                    <option value="DDS_BC5">BC5 — Normal maps (2-channel)</option>
+                    <option value="DDS_BC7">BC7 — PBR RMAOS / high-quality</option>
+                    <option value="DDS_BC6H">BC6H — HDR Cubemaps / Environment maps</option>
+                  </optgroup>
+                  <optgroup label="Uncompressed">
+                    <option value="DDS_UNCOMPRESSED">Uncompressed RGBA32</option>
+                  </optgroup>
                 </select>
               </div>
 
               {/* Texture Type */}
               <div>
-                <label className="block text-sm font-medium mb-2">Texture Type</label>
+                <label className="block text-sm font-medium mb-2">Texture Type (FO4)</label>
                 <select
                   value={singleSettings.textureType}
                   onChange={(e) => setSingleSettings({ ...singleSettings, textureType: e.target.value as TextureType })}
                   className="w-full bg-slate-700 border border-gray-600 rounded px-3 py-2"
                 >
-                  <option value="diffuse">Diffuse</option>
-                  <option value="normal">Normal Map</option>
-                  <option value="specular">Specular</option>
-                  <option value="emissive">Emissive/Glow</option>
-                  <option value="roughness">Roughness (PBR)</option>
-                  <option value="metallic">Metallic (PBR)</option>
+                  <option value="diffuse">Diffuse / Albedo (_d)</option>
+                  <option value="normal">Normal Map (_n)</option>
+                  <option value="specular">Specular / PBR Pack (_s)</option>
+                  <option value="emissive">Emissive / Glow (_g / _e)</option>
+                  <option value="height">Height / Parallax (_h)</option>
+                  <option value="ao">Ambient Occlusion (_ao)</option>
+                  <option value="roughness">Roughness (_r)</option>
+                  <option value="metallic">Metallic (_m)</option>
+                  <option value="rmaos">PBR Pack RMAOS (_rmaos)</option>
+                  <option value="cubemap">HDR Cubemap (_cube / _env)</option>
                 </select>
               </div>
 
@@ -693,16 +770,18 @@ export const DDSConverter: React.FC = () => {
 
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Default Format</label>
+                <label className="block text-sm font-medium mb-2">Default Format (fallback)</label>
                 <select
                   value={batchSettings.format}
                   onChange={(e) => setBatchSettings({ ...batchSettings, format: e.target.value as TextureFormat })}
                   className="w-full bg-slate-700 border border-gray-600 rounded px-3 py-2 text-sm"
                 >
-                  <option value="DDS_DXT1">BC1 (DXT1)</option>
-                  <option value="DDS_DXT5">BC3 (DXT5)</option>
-                  <option value="DDS_BC5">BC5 (Normal)</option>
-                  <option value="DDS_BC7">BC7 (High Quality)</option>
+                  <option value="DDS_DXT1">BC1 / DXT1 — Diffuse</option>
+                  <option value="DDS_DXT5">BC3 / DXT5 — Alpha diffuse</option>
+                  <option value="DDS_BC4">BC4 — Height/AO</option>
+                  <option value="DDS_BC5">BC5 — Normal maps</option>
+                  <option value="DDS_BC7">BC7 — PBR / high quality</option>
+                  <option value="DDS_BC6H">BC6H — HDR cubemaps</option>
                 </select>
               </div>
 
@@ -850,35 +929,69 @@ export const DDSConverter: React.FC = () => {
             {/* BC5 */}
             <div className="bg-slate-700 rounded-lg p-4 border-2 border-purple-500">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="font-bold text-purple-400">BC5 (Recommended for Normal Maps)</h4>
+                <h4 className="font-bold text-purple-400">BC5 — Recommended for Normal Maps</h4>
                 <span className="text-xs px-2 py-1 bg-purple-900/30 text-purple-400 rounded">4:1 Compression</span>
               </div>
               <p className="text-sm text-gray-300 mb-2">
-                Optimized 2-channel compression specifically designed for normal maps. Superior to BC3.
+                Optimized 2-channel compression specifically designed for normal maps. Superior to BC3 — stores RG with full precision, shader reconstructs Z.
               </p>
               <div className="flex gap-2 text-xs">
-                <span className="px-2 py-1 bg-slate-600 rounded">2-Channel</span>
+                <span className="px-2 py-1 bg-slate-600 rounded">2-Channel RG</span>
                 <span className="px-2 py-1 bg-slate-600 rounded">8 bits/pixel</span>
                 <span className="px-2 py-1 bg-slate-600 rounded">Normal Map Optimized</span>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Use for: Normal maps, height maps (better quality than BC3)</p>
+              <p className="text-xs text-gray-500 mt-2">Use for: Normal maps (<em>_n.dds</em>). FO4 DX convention — do NOT flip G channel.</p>
+            </div>
+
+            {/* BC4 */}
+            <div className="bg-slate-700 rounded-lg p-4 border-2 border-cyan-500/60">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-bold text-cyan-400">BC4 — Height / Parallax / AO</h4>
+                <span className="text-xs px-2 py-1 bg-cyan-900/30 text-cyan-400 rounded">8:1 Compression</span>
+              </div>
+              <p className="text-sm text-gray-300 mb-2">
+                Single-channel greyscale compression. Required for POM height maps and standalone AO maps. Highest efficiency for 1-channel data.
+              </p>
+              <div className="flex gap-2 text-xs">
+                <span className="px-2 py-1 bg-slate-600 rounded">1-Channel R</span>
+                <span className="px-2 py-1 bg-slate-600 rounded">4 bits/pixel</span>
+                <span className="px-2 py-1 bg-slate-600 rounded">Greyscale Only</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">Use for: Height maps (<em>_h.dds</em>), AO maps (<em>_ao.dds</em>). Enable SF2_PARALLAX_OCCLUSION in BGSM for POM.</p>
             </div>
 
             {/* BC7 */}
             <div className="bg-slate-700 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="font-bold text-yellow-400">BC7</h4>
+                <h4 className="font-bold text-yellow-400">BC7 — PBR / High Quality</h4>
                 <span className="text-xs px-2 py-1 bg-yellow-900/30 text-yellow-400 rounded">4:1 Compression</span>
               </div>
               <p className="text-sm text-gray-300 mb-2">
-                Modern high-quality compression. Best for PBR textures (roughness, metallic).
+                Modern high-quality compression. Best visual fidelity for PBR RMAOS packs and hero diffuse assets. Encode is slow — use offline baking.
               </p>
               <div className="flex gap-2 text-xs">
-                <span className="px-2 py-1 bg-slate-600 rounded">High Quality</span>
+                <span className="px-2 py-1 bg-slate-600 rounded">RGBA High Quality</span>
                 <span className="px-2 py-1 bg-slate-600 rounded">8 bits/pixel</span>
-                <span className="px-2 py-1 bg-slate-600 rounded">Slower Encoding</span>
+                <span className="px-2 py-1 bg-slate-600 rounded">Slow to Encode</span>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Use for: PBR roughness, PBR metallic, high-quality diffuse</p>
+              <p className="text-xs text-gray-500 mt-2">Use for: PBR RMAOS packs (<em>_rmaos.dds</em>), hero-asset diffuse, specular packs.</p>
+            </div>
+
+            {/* BC6H */}
+            <div className="bg-slate-700 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-bold text-orange-400">BC6H — HDR Cubemaps</h4>
+                <span className="text-xs px-2 py-1 bg-orange-900/30 text-orange-400 rounded">HDR 4:1</span>
+              </div>
+              <p className="text-sm text-gray-300 mb-2">
+                Half-float HDR block compression. Required for environment cubemaps used in ENV_MAP shader materials. Preserves HDR lighting data.
+              </p>
+              <div className="flex gap-2 text-xs">
+                <span className="px-2 py-1 bg-slate-600 rounded">HDR Float</span>
+                <span className="px-2 py-1 bg-slate-600 rounded">6 faces (cubemap)</span>
+                <span className="px-2 py-1 bg-slate-600 rounded">TexConv / NVTT</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">Use for: ENV_MAP cubemaps. Requires TexConv or NVTT — this encoder uses CPU fallback if GPU tools absent.</p>
             </div>
           </div>
         </div>

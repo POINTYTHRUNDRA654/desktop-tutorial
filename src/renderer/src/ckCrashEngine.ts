@@ -23,6 +23,14 @@ export type CrashType =
   | 'script_error'
   | 'version_mismatch'
   | 'deprecated_framework'
+  | 'ba2_header_mismatch'
+  | 'mcm_conflict'
+  | 'sim_settlements_error'
+  | 'papyrus_script_overflow'
+  | 'loose_file_conflict'
+  | 'lod_data_corrupt'
+  | 'f4se_plugin_crash'
+  | 'audio_stream_crash'
   | 'unknown';
 
 export interface CrashDiagnosis {
@@ -337,6 +345,263 @@ export function analyzeCrashLogText(logContent: string): CrashDiagnosis {
     };
   }
 
+  // ── BA2 header version mismatch (V7/V8 on OG game, or V1 on NG) ───────────
+  if (
+    (log.includes('ba2') || log.includes('archive2') || log.includes('bsarchive')) &&
+    (log.includes('version') || log.includes('header') || log.includes('unsupported') || log.includes('0xc0000005'))
+  ) {
+    return {
+      crashType: 'ba2_header_mismatch',
+      rootCause:
+        'BA2 archive header version mismatch. The NG Creation Kit produces Header V7/V8 archives ' +
+        'that the OG game (1.10.163) cannot load. Conversely, old V1 archives may fail on 1.11.x.',
+      affectedComponent: 'BA2 Archive System (Archive2)',
+      stackTrace: extractStackTrace(logContent),
+      recommendations: [
+        '🔑 Identify which BA2 file is causing the crash — look for .ba2 filenames near the error',
+        '🔄 If on OG (1.10.163): repack the BA2 using Archive2 with explicit "--formatVersion=1" flag',
+        '🔄 If on NG/AE (1.10.982+): repack with Archive2 v2+ shipped with the NG CK (no flag needed)',
+        '📋 Run xEdit and check the BA2 file list in the mod manager — ensure all are same version family',
+        '⚙️ Consider shipping two BA2 files: one V1 (OG) and one V7 (NG) with a FOMOD selector',
+        '🛡️ General/Textures type BA2s must match — mixing OG textures in NG general archives causes this',
+      ],
+      preventable: true,
+      relatedIssues: [
+        'NG CK default output is V7/V8 — incompatible with OG',
+        'Old mods built with OG Archive2 fail on NG renderer',
+        'DDS compression format changes between OG and NG (BC7 requires NG)',
+      ],
+      confidence: 'high',
+    };
+  }
+
+  // ── MCM conflict (legacy MCM DLL vs MCM NG) ────────────────────────────────
+  if (
+    (log.includes('mcm') || log.includes('modconfigurationmenu') || log.includes('mod configuration menu')) &&
+    (log.includes('0xc0000005') || log.includes('failed') || log.includes('crash') || log.includes('dll'))
+  ) {
+    return {
+      crashType: 'mcm_conflict',
+      rootCause:
+        'MCM (Mod Configuration Menu) conflict — the legacy MCM DLL is incompatible with NG/1.11.x. ' +
+        'Both the legacy and MCM NG versions cannot be installed simultaneously.',
+      affectedComponent: 'MCM Framework DLL',
+      stackTrace: extractStackTrace(logContent),
+      recommendations: [
+        '🚫 Remove the legacy MCM DLL (the original "Mod Configuration Menu" Nexus mod)',
+        '✅ Install "MCM NG" — search Nexus for "MCM NG" (separate mod, NG-native)',
+        '🔍 If both are installed: remove legacy MCM first, then verify MCM NG is the only MCM present',
+        '⚠️ Any mod that uses MCM menus must confirm compatibility with MCM NG (most modern mods already are)',
+        '📋 After swapping: test MCM by pressing Escape → Mod Config in-game',
+      ],
+      preventable: true,
+      relatedIssues: [
+        'Legacy MCM DLL not updated for NG/1.11.x',
+        'MCM NG and legacy MCM installed simultaneously',
+        'Mods declaring MCM dependency via FOMOD may re-install legacy MCM',
+      ],
+      confidence: 'high',
+    };
+  }
+
+  // ── Sim Settlements 2 specific crashes ────────────────────────────────────
+  if (
+    log.includes('simsettlements') || log.includes('sim_settlements') ||
+    log.includes('ss2') || log.includes('city plan') ||
+    (log.includes('workshop') && (log.includes('script') || log.includes('npc')) && log.includes('alias'))
+  ) {
+    return {
+      crashType: 'sim_settlements_error',
+      rootCause:
+        'Sim Settlements 2 (SS2) script or alias chain error. SS2 uses an extremely deep Papyrus ' +
+        'script hierarchy — conflicts with other settlement/workshop mods or missing SS2 chapters ' +
+        'cause script overflow, alias failures, or city plan load crashes.',
+      affectedComponent: 'Sim Settlements 2 / Workshop Script System',
+      stackTrace: extractStackTrace(logContent),
+      recommendations: [
+        '📦 Ensure all SS2 chapters are installed in correct order: SS2 Core → Chapter 1 → Chapter 2 (if used)',
+        '🔄 Update SS2 to the latest version — its Nexus page (Nexus #47976) is actively maintained',
+        '🚫 Do NOT mix SS2 with Conquest, See You Sleep, or other settlement-hook mods without compatibility patches',
+        '⚙️ Increase Papyrus script stack: in Fallout4Custom.ini set [Papyrus] fUpdateBudgetMS=2.4 iMinMemoryPageSize=256',
+        '🔍 Run CLASSIC on this log — SS2 crashes produce distinctive alias stack traces',
+        '💾 Start a clean save after major SS2 updates — existing saves may have stale city plan data',
+        '🛡️ Install Addictol (Nexus #84214) — BakaMaxPapyrusOps inside it helps prevent SS2 overflow',
+      ],
+      preventable: true,
+      relatedIssues: [
+        'Missing SS2 chapter files',
+        'Settlement script conflicts (Conquest, SotA)',
+        'Papyrus stack overflow from deep alias chains',
+        'Stale city plan data in existing saves after SS2 update',
+      ],
+      confidence: 'high',
+    };
+  }
+
+  // ── Papyrus script overflow (AddInventoryEventFilter / RegisterForUpdate) ─
+  if (
+    (log.includes('papyrus') || log.includes('vmstackcount') || log.includes('stack depth') ||
+     log.includes('addinventoryeventfilter') || log.includes('registerforremotemotevent') ||
+     log.includes('script stack')) &&
+    (log.includes('overflow') || log.includes('stack') || log.includes('0xc0000005'))
+  ) {
+    return {
+      crashType: 'papyrus_script_overflow',
+      rootCause:
+        'Papyrus VM script stack overflow. Most commonly caused by AddInventoryEventFilter() ' +
+        'being called repeatedly without RemoveInventoryEventFilter(), or RegisterForUpdate() ' +
+        'chains that fire faster than the VM can process them.',
+      affectedComponent: 'Papyrus Virtual Machine',
+      stackTrace: extractStackTrace(logContent),
+      recommendations: [
+        '🔍 Search the log for the specific script name — it will appear near "VMStackCount" or "Stack Depth"',
+        '⚠️ If AddInventoryEventFilter: every call must be matched with a RemoveInventoryEventFilter on cleanup',
+        '⛔ Replace RegisterForUpdate() with RegisterForSingleUpdate() and chain via OnUpdate → RegisterForSingleUpdate',
+        '⚙️ Tune Papyrus budget in Fallout4Custom.ini: [Papyrus] fUpdateBudgetMS=2.4 iMinMemoryPageSize=256 iMaxMemoryPageSize=512',
+        '🛡️ Install Addictol (Nexus #84214) — BakaMaxPapyrusOps extends the VM stack limit significantly',
+        '📋 Use Papyrus Profiler (built into CK) to identify which scripts consume the most stack',
+        '🔄 Check for circular script references: Script A calls Script B, B calls A',
+      ],
+      preventable: true,
+      relatedIssues: [
+        'AddInventoryEventFilter called without matching Remove',
+        'RegisterForUpdate() in tight-loop scripts',
+        'Deep alias chain in complex quest mods',
+        'Papyrus budget too low for heavily-scripted mod lists',
+      ],
+      confidence: 'high',
+    };
+  }
+
+  // ── F4SE 0.7.7 / 1.11.x Creations Menu requirement ───────────────────────
+  if (
+    (log.includes('f4se') || log.includes('f4seloader')) &&
+    (log.includes('0.7.') || log.includes('creations') || log.includes('1.11') ||
+     log.includes('plugin version') || log.includes('runtime version mismatch'))
+  ) {
+    return {
+      crashType: 'f4se_plugin_crash',
+      rootCause:
+        'F4SE version mismatch for game version 1.11.x (Creations Menu, released November 2025). ' +
+        'F4SE 0.7.7+ is required for 1.11.x. DLL plugins compiled for 0.6.x or earlier will crash on load.',
+      affectedComponent: 'F4SE Loader / Plugin DLLs',
+      stackTrace: extractStackTrace(logContent),
+      recommendations: [
+        '🔄 Download F4SE 0.7.7+ from f4se.silverlock.org — verify the version matches your game (1.11.x)',
+        '📚 Install "Address Library for F4SE Plugins - All In One (Anniversary Edition)" build from Nexus #47327',
+        '⚠️ All F4SE DLL plugins in your load order must be rebuilt for 0.7.7 — check each mod\'s Nexus page for a "1.11.x update"',
+        '🔍 Look for lines in the F4SE log (Documents\\My Games\\Fallout4\\F4SE\\f4se.log) listing "loaded plugin" failures',
+        '🚫 Do NOT install standalone Buffout 4 NG alongside Addictol — Addictol already includes it',
+        '📋 Identify offending DLLs: every .dll in Data\\F4SE\\Plugins\\ must have a 0.7.7-compatible build',
+      ],
+      preventable: true,
+      relatedIssues: [
+        'F4SE < 0.7.7 on game version 1.11.x',
+        'Address Library using wrong build (AE vs OG)',
+        'DLL plugins not updated for 1.11.x runtime',
+      ],
+      confidence: 'high',
+    };
+  }
+
+  // ── LOD / terrain data corrupt ────────────────────────────────────────────
+  if (
+    (log.includes('lod') || log.includes('terrain') || log.includes('dyndolod') ||
+     log.includes('xlodgen') || log.includes('lgtm') || log.includes('lodgen')) &&
+    (log.includes('0xc0000005') || log.includes('access violation') || log.includes('corrupt') ||
+     log.includes('missing') || log.includes('failed to load'))
+  ) {
+    return {
+      crashType: 'lod_data_corrupt',
+      rootCause:
+        'LOD or terrain data is stale, corrupt, or generated with an incompatible tool version. ' +
+        'Occurs when DynDOLOD or xLODGen output references cells or meshes that no longer exist in the mod list.',
+      affectedComponent: 'LOD / Terrain System (DynDOLOD / xLODGen)',
+      stackTrace: extractStackTrace(logContent),
+      recommendations: [
+        '🔄 Regenerate all LOD data after any worldspace-editing mod change: run xLODGen → TexGen → DynDOLOD in that order',
+        '⚠️ DynDOLOD NG requires DynDOLOD 3.x and is separate from DynDOLOD Classic — do not mix outputs',
+        '🗑️ Delete your existing DynDOLOD output in your mod manager before regenerating',
+        '📋 Ensure DynDOLOD is placed AFTER all worldspace mods in load order (especially PRP, UFO4P)',
+        '🔍 If using SSEEdit/FO4Edit Script for LOD flags: re-run after any plugin change',
+        '💾 LGTM data (Lighting LOD): rebuild via CK → File → Build Landscape LOD if you edited exterior cells',
+      ],
+      preventable: true,
+      relatedIssues: [
+        'DynDOLOD output stale after mod list change',
+        'xLODGen terrain LOD referencing deleted cells',
+        'LGTM not rebuilt after exterior cell edits',
+        'Mixing DynDOLOD NG and Classic outputs',
+      ],
+      confidence: 'high',
+    };
+  }
+
+  // ── Audio streaming crash (XWM / FUZ corruption) ──────────────────────────
+  if (
+    (log.includes('xwm') || log.includes('.fuz') || log.includes('audio') ||
+     log.includes('bgsaudiomanager') || log.includes('soundmanager') || log.includes('bsa') &&
+     (log.includes('voice') || log.includes('sound'))) &&
+    (log.includes('0xc0000005') || log.includes('access violation') || log.includes('crash') ||
+     log.includes('stream'))
+  ) {
+    return {
+      crashType: 'audio_stream_crash',
+      rootCause:
+        'Audio streaming crash — caused by corrupt or malformed XWM/WAV/FUZ voice files, ' +
+        'or a BA2 archive with a broken audio record header. Very common in mods with custom ' +
+        'voiced dialogue that was encoded at the wrong sample rate.',
+      affectedComponent: 'BGS Audio Manager / Voice System',
+      stackTrace: extractStackTrace(logContent),
+      recommendations: [
+        '🔍 Identify the sound file: look for .fuz or .xwm filenames near the crash in the log',
+        '🔄 Re-encode all XWM files at exactly 44100 Hz, 16-bit, mono (for dialogue) using xWMAEncode.exe',
+        '📦 FUZ files must be correctly packed: use FUZ Packer to combine the XWM + LIP file pairs',
+        '🔑 Check BA2 archive integrity: open in Bethesda Archive Extractor — corrupt audio appears as 0-byte entries',
+        '⚠️ Avoid WAV files in BA2 archives without XWM conversion — the game cannot stream raw WAV from archives',
+        '🛡️ Test loose files first: extract the suspected FUZ to Data\\Sound\\Voice\\ and test without the BA2',
+      ],
+      preventable: true,
+      relatedIssues: [
+        'XWM encoded at wrong sample rate or bit depth',
+        'FUZ file with mismatched XWM + LIP pair',
+        'Corrupt BA2 archive with 0-byte audio entries',
+      ],
+      confidence: 'medium',
+    };
+  }
+
+  // ── Loose file / archive conflict (file shadowing) ────────────────────────
+  if (
+    (log.includes('loose file') || log.includes('override') || log.includes('archive conflict') ||
+     (log.includes('texture') && log.includes('overwritten')) ||
+     (log.includes('.dds') && log.includes('conflict')))
+  ) {
+    return {
+      crashType: 'loose_file_conflict',
+      rootCause:
+        'Loose file vs BA2 archive conflict — loose files in Data\\ always override BA2 archives in Fallout 4. ' +
+        'A stale loose file from a previous mod version may shadow the correct BA2 version, causing mismatched ' +
+        'mesh/texture pairs and CTDs.',
+      affectedComponent: 'File System / Archive Loader',
+      stackTrace: extractStackTrace(logContent),
+      recommendations: [
+        '🗑️ Remove all loose texture/mesh files for mods that ship BA2 archives — keep only the BA2',
+        '🔍 Check Data\\ directly for .dds or .nif files outside a BA2 — these override everything silently',
+        '📋 In MO2: use the "Data" tab to see which files are loose vs packed — sort by extension to find .dds/.nif',
+        '⚠️ Archive Invalidation must be enabled if you intentionally use loose files — add bInvalidateOlderFiles=1 to Fallout4.ini [Archive] section',
+        '🔄 When updating a mod: fully remove the old version before installing the new one to clear stale loose files',
+      ],
+      preventable: true,
+      relatedIssues: [
+        'Stale loose files from old mod version',
+        'Archive Invalidation not enabled',
+        'MO2 virtual filesystem loose-file ordering',
+      ],
+      confidence: 'medium',
+    };
+  }
+
   // ── Generic access violation ───────────────────────────────────────────────
   if (log.includes('access violation') || log.includes('0xc0000005')) {
     return {
@@ -584,6 +849,14 @@ function labelCrashType(t: CrashType): string {
     script_error: 'Script Error',
     version_mismatch: 'Version Mismatch',
     deprecated_framework: 'Deprecated Framework',
+    ba2_header_mismatch: 'BA2 Header Mismatch',
+    mcm_conflict: 'MCM Framework Conflict',
+    sim_settlements_error: 'Sim Settlements 2 Error',
+    papyrus_script_overflow: 'Papyrus Script Overflow',
+    loose_file_conflict: 'Loose File / Archive Conflict',
+    lod_data_corrupt: 'LOD / Terrain Data Corrupt',
+    f4se_plugin_crash: 'F4SE Plugin Crash (1.11.x)',
+    audio_stream_crash: 'Audio Streaming Crash',
     unknown: 'Unknown',
   };
   return labels[t] ?? t;
@@ -599,6 +872,14 @@ function crashTypeMitigation(t: CrashType): string {
     missing_asset: 'Verify all mod dependencies installed, check BA2 header version (V1 vs V2)',
     deprecated_framework: 'Remove AWKCR/DEF_UI/legacy MCM, replace with ECO/NEO/FallUI/MCM NG',
     version_mismatch: 'Install matching F4SE + Address Library AiO build for your game version',
+    ba2_header_mismatch: 'Repack BA2 with Archive2 using explicit version flag matching your game version',
+    mcm_conflict: 'Remove legacy MCM DLL, install MCM NG (separate Nexus mod)',
+    sim_settlements_error: 'Update SS2 to latest, ensure all chapters installed, increase Papyrus budget in INI',
+    papyrus_script_overflow: 'Balance AddInventoryEventFilter calls, replace RegisterForUpdate loops, install BakaMaxPapyrusOps via Addictol',
+    loose_file_conflict: 'Remove stale loose .dds/.nif files that override BA2, enable Archive Invalidation',
+    lod_data_corrupt: 'Regenerate LOD: xLODGen â TexGen â DynDOLOD; delete old output first',
+    f4se_plugin_crash: 'Install F4SE 0.7.7+ and Address Library AE build; update all F4SE DLL plugins for 1.11.x',
+    audio_stream_crash: 'Re-encode audio at 44100 Hz, repack FUZ files correctly, check BA2 audio entries for 0-byte corruption',
   };
   return m[t] ?? 'Review crash log with CLASSIC for specific guidance';
 }

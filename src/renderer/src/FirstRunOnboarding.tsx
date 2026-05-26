@@ -694,14 +694,17 @@ const normalizeProgramKey = (app: any) => {
 };
 
 const mergeDetectedPrograms = (existing: any[], fresh: any[]) => {
-    const merged = new Map<string, any>();
-    [...existing, ...fresh].forEach(app => {
+    // Use a plain object instead of Map to avoid bundler/minifier issues
+    // where Map gets renamed to a non-constructor in packaged Electron builds.
+    const merged: Record<string, any> = {};
+    const safeExisting = Array.isArray(existing) ? existing : [];
+    const safeFresh = Array.isArray(fresh) ? fresh : [];
+    [...safeExisting, ...safeFresh].forEach(app => {
         const key = normalizeProgramKey(app);
         if (!key) return;
-        const previous = merged.get(key);
-        merged.set(key, previous ? { ...previous, ...app } : app);
+        merged[key] = merged[key] ? { ...merged[key], ...app } : app;
     });
-    return Array.from(merged.values());
+    return Object.values(merged);
 };
 
 const mergeToolsByKey = (existing: any[], additions: any[]) => {
@@ -956,6 +959,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         const forceOnboarding = localStorage.getItem('mossy_force_onboarding') === 'true';
         if (forceOnboarding) {
             console.log('[FirstRunOnboarding] Force onboarding flag detected. Running full onboarding flow.');
+            // Clear the flag immediately so it doesn't re-trigger if the component
+            // re-mounts mid-flow (e.g. React StrictMode double-render, hot reload,
+            // or a crash that causes the component to unmount/remount).
+            localStorage.removeItem('mossy_force_onboarding');
             return; // Don't skip - let the user go through onboarding
         }
 

@@ -69,7 +69,7 @@ export class LoadOrderOptimizerEngine {
     // Collect all conflicts
     const allConflicts: PluginConflict[] = [];
     for (const plugin of enabledPlugins) {
-      allConflicts.push(...plugin.conflicts);
+      allConflicts.push(...plugin.conflicts!);
     }
 
     return {
@@ -212,8 +212,8 @@ export class LoadOrderOptimizerEngine {
 
     // Build nodes
     for (const plugin of plugins) {
-      const dependencies = plugin.masters.filter(m => pluginMap.has(m.toLowerCase()));
-      const dependents = plugins.filter(p => p.masters.some(m => m.toLowerCase() === plugin.fileName.toLowerCase())).map(p => p.fileName);
+      const dependencies = plugin.masters!.filter(m => pluginMap.has(m.toLowerCase()));
+      const dependents = plugins.filter(p => p.masters!.some(m => m.toLowerCase() === plugin.fileName.toLowerCase())).map(p => p.fileName);
       
       nodes.push({
         id: plugin.fileName,
@@ -235,7 +235,7 @@ export class LoadOrderOptimizerEngine {
       }
       
       // Build override edges
-      for (const override of plugin.overrides) {
+      for (const override of plugin.overrides!) {
         if (pluginMap.has(override.toLowerCase())) {
           edges.push({
             from: override,
@@ -281,25 +281,25 @@ export class LoadOrderOptimizerEngine {
       if (!plugin.enabled) continue;
 
       // Estimate load time based on file size and record count
-      const loadTime = (plugin.size / 1024 / 1024) * 0.5 + plugin.recordCount * 0.001;
+      const loadTime = (plugin.size! / 1024 / 1024) * 0.5 + plugin.recordCount! * 0.001;
       totalLoadTime += loadTime;
 
       // Estimate memory usage
-      const memory = plugin.recordCount * 0.5 + (plugin.size / 1024);
+      const memory = plugin.recordCount! * 0.5 + (plugin.size! / 1024);
       totalMemory += memory;
 
       // Script-heavy plugins
-      if (plugin.fileName.toLowerCase().includes('script') || plugin.recordCount > 10000) {
-        scriptLoad += plugin.recordCount * 0.01;
+      if (plugin.fileName.toLowerCase().includes('script') || plugin.recordCount! > 10000) {
+        scriptLoad += plugin.recordCount! * 0.01;
       }
 
       // Cell modifications
-      if (plugin.overrides.length > 100) {
-        cellLoadImpact += plugin.overrides.length * 0.1;
+      if (plugin.overrides!.length > 100) {
+        cellLoadImpact += plugin.overrides!.length * 0.1;
       }
 
       // Identify bottlenecks
-      if (plugin.size > 100 * 1024 * 1024) {
+      if (plugin.size! > 100 * 1024 * 1024) {
         bottlenecks.push({
           plugin: plugin.fileName,
           type: 'large_esp',
@@ -309,7 +309,7 @@ export class LoadOrderOptimizerEngine {
         });
       }
 
-      if (plugin.overrides.length > 500) {
+      if (plugin.overrides!.length > 500) {
         bottlenecks.push({
           plugin: plugin.fileName,
           type: 'many_overrides',
@@ -339,7 +339,7 @@ export class LoadOrderOptimizerEngine {
     let result = [...plugins];
     
     // Sort rules by priority
-    const sortedRules = rules.sort((a, b) => b.priority - a.priority);
+    const sortedRules = rules.sort((a, b) => b.priority! - a.priority!);
     
     for (const rule of sortedRules) {
       if (!rule.enabled) continue;
@@ -402,7 +402,7 @@ export class LoadOrderOptimizerEngine {
       return { success: false, destination, filePath: '', pluginCount: 0, error: 'Destination path is required' };
     }
 
-    const sorted = [...plugins].sort((a, b) => a.loadIndex - b.loadIndex);
+    const sorted = [...plugins].sort((a, b) => a.loadIndex! - b.loadIndex!);
     const lines = sorted.map(p => `${p.enabled ? '*' : ''}${p.fileName}`);
     const content = lines.join('\n');
 
@@ -469,8 +469,8 @@ export class LoadOrderOptimizerEngine {
     let maxSeverity: 'none' | 'minor' | 'major' | 'critical' = 'none';
 
     // Check for override conflicts
-    const p1Overrides = new Set(plugin1.overrides.map(o => o.toLowerCase()));
-    const p2Overrides = new Set(plugin2.overrides.map(o => o.toLowerCase()));
+    const p1Overrides = new Set(plugin1.overrides!.map(o => o.toLowerCase()));
+    const p2Overrides = new Set(plugin2.overrides!.map(o => o.toLowerCase()));
     
     for (const override of p1Overrides) {
       if (p2Overrides.has(override)) {
@@ -496,7 +496,7 @@ export class LoadOrderOptimizerEngine {
 
     for (const plugin of plugins) {
       // Check for missing masters
-      for (const master of plugin.masters) {
+      for (const master of plugin.masters!) {
         if (!pluginSet.has(master.toLowerCase())) {
           issues.push({
             plugin: plugin.fileName,
@@ -509,7 +509,7 @@ export class LoadOrderOptimizerEngine {
       }
 
       // Check for load order issues
-      const masterIndices = plugin.masters
+      const masterIndices = plugin.masters!
         .map(m => plugins.findIndex(p => p.fileName.toLowerCase() === m.toLowerCase()))
         .filter(idx => idx >= 0);
       
@@ -529,7 +529,7 @@ export class LoadOrderOptimizerEngine {
     }
 
     // Check for circular dependencies
-    for (const cycle of graph.cycles) {
+    for (const cycle of graph.cycles!) {
       issues.push({
         plugin: cycle[0],
         issue: 'circular',
@@ -543,7 +543,7 @@ export class LoadOrderOptimizerEngine {
   }
 
   private findCircularDependencies(graph: DependencyGraph): string[][] {
-    return graph.cycles;
+    return graph.cycles! ?? [];
   }
 
   private findMissingMasters(plugins: PluginInfo[]): { plugin: string; missingMaster: string }[] {
@@ -551,7 +551,7 @@ export class LoadOrderOptimizerEngine {
     const missing: { plugin: string; missingMaster: string }[] = [];
 
     for (const plugin of plugins) {
-      for (const master of plugin.masters) {
+      for (const master of plugin.masters!) {
         if (!pluginSet.has(master.toLowerCase())) {
           missing.push({
             plugin: plugin.fileName,
@@ -565,9 +565,9 @@ export class LoadOrderOptimizerEngine {
   }
 
   private calculatePerformanceScore(plugins: PluginInfo[]): number {
-    const totalSize = plugins.reduce((sum, p) => sum + p.size, 0);
-    const totalRecords = plugins.reduce((sum, p) => sum + p.recordCount, 0);
-    const totalOverrides = plugins.reduce((sum, p) => sum + p.overrides.length, 0);
+    const totalSize = plugins.reduce((sum, p) => sum + p.size!, 0);
+    const totalRecords = plugins.reduce((sum, p) => sum + p.recordCount!, 0);
+    const totalOverrides = plugins.reduce((sum, p) => sum + p.overrides!.length, 0);
 
     // Penalize large total size, many records, and excessive overrides
     const sizeScore = Math.max(0, 100 - (totalSize / 1024 / 1024 / 10));
@@ -602,7 +602,7 @@ export class LoadOrderOptimizerEngine {
           type: 'disable',
           plugin: issue.plugin,
           priority: 'critical',
-          description: `Missing master file: ${issue.affectedPlugins[0]}`,
+          description: `Missing master file: ${issue.affectedPlugins![0]}`,
           suggestedAction: `Disable ${issue.plugin} or install missing master`,
           impact: {
             stabilityImprovement: 15,
@@ -616,7 +616,7 @@ export class LoadOrderOptimizerEngine {
           plugin: issue.plugin,
           priority: 'critical',
           description: 'Master loads after dependent',
-          suggestedAction: `Move ${issue.plugin} after ${issue.affectedPlugins[0]}`,
+          suggestedAction: `Move ${issue.plugin} after ${issue.affectedPlugins![0]}`,
           impact: {
             stabilityImprovement: 20,
             performanceImprovement: 0,
@@ -631,9 +631,9 @@ export class LoadOrderOptimizerEngine {
     for (const conflict of criticalConflicts.slice(0, 5)) {
       recommendations.push({
         type: 'patch',
-        plugin: conflict.plugins[0],
+        plugin: conflict.plugins![0],
         priority: 'high',
-        description: `Critical conflict with ${conflict.plugins[1]}`,
+        description: `Critical conflict with ${conflict.plugins![1]}`,
         suggestedAction: 'Create compatibility patch or reorder plugins',
         impact: {
           stabilityImprovement: 10,
@@ -645,7 +645,7 @@ export class LoadOrderOptimizerEngine {
 
     // Sort by priority
     const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
-    return recommendations.sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]);
+    return recommendations.sort((a, b) => priorityOrder[b.priority! as 'critical'|'high'|'medium'|'low'] - priorityOrder[a.priority! as 'critical'|'high'|'medium'|'low']);
   }
 
   private async lootLikeSort(plugins: PluginInfo[], graph: DependencyGraph, rules: OptimizationRules): Promise<PluginInfo[]> {
@@ -671,14 +671,14 @@ export class LoadOrderOptimizerEngine {
   private async stabilitySort(plugins: PluginInfo[], graph: DependencyGraph): Promise<PluginInfo[]> {
     // Prioritize plugins with fewer conflicts
     return this.topologicalSort(plugins, graph).sort((a, b) => {
-      return a.conflicts.length - b.conflicts.length;
+      return a.conflicts!.length - b.conflicts!.length;
     });
   }
 
   private async performanceSort(plugins: PluginInfo[], graph: DependencyGraph): Promise<PluginInfo[]> {
     // Prioritize smaller, lighter plugins first
     return this.topologicalSort(plugins, graph).sort((a, b) => {
-      return (a.size + a.recordCount * 100) - (b.size + b.recordCount * 100);
+      return (a.size! + a.recordCount! * 100) - (b.size! + b.recordCount! * 100);
     });
   }
 
@@ -708,7 +708,7 @@ export class LoadOrderOptimizerEngine {
       const plugin = pluginMap.get(fileName.toLowerCase());
       if (plugin) {
         // Visit dependencies first
-        for (const master of plugin.masters) {
+        for (const master of plugin.masters!) {
           const masterLower = master.toLowerCase();
           if (pluginMap.has(masterLower)) {
             visit(master);
@@ -735,7 +735,7 @@ export class LoadOrderOptimizerEngine {
     let result = [...plugins];
     
     for (const priority of priorities) {
-      const index = result.findIndex(p => p.fileName.toLowerCase() === priority.plugin.toLowerCase());
+      const index = result.findIndex(p => p.fileName.toLowerCase() === priority.plugin!.toLowerCase());
       if (index === -1) continue;
       
       const plugin = result.splice(index, 1)[0];
@@ -825,9 +825,9 @@ export class LoadOrderOptimizerEngine {
         return plugin.type === condition.value;
       case 'size':
         if (condition.operator === 'greater_than') {
-          return plugin.size > Number(condition.value);
+          return plugin.size! > Number(condition.value);
         } else if (condition.operator === 'less_than') {
-          return plugin.size < Number(condition.value);
+          return plugin.size! < Number(condition.value);
         }
         break;
     }
@@ -923,10 +923,10 @@ export class LoadOrderOptimizerEngine {
   }
 
   private determineChangeReason(plugin: PluginInfo, original: PluginInfo[], optimized: PluginInfo[], from: number, to: number): string {
-    if (plugin.masters.length > 0) {
+    if (plugin.masters!.length > 0) {
       return 'Dependency resolution';
     }
-    if (plugin.conflicts.length > 0) {
+    if (plugin.conflicts!.length > 0) {
       return 'Conflict reduction';
     }
     if (to < from) {
@@ -943,7 +943,7 @@ export class LoadOrderOptimizerEngine {
     for (const plugin of plugins) {
       const pluginIndex = pluginMap.get(plugin.fileName.toLowerCase())!;
       
-      for (const master of plugin.masters) {
+      for (const master of plugin.masters!) {
         const masterIndex = pluginMap.get(master.toLowerCase());
         if (masterIndex !== undefined && masterIndex > pluginIndex) {
           warnings.push(`Warning: ${plugin.fileName} loads before its master ${master}`);

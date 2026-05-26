@@ -280,7 +280,7 @@ export class FOMODBuilderEngine {
         for (const group of step.groups) {
           const previewGroup: PreviewGroup = {
             groupName: group.name,
-            selectionType: group.type,
+            selectionType: group.type ?? '',
             options: [],
           };
 
@@ -288,10 +288,10 @@ export class FOMODBuilderEngine {
             const enabled = !option.conditions || this.evaluateConditions(option.conditions, selections);
             
             previewGroup.options.push({
-              name: option.name,
-              description: option.description,
+              name: option.name ?? '',
+              description: option.description ?? '',
               image: option.image,
-              type: option.flags.required ? 'Required' : option.flags.recommended ? 'Recommended' : 'Optional',
+              type: option.flags?.required ? 'Required' : option.flags?.recommended ? 'Recommended' : 'Optional',
               selected: selections.get(step.id)?.includes(option.id) || false,
               enabled,
             });
@@ -355,8 +355,8 @@ export class FOMODBuilderEngine {
       const allFilePatterns = this.collectAllFilePatterns(fomod);
       
       for (const pattern of allFilePatterns) {
-        const sourcePath = path.join(sourceModPath, pattern.source);
-        const destPath = path.join(outputPath, pattern.destination);
+        const sourcePath = path.join(sourceModPath, pattern.source ?? '');
+        const destPath = path.join(outputPath, pattern.destination ?? '');
 
         if (await fs.pathExists(sourcePath)) {
           await fs.copy(sourcePath, destPath);
@@ -428,7 +428,7 @@ export class FOMODBuilderEngine {
               description: option.description,
               image: option.image ? { '@_path': `fomod/images/${option.image}` } : undefined,
               files: {
-                file: option.files.map(file => ({
+                file: option.files!.map(file => ({
                   '@_source': file.source,
                   '@_destination': file.destination,
                   '@_priority': file.priority,
@@ -437,7 +437,7 @@ export class FOMODBuilderEngine {
               },
               typeDescriptor: {
                 type: {
-                  '@_name': option.flags.required ? 'Required' : option.flags.recommended ? 'Recommended' : 'Optional',
+                  '@_name': option.flags?.required ? 'Required' : option.flags?.recommended ? 'Recommended' : 'Optional',
                 },
               },
             })),
@@ -459,10 +459,10 @@ export class FOMODBuilderEngine {
     for (const step of fomod.steps) {
       for (const group of step.groups) {
         for (const option of group.options) {
-          if (option.conditions && option.files.length > 0) {
+          if (option.conditions && option.files!.length > 0) {
             conditionalPatterns.push({
               patterns: {
-                pattern: option.files.map(f => ({
+                pattern: option.files!.map(f => ({
                   '@_source': f.source,
                   '@_destination': f.destination,
                 })),
@@ -598,7 +598,7 @@ export class FOMODBuilderEngine {
     for (const step of fomod.steps) {
       for (const group of step.groups) {
         for (const option of group.options) {
-          for (const file of option.files) {
+          for (const file of option.files ?? []) {
             const key = `${file.source}:${file.destination}`;
             if (!seen.has(key)) {
               seen.add(key);

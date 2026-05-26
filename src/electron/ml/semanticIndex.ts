@@ -20,7 +20,8 @@ export type SemanticIndex = {
 
 type EmbeddingVector = Float32Array
 
-const DEFAULT_MODEL = 'Xenova/all-MiniLM-L6-v2'
+// Model string = cache-bust key. Bump when embedding algorithm changes.
+const DEFAULT_MODEL = 'local-fnv1a-tfidf-bigram-trigram-v2'
 const INDEX_VERSION = 1 as const
 
 function getIndexFilePath(): string {
@@ -140,8 +141,8 @@ function chunkMarkdown(sourcePath: string, markdown: string): Array<{ title: str
   }
   pushSection()
 
-  const maxChars = 1200
-  const overlap = 200
+  const maxChars = 2000   // technical docs need more context per chunk
+  const overlap = 300    // increased proportionally
 
   const chunks: Array<{ title: string; content: string }> = []
 
@@ -170,9 +171,19 @@ let cachedEmbedder:
   | ((text: string) => Promise<EmbeddingVector>)
   | { pending: Promise<(text: string) => Promise<EmbeddingVector>> } = null
 
-const LOCAL_EMBED_DIM = 384
+const LOCAL_EMBED_DIM = 512
+
+// Stop words — excluded from unigrams, kept in bigrams/trigrams for phrase capture
+const STOP_WORDS = new Set([
+  'the','a','an','and','or','but','in','on','at','to','for','of','with','by',
+  'from','is','are','was','were','be','been','has','have','had','do','does',
+  'did','will','would','could','should','may','might','shall','can','this',
+  'that','these','those','it','its','they','them','their','we','our','you',
+  'your','he','she','his','her','i','me','my','not','no','so','if','as',
+])
 
 function hashToken(token: string): number {
+  // FNV-1a — low collision rate for short strings
   let hash = 2166136261
   for (let i = 0; i < token.length; i++) {
     hash ^= token.charCodeAt(i)
@@ -181,28 +192,56 @@ function hashToken(token: string): number {
   return hash >>> 0
 }
 
-function tokenizeForEmbedding(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter((token) => token.length > 1)
+function hashPair(h1: number, h2: number): number {
+  return (Math.imul(h1, 31) ^ h2) >>> 0
 }
 
+function tokenizeForEmbedding(text: string): { unigrams: string[]; all: string[] } {
+  const raw = text
+    .toLowerCase()
+    .replace(/[^a-z0-9_\-\s]/g, ' ')
+    .split(/\s+/)
+    .filter((t) => t.length >= 2)
+  const all = raw
+  const unigrams = raw.filter((t) => !STOP_WORDS.has(t))
+  return { unigrams, all }
+}
+
+/**
+ * Local TF-IDF-style embedding with unigram, bigram, and trigram features.
+ * Improvements over original frequency hash:
+ *   - Stop words excluded from unigrams (less noise)
+ *   - Bigrams + trigrams capture "load order", "creation kit" etc.
+ *   - sqrt-TF compression prevents common words dominating
+ *   - Positional boost for heading/title region (first 30 tokens)
+ *   - 512-dim vs 384 — more space before hash collisions hurt recall
+ */
 function embedLocally(text: string): EmbeddingVector {
   const out = new Float32Array(LOCAL_EMBED_DIM)
-  const tokens = tokenizeForEmbedding(text)
-  if (!tokens.length) return out
+  const { unigrams, all } = tokenizeForEmbedding(text)
+  if (!all.length) return out
 
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i]
-    const tokenHash = hashToken(token)
-    out[tokenHash % LOCAL_EMBED_DIM] += 1
+  // Unigram features (stop-word-free, sqrt-TF)
+  const unigramFreq: Map<string, number> = new Map()
+  for (const t of unigrams) unigramFreq.set(t, (unigramFreq.get(t) || 0) + 1)
+  const totalUnigrams = unigrams.length || 1
+  for (const [token, freq] of unigramFreq) {
+    out[hashToken(token) % LOCAL_EMBED_DIM] += Math.sqrt(freq / totalUnigrams)
+  }
 
-    if (i + 1 < tokens.length) {
-      const bigramHash = hashToken(`${token} ${tokens[i + 1]}`)
-      out[bigramHash % LOCAL_EMBED_DIM] += 0.5
-    }
+  // Bigram features (all tokens including stop words)
+  for (let i = 0; i < all.length - 1; i++) {
+    out[hashPair(hashToken(all[i]), hashToken(all[i + 1])) % LOCAL_EMBED_DIM] += 0.6
+  }
+
+  // Trigram features
+  for (let i = 0; i < all.length - 2; i++) {
+    out[hashPair(hashPair(hashToken(all[i]), hashToken(all[i + 1])), hashToken(all[i + 2])) % LOCAL_EMBED_DIM] += 0.35
+  }
+
+  // Positional boost: first 30 tokens (title / heading region)
+  for (const t of all.slice(0, 30)) {
+    if (!STOP_WORDS.has(t)) out[hashToken('__head_' + t) % LOCAL_EMBED_DIM] += 0.4
   }
 
   return normalize(out)

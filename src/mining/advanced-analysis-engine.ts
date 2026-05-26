@@ -408,7 +408,7 @@ export class AdvancedAnalysisEngineImpl implements AdvancedAnalysisEngine {
     affectedMods: string[];
     recommendation: string;
   }> {
-    const issues = [];
+    const issues: any[] = [];
 
     // Pattern issues
     for (const anomaly of analysis.patterns.anomalies) {

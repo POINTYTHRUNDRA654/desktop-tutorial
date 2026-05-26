@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { Copy, Check } from 'lucide-react';
 
 type IndexStatus =
   | { ok: true; indexPath: string; indexedChunks: number; indexedSources: number; model: string; createdAt: string }
@@ -53,8 +54,25 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
   const [answerBusy, setAnswerBusy] = useState(false);
   const [answer, setAnswer] = useState('');
   const [ollamaCheckBusy, setOllamaCheckBusy] = useState(false);
+  const [copiedResultIdx, setCopiedResultIdx] = useState<number | null>(null);
 
   const desktopReady = !!api?.mlIndexStatus;
+
+  const copyResult = useCallback((content: string, idx: number) => {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopiedResultIdx(idx);
+      setTimeout(() => setCopiedResultIdx(null), 1500);
+    }).catch(() => {
+      const el = document.createElement('textarea');
+      el.value = content;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      setCopiedResultIdx(idx);
+      setTimeout(() => setCopiedResultIdx(null), 1500);
+    });
+  }, []);
 
   const effectiveRoots = useMemo(() => roots.filter(Boolean), [roots]);
 
@@ -351,23 +369,39 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
           </button>
         </div>
 
-        {keywordMode && results.length > 0 && (
-          <div className="text-xs text-amber-300">
-            💡 Keyword search — build the index for AI-ranked results.
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {keywordMode && results.length > 0 && (
+            <div className="text-xs text-amber-300">
+              💡 Keyword search — build the index for AI-ranked results.
+            </div>
+          )}
+          {results.length > 0 && !searchBusy && (
+            <span className="ml-auto text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+              {results.length} result{results.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
         {searchError ? <div className="text-xs text-red-300">{searchError}</div> : null}
 
         <div className="space-y-3">
           {results.map((r, idx) => (
             <div key={`${r.sourcePath}-${idx}`} className="bg-slate-950/40 border border-slate-800 rounded p-3">
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs text-slate-400">Score: {r.score.toFixed(3)}</div>
                   <div className="text-sm font-semibold text-slate-100">{r.title}</div>
                   <div className="text-xs text-slate-400 truncate">{r.sourcePath}</div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => copyResult(r.content, idx)}
+                    className="text-xs px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1"
+                    title="Copy result content"
+                  >
+                    {copiedResultIdx === idx
+                      ? <><Check className="w-3 h-3 text-emerald-400" /> Copied</>
+                      : <><Copy className="w-3 h-3" /> Copy</>}
+                  </button>
                   <button
                     onClick={() => onOpenResult(r.sourcePath)}
                     className="text-xs px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200"
@@ -386,7 +420,9 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
             </div>
           ))}
 
-          {results.length === 0 && !searchError ? <div className="text-xs text-slate-400">No results yet. Type a question and click Search.</div> : null}
+          {results.length === 0 && !searchError && !searchBusy
+            ? <div className="text-xs text-slate-400">No results yet. Type a question and click Search.</div>
+            : null}
         </div>
       </div>
 

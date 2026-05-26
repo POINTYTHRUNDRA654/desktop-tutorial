@@ -74,13 +74,35 @@ export function sessionJournalEnd(req: {
         const messageCount = req.chatMessages?.length || 0;
         const duration = Math.round((Date.now() - req.startTime) / 1000);
 
-        // Extract topics (simple keyword extraction for now)
+        // Extract topics from conversation — user messages only to avoid AI preamble noise
+        const userText = req.chatMessages?.filter((m) => m.role === 'user').map((m) => m.content).join(' ') || '';
         const allText = req.chatMessages?.map((m) => m.content).join(' ').toLowerCase() || '';
         const topics: string[] = [];
-        const keywords = ['papyrus', 'script', 'blender', 'mesh', 'texture', 'conflict', 'mod', 'load order', 'quest'];
-        keywords.forEach((kw) => {
-            if (allText.includes(kw)) topics.push(kw);
-        });
+        const keywordGroups: Record<string, string[]> = {
+            'papyrus scripting': ['papyrus', 'psc', 'script', 'scriptname', 'registerforevent'],
+            'blender / 3D': ['blender', 'mesh', 'nif', 'ninode', 'rigging', 'armature', 'weight paint', 'baking'],
+            'textures': ['texture', 'dds', 'normal map', 'specular', 'diffuse', 'bc1', 'bc3', 'bc5', 'texconv'],
+            'load order': ['load order', 'plugin', 'esm', 'esp', 'esl', 'mo2', 'vortex', 'loot'],
+            'conflicts': ['conflict', 'overwrite', 'patch', 'resolution', 'xedit', 'fo4edit'],
+            'quests': ['quest', 'stage', 'alias', 'dialogue', 'topic', 'scene', 'condition'],
+            'precombines / previs': ['previs', 'precombine', 'prp', 'previsibines', 'generateprevisibines'],
+            'animations': ['animation', 'havok', 'hkx', 'behavior', 'clip', 'idle'],
+            'navmesh': ['navmesh', 'navcut', 'pathfinding', 'finalize navmesh'],
+            'settlements': ['settlement', 'workshop', 'ss2', 'sim settlements', 'plot', 'city plan'],
+            'creation kit': ['creation kit', 'render window', 'object window', 'cell view'],
+            'voice / audio': ['voice', 'audio', 'fuz', 'wav', 'lip sync', 'xwmaencode'],
+            'mod packaging': ['ba2', 'archive', 'fomod', 'installer', 'packaging'],
+            'memory vault': ['ingest', 'memory vault', 'knowledge', 'tutorial', 'rag'],
+        };
+        for (const [topic, kws] of Object.entries(keywordGroups)) {
+            if (kws.some((kw) => allText.includes(kw))) topics.push(topic);
+        }
+        // Proper nouns from user messages (mod names, tool names ≥7 chars)
+        const properNouns = Array.from(new Set(
+            (userText.match(/\b[A-Z][a-zA-Z]{6,}\b/g) || [])
+                .filter((w: string) => !['Function', 'Scriptname', 'RegisterForEvent'].includes(w))
+        )).slice(0, 3);
+        topics.push(...(properNouns as string[]).map((w: string) => w.toLowerCase()));
 
         const entry: JournalEntry = {
             id: `entry_${Date.now()}`,
@@ -172,10 +194,28 @@ let ingestFolderPath: string = '';
 export function autoIngestWatchStart(folderPath: string): { ok: boolean; error?: string } {
     try {
         ingestFolderPath = folderPath;
-        // Use fs.watch for folder changes (production: use chokidar for robustness)
         if (!fs.existsSync(folderPath)) {
             fs.mkdirSync(folderPath, { recursive: true });
         }
+        // Stop any existing watcher before starting a new one
+        if (ingestWatcher) {
+            ingestWatcher.close();
+            ingestWatcher = null;
+        }
+        // Wire up the actual fs.watch listener so files dropped into the watched
+        // folder are processed automatically without user intervention.
+        const watchedExts = new Set(['.psc', '.xml', '.json', '.md', '.log', '.txt', '.py', '.sh', '.bat']);
+        ingestWatcher = fs.watch(folderPath, { persistent: false }, (eventType: string, filename: string | null) => {
+            if (!filename) return;
+            const fullPath = path.join(folderPath, filename);
+            if (!fs.existsSync(fullPath)) return; // file deleted — skip
+            if (!watchedExts.has(path.extname(filename).toLowerCase())) return;
+            console.log(`[AutoIngest] Detected: ${filename} (${eventType})`);
+            autoIngestProcessFile({ filePath: fullPath });
+        });
+        ingestWatcher.on('error', (err: Error) => {
+            console.error('[AutoIngest] Watcher error:', err.message);
+        });
         console.log(`[AutoIngest] Watching folder: ${folderPath}`);
         return { ok: true };
     } catch (err: any) {

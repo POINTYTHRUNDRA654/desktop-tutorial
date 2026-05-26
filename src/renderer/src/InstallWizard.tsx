@@ -103,6 +103,7 @@ const vaultKey = (item: KnowledgeVaultItem) => {
 };
 
 const topicKeywords: Record<InstallWizardTopic, string[]> = {
+  f4se: ['f4se', 'script extender', 'f4se_loader', 'address library', 'mcm', 'hudframework', 'hud framework', 'mod configuration menu'],
   xedit: ['xedit', 'fo4edit', 'apply script', 'edit scripts', 'conflict', 'override'],
   ss2: ['ss2', 'sim settlements 2', 'plot', 'plot building', 'city plan', 'workshop framework'],
   prp: ['prp', 'previs', 'precombine', 'previsibines repair pack', 'optimization', 'pjm', 'pjmscripts', 'patching scripts', 'fo4check_previsbines'],
@@ -315,6 +316,126 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
       : mm === 'vortex'
         ? 'Vortex: install from file, enable, deploy, then check Plugins page for enabled state.'
         : 'Manual: copy into Fallout 4 Data folder only when you know exactly what files are overwriting.';
+
+    if (state.topic === 'f4se') {
+      return [
+        {
+          id: 'prereqs',
+          title: 'Prereqs',
+          icon: ShieldCheck,
+          steps: [
+            {
+              id: 'game-version',
+              title: 'Identify your Fallout 4 version (OG vs Next-Gen)',
+              details: <>Launch Fallout 4 and note the version shown on the main menu, or check <code>Fallout4.exe</code> properties → Details → File version. OG = <b>1.10.163.0</b>. Next-Gen (NG) = <b>1.10.984.0 or later</b>. You MUST install the F4SE version that exactly matches your game runtime — there is no cross-compatibility.</>,
+            },
+            {
+              id: 'mm',
+              title: 'Choose your mod manager workflow',
+              details: <>{modManagerBlurb} F4SE itself is installed directly into the Fallout 4 folder, not through a mod manager — only F4SE plugins (in <code>Data\F4SE\Plugins\</code>) go through the manager.</>,
+            },
+          ],
+        },
+        {
+          id: 'download',
+          title: 'Download',
+          icon: Download,
+          steps: [
+            {
+              id: 'get-f4se',
+              title: 'Download F4SE from the official site only',
+              details: <>Go to <b>f4se.silverlock.org</b> (official site — see links panel). Download the build that matches your runtime exactly. Never use unofficial mirrors. The filename includes the game version (e.g. <code>f4se_0_06_23_fallout4_1_10_163_0.7z</code> for OG, or the NG equivalent).</>,
+            },
+            {
+              id: 'get-address-lib',
+              title: 'Download Address Library for F4SE (Nexus #47327)',
+              details: <>Download the correct "All In One" bundle: OG bundle for game 1.10.163, or the Next-Gen file for 1.10.984+. Install through your mod manager. This is required by nearly every modern F4SE plugin and should be one of the first mods in your list.</>,
+            },
+            {
+              id: 'get-mcm',
+              title: 'Download MCM (Nexus #21497) — if any mod needs it',
+              details: <>If any mod in your list mentions "MCM" or "Mod Configuration Menu", download it from Nexus #21497 and install through your mod manager. MCM requires a working F4SE install.</>,
+            },
+          ],
+        },
+        {
+          id: 'install',
+          title: 'Install / Configure',
+          icon: Package,
+          steps: [
+            {
+              id: 'install-f4se-core',
+              title: 'Copy F4SE core files into Fallout 4 root directory',
+              details: <>Extract the F4SE archive. Copy <code>f4se_loader.exe</code>, <code>f4se_steam_loader.dll</code>, <code>f4se_1_10_163.dll</code> (or the NG equivalent .dll) directly into the same folder as <code>Fallout4.exe</code>. Do NOT put them in the Data folder or through a mod manager. These are always a manual root install.</>,
+            },
+            {
+              id: 'install-f4se-scripts',
+              title: 'Copy F4SE Data folder contents through your mod manager',
+              details: <>The F4SE archive also contains a <code>Data\Scripts\</code> sub-folder with Papyrus source files. Install those through {mm === 'mo2' ? 'MO2' : mm === 'vortex' ? 'Vortex' : 'your mod manager'} as a regular mod, or manually copy them into your game Data folder. They are needed for script compilation but NOT for launching the game.</>,
+            },
+            {
+              id: 'launch-via-f4se',
+              title: 'Always launch via f4se_loader.exe (not Fallout4.exe)',
+              details: <>From this point on, launch Fallout 4 via <code>f4se_loader.exe</code> or via your mod manager's F4SE launcher entry — never directly through <code>Fallout4.exe</code> or the Steam launcher. F4SE will not be active if you bypass the loader, and any mod that requires it will silently fail or error.</>,
+            },
+            {
+              id: 'install-plugins',
+              title: '{installPathHint} — install F4SE plugin mods through your manager',
+              details: <>{installPathHint} F4SE plugin mods (Address Library, MCM, HUDFramework, etc.) install normally through your mod manager and land in <code>Data\F4SE\Plugins\</code>.</>,
+            },
+          ],
+        },
+        {
+          id: 'verify',
+          title: 'Verify',
+          icon: ShieldCheck,
+          steps: [
+            {
+              id: 'check-version',
+              title: 'Verify F4SE is active in-game',
+              details: <>Launch via <code>f4se_loader.exe</code> and open the console (tilde key). Type <code>getf4seversion</code> — if F4SE is loaded you will see the version number. If you get nothing or an error, F4SE is not active. Common cause: launched via Fallout4.exe instead of f4se_loader.exe.</>,
+            },
+            {
+              id: 'check-log',
+              title: 'Check the F4SE log for plugin load errors',
+              details: <>After launching, open <code>%APPDATA%\Local\Fallout4\F4SE\f4se.log</code>. Scroll to the bottom — any plugins that failed to load are listed with a reason. Common error: version mismatch between the plugin's expected runtime and your installed game version. Fix by updating the plugin or the game to match.</>,
+            },
+            {
+              id: 'check-address-lib',
+              title: 'Confirm Address Library is detected',
+              details: <>Any mod that uses Address Library will fail or CTD if it is missing or the wrong variant. In the F4SE log or in-game, mods relying on Address Library log their dependency check. If you see "address library not found", confirm you installed the correct All-In-One variant for your game version from Nexus #47327.</>,
+            },
+          ],
+        },
+        {
+          id: 'troubleshoot',
+          title: 'Troubleshoot',
+          icon: AlertCircle,
+          steps: [
+            {
+              id: 'version-mismatch',
+              title: 'F4SE fails to load — version mismatch',
+              details: <>The most common F4SE failure. The loader .dll version and the game .exe version must match exactly. Check <code>f4se.log</code> for "is not the expected version" message. Fix: update F4SE from f4se.silverlock.org if you updated your game, or use Steam to revert your game to the compatible version.</>,
+            },
+            {
+              id: 'steam-update',
+              title: 'Steam auto-updated your game and broke F4SE',
+              details: <>Steam can silently update Fallout 4 which breaks F4SE compatibility. To prevent this: right-click Fallout 4 in Steam → Properties → Updates → "Only update this game when I launch it" and always launch via <code>f4se_loader.exe</code> (not Steam). If already updated, wait for F4SE team to release a matching build (usually 1–2 weeks for major patches).</>,
+            },
+            {
+              id: 'dll-error',
+              title: 'Missing DLL or "failed to locate primary .dll"',
+              details: <>Confirm <code>f4se_loader.exe</code>, <code>f4se_steam_loader.dll</code>, and the runtime-specific <code>f4se_1_10_XXX.dll</code> are all in the same folder as <code>Fallout4.exe</code>. If any file is missing, re-extract from the F4SE archive. Antivirus software sometimes quarantines F4SE DLLs — check your AV quarantine folder and add the Fallout 4 directory as an exclusion.</>,
+            },
+            {
+              id: 'plugin-crashed',
+              title: 'F4SE plugin crashes on load (plugin load error in f4se.log)',
+              details: <>Each plugin in <code>Data\F4SE\Plugins\</code> targets a specific game runtime. If an F4SE plugin requires a different runtime version than your game, it will fail. Check the plugin's Nexus page for updated versions. If no update is available, the plugin is incompatible with your current game version — disable it until an update is released.</>,
+            },
+          ],
+        },
+      ];
+    }
 
     if (state.topic === 'xedit') {
       return [
@@ -843,6 +964,10 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
   }, [state.modManager, state.topic, t]) ?? [];
 
   const topicMeta = {
+    f4se: {
+      title: 'F4SE — Script Extender Setup',
+      subtitle: 'Critical prerequisite. Install F4SE, Address Library, and MCM before any scripted mod.',
+    },
     xedit: {
       title: t('installWizard.topic.xedit.title', 'xEdit / FO4Edit Setup'),
       subtitle: t('installWizard.topic.xedit.subtitle', 'Install, configure, and verify xEdit so you can patch safely.'),
@@ -863,6 +988,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
 
   const activeMeta = topicMeta[state.topic];
   const topicOptions: Array<{ id: InstallWizardTopic; label: string }> = [
+    { id: 'f4se', label: 'F4SE (Script Extender)' },
     { id: 'xedit', label: t('installWizard.topicSelector.xedit', 'xEdit / FO4Edit') },
     { id: 'ss2', label: t('installWizard.topicSelector.ss2', 'Sim Settlements 2') },
     { id: 'prp', label: t('installWizard.topicSelector.prp', 'PRP (Previs/Precombine)') },

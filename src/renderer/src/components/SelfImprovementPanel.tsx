@@ -66,11 +66,11 @@ export const SelfImprovementPanel: React.FC<SelfImprovementPanelProps> = ({ isVi
     URL.revokeObjectURL(url);
   };
 
-  const deleteScript = (scriptId: string) => {
-    if (confirm('Are you sure you want to delete this script?')) {
-      selfImprovementEngine.deleteScript(scriptId);
-      setGeneratedScripts(selfImprovementEngine.getGeneratedScripts());
-    }
+  const deleteScript = async (scriptId: string) => {
+    const ok = await window.electronAPI?.showConfirm?.('Are you sure you want to delete this script?');
+    if (!ok) return;
+    selfImprovementEngine.deleteScript(scriptId);
+    setGeneratedScripts(selfImprovementEngine.getGeneratedScripts());
   };
 
   const getFileExtension = (type: string): string => {

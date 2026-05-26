@@ -65,12 +65,18 @@ interface EditorState {
 }
 
 const PRESET_MATERIALS: Material[] = [
-  { id: 'mat-wood', name: 'Wood', type: 'pbr', tags: ['wood', 'organic'] },
-  { id: 'mat-metal', name: 'Metal', type: 'pbr', tags: ['metal', 'industrial'] },
-  { id: 'mat-stone', name: 'Stone', type: 'pbr', tags: ['stone', 'natural'] },
-  { id: 'mat-fabric', name: 'Fabric', type: 'pbr', tags: ['fabric', 'organic'] },
-  { id: 'mat-glass', name: 'Glass', type: 'pbr', tags: ['glass', 'transparent'] },
-  { id: 'mat-plastic', name: 'Plastic', type: 'pbr', tags: ['plastic', 'synthetic'] },
+  { id: 'mat-wood',        name: 'Wood (FO4)',        type: 'bgsm', tags: ['wood', 'organic'] },
+  { id: 'mat-metal',       name: 'Metal (FO4)',       type: 'bgsm', tags: ['metal', 'industrial'] },
+  { id: 'mat-metal-pbr',   name: 'Metal PBR (CShaders)', type: 'bgsm', tags: ['metal', 'pbr'] },
+  { id: 'mat-concrete',    name: 'Concrete (FO4)',    type: 'bgsm', tags: ['stone', 'concrete'] },
+  { id: 'mat-concrete-pom',name: 'Concrete + POM',   type: 'bgsm', tags: ['stone', 'parallax'] },
+  { id: 'mat-fabric',      name: 'Fabric (FO4)',      type: 'bgsm', tags: ['fabric', 'organic'] },
+  { id: 'mat-glass',       name: 'Glass / Window',   type: 'bgsm', tags: ['glass', 'transparent'] },
+  { id: 'mat-skin',        name: 'Skin / Face',      type: 'bgsm', tags: ['skin', 'character'] },
+  { id: 'mat-hair',        name: 'Hair / Strand',    type: 'bgsm', tags: ['hair', 'character'] },
+  { id: 'mat-glow',        name: 'Glow Emissive',    type: 'bgsm', tags: ['glow', 'emissive'] },
+  { id: 'mat-foliage',     name: 'Foliage / Alpha',  type: 'bgsm', tags: ['foliage', 'alpha'] },
+  { id: 'mat-envmap',      name: 'Env Map Metal',    type: 'bgsm', tags: ['envmap', 'reflect'] },
 ];
 
 const NODE_PALETTE = [
@@ -119,6 +125,8 @@ export const MaterialEditor: React.FC = () => {
   const [libraryFilter, setLibraryFilter] = useState('');
   const [showNodePalette, setShowNodePalette] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
+  const [userMaterials, setUserMaterials] = useState<Material[]>([]);
+  const [isDirty, setIsDirty] = useState(false);
   const [materialProperties, setMaterialProperties] = useState({
     baseColor: '#FFFFFF',
     metallic: 0.5,
@@ -167,22 +175,78 @@ export const MaterialEditor: React.FC = () => {
 
   // Material operations
   const handleSelectMaterial = useCallback((material: Material) => {
-    setState((prev) => ({
-      ...prev,
-      selectedMaterial: material,
-    }));
+    setState((prev) => ({ ...prev, selectedMaterial: material }));
+    setIsDirty(false);
   }, []);
 
-  const handleSaveMaterial = useCallback(() => {
-    console.log('Saving material:', state.selectedMaterial?.name);
-  }, [state.selectedMaterial]);
+  const handleNewMaterial = useCallback(() => {
+    const name = window.prompt('Material name (will save as <name>.bgsm):', 'new_material');
+    if (!name?.trim()) return;
+    const newMat: Material = {
+      id: `user-${Date.now()}`,
+      name: name.trim(),
+      type: 'bgsm',
+      tags: ['user'],
+    };
+    setUserMaterials((prev) => [...prev, newMat]);
+    setState((prev) => ({ ...prev, selectedMaterial: newMat }));
+    setIsDirty(true);
+  }, []);
 
-  const handleExportMaterial = useCallback(() => {
-    console.log('Exporting material:', state.selectedMaterial?.name);
-  }, [state.selectedMaterial]);
+  const handleSaveMaterial = useCallback(async () => {
+    const mat = state.selectedMaterial;
+    if (!mat) return;
+    try {
+      const api = (window as any).electron?.api ?? (window as any).electronAPI;
+      const payload = {
+        name: mat.name,
+        type: mat.type,
+        properties: materialProperties,
+        nodes: state.nodes,
+        connections: state.connections,
+      };
+      if (api?.saveFile) {
+        const result = await api.saveFile({
+          fileName: `${mat.name}.bgsm`,
+          content: JSON.stringify(payload, null, 2),
+          defaultExtension: 'bgsm',
+        });
+        if (result?.success) {
+          setIsDirty(false);
+          (window as any).__toast?.success?.(`Saved ${result.filePath ?? mat.name + '.bgsm'}`);
+          return;
+        }
+      }
+      // Browser fallback download
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${mat.name}.bgsm`; a.click();
+      URL.revokeObjectURL(url);
+      setIsDirty(false);
+    } catch (e: any) {
+      console.error('Save error:', e);
+    }
+  }, [state.selectedMaterial, state.nodes, state.connections, materialProperties]);
+
+  const handleExportMaterial = useCallback(async () => {
+    const mat = state.selectedMaterial;
+    if (!mat) return;
+    const payload = { name: mat.name, type: mat.type, tags: mat.tags, properties: materialProperties };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${mat.name}.json`; a.click();
+    URL.revokeObjectURL(url);
+  }, [state.selectedMaterial, materialProperties]);
 
   const handleBakeTextures = useCallback(() => {
-    console.log('Baking textures for:', state.selectedMaterial?.name);
+    const api = (window as any).electron?.api ?? (window as any).electronAPI;
+    if (api?.materialBakeTextures) {
+      api.materialBakeTextures({ materialId: state.selectedMaterial?.id });
+    } else {
+      alert('Texture baking requires the Desktop Bridge to be running.');
+    }
   }, [state.selectedMaterial]);
 
   // Node operations
@@ -225,9 +289,16 @@ export const MaterialEditor: React.FC = () => {
       {/* Toolbar */}
       <div className="bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="text-lg font-semibold">
+          <div className="text-lg font-semibold flex items-center gap-2">
             Material Editor{' '}
-            {state.selectedMaterial && `- ${state.selectedMaterial.name}.bgsm`}
+            {state.selectedMaterial && (
+              <span className="text-slate-400 font-normal">
+                — {state.selectedMaterial.name}.bgsm
+              </span>
+            )}
+            {isDirty && (
+              <span className="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" title="Unsaved changes" />
+            )}
           </div>
         </div>
 
@@ -328,13 +399,36 @@ export const MaterialEditor: React.FC = () => {
               <div className="text-xs font-semibold text-slate-400 mb-2 px-1">
                 USER MATERIALS
               </div>
-              <div className="text-xs text-slate-500 px-2 py-1">None yet</div>
+              {userMaterials.length === 0 ? (
+                <div className="text-xs text-slate-500 px-2 py-1">None yet — click New Material</div>
+              ) : (
+                userMaterials
+                  .filter((m) =>
+                    m.name.toLowerCase().includes(libraryFilter.toLowerCase()) ||
+                    m.tags.some((t) => t.toLowerCase().includes(libraryFilter.toLowerCase()))
+                  )
+                  .map((mat) => (
+                    <button
+                      key={mat.id}
+                      onClick={() => handleSelectMaterial(mat)}
+                      className={`w-full text-left px-2 py-1 rounded text-sm mb-1 transition ${
+                        state.selectedMaterial?.id === mat.id ? 'bg-blue-600' : 'hover:bg-slate-700'
+                      }`}
+                    >
+                      <div className="font-medium">{mat.name}</div>
+                      <div className="text-xs text-slate-400">{mat.type}</div>
+                    </button>
+                  ))
+              )}
             </div>
           </div>
 
           {/* New material button */}
           <div className="p-2 border-t border-slate-700">
-            <button className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded transition">
+            <button
+              onClick={handleNewMaterial}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded transition"
+            >
               <Plus size={16} />
               <span className="text-sm">New Material</span>
             </button>

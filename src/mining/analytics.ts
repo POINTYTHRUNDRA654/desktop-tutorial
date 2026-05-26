@@ -141,9 +141,9 @@ export class AnalyticsEngine {
 
     const dataPoints = performanceEvents.map(e => ({
       timestamp: e.timestamp,
-      fps: e.metadata.fps || 0,
-      memory: e.metadata.memory || 0,
-      cpu: e.metadata.cpu || 0,
+      fps: e.metadata?.fps || 0,
+      memory: e.metadata?.memory || 0,
+      cpu: e.metadata?.cpu || 0,
     }));
 
     const averageFps = dataPoints.length > 0

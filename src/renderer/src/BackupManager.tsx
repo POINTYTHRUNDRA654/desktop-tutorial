@@ -26,6 +26,12 @@ export const BackupManager: React.FC = () => {
   const [cloudSync, setCloudSync] = useState(false);
   const [workspacePath, setWorkspacePath] = useState('');
   const [selectedSnapshot, setSelectedSnapshot] = useState<Snapshot | null>(null);
+  // Inline inputs — replaces window.prompt() which throws in Electron
+  const [snapshotNameInput, setSnapshotNameInput] = useState('');
+  const [snapshotDescInput, setSnapshotDescInput] = useState('');
+  const [showSnapshotForm, setShowSnapshotForm] = useState(false);
+  const [commitMsgInput, setCommitMsgInput] = useState('');
+  const [showCommitForm, setShowCommitForm] = useState(false);
 
   useEffect(() => {
     loadSnapshots();
@@ -91,32 +97,31 @@ export const BackupManager: React.FC = () => {
     localStorage.setItem('mossy_snapshots', JSON.stringify(updated));
   };
 
-  const createManualSnapshot = () => {
-    const name = prompt('Snapshot name:');
-    if (!name) return;
+  const createManualSnapshot = () => setShowSnapshotForm(true);
 
-    const description = prompt('Description (optional):');
-
+  const submitManualSnapshot = () => {
+    if (!snapshotNameInput.trim()) return;
     const newSnapshot: Snapshot = {
       id: Date.now().toString(),
-      name,
+      name: snapshotNameInput.trim(),
       timestamp: new Date(),
       type: 'manual',
       size: '45 MB',
       files: 127,
-      description: description || undefined
+      description: snapshotDescInput.trim() || undefined
     };
-
     const updated = [newSnapshot, ...snapshots];
     setSnapshots(updated);
     localStorage.setItem('mossy_snapshots', JSON.stringify(updated));
-
+    setSnapshotNameInput('');
+    setSnapshotDescInput('');
+    setShowSnapshotForm(false);
     toast.success('Snapshot created!');
   };
 
   const restoreSnapshot = async (snapshot: Snapshot) => {
-    const confirm = window.confirm(`Restore from "${snapshot.name}"?\n\nCurrent work will be backed up first.`);
-    if (!confirm) return;
+    const ok = await window.electronAPI?.showConfirm?.(`Restore from "${snapshot.name}"?`, 'Current work will be backed up first.');
+    if (!ok) return;
 
     try {
       const response = await fetch('http://localhost:21337/backup/restore', {
@@ -135,18 +140,21 @@ export const BackupManager: React.FC = () => {
     }
   };
 
-  const deleteSnapshot = (id: string) => {
-    const confirm = window.confirm('Delete this snapshot?');
-    if (!confirm) return;
-
+  const deleteSnapshot = async (id: string) => {
+    const ok = await window.electronAPI?.showConfirm?.('Delete this snapshot?');
+    if (!ok) return;
     const updated = snapshots.filter(s => s.id !== id);
     setSnapshots(updated);
     localStorage.setItem('mossy_snapshots', JSON.stringify(updated));
   };
 
-  const gitCommit = async () => {
-    const message = prompt('Commit message:');
+  const gitCommit = () => setShowCommitForm(true);
+
+  const submitGitCommit = async () => {
+    const message = commitMsgInput.trim();
     if (!message) return;
+    setShowCommitForm(false);
+    setCommitMsgInput('');
 
     try {
       await fetch('http://localhost:21337/git/commit', {
@@ -232,13 +240,19 @@ export const BackupManager: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={createManualSnapshot}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded flex items-center gap-2 transition-colors"
-            >
-              <Save className="w-4 h-4" />
-              Create Snapshot
-            </button>
+            {showSnapshotForm ? (
+              <div className="flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2">
+                <input autoFocus type="text" value={snapshotNameInput} onChange={e => setSnapshotNameInput(e.target.value)} placeholder="Snapshot name…" className="bg-transparent text-sm text-white outline-none w-36" onKeyDown={e => e.key === 'Enter' && submitManualSnapshot()} />
+                <input type="text" value={snapshotDescInput} onChange={e => setSnapshotDescInput(e.target.value)} placeholder="Description (optional)" className="bg-transparent text-sm text-slate-400 outline-none w-40" onKeyDown={e => e.key === 'Enter' && submitManualSnapshot()} />
+                <button onClick={submitManualSnapshot} disabled={!snapshotNameInput.trim()} className="px-2 py-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white rounded text-xs">Save</button>
+                <button onClick={() => { setShowSnapshotForm(false); setSnapshotNameInput(''); setSnapshotDescInput(''); }} className="px-2 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded text-xs">✕</button>
+              </div>
+            ) : (
+              <button onClick={createManualSnapshot} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded flex items-center gap-2 transition-colors">
+                <Save className="w-4 h-4" />
+                Create Snapshot
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -316,6 +330,13 @@ export const BackupManager: React.FC = () => {
                     {gitStatus.unpushed} commits to push
                   </div>
 
+                  {showCommitForm && (
+                    <div className="flex items-center gap-2 mt-3">
+                      <input autoFocus type="text" value={commitMsgInput} onChange={e => setCommitMsgInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submitGitCommit(); if (e.key === 'Escape') { setShowCommitForm(false); setCommitMsgInput(''); } }} placeholder="Commit message…" className="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white outline-none focus:border-green-500" />
+                      <button onClick={submitGitCommit} disabled={!commitMsgInput.trim()} className="px-2 py-1 bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white rounded text-xs">OK</button>
+                      <button onClick={() => { setShowCommitForm(false); setCommitMsgInput(''); }} className="px-2 py-1 bg-slate-600 text-white rounded text-xs">✕</button>
+                    </div>
+                  )}
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={gitCommit}

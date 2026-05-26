@@ -1120,8 +1120,12 @@ export const ChatInterface: React.FC = () => {
         speakMossy("Hello! I'm Mossy, your Fallout 4 modding assistant. Ready to begin the scan?", { cancelExisting: true });
     };
 
-    const resetMemory = () => {
-        if (window.confirm("Perform Chat Reset? This will clear the conversation history and current project state, but keep global settings (Avatar, Bridge, Tutorial) and your scan results.")) {
+    const resetMemory = async () => {
+        const ok = await window.electronAPI?.showConfirm?.(
+            'Perform Chat Reset?',
+            'This will clear the conversation history and current project state, but keep global settings (Avatar, Bridge, Tutorial) and your scan results.'
+        );
+        if (ok) {
             // Clear ONLY conversation-related data.
             // Scan results (mossy_all_detected_apps, mossy_scan_summary, etc.) and
             // tool integration choices are kept — they belong to the scan, not the chat.
