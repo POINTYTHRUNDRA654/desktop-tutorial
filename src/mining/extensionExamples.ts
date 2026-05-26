@@ -46,7 +46,7 @@ export class NIFImporterExtension implements ImporterExtension {
       }
 
       // Import as asset
-      const metadata = await this.api.assets.import(filePath, 'mesh', {
+      const metadata = await this.api.assets!.import(filePath, 'mesh', {
         tags: ['nif', 'mesh', 'imported'],
       });
 
@@ -89,7 +89,7 @@ export class FBXImporterExtension implements ImporterExtension {
         };
       }
 
-      const metadata = await this.api.assets.import(filePath, 'mesh', {
+      const metadata = await this.api.assets!.import(filePath, 'mesh', {
         tags: ['fbx', 'model', 'imported', options?.riggedModel ? 'rigged' : 'static'],
       });
 
@@ -131,7 +131,7 @@ export class DDSImporterExtension implements ImporterExtension {
         };
       }
 
-      const metadata = await this.api.assets.import(filePath, 'texture', {
+      const metadata = await this.api.assets!.import(filePath, 'texture', {
         tags: ['dds', 'texture', 'imported'],
       });
 
@@ -380,11 +380,11 @@ export class BlenderToolWrapperExtension implements ToolWrapperExtension {
   constructor(private api: MossyPluginAPI) {}
 
   async isRunning(): Promise<boolean> {
-    return this.api.tools.blender.isRunning();
+    return this.api.tools!.blender.isRunning();
   }
 
   async launch(options?: any): Promise<void> {
-    await this.api.tools.blender.launch(options);
+    await this.api.tools!.blender.launch(options);
     this.running = true;
   }
 
@@ -395,9 +395,9 @@ export class BlenderToolWrapperExtension implements ToolWrapperExtension {
 
     // Mock command execution
     if (command === 'version') {
-      return await this.api.tools.blender.getVersion();
+      return await this.api.tools!.blender.getVersion();
     } else if (command === 'runScript') {
-      return await this.api.tools.blender.runScript(args?.script || '');
+      return await this.api.tools!.blender.runScript(args?.script || '');
     }
 
     return { success: true, command, args };
@@ -415,17 +415,17 @@ export class XEditToolWrapperExtension implements ToolWrapperExtension {
   constructor(private api: MossyPluginAPI) {}
 
   async isRunning(): Promise<boolean> {
-    return this.api.tools.xEdit.isRunning();
+    return this.api.tools!.xEdit.isRunning();
   }
 
   async launch(options?: any): Promise<void> {
-    await this.api.tools.xEdit.launch(options?.plugins);
+    await this.api.tools!.xEdit.launch(options?.plugins);
   }
 
   async execute(command: string, args?: any): Promise<any> {
     // Mock command execution
     if (command === 'version') {
-      return await this.api.tools.xEdit.getVersion();
+      return await this.api.tools!.xEdit.getVersion();
     }
     return { success: true, command, args };
   }

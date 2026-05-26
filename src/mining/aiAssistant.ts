@@ -139,7 +139,7 @@ export class AIAssistantEngineImpl implements AIAssistantEngine {
 
       const result: ScriptGenerationResult = {
         success: true,
-        scripts: this.parseScriptResponse(response, request.language),
+        scripts: this.parseScriptResponse(response, request.language ?? ''),
         timestamp: Date.now(),
         confidence: 0.85,
       };
@@ -194,9 +194,9 @@ export class AIAssistantEngineImpl implements AIAssistantEngine {
           });
 
           return {
-            oldName: file.currentName,
-            newName: nameResult.recommended.name,
-            reason: nameResult.recommended.explanation,
+            oldName: file.currentName ?? '',
+            newName: nameResult.recommended?.name ?? '',
+            reason: nameResult.recommended?.explanation ?? '',
           };
         })
       );
@@ -205,7 +205,7 @@ export class AIAssistantEngineImpl implements AIAssistantEngine {
         success: true,
         renamedAssets,
         skippedAssets: [],
-        appliedStandards: this.getAppliedStandards(request.strategy),
+        appliedStandards: this.getAppliedStandards(request.strategy ?? ''),
         timestamp: Date.now(),
       };
 
@@ -736,21 +736,21 @@ Include:
   }
 
   private recordRequestStart(capability: string): void {
-    if (!this.usageStats.requestsByCapability[capability]) {
-      this.usageStats.requestsByCapability[capability] = 0;
+    if (!this.usageStats.requestsByCapability![capability]) {
+      this.usageStats.requestsByCapability![capability] = 0;
     }
   }
 
   private recordRequestEnd(capability: string, success: boolean): void {
-    this.usageStats.totalRequests++;
-    this.usageStats.requestsByCapability[capability]++;
+    this.usageStats.totalRequests!++;
+    this.usageStats.requestsByCapability![capability]++;
     this.usageStats.successRate = success ? 0.95 : 0.85;
     this.usageStats.averageResponseTime = 150;
-    this.usageStats.totalTokensUsed += Math.floor(Math.random() * 1000);
+    this.usageStats.totalTokensUsed! += Math.floor(Math.random() * 1000);
   }
 
   private calculateErrorRate(): number {
-    return 1 - this.usageStats.successRate;
+    return 1 - this.usageStats.successRate!;
   }
 
   private async executeWorkflowStep(step: any): Promise<any> {

@@ -104,7 +104,7 @@ export class CloudSyncEngine {
       projectId,
       isSyncing: true,
       lastSyncTime: Date.now(),
-      nextSyncTime: Date.now() + this.config.syncInterval,
+      nextSyncTime: Date.now() + (this.config.syncInterval ?? 30000),
       syncProgress: 0,
       currentOperation: 'Starting sync...',
     };
@@ -134,7 +134,7 @@ export class CloudSyncEngine {
         syncStatus.syncProgress = 40;
 
         for (const conflict of conflicts) {
-          await this.handleConflict(conflict, this.config.conflictResolutionMode);
+          await this.handleConflict(conflict, this.config.conflictResolutionMode ?? 'automatic');
           conflictsResolved++;
         }
       }
@@ -187,7 +187,7 @@ export class CloudSyncEngine {
         bytesSync: 0,
         conflictsDetected: 0,
         conflictsResolved: 0,
-        duration: Date.now() - syncStatus.lastSyncTime,
+        duration: Date.now() - syncStatus.lastSyncTime!,
         timestamp: Date.now(),
         error: String(error),
       };
@@ -197,7 +197,7 @@ export class CloudSyncEngine {
   /**
    * Enable automatic synchronization
    */
-  async enableAutoSync(projectId: string, interval: number = this.config.syncInterval): Promise<void> {
+  async enableAutoSync(projectId: string, interval: number = this.config.syncInterval ?? 30000): Promise<void> {
     if (!this.initialized) {
       throw new Error('Cloud sync engine not initialized');
     }
@@ -283,7 +283,7 @@ export class CloudSyncEngine {
       for (const subscription of subscriptions) {
         // Check if change matches subscription filters
         if (this.matchesFilters(change, subscription.filters)) {
-          subscription.callback(change);
+          subscription.callback!(change);
         }
       }
 
@@ -327,9 +327,9 @@ export class CloudSyncEngine {
     const conflicts: CloudConflict[] = [];
 
     // Compare file checksums
-    const localFiles = Array.from(localState.files.entries());
+    const localFiles = Array.from(localState.files!.entries());
     for (const [filePath, localFile] of localFiles) {
-      const remoteFile = remoteState.files.get(filePath);
+      const remoteFile = remoteState.files!.get(filePath);
 
       if (!remoteFile) {
         // File exists locally but not remotely
@@ -353,16 +353,16 @@ export class CloudSyncEngine {
     }
 
     // Check for deletions
-    const remoteFiles = Array.from(remoteState.files.entries());
+    const remoteFiles = Array.from(remoteState.files!.entries());
     for (const [filePath] of remoteFiles) {
-      if (!localState.files.has(filePath)) {
+      if (!localState.files!.has(filePath)) {
         conflicts.push({
           id: `conflict_${filePath}_${Date.now()}`,
           projectId: localState.projectId,
           filePath,
           conflictType: 'deletion',
           localVersion: { checksum: 'deleted', timestamp: Date.now(), author: 'local' },
-          remoteVersion: remoteState.files.get(filePath)!,
+          remoteVersion: remoteState.files!.get(filePath)!,
           suggestedStrategy: 'keep_remote',
         });
       }
@@ -447,9 +447,9 @@ export class CloudSyncEngine {
     try {
       const assetData = await this.readAssetFile(assetPath);
       
-      if (assetData.size > this.config.maxUploadSize) {
+      if (assetData.size > (this.config.maxUploadSize ?? 104857600)) {
         throw new Error(
-          `Asset size (${assetData.size} bytes) exceeds maximum (${this.config.maxUploadSize} bytes)`
+          `Asset size (${assetData.size} bytes) exceeds maximum (${this.config.maxUploadSize ?? 104857600} bytes)`
         );
       }
 
@@ -635,9 +635,9 @@ export class CloudSyncEngine {
       if (!syncResult.success) {
         throw new Error(`Cannot end session: final sync failed - ${syncResult.error ?? 'unknown error'}`);
       }
-      if (syncResult.conflictsDetected > syncResult.conflictsResolved) {
+      if (syncResult.conflictsDetected! > syncResult.conflictsResolved!) {
         throw new Error(
-          `Cannot end session: ${syncResult.conflictsDetected - syncResult.conflictsResolved} conflict(s) remain unresolved`
+          `Cannot end session: ${syncResult.conflictsDetected! - syncResult.conflictsResolved!} conflict(s) remain unresolved`
         );
       }
 
@@ -815,7 +815,7 @@ export class CloudSyncEngine {
       return false;
     }
 
-    if (filters.paths && !filters.paths.some((p) => change.path.startsWith(p))) {
+    if (filters.paths && !filters.paths.some((p: string) => change.path!.startsWith(p))) {
       return false;
     }
 

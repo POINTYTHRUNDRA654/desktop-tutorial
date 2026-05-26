@@ -368,8 +368,9 @@ export const AssetDeduplicator: React.FC = () => {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Delete ${selectedGroups.size} duplicate group(s)? This will move files to trash.`
+    const confirmed = await window.electronAPI?.showConfirm?.(
+      `Delete ${selectedGroups.size} duplicate group(s)?`,
+      'This will move files to the Recycle Bin.'
     );
 
     if (!confirmed) return;

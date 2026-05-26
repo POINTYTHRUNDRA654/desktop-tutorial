@@ -454,12 +454,12 @@ export class MaterialEditorEngine {
       // Validate graph first
       const validation = await this.validateShaderGraph(graph);
       if (!validation.valid) {
-        errors.push(...validation.errors);
+        errors.push(...(validation.errors ?? []));
       }
 
-      if (validation.missingTextures.length > 0) {
+      if ((validation.missingTextures ?? []).length > 0) {
         warnings.push(
-          `Missing textures: ${validation.missingTextures.join(', ')}`
+          `Missing textures: ${(validation.missingTextures ?? []).join(', ')}`
         );
       }
 
@@ -568,8 +568,8 @@ void main()
     // Check for disconnected nodes
     const connectedNodes = new Set<string>();
     for (const conn of graph.connections) {
-      connectedNodes.add(conn.outputNode);
-      connectedNodes.add(conn.inputNode);
+      connectedNodes.add(conn.outputNode ?? '');
+      connectedNodes.add(conn.inputNode ?? '');
     }
 
     for (const node of graph.nodes || []) {

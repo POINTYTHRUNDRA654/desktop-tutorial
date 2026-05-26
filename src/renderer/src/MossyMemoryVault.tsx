@@ -62,6 +62,31 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
     const [newKnowledgeCount, setNewKnowledgeCount] = useState(0);
 
     const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
+    const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+
+    // Build tag suggestions from existing vault entries whenever content changes
+    useEffect(() => {
+        if (!newContent && !newTitle) {
+            setTagSuggestions([]);
+            return;
+        }
+        const combined = `${newTitle} ${newContent}`.toLowerCase();
+        const allTags = memories.flatMap((m) => m.tags || []);
+        const tagFreq: Record<string, number> = {};
+        for (const tag of allTags) {
+            const t = tag.toLowerCase().trim();
+            if (!t) continue;
+            // Only suggest tags whose text appears in the new content/title
+            if (combined.includes(t.replace(/-/g, ' ')) || combined.includes(t)) {
+                tagFreq[tag] = (tagFreq[tag] || 0) + 1;
+            }
+        }
+        const sorted = Object.entries(tagFreq)
+            .sort((a, b) => b[1] - a[1])
+            .map(([tag]) => tag)
+            .slice(0, 8);
+        setTagSuggestions(sorted);
+    }, [newTitle, newContent, memories]);
 
     useEffect(() => {
         const initVault = async () => {
@@ -1362,7 +1387,13 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest pl-1">Knowledge Content (Tutorial / Info / Snippet)</label>
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest pl-1">Knowledge Content (Tutorial / Info / Snippet)</label>
+                                    <span className={`text-[10px] font-mono ${newContent.length > 8000 ? 'text-amber-400' : newContent.length > 4000 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                                        {newContent.length.toLocaleString()} chars
+                                        {newContent.length > 8000 && ' · large — will be chunked'}
+                                    </span>
+                                </div>
                                 <div 
                                     onDragEnter={handleDrag}
                                     onDragLeave={handleDrag}
@@ -1462,6 +1493,35 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                                     onChange={(e) => setNewTags(e.target.value)}
                                     disabled={isUploading}
                                 />
+                                {tagSuggestions.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 pt-1">
+                                        <span className="text-[10px] text-slate-500 self-center">Suggestions:</span>
+                                        {tagSuggestions.map((tag) => {
+                                            const alreadyAdded = newTags.split(',').map((t) => t.trim()).includes(tag);
+                                            return (
+                                                <button
+                                                    key={tag}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (alreadyAdded) return;
+                                                        setNewTags((prev) => {
+                                                            const existing = prev.split(',').map((t) => t.trim()).filter(Boolean);
+                                                            return [...existing, tag].join(', ');
+                                                        });
+                                                    }}
+                                                    disabled={isUploading || alreadyAdded}
+                                                    className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
+                                                        alreadyAdded
+                                                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 cursor-default'
+                                                            : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:bg-emerald-500/10 hover:border-emerald-500/40 hover:text-emerald-300 cursor-pointer'
+                                                    }`}
+                                                >
+                                                    {alreadyAdded ? '✓ ' : '+ '}{tag}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Community Sharing */}

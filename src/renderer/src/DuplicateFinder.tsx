@@ -173,8 +173,9 @@ const DuplicateFinder: React.FC = () => {
     }
     if (!selectedPaths.length) return;
 
-    const ok = window.confirm(
-      `Move ${selectedPaths.length} file(s) to the Recycle Bin?\n\nTip: This is reversible from Recycle Bin.`,
+    const ok = await window.electronAPI?.showConfirm?.(
+      `Move ${selectedPaths.length} file(s) to the Recycle Bin?`,
+      'This is reversible from the Recycle Bin.'
     );
     if (!ok) return;
 

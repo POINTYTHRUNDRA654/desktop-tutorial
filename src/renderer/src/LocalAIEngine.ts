@@ -195,8 +195,10 @@ export const LocalAIEngine = {
    * Generates a response using the local Ollama service or Groq Cloud API.
    * Pass `conversationHistory` (prior messages, not including the current query) to
    * maintain multi-turn conversation context.
+   * Pass `voiceMode: true` for voice queries — skips the response guard (which makes
+   * a second API call) to keep voice latency from doubling to 100+ seconds.
    */
-  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<AIResponse> {
+  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false): Promise<AIResponse> {
     const localStatus = await this.getLocalProviderStatus();
     const localSettings = await this.getLocalAiSettings();
 
@@ -320,24 +322,29 @@ export const LocalAIEngine = {
     // can reuse it without making a second network call.
     // -----------------------------------------------------------------------
     const webSearchTriggers = [
-      'search', 'look up', 'find online', 'search the web', 'search online',
-      'search internet', 'browse', 'google', "what's new", 'recent', 'current',
-      'latest', 'news', 'update', 'wiki', 'fandom', 'nexus', 'mod page',
-      'find information', 'find info',
+      // Multi-word explicit web/search phrases only — single words like 'update',
+      // 'current', 'recent', 'latest', 'news', 'browse', 'fetch', 'scan' are
+      // intentionally excluded: they fire constantly on ordinary questions like
+      // "do we need to add the updated information?" or "scan my mod list".
+      'search for', 'look up', 'find online', 'search the web', 'search online',
+      'search the internet', 'google it', "what's new online", 'find on nexus',
+      'wiki page', 'fandom wiki', 'nexus mod page', 'find information online',
       // Additional natural-language phrases users commonly say when they want
       // Mossy to go online and fetch live data.
-      'go online', 'online', 'internet', 'check online', 'look it up online',
-      'look online', 'fetch', 'pull up', 'scan', 'scan for', 'real-time',
-      'real time', 'realtime', 'live data', 'live info', 'live information',
-      'check the web', 'check web', 'check internet', 'check the internet',
+      'go online', 'check online', 'look it up online',
+      'look online', 'real-time data', 'live data', 'live info', 'live information',
+      'check the web', 'check the internet',
       'from the web', 'from the internet', 'from online', 'on the web',
-      'on the internet', 'on nexus', 'on fandom',
-      // Additional explicit triggers based on user feedback
-      'can you search', 'can you look', 'can you find', 'can you check',
-      'are you able to search', 'are you able to look up', 'are you able to find',
+      'on the internet', 'on nexus mods', 'on fandom',
+      // Explicit user phrases asking Mossy to go online
+      'can you search', 'can you search online', 'can you look online',
+      'can you find online', 'can you check online', 'can you check the web',
+      'can you check the internet', 'can you look it up',
+      'are you able to search', 'are you able to look up', 'are you able to find online',
       'access the internet', 'get online', 'web search', 'internet search',
-      'look for', 'search for', 'find me', 'get me', 'fetch me',
-      'up to date', 'up-to-date', 'most recent', 'newest', 'new information',
+      // NOTE: 'look for', 'find me', 'get me', 'fetch me', 'search for',
+      // 'up to date', 'up-to-date', 'most recent', 'newest', 'new information'
+      // were removed — too broad, fire on completely unrelated voice queries.
     ];
     // NOTE: this regex is intentionally kept in sync with the fo4Terms pattern
     // in src/electron/main.ts (web-search handler). Update both if you change it.
@@ -665,7 +672,8 @@ export const LocalAIEngine = {
 
           // Apply the same response guard as the Groq path — local models revert to
           // base-LLM behaviour just as often and need the same correction.
-          if (INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent))) {
+          // Skipped in voice mode (see Groq path comment above).
+          if (!voiceMode && INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent))) {
             console.warn('[LocalAIEngine] ⚠️ RESPONSE GUARD (local) — AI falsely refused internet access');
             try {
               const guardWebApiLocal = (window.electron?.api || window.electronAPI) as any;
@@ -729,12 +737,11 @@ ANSWER THE USER NOW:`;
         let responseContent = String(resp.content || '');
 
         // --- RESPONSE GUARD ---
-        // Check EVERY response for false internet-access refusals, regardless of
-        // whether a web-search trigger keyword was detected and regardless of whether
-        // web search already succeeded.  The base LLM reverts to claiming it has no
-        // internet access even when live results were injected into its context, so
-        // the guard must be unconditional.
-        const responseRefusesInternet = INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent));
+        // Check responses for false internet-access refusals and retry with injected
+        // web results if matched. SKIPPED in voice mode — the guard makes a second full
+        // API call (~50s) which would double voice latency to 100+ seconds. Voice queries
+        // use a trimmed system prompt with a voice directive, so the AI rarely refuses.
+        const responseRefusesInternet = !voiceMode && INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent));
         if (responseRefusesInternet) {
           console.warn('[LocalAIEngine] ⚠️ RESPONSE GUARD TRIGGERED - AI falsely refused internet access');
           console.warn('[LocalAIEngine] Response snippet:', responseContent.substring(0, 200));

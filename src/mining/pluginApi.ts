@@ -456,14 +456,14 @@ export class AssetsAPIImpl implements AssetsAPI {
     }
 
     if (filter?.tags && filter.tags.length > 0) {
-      results = results.filter((a) => filter.tags!.some((tag) => a.tags.includes(tag)));
+      results = results.filter((a) => filter.tags!.some((tag) => (a.tags ?? []).includes(tag)));
     }
 
     return results;
   }
 
-  async get(assetId: string): Promise<AssetMetadata | null> {
-    return this.assets.get(assetId) || null;
+  async get(assetId: string): Promise<AssetMetadata | undefined> {
+    return this.assets.get(assetId) || undefined;
   }
 
   async update(assetId: string, metadata: Partial<AssetMetadata>): Promise<void> {
@@ -480,8 +480,8 @@ export class AssetsAPIImpl implements AssetsAPI {
 
   async search(query: string): Promise<AssetMetadata[]> {
     const results = Array.from(this.assets.values()).filter(
-      (a) => a.name.toLowerCase().includes(query.toLowerCase()) ||
-             a.tags.some((tag) => tag.toLowerCase().includes(query.toLowerCase()))
+      (a) => (a.name ?? '').toLowerCase().includes(query.toLowerCase()) ||
+             (a.tags ?? []).some((tag) => tag.toLowerCase().includes(query.toLowerCase()))
     );
     return results;
   }
@@ -645,7 +645,7 @@ export class MossyPluginAPIFactory {
       };
     }
 
-    return MossyPluginAPIFactory.instance;
+    return MossyPluginAPIFactory.instance!;
   }
 
   static getInstance(): MossyPluginAPI {

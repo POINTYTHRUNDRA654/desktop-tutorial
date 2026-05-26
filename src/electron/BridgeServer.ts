@@ -121,7 +121,7 @@ export class BridgeServer {
                                             }
                                         });
 
-                                        socket.on('data', (data) => {
+                                        socket.on('data', (data: Buffer) => {
                                             console.log('[Bridge] socket data', data.toString());
                                             if (finished) return;
                                             finished = true;
@@ -324,7 +324,7 @@ export class BridgeServer {
                 }
             });
 
-            socket.on('data', (data) => {
+            socket.on('data', (data: Buffer) => {
                 if (finished) return;
                 finished = true;
                 const response = data.toString();

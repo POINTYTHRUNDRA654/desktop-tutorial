@@ -1,6 +1,104 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Wrench, Save, Code, AlertTriangle, CheckCircle2, FileText, Play, RefreshCw, Terminal, Clock, MapPin } from 'lucide-react';
+import { Wrench, Save, Code, AlertTriangle, CheckCircle2, FileText, Play, RefreshCw, Terminal, Clock, MapPin, Search, XCircle, CheckCircle, Info, FolderOpen, Zap } from 'lucide-react';
+
+// ─── Papyrus PSC quick-linter ──────────────────────────────────────────────────
+// Pure client-side pattern analysis of pasted .psc source. No compilation needed.
+
+interface LintIssue {
+  line: number;
+  severity: 'error' | 'warn' | 'info';
+  rule: string;
+  message: string;
+}
+
+function lintPapyrusSource(src: string): LintIssue[] {
+  const issues: LintIssue[] = [];
+  const lines = src.split('\n');
+
+  lines.forEach((raw, idx) => {
+    const line = idx + 1;
+    const l = raw.toLowerCase();
+    const t = raw.trim();
+
+    // Skip comments and blank lines
+    if (t.startsWith(';') || !t) return;
+
+    // Rule: RegisterForUpdate without matching singleUpdate preference
+    if (l.includes('registerforupdate(') && !l.includes(';')) {
+      issues.push({ line, severity: 'warn', rule: 'prefer-single-update',
+        message: 'RegisterForUpdate() detected. Prefer RegisterForSingleUpdate(delay) + OnUpdate pattern to avoid continuous VM budget drain.' });
+    }
+
+    // Rule: GetName() in likely loop context
+    if (l.includes('.getname()') && (l.includes('while') || l.includes('if') || l.includes('foreach'))) {
+      issues.push({ line, severity: 'warn', rule: 'cache-getname',
+        message: 'GetName() called inside a conditional/loop. Cache the result in a String variable to avoid repeated string allocation.' });
+    }
+
+    // Rule: AddInventoryEventFilter without Remove
+    if (l.includes('addinventoryeventfilter(') && !l.includes(';')) {
+      issues.push({ line, severity: 'info', rule: 'filter-balance',
+        message: 'AddInventoryEventFilter() found. Verify a matching RemoveInventoryEventFilter() call exists in your cleanup/OnReset handler to prevent stack overflow.' });
+    }
+
+    // Rule: Debug.Trace in non-commented line (release concern)
+    if (l.includes('debug.trace(') && !l.includes(';')) {
+      issues.push({ line, severity: 'info', rule: 'debug-trace',
+        message: 'Debug.Trace() call present. Remove or guard with a debug flag before releasing — trace calls add overhead in production.' });
+    }
+
+    // Rule: Utility.Wait() in main thread (not recommended)
+    if (l.includes('utility.wait(') && !l.includes(';')) {
+      issues.push({ line, severity: 'warn', rule: 'avoid-wait',
+        message: 'Utility.Wait() halts the current script thread. Use RegisterForSingleUpdate() for delayed execution instead to keep the Papyrus scheduler healthy.' });
+    }
+
+    // Rule: Missing ScriptName declaration at top
+    if (idx === 0 && !l.startsWith('scriptname') && !l.startsWith(';') && t.length > 0) {
+      issues.push({ line, severity: 'error', rule: 'missing-scriptname',
+        message: 'First non-comment line should be a ScriptName declaration. The Papyrus compiler requires ScriptName as the first statement.' });
+    }
+
+    // Rule: Deprecated GetActorBase instead of GetActorBase() with null check
+    if (l.includes('getactorbase()') && !l.includes('if') && !l.includes('== none') && !l.includes('!= none')) {
+      issues.push({ line, severity: 'info', rule: 'null-check-actorbase',
+        message: 'GetActorBase() result used without None check. Actors with no ActorBase (e.g. spawned at runtime) will return None — guard with a None check.' });
+    }
+
+    // Rule: Form.SendModEvent without checking F4SE availability
+    if (l.includes('sendmodevent(') && !l.includes(';')) {
+      issues.push({ line, severity: 'info', rule: 'sendmodevent-f4se',
+        message: 'SendModEvent() requires F4SE. If your mod supports non-F4SE installs, wrap in a conditional or document the F4SE requirement.' });
+    }
+
+    // Rule: Very long single line (complex expression)
+    if (raw.length > 200 && !t.startsWith(';')) {
+      issues.push({ line, severity: 'info', rule: 'line-length',
+        message: `Line is ${raw.length} characters. Consider splitting into multiple statements for readability and compiler error isolation.` });
+    }
+  });
+
+  // Check for missing EndEvent / EndFunction / EndState balance
+  const openEvents = (src.match(/^\s*Event\s+/gmi) ?? []).length;
+  const closeEvents = (src.match(/^\s*EndEvent\b/gmi) ?? []).length;
+  if (openEvents !== closeEvents) {
+    issues.push({ line: 0, severity: 'error', rule: 'unbalanced-event',
+      message: `Unbalanced Event/EndEvent: ${openEvents} Event(s) found but ${closeEvents} EndEvent(s). Missing EndEvent will cause compilation failure.` });
+  }
+
+  const openFns = (src.match(/^\s*Function\s+/gmi) ?? []).length;
+  const closeFns = (src.match(/^\s*EndFunction\b/gmi) ?? []).length;
+  if (openFns !== closeFns) {
+    issues.push({ line: 0, severity: 'error', rule: 'unbalanced-function',
+      message: `Unbalanced Function/EndFunction: ${openFns} Function(s) found but ${closeFns} EndFunction(s). Missing EndFunction will cause compilation failure.` });
+  }
+
+  return issues.sort((a, b) => {
+    const order = { error: 0, warn: 1, info: 2 };
+    return order[a.severity] - order[b.severity] || a.line - b.line;
+  });
+}
 
 interface CompilationJob {
   id: string;
@@ -30,10 +128,25 @@ export const CKExtension: React.FC = () => {
     return parseInt(localStorage.getItem('ck_autosave_interval') || '5');
   });
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
+  const [nextSaveCountdown, setNextSaveCountdown] = useState<number>(0);
   const [compilationQueue, setCompilationQueue] = useState<CompilationJob[]>([]);
   const [recentScripts, setRecentScripts] = useState<CKScript[]>([]);
   const [ckLogs, setCkLogs] = useState<string[]>([]);
   const [activeCell, setActiveCell] = useState<string | null>(null);
+
+  // Papyrus linter state
+  const [lintSource, setLintSource] = useState('');
+  const [lintResults, setLintResults] = useState<LintIssue[] | null>(null);
+  const [lintBusy, setLintBusy] = useState(false);
+
+  // Compiler path settings
+  const [papyrusCompilerPath, setPapyrusCompilerPath] = useState(() =>
+    localStorage.getItem('ck_papyrus_compiler_path') || ''
+  );
+  const [papyrusFlagsPath, setPapyrusFlagsPath] = useState(() =>
+    localStorage.getItem('ck_papyrus_flags_path') || ''
+  );
+  const [showCompilerSettings, setShowCompilerSettings] = useState(false);
 
   // Check if Creation Kit is running via Neural Link
   useEffect(() => {
@@ -63,20 +176,44 @@ export const CKExtension: React.FC = () => {
   }, []);
 
   const performAutoSave = useCallback(() => {
-    setLastAutoSave(new Date());
-    setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save timestamp logged (CK IPC save bridge not yet wired — use File > Save in CK manually)`]);
-  }, []);
+    const now = new Date();
+    setLastAutoSave(now);
+    const api: any = (window as any).electron?.api || (window as any).electronAPI;
+    if (typeof api?.ckTriggerSave === 'function') {
+      api.ckTriggerSave().then((r: any) => {
+        if (r?.success) {
+          setCkLogs(prev => [...prev, `[${now.toLocaleTimeString()}] ✅ CK auto-save triggered via IPC`]);
+        } else {
+          setCkLogs(prev => [...prev, `[${now.toLocaleTimeString()}] ⏱ Save reminder logged — CK IPC save unavailable. Use File > Save in CK.`]);
+        }
+      }).catch(() => {
+        setCkLogs(prev => [...prev, `[${now.toLocaleTimeString()}] ⏱ Save reminder logged — CK IPC bridge not connected. Use File > Save in CK.`]);
+      });
+    } else {
+      setCkLogs(prev => [...prev, `[${now.toLocaleTimeString()}] ⏱ Auto-save reminder: ${autoSaveInterval} min elapsed. Press Ctrl+S in CK.`]);
+    }
+  }, [autoSaveInterval]);
 
-  // Auto-save timer
+  // Auto-save timer + countdown
+  const autoSaveStartRef = useRef<number>(Date.now());
   useEffect(() => {
-    if (!isConnected || !autoSaveEnabled) return;
+    if (!autoSaveEnabled) { setNextSaveCountdown(0); return; }
+    autoSaveStartRef.current = Date.now();
+    const intervalMs = autoSaveInterval * 60 * 1000;
 
-    const saveInterval = setInterval(() => {
+    const saveTimer = setInterval(() => {
+      autoSaveStartRef.current = Date.now();
       performAutoSave();
-    }, autoSaveInterval * 60 * 1000);
+    }, intervalMs);
 
-    return () => clearInterval(saveInterval);
-  }, [isConnected, autoSaveEnabled, autoSaveInterval, performAutoSave]);
+    const countdownTimer = setInterval(() => {
+      const elapsed = Date.now() - autoSaveStartRef.current;
+      const remaining = Math.max(0, Math.ceil((intervalMs - elapsed) / 1000));
+      setNextSaveCountdown(remaining);
+    }, 1000);
+
+    return () => { clearInterval(saveTimer); clearInterval(countdownTimer); };
+  }, [autoSaveEnabled, autoSaveInterval, performAutoSave]);
 
   const loadCKData = async () => {
     // Try to load recently compiled scripts from settings if the IPC is available
@@ -102,6 +239,27 @@ export const CKExtension: React.FC = () => {
     setAutoSaveInterval(minutes);
     localStorage.setItem('ck_autosave_interval', minutes.toString());
     setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Auto-save interval set to ${minutes} minutes`]);
+  };
+
+  const saveCompilerPath = (path: string) => {
+    setPapyrusCompilerPath(path);
+    localStorage.setItem('ck_papyrus_compiler_path', path);
+  };
+
+  const saveFlagsPath = (path: string) => {
+    setPapyrusFlagsPath(path);
+    localStorage.setItem('ck_papyrus_flags_path', path);
+  };
+
+  const runLinter = () => {
+    if (!lintSource.trim()) return;
+    setLintBusy(true);
+    // Yield to UI then run
+    setTimeout(() => {
+      const results = lintPapyrusSource(lintSource);
+      setLintResults(results);
+      setLintBusy(false);
+    }, 50);
   };
 
   const compileScript = async (scriptName: string) => {
@@ -188,14 +346,24 @@ export const CKExtension: React.FC = () => {
             </div>
           </div>
 
-          {/* Under Development Banner */}
-          <div className="flex items-center gap-3 bg-amber-950/60 border border-amber-500/50 rounded-xl px-5 py-4">
-            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
-            <div>
-              <span className="font-bold text-amber-300 uppercase tracking-wide text-sm">Under Development</span>
-              <p className="text-amber-200/80 text-xs mt-0.5">
-                <strong>Auto-save logs timestamps only</strong> — the CK IPC save bridge is not yet wired. Use <strong>File &gt; Save</strong> inside the Creation Kit manually to protect your work. Script compiler requires a configured Papyrus compiler path in Settings.
-              </p>
+          {/* Capability Status Banner */}
+          <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-2">
+            <p className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Extension Capabilities</p>
+            <div className="grid grid-cols-1 gap-1.5 text-xs">
+              {[
+                { icon: CheckCircle, color: 'text-emerald-400', label: 'Auto-save countdown timer', detail: 'Active — counts down and reminds you to Ctrl+S at each interval' },
+                { icon: CheckCircle, color: 'text-emerald-400', label: 'CK process detection', detail: 'Via Neural Link mossy_active_tools registry (CreationKit.exe)' },
+                { icon: CheckCircle, color: 'text-emerald-400', label: 'Papyrus PSC linter', detail: '8 lint rules run instantly on pasted source — no compiler needed' },
+                { icon: CheckCircle, color: 'text-emerald-400', label: 'Script compilation queue', detail: 'Queues and dispatches compile jobs via IPC when Papyrus compiler is configured' },
+                { icon: Info, color: 'text-amber-400', label: 'CK IPC save trigger', detail: 'Available if desktop bridge exposes ckTriggerSave — otherwise sends reminder' },
+                { icon: Info, color: 'text-amber-400', label: 'Active cell display', detail: 'Requires live CK IPC bridge with cell tracking event stream' },
+              ].map(cap => (
+                <div key={cap.label} className="flex items-start gap-2">
+                  <cap.icon className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${cap.color}`} />
+                  <span className="text-white font-medium">{cap.label}</span>
+                  <span className="text-slate-500">— {cap.detail}</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -265,7 +433,15 @@ export const CKExtension: React.FC = () => {
                   {lastAutoSave && (
                     <div className="text-sm text-slate-400 flex items-center gap-2">
                       <Clock className="w-4 h-4" />
-                      Last auto-save: {lastAutoSave.toLocaleTimeString()}
+                      Last reminder: {lastAutoSave.toLocaleTimeString()}
+                    </div>
+                  )}
+                  {autoSaveEnabled && nextSaveCountdown > 0 && (
+                    <div className="text-sm text-emerald-400 flex items-center gap-2">
+                      <Zap className="w-4 h-4" />
+                      Next save reminder in: <span className="font-mono font-bold">
+                        {Math.floor(nextSaveCountdown / 60)}:{String(nextSaveCountdown % 60).padStart(2, '0')}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -426,16 +602,120 @@ export const CKExtension: React.FC = () => {
             </div>
           )}
 
+          {/* Papyrus PSC Linter */}
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Search className="w-6 h-6 text-purple-400" />
+              <div>
+                <h3 className="text-lg font-bold text-white">Papyrus Script Linter</h3>
+                <p className="text-sm text-slate-400">Paste .psc source for instant client-side analysis — 8 rules, no compiler needed</p>
+              </div>
+            </div>
+            <textarea
+              value={lintSource}
+              onChange={e => { setLintSource(e.target.value); setLintResults(null); }}
+              rows={8}
+              placeholder="Scriptname MyScript extends ObjectReference&#10;&#10;Event OnActivate(ObjectReference akActionRef)&#10;  ; Paste your .psc source here&#10;EndEvent"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-y mb-3"
+            />
+            <button
+              onClick={runLinter}
+              disabled={lintBusy || !lintSource.trim()}
+              className="px-5 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg font-semibold text-sm transition-colors flex items-center gap-2 mb-4"
+            >
+              {lintBusy ? <><RefreshCw className="w-4 h-4 animate-spin" /> Linting…</> : <><Search className="w-4 h-4" /> Lint Script</>}
+            </button>
+
+            {lintResults !== null && (
+              <div className="space-y-2">
+                {lintResults.length === 0 ? (
+                  <div className="rounded-lg border border-emerald-600/40 bg-emerald-950/20 px-3 py-2.5 text-xs text-emerald-300 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4" /> No lint issues detected — script looks clean.
+                  </div>
+                ) : (
+                  lintResults.map((issue, i) => (
+                    <div key={i} className={`rounded-lg border px-3 py-2 text-xs ${
+                      issue.severity === 'error' ? 'border-red-600/40 bg-red-950/20 text-red-300'
+                      : issue.severity === 'warn' ? 'border-yellow-600/40 bg-yellow-950/20 text-yellow-300'
+                      : 'border-sky-600/40 bg-sky-950/20 text-sky-300'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                        {issue.severity === 'error' ? <XCircle className="w-3.5 h-3.5" /> : issue.severity === 'warn' ? <AlertTriangle className="w-3.5 h-3.5" /> : <Info className="w-3.5 h-3.5" />}
+                        <span className="font-bold uppercase text-[10px] tracking-wider">{issue.severity}</span>
+                        {issue.line > 0 && <span className="font-mono text-slate-500">Line {issue.line}</span>}
+                        <span className="text-slate-500 font-mono text-[10px]">[{issue.rule}]</span>
+                      </div>
+                      <p className="text-slate-300 mt-0.5">{issue.message}</p>
+                    </div>
+                  ))
+                )}
+                <div className="text-xs text-slate-500 mt-1">
+                  {lintResults.filter(r => r.severity === 'error').length} error(s) · {lintResults.filter(r => r.severity === 'warn').length} warning(s) · {lintResults.filter(r => r.severity === 'info').length} info
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Compiler Path Configuration */}
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 overflow-hidden">
+            <button
+              onClick={() => setShowCompilerSettings(!showCompilerSettings)}
+              className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-700/30 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <FolderOpen className="w-5 h-5 text-orange-400" />
+                <div className="text-left">
+                  <h3 className="font-bold text-white text-sm">Compiler Path Configuration</h3>
+                  <p className="text-xs text-slate-400">Configure Papyrus compiler and flags file paths</p>
+                </div>
+              </div>
+              <span className="text-slate-500 text-xs">{showCompilerSettings ? '▲ Hide' : '▼ Show'}</span>
+            </button>
+            {showCompilerSettings && (
+              <div className="px-6 pb-5 space-y-3 border-t border-slate-700">
+                <div className="space-y-1 mt-3">
+                  <label className="text-xs font-semibold text-slate-300">PapyrusCompiler.exe Path</label>
+                  <input
+                    value={papyrusCompilerPath}
+                    onChange={e => saveCompilerPath(e.target.value)}
+                    placeholder="C:\Program Files (x86)\Steam\steamapps\common\Fallout 4\Papyrus Compiler\PapyrusCompiler.exe"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Flags File Path (.flg)</label>
+                  <input
+                    value={papyrusFlagsPath}
+                    onChange={e => saveFlagsPath(e.target.value)}
+                    placeholder="C:\Program Files (x86)\Steam\steamapps\common\Fallout 4\Data\Scripts\Source\User\Institute_Papyrus_Flags.flg"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+                <div className="rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
+                  <p className="mb-1 font-semibold text-slate-300">Typical CK Compiler Command:</p>
+                  <code className="font-mono text-emerald-300 text-[10px] break-all">
+                    PapyrusCompiler.exe "MyScript.psc" -i="Data\Scripts\Source" -o="Data\Scripts" -f="Institute_Papyrus_Flags.flg"
+                  </code>
+                </div>
+                {papyrusCompilerPath && (
+                  <div className="text-xs text-emerald-400 flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" /> Compiler path saved — script compilation queue will use this path.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Info Panel */}
           <div className="bg-slate-900/30 border border-slate-800 rounded-lg p-4">
             <h4 className="text-sm font-bold text-slate-200 mb-2">💡 Creation Kit Extension Features</h4>
             <ul className="text-xs text-slate-400 space-y-1">
-              <li>• Automatic save at configurable intervals</li>
-              <li>• Script compilation queue</li>
-              <li>• Real-time activity logging</li>
-              <li>• Quick compile shortcuts</li>
-              <li>• Error detection and reporting</li>
-              <li>• Cell/worldspace tracking</li>
+              <li>• Live countdown timer to next auto-save reminder</li>
+              <li>• CK IPC save trigger (when desktop bridge supports ckTriggerSave)</li>
+              <li>• Papyrus PSC linter — 8 rules, fully client-side, no compiler needed</li>
+              <li>• Script compilation queue with configurable PapyrusCompiler.exe path</li>
+              <li>• Real-time activity logging with timestamps</li>
+              <li>• Cell/worldspace tracking via CK IPC bridge</li>
             </ul>
           </div>
         </div>

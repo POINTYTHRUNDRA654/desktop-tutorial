@@ -454,11 +454,11 @@ export class ShaderGraphValidator {
     }
 
     // Validate outputs
-    if (graph.outputs.length === 0) {
+    if ((graph.outputs ?? []).length === 0) {
       warnings.push('No output nodes defined');
     }
 
-    for (const output of graph.outputs) {
+    for (const output of (graph.outputs ?? [])) {
       this.validateOutput(output, nodeMap, errors, warnings);
     }
 
@@ -582,7 +582,7 @@ export class ShaderGraphValidator {
     }
 
     // Traverse backwards from outputs
-    const queue: string[] = graph.outputs
+    const queue: string[] = (graph.outputs ?? [])
       .map((o) => o.connectedNode)
       .filter((n) => n !== undefined) as string[];
 

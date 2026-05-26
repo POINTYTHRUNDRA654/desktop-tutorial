@@ -860,7 +860,7 @@ export class ContextualMiningEngineImpl extends EventEmitter implements Contextu
 
   private decayOldPreferences(): void {
     // Simple decay mechanism for old preferences
-    const decayFactor = Math.pow(0.99, this.config.preferenceDecay);
+    const decayFactor = Math.pow(0.99, this.config.preferenceDecay ?? 1);
     // Implementation would decay preference weights over time
   }
 

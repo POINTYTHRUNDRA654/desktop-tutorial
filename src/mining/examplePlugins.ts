@@ -72,7 +72,7 @@ export class MyPlugin extends MossyPlugin {
     });
 
     // Listen to project changes
-    const unsubscribeProject = this.api.projects.onProjectChange((project) => {
+    const unsubscribeProject = this.api.projects!.onProjectChange?.((project) => {
       if (project) {
         this.api.ui.showNotification({
           title: 'Project Opened',
@@ -81,10 +81,10 @@ export class MyPlugin extends MossyPlugin {
         });
       }
     });
-    this.unsubscribers.push(unsubscribeProject);
+    if (unsubscribeProject) this.unsubscribers.push(unsubscribeProject);
 
     // Listen to file saves
-    const unsubscribeFileEvent = this.api.events.on('file-saved', (file: string) => {
+    const unsubscribeFileEvent = this.api.events!.on('file-saved', (file: string) => {
       this.log(`File saved: ${file}`);
     });
     this.unsubscribers.push(unsubscribeFileEvent);
@@ -114,7 +114,7 @@ export class AssetManagerPlugin extends MossyPlugin {
     await this.log('AssetManagerPlugin activated');
 
     // Register settings
-    this.api.settings.register({
+    this.api.settings.register?.({
       key: 'assetManager.autoImport',
       title: 'Auto Import Assets',
       description: 'Automatically import assets when they are added to the project',
@@ -122,7 +122,7 @@ export class AssetManagerPlugin extends MossyPlugin {
       default: true,
     });
 
-    this.api.settings.register({
+    this.api.settings.register?.({
       key: 'assetManager.maxAssetSize',
       title: 'Maximum Asset Size (MB)',
       description: 'Maximum file size for imported assets',
@@ -152,7 +152,7 @@ export class AssetManagerPlugin extends MossyPlugin {
 
         try {
           const assetType = this.getAssetType(filePath[0]);
-          const metadata = await this.api.assets.import(filePath[0], assetType, {
+          const metadata = await this.api.assets!.import(filePath[0], assetType, {
             tags: ['imported', 'user'],
           });
 
@@ -187,7 +187,7 @@ export class AssetManagerPlugin extends MossyPlugin {
     this.api.command.register(
       'assetManager.listAssets',
       async (filter?: { type?: string }) => {
-        const assets = await this.api.assets.list(filter);
+        const assets = await this.api.assets!.list!(filter);
         return {
           count: assets.length,
           assets: assets.map((a) => ({
@@ -205,10 +205,10 @@ export class AssetManagerPlugin extends MossyPlugin {
     );
 
     // Watch settings changes
-    const unsubscribe = this.api.settings.watch('assetManager.maxAssetSize', (newValue, oldValue) => {
+    const unsubscribe = this.api.settings.watch?.('assetManager.maxAssetSize', (newValue, oldValue) => {
       console.log(`Max asset size changed from ${oldValue}MB to ${newValue}MB`);
     });
-    this._unsubscribers.push(unsubscribe);
+    if (unsubscribe) this._unsubscribers.push(unsubscribe);
   }
 
   async deactivate(): Promise<void> {
@@ -247,7 +247,7 @@ export class ToolIntegrationPlugin extends MossyPlugin {
     await this.log('ToolIntegrationPlugin activated');
 
     // Monitor Blender
-    const unsubBlender = this.api.tools.blender.onSessionChange((running) => {
+    const unsubBlender = this.api.tools!.blender.onSessionChange((running) => {
       if (running) {
         this.api.ui.showNotification({
           title: 'Blender Detected',
@@ -260,7 +260,7 @@ export class ToolIntegrationPlugin extends MossyPlugin {
     this.unsubscribers.push(unsubBlender);
 
     // Monitor xEdit
-    const unsubXEdit = this.api.tools.xEdit.onSessionChange((running) => {
+    const unsubXEdit = this.api.tools!.xEdit.onSessionChange((running) => {
       if (running) {
         this.api.ui.showNotification({
           title: 'xEdit Detected',
@@ -276,9 +276,9 @@ export class ToolIntegrationPlugin extends MossyPlugin {
     this.api.command.register(
       'tools.checkVersions',
       async () => {
-        const blenderVersion = await this.api.tools.blender.getVersion();
-        const xEditVersion = await this.api.tools.xEdit.getVersion();
-        const nifskopeVersion = await this.api.tools.nifskope.getVersion();
+        const blenderVersion = await this.api.tools!.blender.getVersion();
+        const xEditVersion = await this.api.tools!.xEdit.getVersion();
+        const nifskopeVersion = await this.api.tools!.nifskope.getVersion();
 
         return {
           blender: blenderVersion,
@@ -299,7 +299,7 @@ export class ToolIntegrationPlugin extends MossyPlugin {
       'tools.launchBlender',
       async () => {
         try {
-          await this.api.tools.blender.launch();
+          await this.api.tools!.blender.launch();
           this.api.ui.showNotification({
             title: 'Blender Launched',
             message: 'Blender is starting...',
@@ -358,7 +358,7 @@ export class FileWatcherPlugin extends MossyPlugin {
         try {
           const unwatch = this.api.fileSystem.watch(dirPath, (event, filename) => {
             console.log(`[${event}] ${filename}`);
-            this.api.events.emit('file-changed', { event, filename, directory: dirPath });
+            this.api.events!.emit('file-changed', { event, filename, directory: dirPath });
           });
 
           this.watchers.push(unwatch);
@@ -391,7 +391,7 @@ export class FileWatcherPlugin extends MossyPlugin {
     this.api.menu.add('Tools', 'Watch Directory', 'fileWatcher.watchDirectory');
 
     // Listen to file changes
-    const unsubscribe = this.api.events.on('file-changed', (data) => {
+    const unsubscribe = this.api.events!.on('file-changed', (data) => {
       this.log(`File event: ${data.event} - ${data.filename}`);
     });
 
@@ -437,7 +437,7 @@ export class ProjectManagerPlugin extends MossyPlugin {
             return { success: false };
           }
 
-          const project = await this.api.projects.create(name, 'skyrim', projectPath);
+          const project = await this.api.projects!.create!(name, 'skyrim', projectPath);
 
           this.api.ui.showNotification({
             title: 'Project Created',
@@ -467,13 +467,13 @@ export class ProjectManagerPlugin extends MossyPlugin {
     this.api.menu.add('File', 'New Project', 'projectManager.createProject');
 
     // Listen to project changes
-    const unsubscribe = this.api.projects.onProjectChange((project) => {
+    const unsubscribe = this.api.projects!.onProjectChange?.((project) => {
       if (project) {
         this.log(`Project switched to: ${project.name}`);
       }
     });
 
-    this.unsubscribers.push(unsubscribe);
+    if (unsubscribe) this.unsubscribers.push(unsubscribe);
   }
 
   async deactivate(): Promise<void> {

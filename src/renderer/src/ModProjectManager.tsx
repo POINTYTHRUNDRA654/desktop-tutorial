@@ -90,15 +90,15 @@ const ModProjectManager: React.FC<ModProjectManagerProps> = ({ embedded = false 
     }
   };
 
-  const handleDeleteProject = (projectId: string) => {
-    if (confirm('Are you sure you want to delete this mod project? This cannot be undone.')) {
-      ModProjectStorage.deleteProject(projectId);
-      refreshProjects();
-      if (selectedProjectId === projectId) {
-        setSelectedProjectId(null);
-        setActiveView('list');
-        setCurrentMod(null);
-      }
+  const handleDeleteProject = async (projectId: string) => {
+    const ok = await window.electronAPI?.showConfirm?.('Are you sure you want to delete this mod project? This cannot be undone.');
+    if (!ok) return;
+    ModProjectStorage.deleteProject(projectId);
+    refreshProjects();
+    if (selectedProjectId === projectId) {
+      setSelectedProjectId(null);
+      setActiveView('list');
+      setCurrentMod(null);
     }
   };
 
@@ -453,11 +453,11 @@ const DetailView: React.FC<DetailViewProps> = ({ embedded = false, project, stat
     onRefresh();
   };
 
-  const handleDeleteStep = (stepId: string) => {
-    if (confirm('Delete this step?')) {
-      ModProjectStorage.deleteStep(project.id, stepId);
-      onRefresh();
-    }
+  const handleDeleteStep = async (stepId: string) => {
+    const ok = await window.electronAPI?.showConfirm?.('Delete this step?');
+    if (!ok) return;
+    ModProjectStorage.deleteStep(project.id, stepId);
+    onRefresh();
   };
 
   const handleUpdateProjectStatus = (newStatus: any) => {

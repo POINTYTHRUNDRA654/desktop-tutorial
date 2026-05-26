@@ -331,9 +331,9 @@ class FeatureExtractor {
     return trainingData.map(data => ({
       modSimilarity: this.calculateModSimilarity(data.modA, data.modB),
       historicalConflicts: this.getHistoricalConflictRate(data.modA, data.modB),
-      loadOrder: data.context.loadOrder.length,
-      hardwareCompatibility: this.assessHardwareCompatibility(data.context.hardwareProfile),
-      versionCompatibility: this.assessVersionCompatibility(data.context.modVersions)
+      loadOrder: (data.context.loadOrder ?? []).length,
+      hardwareCompatibility: this.assessHardwareCompatibility(data.context.hardwareProfile!),
+      versionCompatibility: this.assessVersionCompatibility(data.context.modVersions!)
     }));
   }
 

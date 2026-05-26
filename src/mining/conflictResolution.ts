@@ -50,7 +50,7 @@ export class ConflictResolutionEngine {
         pluginName: plugin.fileName,
         conflictCount: pluginConflicts.length,
         criticalCount,
-        affectedRecords: pluginConflicts.map(c => c.formId),
+        affectedRecords: pluginConflicts.map(c => c.formId).filter((f): f is string => f !== undefined),
       };
     });
 
@@ -258,14 +258,14 @@ export class ConflictResolutionEngine {
     const unresolved: Conflict[] = [];
     const appliedRules: string[] = [];
 
-    const activeRules = [...rules].filter(r => r.enabled).sort((a, b) => b.priority - a.priority);
+    const activeRules = [...rules].filter(r => r.enabled).sort((a, b) => b.priority! - a.priority!);
 
     for (const conflict of conflicts) {
       let matched = false;
 
       for (const rule of activeRules) {
         if (!this.matchesRule(conflict, rule)) continue;
-        conflict.resolutionSuggestion = rule.action.resolution;
+        conflict.resolutionSuggestion = rule.action!.resolution;
         resolved.push(conflict);
         matched = true;
         appliedRules.push(rule.name);
@@ -353,10 +353,10 @@ export class ConflictResolutionEngine {
   }
 
   private matchesRule(conflict: Conflict, rule: ConflictRule): boolean {
-    if (rule.match.type && rule.match.type !== conflict.conflictType) return false;
-    if (rule.match.recordType && rule.match.recordType !== conflict.recordType) return false;
-    if (rule.match.severity && rule.match.severity !== conflict.severity) return false;
-    if (rule.match.plugin && !conflict.affectedPlugins.some(p => p.toLowerCase() === rule.match.plugin!.toLowerCase())) return false;
+    if (rule.match!.type && rule.match!.type !== conflict.conflictType) return false;
+    if (rule.match!.recordType && rule.match!.recordType !== conflict.recordType) return false;
+    if (rule.match!.severity && rule.match!.severity !== conflict.severity) return false;
+    if (rule.match!.plugin && !conflict.affectedPlugins.some(p => p.toLowerCase() === rule.match!.plugin!.toLowerCase())) return false;
     return true;
   }
 

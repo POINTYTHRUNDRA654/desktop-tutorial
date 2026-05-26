@@ -205,7 +205,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
     try {
       // Create voice service for testing (same config as LiveContext)
       const config: VoiceServiceConfig = {
-        sttProvider: 'backend', // Use backend first, fallback to browser
+        sttProvider: 'local', // Use local Whisper (on-device, offline); falls back to browser STT on error
         ttsProvider: 'browser',
       };
 

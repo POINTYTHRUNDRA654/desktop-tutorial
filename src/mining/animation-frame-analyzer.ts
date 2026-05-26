@@ -66,8 +66,8 @@ export class AnimationFrameAnalyzer {
     }
 
     // Check compression ratio
-    if (animation.compressionRatio < this.MAX_COMPRESSION_RATIO) {
-      suggestions.push(`Increase compression ratio from ${(animation.compressionRatio * 100).toFixed(1)}% to ${Math.round(this.MAX_COMPRESSION_RATIO * 100)}%`);
+    if (animation.compressionRatio! < this.MAX_COMPRESSION_RATIO) {
+      suggestions.push(`Increase compression ratio from ${(animation.compressionRatio! * 100).toFixed(1)}% to ${Math.round(this.MAX_COMPRESSION_RATIO * 100)}%`);
     }
 
     // Calculate potential savings
@@ -121,7 +121,7 @@ export class AnimationFrameAnalyzer {
     const finalKeyframes = Math.floor(reducedKeyframes * frameRateRatio);
 
     const bytesPerKeyframe = animation.boneCount * 28;
-    return finalKeyframes * bytesPerKeyframe * animation.compressionRatio;
+    return finalKeyframes * bytesPerKeyframe * animation.compressionRatio!;
   }
 
   /**
@@ -358,7 +358,7 @@ export class AnimationFrameAnalyzer {
     const optimizedKeyframes: AnimationKeyframe[] = [];
     for (let i = 0; i < targetCount; i++) {
       const sourceIndex = Math.floor(i * step);
-      const sourceKeyframe = animation.keyframes[sourceIndex];
+      const sourceKeyframe = animation.keyframes![sourceIndex];
       if (sourceKeyframe) {
         optimizedKeyframes.push({ ...sourceKeyframe });
       }

@@ -1,4 +1,4 @@
-export type InstallWizardTopic = 'xedit' | 'ss2' | 'prp' | 'patching';
+export type InstallWizardTopic = 'f4se' | 'xedit' | 'ss2' | 'prp' | 'patching';
 
 export type InstallWizardResource = {
   label: string;
@@ -9,6 +9,36 @@ export type InstallWizardResource = {
 };
 
 export const installWizardResources: Record<InstallWizardTopic, InstallWizardResource[]> = {
+  f4se: [
+    {
+      label: 'F4SE — Fallout 4 Script Extender (official site)',
+      url: 'https://f4se.silverlock.org',
+      note: 'Required by almost every script-based mod. Match the F4SE version EXACTLY to your Fallout 4 version (OG 1.10.163 or Next-Gen 1.10.984+).',
+      content: 'The Fallout 4 Script Extender is a mandatory prerequisite for almost every scripted mod including Sim Settlements 2, MCM, HUDFramework, and hundreds of others. Download from the official site only. You must match the F4SE version number exactly to your installed Fallout 4 version — mixing OG F4SE with a Next-Gen game (or vice versa) will cause an immediate launch failure. After installing, launch the game via f4se_loader.exe or the F4SE entry in your mod manager, never via the default Fallout4.exe launcher.',
+      tags: ['f4se', 'script extender', 'prerequisite', 'install-wizard', 'critical'],
+    },
+    {
+      label: 'Address Library for F4SE (Nexus #47327)',
+      url: 'https://www.nexusmods.com/fallout4/mods/47327',
+      note: 'Required by most modern F4SE plugins. Install the version bundle that matches your game (All-In-One OG or Next-Gen).',
+      content: 'Address Library for F4SE Plugins provides version-independent memory address lookups used by virtually all modern F4SE plugins. Install the correct bundle for your game version: the All-In-One package for OG (1.10.163) or the separate Next-Gen file for 1.10.984+. Without it, most newer F4SE-based mods will fail silently or crash on load. Install it through your mod manager, verify it appears in your load order, and ensure no duplicate versions are present.',
+      tags: ['f4se', 'address library', 'nexus', 'prerequisite', 'install-wizard'],
+    },
+    {
+      label: 'Mod Configuration Menu — MCM (Nexus #21497)',
+      url: 'https://www.nexusmods.com/fallout4/mods/21497',
+      note: 'F4SE-based in-game settings menu used by hundreds of mods. Install if any mod in your list mentions MCM.',
+      content: 'Mod Configuration Menu (MCM) is an F4SE-dependent framework that provides an in-game settings UI for mods that support it. It requires a working F4SE installation. If any mod in your list mentions MCM support, install this before that mod and verify it is loaded after F4SE in your load order. Mods that rely on MCM will silently lose their settings UI if MCM is missing or installed incorrectly.',
+      tags: ['f4se', 'mcm', 'mod configuration menu', 'nexus', 'install-wizard'],
+    },
+    {
+      label: 'HUDFramework (Nexus #20309)',
+      url: 'https://www.nexusmods.com/fallout4/mods/20309',
+      note: 'Required by SS2 and many HUD-modifying tools. Needs F4SE.',
+      content: 'HUDFramework is a shared HUD-element library used by Sim Settlements 2, Workshop Framework, and other major mods. It requires F4SE and must be installed before SS2. Place it early in your load order. If SS2 complains about missing HUD elements or you see SS2 UI components not rendering, verify HUDFramework is present and loading correctly.',
+      tags: ['f4se', 'hudframework', 'hud', 'ss2', 'nexus', 'install-wizard'],
+    },
+  ],
   xedit: [
     {
       label: 'xEdit (GitHub repository)',
@@ -110,6 +140,7 @@ export const installWizardResources: Record<InstallWizardTopic, InstallWizardRes
 };
 
 export const installWizardBuiltInLinks: Record<InstallWizardTopic, Array<Pick<InstallWizardResource, 'label' | 'url' | 'note'>>> = {
+  f4se: installWizardResources.f4se.map(({ label, url, note }) => ({ label, url, note })),
   xedit: installWizardResources.xedit.map(({ label, url, note }) => ({ label, url, note })),
   ss2: installWizardResources.ss2.map(({ label, url, note }) => ({ label, url, note })),
   prp: installWizardResources.prp.map(({ label, url, note }) => ({ label, url, note })),

@@ -112,7 +112,21 @@ const extractKeywords = (query: string): string[] => {
   return out.slice(0, 24);
 };
 
-const scoreItem = (item: KnowledgeVaultItem, keywords: string[]): number => {
+/**
+ * Count non-overlapping occurrences of needle in haystack.
+ */
+const countOccurrences = (haystack: string, needle: string): number => {
+  if (!needle) return 0;
+  let count = 0;
+  let start = 0;
+  while ((start = haystack.indexOf(needle, start)) !== -1) {
+    count++;
+    start += needle.length;
+  }
+  return count;
+};
+
+const scoreItem = (item: KnowledgeVaultItem, keywords: string[], rawQuery: string): number => {
   if (keywords.length === 0) return 0;
 
   const title = normalize(item.title);
@@ -120,18 +134,42 @@ const scoreItem = (item: KnowledgeVaultItem, keywords: string[]): number => {
   const tags = (item.tags || []).map(normalize).join(' ');
 
   let score = 0;
+  const normQuery = normalize(rawQuery);
+
+  // --- Unigram / keyword scoring ---
   for (const k of keywords) {
-    if (title.includes(k)) score += 5;
-    if (tags.includes(k)) score += 3;
-    if (content.includes(k)) score += 1;
+    const titleHits = countOccurrences(title, k);
+    const tagHits = countOccurrences(tags, k);
+    const contentHits = countOccurrences(content, k);
+
+    // Title and tag matches are high-signal; content matches use sqrt to prevent
+    // long documents from dominating just due to repetition.
+    if (titleHits > 0) score += 6 * titleHits;
+    if (tagHits > 0)   score += 4 * tagHits;
+    if (contentHits > 0) score += Math.sqrt(contentHits); // frequency-dampened
   }
 
-  // Mild recency bonus if date parses
+  // --- Phrase match bonus: full query substring in title/tags/content ---
+  // Rewards items that match the full query phrase, not just individual keywords.
+  if (normQuery.length >= 4) {
+    if (title.includes(normQuery))   score += 15;
+    if (tags.includes(normQuery))    score += 10;
+    if (content.includes(normQuery)) score += 4;
+  }
+
+  // --- Trust level boost ---
+  // Official docs and personal user notes are higher-fidelity than community items.
+  const trust = item.trustLevel ?? 'personal';
+  if (trust === 'official')  score *= 1.15;
+  else if (trust === 'personal') score *= 1.05;
+  // community stays at 1.0
+
+  // --- Recency bonus: items added recently are slightly preferred ---
   if (item.date) {
     const t = Date.parse(item.date);
     if (!Number.isNaN(t)) {
       const ageDays = Math.max(0, (Date.now() - t) / (24 * 60 * 60 * 1000));
-      score += Math.max(0, 2 - ageDays / 30); // up to +2, fades over ~60 days
+      score += Math.max(0, 2.5 - ageDays / 45); // up to +2.5, fades over ~112 days
     }
   }
 
@@ -163,11 +201,16 @@ const filterVisibleKnowledgeItems = (items: KnowledgeVaultItem[], excludeTerms?:
   });
 };
 
-const rankKnowledgeItems = (items: KnowledgeVaultItem[], keywords: string[], maxItems: number): KnowledgeVaultItem[] => {
+const rankKnowledgeItems = (
+  items: KnowledgeVaultItem[],
+  keywords: string[],
+  maxItems: number,
+  rawQuery = '',
+): KnowledgeVaultItem[] => {
   if (keywords.length === 0) return items.slice(-maxItems).reverse();
 
   return items
-    .map((it) => ({ it, s: scoreItem(it, keywords) }))
+    .map((it) => ({ it, s: scoreItem(it, keywords, rawQuery) }))
     .sort((a, b) => b.s - a.s)
     .filter((x) => x.s > 0)
     .slice(0, Math.max(maxItems, 3))
@@ -248,7 +291,8 @@ export const getRelevantKnowledgeVaultItems = (
   const ranked = rankKnowledgeItems(
     [...visibleItems, ...visibleInstallWizardItems],
     keywords,
-    maxItems
+    maxItems,
+    query,
   );
   if (ranked.length === 0) return [];
 
@@ -277,7 +321,8 @@ export const buildRelevantKnowledgeVaultContext = (query: string, opts?: {
   const ranked = rankKnowledgeItems(
     [...visibleItems, ...visibleInstallWizardItems],
     keywords,
-    maxItems
+    maxItems,
+    query,
   );
 
   if (ranked.length === 0) {

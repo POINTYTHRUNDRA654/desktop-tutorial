@@ -1,61 +1,19 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Box,
-  Tabs,
-  Tab,
-  Typography,
-  Button,
-  TextField,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  IconButton,
-  Chip,
-  Paper,
-  Grid,
-  Card,
-  CardContent,
-  CardActions,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Alert,
-  CircularProgress,
-  Divider,
-  Badge,
-  Tooltip,
-  Switch,
-  FormControlLabel
-} from '@mui/material';
+import React, { useState, useEffect } from 'react';
 import {
   GitBranch,
   GitCommit,
   Clock,
   Archive,
   RotateCcw,
-  Folder,
   FileText,
   Plus,
   Minus,
-  Eye,
-  EyeOff,
-  CheckCircle,
   AlertCircle,
-  AlertTriangle,
   RefreshCw,
   Upload,
   Download,
-  Settings,
   GitMerge,
-  GitPullRequest,
   User,
-  MessageSquare
 } from 'lucide-react';
 import { GitRepo, CommitHistory, Backup as BackupType, DiffResult } from '../../shared/types';
 
@@ -63,744 +21,457 @@ interface VersionControlProps {
   className?: string;
 }
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
+// ---------------------------------------------------------------------------
+// Primitive replacements (no MUI)
+// ---------------------------------------------------------------------------
 
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
+const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
+  <div className={`bg-[#141814] border border-slate-700/40 rounded-xl overflow-hidden ${className}`}>{children}</div>
+);
 
+const CardBody: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
+  <div className={`p-5 ${className}`}>{children}</div>
+);
+
+const CardFoot: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="px-5 pb-4 flex gap-2">{children}</div>
+);
+
+const Btn: React.FC<{
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  variant?: 'solid' | 'ghost';
+  icon?: React.ReactNode;
+  className?: string;
+}> = ({ children, onClick, disabled, variant = 'ghost', icon, className = '' }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed
+      ${variant === 'solid'
+        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+        : 'bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white'
+      } ${className}`}
+  >
+    {icon}{children}
+  </button>
+);
+
+const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <label className="block text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-1">{children}</label>
+);
+
+const NativeSelect: React.FC<{ value: string; onChange: (v: string) => void; children: React.ReactNode; label?: string }> = ({ value, onChange, children, label }) => (
+  <div className="space-y-1">
+    {label && <Label>{label}</Label>}
+    <select value={value} onChange={e => onChange(e.target.value)} className="w-full bg-[#0f120f] border border-slate-700/50 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-emerald-500/60">
+      {children}
+    </select>
+  </div>
+);
+
+const TextInput: React.FC<{ value: string; onChange: (v: string) => void; placeholder?: string; label?: string; multiline?: boolean; rows?: number }> = ({ value, onChange, placeholder, label, multiline, rows = 4 }) => (
+  <div className="space-y-1">
+    {label && <Label>{label}</Label>}
+    {multiline ? (
+      <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows} className="w-full bg-[#0f120f] border border-slate-700/50 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-emerald-500/60 resize-none font-mono" />
+    ) : (
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full bg-[#0f120f] border border-slate-700/50 rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-emerald-500/60" />
+    )}
+  </div>
+);
+
+const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string }> = ({ checked, onChange, label }) => (
+  <label className="flex items-center gap-3 cursor-pointer select-none">
+    <div onClick={() => onChange(!checked)} className={`relative w-10 h-5 rounded-full transition-colors ${checked ? 'bg-emerald-500' : 'bg-slate-600'}`}>
+      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : ''}`} />
+    </div>
+    <span className="text-sm text-slate-300">{label}</span>
+  </label>
+);
+
+const BadgeCount: React.FC<{ count: number; children: React.ReactNode }> = ({ count, children }) => (
+  <span className="relative inline-flex">
+    {children}
+    {count > 0 && (
+      <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-emerald-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center">
+        {count}
+      </span>
+    )}
+  </span>
+);
+
+const Hr: React.FC = () => <hr className="border-slate-700/50 my-4" />;
+
+const Modal: React.FC<{ open: boolean; onClose: () => void; title: string; children: React.ReactNode; actions: React.ReactNode }> = ({ open, onClose, title, children, actions }) => {
+  if (!open) return null;
   return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`version-control-tabpanel-${index}`}
-      aria-labelledby={`version-control-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-[#141814] border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="px-6 py-4 border-b border-slate-700/50"><h3 className="text-base font-bold text-white">{title}</h3></div>
+        <div className="px-6 py-4 space-y-3">{children}</div>
+        <div className="px-6 py-4 border-t border-slate-700/50 flex gap-2 justify-end">{actions}</div>
+      </div>
     </div>
   );
-}
+};
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
+const TABS = ['Repository Status', 'Changes Viewer', 'Commit Panel', 'History Timeline', 'Branch Manager', 'Backup & Restore'];
 
 export const VersionControl: React.FC<VersionControlProps> = ({ className }) => {
   const [activeTab, setActiveTab] = useState(0);
-  const [repoStatus, setRepoStatus] = useState<GitRepo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Repository Status
   const [currentBranch, setCurrentBranch] = useState('master');
   const [uncommittedChanges, setUncommittedChanges] = useState(0);
   const [lastCommit, setLastCommit] = useState<CommitHistory | null>(null);
   const [remoteStatus, setRemoteStatus] = useState({ ahead: 0, behind: 0 });
 
-  // Changes Viewer
   const [stagedFiles, setStagedFiles] = useState<string[]>([]);
   const [modifiedFiles, setModifiedFiles] = useState<string[]>([]);
-  const [untrackedFiles, setUntrackedFiles] = useState<string[]>([]);
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
 
-  // Commit Panel
   const [commitMessage, setCommitMessage] = useState('');
   const [commitTemplate, setCommitTemplate] = useState('default');
   const [amendLastCommit, setAmendLastCommit] = useState(false);
 
-  // History Timeline
   const [commitHistory, setCommitHistory] = useState<CommitHistory[]>([]);
   const [selectedCommit, setSelectedCommit] = useState<CommitHistory | null>(null);
   const [commitDetails, setCommitDetails] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Branch Manager
   const [branches, setBranches] = useState<string[]>([]);
   const [newBranchName, setNewBranchName] = useState('');
   const [createBranchDialog, setCreateBranchDialog] = useState(false);
   const [mergeSource, setMergeSource] = useState('');
   const [mergeTarget, setMergeTarget] = useState('');
 
-  // Backup & Restore
   const [backups, setBackups] = useState<BackupType[]>([]);
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
   const [backupSchedule, setBackupSchedule] = useState('daily');
   const [restoreDialog, setRestoreDialog] = useState(false);
   const [selectedBackup, setSelectedBackup] = useState<BackupType | null>(null);
 
-  const commitTemplates = {
-    default: '',
-    feat: 'feat: add new feature',
-    fix: 'fix: resolve issue',
-    docs: 'docs: update documentation',
-    style: 'style: format code',
-    refactor: 'refactor: restructure code',
-    test: 'test: add tests',
-    chore: 'chore: maintenance tasks'
+  const commitTemplates: Record<string, string> = {
+    default: '', feat: 'feat: add new feature', fix: 'fix: resolve issue',
+    docs: 'docs: update documentation', style: 'style: format code',
+    refactor: 'refactor: restructure code', test: 'test: add tests', chore: 'chore: maintenance tasks',
   };
 
-  useEffect(() => {
-    loadRepositoryStatus();
-    loadCommitHistory();
-    loadBranches();
-    loadBackups();
-  }, []);
+  useEffect(() => { loadRepositoryStatus(); loadCommitHistory(); loadBranches(); loadBackups(); }, []);
 
   const loadRepositoryStatus = async () => {
     try {
       setLoading(true);
-      // This would call the actual API to get repository status
-      // For now, we'll use mock data
-      setCurrentBranch('main');
-      setUncommittedChanges(3);
-      setRemoteStatus({ ahead: 2, behind: 0 });
-      setLastCommit({
-        hash: 'abc123',
-        message: 'Add new feature',
-        author: 'Developer',
-        email: 'dev@example.com',
-        timestamp: Date.now() - 3600000,
-        date: Date.now() - 3600000,
-        files: ['src/main.ts', 'src/renderer/App.tsx'],
-        insertions: 150,
-        deletions: 25
-      });
-    } catch (err) {
-      setError('Failed to load repository status');
-    } finally {
-      setLoading(false);
-    }
+      setCurrentBranch('main'); setUncommittedChanges(3); setRemoteStatus({ ahead: 2, behind: 0 });
+      setLastCommit({ hash: 'abc123', message: 'Add new feature', author: 'Developer', email: 'dev@example.com', timestamp: Date.now() - 3600000, date: Date.now() - 3600000, files: ['src/main.ts', 'src/renderer/App.tsx'], insertions: 150, deletions: 25 });
+    } catch { setError('Failed to load repository status'); } finally { setLoading(false); }
   };
 
   const loadCommitHistory = async () => {
-    try {
-      const history = await window.electronAPI?.versionControlHistory?.(50);
-      setCommitHistory(history);
-    } catch (err) {
-      setError('Failed to load commit history');
-    }
+    try { const h = await (window as any).electronAPI?.versionControlHistory?.(50); setCommitHistory(h ?? []); }
+    catch { setError('Failed to load commit history'); }
   };
 
-  const loadBranches = async () => {
-    // Mock branches for now
-    setBranches(['main', 'feature/new-ui', 'bugfix/login']);
-  };
+  const loadBranches = async () => setBranches(['main', 'feature/new-ui', 'bugfix/login']);
 
   const loadBackups = async () => {
-    try {
-      const backupList = await window.electronAPI?.versionControlListBackups?.();
-      setBackups(backupList ?? []);
-    } catch (err) {
-      setError('Failed to load backups');
-    }
+    try { const l = await (window as any).electronAPI?.versionControlListBackups?.(); setBackups(l ?? []); }
+    catch { setError('Failed to load backups'); }
   };
 
   const handleQuickCommit = async () => {
     if (!commitMessage.trim()) return;
-
-    try {
-      setLoading(true);
-      await window.electronAPI?.versionControlCommit?.(commitMessage);
-      setCommitMessage('');
-      await loadRepositoryStatus();
-      await loadCommitHistory();
-    } catch (err) {
-      setError('Failed to commit changes');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStageFile = (file: string) => {
-    setSelectedFiles(prev => [...prev, file]);
-  };
-
-  const handleUnstageFile = (file: string) => {
-    setSelectedFiles(prev => prev.filter(f => f !== file));
-  };
-
-  const handleStageAll = () => {
-    setStagedFiles([...modifiedFiles, ...untrackedFiles]);
-  };
-
-  const handleUnstageAll = () => {
-    setStagedFiles([]);
+    try { setLoading(true); await (window as any).electronAPI?.versionControlCommit?.(commitMessage); setCommitMessage(''); await loadRepositoryStatus(); await loadCommitHistory(); }
+    catch { setError('Failed to commit changes'); } finally { setLoading(false); }
   };
 
   const handleCreateBranch = async () => {
     if (!newBranchName.trim()) return;
-
-    try {
-      setLoading(true);
-      await window.electronAPI?.versionControlCreateBranch?.(newBranchName);
-      setNewBranchName('');
-      setCreateBranchDialog(false);
-      await loadBranches();
-    } catch (err) {
-      setError('Failed to create branch');
-    } finally {
-      setLoading(false);
-    }
+    try { setLoading(true); await (window as any).electronAPI?.versionControlCreateBranch?.(newBranchName); setNewBranchName(''); setCreateBranchDialog(false); await loadBranches(); }
+    catch { setError('Failed to create branch'); } finally { setLoading(false); }
   };
 
   const handleMergeBranches = async () => {
     if (!mergeSource || !mergeTarget) return;
-
-    try {
-      setLoading(true);
-      await window.electronAPI?.versionControlMergeBranch?.(mergeSource, mergeTarget);
-      await loadRepositoryStatus();
-    } catch (err) {
-      setError('Failed to merge branches');
-    } finally {
-      setLoading(false);
-    }
+    try { setLoading(true); await (window as any).electronAPI?.versionControlMergeBranch?.(mergeSource, mergeTarget); await loadRepositoryStatus(); }
+    catch { setError('Failed to merge branches'); } finally { setLoading(false); }
   };
 
   const handleCreateBackup = async () => {
-    try {
-      setLoading(true);
-      await window.electronAPI?.versionControlBackup?.(process.cwd());
-      await loadBackups();
-    } catch (err) {
-      setError('Failed to create backup');
-    } finally {
-      setLoading(false);
-    }
+    try { setLoading(true); await (window as any).electronAPI?.versionControlBackup?.(process.cwd()); await loadBackups(); }
+    catch { setError('Failed to create backup'); } finally { setLoading(false); }
   };
 
   const handleRestoreBackup = async () => {
     if (!selectedBackup) return;
-
-    try {
-      setLoading(true);
-      await window.electronAPI?.versionControlRestore?.(selectedBackup.id, process.cwd());
-      setRestoreDialog(false);
-      setSelectedBackup(null);
-    } catch (err) {
-      setError('Failed to restore backup');
-    } finally {
-      setLoading(false);
-    }
+    try { setLoading(true); await (window as any).electronAPI?.versionControlRestore?.(selectedBackup.id, process.cwd()); setRestoreDialog(false); setSelectedBackup(null); }
+    catch { setError('Failed to restore backup'); } finally { setLoading(false); }
   };
 
   const handleViewCommitDetails = async (commit: CommitHistory) => {
-    try {
-      const details = await window.electronAPI?.versionControlShowChanges?.(commit.hash);
-      setSelectedCommit(commit);
-      setCommitDetails(details);
-    } catch (err) {
-      setError('Failed to load commit details');
-    }
+    try { const d = await (window as any).electronAPI?.versionControlShowChanges?.(commit.hash); setSelectedCommit(commit); setCommitDetails(d); }
+    catch { setError('Failed to load commit details'); }
   };
 
-  const filteredHistory = commitHistory.filter(commit =>
-    commit.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    commit.author.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredHistory = commitHistory.filter(c =>
+    c.message.toLowerCase().includes(searchQuery.toLowerCase()) || c.author.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const fileCount = (c: CommitHistory) => typeof c.files === 'number' ? c.files : (c.files as string[])?.length ?? 0;
+
   return (
-    <Box className={className} sx={{ width: '100%', height: '100%' }}>
-      <Typography variant="h5" gutterBottom>
-        Version Control
-      </Typography>
+    <div className={`w-full h-full flex flex-col gap-4 ${className ?? ''}`}>
+      <h2 className="text-xl font-bold text-white tracking-tight">Version Control</h2>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-900/20 border border-red-500/40 rounded-xl text-red-400 text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-white transition-colors">✕</button>
+        </div>
       )}
 
-      <Paper sx={{ width: '100%', height: 'calc(100% - 60px)' }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_: any, newValue: any) => setActiveTab(newValue)}
-          variant="scrollable"
-          scrollButtons="auto"
-        >
-          <Tab label="Repository Status" />
-          <Tab label="Changes Viewer" />
-          <Tab label="Commit Panel" />
-          <Tab label="History Timeline" />
-          <Tab label="Branch Manager" />
-          <Tab label="Backup & Restore" />
-        </Tabs>
+      <div className="flex gap-1 bg-[#0f120f] border border-slate-700/50 rounded-xl p-1 overflow-x-auto shrink-0">
+        {TABS.map((tab, i) => (
+          <button key={tab} onClick={() => setActiveTab(i)} className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeTab === i ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700/40'}`}>{tab}</button>
+        ))}
+      </div>
 
-        {/* Repository Status Tab */}
-        <TabPanel value={activeTab} index={0}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Current Status
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <GitBranch size={20} style={{ marginRight: 8 }} />
-                    <Typography>Branch: {currentBranch}</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <Badge badgeContent={uncommittedChanges} color="primary">
-                      <FileText size={20} style={{ marginRight: 8 }} />
-                    </Badge>
-                    <Typography>Uncommitted Changes</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <Upload size={20} style={{ marginRight: 8, color: 'green' }} />
-                    <Typography>Ahead: {remoteStatus.ahead}</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Download size={20} style={{ marginRight: 8, color: 'orange' }} />
-                    <Typography>Behind: {remoteStatus.behind}</Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Last Commit
-                  </Typography>
-                  {lastCommit ? (
-                    <>
-                      <Typography variant="body2" color="text.secondary">
-                        {lastCommit.hash.substring(0, 7)}
-                      </Typography>
-                      <Typography variant="body1" sx={{ mt: 1 }}>
-                        {lastCommit.message}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                        <User size={16} style={{ marginRight: 4 }} />
-                        <Typography variant="body2">{lastCommit.author}</Typography>
-                        <Clock size={16} style={{ marginLeft: 8, marginRight: 4 }} />
-                        <Typography variant="body2">
-                          {new Date(lastCommit.date ?? lastCommit.timestamp).toLocaleDateString()}
-                        </Typography>
-                      </Box>
-                    </>
-                  ) : (
-                    <Typography>No commits yet</Typography>
-                  )}
-                </CardContent>
-                <CardActions>
-                  <Button
-                    startIcon={<GitCommit />}
-                    variant="contained"
-                    onClick={handleQuickCommit}
-                    disabled={!commitMessage.trim() || loading}
-                  >
-                    Quick Commit
-                  </Button>
-                </CardActions>
-              </Card>
-            </Grid>
-          </Grid>
-        </TabPanel>
+      <div className="flex-1 overflow-y-auto">
 
-        {/* Changes Viewer Tab */}
-        <TabPanel value={activeTab} index={1}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Modified Files
-                  </Typography>
-                  <List>
-                    {modifiedFiles.map((file) => (
-                      <ListItem key={file}>
-                        <ListItemText primary={file} />
-                        <ListItemSecondaryAction>
-                          <IconButton
-                            onClick={() => handleStageFile(file)}
-                            disabled={stagedFiles.includes(file)}
-                          >
-                            <Plus size={16} />
-                          </IconButton>
-                        </ListItemSecondaryAction>
-                      </ListItem>
-                    ))}
-                  </List>
-                </CardContent>
-                <CardActions>
-                  <Button onClick={handleStageAll}>Stage All</Button>
-                </CardActions>
-              </Card>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Staged Files
-                  </Typography>
-                  <List>
-                    {stagedFiles.map((file) => (
-                      <ListItem key={file}>
-                        <ListItemText primary={file} />
-                        <ListItemSecondaryAction>
-                          <IconButton onClick={() => handleUnstageFile(file)}>
-                            <Minus size={16} />
-                          </IconButton>
-                        </ListItemSecondaryAction>
-                      </ListItem>
-                    ))}
-                  </List>
-                </CardContent>
-                <CardActions>
-                  <Button onClick={handleUnstageAll}>Unstage All</Button>
-                </CardActions>
-              </Card>
-            </Grid>
-          </Grid>
-        </TabPanel>
+        {activeTab === 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardBody>
+                <h3 className="text-base font-semibold text-white mb-4">Current Status</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-slate-300"><GitBranch className="w-4 h-4 text-emerald-400" />Branch: <span className="text-white font-mono ml-1">{currentBranch}</span></div>
+                  <div className="flex items-center gap-2 text-sm text-slate-300"><BadgeCount count={uncommittedChanges}><FileText className="w-4 h-4 text-amber-400" /></BadgeCount><span className="ml-1">Uncommitted Changes</span></div>
+                  <div className="flex items-center gap-2 text-sm text-slate-300"><Upload className="w-4 h-4 text-green-400" />Ahead: <span className="text-white ml-1">{remoteStatus.ahead}</span></div>
+                  <div className="flex items-center gap-2 text-sm text-slate-300"><Download className="w-4 h-4 text-orange-400" />Behind: <span className="text-white ml-1">{remoteStatus.behind}</span></div>
+                </div>
+              </CardBody>
+            </Card>
+            <Card>
+              <CardBody>
+                <h3 className="text-base font-semibold text-white mb-4">Last Commit</h3>
+                {lastCommit ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-mono text-slate-500">{lastCommit.hash.substring(0, 7)}</p>
+                    <p className="text-sm text-white">{lastCommit.message}</p>
+                    <div className="flex items-center gap-3 text-xs text-slate-400">
+                      <span className="flex items-center gap-1"><User className="w-3 h-3" />{lastCommit.author}</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(lastCommit.date ?? lastCommit.timestamp).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                ) : <p className="text-sm text-slate-400">No commits yet</p>}
+              </CardBody>
+              <CardFoot>
+                <Btn variant="solid" icon={<GitCommit className="w-4 h-4" />} onClick={handleQuickCommit} disabled={!commitMessage.trim() || loading}>Quick Commit</Btn>
+              </CardFoot>
+            </Card>
+          </div>
+        )}
 
-        {/* Commit Panel Tab */}
-        <TabPanel value={activeTab} index={2}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Commit Changes
-              </Typography>
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Template</InputLabel>
-                <Select
-                  value={commitTemplate}
-                  onChange={(e: any) => {
-                    setCommitTemplate(e.target.value);
-                    setCommitMessage(commitTemplates[e.target.value as keyof typeof commitTemplates]);
-                  }}
-                >
-                  {Object.entries(commitTemplates).map(([key, template]) => (
-                    <MenuItem key={key} value={key}>
-                      {template || 'Custom'}
-                    </MenuItem>
+        {activeTab === 1 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardBody>
+                <h3 className="text-base font-semibold text-white mb-3">Modified Files</h3>
+                <ul className="space-y-1">
+                  {modifiedFiles.map(f => (
+                    <li key={f} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-slate-700/20">
+                      <span className="text-sm text-slate-300 font-mono truncate flex-1">{f}</span>
+                      <button onClick={() => setStagedFiles(prev => stagedFiles.includes(f) ? prev : [...prev, f])} disabled={stagedFiles.includes(f)} className="ml-2 p-1 rounded text-slate-400 hover:text-emerald-400 disabled:opacity-30 transition-colors"><Plus className="w-4 h-4" /></button>
+                    </li>
                   ))}
-                </Select>
-              </FormControl>
-              <TextField
-                fullWidth
-                multiline
-                rows={4}
-                label="Commit Message"
-                value={commitMessage}
-                onChange={(e: any) => setCommitMessage(e.target.value)}
-                sx={{ mb: 2 }}
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={amendLastCommit}
-                    onChange={(e: any) => setAmendLastCommit(e.target.checked)}
-                  />
-                }
-                label="Amend last commit"
-              />
-            </CardContent>
-            <CardActions>
-              <Button
-                startIcon={<GitCommit />}
-                variant="contained"
-                onClick={handleQuickCommit}
-                disabled={!commitMessage.trim() || loading}
-              >
+                  {modifiedFiles.length === 0 && <p className="text-xs text-slate-500 py-2">No modified files</p>}
+                </ul>
+              </CardBody>
+              <CardFoot><Btn onClick={() => setStagedFiles([...modifiedFiles])}>Stage All</Btn></CardFoot>
+            </Card>
+            <Card>
+              <CardBody>
+                <h3 className="text-base font-semibold text-white mb-3">Staged Files</h3>
+                <ul className="space-y-1">
+                  {stagedFiles.map(f => (
+                    <li key={f} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-slate-700/20">
+                      <span className="text-sm text-slate-300 font-mono truncate flex-1">{f}</span>
+                      <button onClick={() => setStagedFiles(prev => prev.filter(x => x !== f))} className="ml-2 p-1 rounded text-slate-400 hover:text-red-400 transition-colors"><Minus className="w-4 h-4" /></button>
+                    </li>
+                  ))}
+                  {stagedFiles.length === 0 && <p className="text-xs text-slate-500 py-2">No staged files</p>}
+                </ul>
+              </CardBody>
+              <CardFoot><Btn onClick={() => setStagedFiles([])}>Unstage All</Btn></CardFoot>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === 2 && (
+          <Card>
+            <CardBody className="space-y-4">
+              <h3 className="text-base font-semibold text-white">Commit Changes</h3>
+              <NativeSelect label="Template" value={commitTemplate} onChange={v => { setCommitTemplate(v); setCommitMessage(commitTemplates[v] ?? ''); }}>
+                {Object.entries(commitTemplates).map(([key, tpl]) => <option key={key} value={key}>{tpl || 'Custom'}</option>)}
+              </NativeSelect>
+              <TextInput label="Commit Message" value={commitMessage} onChange={setCommitMessage} placeholder="Describe your changes..." multiline rows={4} />
+              <Toggle checked={amendLastCommit} onChange={setAmendLastCommit} label="Amend last commit" />
+            </CardBody>
+            <CardFoot>
+              <Btn variant="solid" icon={<GitCommit className="w-4 h-4" />} onClick={handleQuickCommit} disabled={!commitMessage.trim() || loading}>
                 {amendLastCommit ? 'Amend Commit' : 'Create Commit'}
-              </Button>
-            </CardActions>
+              </Btn>
+            </CardFoot>
           </Card>
-        </TabPanel>
+        )}
 
-        {/* History Timeline Tab */}
-        <TabPanel value={activeTab} index={3}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={8}>
+        {activeTab === 3 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
               <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography variant="h6">Commit History</Typography>
-                    <TextField
-                      size="small"
-                      placeholder="Search commits..."
-                      value={searchQuery}
-                      onChange={(e: any) => setSearchQuery(e.target.value)}
-                    />
-                  </Box>
-                  <List>
-                    {filteredHistory.map((commit) => (
-                      <ListItem
-                        key={commit.hash}
-                        button
-                        onClick={() => handleViewCommitDetails(commit)}
-                        selected={selectedCommit?.hash === commit.hash}
-                      >
-                        <ListItemText
-                          primary={
-                            <Box>
-                              <Typography variant="body1">{commit.message}</Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {commit.hash.substring(0, 7)} • {commit.author} • {new Date(commit.date ?? commit.timestamp).toLocaleDateString()}
-                              </Typography>
-                            </Box>
-                          }
-                          secondary={`${typeof commit.files === 'number' ? commit.files : (commit.files?.length ?? 0)} files • +${commit.insertions} -${commit.deletions}`}
-                        />
-                      </ListItem>
+                <CardBody>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base font-semibold text-white">Commit History</h3>
+                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search commits..." className="bg-[#0f120f] border border-slate-700/50 rounded-lg py-1.5 px-3 text-sm text-white focus:outline-none focus:border-emerald-500/60 w-48" />
+                  </div>
+                  <ul className="space-y-1">
+                    {filteredHistory.map(commit => (
+                      <li key={commit.hash} onClick={() => handleViewCommitDetails(commit)} className={`px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${selectedCommit?.hash === commit.hash ? 'bg-emerald-500/10 border border-emerald-500/30' : 'hover:bg-slate-700/20'}`}>
+                        <p className="text-sm text-white">{commit.message}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{commit.hash.substring(0, 7)} · {commit.author} · {new Date(commit.date ?? commit.timestamp).toLocaleDateString()}</p>
+                        <p className="text-xs text-slate-600 mt-0.5">{fileCount(commit)} files · +{commit.insertions} -{commit.deletions}</p>
+                      </li>
                     ))}
-                  </List>
-                </CardContent>
+                    {filteredHistory.length === 0 && <p className="text-xs text-slate-500 py-4 text-center">No commits found</p>}
+                  </ul>
+                </CardBody>
               </Card>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Commit Details
-                  </Typography>
-                  {selectedCommit && commitDetails ? (
-                    <>
-                      <Typography variant="body2" color="text.secondary">
-                        {selectedCommit.hash}
-                      </Typography>
-                      <Typography variant="h6" sx={{ mt: 1 }}>
-                        {selectedCommit.message}
-                      </Typography>
-                      <Box sx={{ mt: 2 }}>
-                        <Typography variant="body2">
-                          <strong>Author:</strong> {selectedCommit.author}
-                        </Typography>
-                        <Typography variant="body2">
-                          <strong>Date:</strong> {new Date(selectedCommit.date ?? selectedCommit.timestamp).toLocaleString()}
-                        </Typography>
-                        <Typography variant="body2">
-                          <strong>Files:</strong> {typeof selectedCommit.files === 'number' ? selectedCommit.files : (selectedCommit.files?.length ?? 0)}
-                        </Typography>
-                      </Box>
-                      <Divider sx={{ my: 2 }} />
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        Changed Files:
-                      </Typography>
-                      <List dense>
-                        {commitDetails.files?.map((file: DiffResult) => (
-                          <ListItem key={file.fileA}>
-                            <ListItemText
-                              primary={file.fileA}
-                              secondary={`+${file.additions} -${file.deletions}`}
-                            />
-                          </ListItem>
-                        ))}
-                      </List>
-                    </>
-                  ) : (
-                    <Typography>Select a commit to view details</Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        </TabPanel>
+            </div>
+            <Card>
+              <CardBody>
+                <h3 className="text-base font-semibold text-white mb-3">Commit Details</h3>
+                {selectedCommit && commitDetails ? (
+                  <>
+                    <p className="text-xs font-mono text-slate-500">{selectedCommit.hash}</p>
+                    <p className="text-sm text-white mt-1 font-medium">{selectedCommit.message}</p>
+                    <div className="mt-3 space-y-1 text-xs text-slate-400">
+                      <p><span className="text-slate-300 font-medium">Author:</span> {selectedCommit.author}</p>
+                      <p><span className="text-slate-300 font-medium">Date:</span> {new Date(selectedCommit.date ?? selectedCommit.timestamp).toLocaleString()}</p>
+                      <p><span className="text-slate-300 font-medium">Files:</span> {fileCount(selectedCommit)}</p>
+                    </div>
+                    <Hr />
+                    <p className="text-xs text-slate-400 mb-2">Changed Files:</p>
+                    <ul className="space-y-1">
+                      {commitDetails.files?.map((file: DiffResult) => (
+                        <li key={file.fileA} className="text-xs"><p className="text-slate-300 font-mono truncate">{file.fileA}</p><p className="text-slate-500">+{file.additions} -{file.deletions}</p></li>
+                      ))}
+                    </ul>
+                  </>
+                ) : <p className="text-sm text-slate-400">Select a commit to view details</p>}
+              </CardBody>
+            </Card>
+          </div>
+        )}
 
-        {/* Branch Manager Tab */}
-        <TabPanel value={activeTab} index={4}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+        {activeTab === 4 && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Branches
-                  </Typography>
-                  <List>
-                    {branches.map((branch) => (
-                      <ListItem key={branch}>
-                        <ListItemText primary={branch} />
-                        <Chip
-                          label={branch === currentBranch ? 'Current' : 'Other'}
-                          size="small"
-                          color={branch === currentBranch ? 'primary' : 'default'}
-                        />
-                      </ListItem>
+                <CardBody>
+                  <h3 className="text-base font-semibold text-white mb-3">Branches</h3>
+                  <ul className="space-y-1">
+                    {branches.map(branch => (
+                      <li key={branch} className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-slate-700/20">
+                        <span className="text-sm text-slate-300 font-mono">{branch}</span>
+                        {branch === currentBranch && <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full">Current</span>}
+                      </li>
                     ))}
-                  </List>
-                </CardContent>
-                <CardActions>
-                  <Button
-                    startIcon={<Plus />}
-                    onClick={() => setCreateBranchDialog(true)}
-                  >
-                    Create Branch
-                  </Button>
-                </CardActions>
+                  </ul>
+                </CardBody>
+                <CardFoot><Btn icon={<Plus className="w-4 h-4" />} onClick={() => setCreateBranchDialog(true)}>Create Branch</Btn></CardFoot>
               </Card>
-            </Grid>
-            <Grid item xs={12} md={6}>
               <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Merge Branches
-                  </Typography>
-                  <FormControl fullWidth sx={{ mb: 2 }}>
-                    <InputLabel>Source Branch</InputLabel>
-                    <Select
-                      value={mergeSource}
-                      onChange={(e: any) => setMergeSource(e.target.value)}
-                    >
-                      {branches.filter(b => b !== currentBranch).map((branch) => (
-                        <MenuItem key={branch} value={branch}>
-                          {branch}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <FormControl fullWidth sx={{ mb: 2 }}>
-                    <InputLabel>Target Branch</InputLabel>
-                    <Select
-                      value={mergeTarget}
-                      onChange={(e: any) => setMergeTarget(e.target.value)}
-                    >
-                      {branches.map((branch) => (
-                        <MenuItem key={branch} value={branch}>
-                          {branch}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </CardContent>
-                <CardActions>
-                  <Button
-                    startIcon={<GitMerge />}
-                    variant="contained"
-                    onClick={handleMergeBranches}
-                    disabled={!mergeSource || !mergeTarget || loading}
-                  >
-                    Merge
-                  </Button>
-                </CardActions>
+                <CardBody className="space-y-3">
+                  <h3 className="text-base font-semibold text-white">Merge Branches</h3>
+                  <NativeSelect label="Source Branch" value={mergeSource} onChange={setMergeSource}>
+                    <option value="">Select source...</option>
+                    {branches.filter(b => b !== currentBranch).map(b => <option key={b} value={b}>{b}</option>)}
+                  </NativeSelect>
+                  <NativeSelect label="Target Branch" value={mergeTarget} onChange={setMergeTarget}>
+                    <option value="">Select target...</option>
+                    {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                  </NativeSelect>
+                </CardBody>
+                <CardFoot>
+                  <Btn variant="solid" icon={<GitMerge className="w-4 h-4" />} onClick={handleMergeBranches} disabled={!mergeSource || !mergeTarget || loading}>Merge</Btn>
+                </CardFoot>
               </Card>
-            </Grid>
-          </Grid>
+            </div>
+            <Modal open={createBranchDialog} onClose={() => setCreateBranchDialog(false)} title="Create New Branch"
+              actions={<><Btn onClick={() => setCreateBranchDialog(false)}>Cancel</Btn><Btn variant="solid" onClick={handleCreateBranch} disabled={!newBranchName.trim()}>Create</Btn></>}>
+              <TextInput label="Branch Name" value={newBranchName} onChange={setNewBranchName} placeholder="feature/my-new-feature" />
+            </Modal>
+          </>
+        )}
 
-          {/* Create Branch Dialog */}
-          <Dialog open={createBranchDialog} onClose={() => setCreateBranchDialog(false)}>
-            <DialogTitle>Create New Branch</DialogTitle>
-            <DialogContent>
-              <TextField
-                fullWidth
-                label="Branch Name"
-                value={newBranchName}
-                onChange={(e: any) => setNewBranchName(e.target.value)}
-                sx={{ mt: 1 }}
-              />
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setCreateBranchDialog(false)}>Cancel</Button>
-              <Button onClick={handleCreateBranch} disabled={!newBranchName.trim()}>
-                Create
-              </Button>
-            </DialogActions>
-          </Dialog>
-        </TabPanel>
-
-        {/* Backup & Restore Tab */}
-        <TabPanel value={activeTab} index={5}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+        {activeTab === 5 && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Backup Settings
-                  </Typography>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={autoBackupEnabled}
-                        onChange={(e: any) => setAutoBackupEnabled(e.target.checked)}
-                      />
-                    }
-                    label="Enable automatic backups"
-                  />
+                <CardBody className="space-y-4">
+                  <h3 className="text-base font-semibold text-white">Backup Settings</h3>
+                  <Toggle checked={autoBackupEnabled} onChange={setAutoBackupEnabled} label="Enable automatic backups" />
                   {autoBackupEnabled && (
-                    <FormControl fullWidth sx={{ mt: 2 }}>
-                      <InputLabel>Schedule</InputLabel>
-                      <Select
-                        value={backupSchedule}
-                        onChange={(e: any) => setBackupSchedule(e.target.value)}
-                      >
-                        <MenuItem value="hourly">Hourly</MenuItem>
-                        <MenuItem value="daily">Daily</MenuItem>
-                        <MenuItem value="weekly">Weekly</MenuItem>
-                      </Select>
-                    </FormControl>
+                    <NativeSelect label="Schedule" value={backupSchedule} onChange={setBackupSchedule}>
+                      <option value="hourly">Hourly</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                    </NativeSelect>
                   )}
-                </CardContent>
-                <CardActions>
-                  <Button
-                    startIcon={<Archive />}
-                    variant="contained"
-                    onClick={handleCreateBackup}
-                    disabled={loading}
-                  >
-                    Create Backup
-                  </Button>
-                </CardActions>
+                </CardBody>
+                <CardFoot>
+                  <Btn variant="solid" icon={<Archive className="w-4 h-4" />} onClick={handleCreateBackup} disabled={loading}>Create Backup</Btn>
+                </CardFoot>
               </Card>
-            </Grid>
-            <Grid item xs={12} md={6}>
               <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Available Backups
-                  </Typography>
-                  <List>
-                    {backups.map((backup) => (
-                      <ListItem key={backup.id}>
-                        <ListItemText
-                          primary={backup.description}
-                          secondary={new Date(backup.timestamp).toLocaleString()}
-                        />
-                        <ListItemSecondaryAction>
-                          <IconButton
-                            onClick={() => {
-                              setSelectedBackup(backup);
-                              setRestoreDialog(true);
-                            }}
-                          >
-                            <RotateCcw size={16} />
-                          </IconButton>
-                        </ListItemSecondaryAction>
-                      </ListItem>
+                <CardBody>
+                  <h3 className="text-base font-semibold text-white mb-3">Available Backups</h3>
+                  <ul className="space-y-1">
+                    {backups.map(backup => (
+                      <li key={backup.id} className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-slate-700/20">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-slate-300 truncate">{backup.description}</p>
+                          <p className="text-xs text-slate-500">{new Date(backup.timestamp).toLocaleString()}</p>
+                        </div>
+                        <button onClick={() => { setSelectedBackup(backup); setRestoreDialog(true); }} className="ml-2 p-1.5 rounded text-slate-400 hover:text-amber-400 transition-colors" title="Restore this backup"><RotateCcw className="w-4 h-4" /></button>
+                      </li>
                     ))}
-                  </List>
-                </CardContent>
+                    {backups.length === 0 && <p className="text-xs text-slate-500 py-4 text-center">No backups yet</p>}
+                  </ul>
+                </CardBody>
               </Card>
-            </Grid>
-          </Grid>
-
-          {/* Restore Dialog */}
-          <Dialog open={restoreDialog} onClose={() => setRestoreDialog(false)}>
-            <DialogTitle>Restore Backup</DialogTitle>
-            <DialogContent>
-              <Typography>
-                Are you sure you want to restore the backup from{' '}
-                {selectedBackup && new Date(selectedBackup.timestamp).toLocaleString()}?
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                This will overwrite current files with the backup contents.
-              </Typography>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setRestoreDialog(false)}>Cancel</Button>
-              <Button onClick={handleRestoreBackup} color="warning">
-                Restore
-              </Button>
-            </DialogActions>
-          </Dialog>
-        </TabPanel>
-      </Paper>
+            </div>
+            <Modal open={restoreDialog} onClose={() => setRestoreDialog(false)} title="Restore Backup"
+              actions={<><Btn onClick={() => setRestoreDialog(false)}>Cancel</Btn><Btn variant="solid" onClick={handleRestoreBackup} className="bg-amber-600 hover:bg-amber-500">Restore</Btn></>}>
+              <p className="text-sm text-slate-300">Are you sure you want to restore the backup from <span className="text-white font-medium">{selectedBackup && new Date(selectedBackup.timestamp).toLocaleString()}</span>?</p>
+              <p className="text-xs text-slate-500">This will overwrite current files with the backup contents.</p>
+            </Modal>
+          </>
+        )}
+      </div>
 
       {loading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-          <CircularProgress />
-        </Box>
+        <div className="flex justify-center py-4">
+          <RefreshCw className="w-5 h-5 text-emerald-400 animate-spin" />
+        </div>
       )}
-    </Box>
+    </div>
   );
 };

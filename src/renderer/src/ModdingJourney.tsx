@@ -34,12 +34,15 @@ const ModdingJourney: React.FC<ModdingJourneyProps> = ({ embedded = false }) => 
         setAchievements(prev => prev.map(ach => {
             if (ach.id === '1' && history.some((h: any) => h.action === 'neural_link')) return { ...ach, unlocked: true };
             if (ach.id === '2' && profile) return { ...ach, unlocked: true };
+            // Script Initiate: user has installed at least one Papyrus script via The Scribe
+            if (ach.id === '3' && history.some((h: any) => h.action === 'scribe_install_papyrus_script')) return { ...ach, unlocked: true };
+            // Mesh Master: user has executed a Blender tool via the Desktop Bridge
+            if (ach.id === '4' && history.some((h: any) => h.action === 'tool_execution' && String(h.tool || '').toLowerCase().includes('blender'))) return { ...ach, unlocked: true };
             if (ach.id === '5' && vault && JSON.parse(vault).length >= 5) return { ...ach, unlocked: true };
-            
             // New achievements
             if (ach.id === '6' && history.filter((h: any) => h.action === 'chat_message').length >= 10) return { ...ach, unlocked: true };
             if (ach.id === '7' && history.filter((h: any) => h.action === 'tool_execution').length >= 5) return { ...ach, unlocked: true };
-            
+
             return ach;
         }));
     }, []);

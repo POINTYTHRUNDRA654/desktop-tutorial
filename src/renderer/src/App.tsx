@@ -124,6 +124,8 @@ const DiagnosticsHub = React.lazy(() => import('./DiagnosticsHub'));
 const PackagingHub = React.lazy(() => import('./PackagingHub'));
 const TheAssembler = React.lazy(() => import('./TheAssembler'));
 const WizardsHub = React.lazy(() => import('./WizardsHub'));
+const CrashTriageWizard = React.lazy(() => import('./CrashTriageWizard'));
+const CKQuestDialogueWizard = React.lazy(() => import('./CKQuestDialogueWizard'));
 
 // Archive Management
 const BA2Manager = React.lazy(() => import('./BA2Manager').then(module => ({ default: module.BA2Manager })));
@@ -225,6 +227,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/texture-generator', '/guides', '/guides/blender', '/guides/blender/animation',
   '/guides/creation-kit', '/guides/creation-kit/quest-authoring', '/guides/papyrus/guide',
   '/guides/physics', '/guides/mods', '/guides/mods/bodyslide', '/guides/mods/sim-settlements',
+  '/crash-triage', '/ck-quest-dialogue',
   '/wizards', '/devtools', '/settings', '/project', '/support', '/assembler', '/diagnostics',
   '/community', '/capabilities', '/asset-analysis', '/plugin-tools', '/packaging-release', '/extensions/mo2',
   '/extensions/comfyui', '/extensions/upscayl', '/journey-hub', '/runtime-hub', '/system-hub', '/guides-hub',
@@ -1459,9 +1462,9 @@ const App: React.FC = () => {
                 <Route path="/template-generator" element={<Navigate to="/devtools" replace />} />
                 <Route path="/install-wizard" element={<Navigate to="/wizards" replace />} />
                 <Route path="/platforms" element={<Navigate to="/wizards" replace />} />
-                <Route path="/crash-triage" element={<Navigate to="/diagnostics" replace />} />
+                {/* /crash-triage is now served by KeepAlivePanel below */}
                 <Route path="/tools/ck-extension" element={<Navigate to="/ck-tools" replace />} />
-                <Route path="/ck-quest-dialogue" element={<Navigate to="/guides/creation-kit/quest-authoring" replace />} />
+                {/* /ck-quest-dialogue is now served by KeepAlivePanel below */}
                 <Route path="/prp-patch-builder" element={<Navigate to="/wizards" replace />} />
                 <Route path="/animation-guide" element={<Navigate to="/guides/blender/animation" replace />} />
                 <Route path="/skeleton-reference" element={<Navigate to="/guides/blender/animation" replace />} />
@@ -1582,6 +1585,8 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/guides/mods/sim-settlements"><ErrorBoundary><SimSettlementsGuide /></ErrorBoundary></KeepAlivePanel>
               {/* Wizards & Tools */}
               <KeepAlivePanel path="/wizards"><ErrorBoundary><WizardsHub /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/crash-triage"><ErrorBoundary><CrashTriageWizard /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/ck-quest-dialogue"><ErrorBoundary><CKQuestDialogueWizard /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/devtools"><ErrorBoundary><DevtoolsHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/settings"><ErrorBoundary><SettingsHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/project"><ErrorBoundary><ProjectHub /></ErrorBoundary></KeepAlivePanel>

@@ -11,8 +11,7 @@
     "types": [
       "node"
     ],
-    "strict": false,
-    "noImplicitAny": false,
+    "strict": true,
     "skipLibCheck": true
   },
   "include": [

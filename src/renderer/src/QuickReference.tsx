@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Book, Code, Keyboard, Hash, ChevronDown, ChevronUp, Zap, FileCode, Terminal, Palette } from 'lucide-react';
+import { Book, Code, Keyboard, Hash, ChevronDown, ChevronUp, Zap, FileCode, Terminal, Palette, Copy, Check } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface ReferenceSection {
@@ -25,6 +25,24 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
   const [expandedSections, setExpandedSections] = useState<string[]>(['papyrus']);
   const [searchQuery, setSearchQuery] = useState('');
   const [openedItemId, setOpenedItemId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    }).catch(() => {
+      // fallback for restricted environments
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    });
+  };
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections(prev =>
@@ -151,7 +169,7 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
         },
         {
           name: 'Engine stability first',
-          description: 'Install crash logging and engine-fix foundations (current X-Cell-era stack) before heavy content packs, then test in small batches.',
+          description: 'Install crash logging and engine-fix foundations (Addictol #84214 all-in-one stack) before heavy content packs, then test in small batches.',
           category: 'Stability',
         },
         {
@@ -208,11 +226,82 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
           category: 'Deprecated',
         },
         {
-          name: 'Buffout 4 (standalone) — ⚠️ SUPERSEDED',
-          description: 'Buffout 4 alone is insufficient for NG/AE crash logging. Use X-Cell (includes Buffout 4 engine fixes + NG/AE crash logging). Do NOT install both.',
-          example: 'Install: X-Cell (Nexus #84214) instead.',
+          name: 'Buffout 4 / X-Cell / BakaMaxPapyrusOps — ⚠️ SUPERSEDED',
+          description: 'All standalone variants of Buffout 4 (OG, NG, AE), X-Cell, and BakaMaxPapyrusOps are superseded by Addictol (Nexus #84214), which bundles all their fixes plus more. Do NOT install them alongside Addictol.',
+          example: 'Install Addictol (Nexus #84214) as your single all-in-one stability solution.',
           category: 'Superseded',
         },
+        {
+          name: 'Legacy MCM Framework — ❌ NG/1.11.x INCOMPATIBLE',
+          description: 'The original MCM Framework does not work on Next-Gen or 1.11.x runtimes. Use MCM NG (search Nexus for "MCM NG").',
+          example: 'Replace with: MCM NG (Nexus search)',
+          category: 'Deprecated',
+        },
+      ],
+    },
+    {
+      id: 'stability-stack-2025',
+      title: '🛡️ 2025–2026 Stability Stack',
+      icon: Zap,
+      items: [
+        { name: 'F4SE (match runtime)', description: 'Script Extender — must match your game runtime exactly. v0.7.7 for runtime 1.11.191. Download from f4se.silverlock.org.', example: 'f4se.silverlock.org — match version to your Fallout4.exe build', category: 'Foundation' },
+        { name: 'Address Library (AiO)', description: 'Nexus #47327 — All-In-One Anniversary Edition build. Required by all DLL/native plugins. Install before any plugin that needs it.', example: 'Nexus #47327 — Address Library for F4SE Plugins (AiO)', category: 'Foundation' },
+        { name: 'Addictol (ALL-IN-ONE)', description: 'Nexus #84214 — Supersedes Buffout 4, X-Cell, BakaMaxPapyrusOps, Faster Workshop, and 10+ other stability mods. Install only Addictol — do NOT add those others.', example: 'Nexus #84214 — do NOT install Buffout 4 or X-Cell alongside', category: 'Stability ⭐' },
+        { name: 'High FPS Physics Fix', description: 'Nexus #44798, v0.8.13+. Critical if playing above 60 FPS. Prevents physics explosion/teleportation bugs at high framerates.', example: 'Nexus #44798 — required for 60+ FPS gameplay', category: 'Stability' },
+        { name: 'UFO4P (Unofficial Patch)', description: 'Always use the latest version. Load after all official DLC masters. Core requirement for most load orders.', example: 'Load: after DLCNukaWorld.esm, before other mods', category: 'Core' },
+        { name: 'PRP 81.5+', description: 'Nexus #46403 — PreVis Repair Pack. March 2026 stable build. Required for NG/1.11.x content cells. Load late in order, compatibility patches last.', example: 'Nexus #46403 — load late; PRP patches load after', category: 'Optimization' },
+        { name: 'MCM NG', description: 'Next-Gen build of the Mod Configuration Menu. The legacy MCM Framework does not work on NG/1.11.x. Search Nexus for "MCM NG".', example: 'Nexus search: MCM NG', category: 'Framework' },
+        { name: 'CLASSIC Crash Scanner', description: 'Nexus #56255 — run after every CTD. Reads Addictol crash logs at %LOCALAPPDATA%\\Fallout4\\F4SE\\. Covers 250+ error scenarios.', example: 'Nexus #56255 — run after any CTD before troubleshooting further', category: 'Diagnostics' },
+        { name: 'Canary Save Scummer', description: 'Save file health checker — warns of corruption before it becomes a full loss. Run regularly on long playthroughs.', example: 'Nexus search: Canary Save Scummer', category: 'Diagnostics' },
+        { name: 'The Midnight Ride guide', description: 'Authoritative NG/1.11.x modding setup guide. Kept updated after every patch. Start here if setting up a new load order.', example: 'themidnightride.moddinglinked.com', category: 'Guide' },
+      ],
+    },
+    {
+      id: 'common-errors',
+      title: '🔥 Common Errors & Solutions',
+      icon: Terminal,
+      items: [
+        { name: 'Stack Overflow (Papyrus)', description: 'Cause: Infinite loop or too-deep recursion. Add Utility.Wait(0.1) in all while-loops. Check for recursive function chains. Reduce update frequency.', example: 'While i < 10\n    i += 1\n    Utility.Wait(0.1) ; REQUIRED\nEndWhile', category: 'Papyrus' },
+        { name: 'Cannot call X() on a None object', description: 'Cause: Script property not filled in CK, or object was deleted. Fix: verify all properties are filled; add None-guard before every call.', example: 'if MyProperty != None\n    MyProperty.DoSomething()\nEndIf', category: 'Papyrus' },
+        { name: 'Yellow Precombined Meshes', description: 'Cause: Cell edits broke PreVis/Precombines. Fix: Regenerate PreVis in CK, or disable PreVis for that cell only (performance hit). Use PRP for common areas.', example: 'CK → World → Precombine/Previs menu → Generate Cell', category: 'Previs' },
+        { name: 'CTD on Cell Load', description: 'Cause: Corrupt mesh, bad NavMesh, deleted NAVM record, or missing texture. Step 1: Run CLASSIC (Nexus #56255) on Addictol crash log. Step 2: Check Papyrus log. Step 3: scan ESP for [D] NAVM in xEdit.', example: 'Logs at: %LOCALAPPDATA%\\Fallout4\\F4SE\\', category: 'CTD' },
+        { name: 'ESP won\'t load in CK', description: 'Cause: Missing master, corrupted ESP, or CK/game version mismatch. Fix: load all masters in CK arguments, verify ESP with xEdit, check CK version matches game.', example: 'CK launch args: -LoadMasterFilesFirst', category: 'CK' },
+        { name: 'Script Won\'t Compile', description: 'Cause: Syntax error, missing parent script, incorrect property type, or wrong import path. Check Papyrus log for exact error line.', example: 'Check: Papyrus Compiler log in CK output window', category: 'Papyrus' },
+        { name: 'Invisible textures / BA2 mismatch', description: 'Pre-NG (1.10.163) uses BA2 Header V1. NG/AE (1.10.980+) requires V2. Using the wrong header produces invisible or pink textures and can CTD.', example: 'Pack with Archive2 v2+ or CAO set to BA2 V2 on NG/AE', category: 'Assets' },
+        { name: 'NPC frozen near door / CTD on fast-travel', description: 'Classic symptom of a deleted NAVM record. Never delete vanilla NavMesh — always use the Change FormID method in xEdit to replace it.', example: 'xEdit: find [D] NAVM records → Change FormID → replace', category: 'NavMesh' },
+        { name: 'Workbench CTD (armor/weapons)', description: 'Classic AWKCR conflict. Remove AWKCR from your load order. Replace with ECO (Equipment & Crafting Overhaul) or NEO.', example: 'Replace AWKCR with: ECO or NEO (Nexus search)', category: 'Load Order' },
+      ],
+    },
+    {
+      id: 'nif-specs',
+      title: '🔷 NIF / Mesh Specifications',
+      icon: FileCode,
+      items: [
+        { name: 'BSTriShape', description: 'FO4 main mesh geometry block. Always use BSTriShape, never old NiTriShape. Version: 20.2.0.7.', category: 'Block Type' },
+        { name: 'BSLightingShaderProperty', description: 'Material and texture assignment block. Defines shader type (default, skin, glow, etc).', category: 'Block Type' },
+        { name: 'BSShaderTextureSet', description: 'Texture file paths — must be relative to the Data folder (e.g. textures\\mymod\\mesh_d.dds).', category: 'Block Type' },
+        { name: 'bhkCollisionObject', description: 'Collision data container. Required for all physics objects.', category: 'Block Type' },
+        { name: 'Slot 0 — Diffuse', description: 'File suffix: _d.dds. Format: BC1 (opaque) or BC7 (alpha). Base color texture.', example: 'textures\\mymod\\object_d.dds', category: 'Texture Slot' },
+        { name: 'Slot 1 — Normal', description: 'File suffix: _n.dds. Format: BC5 (2-channel). Critical for lighting — never skip.', example: 'textures\\mymod\\object_n.dds', category: 'Texture Slot' },
+        { name: 'Slot 2 — Glow/Emissive', description: 'File suffix: _g.dds. Controls self-illumination. Black = no glow.', example: 'textures\\mymod\\object_g.dds', category: 'Texture Slot' },
+        { name: 'Slot 4 — Environment Mask', description: 'File suffix: _e.dds. Controls reflectivity/specularity per-pixel for environment maps.', example: 'textures\\mymod\\object_e.dds', category: 'Texture Slot' },
+        { name: 'Slot 7 — Specular', description: 'File suffix: _s.dds. Format: BC1. Grayscale shininess map.', example: 'textures\\mymod\\object_s.dds', category: 'Texture Slot' },
+        { name: 'Triangle budget — Weapons', description: 'Keep under 5,000 triangles for weapon meshes. Use LODs for distant views.', example: '< 5,000 tris (weapon) / < 10,000 tris (armor piece)', category: 'Optimization' },
+        { name: 'Texture max sizes', description: 'Weapons/Armor: 2048×2048 (hero: 4096). Environment props: 1024×1024. UI: 512×512. Always use power-of-2 dimensions.', category: 'Optimization' },
+        { name: 'NifSkope cleanup checklist', description: 'After export: verify BSTriShape block type → link BGSM/BGEM materials → Sanitize → Reorder Blocks → Sanitize → Update Tangents/Space → check bhkCollisionObject.', category: 'Workflow' },
+      ],
+    },
+    {
+      id: 'navmesh-repair',
+      title: '🗺️ NavMesh Repair',
+      icon: FileCode,
+      items: [
+        { name: 'NEVER delete vanilla NAVM', description: 'Deleted NAVM records (flag 0x00000020) cause instant CTD when NPCs pathfind through the area. Always replace using xEdit Change FormID — never delete.', category: 'Rule #1 ⛔' },
+        { name: 'xEdit replacement workflow', description: '1) Load plugin + all masters in xEdit 4.0.3+. 2) Find [D] NAVM records (or run Check for Errors). 3) Copy FormID of deleted NAVM. 4) Right-click replacement → Change FormID → paste FormID → accept "Update all references". 5) Remove old [D] record. 6) Run Check for Errors → Save.', category: 'xEdit' },
+        { name: 'CK NavMesh rules', description: 'Never click Delete on a navmesh triangle. Cover the area with a new triangle first, THEN remove the old one. Always Finalize Cell Navmesh before saving. Use Navmesh → Find Navmesh Errors.', category: 'CK' },
+        { name: 'CTD symptoms', description: 'NPCs frozen near doors • CTD on fast-travel to settlement • NPCs refusing to enter/exit buildings • Crash on cell load in a modded area.', category: 'Symptoms' },
+        { name: 'Real Jenn — NavMesh fix video', description: 'YouTube: "Fixing and Preventing Deleted Navmeshes" by Real Jenn. The definitive visual walkthrough for the Change FormID method.', example: 'youtube.com/watch?v=yRBsmki8JHA', category: 'Resource' },
+        { name: 'AFKMods NavMesh guide', description: 'afkmods.com → Knowledge Base → Navmesh Repair. Written reference covering edge cases and cell border issues.', category: 'Resource' },
       ],
     },
     {
@@ -416,9 +505,21 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
                             <div id={`quick-ref-${itemId}-details`}>
                               <p className="text-sm text-slate-300">{item.description}</p>
                               {item.example && (
-                                <pre className="mt-2 text-xs font-mono text-slate-400 bg-slate-950 p-2 rounded border border-slate-800 overflow-x-auto">
-                                  {item.example}
-                                </pre>
+                                <div className="relative mt-2 group/code">
+                                  <pre className="text-xs font-mono text-slate-400 bg-slate-950 p-2 pr-10 rounded border border-slate-800 overflow-x-auto">
+                                    {item.example}
+                                  </pre>
+                                  <button
+                                    onClick={() => copyToClipboard(item.example!, `${itemId}-ex`)}
+                                    className="absolute top-1.5 right-1.5 p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-300 transition-colors opacity-0 group-hover/code:opacity-100"
+                                    title="Copy to clipboard"
+                                    aria-label="Copy example to clipboard"
+                                  >
+                                    {copiedId === `${itemId}-ex`
+                                      ? <Check className="w-3 h-3 text-emerald-400" />
+                                      : <Copy className="w-3 h-3" />}
+                                  </button>
+                                </div>
                               )}
                             </div>
                           )}

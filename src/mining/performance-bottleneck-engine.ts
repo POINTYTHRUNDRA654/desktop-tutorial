@@ -286,8 +286,8 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
   private analyzeMemoryBottleneck(metrics: PerformanceMetric[]): Phase2PerformanceBottleneck | null {
     if (metrics.length === 0) return null;
 
-    const avgMemory = metrics.reduce((sum, m) => sum + m.memoryUsage, 0) / metrics.length;
-    const maxMemory = Math.max(...metrics.map(m => m.memoryUsage));
+    const avgMemory = metrics.reduce((sum, m) => sum + (m.memoryUsage! ?? 0), 0) / metrics.length;
+    const maxMemory = Math.max(...metrics.map(m => m.memoryUsage!));
 
     // Assume 8GB system memory as baseline
     const memoryThreshold = 6 * 1024; // 6GB
@@ -330,7 +330,7 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
   private analyzeLoadTimeBottleneck(metrics: PerformanceMetric[]): Phase2PerformanceBottleneck | null {
     if (metrics.length === 0) return null;
 
-    const avgLoadTime = metrics.reduce((sum, m) => sum + m.loadTime, 0) / metrics.length;
+    const avgLoadTime = metrics.reduce((sum, m) => sum + m.loadTime!, 0) / metrics.length;
 
     if (avgLoadTime > 30) { // 30 seconds threshold
       return {

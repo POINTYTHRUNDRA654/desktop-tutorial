@@ -29,9 +29,10 @@ const ModBrowser: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([] as any);
   const [newReview, setNewReview] = useState('');
+  const [newRating, setNewRating] = useState(5);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collectionName, setCollectionName] = useState('');
-  const [downloadDest, setDownloadDest] = useState('C:/Temp');
+  const [downloadDest, setDownloadDest] = useState('');
   const [nexusKey, setNexusKey] = useState('');
   const [nexusStatus, setNexusStatus] = useState<string | null>(null);
   const [installGuideOpen, setInstallGuideOpen] = useState(false);
@@ -97,11 +98,13 @@ const ModBrowser: React.FC = () => {
 
   const submitReview = async () => {
     if (!selected) return;
+    if (!newReview.trim()) { toast.error('Write a review before submitting.'); return; }
     try {
-      await bridge.modBrowser.rateMod(selected.id, 5, newReview || 'Nice mod');
+      await bridge.modBrowser.rateMod(selected.id, newRating, newReview.trim());
       const revs = await bridge.modBrowser.getModReviews(selected.id);
       setReviews(revs || []);
       setNewReview('');
+      setNewRating(5);
     } catch (err) {
       console.error(err);
       toast.error('Failed to submit review');
@@ -242,7 +245,7 @@ const ModBrowser: React.FC = () => {
             className="flex-1 bg-[#0f1313] border border-slate-800 rounded px-3 py-1.5 text-sm"
             value={downloadDest}
             onChange={e => setDownloadDest(e.target.value)}
-            placeholder="C:/Temp"
+            placeholder="e.g. C:/Users/You/Downloads/Mods"
             aria-label="Download destination path"
           />
         </div>
@@ -308,6 +311,12 @@ const ModBrowser: React.FC = () => {
               ))}
               {selected && (
                 <div className="mt-2">
+                  <div className="flex items-center gap-1 mb-2">
+                    {[1, 2, 3, 4, 5].map(n => (
+                      <button key={n} onClick={() => setNewRating(n)} className={`text-lg ${n <= newRating ? 'text-yellow-400' : 'text-slate-600'}`}>★</button>
+                    ))}
+                    <span className="text-xs text-slate-400 ml-1">{newRating}/5</span>
+                  </div>
                   <textarea className="w-full p-2 bg-black/10 border border-slate-800 rounded text-sm" rows={3} value={newReview} onChange={e => setNewReview(e.target.value)} placeholder="Write a short review" />
                   <div className="mt-2 flex gap-2"><button className="px-3 py-1 rounded bg-emerald-700/10 text-sm" onClick={submitReview}>Submit</button></div>
                 </div>

@@ -87,7 +87,7 @@ export class AnimationSystemEngine {
       parentId: parent.id,
       index: parent.children.length,
       transform: {
-        position: { x: 0, y: parent.length, z: 0 },
+        position: { x: 0, y: parent.length ?? 0, z: 0 },
         rotation: { x: 0, y: 0, z: 0, w: 1 },
         scale: { x: 1, y: 1, z: 1 },
       },
@@ -521,7 +521,7 @@ export class AnimationSystemEngine {
 
   private async generateAutoSkeleton(mesh: Mesh): Promise<Skeleton> {
     const bounds = mesh.bounds;
-    const height = bounds.max.y - bounds.min.y;
+    const height = bounds!.max.y - bounds!.min.y;
 
     const skeleton: Skeleton = {
       id: `skeleton-${Date.now()}`,
@@ -532,7 +532,7 @@ export class AnimationSystemEngine {
           name: 'Root',
           parentId: undefined,
           index: 0,
-          transform: { position: bounds.min, rotation: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 1, y: 1, z: 1 } },
+          transform: { position: bounds!.min, rotation: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 1, y: 1, z: 1 } },
           length: height * 0.3,
           children: ['bone-spine'],
           constraints: [],
@@ -543,7 +543,7 @@ export class AnimationSystemEngine {
           parentId: 'bone-root',
           index: 0,
           transform: {
-            position: { x: bounds.min.x, y: bounds.min.y + height * 0.3, z: bounds.min.z },
+            position: { x: bounds!.min.x, y: bounds!.min.y + height * 0.3, z: bounds!.min.z },
             rotation: { x: 0, y: 0, z: 0, w: 1 },
             scale: { x: 1, y: 1, z: 1 },
           },

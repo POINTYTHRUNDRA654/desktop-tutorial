@@ -1,7 +1,10 @@
 import { loadBrowserTtsSettings, pickBrowserTtsVoice, uiLangToBcp47 } from './browserTts';
 
 export interface VoiceServiceConfig {
-  sttProvider: 'browser' | 'backend';
+  // 'local'   → faster-whisper running on the user's PC via whisper_service.py (preferred)
+  // 'backend' → same local Whisper pipeline (legacy alias; behaves identically to 'local')
+  // 'browser' → Web Speech API (online, fallback)
+  sttProvider: 'local' | 'browser' | 'backend';
   ttsProvider: 'browser' | 'cloud';
 }
 
@@ -120,7 +123,7 @@ export class VoiceService {
    */
   private maxAmplitudeInRecording = 0;
   /** Minimum peak average amplitude required for a recording to be sent to Whisper. */
-  private readonly SPEECH_ONSET_THRESHOLD = 22;
+  private readonly SPEECH_ONSET_THRESHOLD = 18;
   /**
    * True while TTS is actively playing. Used to pause microphone recording
    * during speech playback and prevent the audio feedback loop where Mossy
@@ -182,11 +185,13 @@ export class VoiceService {
     this.onError = onError;
     this.onModeChange = onModeChange;
 
-    // Use backend STT as the primary path, with browser speech recognition as
-    // a fallback if backend transcription is unavailable or fails.
+    // Routing: 'local' and 'backend' both use the local Whisper pipeline
+    // (records audio → sends to main process → whisper_service.py on user's PC).
+    // 'browser' uses the Web Speech API as a fallback for users without Python.
     if (this.config.sttProvider === 'browser') {
       this.startBrowserSTT();
-    } else if (this.config.sttProvider === 'backend') {
+    } else {
+      // 'local' (preferred) and 'backend' (legacy alias) both go through local Whisper
       this.startBackendSTT();
     }
   }
@@ -418,7 +423,11 @@ export class VoiceService {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          // Disable AGC: with AGC on, WebRTC pumps up mic gain during silence
+          // (e.g. while the AI is thinking for 50+ seconds). When the next session
+          // starts the amplified noise floor (21-26) sits above the silence threshold
+          // (17), so the silence timer never fires and recording runs to the 60s max.
+          autoGainControl: false
         }
       });
 
@@ -657,13 +666,14 @@ export class VoiceService {
           console.log('[VoiceService] Audio level:', average.toFixed(2));
         }
 
-        // Threshold of 15: catches all room silence and breathing while preserving speech.
-        // Speaking voice: typically 15-40  → above threshold → recording continues ✓
-        // Breathing/quiet: typically 8-15  → at or below threshold → timer starts ✓
-        // Room silence: typically 5-10     → well below threshold → timer starts ✓
+        // Threshold of 17: chosen to sit above typical room/HVAC/computer-fan noise
+        // (~14-16 amplitude units) while still triggering on brief pauses between words.
+        // Speaking voice: typically 18-60  → above threshold → recording continues ✓
+        // Room noise (HVAC, fan): ~14-16   → below threshold → silence timer starts ✓
         // True silence: 0-5               → well below threshold → timer starts ✓
-        // (Previous value 8 was too low — rooms with noise at 8-12 never triggered.)
-        if (average < 15) { // Silence threshold
+        // If your microphone still never triggers silence, open Settings and lower your
+        // input gain, or switch from Stereo Mix to your physical microphone.
+        if (average < 17) { // Silence threshold
           if (!silenceTimer) {
             console.log('[VoiceService] Silence detected (avg:', average.toFixed(2), '), starting 2.5s timer');
             silenceTimer = setTimeout(() => {

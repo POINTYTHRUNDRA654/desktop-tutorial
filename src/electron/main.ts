@@ -263,7 +263,7 @@ ipcMain.handle(IPC_CHANNELS.TRANSCRIBE_AUDIO, async (_event, arrayBuffer: ArrayB
     }
   } catch (err) {
     console.error('[Main] transcribe-audio handler error:', err);
-    return { success: false, error: String(err?.message || err) };
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
 });;
   
@@ -2013,7 +2013,7 @@ function setupIpcHandlers() {
   };
 
   // Helper function to register handler safely
-  const registerHandler = (channel: string, handler: any) => {
+  const registerHandler = (channel: string, handler: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => any) => {
     if (registeredHandlers.has(channel)) {
       console.log(`[Main] ⚠️ Handler for '${channel}' already registered, skipping`);
       return;
@@ -2032,7 +2032,7 @@ function setupIpcHandlers() {
   };
 
   // Helper for direct ipcMain.handle() with try-catch
-  const safeHandle = (channel: string, handler: any) => {
+  const safeHandle = (channel: string, handler: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => any) => {
     try {
       console.log(`[Main] 📝 Registering handler for '${channel}'...`);
       ipcMain.handle(channel, handler);
@@ -2044,7 +2044,7 @@ function setupIpcHandlers() {
   };
 
   // Helper for critical channels that must be present; replaces existing handler if needed.
-  const forceHandle = (channel: string, handler: any) => {
+  const forceHandle = (channel: string, handler: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => any) => {
     try {
       ipcMain.removeHandler(channel);
       console.log(`[Main] ♻️ Re-registering critical handler for '${channel}'...`);
@@ -2106,8 +2106,7 @@ function setupIpcHandlers() {
       const options: any = { properties: ['openDirectory'] };
       if (title) options.title = String(title);
       // Use mainWindow as parent when available to keep dialog on top
-      const win = mainWindow || null;
-      const result = await dialog.showOpenDialog(win, options);
+      const result = await dialog.showOpenDialog(mainWindow || BrowserWindow.getAllWindows()[0], options);
       if (result.canceled || !result.filePaths || result.filePaths.length === 0) return '';
       return result.filePaths[0];
     } catch (e: any) {
@@ -2437,7 +2436,7 @@ function setupIpcHandlers() {
           project: projectId,
         });
         const result = await client.audio.transcriptions.create({
-          file: fs.createReadStream(tempAudioPath),
+          file: fs.createReadStream(tempAudioPath!),
           model: 'whisper-1',
         });
         transcription = (result as any)?.text ?? '';
@@ -7999,7 +7998,7 @@ end.
       scanDirectory(scanPath);
 
       // Find duplicates (groups with more than 1 file)
-      const duplicateGroups = [];
+      const duplicateGroups: any[] = [];
       let totalDuplicates = 0;
       let totalWastedSpace = 0;
       let totalVramWaste = 0;
@@ -9491,7 +9490,7 @@ end.
         }
         const { default: Groq } = await import('groq-sdk');
         const client = new Groq({ apiKey });
-        content = await callGroqWithFallback(client, model, messages, maxTokens);
+        content = await callGroqWithFallback(client as any, model, messages, maxTokens);
       }
 
       return { success: true, content };
@@ -10117,7 +10116,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         // Dynamic import for Groq ES module
         const { default: Groq } = await import('groq-sdk');
         const client = new Groq({ apiKey });
-        content = await callGroqWithFallback(client, model, messages);
+        content = await callGroqWithFallback(client as any, model, messages);
       }
 
       console.log('[Main] AI response generated, sending to renderer:', content.substring(0, 100) + (content.length > 100 ? '...' : ''), 'correlationId:', correlationId);
@@ -11881,7 +11880,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       const all = await engine.listAchievements();
       const prog = await engine.getUserProgress(userId);
       const unlocked = prog?.achievements || [];
-      const unlockedDetails = all.filter(a => unlocked.includes(a.id));
+      const unlockedDetails = all.filter((a: any) => unlocked.includes(a.id));
       return { unlocked: unlockedDetails, all };
     } catch (error: any) {
       console.error('[Main] learning:get-achievements error:', error);
@@ -13006,7 +13005,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       }
       for (const rule of rules) {
         const id = `rule_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-        conflictRuleStorage.set(id, { ...rule, id, createdAt: Date.now() });
+        conflictRuleStorage.set(id, { ...(rule as object), id, createdAt: Date.now() });
       }
       saveConflictRulesToDisk();
       auditLogger.log({
@@ -17415,7 +17414,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         detailLevel: 'enhanced'
       };
       enhanceSessionsStorage.set(sessionId, session);
-      const historyEntry = { id: `history_${sessionId}`, ...session, type: 'single' };
+      const historyEntry = { ...session, id: `history_${sessionId}`, type: 'single' };
       enhanceHistoryStorage.set(historyEntry.id, historyEntry);
       saveEnhanceDataToDisk();
       auditLogger.log({
@@ -17857,7 +17856,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         lipSyncData: null
       };
       voiceSessionsStorage.set(sessionId, session);
-      const historyEntry = { id: `history_${sessionId}`, ...session, type: 'single' };
+      const historyEntry = { ...session, id: `history_${sessionId}`, type: 'single' };
       voiceHistoryStorage.set(historyEntry.id, historyEntry);
       saveVoiceDataToDisk();
       auditLogger.log({
@@ -19149,7 +19148,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   ipcMain.handle('audit:validate-papyrus-scripts', async (_event, scriptContent: string, modName?: string) => {
     const startTime = Date.now();
     try {
-      const syntaxIssues = [];
+      const syntaxIssues: string[] = [];
       if (scriptContent.includes('while (true)')) syntaxIssues.push('Infinite loop detected');
       const scriptAudit = {
         id: `script_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -19417,7 +19416,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   ipcMain.handle('audit:batch-scan-assets', async (_event, modName: string, assetPaths: string[], assetTypes?: string[]) => {
     const startTime = Date.now();
     try {
-      const batchResults = [];
+      const batchResults: any[] = [];
       for (const path of assetPaths || []) {
         const auditId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const audit = {
@@ -24374,8 +24373,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         id: `validation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         filePath,
         isValid: Math.random() > 0.1,
-        issues: [],
-        warnings: [],
+        issues: [] as any[],
+        warnings: [] as any[],
         info: {
           hasDegenerate: Math.random() > 0.8,
           degenerateTriangles: Math.floor(Math.random() * 50),
@@ -24640,8 +24639,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         filePath,
         isValid: Math.random() > 0.15,
         boneCount: Math.floor(Math.random() * 100) + 10,
-        issues: [],
-        warnings: [],
+        issues: [] as any[],
+        warnings: [] as any[],
         missingBones: Math.floor(Math.random() * 5),
         duplicateBones: Math.floor(Math.random() * 3),
         invalidHierarchy: Math.random() > 0.9,
@@ -25277,8 +25276,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         treeId,
         isValid: Math.random() > 0.1,
         nodeCount: Math.floor(Math.random() * 150) + 10,
-        issues: [],
-        warnings: [],
+        issues: [] as any[],
+        warnings: [] as any[],
         orphanedNodes: Math.floor(Math.random() * 5),
         unreachableNodes: Math.floor(Math.random() * 3),
         duplicateTextWarnings: Math.floor(Math.random() * 10),
@@ -25673,8 +25672,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         materialId,
         targetEngine: targetEngine || 'Fallout4',
         isCompatible: Math.random() > 0.1,
-        issues: [],
-        warnings: [],
+        issues: [] as any[],
+        warnings: [] as any[],
         textureFormatIssues: Math.floor(Math.random() * 3),
         resolutionIssues: Math.floor(Math.random() * 2),
         propertyWarnings: Math.floor(Math.random() * 5),
@@ -26026,8 +26025,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         brokenReferences: Math.floor(Math.random() * 1000),
         orphanedReferences: Math.floor(Math.random() * 500),
         missingMasters: Math.floor(Math.random() * 5),
-        issues: [],
-        warnings: [],
+        issues: [] as any[],
+        warnings: [] as any[],
         qualityScore: Math.floor(Math.random() * 40) + 60,
         validatedAt: Date.now()
       };
@@ -26112,7 +26111,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         pluginPath,
         directDependencies: Math.floor(Math.random() * 20) + 1,
         indirectDependencies: Math.floor(Math.random() * 50) + 1,
-        allDependencies: [],
+        allDependencies: [] as {name: string; required: boolean}[],
         dependencyGraph: {
           depth: Math.floor(Math.random() * 5) + 1,
           width: Math.floor(Math.random() * 20) + 1
@@ -26122,10 +26121,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         compatibilityScore: Math.floor(Math.random() * 40) + 60,
         analyzedAt: Date.now()
       };
-      dependencies.allDependencies = Array.from({ length: dependencies.directDependencies + dependencies.indirectDependencies }).map(() => ({
+      dependencies.allDependencies = Array.from<{name: string; required: boolean}>({ length: dependencies.directDependencies + dependencies.indirectDependencies }).map(() => ({
         name: `Dependency_${Math.random().toString(36).substr(2, 9)}`,
         required: Math.random() > 0.3
-      }));
+      })) as any[];
       pluginManagementStorage.set(dependencies.id, dependencies);
       savePluginManagementDataToDisk();
       auditLogger.log({
@@ -31317,9 +31316,9 @@ ${steps}
     try {
       const { inputPath, outputPath, format, quality = 'high' } = params;
       const pathValidation = IpcValidation.isValidFilePath(inputPath);
-      if (!pathValidation.valid) return IpcResponseBuilder.error(pathValidation.error, IpcErrorCode.EINVAL);
+      if (!pathValidation.valid) return IpcResponseBuilder.error(pathValidation.error ?? "Validation error", IpcErrorCode.EINVAL);
       const outputValidation = IpcValidation.isValidFilePath(outputPath);
-      if (!outputValidation.valid) return IpcResponseBuilder.error(outputValidation.error, IpcErrorCode.EINVAL);
+      if (!outputValidation.valid) return IpcResponseBuilder.error(outputValidation.error ?? "Validation error", IpcErrorCode.EINVAL);
       if (!fs.existsSync(inputPath)) {
         return IpcResponseBuilder.error('Input file not found', IpcErrorCode.ENOENT);
       }
@@ -31407,7 +31406,7 @@ ${steps}
   registerHandler('dds-detect-format', async (_event, filePath: string) => {
     try {
       const validation = IpcValidation.isValidFilePath(filePath);
-      if (!validation.valid) return IpcResponseBuilder.error(validation.error, IpcErrorCode.EINVAL);
+      if (!validation.valid) return IpcResponseBuilder.error(validation.error ?? "Validation error", IpcErrorCode.EINVAL);
       if (!fs.existsSync(filePath)) {
         return IpcResponseBuilder.error('File not found', IpcErrorCode.ENOENT);
       }
@@ -31497,7 +31496,7 @@ ${steps}
   registerHandler('material:load-manifest', async (_event, filePath: string) => {
     try {
       const validation = IpcValidation.isValidFilePath(filePath);
-      if (!validation.valid) return IpcResponseBuilder.error(validation.error, IpcErrorCode.EINVAL);
+      if (!validation.valid) return IpcResponseBuilder.error(validation.error ?? "Validation error", IpcErrorCode.EINVAL);
       if (!fs.existsSync(filePath)) {
         return IpcResponseBuilder.error('Manifest file not found', IpcErrorCode.ENOENT);
       }
@@ -31549,7 +31548,7 @@ ${steps}
     try {
       const { filePath, manifest } = params;
       const validation = IpcValidation.isValidFilePath(filePath);
-      if (!validation.valid) return IpcResponseBuilder.error(validation.error, IpcErrorCode.EINVAL);
+      if (!validation.valid) return IpcResponseBuilder.error(validation.error ?? "Validation error", IpcErrorCode.EINVAL);
       
       // Validate manifest structure
       if (!manifest.modName || typeof manifest.modName !== 'string') {
@@ -31600,7 +31599,7 @@ ${steps}
   registerHandler('asset-validator:validate-mod', async (_event, modPath: string) => {
     try {
       const validation = IpcValidation.isValidFilePath(modPath);
-      if (!validation.valid) return IpcResponseBuilder.error(validation.error, IpcErrorCode.EINVAL);
+      if (!validation.valid) return IpcResponseBuilder.error(validation.error ?? "Validation error", IpcErrorCode.EINVAL);
       if (!fs.existsSync(modPath)) {
         return IpcResponseBuilder.error('Mod path not found', IpcErrorCode.ENOENT);
       }
@@ -31745,7 +31744,7 @@ ${steps}
   registerHandler('asset-validator:validate-file', async (_event, filePath: string) => {
     try {
       const validation = IpcValidation.isValidFilePath(filePath);
-      if (!validation.valid) return IpcResponseBuilder.error(validation.error, IpcErrorCode.EINVAL);
+      if (!validation.valid) return IpcResponseBuilder.error(validation.error ?? "Validation error", IpcErrorCode.EINVAL);
       if (!fs.existsSync(filePath)) {
         return IpcResponseBuilder.error('File not found', IpcErrorCode.ENOENT);
       }
@@ -31896,7 +31895,7 @@ ${steps}
     try {
       const { sourceImagePath, mapsToGenerate = ['normal', 'roughness', 'metallic', 'height', 'ao'] } = params;
       const validation = IpcValidation.isValidFilePath(sourceImagePath);
-      if (!validation.valid) return IpcResponseBuilder.error(validation.error, IpcErrorCode.EINVAL);
+      if (!validation.valid) return IpcResponseBuilder.error(validation.error ?? "Validation error", IpcErrorCode.EINVAL);
       if (!fs.existsSync(sourceImagePath)) {
         return IpcResponseBuilder.error('Source image not found', IpcErrorCode.ENOENT);
       }
@@ -31987,9 +31986,9 @@ ${steps}
     try {
       const { inputPath, outputPath, format, quality = 80, resize } = params;
       const inputValidation = IpcValidation.isValidFilePath(inputPath);
-      if (!inputValidation.valid) return IpcResponseBuilder.error(inputValidation.error, IpcErrorCode.EINVAL);
+      if (!inputValidation.valid) return IpcResponseBuilder.error(inputValidation.error ?? "Validation error", IpcErrorCode.EINVAL);
       const outputValidation = IpcValidation.isValidFilePath(outputPath);
-      if (!outputValidation.valid) return IpcResponseBuilder.error(outputValidation.error, IpcErrorCode.EINVAL);
+      if (!outputValidation.valid) return IpcResponseBuilder.error(outputValidation.error ?? "Validation error", IpcErrorCode.EINVAL);
       if (!fs.existsSync(inputPath)) {
         return IpcResponseBuilder.error('Input file not found', IpcErrorCode.ENOENT);
       }
@@ -32055,7 +32054,7 @@ ${steps}
     try {
       const { inputPath, outputPath, optimizationType } = params;
       const inputValidation = IpcValidation.isValidFilePath(inputPath);
-      if (!inputValidation.valid) return IpcResponseBuilder.error(inputValidation.error, IpcErrorCode.EINVAL);
+      if (!inputValidation.valid) return IpcResponseBuilder.error(inputValidation.error ?? "Validation error", IpcErrorCode.EINVAL);
       if (!fs.existsSync(inputPath)) {
         return IpcResponseBuilder.error('Input path not found', IpcErrorCode.ENOENT);
       }
@@ -32090,7 +32089,7 @@ ${steps}
   registerHandler('optimizer:get-progress', async (_event, jobId: string) => {
     try {
       const validation = IpcValidation.isNonEmptyString(jobId, 'jobId');
-      if (!validation.valid) return IpcResponseBuilder.error(validation.error, IpcErrorCode.EINVAL);
+      if (!validation.valid) return IpcResponseBuilder.error(validation.error ?? "Validation error", IpcErrorCode.EINVAL);
       if (!optimizerJobs.has(jobId)) {
         return IpcResponseBuilder.error('Job not found', IpcErrorCode.NOT_FOUND);
       }
@@ -32106,7 +32105,7 @@ ${steps}
   registerHandler('3d-viewer:load-asset', async (_event, assetPath: string) => {
     try {
       const validation = IpcValidation.isValidFilePath(assetPath);
-      if (!validation.valid) return IpcResponseBuilder.error(validation.error, IpcErrorCode.EINVAL);
+      if (!validation.valid) return IpcResponseBuilder.error(validation.error ?? "Validation error", IpcErrorCode.EINVAL);
       if (!fs.existsSync(assetPath)) {
         return IpcResponseBuilder.error('Asset file not found', IpcErrorCode.ENOENT);
       }
@@ -32135,11 +32134,11 @@ ${steps}
     try {
       const { type, name, code } = params;
       const typeValidation = IpcValidation.isNonEmptyString(type, 'type');
-      if (!typeValidation.valid) return IpcResponseBuilder.error(typeValidation.error, IpcErrorCode.EINVAL);
+      if (!typeValidation.valid) return IpcResponseBuilder.error(typeValidation.error ?? "Validation error", IpcErrorCode.EINVAL);
       const nameValidation = IpcValidation.isNonEmptyString(name, 'name');
-      if (!nameValidation.valid) return IpcResponseBuilder.error(nameValidation.error, IpcErrorCode.EINVAL);
+      if (!nameValidation.valid) return IpcResponseBuilder.error(nameValidation.error ?? "Validation error", IpcErrorCode.EINVAL);
       const codeValidation = IpcValidation.isNonEmptyString(code, 'code');
-      if (!codeValidation.valid) return IpcResponseBuilder.error(codeValidation.error, IpcErrorCode.EINVAL);
+      if (!codeValidation.valid) return IpcResponseBuilder.error(codeValidation.error ?? "Validation error", IpcErrorCode.EINVAL);
 
       const userDataPath = app.getPath('userData');
       let scriptDir: string;
@@ -32204,7 +32203,7 @@ ${steps}
     try {
       const { scriptPath, pluginPath } = params;
       const scriptValidation = IpcValidation.isValidFilePath(scriptPath);
-      if (!scriptValidation.valid) return IpcResponseBuilder.error(scriptValidation.error, IpcErrorCode.EINVAL);
+      if (!scriptValidation.valid) return IpcResponseBuilder.error(scriptValidation.error ?? "Validation error", IpcErrorCode.EINVAL);
       if (!fs.existsSync(scriptPath)) {
         return IpcResponseBuilder.error('Script file not found', IpcErrorCode.ENOENT);
       }
@@ -32245,7 +32244,7 @@ ${steps}
   registerHandler('ck-plugin-validate', async (_event, pluginPath: string) => {
     try {
       const validation = IpcValidation.isValidFilePath(pluginPath);
-      if (!validation.valid) return IpcResponseBuilder.error(validation.error, IpcErrorCode.EINVAL);
+      if (!validation.valid) return IpcResponseBuilder.error(validation.error ?? "Validation error", IpcErrorCode.EINVAL);
       if (!fs.existsSync(pluginPath)) {
         return IpcResponseBuilder.error('Plugin file not found', IpcErrorCode.ENOENT);
       }
@@ -32444,7 +32443,7 @@ app.whenReady().then(() => {
   bridge.start();
 
   // Register Texture Enhancer handlers (uses BridgeServer for Blender integration)
-  registerTextureEnhancerHandlers(bridge, mainWindow);
+  registerTextureEnhancerHandlers(bridge, mainWindow ?? undefined);
 
   // Register Cloud Sync handlers exposed by preload cloudSync API.
   registerCloudSyncHandlers();
