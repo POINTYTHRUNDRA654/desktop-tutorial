@@ -74,7 +74,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
               </button>
             </div>
             <p className="text-slate-300 text-xs leading-relaxed mt-3">
-              Tip: If you’re unsure you installed something correctly, prefer <strong>search links</strong> over hard-coded URLs — pages move, searches don’t.
+              Tip: If you're unsure you installed something correctly, prefer <strong>search links</strong> over hard-coded URLs — pages move, searches don't.
             </p>
           </div>
 
@@ -144,7 +144,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
               <li>Plugin not enabled / wrong profile in your mod manager</li>
               <li>Missing masters (FO4Edit will tell you immediately)</li>
               <li>Quest never starts (Start Game Enabled unchecked; no startup stage / no trigger)</li>
-              <li>Objective doesn’t show (objective not displayed; wrong stage index)</li>
+              <li>Objective doesn't show (objective not displayed; wrong stage index)</li>
             </ul>
           </div>
         </div>
@@ -340,7 +340,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
               <li>Always validate in this order: vanilla baseline → asset-only test → extender-enabled test → performance + crash pass</li>
               <li>Tag recommendations as Free Required, Free Optional, or Paid Optional, and always provide a free working path</li>
               <li>Attach a failure recovery tree for wrong runtime, missing address library mappings, bad hook targets, precombine damage, and shader order conflicts</li>
-              <li>Define portfolio-grade output targets with objective acceptance criteria so users can measure “2026 quality” instead of guessing</li>
+              <li>Define portfolio-grade output targets with objective acceptance criteria so users can measure "2026 quality" instead of guessing</li>
             </ul>
           </div>
         </div>

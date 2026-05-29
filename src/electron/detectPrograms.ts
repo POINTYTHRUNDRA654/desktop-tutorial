@@ -793,6 +793,105 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
       displayName: 'GIMP 2',
       name: 'gimp'
     },
+    // Mod Organizer 2 (portable & installed variants)
+    {
+      templates: [
+        'Modding\\MO2\\ModOrganizer.exe',
+        'Modding\\Mod Organizer 2\\ModOrganizer.exe',
+        'MO2\\ModOrganizer.exe',
+        'Mod Organizer 2\\ModOrganizer.exe',
+        'Games\\MO2\\ModOrganizer.exe',
+        'Games\\Mod Organizer 2\\ModOrganizer.exe',
+        'Program Files\\Mod Organizer 2\\ModOrganizer.exe',
+        'Program Files (x86)\\Mod Organizer 2\\ModOrganizer.exe',
+      ],
+      specialPaths: [
+        path.join(os.homedir(), 'AppData\\Local\\ModOrganizer\\ModOrganizer.exe'),
+        path.join(os.homedir(), 'AppData\\Roaming\\ModOrganizer\\ModOrganizer.exe'),
+      ],
+      displayName: 'Mod Organizer 2',
+      name: 'ModOrganizer'
+    },
+    // BodySlide and Outfit Studio
+    {
+      templates: [
+        'Modding\\BodySlide\\BodySlide x64.exe',
+        'Modding\\BodySlide\\BodySlide.exe',
+        'Tools\\BodySlide\\BodySlide x64.exe',
+        'Program Files\\BodySlide and Outfit Studio\\BodySlide x64.exe',
+        'Program Files (x86)\\BodySlide and Outfit Studio\\BodySlide x64.exe',
+      ],
+      displayName: 'BodySlide and Outfit Studio',
+      name: 'BodySlide'
+    },
+    // Wrye Bash
+    {
+      templates: [
+        'Modding\\Wrye Bash\\Wrye Bash.exe',
+        'Modding\\WryeBash\\Wrye Bash.exe',
+        'Program Files\\Wrye Bash\\Wrye Bash.exe',
+        'Program Files (x86)\\Wrye Bash\\Wrye Bash.exe',
+        'Games\\Wrye Bash\\Wrye Bash.exe',
+      ],
+      displayName: 'Wrye Bash',
+      name: 'WryeBash'
+    },
+    // BethINI (Bethesda INI configuration tool)
+    {
+      templates: [
+        'Modding\\BethINI\\BethINI.exe',
+        'Tools\\BethINI\\BethINI.exe',
+        'Program Files\\BethINI\\BethINI.exe',
+      ],
+      specialPaths: [
+        path.join(os.homedir(), 'Desktop\\BethINI\\BethINI.exe'),
+        path.join(os.homedir(), 'Downloads\\BethINI\\BethINI.exe'),
+      ],
+      displayName: 'BethINI',
+      name: 'BethINI'
+    },
+    // Upscayl (AI image upscaler)
+    {
+      templates: [
+        'Program Files\\Upscayl\\Upscayl.exe',
+        'Program Files (x86)\\Upscayl\\Upscayl.exe',
+        'Upscayl\\Upscayl.exe',
+      ],
+      specialPaths: [
+        path.join(os.homedir(), 'AppData\\Local\\Programs\\upscayl\\Upscayl.exe'),
+        path.join(os.homedir(), 'AppData\\Local\\upscayl\\Upscayl.exe'),
+      ],
+      displayName: 'Upscayl',
+      name: 'Upscayl'
+    },
+    // ComfyUI (AI image generation — detected via run script)
+    {
+      templates: [
+        'ComfyUI\\run_nvidia_gpu.bat',
+        'ComfyUI\\ComfyUI_windows_portable\\run_nvidia_gpu.bat',
+        'AI\\ComfyUI\\run_nvidia_gpu.bat',
+        'Stable Diffusion\\ComfyUI\\run_nvidia_gpu.bat',
+      ],
+      specialPaths: [
+        path.join(os.homedir(), 'ComfyUI\\run_nvidia_gpu.bat'),
+        path.join(os.homedir(), 'Desktop\\ComfyUI\\run_nvidia_gpu.bat'),
+        path.join(os.homedir(), 'AI\\ComfyUI\\run_nvidia_gpu.bat'),
+      ],
+      displayName: 'ComfyUI',
+      name: 'ComfyUI'
+    },
+    // Vortex Mod Manager
+    {
+      templates: [
+        'Program Files\\Black Tree Gaming Ltd\\Vortex\\Vortex.exe',
+        'Program Files (x86)\\Black Tree Gaming Ltd\\Vortex\\Vortex.exe',
+      ],
+      specialPaths: [
+        path.join(os.homedir(), 'AppData\\Local\\Programs\\vortex\\Vortex.exe'),
+      ],
+      displayName: 'Vortex Mod Manager',
+      name: 'Vortex'
+    },
   ];
 
   // Check each special program by combining templates with all detected drives
@@ -810,31 +909,30 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
         }
       }
     }
-    
+
     // Add any special hardcoded paths (e.g., user-specific paths)
     if (special.specialPaths) {
       pathsToCheck.push(...special.specialPaths);
     }
-    
-    // Now check all generated paths
+
+    // Check all generated paths
     for (const testPath of pathsToCheck) {
       try {
         await fs.access(testPath);
-        // File exists! Add it
         programs.push({
           name: special.name,
           displayName: special.displayName,
           path: testPath,
         });
         found = true;
-        break; // Found it, no need to check other paths for this program
+        break;
       } catch {
-        // File doesn't exist, try next path
+        // not found, try next
       }
     }
-    
+
     if (found) {
-      continue; // Move to next program
+      continue;
     }
   }
 
@@ -842,11 +940,7 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
   return programs;
 }
 
-/**
- * Get comprehensive system information for AI/modding capabilities
- * This helps Mossy understand what the user's system can handle
- */
-export async function getSystemInfo(): Promise<{
+export interface SystemInfo {
   cpu: string;
   ram: string;
   gpu: string[];
@@ -854,41 +948,36 @@ export async function getSystemInfo(): Promise<{
   aiCapabilities: string[];
   pythonVersions: string[];
   nodeVersion: string | null;
-}> {
-  const systemInfo: any = {
-    cpu: os.cpus()[0]?.model || 'Unknown CPU',
-    ram: `${Math.round(os.totalmem() / (1024 ** 3))} GB`,
+}
+
+export async function getSystemInfo(): Promise<SystemInfo> {
+  const systemInfo: SystemInfo = {
+    cpu: require('os').cpus()[0]?.model || 'Unknown CPU',
+    ram: `${Math.round(require('os').totalmem() / (1024 ** 3))} GB`,
     gpu: [],
-    os: `${os.platform()} ${os.release()}`,
+    os: `${require('os').platform()} ${require('os').release()}`,
     aiCapabilities: [],
     pythonVersions: [],
     nodeVersion: null,
   };
 
   try {
-    // Detect GPU using wmic
     const { stdout: gpuOutput } = await execAsync('wmic path win32_VideoController get name');
     systemInfo.gpu = gpuOutput
       .split('\n')
       .slice(1)
-      .map(line => line.trim())
-      .filter(line => line && line !== 'Name');
+      .map((line: string) => line.trim())
+      .filter((line: string) => line && line !== 'Name');
   } catch (error) {
     console.warn('Failed to detect GPU:', error);
   }
 
   try {
-    // Check for CUDA (NVIDIA AI capability)
     const cudaPath = process.env['CUDA_PATH'];
-    if (cudaPath) {
-      systemInfo.aiCapabilities.push('NVIDIA CUDA');
-    }
-  } catch (error) {
-    // Silent fail
-  }
+    if (cudaPath) systemInfo.aiCapabilities.push('NVIDIA CUDA');
+  } catch { /* silent */ }
 
   try {
-    // Detect Python installations
     const pythonCommands = ['python', 'python3', 'py'];
     for (const cmd of pythonCommands) {
       try {
@@ -897,23 +986,15 @@ export async function getSystemInfo(): Promise<{
         if (version && !systemInfo.pythonVersions.includes(version)) {
           systemInfo.pythonVersions.push(version);
         }
-      } catch {
-        // Try next command
-      }
+      } catch { /* try next */ }
     }
-  } catch (error) {
-    // Silent fail
-  }
+  } catch { /* silent */ }
 
   try {
-    // Detect Node.js
     const { stdout } = await execAsync('node --version');
     systemInfo.nodeVersion = stdout.trim();
-  } catch (error) {
-    // Silent fail
-  }
+  } catch { /* silent */ }
 
-  // Check for AI-specific capabilities based on GPU
   const gpuLower = systemInfo.gpu.join(' ').toLowerCase();
   if (gpuLower.includes('nvidia') && gpuLower.includes('rtx')) {
     systemInfo.aiCapabilities.push('RTX Tensor Cores (AI Acceleration)');

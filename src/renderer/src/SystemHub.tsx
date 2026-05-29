@@ -18,7 +18,7 @@ type SystemTab = 'diagnostics' | 'capabilities' | 'security' | 'vault' | 'suppor
 const tabs: Array<{ id: SystemTab; label: string; sublabel: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: 'diagnostics', label: 'Diagnostics', sublabel: 'Troubleshoot tools', icon: Wrench },
   { id: 'capabilities', label: 'Capabilities', sublabel: 'Local AI/runtime', icon: Gauge },
-  { id: 'security', label: 'Blacklist Manager', sublabel: 'Safety rules', icon: ShieldCheck },
+  { id: 'security', label: 'Whitelist & Blacklist', sublabel: 'Safety rules', icon: ShieldCheck },
   { id: 'vault', label: 'Asset Vault', sublabel: 'Manifest + verification', icon: Container },
   { id: 'support', label: 'Support Mossy', sublabel: 'Support links', icon: Coffee },
   { id: 'backup', label: 'Backup Manager', sublabel: 'Snapshots & git', icon: Save },
@@ -42,14 +42,26 @@ const SystemHub: React.FC = () => {
   useEffect(() => {
     sessionStorage.setItem('system_hub_tab', activeTab);
   }, [activeTab]);
+  // ── Keyboard shortcuts (1-N) ────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable) return;
+      const n = parseInt(e.key);
+      if (!isNaN(n) && n >= 1 && n <= tabs.length) setActiveTab(tabs[n - 1].id);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
 
   return (
     <div className="h-full flex flex-col bg-[#0a0e0a] overflow-hidden">
       <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-slate-800/60">
         <h1 className="text-xl font-black text-white tracking-tight">FO4 System &amp; Diagnostics Hub</h1>
-        <p className="text-xs text-slate-400 mt-1">Diagnostics · Capabilities · Blacklist Manager · Asset Vault · Support · Backup Manager · File Watcher</p>
+        <p className="text-xs text-slate-400 mt-1">Diagnostics · Capabilities · Whitelist & Blacklist · Asset Vault · Support · Backup Manager · File Watcher</p>
         <div className="flex gap-1 mt-4 overflow-x-auto">
-          {tabs.map((tab) => (
+          {tabs.map((tab, idx) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -64,6 +76,7 @@ const SystemHub: React.FC = () => {
               <span className={`text-[10px] ${activeTab === tab.id ? 'text-emerald-400/80' : 'text-slate-600'}`}>
                 {tab.sublabel}
               </span>
+              <kbd className={`ml-1 text-[9px] font-mono px-1 rounded border ${activeTab === tab.id ? 'border-emerald-500/30 text-emerald-500/60' : 'border-slate-700 text-slate-700'}`}>{idx + 1}</kbd>
             </button>
           ))}
         </div>

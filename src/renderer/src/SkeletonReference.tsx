@@ -213,7 +213,7 @@ export const SkeletonReference: React.FC<SkeletonReferenceProps> = ({ embedded =
         <div className="mt-5 bg-slate-950/50 border border-slate-700 rounded-lg p-4">
           <div className="text-sm font-bold text-cyan-300 mb-2">🧰 Tools / Install / Verify (No Guesswork)</div>
           <p className="text-xs text-slate-300">
-            This page is a <strong>reference</strong> for FO4 bone names + hierarchy. To actually rig/export, you’ll need the usual Fallout 4 animation toolchain.
+            This page is a <strong>reference</strong> for FO4 bone names + hierarchy. To actually rig/export, you'll need the usual Fallout 4 animation toolchain.
           </p>
 
           <div className="mt-3 flex flex-wrap gap-2">

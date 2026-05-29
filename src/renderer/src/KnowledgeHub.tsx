@@ -6,20 +6,24 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Book, Bot, GitBranch } from 'lucide-react';
+import { Book, Bot, GitBranch, Package } from 'lucide-react';
 
 const QuickReference = React.lazy(() =>
   import('./QuickReference').then((m) => ({ default: m.QuickReference }))
 );
 const KnowledgeSearch = React.lazy(() => import('./KnowledgeSearch'));
 const CommunityLearning = React.lazy(() => import('./CommunityLearning'));
+const VanillaAssetBrowser = React.lazy(() =>
+  import('./VanillaAssetBrowser').then((m) => ({ default: m.VanillaAssetBrowser }))
+);
 
-type HubTab = 'reference' | 'search' | 'community';
+type HubTab = 'reference' | 'search' | 'community' | 'vanilla';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'reference', icon: Book, label: 'Quick Reference', sublabel: 'Papyrus · FormIDs · Hotkeys' },
   { id: 'search', icon: Bot, label: 'Knowledge Search', sublabel: 'Semantic search · Ollama' },
   { id: 'community', icon: GitBranch, label: 'Community Learning', sublabel: 'Tips · Shared knowledge' },
+  { id: 'vanilla', icon: Package, label: 'Vanilla Assets', sublabel: 'Browse · Copy · Reference' },
 ];
 
 const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -52,6 +56,18 @@ const KnowledgeHub: React.FC = () => {
       // ignore storage access failures in restricted environments
     }
   }, [activeTab]);
+  // ── Keyboard shortcuts (1-N) ────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable) return;
+      const n = parseInt(e.key);
+      if (!isNaN(n) && n >= 1 && n <= TAB_DEFS.length) setActiveTab(TAB_DEFS[n - 1].id);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
 
   return (
     <div className="h-full flex flex-col bg-[#0a0e0a] overflow-hidden">
@@ -63,12 +79,12 @@ const KnowledgeHub: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl font-black text-white tracking-tight">FO4 Knowledge Hub</h1>
-            <p className="text-xs text-slate-400">Quick Reference · Semantic Search · Community Learning</p>
+            <p className="text-xs text-slate-400">Quick Reference · Semantic Search · Community Learning · Vanilla Assets</p>
           </div>
         </div>
 
         <div className="flex gap-1 mt-4 overflow-x-auto">
-          {TAB_DEFS.map((tab) => (
+          {TAB_DEFS.map((tab, idx) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -83,13 +99,14 @@ const KnowledgeHub: React.FC = () => {
               <span className={`text-[10px] ${activeTab === tab.id ? 'text-emerald-400/80' : 'text-slate-600'}`}>
                 {tab.sublabel}
               </span>
+              <kbd className={`ml-1 text-[9px] font-mono px-1 rounded border ${activeTab === tab.id ? 'border-emerald-500/30 text-emerald-500/60' : 'border-slate-700 text-slate-700'}`}>{idx + 1}</kbd>
             </button>
           ))}
         </div>
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className={`flex-1 overflow-hidden ${activeTab === 'vanilla' ? '' : 'overflow-y-auto p-6'}`}>
         {activeTab === 'reference' && (
           <PanelLoader>
             <QuickReference />
@@ -103,6 +120,11 @@ const KnowledgeHub: React.FC = () => {
         {activeTab === 'community' && (
           <PanelLoader>
             <CommunityLearning />
+          </PanelLoader>
+        )}
+        {activeTab === 'vanilla' && (
+          <PanelLoader>
+            <VanillaAssetBrowser />
           </PanelLoader>
         )}
       </div>

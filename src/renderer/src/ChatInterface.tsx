@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import { LocalAIEngine } from './LocalAIEngine';
@@ -225,13 +225,13 @@ const QUICK_PROMPTS: { label: string; prompt: string; emoji: string }[] = [
     { emoji: '📋', label: 'Sort my load order', prompt: 'What is the correct load order structure for a heavily modded Fallout 4? Walk me through it.' },
     { emoji: '🌿', label: 'Generate LOD', prompt: 'What are all the steps to generate LOD for a mod that adds outdoor objects — xLODGen, TexGen, and DynDOLOD?' },
     { emoji: '💥', label: 'Analyse a crash', prompt: 'My game crashed and X-Cell made a crash log. How do I read the call stack and use CLASSIC to figure out which mod caused it?' },
-    { emoji: '🎯', label: 'ESL-flag a plugin', prompt: 'How do I safely ESL-flag an ESP in xEdit? What are the FormID limits (0x000–0xFFF) and what happens if I go over them?' },
+    { emoji: '🎯', label: 'ESL-flag a plugin', prompt: 'How do I safely ESL-flag an ESP in xEdit? What are the FormID limits (0x000-0xFFF) and what happens if I go over them?' },
     { emoji: '🏗️', label: 'Precombines explained', prompt: 'Why are precombines important and how do I avoid breaking them in my mod?' },
     { emoji: '🖼️', label: 'DDS texture formats', prompt: 'Which DDS format should I use for each texture type in Fallout 4 — diffuse, normal, specular (_s.dds channels), and height map?' },
     { emoji: '⚙️', label: 'xEdit conflict patch', prompt: 'Two mods conflict on the same NPC record. Walk me through creating a compatibility patch in xEdit.' },
     { emoji: '📦', label: 'Pack a BA2', prompt: 'How do I pack my mod assets into a BA2 archive? What is the difference between BA2 Header V1 (pre-NG) and V2 (NG/AE/1.11.x) and which do I need?' },
     { emoji: '🚫', label: 'Deprecated frameworks', prompt: 'I have AWKCR, Armorsmith Extended, and DEF_UI in my load order. Are these safe on NG/AE (v1.10.984 / 1.11.x) and what modern replacements should I use?' },
-    { emoji: '🔧', label: 'Check my game version', prompt: 'How do I find out whether I am running Legacy (1.10.163), Next-Gen (1.10.980–984), or Anniversary Edition (1.11.x)? What changes for each version — F4SE, Address Library, BA2 headers, crash tools?' },
+    { emoji: '🔧', label: 'Check my game version', prompt: 'How do I find out whether I am running Legacy (1.10.163), Next-Gen (1.10.980-984), or Anniversary Edition (1.11.x)? What changes for each version — F4SE, Address Library, BA2 headers, crash tools?' },
     { emoji: '📝', label: 'FOMOD installer', prompt: 'How do I create a FOMOD installer for my mod so users get options in MO2 and Vortex?' },
     { emoji: '🔊', label: 'Add custom sound', prompt: 'How do I add a custom ambient sound to an interior cell using SNDR and ASPC records in the Creation Kit?' },
     { emoji: '🚀', label: 'Release checklist', prompt: 'What is the complete checklist for releasing a mod on Nexus — packaging, screenshots, description, FOMOD, and versioning?' },
@@ -2112,7 +2112,7 @@ export const ChatInterface: React.FC = () => {
         if (wlGuard.blocked) {
             setMessages(prev => [...prev,
             { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() },
-            { id: Date.now().toString() + '-whitelist', role: 'assistant', content: `I can’t help with "${wlGuard.match}" because it is protected in your do-not-touch list. I can help with a different mod or workflow instead.`, timestamp: Date.now() }
+            { id: Date.now().toString() + '-whitelist', role: 'assistant', content: `I can't help with "${wlGuard.match}" because it is protected in your do-not-touch list. I can help with a different mod or workflow instead.`, timestamp: Date.now() }
             ]);
             setInputText('');
             return;
@@ -2479,7 +2479,7 @@ export const ChatInterface: React.FC = () => {
                         'Confirm citations can expand and collapse when sources are present.',
                     ]}
                     firstTestLoop={[
-                        'Ask Mossy for a tiny “hello world” FO4 mod plan (one record or one script).',
+                        'Ask Mossy for a tiny "hello world" FO4 mod plan (one record or one script).',
                         'Execute exactly one action (generate text or analyze a file) and confirm the output is usable.',
                     ]}
                     troubleshooting={[
@@ -2537,7 +2537,7 @@ export const ChatInterface: React.FC = () => {
                             <div className="flex justify-start">
                                 <div className="bg-forge-panel border border-slate-700 rounded-2xl rounded-tl-none p-4 flex items-center gap-3 shadow-sm">
                                     {isStreaming ? <Bot className="w-4 h-4 text-emerald-400 animate-pulse" /> : <Loader2 className="animate-spin text-emerald-400 w-4 h-4" />}
-                                    <span className="text-slate-400 text-sm font-medium">{isStreaming ? 'Mossy is typing...' : 'Mossy is thinking… (responses can take 30–60 seconds)'}</span>
+                                    <span className="text-slate-400 text-sm font-medium">{isStreaming ? 'Mossy is typing...' : 'Mossy is thinking… (responses can take 30-60 seconds)'}</span>
                                     <button onClick={handleStopGeneration} className="ml-4 p-1 hover:bg-slate-700 rounded-full text-slate-500 hover:text-white" title="Stop Generation">
                                         <Square className="w-3 h-3 fill-current" />
                                     </button>
@@ -2707,7 +2707,6 @@ export const ChatInterface: React.FC = () => {
             />
         </div>
     );
-
 };
 
 export default ChatInterface;

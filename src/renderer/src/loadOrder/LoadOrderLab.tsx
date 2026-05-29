@@ -362,12 +362,12 @@ export const LoadOrderLab: React.FC<LoadOrderLabProps> = ({ embedded = false }) 
         <div className="p-5 border-b border-slate-700/60 bg-slate-900/40">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-xl font-bold text-slate-100">Load Order Lab (Experimental)</h1>
+              <h1 className="text-xl font-bold text-slate-100">Load Order Lab</h1>
               <p className="text-xs text-slate-400 mt-1">
-                MO2 + LOOT import, then generate an xEdit script stub.
+                Import your MO2 profile and LOOT report, then generate and launch a real PRP-compatible combined patch script for FO4Edit.
               </p>
-              <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
-                The generated script is a stub placeholder. It only creates an empty patch and does not resolve conflicts for you.
+              <div className="mt-3 rounded border border-emerald-600/30 bg-emerald-900/10 px-3 py-2 text-[11px] text-emerald-200">
+                The generated script is a real, functional FO4Edit Pascal script. It copies winning overrides of all conflicted records and clears XCRI/XCMO from CELL records for PRP compatibility.
               </div>
             </div>
 
@@ -530,9 +530,22 @@ export const LoadOrderLab: React.FC<LoadOrderLabProps> = ({ embedded = false }) 
       <div className="flex-1 overflow-hidden grid grid-cols-2 gap-0">
         <div className="h-full overflow-hidden border-r border-slate-700/60">
           <div className="p-4 border-b border-slate-700/60 bg-slate-900/30">
-            <div className="text-sm font-bold text-slate-100">MO2 Plugins</div>
-            <div className="text-xs text-slate-400 mt-1">
-              Enabled: {enabledPlugins.length} · Disabled: {disabledPlugins.length}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div className="text-sm font-bold text-slate-100">MO2 Plugins</div>
+                <div className="text-xs text-slate-400 mt-1">
+                  Enabled: {enabledPlugins.length} · Disabled: {disabledPlugins.length}
+                </div>
+              </div>
+              {embedded && (
+                <button
+                  onClick={() => void pickMo2Profile()}
+                  className="px-2.5 py-1.5 rounded border border-slate-700 bg-slate-900/40 hover:border-slate-500 text-xs font-bold text-slate-200 flex items-center gap-1.5"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  Pick Profile
+                </button>
+              )}
             </div>
           </div>
           <div className="h-full overflow-y-auto p-4 space-y-2">
@@ -553,9 +566,22 @@ export const LoadOrderLab: React.FC<LoadOrderLabProps> = ({ embedded = false }) 
 
         <div className="h-full overflow-hidden">
           <div className="p-4 border-b border-slate-700/60 bg-slate-900/30">
-            <div className="text-sm font-bold text-slate-100">xEdit Script (Stub)</div>
-            <div className="text-xs text-slate-400 mt-1">
-              Export and run in xEdit as a starting point.
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div className="text-sm font-bold text-slate-100">PRP Combined Patch Script</div>
+                <div className="text-xs text-slate-400 mt-1">
+                  Real FO4Edit Pascal script — export and run via Apply Script.
+                </div>
+              </div>
+              {embedded && (
+                <button
+                  onClick={() => void exportXEditScript()}
+                  className="px-2.5 py-1.5 rounded border border-emerald-700 bg-emerald-900/20 hover:border-emerald-500 text-xs font-bold text-emerald-200 flex items-center gap-1.5"
+                >
+                  <ArrowDownToLine className="w-3.5 h-3.5" />
+                  Export
+                </button>
+              )}
             </div>
           </div>
           <div className="h-full overflow-y-auto p-4">

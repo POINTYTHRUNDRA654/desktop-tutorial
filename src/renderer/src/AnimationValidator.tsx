@@ -391,13 +391,13 @@ export const AnimationValidator: React.FC<AnimationValidatorProps> = ({ embedded
         <div className="max-w-4xl mx-auto space-y-4">
           <ToolsInstallVerifyPanel
             accentClassName="text-emerald-300"
-            description="Use this validator before your first export. The goal is to catch scale, naming, and timeline mistakes while they’re cheap to fix."
+            description="Use this validator before your first export. The goal is to catch scale, naming, and timeline mistakes while they're cheap to fix."
             tools={[
               { label: 'Blender (official download)', href: 'https://www.blender.org/download/', kind: 'official' },
             ]}
             verify={[
               'Toggle a few checks to Pass/Fail and refresh; confirm your progress persists.',
-              'Use the “Fix Issues” state to drive the next action (don’t export until critical items are green).'
+              `Use the "Fix Issues" state to drive the next action (don't export until critical items are green).`
             ]}
             firstTestLoop={[
               'Pick one short animation → validate setup/skeleton/timeline → export once → test once.',

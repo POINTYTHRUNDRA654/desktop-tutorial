@@ -210,12 +210,16 @@ export const LocalAIEngine = {
     }
 
     // --- SESSION MEMORY: Inject past session summaries for continuity ---
-    const sessionMemoryCtx = this.getSessionMemoryContext(5);
+    // Voice mode: 1 summary only (keeps prompt lean); text/chat: full 5
+    const sessionMemoryCtx = this.getSessionMemoryContext(voiceMode ? 1 : 5);
     if (sessionMemoryCtx) {
       enhancedSystemInstruction += sessionMemoryCtx;
     }
 
     // --- KNOWLEDGE & PROCESS INJECTION ---
+    // voiceMode: skip the heavy context injections that bloat the system prompt
+    // to 50,000 chars and cause 25-30s Groq response times. Voice needs fast
+    // replies — a lean prompt (~3,000 chars) gets answers in 2-4s instead.
     let injectedContext = "";
     let webSearchFailureLogged = false;
     let webSearchUnavailable = false;
@@ -223,13 +227,10 @@ export const LocalAIEngine = {
       if (webSearchFailureLogged) return;
       webSearchFailureLogged = true;
       webSearchUnavailable = true;
-      // Log diagnostically to console only — do NOT write to the Knowledge Vault.
-      // Vault entries persist across sessions and would pollute future AI contexts
-      // with "Mossy could not reach the internet" messages, causing the AI to
-      // report network failures even when connectivity is restored.
       console.warn('[LocalAIEngine] Web search unavailable:', reason);
     };
 
+    if (!voiceMode) {
     // Inject Process & Hardware Awareness
     const electronApiAny = (window as any).electron?.api;
     if (typeof electronApiAny?.getRunningProcesses === 'function') {
@@ -303,15 +304,22 @@ export const LocalAIEngine = {
       injectedContext += `\n### WORKING MEMORY (LONG-TERM CONTEXT):\n${workingMemory}\n`;
     }
 
-    // Knowledge Vault (DO NOT dump full DB; keep it relevant + compact)
+    // Knowledge Vault — full context for text/chat mode
     const manifest = buildKnowledgeManifestForModel();
     const relevant = buildRelevantKnowledgeVaultContext(query, { maxItems: 8, maxChars: 6000 });
-    const citations = getRelevantKnowledgeVaultItems(query, { maxItems: 6 });
     if (manifest || relevant) {
       injectedContext += "\n### KNOWLEDGE VAULT (Loaded):\n";
       if (manifest) injectedContext += manifest + "\n";
       if (relevant) injectedContext += relevant + "\n";
     }
+    } else {
+      // Voice mode: inject only the most relevant vault snippet (keeps prompt lean)
+      const voiceRelevant = buildRelevantKnowledgeVaultContext(query, { maxItems: 2, maxChars: 1200 });
+      if (voiceRelevant) injectedContext += "\n### KNOWLEDGE VAULT:\n" + voiceRelevant + "\n";
+    }
+    const citations = !voiceMode
+      ? getRelevantKnowledgeVaultItems(query, { maxItems: 6 })
+      : getRelevantKnowledgeVaultItems(query, { maxItems: 2 });
 
     // -----------------------------------------------------------------------
     // WEB SEARCH — automatically fetch live information when the user's query
@@ -321,6 +329,12 @@ export const LocalAIEngine = {
     // The raw result is stored in `cachedWebSearchResult` so the response guard
     // can reuse it without making a second network call.
     // -----------------------------------------------------------------------
+    // Voice mode: skip web search entirely (saves 2-5s and keeps prompt lean)
+    if (voiceMode) {
+      webSearchUnavailable = true;
+      webSearchFailureLogged = true;
+    }
+
     const webSearchTriggers = [
       // Multi-word explicit web/search phrases only — single words like 'update',
       // 'current', 'recent', 'latest', 'news', 'browse', 'fetch', 'scan' are

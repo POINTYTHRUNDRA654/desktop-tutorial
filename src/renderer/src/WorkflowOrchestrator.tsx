@@ -324,7 +324,7 @@ const WorkflowOrchestrator = () => {
                             'Package the processed output using the Packaging wizard.',
                         ]}
                         troubleshooting={[
-                            'If a pipeline step “succeeds” but you don’t see results, confirm the command/tool is actually configured.',
+                            `If a pipeline step "succeeds" but you don't see results, confirm the command/tool is actually configured.`,
                             'Treat any displayed source paths marked EXAMPLE as placeholders; set your real workspace paths.',
                         ]}
                     />

@@ -492,7 +492,7 @@ export default function SimSettlementsAddonGuide({ embedded = false }: SimSettle
           'Only after a clean loop should you add city plans/HQ content or more complex quests.'
         ]}
         troubleshooting={[
-          'If CK cannot load masters, stop and resolve missing files/paths first (don’t keep editing).',
+          "If CK cannot load masters, stop and resolve missing files/paths first (don't keep editing).",
           'If scripts do not compile, confirm your CK install is correct before you change more logic.'
         ]}
       />

@@ -357,6 +357,21 @@ export class VoiceService {
         console.error('[VoiceService] Browser STT error:', event.error, event.message);
         this.isBrowserSttActive = false;
         this.isBrowserSttStarting = false;
+        // Network error = Electron blocked Google's STT API. Reset to local Whisper
+        // instead of looping forever in a broken browser STT mode.
+        if (event.error === 'network' || event.error === 'service-not-allowed') {
+          console.warn('[VoiceService] Browser STT network/service error — reverting to local Whisper');
+          this.isUsingBrowserStt = false;
+          this.config.sttProvider = 'local';
+          if (this.isListening && !this.shouldStop) {
+            setTimeout(() => {
+              if (this.isListening && !this.shouldStop && !this.isRecording) {
+                this.startRecording();
+              }
+            }, 1000);
+          }
+          return;
+        }
         if (!this.shouldStop) {
           this.onError?.(`Speech recognition error: ${event.error}`);
         }
@@ -367,10 +382,10 @@ export class VoiceService {
         this.isBrowserSttActive = false;
         this.isBrowserSttStarting = false;
         this.onModeChange?.('idle');
-        // Auto-restart for continuous listening if still active
-        if (this.isListening && !this.shouldStop && this.isUsingBrowserStt) {
+        // Auto-restart for continuous listening if still active AND still in browser mode
+        if (this.isListening && !this.shouldStop && this.isUsingBrowserStt && this.config.sttProvider === 'browser') {
           setTimeout(() => {
-            if (this.recognition && this.isListening && !this.shouldStop && !this.isBrowserSttActive && !this.isBrowserSttStarting) {
+            if (this.recognition && this.isListening && !this.shouldStop && this.isUsingBrowserStt && !this.isBrowserSttActive && !this.isBrowserSttStarting) {
               try {
                 this.recognition.start();
               } catch (e) {
@@ -504,6 +519,10 @@ export class VoiceService {
           if (recordingDuration < this.MIN_AUDIO_DURATION_MS) {
             console.log(`[VoiceService] Skipping transcription - recording too short (${recordingDuration}ms < ${this.MIN_AUDIO_DURATION_MS}ms)`);
             this.audioChunks = [];
+            // Restart immediately — keep listening
+            if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt) {
+              setTimeout(() => { if (this.isListening && !this.shouldStop && !this.isRecording) this.startRecording(); }, 100);
+            }
             return;
           }
 
@@ -515,6 +534,10 @@ export class VoiceService {
           if (this.maxAmplitudeInRecording < this.SPEECH_ONSET_THRESHOLD) {
             console.log(`[VoiceService] Skipping transcription - no speech onset detected (peak: ${this.maxAmplitudeInRecording.toFixed(2)} < ${this.SPEECH_ONSET_THRESHOLD})`);
             this.audioChunks = [];
+            // Restart immediately — keep listening, don't go dark waiting for user to toggle mic
+            if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt) {
+              setTimeout(() => { if (this.isListening && !this.shouldStop && !this.isRecording) this.startRecording(); }, 100);
+            }
             return;
           }
 
@@ -675,14 +698,14 @@ export class VoiceService {
         // input gain, or switch from Stereo Mix to your physical microphone.
         if (average < 17) { // Silence threshold
           if (!silenceTimer) {
-            console.log('[VoiceService] Silence detected (avg:', average.toFixed(2), '), starting 2.5s timer');
+            console.log('[VoiceService] Silence detected (avg:', average.toFixed(2), '), starting 1.5s timer');
             silenceTimer = setTimeout(() => {
               // Only stop the recorder that belongs to this specific session
               if (this.recordingId === myRecordingId && this.mediaRecorder && this.isRecording && !this.shouldStop) {
                 console.log('[VoiceService] Silence timer expired, stopping recording');
                 this.mediaRecorder.stop();
               }
-            }, 2500); // Stop after 2.5 seconds of silence
+            }, 1500); // Stop after 1.5 seconds of silence (faster with persistent server)
           }
         } else {
           if (silenceTimer) {
@@ -1006,7 +1029,7 @@ export class VoiceService {
       utterance.onerror = (event) => {
         // Treat explicit cancellations and interruptions as normal completion (do not surface as an error).
         if (event?.error === 'canceled' || event?.error === 'interrupted') {
-          console.warn('[VoiceService] Speech utterance was canceled/interrupted — resolving quietly', event);
+          // 'interrupted'/'canceled' is expected when user presses stop — no logging needed
           this.onModeChange?.('idle');
           resolve();
           return;

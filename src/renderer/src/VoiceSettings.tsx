@@ -129,16 +129,17 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
       } catch { /* ignore */ }
     };
     void load();
+    let unsubSettings: (() => void) | undefined;
     if (typeof api.onSettingsUpdated === 'function') {
       try {
-        api.onSettingsUpdated((s: any) => {
+        unsubSettings = api.onSettingsUpdated((s: any) => {
           if (disposed) return;
           const raw = String(s?.uiLanguage || '').trim();
           setUiLanguageState(raw && raw !== 'auto' ? raw : '');
         });
       } catch { /* ignore */ }
     }
-    return () => { disposed = true; };
+    return () => { disposed = true; unsubSettings?.(); };
   }, []);
 
   const sortedVoices = useMemo(() => {
@@ -336,7 +337,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
                 <div className="mt-4 p-4 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200 text-sm">
                   <div className="font-black uppercase tracking-widest text-[11px]">Why it sounds the same everywhere</div>
                   <div className="mt-2 text-[12px] text-amber-200/90">
-                    This app uses your system’s built-in voices. If Windows only has 1 voice installed, every feature that speaks will sound identical.
+                    This app uses your system's built-in voices. If Windows only has 1 voice installed, every feature that speaks will sound identical.
                     To get a more natural voice or different accent, install additional Windows voices (then restart the app).
                   </div>
                   <div className="mt-2 text-[12px] text-amber-200/90">
@@ -371,7 +372,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
               <div>
                 <div className="text-xs font-black text-white uppercase tracking-widest">Enable TTS</div>
                 <div className="text-[11px] text-slate-400 mt-1">
-                  If Mossy sounds robotic, try selecting a different voice (often “Aria”, “Zira”, “Natural”, or “Online”).
+                  If Mossy sounds robotic, try selecting a different voice (often "Aria", "Zira", "Natural", or "Online").
                 </div>
               </div>
 
@@ -394,7 +395,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
             <div className="text-xs font-black text-white uppercase tracking-widest mb-3">Preferred Voice</div>
 
             {!('speechSynthesis' in window) ? (
-              <div className="text-sm text-amber-300">Your environment doesn’t expose browser TTS (speechSynthesis).</div>
+              <div className="text-sm text-amber-300">Your environment doesn't expose browser TTS (speechSynthesis).</div>
             ) : (
               <>
                 <select
@@ -533,5 +534,4 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ embedded = false }) => {
     </ErrorBoundary>
   );
 };
-
 export default VoiceSettings;

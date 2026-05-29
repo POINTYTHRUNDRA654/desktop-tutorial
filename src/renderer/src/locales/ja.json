@@ -86,6 +86,68 @@
       "auto": "自動(システム)",
       "current": "現在",
       "save": "保存"
+    },
+    "hub": {
+      "eyebrow": "Mossy コア — 設定",
+      "title": "設定ハブ（オールインワン）",
+      "subtitle": "プライバシー、言語、AIエンジン、外部ツール、バックアップの順序立てたフロー。",
+      "flowTitle": "フロー（この順序で読む）",
+      "flow1": "プライバシーとセキュリティの基本を設定する",
+      "flow2": "優先するUIの言語を選択する",
+      "flow3": "AIエンジンを設定する（プロバイダー、モデル、応答の長さ、自己評価）",
+      "flow4": "オプション：オフライン使用のためのローカルOllama LLMを設定する",
+      "flow5": "MossyのFO4モディングツールチェーンを指定する",
+      "flow6": "クリーンなバックアップスナップショットをエクスポートする",
+      "flow7": "必要に応じてインストールチュートリアルを再生する",
+      "step1": {
+        "title": "ステップ1：プライバシーとセキュリティ",
+        "desc": "データ収集、共有、セキュリティルール、メモリストレージを管理する。"
+      },
+      "step2": {
+        "title": "ステップ2：言語",
+        "desc": "UI言語を選択し、新しい翻訳を要求する。"
+      },
+      "step3": {
+        "title": "ステップ3：AIエンジン",
+        "desc": "AIプロバイダー（Groq/Ollama）、モデル、応答の長さ、自己評価を選択する。"
+      },
+      "step3b": {
+        "title": "ステップ3b：ローカルLLM — Ollama",
+        "desc": "オープンソースモデルをローカルで実行し、完全オフラインのAIアシスタンスを実現する。",
+        "badge": "オプション"
+      },
+      "step4": {
+        "title": "ステップ4：外部ツール",
+        "desc": "MossyのFO4モディングツールチェーンを指定し、パスを確認する。"
+      },
+      "step5": {
+        "title": "ステップ5：バックアップと復元",
+        "desc": "設定スナップショットをエクスポートまたはインポートして素早く復元する。"
+      },
+      "step6": {
+        "title": "ステップ6：チュートリアルとオンボーディング",
+        "desc": "インストールチュートリアルと初回セットアップ体験を再生する。"
+      },
+      "step7": {
+        "title": "ステップ7：インターネットアクセステスト",
+        "desc": "Mossyが検索プロバイダーに到達してオンラインになれるか確認する。"
+      },
+      "credits": {
+        "title": "クレジットと謝辞",
+        "desc": "Mossyを動かすオープンソースプロジェクトとツールを表示する。"
+      },
+      "internet": {
+        "description": "Mossyが使用するすべての検索プロバイダーを調査し、現在到達可能なものを表示します。",
+        "testBtn": "今すぐインターネットアクセスをテスト",
+        "testing": "テスト中...",
+        "providerCol": "プロバイダー",
+        "statusCol": "状態",
+        "timeCol": "時間",
+        "ok": "OK",
+        "empty": "空",
+        "troubleshootTitle": "DNSの失敗のトラブルシューティング：",
+        "sampleResultFrom": "サンプル結果（提供元："
+      }
     }
   },
   "onboarding": {
@@ -93,7 +155,62 @@
       "label": "言語",
       "help": "インターフェース言語を選択してください。後で設定で変更できます。",
       "auto": "自動(システム)"
-    }
+    },
+    "welcome": {
+      "title": "Mossyへようこそ",
+      "subtitle": "AIを搭載したFallout 4モディングアシスタント"
+    },
+    "edition": {
+      "nvidia": "NVIDIAエディション",
+      "nvidiaSubtitle": "CUDA 12.4 · GPU加速AI",
+      "nvidiaReq": "⚠ NVIDIA RTX / GTX GPUが必要",
+      "nvidiaSelected": "NVIDIAエディション",
+      "universal": "ユニバーサルエディション",
+      "universalSubtitle": "CPUベース · あらゆるハードウェアで動作",
+      "universalSelected": "ユニバーサルエディション"
+    },
+    "continue": "続ける",
+    "next": "次へ",
+    "skipForNow": "今はスキップ",
+    "continueToMossy": "Mossyへ続ける",
+    "finishSetup": "セットアップを完了",
+    "startScan": "システムスキャンを開始",
+    "selected": "選択済み",
+    "fo4Version": {
+      "title": "お使いのFallout 4のバージョンは？"
+    },
+    "scanning": {
+      "title": "システムをスキャン中"
+    },
+    "scanFailed": {
+      "title": "スキャン失敗",
+      "errorDetails": "エラーの詳細："
+    },
+    "credits": {
+      "title": "クレジットと謝辞"
+    },
+    "whitelist": {
+      "title": "ホワイトリストとブラックリスト"
+    },
+    "tools": {
+      "title": "発見されたツール",
+      "selectHint": "私に知ってほしい・使ってほしいツールを選択してください："
+    },
+    "deps": {
+      "title": "依存関係とツールをインストール"
+    },
+    "spriggit": {
+      "title": "ベースゲームデータで私を鍛える"
+    },
+    "identity": {
+      "title": "完了前に"
+    },
+    "complete": {
+      "title": "セットアップ完了！"
+    },
+    "nextTools": "次へ：発見されたツールを見る",
+    "nextDeps": "次へ：推奨ツールをダウンロード",
+    "languages12": "✅ 12言語対応。UI言語はすぐに更新されます。お使いの言語の音声サポートについては、対応するWindows音声パックをインストールしてください。"
   },
   "installWizard": {
     "tagline": "Mossy Tutor • インストールウィザード",

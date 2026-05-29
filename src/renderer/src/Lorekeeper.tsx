@@ -310,7 +310,7 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
               <Mountain className="w-6 h-6 text-forge-accent" />
               The Lorekeeper (LOD Gen & Precombines)
             </h2>
-            <p className="text-xs text-slate-400 font-mono">LODGEN • PRP • PJM – FO4 Optimization Pipeline</p>
+            <p className="text-xs text-slate-400 font-mono">LODGEN • PRP • PJM - FO4 Optimization Pipeline</p>
           </div>
           <div className="flex gap-2">
             <Link
@@ -354,7 +354,7 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
             ]}
             troubleshooting={[
               'If Run does nothing, confirm your executable paths are correct and accessible.',
-              'If output paths look wrong, fix presets/targets first—don’t run large batches blindly.',
+              "If output paths look wrong, fix presets/targets first—don't run large batches blindly.",
             ]}
           />
         </div>

@@ -151,3 +151,16 @@ actionlint*
 
 # Local rollback safety snapshots created before publishing releases
 .release-safety/
+
+# Embedded Python zip (downloaded at build time)
+resources/python-*.zip
+
+# Local settings snapshots
+mossy-settings-*.json
+
+# Backup files
+*.bak
+
+# Content-hashed build artifact bundles placed in repo root
+AutomationManager-*.js
+WorkflowRunner-*.js

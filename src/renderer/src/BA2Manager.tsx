@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { Link, useNavigate } from 'react-router-dom';
-import { Archive, FolderOpen, ArrowDownToLine, Upload, FileArchive, HardDrive, AlertCircle, Info, Merge, Plus, X } from 'lucide-react';
+import { Archive, FolderOpen, ArrowDownToLine, Upload, FileArchive, HardDrive, AlertCircle, Info, Merge, Plus, X, Search } from 'lucide-react';
+import { openExternal } from './utils/openExternal';
 
 interface BA2File {
   name: string;
@@ -29,19 +30,34 @@ interface MergeJob {
 export const BA2Manager: React.FC = () => {
   const navigate = useNavigate();
   const [archivePath, setArchivePath] = useState('');
+  // Separate path for Pack operation (must be a folder, not a .ba2)
+  const [packSourcePath, setPackSourcePath] = useState('');
+  const [packHeaderVersion, setPackHeaderVersion] = useState<'V1' | 'V2'>('V1');
+  const [packArchiveType, setPackArchiveType] = useState<'General' | 'DDS'>('General');
+  const [showPackDialog, setShowPackDialog] = useState(false);
+
   const [files, setFiles] = useState<BA2File[]>([]);
+  const [fileSearch, setFileSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [archiveInfo, setArchiveInfo] = useState<{
     totalFiles: number;
     totalSize: number;
     compressedSize: number;
     compressionRatio: string;
+    headerVersion?: string;
   } | null>(null);
 
   // Merge functionality
   const [mergeJobs, setMergeJobs] = useState<MergeJob[]>([]);
   const [currentMergeJob, setCurrentMergeJob] = useState<MergeJob | null>(null);
   const [showMergeDialog, setShowMergeDialog] = useState(false);
+
+  // Filtered file list
+  const filteredFiles = useMemo(() => {
+    if (!fileSearch.trim()) return files;
+    const term = fileSearch.toLowerCase();
+    return files.filter((f) => f.name.toLowerCase().includes(term));
+  }, [files, fileSearch]);
 
   // This would connect to Desktop Bridge Python server with BA2 library
   const extractBA2 = async () => {
@@ -125,25 +141,39 @@ export const BA2Manager: React.FC = () => {
   };
 
   const packBA2 = async () => {
+    if (!packSourcePath.trim()) {
+      toast.error('Please enter the source folder path to pack.');
+      return;
+    }
+    // Derive output name from folder name
+    const folderName = packSourcePath.trim().replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'output';
+    const outputPath = packSourcePath.trim().replace(/[\\/]+$/, '') + `/../${folderName}.ba2`;
+
     setLoading(true);
+    setShowPackDialog(false);
     try {
       const response = await fetch('http://localhost:21337/ba2/pack', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          source: archivePath,
-          output: archivePath + '.ba2',
-          compression: 'default'
+          source: packSourcePath.trim(),
+          output: outputPath,
+          archiveType: packArchiveType,   // 'General' | 'DDS'
+          headerVersion: packHeaderVersion, // 'V1' | 'V2'
+          compression: 'default',
         })
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         toast.success(`Packed ${data.fileCount} files into ${data.output}`);
+      } else {
+        const text = await response.text();
+        toast.error(`Pack failed: ${text}`);
       }
     } catch (error) {
       console.error('BA2 packing failed:', error);
-      toast.error('BA2 packing requires Desktop Bridge server with ba2toolkit library. Install: pip install ba2toolkit');
+      toast.error('BA2 packing requires Desktop Bridge server with ba2toolkit. Install: pip install ba2toolkit');
     } finally {
       setLoading(false);
     }
@@ -162,8 +192,11 @@ export const BA2Manager: React.FC = () => {
       
       if (response.ok) {
         const data = await response.json();
-        setFiles(data.files);
-        setArchiveInfo(data.info);
+        setFiles(data.files || []);
+        setArchiveInfo({
+          ...(data.info || {}),
+          headerVersion: data.info?.headerVersion || data.headerVersion || null,
+        });
       } else {
         throw new Error('Listing failed');
       }
@@ -171,7 +204,7 @@ export const BA2Manager: React.FC = () => {
       console.error('BA2 listing failed:', error);
       setFiles([]);
       setArchiveInfo(null);
-      toast.error('Bridge offline - real data unavailable.. To use real BA2 archives:. 1. Start Desktop Bridge server. 2. Install: pip install ba2toolkit');
+      toast.error('Bridge offline — real data unavailable. Start Desktop Bridge and install: pip install ba2toolkit');
     } finally {
       setLoading(false);
     }
@@ -475,6 +508,26 @@ export const BA2Manager: React.FC = () => {
             </div>
           )}
 
+          {/* Archive Header Badge */}
+          {archiveInfo?.headerVersion && (
+            <div className={`rounded-lg border p-3 ${
+              archiveInfo.headerVersion === 'V2'
+                ? 'bg-blue-900/20 border-blue-500/30'
+                : 'bg-slate-900/40 border-slate-700'
+            }`}>
+              <div className="text-xs font-bold text-slate-300">
+                BA2 Header: <span className={archiveInfo.headerVersion === 'V2' ? 'text-blue-300' : 'text-slate-200'}>
+                  {archiveInfo.headerVersion}
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5">
+                {archiveInfo.headerVersion === 'V2'
+                  ? 'NG/AE compatible (1.10.984+)'
+                  : 'Pre-NG compatible — CTD on NG if not also shipping V2'}
+              </div>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
             <h3 className="font-bold text-white mb-3">Actions</h3>
@@ -488,14 +541,30 @@ export const BA2Manager: React.FC = () => {
                 Extract Archive
               </button>
               <button
-                onClick={packBA2}
-                disabled={!archivePath || loading}
+                onClick={() => setShowPackDialog(true)}
+                disabled={loading}
                 className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-lg flex items-center gap-2 transition-colors"
               >
                 <Upload className="w-4 h-4" />
-                Pack to BA2
+                Pack Folder → BA2
               </button>
             </div>
+          </div>
+
+          {/* CAO link */}
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
+            <h3 className="font-bold text-white mb-2 text-sm">Build V2 Archives (NG)</h3>
+            <p className="text-xs text-slate-400 mb-3">
+              For NG/AE targets, use <strong className="text-slate-200">Cathedral Assets Optimizer (CAO)</strong> to build BA2 Header V2 archives — Archive2 defaults to V1.
+            </p>
+            <button
+              type="button"
+              onClick={() => void openExternal('https://www.nexusmods.com/skyrimspecialedition/mods/23316')}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 text-xs font-bold transition-colors"
+            >
+              <HardDrive className="w-4 h-4" />
+              Get CAO on Nexus
+            </button>
           </div>
 
           {/* Merge Jobs */}
@@ -572,8 +641,23 @@ export const BA2Manager: React.FC = () => {
 
         {/* Right: File List */}
         <div className="flex-1 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-700 bg-slate-800/50">
-            <h3 className="font-bold text-white">Archive Contents</h3>
+          <div className="p-4 border-b border-slate-700 bg-slate-800/50 flex items-center gap-3">
+            <h3 className="font-bold text-white flex-1">Archive Contents</h3>
+            {files.length > 0 && (
+              <div className="relative w-56">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+                <input
+                  type="text"
+                  value={fileSearch}
+                  onChange={(e) => setFileSearch(e.target.value)}
+                  placeholder="Filter files…"
+                  className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+            )}
+            {fileSearch && (
+              <span className="text-[10px] text-slate-400 font-mono">{filteredFiles.length}/{files.length}</span>
+            )}
           </div>
 
           {loading && (
@@ -607,20 +691,118 @@ export const BA2Manager: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
-                  {files.map((file, idx) => (
-                    <tr key={idx} className="hover:bg-slate-800/50 transition-colors">
-                      <td className="p-3 text-sm text-slate-300 font-mono">{file.name}</td>
-                      <td className="p-3 text-sm text-slate-400">{formatBytes(file.size)}</td>
-                      <td className="p-3 text-sm text-slate-400">{formatBytes(file.compressed)}</td>
-                      <td className="p-3 text-sm text-emerald-400 font-bold">{file.ratio}</td>
+                  {filteredFiles.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-6 text-center text-slate-500 text-sm">
+                        No files match &ldquo;{fileSearch}&rdquo;
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredFiles.map((file, idx) => (
+                      <tr key={idx} className="hover:bg-slate-800/50 transition-colors">
+                        <td className="p-3 text-sm text-slate-300 font-mono">{file.name}</td>
+                        <td className="p-3 text-sm text-slate-400">{formatBytes(file.size)}</td>
+                        <td className="p-3 text-sm text-slate-400">{formatBytes(file.compressed)}</td>
+                        <td className="p-3 text-sm text-emerald-400 font-bold">{file.ratio}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           )}
         </div>
       </div>
+
+      {/* Pack Dialog */}
+      {showPackDialog && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-lg mx-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Upload className="w-5 h-5 text-amber-400" />
+                Pack Folder → BA2
+              </h2>
+              <button onClick={() => setShowPackDialog(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">Source Folder</label>
+              <p className="text-[10px] text-slate-500 mb-2">Select the folder whose contents will be packed. Should contain subfolders like <span className="font-mono">textures\</span>, <span className="font-mono">meshes\</span>, etc.</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={packSourcePath}
+                  onChange={(e) => setPackSourcePath(e.target.value)}
+                  placeholder="C:\Mods\MyMod\Data"
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                />
+                <button
+                  onClick={async () => {
+                    try {
+                      const picked = await (window as any).electronAPI?.pickFolder?.();
+                      if (picked) setPackSourcePath(picked);
+                    } catch {
+                      toast.error('Folder picker unavailable.');
+                    }
+                  }}
+                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg border border-slate-600 flex items-center gap-1 transition-colors"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Archive Type</label>
+                <select
+                  value={packArchiveType}
+                  onChange={(e) => setPackArchiveType(e.target.value as 'General' | 'DDS')}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-amber-500 focus:outline-none"
+                >
+                  <option value="General">General (meshes, scripts, sounds)</option>
+                  <option value="DDS">DDS Textures only</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Header Version</label>
+                <select
+                  value={packHeaderVersion}
+                  onChange={(e) => setPackHeaderVersion(e.target.value as 'V1' | 'V2')}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-amber-500 focus:outline-none"
+                >
+                  <option value="V1">V1 — Pre-NG (OG 1.10.163)</option>
+                  <option value="V2">V2 — NG / AE (1.10.984+)</option>
+                </select>
+              </div>
+            </div>
+
+            {packHeaderVersion === 'V2' && (
+              <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 text-xs text-slate-300">
+                <p className="font-bold text-blue-300 mb-1">V2 requires CAO or Archive2 v2+</p>
+                <p>If the Desktop Bridge reports an error building V2, use Cathedral Assets Optimizer instead.</p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowPackDialog(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors text-sm">
+                Cancel
+              </button>
+              <button
+                onClick={packBA2}
+                disabled={!packSourcePath.trim() || loading}
+                className="px-5 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold rounded-lg flex items-center gap-2 text-sm transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                Pack
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Merge Dialog */}
       {showMergeDialog && <MergeDialog onClose={() => setShowMergeDialog(false)} />}

@@ -23,11 +23,13 @@ import toast from 'react-hot-toast';
 import { Command, Loader2, MessageSquare, Radio, Zap } from 'lucide-react';
 import KeepAlivePanel from './KeepAlivePanel';
 import AvatarOverlay from './AvatarOverlay';
+import AvatarCore from './AvatarCore';
 import { LiveProvider } from './LiveContext';
 import { OpenAIVoiceProvider } from './OpenAIVoiceContext';
 import { ModProject } from '../../shared/types';
-import AvatarCore from './AvatarCore';
 
+// Minimal voice-status indicator — replaces the old animated face popup in the header.
+// Shows a small colored dot that pulses based on Mossy's current mode.
 // Import Quick Wins components
 import { GlobalSearch } from './GlobalSearch';
 import { useWhatsNew } from './WhatsNewDialog';
@@ -65,6 +67,7 @@ const ImageSuite = React.lazy(() => import('./ImageSuite'));
 const DesktopBridge = React.lazy(() => import('./DesktopBridge'));
 const Workshop = React.lazy(() => import('./Workshop'));
 const WorkflowOrchestrator = React.lazy(() => import('./WorkflowOrchestrator'));
+const FO4AutomationOrchestrator = React.lazy(() => import('./FO4AutomationOrchestrator'));
 const WorkflowRunner = React.lazy(() => import('./WorkflowRunner'));
 const Holodeck = React.lazy(() => import('./Holodeck'));
 const TheVault = React.lazy(() => import('./TheVault'));
@@ -231,6 +234,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/wizards', '/devtools', '/settings', '/project', '/support', '/assembler', '/diagnostics',
   '/community', '/capabilities', '/asset-analysis', '/plugin-tools', '/packaging-release', '/extensions/mo2',
   '/extensions/comfyui', '/extensions/upscayl', '/journey-hub', '/runtime-hub', '/system-hub', '/guides-hub',
+  '/ext-tools',
   // Special routes rendered directly inside <Routes>
   '/tutorial', '/whats-new',
 ]);
@@ -1154,7 +1158,6 @@ const App: React.FC = () => {
     if (!hasBooted) {
       return (
         <PipBoyStartup
-          duration={500}
           onComplete={() => {
             localStorage.setItem('mossy_has_booted', 'true');
             setHasBooted(true);
@@ -1294,7 +1297,7 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="flex flex-col items-center gap-1 justify-self-center">
-              <AvatarCore className="w-7 h-7" showRings={false} />
+              <AvatarCore className="w-8 h-8" showRings={false} />
               <div className="hidden xl:block text-[10px] text-emerald-300 uppercase tracking-[0.3em] font-bold">Mossy Core</div>
             </div>
             <div className="flex items-center gap-2 justify-self-stretch justify-end min-w-0">
@@ -1542,7 +1545,7 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/mod-builder"><ErrorBoundary><ModBuilderHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/dev/workshop"><ErrorBoundary><Workshop /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/mods"><ErrorBoundary><ModBrowser /></ErrorBoundary></KeepAlivePanel>
-              <KeepAlivePanel path="/dev/orchestrator"><ErrorBoundary><WorkflowOrchestrator /></ErrorBoundary></KeepAlivePanel>
+              <KeepAlivePanel path="/dev/orchestrator"><ErrorBoundary><FO4AutomationOrchestrator /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/dev/workflow-runner"><ErrorBoundary><WorkflowRunner /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/dev/workflow-recorder"><ErrorBoundary><WorkflowRecorder /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/dev/plugin-manager"><ErrorBoundary><PluginManager /></ErrorBoundary></KeepAlivePanel>

@@ -18,14 +18,11 @@ type PrivacySettingsProps = {
 };
 
 function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
-  console.log('[PrivacySettings] Component rendering');
-
   const [settings, setSettings] = useState<Settings | null>(null);
   const [storageInfo, setStorageInfo] = useState<DataStorageInfo>({
     localStorageSize: 'Calculating...',
     encryptionEnabled: true
   });
-  const [showDetails, setShowDetails] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [listSyncStatus, setListSyncStatus] = useState<{ lastSyncAt?: number; lastError?: string; pendingPush?: boolean }>({});
   const [listSyncBusy, setListSyncBusy] = useState(false);
@@ -36,6 +33,21 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   // Blacklists
   const [modBlacklistInput, setModBlacklistInput] = useState<string>('');
   const [programBlacklistInput, setProgramBlacklistInput] = useState<string>('');
+
+  const browseMemoryFolder = async () => {
+    const api = getElectronApi();
+    if (typeof api?.pickDirectory === 'function') {
+      try {
+        const selected = await api.pickDirectory('Select Memory Storage Folder');
+        if (selected) saveSettings({ memoryStoragePath: String(selected) });
+      } catch (e) {
+        console.warn('[PrivacySettings] browseMemoryFolder error', e);
+      }
+    } else {
+      const manual = prompt('Folder picker unavailable.\n\nPaste the absolute path for your memory storage folder:');
+      if (manual && manual.trim()) saveSettings({ memoryStoragePath: manual.trim() });
+    }
+  };
 
   async function refreshListSyncStatus() {
     const api = getElectronApi();
@@ -49,14 +61,12 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   }
 
   useEffect(() => {
-    console.log('[PrivacySettings] useEffect running');
     loadSettings();
     calculateStorageInfo();
     refreshListSyncStatus();
   }, []);
 
   const loadSettings = async () => {
-    console.log('[PrivacySettings] loadSettings called');
     const api = getElectronApi();
     if (api?.getSettings) {
       try {
@@ -581,13 +591,22 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
             </label>
           </div>
           {(settings.memoryStorageMode || 'userData') === 'custom' && (
-            <input
-              type="text"
-              value={settings.memoryStoragePath || ''}
-              onChange={(e) => saveSettings({ memoryStoragePath: e.target.value })}
-              placeholder="Absolute folder path"
-              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={settings.memoryStoragePath || ''}
+                onChange={(e) => saveSettings({ memoryStoragePath: e.target.value })}
+                placeholder="Absolute folder path, e.g. H:\Mossy Memory"
+                className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 font-mono text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => void browseMemoryFolder()}
+                className="flex items-center gap-1 px-3 py-2 bg-slate-600 hover:bg-slate-500 border border-slate-500 rounded-md text-slate-100 text-xs font-semibold whitespace-nowrap transition-colors"
+              >
+                Browse
+              </button>
+            </div>
           )}
 
           <div className="space-y-3 border-t border-slate-700 pt-4">

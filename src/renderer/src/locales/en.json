@@ -95,6 +95,68 @@
       "auto": "Auto (system)",
       "current": "Current",
       "save": "Save"
+    },
+    "hub": {
+      "eyebrow": "Mossy Core — Settings",
+      "title": "Settings Hub (All-in-One)",
+      "subtitle": "One ordered flow for privacy, language, AI engine, external tools, and backup workflows.",
+      "flowTitle": "Flow (Read in Order)",
+      "flow1": "Lock down privacy and security basics",
+      "flow2": "Choose your preferred UI language",
+      "flow3": "Configure the AI engine (provider, model, response length, self-critique)",
+      "flow4": "Optionally set up a local Ollama LLM for offline use",
+      "flow5": "Point Mossy at your FO4 modding toolchain",
+      "flow6": "Export a clean backup snapshot",
+      "flow7": "Replay the installation tutorial if needed",
+      "step1": {
+        "title": "Step 1: Privacy & Security",
+        "desc": "Control data collection, sharing, security rules, and memory storage."
+      },
+      "step2": {
+        "title": "Step 2: Language",
+        "desc": "Choose the UI language and request new translations."
+      },
+      "step3": {
+        "title": "Step 3: AI Engine",
+        "desc": "Select your AI provider (Groq/Ollama), model, response length, and self-critique."
+      },
+      "step3b": {
+        "title": "Step 3b: Local LLM — Ollama",
+        "desc": "Run open-source models locally for fully offline AI assistance.",
+        "badge": "OPTIONAL"
+      },
+      "step4": {
+        "title": "Step 4: External Tools",
+        "desc": "Point Mossy at your FO4 modding toolchain and verify paths."
+      },
+      "step5": {
+        "title": "Step 5: Backup & Restore",
+        "desc": "Export or import a settings snapshot for quick recovery."
+      },
+      "step6": {
+        "title": "Step 6: Tutorial & Onboarding",
+        "desc": "Replay the installation tutorial and first-run onboarding experience."
+      },
+      "step7": {
+        "title": "Step 7: Internet Access Test",
+        "desc": "Verify Mossy can reach search providers and go online."
+      },
+      "credits": {
+        "title": "Credits & Acknowledgments",
+        "desc": "View the open-source projects and tools that power Mossy."
+      },
+      "internet": {
+        "description": "Probes every search provider Mossy uses (Fallout Wiki, Fandom, DuckDuckGo, Wikipedia) and shows which ones are reachable right now.",
+        "testBtn": "Test Internet Access Now",
+        "testing": "Testing...",
+        "providerCol": "Provider",
+        "statusCol": "Status",
+        "timeCol": "Time",
+        "ok": "OK",
+        "empty": "Empty",
+        "troubleshootTitle": "Troubleshooting DNS failures:",
+        "sampleResultFrom": "Sample result from"
+      }
     }
   },
   "onboarding": {
@@ -102,7 +164,62 @@
       "label": "Language",
       "help": "Choose your interface language. You can change this later in Settings.",
       "auto": "Auto (system)"
-    }
+    },
+    "welcome": {
+      "title": "Welcome to Mossy",
+      "subtitle": "Your AI-powered Fallout 4 modding assistant"
+    },
+    "edition": {
+      "nvidia": "NVIDIA Edition",
+      "nvidiaSubtitle": "CUDA 12.4 · GPU-accelerated AI",
+      "nvidiaReq": "⚠ Requires NVIDIA RTX / GTX GPU",
+      "nvidiaSelected": "NVIDIA Edition",
+      "universal": "Universal Edition",
+      "universalSubtitle": "CPU-based · Works on any hardware",
+      "universalSelected": "Universal Edition"
+    },
+    "continue": "Continue",
+    "next": "Next",
+    "skipForNow": "Skip for now",
+    "continueToMossy": "Continue to Mossy",
+    "finishSetup": "Finish Setup",
+    "startScan": "Start System Scan",
+    "selected": "Selected",
+    "fo4Version": {
+      "title": "Which Fallout 4 version do you have?"
+    },
+    "scanning": {
+      "title": "Scanning Your System"
+    },
+    "scanFailed": {
+      "title": "Scan Failed",
+      "errorDetails": "Error Details:"
+    },
+    "credits": {
+      "title": "Credits & Acknowledgments"
+    },
+    "whitelist": {
+      "title": "Whitelist & Blacklist"
+    },
+    "tools": {
+      "title": "Tools Discovered",
+      "selectHint": "Select tools you want me to know about and use:"
+    },
+    "deps": {
+      "title": "Install Dependencies & Tools"
+    },
+    "spriggit": {
+      "title": "Feed Me the Base Game"
+    },
+    "identity": {
+      "title": "Before we finish"
+    },
+    "complete": {
+      "title": "Setup Complete!"
+    },
+    "nextTools": "Next: See Discovered Tools",
+    "nextDeps": "Next: Download Recommended Tools",
+    "languages12": "✅ 12 languages supported. UI language will update immediately. For voice support in your language, install the corresponding Windows voice pack."
   },
   "installWizard": {
     "tagline": "Mossy Tutor • Install Wizard",

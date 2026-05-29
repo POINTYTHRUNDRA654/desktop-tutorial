@@ -101,7 +101,7 @@ export const CKQuestDialogueWizard: React.FC<CKQuestDialogueWizardProps> = ({ em
           {
             id: 'paths',
             title: 'Confirm CK is pointing at the right Fallout 4 install',
-            details: <>If CK can’t find your game or assets, stop and fix that first. Avoid working from temporary folders.</>,
+            details: <>If CK can't find your game or assets, stop and fix that first. Avoid working from temporary folders.</>,
           },
         ],
       },
@@ -135,7 +135,7 @@ export const CKQuestDialogueWizard: React.FC<CKQuestDialogueWizardProps> = ({ em
           {
             id: 'conditions',
             title: 'Add conditions intentionally',
-            details: <>Conditions are where dialogue often “disappears”. Add one at a time and test after each.</>,
+            details: <>Conditions are where dialogue often "disappears". Add one at a time and test after each.</>,
           },
         ],
       },
@@ -152,7 +152,7 @@ export const CKQuestDialogueWizard: React.FC<CKQuestDialogueWizardProps> = ({ em
           {
             id: 'logging',
             title: 'Enable Papyrus logging for debug builds',
-            details: <>Enable logging only when debugging. Don’t ship with noisy debug logs unless needed.</>,
+            details: <>Enable logging only when debugging. Don't ship with noisy debug logs unless needed.</>,
           },
         ],
       },
@@ -257,7 +257,7 @@ export const CKQuestDialogueWizard: React.FC<CKQuestDialogueWizardProps> = ({ em
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="text-xs font-black tracking-widest uppercase text-slate-400">Goal</div>
-              <div className="text-[11px] text-slate-400 mt-1">Pick what you’re building right now.</div>
+              <div className="text-[11px] text-slate-400 mt-1">Pick what you're building right now.</div>
             </div>
             <div className="flex gap-2 flex-wrap justify-end">
               {([
@@ -311,7 +311,7 @@ export const CKQuestDialogueWizard: React.FC<CKQuestDialogueWizardProps> = ({ em
               <ul className="mt-2 space-y-2 text-[11px] text-slate-300 leading-relaxed">
                 <li>• Compile one minimal script and confirm a <span className="font-mono">.pex</span> appears under <span className="font-mono">Data/Scripts</span>.</li>
                 <li>• Create one test dialogue line. If using voices, plan for <span className="font-semibold">XWM/FUZ</span> and optional <span className="font-mono">.lip</span>.</li>
-                <li>• If dialogue “disappears”, test conditions one at a time and verify the correct quest stage is set.</li>
+                <li>• If dialogue "disappears", test conditions one at a time and verify the correct quest stage is set.</li>
               </ul>
             </div>
           </div>

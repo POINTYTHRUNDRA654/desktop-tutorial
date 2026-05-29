@@ -86,6 +86,68 @@
       "auto": "Auto (System)",
       "current": "Aktuell",
       "save": "Speichern"
+    },
+    "hub": {
+      "eyebrow": "Mossy Core — Einstellungen",
+      "title": "Einstellungs-Hub (alles in einem)",
+      "subtitle": "Ein geordneter Ablauf für Datenschutz, Sprache, KI-Engine, externe Tools und Backup-Workflows.",
+      "flowTitle": "Ablauf (in dieser Reihenfolge lesen)",
+      "flow1": "Datenschutz und Sicherheitsgrundlagen festlegen",
+      "flow2": "Bevorzugte UI-Sprache wählen",
+      "flow3": "KI-Engine konfigurieren (Anbieter, Modell, Antwortlänge, Selbstkritik)",
+      "flow4": "Optional ein lokales Ollama-LLM für die Offline-Nutzung einrichten",
+      "flow5": "Mossy auf deine FO4-Modding-Toolchain hinweisen",
+      "flow6": "Eine saubere Backup-Momentaufnahme exportieren",
+      "flow7": "Das Installations-Tutorial bei Bedarf erneut abspielen",
+      "step1": {
+        "title": "Schritt 1: Datenschutz & Sicherheit",
+        "desc": "Datenerfassung, Weitergabe, Sicherheitsregeln und Speicherung steuern."
+      },
+      "step2": {
+        "title": "Schritt 2: Sprache",
+        "desc": "UI-Sprache wählen und neue Übersetzungen anfordern."
+      },
+      "step3": {
+        "title": "Schritt 3: KI-Engine",
+        "desc": "KI-Anbieter (Groq/Ollama), Modell, Antwortlänge und Selbstkritik auswählen."
+      },
+      "step3b": {
+        "title": "Schritt 3b: Lokales LLM — Ollama",
+        "desc": "Open-Source-Modelle lokal ausführen für vollständige Offline-KI-Unterstützung.",
+        "badge": "OPTIONAL"
+      },
+      "step4": {
+        "title": "Schritt 4: Externe Tools",
+        "desc": "Mossy auf deine FO4-Modding-Toolchain hinweisen und Pfade überprüfen."
+      },
+      "step5": {
+        "title": "Schritt 5: Backup & Wiederherstellung",
+        "desc": "Einstellungs-Snapshot für schnelle Wiederherstellung exportieren oder importieren."
+      },
+      "step6": {
+        "title": "Schritt 6: Tutorial & Einführung",
+        "desc": "Das Installations-Tutorial und die Ersteinrichtungserfahrung erneut abspielen."
+      },
+      "step7": {
+        "title": "Schritt 7: Internetzugangstest",
+        "desc": "Überprüfen, ob Mossy Suchanbieter erreichen und online gehen kann."
+      },
+      "credits": {
+        "title": "Credits & Danksagungen",
+        "desc": "Die Open-Source-Projekte und Tools ansehen, die Mossy antreiben."
+      },
+      "internet": {
+        "description": "Prüft alle von Mossy genutzten Suchanbieter und zeigt an, welche gerade erreichbar sind.",
+        "testBtn": "Internetzugang jetzt testen",
+        "testing": "Teste...",
+        "providerCol": "Anbieter",
+        "statusCol": "Status",
+        "timeCol": "Zeit",
+        "ok": "OK",
+        "empty": "Leer",
+        "troubleshootTitle": "DNS-Fehler beheben:",
+        "sampleResultFrom": "Beispielergebnis von"
+      }
     }
   },
   "onboarding": {
@@ -93,7 +155,62 @@
       "label": "Sprache",
       "help": "Wähle deine UI-Sprache. Du kannst das später in den Einstellungen ändern.",
       "auto": "Auto (System)"
-    }
+    },
+    "welcome": {
+      "title": "Willkommen bei Mossy",
+      "subtitle": "Dein KI-gestützter Fallout-4-Modding-Assistent"
+    },
+    "edition": {
+      "nvidia": "NVIDIA-Edition",
+      "nvidiaSubtitle": "CUDA 12.4 · GPU-beschleunigte KI",
+      "nvidiaReq": "⚠ Erfordert NVIDIA RTX / GTX GPU",
+      "nvidiaSelected": "NVIDIA-Edition",
+      "universal": "Universal-Edition",
+      "universalSubtitle": "CPU-basiert · Läuft auf jeder Hardware",
+      "universalSelected": "Universal-Edition"
+    },
+    "continue": "Weiter",
+    "next": "Nächste",
+    "skipForNow": "Jetzt überspringen",
+    "continueToMossy": "Zu Mossy weiter",
+    "finishSetup": "Einrichtung abschließen",
+    "startScan": "Systemscan starten",
+    "selected": "Ausgewählt",
+    "fo4Version": {
+      "title": "Welche Fallout-4-Version hast du?"
+    },
+    "scanning": {
+      "title": "System wird gescannt"
+    },
+    "scanFailed": {
+      "title": "Scan fehlgeschlagen",
+      "errorDetails": "Fehlerdetails:"
+    },
+    "credits": {
+      "title": "Credits & Danksagungen"
+    },
+    "whitelist": {
+      "title": "Whitelist & Blacklist"
+    },
+    "tools": {
+      "title": "Gefundene Tools",
+      "selectHint": "Wähle Tools aus, die ich kennen und nutzen soll:"
+    },
+    "deps": {
+      "title": "Abhängigkeiten & Tools installieren"
+    },
+    "spriggit": {
+      "title": "Füttere mich mit dem Basisspiel"
+    },
+    "identity": {
+      "title": "Bevor wir fertig sind"
+    },
+    "complete": {
+      "title": "Einrichtung abgeschlossen!"
+    },
+    "nextTools": "Weiter: Gefundene Tools ansehen",
+    "nextDeps": "Weiter: Empfohlene Tools herunterladen",
+    "languages12": "✅ 12 Sprachen unterstützt. Die UI-Sprache wird sofort aktualisiert. Für Sprachunterstützung installiere das entsprechende Windows-Sprachpaket."
   },
   "installWizard": {
     "tagline": "Mossy Tutor • Installations-Assistent",

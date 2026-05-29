@@ -1,9 +1,10 @@
 
 import http from 'http';
-import { exec, spawn } from 'child_process';
+import { exec } from 'child_process';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
+import { clipboard, nativeImage, screen } from 'electron';
 
 /**
  * Mossy Bridge Server
@@ -42,6 +43,78 @@ export class BridgeServer {
                 if (url === '/health' && method === 'GET') {
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ status: "online", version: "6.0.0 (Neural Link Active)" }));
+                }
+
+                // Screen Capture — returns base64 PNG of the primary display
+                else if (url === '/capture' && method === 'GET') {
+                    try {
+                        // Resolve the primary display bounds
+                        const primaryDisplay = screen.getPrimaryDisplay();
+                        const { width, height } = primaryDisplay.size;
+
+                        // Use Electron desktopCapturer via a helper exec approach.
+                        // We call a small Node snippet via exec so it runs in the main
+                        // process context that has access to desktopCapturer sources.
+                        // For the native Bridge Server path we use nativeImage + clipboard
+                        // trick: take a screenshot via PowerShell and return the PNG bytes.
+                        const tmpPath = path.join(os.tmpdir(), `mossy_capture_${Date.now()}.png`);
+                        await new Promise<void>((resolve, reject) => {
+                            // PowerShell screenshot (works without any extra dependencies)
+                            const psScript = [
+                                `Add-Type -AssemblyName System.Windows.Forms`,
+                                `$bmp = New-Object System.Drawing.Bitmap(${width},${height})`,
+                                `$g = [System.Drawing.Graphics]::FromImage($bmp)`,
+                                `$g.CopyFromScreen(0,0,0,0,[System.Drawing.Size]::new(${width},${height}))`,
+                                `$bmp.Save('${tmpPath.replace(/\\/g, '\\\\')}')`,
+                                `$g.Dispose()`,
+                                `$bmp.Dispose()`,
+                            ].join('; ');
+                            exec(`powershell -NoProfile -Command "${psScript}"`, (err) => {
+                                if (err) reject(err); else resolve();
+                            });
+                        });
+                        const pngBytes = fs.readFileSync(tmpPath);
+                        fs.unlinkSync(tmpPath);
+                        const b64 = pngBytes.toString('base64');
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({
+                            status: 'success',
+                            image: `data:image/png;base64,${b64}`,
+                            resolution: `${width}x${height}`,
+                        }));
+                    } catch (captureErr: any) {
+                        console.error('[Bridge] /capture error:', captureErr);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ status: 'error', message: String(captureErr?.message ?? captureErr) }));
+                    }
+                }
+
+                // Clipboard — GET reads current clipboard text, POST writes it
+                else if (url === '/clipboard' && method === 'GET') {
+                    try {
+                        const text = clipboard.readText();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ status: 'success', text }));
+                    } catch (clipErr: any) {
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ status: 'error', message: String(clipErr?.message ?? clipErr) }));
+                    }
+                }
+
+                else if (url === '/clipboard' && method === 'POST') {
+                    let body = '';
+                    req.on('data', (chunk) => { body += chunk.toString(); });
+                    req.on('end', () => {
+                        try {
+                            const { text } = JSON.parse(body);
+                            clipboard.writeText(String(text ?? ''));
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ status: 'success', message: 'Clipboard updated' }));
+                        } catch (clipErr: any) {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ status: 'error', message: String(clipErr?.message ?? clipErr) }));
+                        }
+                    });
                 }
 
                 // Hardware Telemetry
@@ -252,20 +325,205 @@ export class BridgeServer {
                                         res.end(JSON.stringify({ status: "error", message: "Bridge internal error" }));
                                     }
                                 }
+                            } else if (type === 'context') {
+                                // Ask Blender add-on for a full scene context snapshot
+                                const netCtx = await import('net');
+                                const sendCtx = (payload: any) => new Promise<string>((resolve, reject) => {
+                                    const sock = new netCtx.Socket();
+                                    let done = false;
+                                    const cleanup = () => { try { sock.destroy(); } catch { /* ignore */ } };
+                                    sock.setTimeout(3000);
+                                    sock.on('connect', () => { try { sock.write(JSON.stringify(payload)); } catch (e) { if (!done) { done = true; cleanup(); reject(e); } } });
+                                    sock.on('data', (d: Buffer) => { if (done) return; done = true; cleanup(); resolve(d.toString()); });
+                                    sock.on('timeout', () => { if (done) return; done = true; cleanup(); reject({ type: 'timeout' }); });
+                                    sock.on('error', (e: any) => { if (done) return; done = true; cleanup(); reject({ type: 'conn', error: e }); });
+                                    sock.on('close', () => { if (!done) { done = true; reject({ type: 'conn', error: new Error('Closed prematurely') }); } });
+                                    try { sock.connect(this.addonPort, '127.0.0.1'); } catch (e) { if (!done) { done = true; cleanup(); reject({ type: 'conn', error: e }); } }
+                                });
+                                try {
+                                    const responseText = await sendCtx({ type: 'get_context' });
+                                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ status: 'success', message: 'Blender context', response: responseText }));
+                                } catch (e: any) {
+                                    const code = e?.type === 'timeout' ? 504 : 503;
+                                    res.writeHead(code, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ status: 'error', message: e?.type === 'timeout' ? 'Blender addon timed out.' : `Blender addon not responding on port ${this.addonPort}.` }));
+                                }
+
+                            } else if (type === 'export_fbx') {
+                                // Trigger FBX export via add-on
+                                const netFbx = await import('net');
+                                const sendFbx = (payload: any) => new Promise<string>((resolve, reject) => {
+                                    const sock = new netFbx.Socket();
+                                    let done = false;
+                                    const cleanup = () => { try { sock.destroy(); } catch { /* ignore */ } };
+                                    sock.setTimeout(6000);
+                                    sock.on('connect', () => { try { sock.write(JSON.stringify(payload)); } catch (e) { if (!done) { done = true; cleanup(); reject(e); } } });
+                                    sock.on('data', (d: Buffer) => { if (done) return; done = true; cleanup(); resolve(d.toString()); });
+                                    sock.on('timeout', () => { if (done) return; done = true; cleanup(); reject({ type: 'timeout' }); });
+                                    sock.on('error', (e: any) => { if (done) return; done = true; cleanup(); reject({ type: 'conn', error: e }); });
+                                    sock.on('close', () => {
+                                        if (!done) {
+                                            done = true;
+                                            reject({ type: 'conn', error: new Error('Connection closed prematurely') });
+                                        }
+                                    });
+                                    try {
+                                        sock.connect(this.addonPort, '127.0.0.1');
+                                    } catch (connErr) {
+                                        if (!done) { done = true; cleanup(); reject({ type: 'conn', error: connErr }); }
+                                    }
+                                });
+                                try {
+                                    const fbxPayload = {
+                                        type: 'export_fbx',
+                                        filepath: target || script || '',
+                                        use_selection: true,
+                                        bake_anim: false,
+                                    };
+                                    const fbxResponse = await sendFbx(fbxPayload);
+                                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ status: 'success', message: 'Blender export_fbx', response: fbxResponse }));
+                                } catch (e: any) {
+                                    const fbxCode = e?.type === 'timeout' ? 504 : 503;
+                                    res.writeHead(fbxCode, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ status: 'error', message: e?.type === 'timeout' ? 'Blender FBX export timed out (>6s).' : `Blender addon not responding on port ${this.addonPort}.` }));
+                                }
+
+                            } else if (type === 'export_obj') {
+                                // Trigger OBJ export via add-on (Outfit Studio pipeline)
+                                const netObj = await import('net');
+                                const sendObj = (objPayload: any) => new Promise<string>((resolveO, rejectO) => {
+                                    const sock = new netObj.Socket();
+                                    let done = false;
+                                    const cleanup = () => { try { sock.destroy(); } catch (_e) { /* ignore */ } };
+                                    sock.setTimeout(6000);
+                                    sock.on('connect', () => {
+                                        try { sock.write(JSON.stringify(objPayload)); } catch (we) {
+                                            if (!done) { done = true; cleanup(); rejectO(we); }
+                                        }
+                                    });
+                                    sock.on('data', (d: Buffer) => {
+                                        if (done) return;
+                                        done = true; cleanup(); resolveO(d.toString());
+                                    });
+                                    sock.on('timeout', () => {
+                                        if (done) return;
+                                        done = true; cleanup(); rejectO({ type: 'timeout' });
+                                    });
+                                    sock.on('error', (e: any) => {
+                                        if (done) return;
+                                        done = true; cleanup(); rejectO({ type: 'conn', error: e });
+                                    });
+                                    sock.on('close', () => {
+                                        if (!done) {
+                                            done = true;
+                                            rejectO({ type: 'conn', error: new Error('Connection closed prematurely') });
+                                        }
+                                    });
+                                    try {
+                                        sock.connect(this.addonPort, '127.0.0.1');
+                                    } catch (connErr2) {
+                                        if (!done) { done = true; cleanup(); rejectO({ type: 'conn', error: connErr2 }); }
+                                    }
+                                });
+                                try {
+                                    const exportObjPayload = {
+                                        type: 'export_obj',
+                                        filepath: target || script || '',
+                                        use_selection: true,
+                                    };
+                                    const objResponse = await sendObj(exportObjPayload);
+                                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ status: 'success', message: 'Blender export_obj', response: objResponse }));
+                                } catch (e: any) {
+                                    const objCode = e?.type === 'timeout' ? 504 : 503;
+                                    res.writeHead(objCode, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ status: 'error', message: e?.type === 'timeout' ? 'Blender OBJ export timed out (>6s).' : `Blender addon not responding on port ${this.addonPort}.` }));
+                                }
+
                             } else if (type === 'shell') {
                                 exec(script, (err, stdout, stderr) => {
                                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                                    res.end(JSON.stringify({ status: "success", stdout, stderr, code: err ? 1 : 0 }));
+                                    res.end(JSON.stringify({ status: 'success', stdout, stderr, code: err ? 1 : 0 }));
                                 });
                             } else {
                                 res.writeHead(400);
-                                res.end(JSON.stringify({ error: "Unsupported execution type" }));
+                                res.end(JSON.stringify({ error: 'Unsupported execution type' }));
                             }
                         } catch (parseError) {
                             res.writeHead(400);
-                            res.end(JSON.stringify({ error: "Invalid JSON payload" }));
+                            res.end(JSON.stringify({ error: 'Invalid JSON payload' }));
                         }
                     });
+                }
+
+                // GET /loadorder/graph — {nodes, edges} for the Conflict Visualizer
+                else if (url === '/loadorder/graph' && method === 'GET') {
+                    try {
+                        const localApp = process.env.LOCALAPPDATA
+                            || require('path').join(require('os').homedir(), 'AppData', 'Local');
+                        const pluginsTxt = require('path').join(localApp, 'Fallout4', 'Plugins.txt');
+                        let nodes: any[] = [];
+                        if (require('fs').existsSync(pluginsTxt)) {
+                            const raw: string = require('fs').readFileSync(pluginsTxt, 'utf-8');
+                            const lines: string[] = raw.split(/\r?\n/)
+                                .map((l: string) => l.trim())
+                                .filter((l: string) => l.length > 0 && !l.startsWith('#'));
+                            const active: string[] = lines
+                                .filter((l: string) => l.startsWith('*'))
+                                .map((l: string) => l.slice(1).trim())
+                                .filter(Boolean);
+                            const cols = Math.max(1, Math.ceil(Math.sqrt(active.length)));
+                            nodes = active.map((name: string, i: number) => ({
+                                id: name.toLowerCase(),
+                                name,
+                                type: name.toLowerCase().endsWith('.esm') ? 'master'
+                                    : name.toLowerCase().endsWith('.esl') ? 'light' : 'plugin',
+                                x: 80 + (i % cols) * 160,
+                                y: 80 + Math.floor(i / cols) * 120,
+                                conflicts: [],
+                                overrides: [],
+                            }));
+                        }
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ nodes, edges: [] }));
+                    } catch (graphErr: any) {
+                        console.error('[Bridge] /loadorder/graph error:', graphErr);
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ nodes: [], edges: [] }));
+                    }
+                }
+
+                // GET /loadorder/read — raw active plugin list
+                else if (url === '/loadorder/read' && method === 'GET') {
+                    try {
+                        const localApp2 = process.env.LOCALAPPDATA
+                            || require('path').join(require('os').homedir(), 'AppData', 'Local');
+                        const pluginsTxt2 = require('path').join(localApp2, 'Fallout4', 'Plugins.txt');
+                        if (!require('fs').existsSync(pluginsTxt2)) {
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ plugins: [], active: [] }));
+                        } else {
+                            const raw2: string = require('fs').readFileSync(pluginsTxt2, 'utf-8');
+                            const lines2: string[] = raw2.split(/\r?\n/)
+                                .map((l: string) => l.trim())
+                                .filter((l: string) => l.length > 0 && !l.startsWith('#'));
+                            const allPlugins: string[] = lines2
+                                .map((l: string) => l.replace(/^\*/, '').trim())
+                                .filter(Boolean);
+                            const activePlugins: string[] = lines2
+                                .filter((l: string) => l.startsWith('*'))
+                                .map((l: string) => l.slice(1).trim())
+                                .filter(Boolean);
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ plugins: allPlugins, active: activePlugins }));
+                        }
+                    } catch (readErr: any) {
+                        console.error('[Bridge] /loadorder/read error:', readErr);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Failed to read Plugins.txt' }));
+                    }
                 }
 
                 else {
@@ -275,7 +533,7 @@ export class BridgeServer {
             } catch (error) {
                 console.error('[Bridge Error]', error);
                 res.writeHead(500);
-                res.end(JSON.stringify({ error: "Internal Bridge Error" }));
+                res.end(JSON.stringify({ error: 'Internal Bridge Error' }));
             }
         });
 
@@ -296,14 +554,11 @@ export class BridgeServer {
      * Execute texture enhancement script via Blender (Neural Link)
      * Routes Python script to Blender addon on addonPort
      */
-    async executeBlenderScript(payload: {
-        script: string;
-        jobId: string;
-    }): Promise<{ success: boolean; message: string }> {
+    async executeBlenderScript(payload: { script: string; jobId: string }): Promise<{ success: boolean; message: string }> {
         return new Promise((resolve, reject) => {
             const net = require('net');
             const socket = new net.Socket();
-            const timeoutMs = 30000; // 30 sec for texture processing
+            const timeoutMs = 30000;
             let finished = false;
 
             socket.setTimeout(timeoutMs);
@@ -353,7 +608,6 @@ export class BridgeServer {
                 console.log('[Bridge] Blender socket closed');
             });
 
-            // Connect to Blender addon
             socket.connect(this.addonPort, 'localhost');
         });
     }

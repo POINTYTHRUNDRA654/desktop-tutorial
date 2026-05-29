@@ -111,13 +111,13 @@ export const BethelUploader: React.FC = () => {
       const pickedPath = await (window.electronAPI as any)?.pickDirectory?.('Select your Fallout 4 mod folder');
       if (!pickedPath) return; // user cancelled
 
-      const pathResult = await window.electronAPI?.bethel?.setModPath?.(newJob.jobId, pickedPath);
+      const pathResult = await (window.electronAPI as any)?.bethel?.setModPath?.(newJob.jobId, pickedPath);
       if (!pathResult?.success) {
         throw new Error(pathResult?.error || 'Failed to set mod path');
       }
 
       // Refresh to show updated modName
-      const jobResult = await window.electronAPI?.bethel?.getJob?.(newJob.jobId);
+      const jobResult = await (window.electronAPI as any)?.bethel?.getJob?.(newJob.jobId);
       if (jobResult?.success && jobResult?.job) {
         updateJob(newJob.jobId, jobResult.job);
       }

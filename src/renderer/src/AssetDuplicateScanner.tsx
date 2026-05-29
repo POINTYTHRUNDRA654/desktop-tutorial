@@ -77,7 +77,7 @@ const AssetDuplicateScanner: React.FC = () => {
         if (path) setScanPath(path);
       }
     } catch (error) {
-      console.error('Failed to load last scan path:', error);
+      console.debug('[AssetScanner] getLastScanPath handler not registered — skipping');
     }
   };
 

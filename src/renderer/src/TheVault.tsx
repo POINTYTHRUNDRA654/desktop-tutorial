@@ -573,17 +573,17 @@ const TheVault: React.FC = () => {
                         ]}
                         verify={[
                             'Add one file (mesh/texture/audio) and confirm it appears in the asset table.',
-                            'Click “Verify All” and confirm rows update with either “Ready” or a concrete issue.',
-                            'Click “Copy BA2 Manifest” and paste into a text editor to confirm paths are correct.'
+                            'Click "Verify All" and confirm rows update with either "Ready" or a concrete issue.',
+                            'Click "Copy BA2 Manifest" and paste into a text editor to confirm paths are correct.'
                         ]}
                         firstTestLoop={[
                             'Add a small texture + a small mesh → stage them → copy the manifest.',
                             'If you plan to produce game-ready outputs, set any external tool paths below.',
-                            'Run “Verify All” again to confirm the page can invoke whatever tools you configured.'
+                            'Run "Verify All" again to confirm the page can invoke whatever tools you configured.'
                         ]}
                         troubleshooting={[
                             'If Verify does nothing, you may be running without the desktop bridge; use the packaged Electron app.',
-                            'If “real DDS” or audio conversion fails, set the external tool path(s) below first.'
+                            'If "real DDS" or audio conversion fails, set the external tool path(s) below first.'
                         ]}
                     />
                 </div>

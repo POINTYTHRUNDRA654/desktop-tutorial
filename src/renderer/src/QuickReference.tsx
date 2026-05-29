@@ -241,7 +241,7 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
     },
     {
       id: 'stability-stack-2025',
-      title: '🛡️ 2025–2026 Stability Stack',
+      title: '🛡️ 2025-2026 Stability Stack',
       icon: Zap,
       items: [
         { name: 'F4SE (match runtime)', description: 'Script Extender — must match your game runtime exactly. v0.7.7 for runtime 1.11.191. Download from f4se.silverlock.org.', example: 'f4se.silverlock.org — match version to your Fallout4.exe build', category: 'Foundation' },
@@ -316,7 +316,7 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
         { name: '04000000-04FFFFFF', description: 'DLC04: Contraptions', category: 'DLC' },
         { name: '05000000-05FFFFFF', description: 'DLC05: Vault-Tec', category: 'DLC' },
         { name: '06000000-06FFFFFF', description: 'DLC06: Nuka-World', category: 'DLC' },
-        { name: 'FE000000-FE000FFF', description: 'ESL light plugins (index 000-FFF) — max 4096 local FormIDs per ESL (0x000–0xFFF). Exceeding 0xFFF causes save corruption. Use xEdit "Compact FormIDs for ESL" to fix.', category: 'Light' },
+        { name: 'FE000000-FE000FFF', description: 'ESL light plugins (index 000-FFF) — max 4096 local FormIDs per ESL (0x000-0xFFF). Exceeding 0xFFF causes save corruption. Use xEdit "Compact FormIDs for ESL" to fix.', category: 'Light' },
         { name: 'FF000000-FFFFFFFF', description: 'Dynamic forms (runtime)', category: 'Runtime' },
         { name: '00000014', description: 'PlayerREF (player character)', category: 'Special' },
         { name: '00000007', description: 'Player base actor', category: 'Special' },
@@ -349,211 +349,112 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
       items: [
         { name: 'bpy.context', description: 'Current context (active object, etc.)', example: 'obj = bpy.context.active_object', category: 'Context' },
         { name: 'bpy.data', description: 'Access all data (meshes, materials, etc.)', example: 'mesh = bpy.data.meshes["Cube"]', category: 'Data' },
-        { name: 'bpy.ops', description: 'Operators (actions)', example: 'bpy.ops.mesh.primitive_cube_add()', category: 'Operations' },
-        { name: 'bpy.context.selected_objects', description: 'List of selected objects', example: 'for obj in bpy.context.selected_objects:', category: 'Selection' },
-        { name: 'bpy.context.active_object', description: 'Currently active object', example: 'obj = bpy.context.active_object', category: 'Selection' },
-        { name: 'bpy.ops.object.select_all()', description: 'Select all objects', example: 'bpy.ops.object.select_all(action="SELECT")', category: 'Selection' },
-        { name: 'bpy.ops.export_scene.fbx()', description: 'Export FBX', example: 'bpy.ops.export_scene.fbx(filepath="output.fbx")', category: 'Export' },
-        { name: 'bpy.ops.import_scene.fbx()', description: 'Import FBX', example: 'bpy.ops.import_scene.fbx(filepath="input.fbx")', category: 'Import' },
-        { name: 'obj.location', description: 'Object position (x,y,z)', example: 'obj.location = (0, 0, 1)', category: 'Transform' },
-        { name: 'obj.rotation_euler', description: 'Object rotation (euler)', example: 'obj.rotation_euler = (0, 0, 1.57)', category: 'Transform' },
-        { name: 'obj.scale', description: 'Object scale', example: 'obj.scale = (2, 2, 2)', category: 'Transform' },
-        { name: 'obj.data', description: 'Object data (mesh, etc.)', example: 'mesh = obj.data', category: 'Data' },
-        { name: 'bpy.ops.object.modifier_add()', description: 'Add modifier', example: 'bpy.ops.object.modifier_add(type="SUBSURF")', category: 'Modifier' },
-        { name: 'obj.modifiers', description: 'List of modifiers', example: 'for mod in obj.modifiers:', category: 'Modifier' },
-      ]
-    },
-    {
-      id: 'console',
-      title: 'Console Commands',
-      icon: Terminal,
-      items: [
-        { name: 'coc <cellID>', description: 'Center on cell (teleport)', example: 'coc RedRocketExt', category: 'Navigation' },
-        { name: 'player.additem <formID> <count>', description: 'Add item to player', example: 'player.additem 0001f66a 100', category: 'Item' },
-        { name: 'player.setav <attr> <value>', description: 'Set attribute value', example: 'player.setav health 1000', category: 'Stats' },
-        { name: 'player.moveto <refID>', description: 'Move player to reference', example: 'player.moveto 00019d09', category: 'Navigation' },
-        { name: 'setstage <questID> <stage>', description: 'Set quest stage', example: 'setstage MQ102 200', category: 'Quest' },
-        { name: 'completequest <questID>', description: 'Complete quest', example: 'completequest MQ102', category: 'Quest' },
-        { name: 'resetquest <questID>', description: 'Reset quest', example: 'resetquest MQ102', category: 'Quest' },
-        { name: 'help "<search>" 4', description: 'Search for item', example: 'help \"power armor\" 4', category: 'Search' },
-        { name: 'tmm 1', description: 'Toggle map markers (show all)', category: 'Map' },
-        { name: 'tgm', description: 'Toggle god mode', category: 'Cheat' },
-        { name: 'tcl', description: 'Toggle collision', category: 'Cheat' },
-        { name: 'tfc', description: 'Toggle free camera', category: 'Camera' },
-        { name: 'tm', description: 'Toggle menus (screenshot mode)', category: 'UI' },
-        { name: 'csb', description: 'Clear screen blood', category: 'Visual' },
-        { name: 'showlooksmenu player 1', description: 'Open character customization', category: 'Character' },
-      ]
+        { name: 'bpy.ops', description: 'Operators — actions like add mesh, mode set, export. Always check context requirements.', example: 'bpy.ops.object.mode_set(mode="EDIT")', category: 'Operators' },
+        { name: 'bpy.ops.export_scene.fbx()', description: 'Export active selection as FBX. Pass filepath + options. Use only_deform_bones=True for character rigs.', example: 'bpy.ops.export_scene.fbx(filepath="C:/out.fbx", use_selection=True, bake_anim=True)', category: 'Export' },
+        { name: 'bpy.ops.mesh.primitive_cube_add()', description: 'Add a cube at cursor. Most primitive_*_add operators accept location, rotation, scale.', example: 'bpy.ops.mesh.primitive_cube_add(location=(0, 0, 1))', category: 'Mesh' },
+        { name: 'bpy.types', description: 'Access Blender type definitions for property registration and type-checking.', example: 'class MyPanel(bpy.types.Panel): pass', category: 'Types' },
+        { name: 'bpy.props', description: 'Property descriptors for addon UI controls.', example: 'bpy.props.FloatProperty(name="Scale", default=1.0, min=0.01, max=100.0)', category: 'Props' },
+        { name: 'bpy.utils.register_class()', description: 'Register a class with Blender. Call in register() for each Panel/Operator/PropertyGroup.', example: 'bpy.utils.register_class(MyOperator)', category: 'Addon' },
+        { name: 'obj.modifiers.new()', description: 'Add a modifier to an object by name and type.', example: 'mod = obj.modifiers.new(name="Solidify", type="SOLIDIFY"); mod.thickness = 0.01', category: 'Modifiers' },
+        { name: 'bmesh', description: 'Mesh editing API — direct vertex/edge/face manipulation. Import bmesh, create from mesh, edit, update.', example: 'import bmesh; bm = bmesh.from_edit_mesh(obj.data); bmesh.update_edit_mesh(obj.data)', category: 'BMesh' },
+      ],
     },
   ];
 
   const filteredReferences = references.map(section => ({
     ...section,
     items: section.items.filter(item =>
-      searchQuery === '' ||
+      !searchQuery ||
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.example?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  })).filter(section => section.items.length > 0);
+      (item.example || '').toLowerCase().includes(searchQuery.toLowerCase())
+    ),
+  })).filter(section => !searchQuery || section.items.length > 0);
 
-  const containerClassName = embedded
-    ? 'flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-lg border border-slate-800'
-    : 'flex flex-col h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900';
+  const containerClass = embedded
+    ? 'p-4 space-y-4 text-slate-200'
+    : 'h-full overflow-auto p-6 space-y-6 bg-[#0c0a09] text-slate-200';
 
   return (
-    <div className={containerClassName}>
-      {/* Header */}
-      <div className="p-6 border-b border-slate-700/50 bg-slate-800/50">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-3">
-            <Book className="w-8 h-8 text-emerald-400" />
-            <div>
-              <h1 className="text-2xl font-bold text-white">Quick Reference</h1>
-              <p className="text-sm text-slate-400">Fallout 4 modding essentials</p>
-            </div>
-          </div>
-          {!embedded && (
-            <Link
-              to="/knowledge"
-              className="px-3 py-2 border border-emerald-500/30 text-[10px] font-black uppercase tracking-widest text-emerald-200 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
-            >
-              Knowledge Base
-            </Link>
-          )}
-        </div>
-
-        {/* Search */}
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search references..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 pl-10 text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
-          />
-          <Book className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-        </div>
+    <div className={containerClass}>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <h1 className="text-2xl font-bold text-amber-400 flex items-center gap-2">
+          <Book className="w-7 h-7" />
+          Quick Reference
+        </h1>
+        <input
+          type="text"
+          placeholder="Search..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="px-3 py-2 bg-stone-900 border border-stone-700 rounded text-stone-200 text-sm outline-none focus:border-amber-600 w-52"
+        />
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        <ToolsInstallVerifyPanel
-          accentClassName="text-emerald-300"
-          description="This page is a fast in-app cheat sheet. Use search to narrow down snippets and standards without needing external docs."
-          verify={[
-            'Type a keyword in search and confirm the list filters immediately.',
-            'Expand/collapse a section and confirm it stays open while you browse.'
-          ]}
-          firstTestLoop={[
-            'Search for one concept you are working on (e.g., “OnInit” or “precombines”).',
-            'Copy the example into your notes and adapt it to your current script.'
-          ]}
-        />
-        {filteredReferences.map((section) => {
-          const isExpanded = expandedSections.includes(section.id);
-          const Icon = section.icon;
-
-          return (
-            <div
-              key={section.id}
-              className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 overflow-hidden"
+      <div className="space-y-3">
+        {filteredReferences.map((section) => (
+          <div key={section.id} className="bg-stone-900/50 border border-stone-800 rounded-lg overflow-hidden">
+            <button
+              onClick={() => toggleSection(section.id)}
+              className="w-full flex items-center justify-between p-4 hover:bg-stone-800/50 transition-colors"
             >
-              {/* Section Header */}
-              <button
-                onClick={() => toggleSection(section.id)}
-                className="w-full flex items-center justify-between p-4 hover:bg-slate-700/30 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className="w-5 h-5 text-emerald-400" />
-                  <h2 className="text-lg font-bold text-white">{section.title}</h2>
-                  <span className="text-xs text-slate-500 bg-slate-900 px-2 py-1 rounded-full">
-                    {section.items.length} items
-                  </span>
-                </div>
-                {isExpanded ? (
-                  <ChevronUp className="w-5 h-5 text-slate-400" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-slate-400" />
-                )}
-              </button>
+              <div className="flex items-center gap-3">
+                <section.icon className="w-5 h-5 text-amber-400" />
+                <h2 className="text-base font-bold text-stone-200">{section.title}</h2>
+                <span className="text-xs text-stone-500">{section.items.length} items</span>
+              </div>
+              {expandedSections.includes(section.id)
+                ? <ChevronUp className="w-4 h-4 text-stone-400" />
+                : <ChevronDown className="w-4 h-4 text-stone-400" />}
+            </button>
 
-              {/* Section Content */}
-              {isExpanded && (
-                <div className="p-4 pt-0 space-y-2">
-                  {section.items.map((item, index) => {
-                    const itemId = `${section.id}-${index}`;
-                    const isOpen = openedItemId === itemId;
-                    return (
-                      <div
-                        key={index}
-                        className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/30 hover:border-emerald-500/30 transition-colors group"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <code className="text-sm font-mono text-emerald-400 bg-slate-950 px-2 py-0.5 rounded">
-                              {item.name}
-                            </code>
-                            {item.category && (
-                              <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
-                                {item.category}
-                              </span>
-                            )}
-                          </div>
-                          {isOpen && (
-                            <div id={`quick-ref-${itemId}-details`}>
-                              <p className="text-sm text-slate-300">{item.description}</p>
-                              {item.example && (
-                                <div className="relative mt-2 group/code">
-                                  <pre className="text-xs font-mono text-slate-400 bg-slate-950 p-2 pr-10 rounded border border-slate-800 overflow-x-auto">
-                                    {item.example}
-                                  </pre>
-                                  <button
-                                    onClick={() => copyToClipboard(item.example!, `${itemId}-ex`)}
-                                    className="absolute top-1.5 right-1.5 p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-300 transition-colors opacity-0 group-hover/code:opacity-100"
-                                    title="Copy to clipboard"
-                                    aria-label="Copy example to clipboard"
-                                  >
-                                    {copiedId === `${itemId}-ex`
-                                      ? <Check className="w-3 h-3 text-emerald-400" />
-                                      : <Copy className="w-3 h-3" />}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+            {expandedSections.includes(section.id) && (
+              <div className="border-t border-stone-800 divide-y divide-stone-800/50">
+                {section.items.map((item, idx) => {
+                  const itemId = `${section.id}-${idx}`;
+                  return (
+                    <div
+                      key={idx}
+                      className="px-4 py-3 hover:bg-stone-800/40 cursor-pointer transition-colors"
+                      onClick={() => toggleItemInfo(itemId)}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {item.category && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-400 font-mono border border-amber-900/50 shrink-0">
+                              {item.category}
+                            </span>
                           )}
+                          <span className="font-mono text-sm text-amber-300 font-bold truncate">{item.name}</span>
                         </div>
-                        <button
-                          onClick={() => toggleItemInfo(itemId)}
-                          className="shrink-0 text-slate-500 hover:text-emerald-400 transition-colors"
-                          title={isOpen ? 'Hide item details' : 'Open item details'}
-                          aria-expanded={isOpen}
-                          aria-controls={`quick-ref-${itemId}-details`}
-                          aria-label={isOpen ? `Hide details for ${item.name}` : `Open details for ${item.name}`}
-                        >
-                          {isOpen
-                            ? <ChevronUp className="w-4 h-4 text-emerald-400" />
-                            : <ChevronDown className="w-4 h-4" />
-                          }
-                        </button>
+                        {item.example && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); copyToClipboard(item.example!, itemId); }}
+                            className="p-1 hover:bg-stone-700 rounded transition-colors shrink-0"
+                            title="Copy example"
+                          >
+                            {copiedId === itemId
+                              ? <Check className="w-3 h-3 text-emerald-400" />
+                              : <Copy className="w-3 h-3 text-stone-400" />}
+                          </button>
+                        )}
                       </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {filteredReferences.length === 0 && (
-          <div className="text-center py-12 text-slate-500">
-            <Book className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>No references found matching "{searchQuery}"</p>
+                      <p className="text-xs text-stone-400 mt-1 leading-relaxed">{item.description}</p>
+                      {openedItemId === itemId && item.example && (
+                        <pre className="mt-2 p-2 bg-stone-950 rounded text-xs text-emerald-300 font-mono overflow-x-auto whitespace-pre-wrap">
+                          {item.example}
+                        </pre>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
 };
+
+export default QuickReference;

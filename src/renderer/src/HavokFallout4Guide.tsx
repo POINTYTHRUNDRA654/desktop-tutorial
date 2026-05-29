@@ -153,7 +153,7 @@ const HavokFallout4Guide: React.FC<HavokFallout4GuideProps> = ({ embedded = fals
       <div style={calloutStyle}>
         <div style={{ color: '#00ff00', fontWeight: 'bold', marginBottom: '6px' }}>Tools / Install / Verify (FO4)</div>
         <div>
-          Don’t block on “installing Havok.” For Fallout 4, you can validate progress with:
+          Don't block on "installing Havok." For Fallout 4, you can validate progress with:
           <strong> extraction → animation authoring → HKX conversion → in-game test</strong>.
         </div>
         <ul style={{ marginLeft: '18px', marginTop: '8px' }}>
@@ -168,10 +168,10 @@ const HavokFallout4Guide: React.FC<HavokFallout4GuideProps> = ({ embedded = fals
           <button style={buttonStyle} onClick={() => openNexusSearch('HKXPack')}>Nexus search: HKXPack</button>
         </div>
         <div style={{ marginTop: '10px', padding: '8px', backgroundColor: 'rgba(255,200,0,0.07)', border: '1px solid #665500', borderRadius: '4px', fontSize: '12px', color: '#ccaa44' }}>
-          <strong>NG/AE note:</strong> The HKX animation format (Havok 2010.2.0-r1) is unchanged between OG (1.10.163), NG (1.10.980–984), and AE (1.11.x). Behavior graph paths and skeleton NIFs are also the same. No re-export is required when targeting different runtimes — the animation asset pipeline is identical for all three.
+          <strong>NG/AE note:</strong> The HKX animation format (Havok 2010.2.0-r1) is unchanged between OG (1.10.163), NG (1.10.980-984), and AE (1.11.x). Behavior graph paths and skeleton NIFs are also the same. No re-export is required when targeting different runtimes — the animation asset pipeline is identical for all three.
         </div>
         <div style={{ marginTop: '8px', padding: '8px', backgroundColor: 'rgba(0,200,255,0.07)', border: '1px solid #0a6a88', borderRadius: '4px', fontSize: '12px', color: '#7adfff' }}>
-          <strong>Framework dependency note (2025–2026):</strong> For IAF/NAF/AWF integration tests, validate runtime dependencies first (F4SE + Address Library). AWF workflows additionally expect MCM, and menu-time playback relies on FallSouls.
+          <strong>Framework dependency note (2025-2026):</strong> For IAF/NAF/AWF integration tests, validate runtime dependencies first (F4SE + Address Library). AWF workflows additionally expect MCM, and menu-time playback relies on FallSouls.
         </div>
       </div>
 

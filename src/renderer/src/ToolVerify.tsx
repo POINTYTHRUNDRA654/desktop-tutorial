@@ -67,7 +67,8 @@ const ToolVerify: React.FC<ToolVerifyProps> = ({ embedded = false }) => {
 
   useEffect(() => {
     if (!bridge?.onSettingsUpdated) return;
-    bridge.onSettingsUpdated((s: any) => setSettings(s));
+    const unsub = bridge.onSettingsUpdated((s: any) => setSettings(s));
+    return () => unsub?.();
   }, [bridge]);
 
   const refreshToolChecks = async () => {
@@ -210,11 +211,11 @@ const ToolVerify: React.FC<ToolVerifyProps> = ({ embedded = false }) => {
           ]}
           verify={[
             'Set tool paths (Browse).',
-            'Confirm each tool shows “OK” and has a version when possible.',
+            'Confirm each tool shows "OK" and has a version when possible.',
             'Test Launch and ensure it opens.',
           ]}
           troubleshooting={[
-            'If you see “Desktop API not available”, you may be running the web build (no filesystem access).',
+            'If you see "Desktop API not available", you may be running the web build (no filesystem access).',
             'If a path exists but shows no version, that tool may not expose Windows version metadata.',
           ]}
           accentClassName="text-emerald-300"

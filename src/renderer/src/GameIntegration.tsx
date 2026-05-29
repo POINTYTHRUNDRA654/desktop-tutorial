@@ -88,7 +88,7 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
   const detectRunningGame = async () => {
     setIsDetecting(true);
     try {
-      const game = await api.gameDetectGame();
+      const game = typeof api?.gameDetectGame === 'function' ? await api.gameDetectGame() : null;
       setRunningGame(game);
       if (game) {
         setSelectedGame(game.game);
@@ -97,7 +97,7 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
         startPerformanceMonitoring(game.pid);
       }
     } catch (error) {
-      console.error('Failed to detect running game:', error);
+      console.debug('[GameIntegration] detect skipped — handler not registered');
     } finally {
       setIsDetecting(false);
     }

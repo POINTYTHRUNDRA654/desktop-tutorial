@@ -136,7 +136,7 @@ const PaperScriptQuickStartGuide: React.FC<PaperScriptQuickStartGuideProps> = ({
         <h3 style={{ color: '#00ff00', marginTop: 0 }}>Tools / Install / Verify (Fallout 4)</h3>
         <ul style={{ marginLeft: '1.25rem', color: '#b0b0b0', lineHeight: 1.6 }}>
           <li><strong>PaperScript binary</strong> (transpiler) + a folder to put it in (e.g. <code style={{ color: '#00ff00' }}>C:\Dev\PaperScript</code>).</li>
-          <li><strong>Creation Kit</strong> (Papyrus compile). You’ll compile the generated <code style={{ color: '#00ff00' }}>.psc</code> into <code style={{ color: '#00ff00' }}>.pex</code>.</li>
+          <li><strong>Creation Kit</strong> (Papyrus compile). You'll compile the generated <code style={{ color: '#00ff00' }}>.psc</code> into <code style={{ color: '#00ff00' }}>.pex</code>.</li>
           <li><strong>FO4Edit</strong> (optional but strongly recommended) for sanity-checking your plugin + script assets.</li>
         </ul>
         <div style={buttonRowStyle}>
@@ -229,7 +229,7 @@ const PaperScriptQuickStartGuide: React.FC<PaperScriptQuickStartGuideProps> = ({
               <div style={stepStyle}>
                 <p>Package your mod with the .pex files and test in-game!</p>
                 <ul style={{ marginLeft: '1.25rem', color: '#b0b0b0', marginTop: '0.5rem' }}>
-                  <li>Confirm <code style={{color: '#00ff00'}}>.pex</code> is inside your mod’s <code style={{color: '#00ff00'}}>Scripts\</code> folder (not only Source).</li>
+                  <li>Confirm <code style={{color: '#00ff00'}}>.pex</code> is inside your mod's <code style={{color: '#00ff00'}}>Scripts\</code> folder (not only Source).</li>
                   <li>Start a new save or clean profile for the first test.</li>
                   <li>Trigger the script (quest/init/event) and confirm it runs (log, visible behavior, or a debug notification).</li>
                 </ul>

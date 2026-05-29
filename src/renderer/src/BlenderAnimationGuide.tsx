@@ -61,13 +61,13 @@ export const BlenderAnimationGuide: React.FC = () => {
         `3) HKXPackUI → pack/inspect as needed\n` +
         `4) Runtime integration layer → vanilla replacer or framework route (IAF / NAF / AWF)\n\n` +
         `Key constraint: do NOT rename deform bones on vanilla skeletons.\n` +
-        `FPS note: FO4 humanoid animations are commonly 30 FPS, but the safe rule is “match the vanilla animation you’re targeting” and keep Blender + Havok consistent.\n` +
-        `Scale note: pick a single unit/scale convention and keep it consistent end-to-end (don’t mix 1.0 and 0.1 mid-pipeline).`,
+        `FPS note: FO4 humanoid animations are commonly 30 FPS, but the safe rule is "match the vanilla animation you're targeting" and keep Blender + Havok consistent.\n` +
+        `Scale note: pick a single unit/scale convention and keep it consistent end-to-end (don't mix 1.0 and 0.1 mid-pipeline).`,
       actions: [],
       steps: [
         'Extract a vanilla animation you want to match (path + naming + FPS reference)',
-        'Import FO4 skeleton into Blender (don’t rename bones)',
-        'Animate in Pose mode; keep Root stable unless you know why you’re moving it',
+        "Import FO4 skeleton into Blender (don't rename bones)",
+        "Animate in Pose mode; keep Root stable unless you know why you're moving it",
         'Export FBX with Only Deform Bones + baked animation',
         'Convert FBX → HKX using Havok 2010.2.0-r1 profile',
         'Choose integration route: vanilla replacer, IAF keyword patch, NAF XML pack, or AWF object-interaction patch',
@@ -95,7 +95,7 @@ export const BlenderAnimationGuide: React.FC = () => {
         'Restart Blender (if needed) and confirm NIF import appears',
         'Import the FO4 skeleton NIF',
         'Verify bone names were preserved exactly',
-        'Save a clean “skeleton_only.blend” as your base file',
+        'Save a clean "skeleton_only.blend" as your base file',
       ],
     },
     {
@@ -117,7 +117,7 @@ export const BlenderAnimationGuide: React.FC = () => {
       steps: [
         'Open the Outliner and expand the armature hierarchy',
         'Confirm there are no accidental extra bones',
-        'If you must constrain bones, do it in a way that doesn’t rename deform bones',
+        "If you must constrain bones, do it in a way that doesn't rename deform bones",
       ],
     },
     {
@@ -151,7 +151,7 @@ export const BlenderAnimationGuide: React.FC = () => {
         `2) Pose mode on the armature; keyframe transforms.\n` +
         `3) Use Pose Markers for events/annotations where your pipeline supports it.\n\n` +
         `Common pitfall: animating the wrong root bone and getting in-game offsets.\n` +
-        `Rule of thumb: keep ROOT stable unless you’re intentionally driving world motion.`,
+        `Rule of thumb: keep ROOT stable unless you're intentionally driving world motion.`,
       actions: [],
       steps: [
         'Set timeline range (start/end) for your clip',
@@ -192,7 +192,7 @@ export const BlenderAnimationGuide: React.FC = () => {
       title: 'Integrating Animations Into Fallout 4 (Minimum Working Path)',
       icon: <FileCode className="w-5 h-5" />,
       content:
-        `There are multiple ways to get animations “working” in FO4.\n\n` +
+        `There are multiple ways to get animations "working" in FO4.\n\n` +
         `Fastest reliable test path: an animation replacer (same file name + same relative folder path as the vanilla HKX).\n\n` +
         `Framework routes:\n` +
         `• IAF (#50555): gameplay item/action dispatch via keywords (ingestibles/equipment)\n` +
@@ -237,7 +237,7 @@ export const BlenderAnimationGuide: React.FC = () => {
       icon: <AlertCircle className="w-5 h-5" />,
       content:
         `Problem: Animation plays too fast/slow\n` +
-        `Fix: Blender FPS and conversion settings don’t match the target; re-bake and rebuild HKX.\n\n` +
+        `Fix: Blender FPS and conversion settings don't match the target; re-bake and rebuild HKX.\n\n` +
         `Problem: Mesh explodes or stretches\n` +
         `Fix: weights/bones mismatch; normalize weights; export only intended deform bones.\n\n` +
         `Problem: T-pose in-game\n` +
@@ -250,7 +250,7 @@ export const BlenderAnimationGuide: React.FC = () => {
       title: 'Required Production Tools (2026)',
       icon: <Zap className="w-5 h-5" />,
       content:
-        `Tools you’ll typically need, plus “install/verify” checks:\n\n` +
+        `Tools you'll typically need, plus "install/verify" checks:\n\n` +
         `1) Blender (authoring) — use 3.6 LTS or 4.x (both work with PyNifly; 3.6 LTS preferred for maximum add-on compatibility)\n` +
         `   Verify: Blender launches; you can save a .blend.\n\n` +
         `2) PyNifly (NIF import/export in Blender)\n` +
@@ -453,9 +453,9 @@ export const BlenderAnimationGuide: React.FC = () => {
               { label: 'Nexus: MaikCG F4Biped', href: 'https://www.nexusmods.com/fallout4/mods/16691', kind: 'official', note: 'Alternative DCC rig pipeline reference.' },
             ]}
             verify={[
-              'Expand “Step 1: Reference & Skeleton” and confirm the pipeline sections open without layout jumps.',
+              'Expand "Step 1: Reference & Skeleton" and confirm the pipeline sections open without layout jumps.',
               'Confirm Blender can import the FO4 skeleton and the bone names are unchanged (case-sensitive).',
-              'Export a tiny 10–30 frame FBX and confirm it contains animation keyframes.',
+              'Export a tiny 10-30 frame FBX and confirm it contains animation keyframes.',
               'If you use framework integration, verify F4SE + Address Library load before launching test profiles.'
             ]}
             firstTestLoop={[
@@ -465,7 +465,7 @@ export const BlenderAnimationGuide: React.FC = () => {
               'After replacer validation, wire one framework route (IAF/NAF/AWF) and re-test trigger logic.'
             ]}
             troubleshooting={[
-              'If the in-game scale is wrong, fix Blender unit scale + FBX export scale together (don’t “half-fix” one side).',
+              `If the in-game scale is wrong, fix Blender unit scale + FBX export scale together (don't "half-fix" one side).`,
               'If animations do nothing in-game, verify bone names were not renamed and the target skeleton matches.',
               'If framework-triggered animations fail, check route dependencies (F4SE, Address Library, and AWF route extras like MCM/FallSouls).'
             ]}

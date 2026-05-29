@@ -219,13 +219,13 @@ const BodyslideGuide: React.FC = () => {
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
-            <h4 className="text-[#00d000] font-bold mb-2">Fast verification loop (5–10 minutes)</h4>
+            <h4 className="text-[#00d000] font-bold mb-2">Fast verification loop (5-10 minutes)</h4>
             <ol className="list-decimal list-inside space-y-1 text-[#008000] text-xs">
               <li>Run BodySlide from your mod manager (so it sees the same virtual file system).</li>
               <li>Pick a preset → Batch Build → Build (leave default selections unless you know why).</li>
               <li>Confirm output meshes were written somewhere you control:
                 <ul className="list-disc list-inside ml-4 mt-1">
-                  <li><strong>MO2:</strong> check the Overwrite folder or a dedicated “BodySlide Output” mod.</li>
+                  <li><strong>MO2:</strong> check the Overwrite folder or a dedicated "BodySlide Output" mod.</li>
                   <li><strong>Vortex:</strong> confirm deployment and that BodySlide is pointed at the real game folder.</li>
                 </ul>
               </li>
@@ -236,9 +236,9 @@ const BodyslideGuide: React.FC = () => {
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
             <h4 className="text-[#00d000] font-bold mb-2">Common problems</h4>
             <ul className="list-disc list-inside space-y-1 text-[#008000] text-xs">
-              <li><strong>Nothing changes in-game:</strong> output meshes aren’t being used (wrong folder, wrong profile, or another mod overrides them).</li>
-              <li><strong>Clipping/exploding meshes:</strong> outfit isn’t made for your body (wrong reference) or missing BodySlide files.</li>
-              <li><strong>No sliders / can’t edit body in-game:</strong> you’re thinking of LooksMenu sliders, not BodySlide. BodySlide changes meshes on disk.</li>
+              <li><strong>Nothing changes in-game:</strong> output meshes aren't being used (wrong folder, wrong profile, or another mod overrides them).</li>
+              <li><strong>Clipping/exploding meshes:</strong> outfit isn't made for your body (wrong reference) or missing BodySlide files.</li>
+              <li><strong>No sliders / can't edit body in-game:</strong> you're thinking of LooksMenu sliders, not BodySlide. BodySlide changes meshes on disk.</li>
               <li><strong>Batch Build prompts a conflict:</strong> pick the outfit variant you actually want active.</li>
             </ul>
           </div>

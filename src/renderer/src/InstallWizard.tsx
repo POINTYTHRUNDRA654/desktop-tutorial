@@ -312,7 +312,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
         : 'You are installing manually. This is riskier; keep backups and be extra careful about overwrites.';
 
     const installPathHint = mm === 'mo2'
-      ? 'MO2: install via “Install a new mod from an archive” and keep it enabled in the left pane; plugins in right pane.'
+      ? 'MO2: install via "Install a new mod from an archive" and keep it enabled in the left pane; plugins in right pane.'
       : mm === 'vortex'
         ? 'Vortex: install from file, enable, deploy, then check Plugins page for enabled state.'
         : 'Manual: copy into Fallout 4 Data folder only when you know exactly what files are overwriting.';
@@ -420,7 +420,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'steam-update',
               title: 'Steam auto-updated your game and broke F4SE',
-              details: <>Steam can silently update Fallout 4 which breaks F4SE compatibility. To prevent this: right-click Fallout 4 in Steam → Properties → Updates → "Only update this game when I launch it" and always launch via <code>f4se_loader.exe</code> (not Steam). If already updated, wait for F4SE team to release a matching build (usually 1–2 weeks for major patches).</>,
+              details: <>Steam can silently update Fallout 4 which breaks F4SE compatibility. To prevent this: right-click Fallout 4 in Steam → Properties → Updates → "Only update this game when I launch it" and always launch via <code>f4se_loader.exe</code> (not Steam). If already updated, wait for F4SE team to release a matching build (usually 1-2 weeks for major patches).</>,
             },
             {
               id: 'dll-error',
@@ -481,11 +481,11 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'run-first',
               title: 'Run xEdit once and let it initialize',
-              details: <>Launch xEdit, select the plugins you want to work with, and wait for “Background Loader: finished”. This makes sure scripts and caches are in place.</>,
+              details: <>Launch xEdit, select the plugins you want to work with, and wait for "Background Loader: finished". This makes sure scripts and caches are in place.</>,
             },
             {
               id: 'scripts-folder',
-              title: 'Confirm “Edit Scripts” folder exists',
+              title: 'Confirm "Edit Scripts" folder exists',
               details: <>xEdit loads scripts from an <b>Edit Scripts</b> folder near the executable. Mossy will save generated scripts there when your xEdit path is configured.</>,
             },
           ],
@@ -497,7 +497,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
           steps: [
             {
               id: 'apply-script',
-              title: 'Verify scripts show up in “Apply Script”',
+              title: 'Verify scripts show up in "Apply Script"',
               details: <>Right-click a record → <b>Apply Script</b>. If a new script does not appear, restart xEdit (it reads scripts on startup).</>,
             },
           ],
@@ -589,7 +589,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'ss2-modschool',
               title: 'Open Mod School videos and SS2 wiki',
-              details: <>Use the Mod School video links and wiki links in “Downloads & Sources” for beginner-friendly visual walkthroughs.</>,
+              details: <>Use the Mod School video links and wiki links in "Downloads & Sources" for beginner-friendly visual walkthroughs.</>,
             },
           ],
         },
@@ -644,7 +644,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
           steps: [
             {
               id: 'version',
-              title: 'If SS2 won’t start or menus are missing',
+              title: "If SS2 won't start or menus are missing",
               details: <>Re-check dependencies and the Fallout 4 runtime version requirements. Then re-run your load order sorting and ensure plugins are enabled.</>,
             },
             {
@@ -667,17 +667,17 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'understand',
               title: "Know what PRP and PJM's scripts affect",
-              details: <>PRP (Previsibines Repair Pack) restores precombines/previs broken by popular mods. <b>PJM’s Previs Patching Scripts</b> (Nexus #69978, by PJMail) let you find &amp; fix every flickering cell in your load order, create PRP-compatible patches, or add precombines to your own mod. Resolve all normal mod conflicts with standard patches <em>before</em> touching previs — previs patches are always the last step.</>,
+              details: <>PRP (Previsibines Repair Pack) restores precombines/previs broken by popular mods. <b>PJM's Previs Patching Scripts</b> (Nexus #69978, by PJMail) let you find &amp; fix every flickering cell in your load order, create PRP-compatible patches, or add precombines to your own mod. Resolve all normal mod conflicts with standard patches <em>before</em> touching previs — previs patches are always the last step.</>,
             },
             {
               id: 'xedit-version',
               title: 'FO4Edit / xEdit V4.1.5f or later required',
-              details: <>PJM’s scripts require <b>FO4Edit64.exe (or FO4Edit.exe) V4.1.5f or later</b>. Use the GitHub upstream or the Nexus release — both are in the “Downloads &amp; Sources” panel. The 64-bit build is strongly recommended for large load orders.</>,
+              details: <>PJM's scripts require <b>FO4Edit64.exe (or FO4Edit.exe) V4.1.5f or later</b>. Use the GitHub upstream or the Nexus release — both are in the "Downloads &amp; Sources" panel. The 64-bit build is strongly recommended for large load orders.</>,
             },
             {
               id: 'ck-prereq',
               title: 'Fallout 4 Creation Kit (Steam) required',
-              details: <>The CK is free on Steam. Install it into your <b>Fallout 4 directory</b> (same folder as <code>Fallout4.exe</code>). If you have downgraded your game to OG/pre-NG, you must also downgrade the CK to match — see PJM’s FAQ post on Nexus #69978 for the exact procedure.</>,
+              details: <>The CK is free on Steam. Install it into your <b>Fallout 4 directory</b> (same folder as <code>Fallout4.exe</code>). If you have downgraded your game to OG/pre-NG, you must also downgrade the CK to match — see PJM's FAQ post on Nexus #69978 for the exact procedure.</>,
             },
             {
               id: 'ckpe-prereq',
@@ -687,7 +687,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'pjmscripts-prereq',
               title: "PJMScripts V4.9 — manual download only, extract to FO4Edit directory",
-              details: <>Go to <b>Nexus #69978</b> (link in the panel above) and manually download the <b>V4.9 PJMScripts bundle</b>. <em>Do NOT use a mod manager.</em> Extract so all <code>*.pas</code> scripts land in the <b>Edit Scripts</b> subdirectory inside your FO4Edit folder. Then grab every file under the “Updated Files” tab and overwrite the older copies — <code>FO4_CheckPrevisbines.pas</code> and <code>GeneratePrevisibines.bat</code> in particular are newer in that tab.</>,
+              details: <>Go to <b>Nexus #69978</b> (link in the panel above) and manually download the <b>V4.9 PJMScripts bundle</b>. <em>Do NOT use a mod manager.</em> Extract so all <code>*.pas</code> scripts land in the <b>Edit Scripts</b> subdirectory inside your FO4Edit folder. Then grab every file under the "Updated Files" tab and overwrite the older copies — <code>FO4_CheckPrevisbines.pas</code> and <code>GeneratePrevisibines.bat</code> in particular are newer in that tab.</>,
             },
             {
               id: 'prp-load-order',
@@ -709,12 +709,12 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'get-pjm',
               title: "Download PJM's scripts from Nexus #69978 (manual only)",
-              details: <>On the PJM mod page click <b>Manual Download</b> for the <em>PJMScripts V4.9</em> archive — never use Vortex or MO2 to install it. After extracting, also download the updated <b>FO4_CheckPrevisbines.pas</b> and <b>GeneratePrevisibines.bat</b> from the “Updated Files” tab; they are newer than the copies inside the main kit. <em>Credit: PJM’s Precombine - Previs Patching Scripts by PJMail — Nexus #69978.</em></>,
+              details: <>On the PJM mod page click <b>Manual Download</b> for the <em>PJMScripts V4.9</em> archive — never use Vortex or MO2 to install it. After extracting, also download the updated <b>FO4_CheckPrevisbines.pas</b> and <b>GeneratePrevisibines.bat</b> from the "Updated Files" tab; they are newer than the copies inside the main kit. <em>Credit: PJM's Precombine - Previs Patching Scripts by PJMail — Nexus #69978.</em></>,
             },
             {
               id: 'get-ckpe',
               title: 'Download and install CKPE from Nexus',
-              details: <>Use the direct <b>Nexus #51165</b> link in the panel. Install manually: (1) delete previous CKPE versions/libraries, (2) extract the zip into your Fallout 4 folder containing <code>CreationKit.exe</code>, (3) launch the Creation Kit. If you are on a downgraded (OG) game and need CKPE before V0.6, also convert BA2 archives to V1 via Collective Modding Toolkit and swap Interface/Shaders BA2s for OG versions — see PJM’s FAQ for exact instructions. The CKPE page also links a Darkfox127 installation video reference. <em>Credit/source: Creation Kit Platform Extended by perchik71 (Nexus #51165).</em></>,
+              details: <>Use the direct <b>Nexus #51165</b> link in the panel. Install manually: (1) delete previous CKPE versions/libraries, (2) extract the zip into your Fallout 4 folder containing <code>CreationKit.exe</code>, (3) launch the Creation Kit. If you are on a downgraded (OG) game and need CKPE before V0.6, also convert BA2 archives to V1 via Collective Modding Toolkit and swap Interface/Shaders BA2s for OG versions — see PJM's FAQ for exact instructions. The CKPE page also links a Darkfox127 installation video reference. <em>Credit/source: Creation Kit Platform Extended by perchik71 (Nexus #51165).</em></>,
             },
           ],
         },
@@ -726,7 +726,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'install-prp',
               title: 'Install PRP in your mod manager',
-              details: <>Install, enable, and deploy PRP (Vortex) or ensure it is enabled (MO2). Sort load order — PRP usually sits late. Follow the author’s README and any patch-specific notes.</>,
+              details: <>Install, enable, and deploy PRP (Vortex) or ensure it is enabled (MO2). Sort load order — PRP usually sits late. Follow the author's README and any patch-specific notes.</>,
             },
             {
               id: 'patches',
@@ -736,7 +736,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'extract-scripts',
               title: 'Extract PJMScripts into your FO4Edit directory',
-              details: <>Unzip the PJMScripts archive so every <code>*.pas</code> file lands in <code>FO4Edit\Edit Scripts\</code>. Place <code>GeneratePrevisibines.bat</code> in the same folder as <code>FO4Edit64.exe</code>. Overwrite with the “Updated Files” versions of <code>FO4_CheckPrevisbines.pas</code> and <code>GeneratePrevisibines.bat</code>.</>,
+              details: <>Unzip the PJMScripts archive so every <code>*.pas</code> file lands in <code>FO4Edit\Edit Scripts\</code>. Place <code>GeneratePrevisibines.bat</code> in the same folder as <code>FO4Edit64.exe</code>. Overwrite with the "Updated Files" versions of <code>FO4_CheckPrevisbines.pas</code> and <code>GeneratePrevisibines.bat</code>.</>,
             },
             {
               id: 'launcher-once',
@@ -753,7 +753,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'ckpe-toml',
               title: 'Configure CreationKitPlatformExtended.toml',
-              details: <>Open <code>CreationKitPlatformExtended.toml</code> and follow its instructions, or replace it with a pre-configured copy from CKPE’s Optional Files. If on a downgraded CK (before V0.6), also set <code>bOwnArchiveLoader=false</code> and <code>bBSPointerHandleExtremly=true</code> in <code>CreationKitPlatformExtended.ini</code>.</>,
+              details: <>Open <code>CreationKitPlatformExtended.toml</code> and follow its instructions, or replace it with a pre-configured copy from CKPE's Optional Files. If on a downgraded CK (before V0.6), also set <code>bOwnArchiveLoader=false</code> and <code>bBSPointerHandleExtremly=true</code> in <code>CreationKitPlatformExtended.ini</code>.</>,
             },
             {
               id: 'ckpe-faq',
@@ -779,7 +779,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
               id: 'mo2-empty-mod',
               title: state.modManager === 'mo2' ? 'MO2: Create empty mod to receive generated files' : 'Non-MO2: keep Data/vis and Data/meshes/Precombined empty before each run',
               details: state.modManager === 'mo2'
-                ? <>Create an <b>empty mod</b> in MO2, place it at the bottom of your load order, and activate it. For both <code>FO4Edit64.exe</code> and <code>GeneratePrevisibines.bat</code> executables, tick <b>“Create Files in Mod instead of Overwrite”</b> and set it to this empty mod. Without this, <code>GeneratePrevisbines.bat</code> will fail because MO2 intercepts the files it needs (including <code>xPrevisPatch.esp</code>). If a phase still fails due to MO2 file-moving delays, just re-run that phase.</>
+                ? <>Create an <b>empty mod</b> in MO2, place it at the bottom of your load order, and activate it. For both <code>FO4Edit64.exe</code> and <code>GeneratePrevisibines.bat</code> executables, tick <b>"Create Files in Mod instead of Overwrite"</b> and set it to this empty mod. Without this, <code>GeneratePrevisbines.bat</code> will fail because MO2 intercepts the files it needs (including <code>xPrevisPatch.esp</code>). If a phase still fails due to MO2 file-moving delays, just re-run that phase.</>
                 : <>Before every build run, confirm <code>Data/vis</code> and <code>Data/meshes/Precombined</code> are empty — the bat will error if loose previs or precombine files are found there.</>,
             },
           ],
@@ -797,7 +797,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'run-check',
               title: 'Run FO4Check_Previsbines.pas to find all conflicts',
-              details: <>Launch <code>FO4Edit64.exe</code> with your full load order (via MO2 if applicable) and wait for the cache to finish. Right-click anywhere → <b>Apply Script…</b> → choose <b>FO4Check_Previsbines.pas</b> → OK. Select option <b>1) Fix all Cell Previs/config conflicts</b> → OK. This can take 1 hour or more. When the last line reads <em>“Generation Complete”</em>, exit xEdit saving and run <code>GeneratePrevisibines.bat</code>. The full batch build can take 6+ hours.</>,
+              details: <>Launch <code>FO4Edit64.exe</code> with your full load order (via MO2 if applicable) and wait for the cache to finish. Right-click anywhere → <b>Apply Script…</b> → choose <b>FO4Check_Previsbines.pas</b> → OK. Select option <b>1) Fix all Cell Previs/config conflicts</b> → OK. This can take 1 hour or more. When the last line reads <em>"Generation Complete"</em>, exit xEdit saving and run <code>GeneratePrevisibines.bat</code>. The full batch build can take 6+ hours.</>,
             },
             {
               id: 'worldspace-browser',
@@ -807,7 +807,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'lighting-env-patch',
               title: 'Optional: fix overridden Lighting/Weather/Fog/Music — create a Cell Config patch',
-              details: <>Mods that change Lighting, Fog, Ambient Music, Weather, or Location store those settings in CELL records — PRP and Previs patches often reset them to base game values. <b>Fix:</b> place all your Lighting/Weather/etc mods <em>before</em> PRP in your load order, then in xEdit right-click any mod → Apply Script → <b>FO4Check_Previsbines.pas</b> → option <b>“4) Fix only Cell Config Conflicts (Region/MHDT/Lighting/Weather/Fog etc)”</b>. Give the patch a name and click OK. Place the resulting patch at the very end of your load order, after all Previs mods. To create a patch for a single mod only (e.g. a PRP patch for ELFX/Ultra Interior Lighting), load only that mod and PRP in xEdit, right-click the mod → Run Script → FO4Check_Previsbines.pas → option 4 → “Only what you highlighted in xEdit”. Full details and the list of all CELL/WRLD fields handled are in <b>PJM_LIGHTING_ENVIRONMENT_PATCHES.md</b>. Credit: PJMail, Nexus #69978.</>,
+              details: <>Mods that change Lighting, Fog, Ambient Music, Weather, or Location store those settings in CELL records — PRP and Previs patches often reset them to base game values. <b>Fix:</b> place all your Lighting/Weather/etc mods <em>before</em> PRP in your load order, then in xEdit right-click any mod → Apply Script → <b>FO4Check_Previsbines.pas</b> → option <b>"4) Fix only Cell Config Conflicts (Region/MHDT/Lighting/Weather/Fog etc)"</b>. Give the patch a name and click OK. Place the resulting patch at the very end of your load order, after all Previs mods. To create a patch for a single mod only (e.g. a PRP patch for ELFX/Ultra Interior Lighting), load only that mod and PRP in xEdit, right-click the mod → Run Script → FO4Check_Previsbines.pas → option 4 → "Only what you highlighted in xEdit". Full details and the list of all CELL/WRLD fields handled are in <b>PJM_LIGHTING_ENVIRONMENT_PATCHES.md</b>. Credit: PJMail, Nexus #69978.</>,
             },
           ],
         },
@@ -819,17 +819,17 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'conflicts',
               title: 'If you see flicker/pop-in after PRP',
-              details: <>You likely have a mod editing the same cells without a PRP patch. Run <b>FO4Check_Previsbines.pas → option 1</b> to let PJM’s script locate every conflict automatically, then create or install the appropriate compatibility patch.</>,
+              details: <>You likely have a mod editing the same cells without a PRP patch. Run <b>FO4Check_Previsbines.pas → option 1</b> to let PJM's script locate every conflict automatically, then create or install the appropriate compatibility patch.</>,
             },
             {
               id: 'bat-wont-run',
               title: "If GeneratePrevisibines.bat won't run — 'directories not empty'",
-              details: <>The error “Precombine/Previs directories are not Empty” means your load order contains mods with <em>loose</em> previs files. These must be packed into BA2 archives before you can build a patch. Identify and fix those mods first, then re-run the bat.</>,
+              details: <>The error "Precombine/Previs directories are not Empty" means your load order contains mods with <em>loose</em> previs files. These must be packed into BA2 archives before you can build a patch. Identify and fix those mods first, then re-run the bat.</>,
             },
             {
               id: 'restart-failed-step',
               title: 'How to restart GeneratePrevisibines.bat from a failed step',
-              details: <>Re-run the bat with the same arguments. Use the same patch name. When prompted <em>“Plugin already exists, Use It? [Y], Exit [N], Continue from failed step [C]”</em> — press <b>C</b>. At <em>“Restart at step (1–8 or 0 to exit):”</em> press the number of the failed step. If prompted to clean a directory, press <b>Y</b>. The step re-runs and continues automatically on success. A completed run asks <em>“Remove working files [Y]?”</em> — press <b>Y</b>. The 4 resulting files are your previs patch; place them at the bottom of your load order.</>,
+              details: <>Re-run the bat with the same arguments. Use the same patch name. When prompted <em>"Plugin already exists, Use It? [Y], Exit [N], Continue from failed step [C]"</em> — press <b>C</b>. At <em>"Restart at step (1-8 or 0 to exit):"</em> press the number of the failed step. If prompted to clean a directory, press <b>Y</b>. The step re-runs and continues automatically on success. A completed run asks <em>"Remove working files [Y]?"</em> — press <b>Y</b>. The 4 resulting files are your previs patch; place them at the bottom of your load order.</>,
             },
             {
               id: 'bat-error-ref',
@@ -839,27 +839,27 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'ck-crash-access-violation',
               title: 'CK crashes with Access violation 0xC0000005 during Precombine build',
-              details: <>This is the most common CK failure — caused by a corrupt or incompatible mesh on a Precombineable Reference (STAT or SCOL base type). <b>Step 1:</b> Check <code>CK.log</code> (in your CK directory) for the last <em>“DEFAULT: Generating for …”</em> line — that identifies the failing cell. <b>Step 2:</b> Open xEdit with just your patch mod, find that cell, note the other mods touching it (ignore base game, DLCs, UFO4P, PRP). Highlight those mods → right-click → Apply Script → <b>FO4FindNewPCStatics.pas</b>. If bad meshes are found (marked <code>!</code>), click “Exclude Bad?” and retry the Precombine phase. Credit: PJM’s “Resolving Creation Kit Crashes” article, Nexus #69978.</>,
+              details: <>This is the most common CK failure — caused by a corrupt or incompatible mesh on a Precombineable Reference (STAT or SCOL base type). <b>Step 1:</b> Check <code>CK.log</code> (in your CK directory) for the last <em>"DEFAULT: Generating for …"</em> line — that identifies the failing cell. <b>Step 2:</b> Open xEdit with just your patch mod, find that cell, note the other mods touching it (ignore base game, DLCs, UFO4P, PRP). Highlight those mods → right-click → Apply Script → <b>FO4FindNewPCStatics.pas</b>. If bad meshes are found (marked <code>!</code>), click "Exclude Bad?" and retry the Precombine phase. Credit: PJM's "Resolving Creation Kit Crashes" article, Nexus #69978.</>,
             },
             {
               id: 'ck-crash-no-start',
               title: "CK doesn't start or returns 'GeneratePrecombined failed' with an error code",
-              details: <>If the CK doesn’t start at all, the problem is your PC setup, not a mod. Verify <code>steam_appid.txt</code> is present with <code>1946160</code>; verify CKPE is installed and <code>.toml</code> is configured; if using MO2, confirm FO4Edit and GeneratePrevisibines.bat are registered as Executables with the correct AppID. If you get a numeric exit code like <em>-1073741819</em>, convert to hex (e.g. 0xC0000005 = Access Violation) and search “windows error 0xHHHHHHHH”. Error -1073740771 / 0xC000041D at end of a CK phase can be ignored if the CK saved successfully beforehand.</>,
+              details: <>If the CK doesn't start at all, the problem is your PC setup, not a mod. Verify <code>steam_appid.txt</code> is present with <code>1946160</code>; verify CKPE is installed and <code>.toml</code> is configured; if using MO2, confirm FO4Edit and GeneratePrevisibines.bat are registered as Executables with the correct AppID. If you get a numeric exit code like <em>-1073741819</em>, convert to hex (e.g. 0xC0000005 = Access Violation) and search "windows error 0xHHHHHHHH". Error -1073740771 / 0xC000041D at end of a CK phase can be ignored if the CK saved successfully beforehand.</>,
             },
             {
               id: 'ck-crash-mesh-replacer',
               title: 'CK still crashes after FO4FindNewPCStatics — mesh or texture replacer suspected',
-              details: <><b>Mesh replacers</b> (HD model mods) don’t add Cell overrides, so they won’t appear in the initial scan. Load xEdit with only your patch mod, select ALL other mods, and run <b>FO4FindNewPCStatics.pas</b> against everything. If nothing is found, suspect a <b>texture replacer</b>: temporarily disable all mods containing <code>- Textures.BA2</code> or loose <code>.dds</code> files, recreate your patch, and retry. Re-enable texture mods one at a time to isolate the culprit. Note: texture mods do not need to be enabled during precombine generation.</>,
+              details: <><b>Mesh replacers</b> (HD model mods) don't add Cell overrides, so they won't appear in the initial scan. Load xEdit with only your patch mod, select ALL other mods, and run <b>FO4FindNewPCStatics.pas</b> against everything. If nothing is found, suspect a <b>texture replacer</b>: temporarily disable all mods containing <code>- Textures.BA2</code> or loose <code>.dds</code> files, recreate your patch, and retry. Re-enable texture mods one at a time to isolate the culprit. Note: texture mods do not need to be enabled during precombine generation.</>,
             },
             {
               id: 'ck-crash-single-cell',
               title: 'Speed up fault-finding: test a single cell only',
-              details: <>Instead of a full precombine build each time, generate a single-cell test patch. Load your full load order in xEdit, find the failing cell by FormID (exterior) or EditorID (interior), right-click it → Apply Script → <b>FO4Check_Previsbines.pas</b> → choose “Build new Precomb/Previs …” AND tick “Only what you highlighted in xEdit”. This produces a small <code>xPrevisPatch.esp</code> to feed to GeneratePrevisibines.bat just for that one cell.</>,
+              details: <>Instead of a full precombine build each time, generate a single-cell test patch. Load your full load order in xEdit, find the failing cell by FormID (exterior) or EditorID (interior), right-click it → Apply Script → <b>FO4Check_Previsbines.pas</b> → choose "Build new Precomb/Previs …" AND tick "Only what you highlighted in xEdit". This produces a small <code>xPrevisPatch.esp</code> to feed to GeneratePrevisibines.bat just for that one cell.</>,
             },
             {
               id: 'manual-exclude-refr',
               title: 'Manually exclude a Reference from being Precombined',
-              details: <>FO4Check_Previsbines.pas and FO4FindNewPCStatics.pas do this automatically. To do it by hand: find the REFR in xEdit and set its <b>XLRT — Location Ref Type</b> to <code>NoObjectCombinationRefType</code>. To exclude every reference sharing the same base object, find the base record (NAME — Base) and set its <b>FTYP — Force Loc Ref Type</b> to <code>NoObjectCombinationRefType</code>. Credit: PJM’s “Resolving Creation Kit Crashes” article, Nexus #69978 (PJMail, Jun 2025).</>,
+              details: <>FO4Check_Previsbines.pas and FO4FindNewPCStatics.pas do this automatically. To do it by hand: find the REFR in xEdit and set its <b>XLRT — Location Ref Type</b> to <code>NoObjectCombinationRefType</code>. To exclude every reference sharing the same base object, find the base record (NAME — Base) and set its <b>FTYP — Force Loc Ref Type</b> to <code>NoObjectCombinationRefType</code>. Credit: PJM's "Resolving Creation Kit Crashes" article, Nexus #69978 (PJMail, Jun 2025).</>,
             },
             {
               id: 'faq',
@@ -1142,104 +1142,60 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
                   <button
                     key={l.url}
                     type="button"
+        
                     onClick={() => openUrl(l.url)}
-                    className="text-left rounded-lg border border-slate-800 bg-slate-900/20 hover:border-slate-600 p-3 transition-colors"
+                    className="group text-left w-full p-3 rounded-lg border border-slate-800 bg-slate-900/40 hover:border-emerald-500/40 hover:bg-emerald-900/10 transition-colors"
+                    title={l.url}
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-start gap-2">
+                      <ExternalLink className="w-3 h-3 mt-0.5 text-emerald-400/60 shrink-0" />
                       <div className="min-w-0">
-                        <div className="text-xs font-black text-white truncate">{l.label}</div>
-                        <div className="text-[10px] text-slate-500 truncate">{l.url}</div>
+                        <div className="text-xs font-bold text-slate-200 group-hover:text-emerald-200 truncate">{l.label}</div>
+                        {l.note && <div className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">{l.note}</div>}
+                        <div className="text-[10px] text-emerald-500/60 mt-1 truncate">{l.url}</div>
                       </div>
-                      <ExternalLink className="w-4 h-4 text-slate-400" />
                     </div>
-                    {l.note && <div className="mt-2 text-[11px] text-slate-400">{l.note}</div>}
                   </button>
                 ))}
               </div>
 
-              <div className="mt-5 border-t border-slate-800 pt-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="text-xs font-black tracking-widest uppercase text-slate-400">{t('installWizard.fromVault', 'From your Knowledge Vault')}</div>
-                  <div className="text-[11px] text-slate-500">{t('installWizard.openVault', 'Open Memory Vault')}</div>
-                </div>
-
-                {vaultLinks.length === 0 ? (
-                  <div className="mt-2 text-[11px] text-slate-400">
-                    No direct URLs found for this topic in your local Vault yet. If you’ve saved guides with links, add them to the Vault so Mossy can cite them.
-                    <div className="mt-2 flex items-center gap-2">
+              {vaultLinks.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-[10px] font-black tracking-widest uppercase text-slate-500 mb-2">{t('installWizard.fromVault', 'From Your Knowledge Vault')}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {vaultLinks.map((url) => (
                       <button
+                        key={url}
                         type="button"
-                        onClick={() => openUrl(`https://www.nexusmods.com/fallout4/search/?gsearch=${encodeURIComponent(state.topic)}&gsearchtype=mods`)}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-900/20 border border-blue-500/30 text-blue-200 text-xs font-bold hover:bg-blue-900/30 transition-colors"
+                        onClick={() => openUrl(url)}
+                        title={url}
+                        className="text-[10px] px-2 py-1 rounded border border-slate-700 bg-slate-900/40 text-slate-300 hover:border-emerald-500/40 hover:text-emerald-200 transition-colors truncate max-w-[280px]"
                       >
-                        <Search className="w-4 h-4" />
-                        {t('installWizard.searchNexus', 'Search Nexus')}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {vaultLinks.map((u) => (
-                      <button
-                        key={u}
-                        type="button"
-                        onClick={() => openUrl(u)}
-                        className="text-left rounded-lg border border-emerald-500/20 bg-emerald-900/10 hover:border-emerald-400/30 p-3 transition-colors"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-xs font-black text-emerald-100 truncate">{t('installWizard.vaultLink', 'Vault link')}</div>
-                            <div className="text-[10px] text-emerald-200/60 truncate">{u}</div>
-                          </div>
-                          <ExternalLink className="w-4 h-4 text-emerald-300" />
-                        </div>
+                        {url.replace(/^https?:\/\//, '')}
                       </button>
                     ))}
                   </div>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-black/40 p-5">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="text-xs font-black tracking-widest uppercase text-slate-400">Optional: Knowledge Vault Import</div>
-                  <div className="text-[11px] text-slate-400 mt-1">
-                    Import a Mossy Vault JSON export (from Memory Vault) or load the bundled vault. This does not include app scan data.
-                  </div>
                 </div>
-                <div className="text-[11px] text-slate-500">Current items: {vault.length}</div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-3 items-center">
-                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/40 border border-slate-800 text-xs font-bold text-slate-200 hover:border-slate-600 transition-colors cursor-pointer">
-                  <ArrowDownToLine className="w-4 h-4" />
-                  Import JSON
-                  <input type="file" accept="application/json" onChange={handleVaultFile} className="hidden" />
-                </label>
-                <button
-                  type="button"
-                  onClick={loadBundledVault}
-                  disabled={vaultImportBusy}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 text-xs font-bold hover:bg-emerald-900/30 transition-colors disabled:opacity-60"
-                >
-                  <Download className="w-4 h-4" />
-                  Load bundled vault
-                </button>
-                <div className="text-[11px] text-slate-500">Open Memory Vault from the sidebar if you need to manage items.</div>
-              </div>
-              {vaultImportStatus && (
-                <div className="mt-3 text-[11px] text-slate-300">{vaultImportStatus}</div>
               )}
             </div>
 
-            {/* Steps */}
-            <div className="space-y-6">
-              {sections.map((section) => (
+            {/* Checklist sections */}
+            {sections.map((section) => {
+              const sectionCompleted = section.steps.filter((s) => isChecked(state.topic, section.id, s.id)).length;
+              const SectionIcon = section.icon;
+              return (
                 <div key={section.id} className="rounded-xl border border-slate-800 bg-black/40 p-5">
                   <div className="flex items-center gap-3 mb-4">
-                    <section.icon className="w-5 h-5 text-emerald-300" />
-                    <div className="text-sm font-black tracking-widest uppercase text-slate-200">{section.title}</div>
+                    <SectionIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-black text-white tracking-tight">{section.title}</div>
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-400 shrink-0">
+                      {sectionCompleted}/{section.steps.length}
+                    </div>
+                    {sectionCompleted === section.steps.length && (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    )}
                   </div>
                   <div className="space-y-3">
                     {section.steps.map((step) => (
@@ -1254,38 +1210,60 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
                     ))}
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
 
-            {/* Tip: saved scripts location */}
-            <div className="rounded-xl border border-slate-800 bg-black/40 p-5">
-              <div className="flex items-start justify-between gap-4">
+            {/* Knowledge Vault management */}
+            <div className="rounded-xl border border-slate-700 bg-black/40 p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <FolderOpen className="w-4 h-4 text-slate-400 shrink-0" />
                 <div>
-                  <div className="text-xs font-black tracking-widest uppercase text-slate-400">{t('installWizard.tutorTip', 'Tutor Tip')}</div>
-                  <div className="mt-2 text-[11px] text-slate-300 leading-relaxed">
-                    When Mossy generates scripts (Papyrus / xEdit / Blender), she saves a real file and includes a <b>Saved:</b> path in the chat.
-                    Use the <b>Open folder</b> button in chat to jump straight to it.
-                  </div>
+                  <div className="text-xs font-black tracking-widest uppercase text-slate-400">{t('installWizard.vault.title', 'Knowledge Vault')}</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">{t('installWizard.vault.subtitle', 'Import URLs and notes from your vault to surface relevant links above.')}</div>
                 </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <label className="inline-flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg bg-slate-900/40 border border-slate-700 text-xs font-bold text-slate-200 hover:border-slate-500 transition-colors">
+                  <ArrowDownToLine className="w-3 h-3" />
+                  {vaultImportBusy ? t('installWizard.vault.importing', 'Importing…') : t('installWizard.vault.importJson', 'Import JSON')}
+                  <input type="file" accept=".json" className="sr-only" onChange={handleVaultFile} disabled={vaultImportBusy} />
+                </label>
+
                 <button
                   type="button"
-                  onClick={() => {
-                    if (lastDownloadPath) revealPath(lastDownloadPath);
-                  }}
-                  disabled={!lastDownloadPath}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/40 border border-slate-800 text-xs font-bold text-slate-200 hover:border-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={
-                    lastDownloadPath
-                      ? t('installWizard.openLastLocationTitle', '(Optional) Open last saved location if available')
-                      : t('installWizard.openLastLocationUnavailableTitle', 'No recent saved location found yet')
-                  }
+                  onClick={loadBundledVault}
+                  disabled={vaultImportBusy}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/40 border border-slate-700 text-xs font-bold text-slate-200 hover:border-slate-500 transition-colors disabled:opacity-50"
                 >
-                  <FolderOpen className="w-4 h-4" />
-                  {t('installWizard.openLastLocation', 'Open last location')}
+                  <Package className="w-3 h-3" />
+                  {t('installWizard.vault.loadBundled', 'Load Bundled Vault')}
                 </button>
-              </div>
-            </div>
 
+                {lastDownloadPath && (
+                  <button
+                    type="button"
+                    onClick={() => revealPath(lastDownloadPath)}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/40 border border-slate-700 text-xs font-bold text-slate-200 hover:border-slate-500 transition-colors"
+                  >
+                    <FolderOpen className="w-3 h-3" />
+                    {t('installWizard.vault.openDownloads', 'Open Last Download Location')}
+                  </button>
+                )}
+              </div>
+
+              {vaultImportStatus && (
+                <div className="mt-3 text-[11px] text-slate-300 bg-slate-900/60 rounded-lg px-3 py-2 border border-slate-700">
+                  {vaultImportStatus}
+                </div>
+              )}
+
+              {vault.length > 0 && (
+                <div className="mt-3 text-[10px] text-slate-500">
+                  {vault.length} {t('installWizard.vault.count', 'items in vault')}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

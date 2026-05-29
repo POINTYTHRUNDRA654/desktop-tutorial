@@ -90,10 +90,10 @@ export const LeveledListInjectionGuide: React.FC<LeveledListInjectionGuideProps>
           </div>
 
           <div className="bg-green-900/20 border border-green-700/30 rounded p-4">
-            <h4 className="font-bold text-green-300 mb-2">Fast Verification Loop (10–15 minutes)</h4>
+            <h4 className="font-bold text-green-300 mb-2">Fast Verification Loop (10-15 minutes)</h4>
             <ol className="text-sm text-slate-200 space-y-2 list-decimal list-inside">
               <li>
-                <strong>Confirm F4SE is loading</strong> (if you’re doing script injection).
+                <strong>Confirm F4SE is loading</strong> (if you're doing script injection).
                 <div className="text-xs text-slate-400 mt-1">In-game console: try a known F4SE command (or check your mod manager logs).</div>
               </li>
               <li>
@@ -114,8 +114,8 @@ export const LeveledListInjectionGuide: React.FC<LeveledListInjectionGuideProps>
           <div className="bg-orange-900/20 border border-orange-700/30 rounded p-4">
             <h4 className="font-bold text-orange-300 mb-2">Common Failure Causes</h4>
             <ul className="text-sm text-slate-300 space-y-2 list-disc list-inside">
-              <li>Script compiles but doesn’t run: quest not Start Game Enabled, script not attached, or plugin not loading.</li>
-              <li>Trace doesn’t appear: Papyrus logging disabled or writing to a different profile/runtime folder.</li>
+              <li>Script compiles but doesn't run: quest not Start Game Enabled, script not attached, or plugin not loading.</li>
+              <li>Trace doesn't appear: Papyrus logging disabled or writing to a different profile/runtime folder.</li>
               <li>Nothing spawns: wrong list type (LVLI vs LVLN), wrong level/count, or you injected into an unused list.</li>
               <li>Conflicts: you accidentally overrode the vanilla leveled list record instead of injecting at runtime.</li>
             </ul>

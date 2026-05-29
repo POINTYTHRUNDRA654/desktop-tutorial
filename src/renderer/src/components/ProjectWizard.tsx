@@ -75,8 +75,15 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
           const s = await bridge.wizardGetState(wizardId);
           setState(normalizeWizardState(s));
         }
-      } catch (e) {
-        console.error('Failed to fetch wizard state:', e);
+      } catch (e: any) {
+        // "No handler registered" means the main process doesn't support this yet —
+        // silently degrade rather than polluting the console with an error.
+        const msg = String(e?.message || e);
+        if (msg.includes('No handler registered') || msg.includes('no handler')) {
+          console.warn('[ProjectWizard] wizard IPC not available — degraded mode');
+        } else {
+          console.warn('[ProjectWizard] Failed to fetch wizard state:', msg);
+        }
       } finally {
         setLoading(false);
       }
@@ -89,10 +96,29 @@ const ProjectWizard: React.FC<ProjectWizardProps> = ({ wizardId, onActionComplet
       const bridge = (window as any).electronAPI;
       if (bridge?.wizardUpdateStep) {
         const nextState = await bridge.wizardUpdateStep(wizardId, stepId, status, data);
-        setState(normalizeWizardState(nextState));
+        if (nextState) setState(normalizeWizardState(nextState));
+      } else {
+        // No IPC — update state locally so the UI still responds
+        setState(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            steps: prev.steps.map(s => s.id === stepId ? { ...s, status, data: data ?? s.data } : s),
+            lastUpdated: Date.now(),
+          };
+        });
       }
-    } catch (e) {
-      console.error('Failed to update step:', e);
+    } catch (e: any) {
+      console.warn('[ProjectWizard] Failed to update step:', String(e?.message || e));
+      // Still update locally so the UI doesn't freeze
+      setState(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          steps: prev.steps.map(s => s.id === stepId ? { ...s, status, data: data ?? s.data } : s),
+          lastUpdated: Date.now(),
+        };
+      });
     }
   };
 

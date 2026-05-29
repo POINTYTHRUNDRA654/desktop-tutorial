@@ -955,6 +955,13 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [step]);
 
+    // Persists across effect re-runs within the same component lifetime.
+    // When the user triggers a rescan, mossy_force_onboarding is set, the effect
+    // fires, we remove the flag AND record it here so that if onComplete identity
+    // changes (causing the effect to fire again), the second run still respects
+    // force mode and does NOT auto-complete via the hasScanData shortcut.
+    const forceOnboardingActiveRef = useRef(false);
+
     useEffect(() => {
         const forceOnboarding = localStorage.getItem('mossy_force_onboarding') === 'true';
         if (forceOnboarding) {
@@ -963,7 +970,16 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             // re-mounts mid-flow (e.g. React StrictMode double-render, hot reload,
             // or a crash that causes the component to unmount/remount).
             localStorage.removeItem('mossy_force_onboarding');
+            // Persist force mode in a ref so subsequent effect re-runs (caused by
+            // onComplete identity changes) don't bypass it via the hasScanData check.
+            forceOnboardingActiveRef.current = true;
             return; // Don't skip - let the user go through onboarding
+        }
+
+        // If a previous run of this effect already activated force mode, respect it.
+        if (forceOnboardingActiveRef.current) {
+            console.log('[FirstRunOnboarding] Force onboarding mode active (ref). Staying in onboarding flow.');
+            return;
         }
 
         // If onboarding was already completed, skip straight through.
@@ -981,7 +997,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         const hasScanData =
             !!localStorage.getItem('mossy_scan_summary') &&
             !!localStorage.getItem('mossy_all_detected_apps');
-        if (hasScanData && !forceOnboarding) {
+        if (hasScanData) {
             console.log('[FirstRunOnboarding] Scan data already exists from previous install. Preserving and completing onboarding.');
             localStorage.setItem('mossy_onboarding_complete', 'true');
             localStorage.setItem('mossy_onboarding_completed', 'true');
@@ -1755,8 +1771,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 {step === 'edition' && (
                     <div className="text-center animate-fade-in">
                         <Sparkles className="w-20 h-20 mx-auto mb-6 text-amber-400" />
-                        <h1 className="text-4xl font-bold text-white mb-3">Welcome to Mossy v{packageJson.version}</h1>
-                        <p className="text-lg text-slate-300 mb-2">Your AI-powered Fallout 4 modding assistant</p>
+                        <h1 className="text-4xl font-bold text-white mb-3">{t('onboarding.welcome.title', 'Welcome to Mossy')} v{packageJson.version}</h1>
+                        <p className="text-lg text-slate-300 mb-2">{t('onboarding.welcome.subtitle', 'Your AI-powered Fallout 4 modding assistant')}</p>
                         <p className="text-slate-400 mb-8">
                             Your AI-powered Fallout 4 modding assistant
                         </p>
@@ -1766,8 +1782,8 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             {mossyEdition === 'nvidia' ? (
                                 <div className="relative text-left rounded-2xl border-2 p-6 bg-green-900/60 border-green-400 shadow-lg shadow-green-900/40">
                                     <Zap className="w-10 h-10 text-green-400 mb-3" />
-                                    <div className="text-lg font-bold text-white mb-1">NVIDIA Edition</div>
-                                    <div className="text-xs text-slate-300 mb-3">CUDA 12.4 · GPU-accelerated AI</div>
+                                    <div className="text-lg font-bold text-white mb-1">{t('onboarding.edition.nvidia', 'NVIDIA Edition')}</div>
+                                    <div className="text-xs text-slate-300 mb-3">{t('onboarding.edition.nvidiaSubtitle', 'CUDA 12.4 · GPU-accelerated AI')}</div>
                                     <ul className="text-xs text-slate-400 space-y-1">
                                         <li>✓ AI assistant &amp; mod tools</li>
                                         <li>✓ Full modding workflow</li>
@@ -1776,14 +1792,14 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         <li>⚠ Requires NVIDIA RTX / GTX GPU</li>
                                     </ul>
                                     <span className="absolute top-3 right-3 flex items-center gap-1 text-xs font-bold text-green-300 bg-green-900/70 px-2 py-0.5 rounded-full border border-green-500">
-                                        <Check className="w-3 h-3" /> NVIDIA Edition
+                                        <Check className="w-3 h-3" /> {t('onboarding.edition.nvidiaSelected', 'NVIDIA Edition')}
                                     </span>
                                 </div>
                             ) : (
                                 <div className="relative text-left rounded-2xl border-2 p-6 bg-blue-900/60 border-blue-400 shadow-lg shadow-blue-900/40">
                                     <Cpu className="w-10 h-10 text-blue-400 mb-3" />
-                                    <div className="text-lg font-bold text-white mb-1">Universal Edition</div>
-                                    <div className="text-xs text-slate-300 mb-3">CPU-based · Works on any hardware</div>
+                                    <div className="text-lg font-bold text-white mb-1">{t('onboarding.edition.universal', 'Universal Edition')}</div>
+                                    <div className="text-xs text-slate-300 mb-3">{t('onboarding.edition.universalSubtitle', 'CPU-based · Works on any hardware')}</div>
                                     <ul className="text-xs text-slate-400 space-y-1">
                                         <li>✓ AI assistant &amp; mod tools</li>
                                         <li>✓ Full modding workflow</li>
@@ -1791,7 +1807,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         <li className="text-slate-500">– Local AI fine-tuning not available</li>
                                     </ul>
                                     <span className="absolute top-3 right-3 flex items-center gap-1 text-xs font-bold text-blue-300 bg-blue-900/70 px-2 py-0.5 rounded-full border border-blue-500">
-                                        <Check className="w-3 h-3" /> Universal Edition
+                                        <Check className="w-3 h-3" /> {t('onboarding.edition.universalSelected', 'Universal Edition')}
                                     </span>
                                 </div>
                             )}
@@ -1829,7 +1845,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             onClick={() => setStep('welcome')}
                             className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 mx-auto transition-colors"
                         >
-                            Continue <ArrowRight className="w-5 h-5" />
+                            {t('onboarding.continue', 'Continue')} <ArrowRight className="w-5 h-5" />
                         </button>
                     </div>
                 )}
@@ -1837,7 +1853,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 {step === 'welcome' && (
                     <div className="text-center animate-fade-in">
                         <Sparkles className="w-20 h-20 mx-auto mb-6 text-amber-400" />
-                        <h1 className="text-4xl font-bold text-white mb-4">Welcome to Mossy v{packageJson.version}</h1>
+                        <h1 className="text-4xl font-bold text-white mb-4">{t('onboarding.welcome.title', 'Welcome to Mossy')} v{packageJson.version}</h1>
                         <p className="text-xl text-slate-300 mb-8">
                             Your AI-powered Fallout 4 modding assistant with next-gen voice conversation
                         </p>
@@ -1891,7 +1907,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 ))}
                             </div>
                             <div className="mt-3 pt-3 border-t border-slate-700 text-[10px] text-emerald-400">
-                                ✅ <strong>12 languages supported.</strong> UI language will update immediately. For voice support in your language, install the corresponding Windows voice pack.
+                                {t('onboarding.languages12', '✅ 12 languages supported. UI language will update immediately. For voice support in your language, install the corresponding Windows voice pack.')}
                             </div>
                         </div>
 
@@ -1899,7 +1915,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             onClick={() => setStep('version')}
                             className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 mx-auto transition-colors"
                         >
-                            Next <ArrowRight className="w-5 h-5" />
+                            {t('onboarding.next', 'Next')} <ArrowRight className="w-5 h-5" />
                         </button>
 
                         <div className="mt-6">
@@ -1926,7 +1942,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 {step === 'version' && (
                     <div className="text-center animate-fade-in">
                         <Download className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
-                        <h2 className="text-3xl font-bold text-white mb-3">Which Fallout 4 version do you have?</h2>
+                        <h2 className="text-3xl font-bold text-white mb-3">{t('onboarding.fo4Version.title', 'Which Fallout 4 version do you have?')}</h2>
                         <p className="text-slate-400 mb-6 max-w-xl mx-auto">
                             Mossy tailors its advice based on your game version — mod compatibility, F4SE version, and stability tools all depend on this. You can change it later in Settings.
                         </p>
@@ -1993,7 +2009,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                         <div className="font-semibold text-sm">{label}</div>
                                         {fo4Version === value && (
                                             <span className="flex items-center gap-1 text-xs font-bold text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded-full border border-emerald-500">
-                                                <Check className="w-3 h-3" /> Selected
+                                                <Check className="w-3 h-3" /> {t('onboarding.selected', 'Selected')}
                                             </span>
                                         )}
                                     </div>
@@ -2012,7 +2028,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             }}
                             className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 mx-auto transition-colors"
                         >
-                            Start System Scan <ArrowRight className="w-5 h-5" />
+                            {t('onboarding.startScan', 'Start System Scan')} <ArrowRight className="w-5 h-5" />
                         </button>
                         <button
                             type="button"
@@ -2031,7 +2047,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 {!scanError ? (
                                     <>
                                         <Loader className="w-16 h-16 mx-auto mb-6 text-amber-400 animate-spin" />
-                                        <h2 className="text-2xl font-bold text-white mb-4">Scanning Your System</h2>
+                                        <h2 className="text-2xl font-bold text-white mb-4">{t('onboarding.scanning.title', 'Scanning Your System')}</h2>
                                         <p className="text-slate-400 mb-6">
                                             Detecting installed programs and tools...
                                         </p>
@@ -2046,9 +2062,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 ) : (
                                     <>
                                         <X className="w-16 h-16 mx-auto mb-6 text-red-400" />
-                                        <h2 className="text-2xl font-bold text-white mb-4">Scan Failed</h2>
+                                        <h2 className="text-2xl font-bold text-white mb-4">{t('onboarding.scanFailed.title', 'Scan Failed')}</h2>
                                         <div className="bg-red-900/20 border border-red-700/40 rounded-lg p-4 mb-6 text-left">
-                                            <p className="text-red-300 text-sm font-semibold mb-2">Error Details:</p>
+                                            <p className="text-red-300 text-sm font-semibold mb-2">{t('onboarding.scanFailed.errorDetails', 'Error Details:')}</p>
                                             <p className="text-red-200/80 text-xs leading-relaxed break-words">
                                                 {scanError}
                                             </p>
@@ -2119,7 +2135,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     <div className="animate-fade-in">
                         <div className="text-center mb-8">
                             <Sparkles className="w-16 h-16 mx-auto mb-4 text-amber-400" />
-                            <h2 className="text-3xl font-bold text-white mb-3">Credits &amp; Acknowledgments</h2>
+                            <h2 className="text-3xl font-bold text-white mb-3">{t('onboarding.credits.title', 'Credits & Acknowledgments')}</h2>
                             <p className="text-slate-400 text-sm max-w-lg mx-auto">
                                 Mossy is built on the shoulders of giants. Here are the key projects and communities that make it possible.
                             </p>
@@ -2156,7 +2172,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 onClick={() => setStep('lists')}
                                 className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 transition-colors"
                             >
-                                Next <ArrowRight className="w-5 h-5" />
+                                {t('onboarding.next', 'Next')} <ArrowRight className="w-5 h-5" />
                             </button>
                             <button
                                 type="button"
@@ -2173,7 +2189,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     <div className="animate-fade-in">
                         <div className="text-center mb-8">
                             <Brain className="w-16 h-16 mx-auto mb-4 text-emerald-400" />
-                            <h2 className="text-3xl font-bold text-white mb-3">Whitelist &amp; Blacklist</h2>
+                            <h2 className="text-3xl font-bold text-white mb-3">{t('onboarding.whitelist.title', 'Whitelist & Blacklist')}</h2>
                             <p className="text-slate-400 text-sm max-w-lg mx-auto">
                                 Mossy has two built-in content control systems you can configure any time in <strong className="text-slate-300">Settings → Privacy</strong>.
                             </p>
@@ -2244,7 +2260,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 onClick={() => setStep('recommendations')}
                                 className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-lg flex items-center gap-3 transition-colors"
                             >
-                                Next: See Discovered Tools <ArrowRight className="w-5 h-5" />
+                                {t('onboarding.nextTools', 'Next: See Discovered Tools')} <ArrowRight className="w-5 h-5" />
                             </button>
                             <button
                                 type="button"
@@ -2261,11 +2277,11 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     <div className="animate-fade-in">
                         <div className="text-center mb-8">
                             <Cpu className="w-16 h-16 mx-auto mb-4 text-amber-400" />
-                            <h2 className="text-2xl font-bold text-white mb-2">Tools Discovered</h2>
+                            <h2 className="text-2xl font-bold text-white mb-2">{t('onboarding.tools.title', 'Tools Discovered')}</h2>
                             <p className="text-slate-400">
                                 I found {recommendations.length} recommended tools out of {allApps?.length || 'many'} total programs installed.
                                 <br />
-                                <span className="text-xs mt-1 block">Select tools you want me to know about and use:</span>
+                                <span className="text-xs mt-1 block">{t('onboarding.tools.selectHint', 'Select tools you want me to know about and use:')}</span>
                             </p>
                         </div>
 
@@ -2375,7 +2391,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             onClick={() => setStep('downloads')}
                             className="w-full px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
                         >
-                            Next: Download Recommended Tools <ArrowRight className="w-5 h-5" />
+                            {t('onboarding.nextDeps', 'Next: Download Recommended Tools')} <ArrowRight className="w-5 h-5" />
                         </button>
                     </div>
                 )}
@@ -2384,7 +2400,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     <div className="animate-fade-in">
                         <div className="text-center mb-6">
                             <Download className="w-16 h-16 mx-auto mb-4 text-amber-400" />
-                            <h2 className="text-2xl font-bold text-white mb-2">Install Dependencies & Tools</h2>
+                            <h2 className="text-2xl font-bold text-white mb-2">{t('onboarding.deps.title', 'Install Dependencies & Tools')}</h2>
                             <p className="text-slate-400 text-sm max-w-lg mx-auto">
                                 Everything Mossy depends on is listed here — runtime prerequisites first, then modding tools.
                                 Items already found on your system show <span className="text-emerald-400 font-semibold">Installed</span>.
@@ -2589,7 +2605,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             onClick={finishOnboarding}
                             className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
                         >
-                            <Check className="w-5 h-5" /> Finish Setup
+                            <Check className="w-5 h-5" /> {t('onboarding.finishSetup', 'Finish Setup')}
                         </button>
                     </div>
                 )}
@@ -2600,7 +2616,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                         <div className="overflow-y-auto max-h-[calc(90vh-200px)] text-center pr-2">
                             <Brain className="w-16 h-16 mx-auto mb-6 text-emerald-400" />
                             <div className="flex items-center justify-center gap-3 mb-3">
-                                <h2 className="text-3xl font-bold text-white">Feed Me the Base Game</h2>
+                                <h2 className="text-3xl font-bold text-white">{t('onboarding.spriggit.title', 'Feed Me the Base Game')}</h2>
                                 <span className="px-3 py-1 bg-amber-500/20 border border-amber-500/50 rounded-lg text-amber-300 text-xs font-bold uppercase tracking-wide">
                                     🚧 Work in Progress
                                 </span>
@@ -3466,7 +3482,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 disabled={spriggitStatus === 'running'}
                                 className="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-slate-200 rounded-lg font-semibold transition-colors"
                             >
-                                {(spriggitStatus === 'done' || spriggitStatus === 'partial') ? <><Check className="w-5 h-5 inline-block mr-1" /> Continue to Mossy</> : 'Skip for now'}
+                                {(spriggitStatus === 'done' || spriggitStatus === 'partial') ? <><Check className="w-5 h-5 inline-block mr-1" /> {t('onboarding.continueToMossy', 'Continue to Mossy')}</> : t('onboarding.skipForNow', 'Skip for now')}
                             </button>
                         </div>
                     </div>
@@ -3476,7 +3492,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                     <div className="animate-fade-in max-w-2xl mx-auto">
                         <div className="text-center mb-6">
                             <Brain className="w-14 h-14 mx-auto mb-3 text-emerald-400" />
-                            <h2 className="text-2xl font-bold text-white mb-2">Before we finish</h2>
+                            <h2 className="text-2xl font-bold text-white mb-2">{t('onboarding.identity.title', 'Before we finish')}</h2>
                             <p className="text-slate-400 text-sm">
                                 Tell me how you want to be addressed and where to store your persistent memory files.
                             </p>
@@ -3557,7 +3573,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 {step === 'complete' && (
                     <div className="text-center animate-fade-in">
                         <Check className="w-20 h-20 mx-auto mb-6 text-emerald-400" />
-                        <h2 className="text-3xl font-bold text-white mb-4">Setup Complete!</h2>
+                        <h2 className="text-3xl font-bold text-white mb-4">{t('onboarding.complete.title', 'Setup Complete!')}</h2>
                         <p className="text-xl text-slate-300 mb-6">
                             I'm ready to help you create amazing mods.
                         </p>

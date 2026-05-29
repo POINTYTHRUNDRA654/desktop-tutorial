@@ -1127,14 +1127,14 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                         },
                     ]}
                     verify={[
-                        'Click “Ingest Knowledge” → paste a short snippet → confirm it appears in the list.',
+                        'Click "Ingest Knowledge" → paste a short snippet → confirm it appears in the list.',
                         'Search for a unique word you pasted and confirm it matches.',
                         'Confirm the vault count badge updates across the app (Chat/Live pages show it).'
                     ]}
                     firstTestLoop={[
                         'Ingest 1 small text snippet + 1 local file → confirm both show as learned.',
                         'Open Chat and ask a question that should be answered from your ingested content.',
-                        'If using Live Synapse, connect and verify the “Vault loaded” badge reflects your count.'
+                        'If using Live Synapse, connect and verify the "Vault loaded" badge reflects your count.'
                     ]}
                     troubleshooting={[
                         'If PDF or file processing stalls, try a smaller file first to isolate whether it is a parsing issue.',
@@ -1244,7 +1244,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                     <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-20">
                         <Book className="w-16 h-16 mb-4 text-slate-600" />
                         <h3 className="text-lg font-medium text-slate-400">No memories found</h3>
-                        <p className="text-sm text-slate-500 max-w-sm">Mossy hasn't ingested any custom tutorials yet. Click 'Ingest Knowledge' to expand her capabilities.</p>
+                        <p className="text-sm text-slate-500 max-w-sm">Mossy hasn"t ingested any custom tutorials yet. Click 'Ingest Knowledge" to expand her capabilities.</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

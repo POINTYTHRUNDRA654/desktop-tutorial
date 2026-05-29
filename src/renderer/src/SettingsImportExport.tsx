@@ -27,13 +27,35 @@ export const SettingsImportExport: React.FC<SettingsImportExportProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const api: any = (window as any).electron?.api || (window as any).electronAPI;
 
+  // Sensitive keys must never be included in an exported backup file
+  const SENSITIVE_KEYS = new Set([
+    'groqApiKey', 'openaiApiKey', 'backendToken', 'githubToken',
+    'groqApiKeyHash', 'openaiApiKeyHash', 'backendTokenConfigured',
+  ]);
+
+  const scrubSensitiveFields = (obj: Record<string, any>): Record<string, any> => {
+    const result: Record<string, any> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (!SENSITIVE_KEYS.has(k)) result[k] = v;
+    }
+    return result;
+  };
+
   const handleExport = async () => {
     try {
       const localStorageData = onExport?.() || getAllSettings();
-      const electronSettings = await api?.getSettings?.().catch(() => undefined);
-      const snapshot: SettingsSnapshot = {
+      const rawElectronSettings = await api?.getSettings?.().catch(() => undefined);
+      // Strip all sensitive credentials before writing to disk
+      const electronSettings = rawElectronSettings ? scrubSensitiveFields(rawElectronSettings) : undefined;
+      const snapshot: SettingsSnapshot & { exportMeta?: object } = {
         localStorage: localStorageData,
         ...(electronSettings ? { electronSettings } : {}),
+        exportMeta: {
+          version: '2',
+          exportedAt: new Date().toISOString(),
+          appVersion: 'MOSSY.SPACE v5',
+          note: 'API keys and tokens are intentionally excluded from this backup.',
+        },
       };
       const dataStr = JSON.stringify(snapshot, null, 2);
       const dataBlob = new Blob([dataStr], { type: 'application/json' });
@@ -214,19 +236,21 @@ export const SettingsImportExport: React.FC<SettingsImportExportProps> = ({
         </div>
       </div>
 
-      <div className="bg-slate-800/50 p-4 rounded-lg">
-        <h4 className="font-medium text-white mb-2">What gets backed up?</h4>
+      <div className="bg-slate-800/50 p-4 rounded-lg space-y-3">
+        <h4 className="font-medium text-white">What gets backed up?</h4>
         <ul className="text-sm text-slate-300 space-y-1">
           <li>• UI preferences and theme settings</li>
-          <li>• Tool configurations and paths</li>
-          <li>• Favorite modules and bookmarks</li>
+          <li>• Tool configurations and external tool paths</li>
+          <li>• AI Engine settings (provider, model, token limit)</li>
+          <li>• Ollama base URL and model selection</li>
           <li>• Voice and TTS settings</li>
-          <li>• Project configurations</li>
+          <li>• Privacy and security toggles</li>
+          <li>• Project configurations and mod lists</li>
           <li>• Custom keyboard shortcuts</li>
         </ul>
-        <p className="text-xs text-slate-400 mt-3">
-          Note: API keys and sensitive data are not included in backups for security reasons.
-        </p>
+        <div className="rounded border border-amber-700/40 bg-amber-900/10 px-3 py-2 text-xs text-amber-200">
+          API keys (Groq, OpenAI, GitHub token) are intentionally excluded from backups for security. Re-enter them after restoring.
+        </div>
       </div>
     </div>
   );

@@ -15,6 +15,8 @@ const TourLauncher: React.FC<TourLauncherProps> = ({ className = '' }) => {
   };
 
   const startInitialInstall = () => {
+    const ok = window.confirm('Replay the full initial install experience?\n\nThis will restart the system scan and onboarding flow. Your settings, API keys, and data are preserved.');
+    if (!ok) return;
     window.dispatchEvent(new CustomEvent('start-initial-install'));
   };
 

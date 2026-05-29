@@ -159,7 +159,7 @@ const HavokGuide: React.FC<HavokGuideProps> = ({ embedded = false }) => {
       <div style={calloutStyle}>
         <div style={{ color: '#00ff00', fontWeight: 'bold', marginBottom: '6px' }}>Tools / Install / Verify (Fallout 4)</div>
         <div>
-          In Fallout 4 modding, “Havok” usually means <strong>HKX animation data + behavior graphs</strong>. The fastest success path is:
+          In Fallout 4 modding, "Havok" usually means <strong>HKX animation data + behavior graphs</strong>. The fastest success path is:
           <strong> author in Blender → export → convert to FO4 HKX → validate → test in-game</strong>.
         </div>
         <div style={{ marginTop: '8px' }}>
@@ -170,7 +170,7 @@ const HavokGuide: React.FC<HavokGuideProps> = ({ embedded = false }) => {
           <button style={buttonStyle} onClick={() => openNexusSearch('Bethesda Archive Extractor')}>Nexus search: BAE</button>
         </div>
         <div style={{ marginTop: '10px', padding: '8px', backgroundColor: 'rgba(255,200,0,0.07)', border: '1px solid #665500', borderRadius: '4px', fontSize: '12px', color: '#ccaa44' }}>
-          <strong>NG/AE note:</strong> The HKX animation format (Havok 2010.2.0-r1) is unchanged across OG (1.10.163), NG (1.10.980–984), and AE (1.11.x). The same exported HKX works on all three runtimes with no re-export needed.
+          <strong>NG/AE note:</strong> The HKX animation format (Havok 2010.2.0-r1) is unchanged across OG (1.10.163), NG (1.10.980-984), and AE (1.11.x). The same exported HKX works on all three runtimes with no re-export needed.
         </div>
       </div>
 

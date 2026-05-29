@@ -86,6 +86,68 @@
       "auto": "Automatyczny (systemowy)",
       "current": "Obecny",
       "save": "Zapisz"
+    },
+    "hub": {
+      "eyebrow": "Mossy Core — Ustawienia",
+      "title": "Centrum ustawień (wszystko w jednym)",
+      "subtitle": "Uporządkowany przepływ dla prywatności, języka, silnika AI, zewnętrznych narzędzi i kopii zapasowych.",
+      "flowTitle": "Przepływ (czytaj w kolejności)",
+      "flow1": "Skonfiguruj podstawy prywatności i bezpieczeństwa",
+      "flow2": "Wybierz preferowany język interfejsu",
+      "flow3": "Skonfiguruj silnik AI (dostawca, model, długość odpowiedzi, samokrytyka)",
+      "flow4": "Opcjonalnie skonfiguruj lokalny LLM przez Ollama do użytku offline",
+      "flow5": "Wskaż Mossy łańcuch narzędzi do modowania FO4",
+      "flow6": "Wyeksportuj czystą kopię zapasową",
+      "flow7": "W razie potrzeby odtwórz tutorial instalacji",
+      "step1": {
+        "title": "Krok 1: Prywatność i bezpieczeństwo",
+        "desc": "Kontroluj zbieranie danych, udostępnianie, reguły bezpieczeństwa i przechowywanie w pamięci."
+      },
+      "step2": {
+        "title": "Krok 2: Język",
+        "desc": "Wybierz język interfejsu i poproś o nowe tłumaczenia."
+      },
+      "step3": {
+        "title": "Krok 3: Silnik AI",
+        "desc": "Wybierz dostawcę AI (Groq/Ollama), model, długość odpowiedzi i samokrytykę."
+      },
+      "step3b": {
+        "title": "Krok 3b: Lokalny LLM — Ollama",
+        "desc": "Uruchamiaj modele open source lokalnie dla w pełni offline'owego wsparcia AI.",
+        "badge": "OPCJONALNE"
+      },
+      "step4": {
+        "title": "Krok 4: Zewnętrzne narzędzia",
+        "desc": "Wskaż Mossy łańcuch narzędzi do modowania FO4 i zweryfikuj ścieżki."
+      },
+      "step5": {
+        "title": "Krok 5: Kopia zapasowa i przywracanie",
+        "desc": "Eksportuj lub importuj migawkę ustawień do szybkiego przywracania."
+      },
+      "step6": {
+        "title": "Krok 6: Tutorial i onboarding",
+        "desc": "Odtwórz tutorial instalacji i pierwsze uruchomienie."
+      },
+      "step7": {
+        "title": "Krok 7: Test dostępu do internetu",
+        "desc": "Sprawdź, czy Mossy może dotrzeć do dostawców wyszukiwania i połączyć się online."
+      },
+      "credits": {
+        "title": "Podziękowania",
+        "desc": "Zobacz projekty open source i narzędzia, które napędzają Mossy."
+      },
+      "internet": {
+        "description": "Sprawdza wszystkich dostawców wyszukiwania używanych przez Mossy i pokazuje, którzy są teraz osiągalni.",
+        "testBtn": "Testuj dostęp do internetu teraz",
+        "testing": "Testowanie...",
+        "providerCol": "Dostawca",
+        "statusCol": "Status",
+        "timeCol": "Czas",
+        "ok": "OK",
+        "empty": "Puste",
+        "troubleshootTitle": "Rozwiązywanie problemów z DNS:",
+        "sampleResultFrom": "Przykładowy wynik od"
+      }
     }
   },
   "onboarding": {
@@ -93,7 +155,62 @@
       "label": "Język",
       "help": "Wybierz język interfejsu. Możesz to zmienić później w Ustawieniach.",
       "auto": "Automatyczny (systemowy)"
-    }
+    },
+    "welcome": {
+      "title": "Witaj w Mossy",
+      "subtitle": "Twój asystent do modowania Fallout 4 oparty na AI"
+    },
+    "edition": {
+      "nvidia": "Edycja NVIDIA",
+      "nvidiaSubtitle": "CUDA 12.4 · AI przyspieszone przez GPU",
+      "nvidiaReq": "⚠ Wymaga karty NVIDIA RTX / GTX",
+      "nvidiaSelected": "Edycja NVIDIA",
+      "universal": "Edycja Uniwersalna",
+      "universalSubtitle": "Oparta na CPU · Działa na każdym sprzęcie",
+      "universalSelected": "Edycja Uniwersalna"
+    },
+    "continue": "Kontynuuj",
+    "next": "Dalej",
+    "skipForNow": "Pomiń teraz",
+    "continueToMossy": "Przejdź do Mossy",
+    "finishSetup": "Zakończ konfigurację",
+    "startScan": "Rozpocznij skanowanie systemu",
+    "selected": "Wybrano",
+    "fo4Version": {
+      "title": "Jaką wersję Fallout 4 masz?"
+    },
+    "scanning": {
+      "title": "Skanowanie systemu"
+    },
+    "scanFailed": {
+      "title": "Skanowanie nie powiodło się",
+      "errorDetails": "Szczegóły błędu:"
+    },
+    "credits": {
+      "title": "Podziękowania"
+    },
+    "whitelist": {
+      "title": "Biała lista i czarna lista"
+    },
+    "tools": {
+      "title": "Wykryte narzędzia",
+      "selectHint": "Wybierz narzędzia, o których chcesz, żebym wiedział i używał:"
+    },
+    "deps": {
+      "title": "Zainstaluj zależności i narzędzia"
+    },
+    "spriggit": {
+      "title": "Nakarm mnie bazową grą"
+    },
+    "identity": {
+      "title": "Przed zakończeniem"
+    },
+    "complete": {
+      "title": "Konfiguracja zakończona!"
+    },
+    "nextTools": "Dalej: Zobacz wykryte narzędzia",
+    "nextDeps": "Dalej: Pobierz zalecane narzędzia",
+    "languages12": "✅ Obsługiwane 12 języków. Język interfejsu zaktualizuje się natychmiast. Aby uzyskać wsparcie głosowe, zainstaluj odpowiedni pakiet głosowy Windows."
   },
   "installWizard": {
     "tagline": "Mossy Tutor • Kreator Instalacji",
