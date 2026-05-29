@@ -50,8 +50,8 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           height: 100%;
           background: #2a2a2a;
           background: linear-gradient(145deg, #3a3a3a 0%, #1a1a1a 100%);
-          border-radius: 80px;
-          padding: 60px;
+          border-radius: 60px;
+          padding: 36px;
           box-shadow: 
             inset 0 0 60px rgba(0,0,0,1),
             0 30px 60px rgba(0,0,0,0.8),
@@ -78,14 +78,13 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           position: relative;
           flex: 1;
           background: #000;
-          border-radius: 50px;
+          border-radius: 30px;
           overflow: hidden;
           box-shadow: 
             inset 0 0 50px rgba(0,0,0,1),
             0 0 24px rgba(0,255,0,0.10);
-          border: 20px solid #141414;
+          border: 12px solid #141414;
           z-index: 2;
-          /* Removed problematic perspective transform that was causing content inversion */
         }
 
         body.pip-boy-mode .pipboy-screen-area::before {
@@ -139,8 +138,10 @@ const PipBoyFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           z-index: 4;
           width: 100%;
           height: 100%;
-          border-radius: 40px;
-          /* Allow the inner app (including the tutorial footer) to scroll instead of being clipped by the bezel */
+          border-radius: 20px;
+          /* transform creates a new containing block for position:fixed children,
+             keeping modals/dialogs inside the Pip-Boy frame instead of going full-viewport */
+          transform: translateZ(0);
           overflow: auto;
           background: #000;
           display: flex;

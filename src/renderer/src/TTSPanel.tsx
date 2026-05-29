@@ -420,7 +420,7 @@ const AudioStudio: React.FC<AudioStudioProps> = ({ embedded = false }) => {
                   ]}
                   firstTestLoop={[
                       'Load a short WAV → apply one effect (e.g., Radio) → export → re-import to confirm it round-trips.',
-                      'If targeting FO4, follow the “Fallout 4 Voice Pipeline” box and resolve any missing-tool notes one at a time.'
+                      'If targeting FO4, follow the "Fallout 4 Voice Pipeline" box and resolve any missing-tool notes one at a time.'
                   ]}
                   troubleshooting={[
                       'If audio will not play, click Play once to unlock the browser audio context (some environments require a user gesture).',
@@ -436,7 +436,7 @@ const AudioStudio: React.FC<AudioStudioProps> = ({ embedded = false }) => {
                               <Music className="w-4 h-4" /> Fallout 4 Voice Pipeline (Export → In-Game)
                           </h3>
                           <p className="text-xs text-slate-400 mt-1">
-                              This panel tells you what’s missing after “Export to WAV”: FO4 typically needs XWM/FUZ + optional LIP.
+                              This panel tells you what's missing after "Export to WAV": FO4 typically needs XWM/FUZ + optional LIP.
                           </p>
                       </div>
                   </div>

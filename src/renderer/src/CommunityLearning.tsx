@@ -159,8 +159,8 @@ const CommunityLearning: React.FC<CommunityLearningProps> = ({ embedded = false 
           accentClassName="text-emerald-300"
           description="This workflow creates a draft GitHub Issue URL from your local profile. You control what is shared by checking consent before opening the browser."
           verify={[
-            'Fill out your name + at least one goal and click “Save locally”.',
-            'Enable consent and click “Open GitHub draft issue” to confirm the browser opens a pre-filled issue.',
+            'Fill out your name + at least one goal and click "Save locally".',
+            'Enable consent and click "Open GitHub draft issue" to confirm the browser opens a pre-filled issue.',
             'Confirm the repo is set (VITE_COMMUNITY_REPO or app settings) before submitting publicly.'
           ]}
           firstTestLoop={[
@@ -224,7 +224,7 @@ const CommunityLearning: React.FC<CommunityLearningProps> = ({ embedded = false 
                 I consent to share this publicly in the GitHub repo.
               </label>
               <p className="text-xs text-slate-400 mt-1">
-                Keep it high-level. Don’t include file paths, API keys, or personal info.
+                Keep it high-level. Don't include file paths, API keys, or personal info.
               </p>
               <p className="text-xs text-slate-500 mt-1">
                 Repo target: <span className="text-slate-300 font-mono">{repo || '(not configured)'}</span>

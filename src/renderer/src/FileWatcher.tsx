@@ -42,25 +42,47 @@ export const FileWatcher: React.FC = () => {
 
   const startWatching = async () => {
     if (!watchPath) return;
-    
+
     localStorage.setItem('mossy_watch_path', watchPath);
     watchingRef.current = true;
     setWatching(true);
 
-    // In real implementation, this would use Desktop Bridge to watch files
+    // Try Electron IPC first (preferred)
+    const bridge: any = (window as any).electron?.api;
+    if (bridge?.watchDirectory) {
+      try {
+        const started = await bridge.watchDirectory(watchPath, (change: any) => {
+          if (!watchingRef.current) return;
+          const files = [change].flat().map((f: any) => ({
+            path: f.path || f,
+            type: detectFileType(f.path || f),
+            lastModified: new Date(f.modified || Date.now()),
+            suggestion: getSuggestionForFile(f.path || f)
+          }));
+          setRecentFiles(prev => [...files, ...prev].slice(0, 20));
+          generateSuggestions(files);
+        });
+        if (started) return; // IPC watcher active, no polling needed
+      } catch (e) {
+        console.warn('[FileWatcher] Electron IPC watch failed, falling back to HTTP bridge:', e);
+      }
+    }
+
+    // Fall back to HTTP Desktop Bridge
     try {
       const response = await fetch('http://localhost:21337/files/watch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: watchPath })
       });
-
       if (response.ok) {
         pollForChanges();
+      } else {
+        throw new Error('Bridge returned ' + response.status);
       }
     } catch (error) {
       console.error('File watcher connection failed:', error);
-      toast.error('Connection Failed: The Desktop Bridge is not responding on port 21337. File watching requires the active VoltTech Wrapper.');
+      toast.error('Connection Failed: The Desktop Bridge is not responding. File watching requires an active Desktop Bridge.');
       watchingRef.current = false;
       setWatching(false);
     }
@@ -102,9 +124,9 @@ export const FileWatcher: React.FC = () => {
   const detectFileType = (path: string): WatchedFile['type'] => {
     const lower = path.toLowerCase();
     if (lower.endsWith('.psc') || lower.endsWith('.pex')) return 'script';
-    if (lower.endsWith('.nif')) return 'mesh';
-    if (lower.endsWith('.dds') || lower.endsWith('.tga')) return 'texture';
-    if (lower.endsWith('.esp') || lower.endsWith('.esl') || lower.endsWith('.esm')) return 'plugin';
+    if (lower.endsWith('.nif') || lower.endsWith('.hkx') || lower.endsWith('.tri')) return 'mesh';
+    if (lower.endsWith('.dds') || lower.endsWith('.tga') || lower.endsWith('.png')) return 'texture';
+    if (lower.endsWith('.esp') || lower.endsWith('.esl') || lower.endsWith('.esm') || lower.endsWith('.ba2')) return 'plugin';
     return 'unknown';
   };
 
@@ -120,7 +142,7 @@ export const FileWatcher: React.FC = () => {
       case 'plugin':
         return 'Scan for conflicts and missing masters?';
       default:
-        return 'Unknown file type';
+        return 'Unknown file type. Check file extension and confirm it is a supported FO4 asset.';
     }
   };
 
@@ -352,8 +374,9 @@ export const FileWatcher: React.FC = () => {
                       </div>
                       <div className="text-xs text-slate-400 truncate mb-2">{file.path}</div>
                       {file.suggestion && (
-                        <div className="text-xs text-cyan-400 bg-cyan-900/20 px-2 py-1 rounded">
-                          💡 {file.suggestion}
+                        <div className="text-xs text-cyan-400 bg-cyan-900/20 px-2 py-1 rounded flex items-center gap-1">
+                          <Zap className="w-3 h-3 shrink-0" />
+                          {file.suggestion}
                         </div>
                       )}
                     </div>

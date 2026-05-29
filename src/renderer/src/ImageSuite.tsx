@@ -353,7 +353,7 @@ const ImageSuite: React.FC = () => {
                 label: 'DirectXTex (texconv) releases (optional DDS compression)',
                 href: 'https://github.com/microsoft/DirectXTex/releases',
                 kind: 'official',
-                note: 'Install texconv if “Require real DDS” is enabled and you want authentic DDS output.'
+                note: 'Install texconv if "Require real DDS" is enabled and you want authentic DDS output.'
               },
             ]}
             verify={[
@@ -366,7 +366,7 @@ const ImageSuite: React.FC = () => {
               'Switch to Format Converter → convert to DDS with FO4 preset → export and verify the file opens in your preferred viewer.'
             ]}
             troubleshooting={[
-              'If you see a DDS “fallback” warning, either disable “Require real DDS” or configure a real DDS tool path.',
+              'If you see a DDS "fallback" warning, either disable "Require real DDS" or configure a real DDS tool path.',
               'If exports fail, open DevTools/console and check IPC errors from the desktop bridge.'
             ]}
           />

@@ -160,7 +160,7 @@ export const PRPPatchBuilderWizard: React.FC<PRPPatchBuilderWizardProps> = ({ em
     lines.push('Verification:');
     lines.push('- Test in a clean profile with ONLY the required mods + this patch.');
     lines.push('- Visit the affected areas; rotate the camera; confirm nothing pops in/out or disappears.');
-    lines.push('- Confirm performance didn’t tank in those areas.');
+    lines.push("- Confirm performance didn't tank in those areas.");
     lines.push('');
 
     lines.push('Do I need to rebuild precombines for my mod?');
@@ -276,7 +276,7 @@ export const PRPPatchBuilderWizard: React.FC<PRPPatchBuilderWizardProps> = ({ em
             <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mt-2">PRP Patch Builder</h1>
             <p className="text-sm text-slate-400 mt-2 max-w-2xl">
               Generate a clear patch target (mods + load order) and a ready-to-post README for PRP compatibility patches.
-              This is designed to avoid the common mistake of shipping “just an ESP” without merged precombine files.
+              This is designed to avoid the common mistake of shipping "just an ESP" without merged precombine files.
             </p>
           </div>
 
@@ -308,20 +308,20 @@ export const PRPPatchBuilderWizard: React.FC<PRPPatchBuilderWizardProps> = ({ em
           accentClassName="text-emerald-300"
           description="This wizard generates a patch plan + README. Building the actual PRP compatibility output typically requires external tooling (xEdit and PRP workflow)."
           tools={[
-            { label: 'Nexus search: PRP', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=PRP&gsearchtype=mods', kind: 'search', note: 'Search for “Previsibines Repair Pack (PRP)”.' },
+            { label: 'Nexus search: PRP', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=PRP&gsearchtype=mods', kind: 'search', note: 'Search for "Previsibines Repair Pack (PRP)".' },
             { label: 'Nexus search: FO4Edit', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=FO4Edit&gsearchtype=mods', kind: 'search' },
           ]}
           verify={[
-            'Fill in “Your mod” + “Other mod” and confirm the README updates.',
+            'Fill in "Your mod" + "Other mod" and confirm the README updates.',
             'Copy the README and confirm the clipboard has the full text.',
-            'Toggle “Generate Nexus description block” and confirm it appears.'
+            'Toggle "Generate Nexus description block" and confirm it appears.'
           ]}
           firstTestLoop={[
             'Generate the README → build the patch with your PRP workflow → install into a clean test profile.',
             'Verify in the target worldspace: rotate camera, look for pop-in/out, and test affected cells.'
           ]}
           troubleshooting={[
-            'If you ship only an ESP without required merged precombine files, you will likely get visual breakage; re-check the “ships merged files” toggle.',
+            'If you ship only an ESP without required merged precombine files, you will likely get visual breakage; re-check the "ships merged files" toggle.',
             'If you are unsure whether you need a rebuild, use the PRP Guide and treat exterior edits as high risk.'
           ]}
         />
@@ -524,7 +524,7 @@ export const PRPPatchBuilderWizard: React.FC<PRPPatchBuilderWizardProps> = ({ em
             </div>
 
             <div className="text-[11px] text-slate-500">
-              Tip: If you want a more detailed “what cells are affected” workflow, use the Precombine Checker page.
+              Tip: If you want a more detailed "what cells are affected" workflow, use the Precombine Checker page.
             </div>
           </div>
         </div>

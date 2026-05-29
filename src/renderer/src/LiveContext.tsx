@@ -496,11 +496,15 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const speakDuration = Date.now() - speakStartTime;
         console.log('[LiveContext] 🔊 TTS playback complete - duration:', speakDuration, 'ms');
         lastSpeakEndRef.current = Date.now(); // mark when speaking finished
+
+        // If the session ended while TTS was playing (user pressed disconnect
+        // mid-speech), exit cleanly — don't run any post-speak state updates.
+        if (currentSessionRef.current === 0) return;
       } else {
         console.error('[LiveContext] voiceServiceRef.current is null, cannot speak');
       }
 
-      // Final check to see if we're still active before resetting mode
+      // Still connected — reset to listening for next turn
       if (currentSessionRef.current !== 0) {
         setMode('listening');
       } else {

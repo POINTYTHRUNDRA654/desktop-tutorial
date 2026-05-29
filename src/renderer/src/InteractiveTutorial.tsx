@@ -258,7 +258,10 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       route: '/',
       action: 'Get familiar with The Nexus dashboard — your home base',
       icon: <Home className="w-8 h-8" />,
-        image: getImageForPage('mossy-space') ?? getLegacyImageForVisualGuidePage(1),
+        // Prefer legacy "Page X Name.png" images — those are the files that actually
+        // exist in public/visual-guide-images/. The imageMap has auto-generated kebab
+        // filenames (page-1-mossy-space.png) that don't match the real files on disk.
+        image: getLegacyImageForVisualGuidePage(1) ?? getImageForPage('mossy-space'),
     },
     // Dynamically generate steps from tutorial contexts
     ...orderedContexts.map((context, index) => {
@@ -270,7 +273,8 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
         route: context.route,
         action: `Explore ${context.pageName} and try the main features`,
         icon: getIconForPage(context.pageId),
-        image: getImageForPage(context.pageId as keyof typeof imageMap) ?? getLegacyImageForVisualGuidePage(context.visualGuidePage),
+        // Try legacy "Page X Name.png" first (real files on disk), fall back to imageMap.
+        image: getLegacyImageForVisualGuidePage(context.visualGuidePage) ?? getImageForPage(context.pageId as keyof typeof imageMap),
       };
     }),
     {
@@ -281,7 +285,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       route: '/',
       action: 'Start exploring — try the Chat or Learning Hub first!',
       icon: <CheckCircle2 className="w-8 h-8" />,
-      image: getImageForPage('mossy-space') ?? getLegacyImageForVisualGuidePage(1),
+      image: getLegacyImageForVisualGuidePage(1) ?? getImageForPage('mossy-space'),
     },
   ];
 
@@ -413,8 +417,19 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
   };
 
   const handleSkipTutorial = async () => {
-    const ok = await window.electronAPI?.showConfirm?.('Exit the tutorial?', 'You can always access it later from the guide menu.');
-    if (!ok) return;
+    // window.electronAPI?.showConfirm is optional — the app exposes its API under
+    // window.electron.api, so window.electronAPI may be undefined. If showConfirm
+    // is unavailable, fall back to the native browser confirm dialog. Either way,
+    // treat a missing API as "yes" so the button is never silently blocked.
+    const showConfirmFn = (window as any).electronAPI?.showConfirm ?? (window as any).electron?.api?.showConfirm;
+    if (showConfirmFn) {
+      const ok = await showConfirmFn('Exit the tutorial?', 'You can always access it later from the guide menu.');
+      if (!ok) return;
+    } else {
+      // Native fallback — still gives the user a chance to cancel
+      const ok = window.confirm('Exit the tutorial? You can always access it later from the guide menu.');
+      if (!ok) return;
+    }
     localStorage.setItem('mossy_tutorial_skipped', 'true');
     localStorage.removeItem('mossy_tutorial_step');
     localStorage.removeItem('mossy_tutorial_completed_steps');

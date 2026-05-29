@@ -84,8 +84,8 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
       const manifestPath = resolveManifestPath(path);
       if (!manifestPath) return;
 
-      const result = await window.electronAPI?.material?.loadManifest?.(manifestPath)
-        ?? await window.electronAPI?.invoke?.('material:load-manifest', manifestPath);
+      const result = await (window.electronAPI as any)?.material?.loadManifest?.(manifestPath)
+        ?? await (window.electronAPI as any)?.invoke?.('material:load-manifest', manifestPath);
 
       const loadedManifest = result?.data?.manifest || result?.manifest;
       if (result?.success && loadedManifest) {
@@ -137,8 +137,8 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
       const filePath = resolveManifestPath(modPath);
       if (!filePath) return;
 
-      const result = await window.electronAPI?.material?.saveManifest?.({ filePath, manifest })
-        ?? await window.electronAPI?.invoke?.('material:save-manifest', { filePath, manifest });
+      const result = await (window.electronAPI as any)?.material?.saveManifest?.({ filePath, manifest })
+        ?? await (window.electronAPI as any)?.invoke?.('material:save-manifest', { filePath, manifest });
       
       if (result?.success) {
         setIsDirty(false);

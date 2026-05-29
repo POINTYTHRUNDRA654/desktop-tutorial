@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom';
 import { MessageSquare, X } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { recordActivity, type ActivityEvent } from './panelActivity';
-import { mossyAvatarUrl } from './assets/avatar';
 
 const QUIPS: Record<string, string[]> = {
     '/': [
@@ -486,7 +485,7 @@ const MossyObserver: React.FC = () => {
     
     // Hook must be called unconditionally
     const liveContext = useLive();
-    const { customAvatar } = liveContext;
+    // customAvatar no longer used here — face is shown in the header AvatarCore
 
     useEffect(() => {
         // Clear previous unless alert
@@ -497,20 +496,14 @@ const MossyObserver: React.FC = () => {
         }
     }, [location.pathname]);
 
-    // Handle Route-based Quips
+    // Route-based quips: load into message state but DON'T auto-show the popup.
+    // Quips are still accessible for the tooltip on the avatar pill.
     useEffect(() => {
-        const chance = Math.random();
-        if (chance > 0.3 && !isAlert) {
-            const path = location.pathname;
-            const options = QUIPS[path] || ["Standing by.", "I am here.", "Awaiting input."];
-            const text = options[Math.floor(Math.random() * options.length)];
-            
-            setTimeout(() => {
-                setMessage(text);
-                setVisible(true);
-                setTimeout(() => { setVisible(false); setIsAlert(false); }, 450);
-            }, 120); 
-        }
+        const path = location.pathname;
+        const options = QUIPS[path] || ["Standing by.", "I am here.", "Awaiting input."];
+        const text = options[Math.floor(Math.random() * options.length)];
+        setMessage(text);
+        // Only show popup for real system alerts, not passive navigation quips
     }, [location.pathname]);
 
     // Handle Blender Command Alerts (Cross-Component Communication)
@@ -642,45 +635,28 @@ const MossyObserver: React.FC = () => {
         return () => window.removeEventListener('mossy-activity-event', handleActivity);
     }, []);
 
+    // Only render when there is an active alert — no persistent face (the header already shows it)
+    if (!visible || !message) return null;
+
     return (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-30 transition-all duration-150 transform ${visible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'}`}>
-            <div className="flex items-end gap-3">
-                <div className={`backdrop-blur-md border p-4 rounded-2xl rounded-br-none shadow-[0_0_30px_rgba(16,185,129,0.15)] max-w-xs relative animate-slide-up ${
-                    isAlert 
-                    ? 'bg-emerald-900/90 border-emerald-500/50' 
-                    : 'bg-slate-900/90 border-emerald-500/30'
-                }`}>
-                    <button 
-                        onClick={() => setVisible(false)}
-                        className="absolute top-2 right-2 text-slate-500 hover:text-white"
-                    >
-                        <X className="w-3 h-3" />
-                    </button>
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className={`w-2 h-2 rounded-full animate-pulse ${isAlert ? 'bg-white' : 'bg-emerald-500'}`}></span>
-                        <span className={`text-[10px] font-bold uppercase tracking-widest ${isAlert ? 'text-white' : 'text-emerald-400'}`}>
-                            {isAlert ? 'SYSTEM ACTION' : 'Mossy'}
-                        </span>
-                    </div>
-                    <p className={`text-sm leading-relaxed font-medium ${isAlert ? 'text-white' : 'text-slate-200'}`}>
-                        "{message}"
-                    </p>
-                </div>
-                
-                {/* Mini Avatar Bubble */}
-                <div className={`w-12 h-12 rounded-full bg-black border-2 flex items-center justify-center overflow-hidden relative shadow-lg ${isAlert ? 'border-emerald-400 shadow-[0_0_15px_#10b981]' : 'border-slate-800'}`}>
-                    <>
-                        <div className="absolute inset-0 bg-emerald-500/20 animate-pulse"></div>
-                        <img
-                            src={customAvatar || mossyAvatarUrl}
-                            alt="Mossy"
-                            className="w-full h-full object-cover opacity-90"
-                            style={{ objectPosition: 'top center', pointerEvents: 'none' }}
-                            draggable={false}
-                        />
-                    </>
-                </div>
+        <div className={`fixed bottom-4 right-4 z-30 max-w-[220px] backdrop-blur-md border p-3 rounded-xl shadow-lg transition-all duration-200 ${
+            isAlert
+            ? 'bg-emerald-900/90 border-emerald-500/60'
+            : 'bg-slate-900/90 border-emerald-500/30'
+        }`}>
+            <button
+                onClick={() => setVisible(false)}
+                className="absolute top-1.5 right-1.5 text-slate-500 hover:text-white"
+            >
+                <X className="w-3 h-3" />
+            </button>
+            <div className="flex items-center gap-1.5 mb-1">
+                <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${isAlert ? 'bg-emerald-400' : 'bg-emerald-500'}`} />
+                <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400">
+                    {isAlert ? 'MOSSY ALERT' : 'Mossy'}
+                </span>
             </div>
+            <p className="text-xs leading-relaxed text-slate-200">"{message}"</p>
         </div>
     );
 };

@@ -86,6 +86,68 @@
       "auto": "Otomatik (sistem)",
       "current": "Mevcut",
       "save": "Kaydet"
+    },
+    "hub": {
+      "eyebrow": "Mossy Çekirdeği — Ayarlar",
+      "title": "Ayarlar Merkezi (hepsi bir arada)",
+      "subtitle": "Gizlilik, dil, yapay zeka motoru, harici araçlar ve yedekleme için sıralı bir akış.",
+      "flowTitle": "Akış (sırayla okuyun)",
+      "flow1": "Gizlilik ve güvenlik temellerini kilitleyin",
+      "flow2": "Tercih ettiğiniz arayüz dilini seçin",
+      "flow3": "Yapay zeka motorunu yapılandırın (sağlayıcı, model, yanıt uzunluğu, öz-eleştiri)",
+      "flow4": "İsteğe bağlı: Çevrimdışı kullanım için yerel Ollama LLM kurun",
+      "flow5": "Mossy'yi FO4 modlama araç zincirinize yönlendirin",
+      "flow6": "Temiz bir yedek anlık görüntüsü dışa aktarın",
+      "flow7": "Gerekirse kurulum öğreticisini tekrar oynatın",
+      "step1": {
+        "title": "Adım 1: Gizlilik ve Güvenlik",
+        "desc": "Veri toplama, paylaşım, güvenlik kuralları ve bellek depolamayı kontrol edin."
+      },
+      "step2": {
+        "title": "Adım 2: Dil",
+        "desc": "Arayüz dilini seçin ve yeni çeviriler isteyin."
+      },
+      "step3": {
+        "title": "Adım 3: Yapay Zeka Motoru",
+        "desc": "Yapay zeka sağlayıcısını (Groq/Ollama), modeli, yanıt uzunluğunu ve öz-eleştiriyi seçin."
+      },
+      "step3b": {
+        "title": "Adım 3b: Yerel LLM — Ollama",
+        "desc": "Tamamen çevrimdışı yapay zeka yardımı için açık kaynaklı modelleri yerel olarak çalıştırın.",
+        "badge": "İSTEĞE BAĞLI"
+      },
+      "step4": {
+        "title": "Adım 4: Harici Araçlar",
+        "desc": "Mossy'yi FO4 modlama araç zincirinize yönlendirin ve yolları doğrulayın."
+      },
+      "step5": {
+        "title": "Adım 5: Yedekleme ve Geri Yükleme",
+        "desc": "Hızlı kurtarma için ayar anlık görüntüsünü dışa veya içe aktarın."
+      },
+      "step6": {
+        "title": "Adım 6: Öğretici ve Tanıtım",
+        "desc": "Kurulum öğreticisini ve ilk çalıştırma deneyimini tekrar oynatın."
+      },
+      "step7": {
+        "title": "Adım 7: İnternet Erişim Testi",
+        "desc": "Mossy'nin arama sağlayıcılarına ulaşabildiğini ve çevrimiçi olabildiğini doğrulayın."
+      },
+      "credits": {
+        "title": "Katkılar ve Teşekkürler",
+        "desc": "Mossy'yi güçlendiren açık kaynak projelerini ve araçları görüntüleyin."
+      },
+      "internet": {
+        "description": "Mossy'nin kullandığı tüm arama sağlayıcılarını araştırır ve hangilerinin şu an erişilebilir olduğunu gösterir.",
+        "testBtn": "İnternet Erişimini Şimdi Test Et",
+        "testing": "Test ediliyor...",
+        "providerCol": "Sağlayıcı",
+        "statusCol": "Durum",
+        "timeCol": "Süre",
+        "ok": "OK",
+        "empty": "Boş",
+        "troubleshootTitle": "DNS hatası giderme:",
+        "sampleResultFrom": "Örnek sonuç kaynağı:"
+      }
     }
   },
   "onboarding": {
@@ -93,7 +155,62 @@
       "label": "Dil",
       "help": "Arayüz dilinizi seçin. Bunu daha sonra Ayarlar'dan değiştirebilirsiniz.",
       "auto": "Otomatik (sistem)"
-    }
+    },
+    "welcome": {
+      "title": "Mossy'ye Hoş Geldiniz",
+      "subtitle": "Yapay zeka destekli Fallout 4 modlama asistanınız"
+    },
+    "edition": {
+      "nvidia": "NVIDIA Sürümü",
+      "nvidiaSubtitle": "CUDA 12.4 · GPU hızlandırmalı yapay zeka",
+      "nvidiaReq": "⚠ NVIDIA RTX / GTX GPU gerektirir",
+      "nvidiaSelected": "NVIDIA Sürümü",
+      "universal": "Evrensel Sürüm",
+      "universalSubtitle": "CPU tabanlı · Her donanımda çalışır",
+      "universalSelected": "Evrensel Sürüm"
+    },
+    "continue": "Devam et",
+    "next": "İleri",
+    "skipForNow": "Şimdilik atla",
+    "continueToMossy": "Mossy'ye devam et",
+    "finishSetup": "Kurulumu Tamamla",
+    "startScan": "Sistem Taramasını Başlat",
+    "selected": "Seçildi",
+    "fo4Version": {
+      "title": "Hangi Fallout 4 sürümüne sahipsiniz?"
+    },
+    "scanning": {
+      "title": "Sistem Taranıyor"
+    },
+    "scanFailed": {
+      "title": "Tarama Başarısız",
+      "errorDetails": "Hata Ayrıntıları:"
+    },
+    "credits": {
+      "title": "Katkılar ve Teşekkürler"
+    },
+    "whitelist": {
+      "title": "Beyaz Liste ve Kara Liste"
+    },
+    "tools": {
+      "title": "Keşfedilen Araçlar",
+      "selectHint": "Bilmemi ve kullanmamı istediğiniz araçları seçin:"
+    },
+    "deps": {
+      "title": "Bağımlılıkları ve Araçları Yükle"
+    },
+    "spriggit": {
+      "title": "Beni Temel Oyunla Besle"
+    },
+    "identity": {
+      "title": "Bitirmeden önce"
+    },
+    "complete": {
+      "title": "Kurulum Tamamlandı!"
+    },
+    "nextTools": "İleri: Keşfedilen Araçları Gör",
+    "nextDeps": "İleri: Önerilen Araçları İndir",
+    "languages12": "✅ 12 dil desteklenmektedir. Arayüz dili hemen güncellenecektir. Dilinizde ses desteği için ilgili Windows ses paketini yükleyin."
   },
   "installWizard": {
     "tagline": "Mossy Tutor • Kurulum Sihirbazı",

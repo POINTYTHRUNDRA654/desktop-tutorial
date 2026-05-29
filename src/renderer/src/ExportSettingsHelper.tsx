@@ -279,7 +279,7 @@ export const ExportSettingsHelper: React.FC<ExportSettingsHelperProps> = ({ embe
             verify={[
               'Switch scenarios and confirm the settings + checklist update immediately.',
               'Use Copy on one setting and confirm your clipboard updates.',
-              'Confirm the “Export path” guidance matches your intended Data\Meshes subfolder.'
+              'Confirm the "Export path" guidance matches your intended Data\Meshes subfolder.'
             ]}
             firstTestLoop={[
               'Export the smallest thing possible (one pose, one mesh, or one 20-frame clip).',
@@ -287,7 +287,7 @@ export const ExportSettingsHelper: React.FC<ExportSettingsHelperProps> = ({ embe
             ]}
             troubleshooting={[
               'If the character is 10× too big/small, your scale is wrong (typically 1.0 vs 0.1).',
-              'If the file contains “extra stuff”, re-check “Only Selected” and what is selected at export time.'
+              'If the file contains "extra stuff", re-check "Only Selected" and what is selected at export time.'
             ]}
           />
 

@@ -11,6 +11,10 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
+
+// Allow enough IPC event listeners for all hub components that subscribe to
+// settings-updated and other broadcast channels simultaneously.
+ipcRenderer.setMaxListeners(50);
 import type { IpcResponse, IpcErrorCode, SimpleResponse, FilePathResponse, ArrayResponse, ItemResponse } from './types/ipcErrors';
 
 // Keep contract constants local so sandboxed preload does not require additional files.
@@ -483,10 +487,13 @@ const electronAPI = {
   },
 
   /**
-   * Listen for settings updates
+   * Listen for settings updates. Returns a cleanup function -- callers MUST call it
+   * in their useEffect cleanup to avoid accumulating IPC listeners across re-mounts.
    */
-  onSettingsUpdated: (callback: (settings: any) => void): void => {
-    ipcRenderer.on(IPC_CHANNELS.SETTINGS_UPDATED, (_event, settings) => callback(settings));
+  onSettingsUpdated: (callback: (settings: any) => void): (() => void) => {
+    const subscription = (_event: Electron.IpcRendererEvent, settings: any) => callback(settings);
+    ipcRenderer.on(IPC_CHANNELS.SETTINGS_UPDATED, subscription);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SETTINGS_UPDATED, subscription);
   },
 
   /**

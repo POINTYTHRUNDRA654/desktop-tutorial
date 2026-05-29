@@ -186,11 +186,12 @@ const SecurityValidator: React.FC = () => {
 
         {/* header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-1">Blacklist Manager</h1>
+          <h1 className="text-2xl font-bold mb-1">Whitelist &amp; Blacklist Manager</h1>
           <p className="text-sm text-slate-400">
-            Tell Mossy which mods and programs are known to cause issues with Fallout 4.
-            She will warn users about them — but always respect the user's final choice.
-            The do-not-touch list tells Mossy to never reference or recommend specific mods at all.
+            Manage Mossy's mod safety rules in one place. The <span className="text-orange-300 font-medium">blacklists</span> flag
+            mods and programs known to cause issues — Mossy will warn users but always respect their final choice.
+            The <span className="text-emerald-300 font-medium">Do-Not-Touch list</span> marks mods whose authors have requested
+            Mossy never reference, recommend, or interact with them under any circumstances.
           </p>
         </div>
 

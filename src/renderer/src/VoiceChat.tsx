@@ -274,7 +274,7 @@ const VoiceChat: React.FC = () => {
     {
       id: 'voice-selection',
       title: 'Voice Selection & Mic Test',
-      description: 'Pick Mossy’s voice, test browser TTS, and validate microphone input.',
+      description: "Pick Mossy's voice, test browser TTS, and validate microphone input.",
       content: <VoiceSettings embedded />,
     },
     {
@@ -292,7 +292,7 @@ const VoiceChat: React.FC = () => {
     {
       id: 'memory-vault',
       title: 'Memory Vault',
-      description: 'Upload private notes and tutorials to grow Mossy’s project memory.',
+      description: "Upload private notes and tutorials to grow Mossy's project memory.",
       content: <MossyMemoryVault embedded />,
     },
     {
@@ -304,7 +304,7 @@ const VoiceChat: React.FC = () => {
     {
       id: 'onboarding',
       title: 'Mossy Onboarding',
-      description: 'Review Mossy’s capabilities and privacy-first workflow anytime.',
+      description: "Review Mossy's capabilities and privacy-first workflow anytime.",
       content: <MossyOnboarding embedded />,
     },
   ];
@@ -370,9 +370,9 @@ const VoiceChat: React.FC = () => {
         <div className="mt-5">
           <ToolsInstallVerifyPanel
             accentClassName="text-blue-300"
-            description="Live Synapse uses your microphone and the app’s live voice pipeline. No external tools are required, but device permissions must be enabled."
+            description="Live Synapse uses your microphone and the app's live voice pipeline. No external tools are required, but device permissions must be enabled."
             verify={[
-              'Expand “Live Synapse Session” and confirm the controls respond without errors.',
+              'Expand "Live Synapse Session" and confirm the controls respond without errors.',
               'Speak and confirm the mic level meter responds and transcription updates (if enabled).',
               'Disconnect and confirm the UI returns to idle without errors.'
             ]}

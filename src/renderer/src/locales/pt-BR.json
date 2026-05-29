@@ -86,6 +86,68 @@
       "auto": "Automático (sistema)",
       "current": "Atual",
       "save": "Salvar"
+    },
+    "hub": {
+      "eyebrow": "Mossy Core — Configurações",
+      "title": "Central de configurações (tudo em um)",
+      "subtitle": "Um fluxo ordenado para privacidade, idioma, motor de IA, ferramentas externas e fluxos de backup.",
+      "flowTitle": "Fluxo (leia na ordem)",
+      "flow1": "Definir privacidade e segurança básicas",
+      "flow2": "Escolher o idioma de interface preferido",
+      "flow3": "Configurar o motor de IA (provedor, modelo, comprimento de resposta, autocrítica)",
+      "flow4": "Opcionalmente configurar um LLM local com Ollama para uso offline",
+      "flow5": "Apontar o Mossy para sua cadeia de ferramentas de mods FO4",
+      "flow6": "Exportar um snapshot de backup limpo",
+      "flow7": "Repetir o tutorial de instalação se necessário",
+      "step1": {
+        "title": "Passo 1: Privacidade e Segurança",
+        "desc": "Controlar coleta de dados, compartilhamento, regras de segurança e armazenamento em memória."
+      },
+      "step2": {
+        "title": "Passo 2: Idioma",
+        "desc": "Escolher o idioma da interface e solicitar novas traduções."
+      },
+      "step3": {
+        "title": "Passo 3: Motor de IA",
+        "desc": "Selecionar o provedor de IA (Groq/Ollama), modelo, comprimento de resposta e autocrítica."
+      },
+      "step3b": {
+        "title": "Passo 3b: LLM Local — Ollama",
+        "desc": "Executar modelos de código aberto localmente para assistência de IA totalmente offline.",
+        "badge": "OPCIONAL"
+      },
+      "step4": {
+        "title": "Passo 4: Ferramentas Externas",
+        "desc": "Apontar o Mossy para sua cadeia de ferramentas de mods FO4 e verificar caminhos."
+      },
+      "step5": {
+        "title": "Passo 5: Backup e Restauração",
+        "desc": "Exportar ou importar um snapshot de configurações para recuperação rápida."
+      },
+      "step6": {
+        "title": "Passo 6: Tutorial e Integração",
+        "desc": "Repetir o tutorial de instalação e a experiência de integração inicial."
+      },
+      "step7": {
+        "title": "Passo 7: Teste de Acesso à Internet",
+        "desc": "Verificar se o Mossy consegue alcançar provedores de busca e ir online."
+      },
+      "credits": {
+        "title": "Créditos e Agradecimentos",
+        "desc": "Ver os projetos de código aberto e ferramentas que alimentam o Mossy."
+      },
+      "internet": {
+        "description": "Sonda todos os provedores de busca usados pelo Mossy e mostra quais estão acessíveis agora.",
+        "testBtn": "Testar Acesso à Internet Agora",
+        "testing": "Testando...",
+        "providerCol": "Provedor",
+        "statusCol": "Status",
+        "timeCol": "Tempo",
+        "ok": "OK",
+        "empty": "Vazio",
+        "troubleshootTitle": "Solução de problemas de DNS:",
+        "sampleResultFrom": "Resultado de amostra de"
+      }
     }
   },
   "onboarding": {
@@ -93,7 +155,62 @@
       "label": "Idioma",
       "help": "Escolha o idioma da interface. Você pode alterar isso mais tarde nas Configurações.",
       "auto": "Automático (sistema)"
-    }
+    },
+    "welcome": {
+      "title": "Bem-vindo ao Mossy",
+      "subtitle": "Seu assistente de mods de Fallout 4 com IA"
+    },
+    "edition": {
+      "nvidia": "Edição NVIDIA",
+      "nvidiaSubtitle": "CUDA 12.4 · IA acelerada por GPU",
+      "nvidiaReq": "⚠ Requer GPU NVIDIA RTX / GTX",
+      "nvidiaSelected": "Edição NVIDIA",
+      "universal": "Edição Universal",
+      "universalSubtitle": "Baseada em CPU · Funciona em qualquer hardware",
+      "universalSelected": "Edição Universal"
+    },
+    "continue": "Continuar",
+    "next": "Próximo",
+    "skipForNow": "Pular por enquanto",
+    "continueToMossy": "Continuar para o Mossy",
+    "finishSetup": "Finalizar Configuração",
+    "startScan": "Iniciar Varredura do Sistema",
+    "selected": "Selecionado",
+    "fo4Version": {
+      "title": "Qual versão do Fallout 4 você tem?"
+    },
+    "scanning": {
+      "title": "Varrendo o Sistema"
+    },
+    "scanFailed": {
+      "title": "Varredura Falhou",
+      "errorDetails": "Detalhes do Erro:"
+    },
+    "credits": {
+      "title": "Créditos e Agradecimentos"
+    },
+    "whitelist": {
+      "title": "Lista Branca e Lista Negra"
+    },
+    "tools": {
+      "title": "Ferramentas Descobertas",
+      "selectHint": "Selecione as ferramentas que você quer que eu conheça e use:"
+    },
+    "deps": {
+      "title": "Instalar Dependências e Ferramentas"
+    },
+    "spriggit": {
+      "title": "Me Alimente com o Jogo Base"
+    },
+    "identity": {
+      "title": "Antes de terminar"
+    },
+    "complete": {
+      "title": "Configuração Concluída!"
+    },
+    "nextTools": "Próximo: Ver Ferramentas Descobertas",
+    "nextDeps": "Próximo: Baixar Ferramentas Recomendadas",
+    "languages12": "✅ 12 idiomas suportados. O idioma da interface será atualizado imediatamente. Para suporte de voz, instale o pacote de voz do Windows correspondente."
   },
   "installWizard": {
     "tagline": "Mossy Tutor • Assistente de Instalação",

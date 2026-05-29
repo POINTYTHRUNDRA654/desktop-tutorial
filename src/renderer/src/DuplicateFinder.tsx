@@ -244,7 +244,7 @@ const DuplicateFinder: React.FC = () => {
         <div className="bg-red-900/10 border border-red-500/30 rounded-lg p-4 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-300 mt-0.5" />
           <div className="text-sm text-red-200">
-            Desktop-only feature: folder scanning requires Electron. You’re currently in Web Mode.
+            Desktop-only feature: folder scanning requires Electron. You're currently in Web Mode.
           </div>
         </div>
       ) : null}

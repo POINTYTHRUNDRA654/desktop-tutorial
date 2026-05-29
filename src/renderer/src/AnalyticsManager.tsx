@@ -194,7 +194,7 @@ export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({ embedded = f
         } catch { /* no events yet */ }
       }
     } catch (err) {
-      console.error('Analytics load error:', err);
+      console.debug('[AnalyticsManager] config load skipped — handler not registered');
     } finally {
       setLoading(false);
     }

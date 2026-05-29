@@ -43,9 +43,10 @@ const LanguageSettings: React.FC<LanguageSettingsProps> = ({ embedded = false })
 
     void load();
 
+    let unsubSettings: (() => void) | undefined;
     if (typeof api.onSettingsUpdated === 'function') {
       try {
-        api.onSettingsUpdated((s: any) => {
+        unsubSettings = api.onSettingsUpdated((s: any) => {
           if (disposed) return;
           setUiLanguage(String(s?.uiLanguage || 'auto'));
         });
@@ -56,6 +57,7 @@ const LanguageSettings: React.FC<LanguageSettingsProps> = ({ embedded = false })
 
     return () => {
       disposed = true;
+      unsubSettings?.();
     };
   }, []);
 

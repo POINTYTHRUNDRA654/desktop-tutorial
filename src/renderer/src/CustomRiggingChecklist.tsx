@@ -589,7 +589,7 @@ export const CustomRiggingChecklist: React.FC<CustomRiggingChecklistProps> = ({ 
         <div className="max-w-3xl mx-auto space-y-3">
           <ToolsInstallVerifyPanel
             accentClassName="text-cyan-300"
-            description="Rigging is easy to “almost get right”. Use this checklist with a tiny in-game test loop so you don’t spend hours weight painting on a broken skeleton setup."
+            description={`Rigging is easy to "almost get right". Use this checklist with a tiny in-game test loop so you don't spend hours weight painting on a broken skeleton setup.`}
             tools={[
               { label: 'Blender (official download)', href: 'https://www.blender.org/download/', kind: 'official' },
               { label: 'Nexus search: Better Blender 3', href: 'https://www.nexusmods.com/fallout4/search/?gsearch=Better%20Blender%203&gsearchtype=mods', kind: 'search', note: 'Search for the FO4-focused Blender tooling referenced in this checklist.' },
@@ -598,7 +598,7 @@ export const CustomRiggingChecklist: React.FC<CustomRiggingChecklistProps> = ({ 
             verify={[
               'Check off a couple items and refresh; confirm completion state persists.',
               'Confirm your skeleton import has the expected bone count and exact bone names.',
-              'Confirm your export produces a file in the expected folder structure (no “random desktop exports”).'
+              'Confirm your export produces a file in the expected folder structure (no "random desktop exports").'
             ]}
             firstTestLoop={[
               'Import skeleton → bind a tiny test mesh → paint a few weights → export once.',

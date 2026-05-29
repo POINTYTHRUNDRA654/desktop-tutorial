@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Binary, Brain, Copy, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Box } from 'lucide-react';
+import { Binary, Brain, Copy, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Box, Skull } from 'lucide-react';
 
 const MiningPanel = React.lazy(() =>
   import('./MiningPanel').then((m) => ({ default: m.MiningPanel }))
@@ -18,15 +18,19 @@ const AssetDeduplicator = React.lazy(() => import('./AssetDeduplicator'));
 const AssetViewer3D = React.lazy(() =>
   import('./AssetViewer3D').then((m) => ({ default: m.AssetViewer3D }))
 );
+const CrashLogAnalyzer = React.lazy(() =>
+  import('./CrashLogAnalyzer').then((m) => ({ default: m.CrashLogAnalyzer }))
+);
 
-type HubTab = 'mining' | 'analysis' | 'dedup' | 'guide' | 'viewer';
+type HubTab = 'mining' | 'analysis' | 'dedup' | 'guide' | 'viewer' | 'crash';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
-  { id: 'mining', icon: Binary, label: 'Mining Dashboard', sublabel: 'ESP · Assets · Dependencies' },
-  { id: 'analysis', icon: Brain, label: 'Advanced Analysis', sublabel: 'Conflicts · Perf · Memory' },
-  { id: 'dedup', icon: Copy, label: 'Asset Deduplicator', sublabel: 'Duplicates · VRAM' },
-  { id: 'guide', icon: BookOpen, label: 'FO4 Asset Guide', sublabel: 'Budget · Optimization' },
-  { id: 'viewer', icon: Box, label: '3D Viewer', sublabel: 'NIF preview' },
+  { id: 'mining',   icon: Binary,        label: 'Mining Dashboard',  sublabel: 'ESP · Assets · Dependencies' },
+  { id: 'analysis', icon: Brain,         label: 'Advanced Analysis', sublabel: 'Conflicts · Perf · Memory' },
+  { id: 'dedup',    icon: Copy,          label: 'Asset Deduplicator',sublabel: 'Duplicates · VRAM' },
+  { id: 'crash',    icon: Skull,         label: 'Crash Analyzer',    sublabel: 'Buffout4 · CLASSIC · FormIDs' },
+  { id: 'guide',    icon: BookOpen,      label: 'FO4 Asset Guide',   sublabel: 'Budgets · Optimization' },
+  { id: 'viewer',   icon: Box,           label: '3D Viewer',         sublabel: 'NIF · Wireframe · Bounds' },
 ];
 
 // ============================================================================
@@ -276,6 +280,11 @@ const AssetAnalysisHub: React.FC = () => {
         {activeTab === 'dedup' && (
           <PanelLoader>
             <AssetDeduplicator />
+          </PanelLoader>
+        )}
+        {activeTab === 'crash' && (
+          <PanelLoader>
+            <CrashLogAnalyzer />
           </PanelLoader>
         )}
         {activeTab === 'guide' && <FO4AssetGuide />}

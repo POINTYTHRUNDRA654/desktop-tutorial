@@ -600,18 +600,18 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
           accentClassName="text-emerald-300"
           description="Use this page to point Mossy at the tools you already have installed. The app does not bundle these executables for you."
           verify={[
-            'Pick one tool (e.g., xEdit) → Browse to its .exe → confirm status flips to “✅ CONFIGURED”.',
+            'Pick one tool (e.g., xEdit) → Browse to its .exe → confirm status flips to "✅ CONFIGURED".',
             'Click Save Settings and confirm a success message.',
             'Use Test Launch (or AI Launch Test) to confirm the tool can be started from Mossy.'
           ]}
           firstTestLoop={[
             'Auto-detect from scan (if available) → review each detected path.',
-            'Save → test-launch your top 1–2 tools (xEdit, Blender, Creation Kit).',
+            'Save → test-launch your top 1-2 tools (xEdit, Blender, Creation Kit).',
             'Return to Workshop/Assembler and confirm those pages stop warning about missing tools.'
           ]}
           troubleshooting={[
             'If Browse/Test Launch does nothing, you may be missing the desktop bridge; use the packaged Electron app.',
-            'If Save warns about file type, ensure you selected the tool’s .exe (not a folder or shortcut).'
+            "If Save warns about file type, ensure you selected the tool's .exe (not a folder or shortcut)."
           ]}
         />
 
@@ -830,7 +830,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             </div>
 
             <div className="mt-3 pt-3 border-t border-slate-800">
-              <div className="text-[11px] text-slate-400 mb-1">Optional: xEdit “Edit Scripts” folder override</div>
+              <div className="text-[11px] text-slate-400 mb-1">Optional: xEdit "Edit Scripts" folder override</div>
               <input
                 value={(draft as any).xeditScriptsDirOverride || ''}
                 onChange={(e) => handleChange('xeditScriptsDirOverride', e.target.value)}
@@ -853,7 +853,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
                 </button>
               </div>
               <div className="mt-2 text-[10px] text-slate-500">
-                Use this if your xEdit scripts folder isn’t next to the .exe (MO2, portable setups, custom layouts).
+                Use this if your xEdit scripts folder isn't next to the .exe (MO2, portable setups, custom layouts).
               </div>
             </div>
           </div>

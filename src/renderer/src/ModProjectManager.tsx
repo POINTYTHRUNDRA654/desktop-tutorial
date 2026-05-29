@@ -171,7 +171,7 @@ const ModProjectManager: React.FC<ModProjectManagerProps> = ({ embedded = false 
             description="This page manages your in-app mod project journey. No external installs are required, but you should still do a tiny plan → test loop for every project."
             verify={[
               'Create a new project and confirm it appears in the list.',
-              'Select a project and confirm “current mod” updates (badge/status changes).',
+              'Select a project and confirm "current mod" updates (badge/status changes).',
               'Refresh and confirm your projects persist.'
             ]}
             firstTestLoop={[

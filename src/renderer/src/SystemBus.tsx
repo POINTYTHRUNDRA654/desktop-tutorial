@@ -76,24 +76,36 @@ const SystemBus: React.FC = () => {
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout
-                
-                // Try IP first, then Localhost if needed
+
+                // Helper: true when the error is an OS-level network suspension
+                // (sleep/wake, background throttle). Not a real bridge failure.
+                const isNetworkSuspended = (e: any): boolean => {
+                    const msg: string = e?.message || '';
+                    return msg.includes('NETWORK_IO_SUSPENDED') ||
+                           msg.includes('net::ERR_NETWORK_IO_SUSPENDED') ||
+                           msg.includes('NetworkError');
+                };
+
+                // Try IP first, then localhost if it fails for a non-suspension reason
                 let response;
                 try {
-                    response = await fetch('http://127.0.0.1:21337/health', { 
+                    response = await fetch('http://127.0.0.1:21337/health', {
                         signal: controller.signal,
                         method: 'GET',
                         mode: 'cors'
                     });
                 } catch (e) {
-                    // Fallback to localhost if IP fails (IPv6 issues etc)
+                    // Don't try the fallback if the network stack is suspended —
+                    // localhost will fail identically and generate a second DevTools error.
+                    if (isNetworkSuspended(e)) throw e;
+                    // Fallback to localhost for IPv6/DNS resolution differences
                     response = await fetch('http://localhost:21337/health', {
                         signal: controller.signal,
                         method: 'GET',
                         mode: 'cors'
                     });
                 }
-                
+
                 clearTimeout(timeoutId);
 
                 if (response && response.ok) {
@@ -102,7 +114,7 @@ const SystemBus: React.FC = () => {
                         // Bridge is UP
                         const wasDown = localStorage.getItem('mossy_bridge_active') !== 'true';
                         localStorage.setItem('mossy_bridge_active', 'true');
-                        
+
                         // VERSION CHECK
                         if (data.version) {
                             localStorage.setItem('mossy_bridge_version', data.version);
@@ -119,16 +131,19 @@ const SystemBus: React.FC = () => {
                     throw new Error("Bridge responded with error");
                 }
             } catch (e: any) {
-                // Silently handle connection failures - expected when bridge isn't running
-                // Don't spam console with errors
-                const wasUp = localStorage.getItem('mossy_bridge_active') === 'true';
-                
-                // Only mark as down if we are certain it's not just a transient network hiccup
-                if (e.name !== 'AbortError') {
-                     localStorage.setItem('mossy_bridge_active', 'false');
-                     if (wasUp) {
+                // Silently handle connection failures — expected when bridge isn't running.
+                // Do NOT mark the bridge as down for transient OS conditions:
+                //   AbortError       = our own 2s timeout, not a real failure
+                //   NETWORK_IO_SUSPENDED = OS sleep/wake or Electron background throttle
+                const transient = e.name === 'AbortError' ||
+                    (e?.message || '').includes('NETWORK_IO_SUSPENDED') ||
+                    (e?.message || '').includes('NetworkError');
+                if (!transient) {
+                    const wasUp = localStorage.getItem('mossy_bridge_active') === 'true';
+                    localStorage.setItem('mossy_bridge_active', 'false');
+                    if (wasUp) {
                         window.dispatchEvent(new Event('storage')); // Force UI updates
-                     }
+                    }
                 }
             } finally {
                 isPolling.current = false;

@@ -170,7 +170,7 @@ If you modify ANY object placement in an existing exterior cell → you break pr
 3) Did you only edit quest/dialogue/AI/scripts, or only replace textures/meshes (no placement changes)?
 → If YES: you do NOT need a rebuild.
 
-**What “counts” as a placement change:**
+**What "counts" as a placement change:**
 - Adding a new object (even one)
 - Moving/rotating/scaling a vanilla object
 - Deleting/disabling an object
@@ -178,9 +178,9 @@ If you modify ANY object placement in an existing exterior cell → you break pr
 - Landscape/water edits in that cell
 
 **When people get fooled:**
-- “It looks fine in CK” → in-game still breaks because precombines are a runtime optimization.
-- “I only changed a few rocks” → that can break the entire precombine group in that cell.
-- “It’s a settlement mod” → settlement placement in vanilla cells is one of the most common sources of precombine breakage.
+- "It looks fine in CK" → in-game still breaks because precombines are a runtime optimization.
+- "I only changed a few rocks" → that can break the entire precombine group in that cell.
+- "It's a settlement mod" → settlement placement in vanilla cells is one of the most common sources of precombine breakage.
 
 **How to be sure (verification-first):**
 1) Identify the exact exterior cells your mod touches.
@@ -188,8 +188,8 @@ If you modify ANY object placement in an existing exterior cell → you break pr
 3) If anything pops in/out, flickers, or disappears → you need a rebuild.
 4) If you want a faster, more reliable answer: run PRP analysis against your plugin(s) and review the report of affected cells.
 
-**If you’re not sure:**
-Treat it as “YES, rebuild” for any exterior placement edits. The cost is build time; the benefit is avoiding invisible objects, broken previs, and performance hits for your users.`,
+**If you're not sure:**
+Treat it as "YES, rebuild" for any exterior placement edits. The cost is build time; the benefit is avoiding invisible objects, broken previs, and performance hits for your users.`,
       subsections: [
         'Quick decision checklist',
         'What counts as placement',
@@ -382,7 +382,7 @@ Precombine 5 is in BOTH mods.
       id: 'prp-patch-for-your-mod',
       title: 'How To Make a PRP Patch For Your Mod',
       icon: <Zap className="w-5 h-5" />,
-      content: `A “PRP patch” is NOT just an ESP that changes records — it usually includes **merged precombine meshes** for the specific cells where two mods collide.
+      content: `A "PRP patch" is NOT just an ESP that changes records — it usually includes **merged precombine meshes** for the specific cells where two mods collide.
 
 **When you need a PRP patch:**
 - Your mod touches exterior cells with placement edits (so it breaks/changes precombines)
@@ -398,8 +398,8 @@ Precombines are delivered as files (precombined NIFs). If two mods ship differen
 
 ## Recommended Patch Workflow (Safe + Repeatable)
 
-**Step 0: Decide how you’ll ship**
-- Option A: Your mod ships its own rebuilt precombines (you are a “precombine mod”).
+**Step 0: Decide how you'll ship**
+- Option A: Your mod ships its own rebuilt precombines (you are a "precombine mod").
 - Option B: You ship an OPTIONAL compatibility patch (recommended if you want to keep your main mod lightweight).
 
 **Step 1: Define the patch target**
@@ -407,7 +407,7 @@ Pick a specific combo you are supporting, for example:
 - Base PRP + Your Mod
 - PRP + Your Mod + (Other Mod)
 
-Write it down as the patch name. Example: “PRP + MySettlementOverhaul Patch”.
+Write it down as the patch name. Example: "PRP + MySettlementOverhaul Patch".
 
 **Step 2: Align load order for the build**
 Your patch needs to be built against the same load order you expect users to run.
@@ -433,12 +433,12 @@ Test in-game with EXACTLY the supported combo:
 1) Clean profile
 2) Load PRP + your mod + other mod + patch
 3) Visit each touched cell, rotate camera, confirm nothing disappears
-4) Confirm performance didn’t tank in the affected area
+4) Confirm performance didn't tank in the affected area
 
 **Step 6: Document it (this is part of the patch)**
 In the patch description/README:
 - Required mods + exact versions (if you can)
-- Required load order (“place patch after both”)
+- Required load order ("place patch after both")
 - What it fixes (cells/areas)
 - What it does NOT cover
 
@@ -447,10 +447,10 @@ In the patch description/README:
 ## Common PRP Patch Mistakes
 
 ❌ Shipping only a plugin with no merged precombine files
-→ Users still get “last mod wins” behavior.
+→ Users still get "last mod wins" behavior.
 
 ❌ Building a patch against a different load order than the one you tell users
-→ The patch “works on your machine” and fails for users.
+→ The patch "works on your machine" and fails for users.
 
 ❌ Trying to support too many combos at once
 → Start with the most popular conflict combo, then add more patches as separate downloads.
@@ -518,7 +518,7 @@ If you tell Mossy your mod type (settlement overhaul / landscape / world edits) 
 3. Include precombines in package
    - Meshes\Precombined\ folder
    - Document in README
-   - Note PRP version used (v81.5+ supports OG 1.10.163, NG 1.10.980–984, and AE/1.11.x)
+   - Note PRP version used (v81.5+ supports OG 1.10.163, NG 1.10.980-984, and AE/1.11.x)
 
 **Documentation:**
 
@@ -729,13 +729,13 @@ After PRP rebuild:
               </div>
 
               <div className="mt-3 border-t border-slate-700 pt-3">
-                <div className="text-xs font-bold text-slate-200 mb-1">First test loop (10–15 minutes)</div>
+                <div className="text-xs font-bold text-slate-200 mb-1">First test loop (10-15 minutes)</div>
                 <ol className="text-xs text-slate-300 list-decimal list-inside space-y-1">
                   <li>In a clean mod-manager profile, enable ONLY your plugin (and DLC requirements).</li>
                   <li>Run PRP in <strong>Analyze</strong> mode against your plugin; note affected exterior cells.</li>
                   <li>Run PRP <strong>Build/Rebuild</strong>; confirm output includes <strong>Meshes\\Precombined\\</strong> files.</li>
                   <li>Install the output as a mod, load in-game, visit one touched cell, rotate camera 360°.</li>
-                  <li>If you’re supporting compatibility: build a <strong>merged</strong> PRP patch for one specific combo.</li>
+                  <li>If you're supporting compatibility: build a <strong>merged</strong> PRP patch for one specific combo.</li>
                 </ol>
               </div>
             </div>

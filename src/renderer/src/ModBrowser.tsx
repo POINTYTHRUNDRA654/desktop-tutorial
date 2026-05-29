@@ -46,7 +46,7 @@ const ModBrowser: React.FC = () => {
     try {
       const res = await bridge?.modBrowser?.searchMods(query, filters);
       if (!Array.isArray(res)) {
-        const errMsg = typeof res?.error === 'string' ? res.error : 'Search failed';
+        const errMsg = typeof (res as any)?.error === 'string' ? (res as any).error : 'Search failed';
         throw new Error(errMsg);
       }
       setResults(res);
@@ -60,7 +60,7 @@ const ModBrowser: React.FC = () => {
 
   const openDetails = async (id: string) => {
     try {
-      const d: ModDetails = await bridge?.modBrowser?.getModDetails(id);
+      const d: ModDetails = (await bridge?.modBrowser?.getModDetails(id)) as ModDetails;
       if (!d || (d as any).success === false) {
         throw new Error((d as any)?.error || 'Details failed');
       }
@@ -79,7 +79,7 @@ const ModBrowser: React.FC = () => {
       return;
     }
     try {
-      const res = await bridge.modBrowser.downloadMod(id, downloadDest.trim());
+      const res = await bridge?.modBrowser?.downloadMod(id, downloadDest.trim());
       if (res.success) {
         toast.success(`Downloaded to ${res.filePath} (${(res.size / 1024) | 0} KB) in ${res.duration} ms`);
         try {
@@ -100,9 +100,9 @@ const ModBrowser: React.FC = () => {
     if (!selected) return;
     if (!newReview.trim()) { toast.error('Write a review before submitting.'); return; }
     try {
-      await bridge.modBrowser.rateMod(selected.id, newRating, newReview.trim());
-      const revs = await bridge.modBrowser.getModReviews(selected.id);
-      setReviews(revs || []);
+      await bridge?.modBrowser?.rateMod(selected.id, newRating, newReview.trim());
+      const revs = await bridge?.modBrowser?.getModReviews(selected.id);
+      setReviews((Array.isArray(revs) ? revs : []) as Review[]);
       setNewReview('');
       setNewRating(5);
     } catch (err) {
@@ -114,10 +114,10 @@ const ModBrowser: React.FC = () => {
   const createCollection = async () => {
     if (!collectionName) { toast.error('Provide a collection name'); return; }
     try {
-      const col = await bridge.modBrowser.createCollection(collectionName, selected ? [selected.id] : [], 'Created from ModBrowser');
+      const col = await bridge?.modBrowser?.createCollection(collectionName, selected ? [selected.id] : [], 'Created from ModBrowser');
       setCollections((c: any) => [col, ...c]);
       setCollectionName('');
-      toast.success(`Collection created: ${col.shareUrl}`);
+      if (col) toast.success(`Collection created: ${col.shareUrl}`);
     } catch (err) {
       console.error(err);
       toast.error('Failed to create collection');
@@ -126,7 +126,7 @@ const ModBrowser: React.FC = () => {
 
   const handleNexusLogin = async () => {
     try {
-      const r = await bridge.modBrowser.authenticateNexus(nexusKey);
+      const r = await bridge?.modBrowser?.authenticateNexus(nexusKey);
       if (r?.success) setNexusStatus('Connected');
       else setNexusStatus(`Failed: ${r?.error || 'unknown'}`);
     } catch (err) {
@@ -137,7 +137,7 @@ const ModBrowser: React.FC = () => {
 
   const endorse = async (id: string) => {
     try {
-      await bridge.modBrowser.endorseMod(id);
+      await bridge?.modBrowser?.endorseMod(id);
       doSearch();
     } catch (err) {
       console.error(err);
@@ -295,7 +295,7 @@ const ModBrowser: React.FC = () => {
                   <div className="mt-2 text-[12px] text-slate-300">{selected.description}</div>
                   <div className="mt-3 flex gap-2">
                     <button className="px-2 py-1 rounded bg-black/20 text-xs" onClick={() => selected && endorse(selected.id)}><Star className="w-3 h-3 mr-1"/>Endorse</button>
-                    <button className="px-2 py-1 rounded bg-black/20 text-xs flex items-center gap-2" onClick={() => selected?.homepage && bridge.openExternal(selected.homepage)}><ExternalLink className="w-3 h-3"/>Homepage</button>
+                    <button className="px-2 py-1 rounded bg-black/20 text-xs flex items-center gap-2" onClick={() => selected?.homepage && bridge?.openExternal?.(selected.homepage)}><ExternalLink className="w-3 h-3"/>Homepage</button>
                   </div>
                 </>
               )}

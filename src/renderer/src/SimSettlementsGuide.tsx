@@ -41,7 +41,7 @@ export default function SimSettlementsGuide() {
               <li><strong>Fallout 4</strong> (and the DLC your chosen SS2 package requires)</li>
               <li><strong>One mod manager</strong> (Vortex or MO2)</li>
               <li><strong>Core SS2 stack</strong>: Sim Settlements 2 + Workshop Framework + HUD Framework</li>
-              <li><strong>(Optional)</strong> F4SE + MCM (only if you’re using SS2 features that require it)</li>
+              <li><strong>(Optional)</strong> F4SE + MCM (only if you're using SS2 features that require it)</li>
             </ul>
           </div>
 
@@ -63,12 +63,12 @@ export default function SimSettlementsGuide() {
             </div>
 
           <div className="bg-black/40 border border-[#004400] rounded p-3">
-            <p className="text-[#00d000] font-bold mb-2">Fast verification loop (5–10 minutes)</p>
+            <p className="text-[#00d000] font-bold mb-2">Fast verification loop (5-10 minutes)</p>
             <ol className="list-decimal list-inside space-y-1 text-xs text-[#008000]">
               <li>Open your mod manager and confirm SS2 + dependencies are enabled (plugins checked).</li>
               <li>Launch Fallout 4 through the mod manager (not directly from Steam).</li>
               <li>Load a test save, go to a settlement, and build a Recruitment Radio Beacon.</li>
-              <li>Wait for the Stranger quest trigger; if it doesn’t fire, use the SS2 holotape tools to reboot the quest.</li>
+              <li>Wait for the Stranger quest trigger; if it doesn't fire, use the SS2 holotape tools to reboot the quest.</li>
               <li>If using F4SE/MCM: confirm the SS2 settings menu exists and loads.</li>
             </ol>
           </div>
@@ -76,7 +76,7 @@ export default function SimSettlementsGuide() {
           <div className="bg-[#1a0000] border border-[#440000] rounded p-3">
             <p className="text-[#ff4444] font-bold mb-2">Common failure causes</p>
             <ul className="list-disc list-inside space-y-1 text-xs text-[#ff8888]">
-              <li>Plugins are downloaded but not enabled (Vortex “Plugins” tab not checked).</li>
+              <li>Plugins are downloaded but not enabled (Vortex "Plugins" tab not checked).</li>
               <li>Load order conflicts (two settlement frameworks fighting). Use a clean profile to confirm baseline.</li>
               <li>Installed the wrong SS2 package for your DLC situation (missing required DLC).</li>
               <li>Launching the game outside the mod manager (mods not actually loading).</li>

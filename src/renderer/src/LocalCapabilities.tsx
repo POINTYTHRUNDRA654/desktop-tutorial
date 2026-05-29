@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Download } from 'lucide-react';
+import { Download, BarChart2, FlaskConical, Zap, ThumbsUp, ThumbsDown, Rocket, Loader2 as SpinLoader } from 'lucide-react';
 
 type CapsStatus = {
   ok: true;
@@ -251,7 +251,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
         setFineTune((ft) => ({
           ...ft,
           busy: false,
-          result: `✅ Training complete! GGUF saved to: ${resp.outputPath}`,
+          result: `Training complete! GGUF saved to: ${resp.outputPath}`,
         }));
         // Pre-fill the GGUF import path for one-click import
         if (resp.outputPath) {
@@ -298,7 +298,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
         setGguf((g) => ({
           ...g,
           busy: false,
-          result: `✅ Model "${resp.modelName}" imported! Set Ollama model to "${resp.modelName}" above and refresh.`,
+          result: `Model "${resp.modelName}" imported! Set Ollama model to "${resp.modelName}" above and refresh.`,
         }));
         // Auto-set the Ollama model and refresh caps
         setSettings((s) => ({ ...s, ollamaModel: resp.modelName }));
@@ -485,11 +485,11 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
       {/* Training Data */}
       <div className="bg-slate-900/60 border border-purple-800/50 rounded-lg p-4 space-y-3">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-purple-300">📊 Training Data</span>
-          <span className="text-xs text-slate-400">— Export your 👍/👎 chat ratings as a JSONL dataset</span>
+          <span className="text-sm font-semibold text-purple-300 flex items-center gap-1.5"><BarChart2 className="w-4 h-4" /> Training Data</span>
+          <span className="text-xs text-slate-400">— Export your rated chat responses as a JSONL dataset</span>
         </div>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Every time you rate a chat response with 👍 or 👎 in AI Chat, the Q&amp;A pair is saved locally.
+          Every time you rate a chat response (thumbs up/down) in AI Chat, the Q&amp;A pair is saved locally.
           Export here to get a JSONL file you can use directly with Unsloth to fine-tune a local model.
         </p>
         {trainingStats ? (
@@ -497,12 +497,8 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
             <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
               Total: <strong className="text-white">{trainingStats.total}</strong>
             </span>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-900/40 border border-emerald-800/40 text-emerald-300">
-              👍 Good: {trainingStats.good}
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-red-900/40 border border-red-800/40 text-red-300">
-              👎 Bad: {trainingStats.bad}
-            </span>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-900/40 border border-emerald-800/40 text-emerald-300 flex items-center gap-1"><ThumbsUp className="w-3 h-3" /> Good: {trainingStats.good}</span>
+            <span className="px-2 py-0.5 rounded-full bg-red-900/40 border border-red-800/40 text-red-300 flex items-center gap-1"><ThumbsDown className="w-3 h-3" /> Bad: {trainingStats.bad}</span>
           </div>
         ) : (
           <div className="text-xs text-slate-500">No ratings yet — start rating chat responses to build your dataset.</div>
@@ -522,7 +518,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
             className="flex items-center gap-1.5 text-xs px-3 py-2 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold"
           >
             <Download className="w-3.5 h-3.5" />
-            {trainingExportBusy ? 'Exporting…' : 'Export JSONL (👍 only)'}
+            {trainingExportBusy ? 'Exporting…' : 'Export JSONL (good only)'}
           </button>
           <button
             onClick={loadTrainingStats}
@@ -540,7 +536,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
       {/* GGUF / Unsloth Import */}
       <div className="bg-slate-900/60 border border-amber-800/50 rounded-lg p-4 space-y-3">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-amber-300">🧪 GGUF / Unsloth Import</span>
+          <span className="text-sm font-semibold text-amber-300 flex items-center gap-1.5"><FlaskConical className="w-4 h-4" /> GGUF / Unsloth Import</span>
           <span className="text-xs text-slate-400">— Load a fine-tuned .gguf model into Ollama</span>
         </div>
         <p className="text-xs text-slate-400 leading-relaxed">
@@ -625,7 +621,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
       {edition === 'universal' ? (
         <div className="bg-slate-900/60 border border-green-800/40 rounded-lg p-4 space-y-3">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-300">⚡ Local Fine-Tuning</span>
+            <span className="text-sm font-semibold text-slate-300 flex items-center gap-1.5"><Zap className="w-4 h-4" /> Local Fine-Tuning</span>
             <span className="text-xs text-slate-500">— requires Mossy NVIDIA Edition</span>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">
@@ -640,7 +636,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
       ) : (
         <div className="bg-slate-900/60 border border-green-800/50 rounded-lg p-4 space-y-3">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-green-300">⚡ Local Fine-Tuning</span>
+            <span className="text-sm font-semibold text-green-300 flex items-center gap-1.5"><Zap className="w-4 h-4" /> Local Fine-Tuning</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-green-900/60 text-green-400 font-semibold text-xs">NVIDIA</span>
             <span className="text-xs text-slate-400">— Train Gemma 4 / Llama 3 / Qwen 2.5 with Unsloth</span>
           </div>
@@ -741,7 +737,7 @@ export default function LocalCapabilities({ embedded = false }: LocalCapabilitie
             disabled={fineTune.busy || !fineTune.datasetPath}
             className="text-xs px-4 py-2 rounded bg-green-700 hover:bg-green-600 disabled:opacity-60 text-white font-semibold"
           >
-            {fineTune.busy ? '⏳ Training…' : '🚀 Start Training'}
+            {fineTune.busy ? <><SpinLoader className="w-3.5 h-3.5 animate-spin" /> Training&hellip;</> : <><Rocket className="w-3.5 h-3.5" /> Start Training</>}
           </button>
 
           {/* Live log */}

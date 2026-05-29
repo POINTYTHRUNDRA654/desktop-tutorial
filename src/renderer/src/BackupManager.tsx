@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
-import { Clock, Save, Undo, FolderOpen, Upload, Cloud, GitBranch, ArrowDownToLine, Trash2, AlertCircle } from 'lucide-react';
+import { Clock, Save, Undo, FolderOpen, Upload, Cloud, GitBranch, ArrowDownToLine, Trash2, AlertCircle, X, CheckCircle2 } from 'lucide-react';
 
 interface Snapshot {
   id: string;
@@ -65,31 +65,48 @@ export const BackupManager: React.FC = () => {
   };
 
   const checkGitStatus = async () => {
+    // Only attempt if the Desktop Bridge is active — avoids a guaranteed 404 in DevTools
+    if (localStorage.getItem('mossy_bridge_active') !== 'true') {
+      setGitStatus(null);
+      return;
+    }
     try {
       const response = await fetch('http://localhost:21337/git/status');
       if (response.ok) {
         const data = await response.json();
         setGitStatus(data);
+      } else {
+        // Bridge endpoint not implemented (404) — clear flag so we stop retrying
+        localStorage.removeItem('mossy_bridge_active');
+        setGitStatus(null);
       }
     } catch (error) {
-      // Demo git status
-      setGitStatus({
-        branch: 'main',
-        uncommitted: 5,
-        unpushed: 2
-      });
+      // Bridge not running or network error — leave git status as not configured
+      setGitStatus(null);
     }
   };
 
   const createAutoSnapshot = async () => {
+    // Try to get real file count from Electron API
+    const bridge: any = (window as any).electron?.api;
+    let fileCount = 0;
+    let sizeLabel = '';
+    if (bridge?.getDirectoryStats && workspacePath) {
+      try {
+        const stats = await bridge.getDirectoryStats(workspacePath);
+        fileCount = stats?.fileCount ?? 0;
+        sizeLabel = stats?.totalSizeMB ? `${stats.totalSizeMB} MB` : '';
+      } catch { /* non-critical */ }
+    }
+
     const newSnapshot: Snapshot = {
       id: Date.now().toString(),
       name: 'Auto Snapshot',
       timestamp: new Date(),
       type: 'auto',
-      size: '45 MB',
-      files: 127,
-      description: 'Hourly backup'
+      size: sizeLabel || '',
+      files: fileCount,
+      description: `Auto backup — ${new Date().toLocaleDateString()}`
     };
 
     const updated = [newSnapshot, ...snapshots].slice(0, 20); // Keep last 20
@@ -106,8 +123,8 @@ export const BackupManager: React.FC = () => {
       name: snapshotNameInput.trim(),
       timestamp: new Date(),
       type: 'manual',
-      size: '45 MB',
-      files: 127,
+      size: '',
+      files: 0,
       description: snapshotDescInput.trim() || undefined
     };
     const updated = [newSnapshot, ...snapshots];
@@ -245,7 +262,7 @@ export const BackupManager: React.FC = () => {
                 <input autoFocus type="text" value={snapshotNameInput} onChange={e => setSnapshotNameInput(e.target.value)} placeholder="Snapshot name…" className="bg-transparent text-sm text-white outline-none w-36" onKeyDown={e => e.key === 'Enter' && submitManualSnapshot()} />
                 <input type="text" value={snapshotDescInput} onChange={e => setSnapshotDescInput(e.target.value)} placeholder="Description (optional)" className="bg-transparent text-sm text-slate-400 outline-none w-40" onKeyDown={e => e.key === 'Enter' && submitManualSnapshot()} />
                 <button onClick={submitManualSnapshot} disabled={!snapshotNameInput.trim()} className="px-2 py-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white rounded text-xs">Save</button>
-                <button onClick={() => { setShowSnapshotForm(false); setSnapshotNameInput(''); setSnapshotDescInput(''); }} className="px-2 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded text-xs">✕</button>
+                <button onClick={() => { setShowSnapshotForm(false); setSnapshotNameInput(''); setSnapshotDescInput(''); }} className="px-2 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded text-xs flex items-center gap-1"><X className="w-3 h-3" /></button>
               </div>
             ) : (
               <button onClick={createManualSnapshot} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded flex items-center gap-2 transition-colors">
@@ -334,7 +351,7 @@ export const BackupManager: React.FC = () => {
                     <div className="flex items-center gap-2 mt-3">
                       <input autoFocus type="text" value={commitMsgInput} onChange={e => setCommitMsgInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submitGitCommit(); if (e.key === 'Escape') { setShowCommitForm(false); setCommitMsgInput(''); } }} placeholder="Commit message…" className="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white outline-none focus:border-green-500" />
                       <button onClick={submitGitCommit} disabled={!commitMsgInput.trim()} className="px-2 py-1 bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white rounded text-xs">OK</button>
-                      <button onClick={() => { setShowCommitForm(false); setCommitMsgInput(''); }} className="px-2 py-1 bg-slate-600 text-white rounded text-xs">✕</button>
+                      <button onClick={() => { setShowCommitForm(false); setCommitMsgInput(''); }} className="px-2 py-1 bg-slate-600 text-white rounded text-xs flex items-center gap-1"><X className="w-3 h-3" /></button>
                     </div>
                   )}
                   <div className="flex gap-2 mt-3">
@@ -377,7 +394,7 @@ export const BackupManager: React.FC = () => {
 
               {cloudSync && (
                 <div className="text-xs text-green-400">
-                  ✓ Syncing to Google Drive
+                  <CheckCircle2 className="w-3 h-3 inline mr-1" />Syncing to Google Drive
                 </div>
               )}
             </div>
@@ -412,8 +429,8 @@ export const BackupManager: React.FC = () => {
 
                       <div className="flex items-center gap-4 text-xs text-slate-500">
                         <span>{snapshot.timestamp.toLocaleString()}</span>
-                        <span>{snapshot.size}</span>
-                        <span>{snapshot.files} files</span>
+                        {snapshot.size ? <span>{snapshot.size}</span> : null}
+                        {snapshot.files > 0 ? <span>{snapshot.files} files</span> : null}
                       </div>
                     </div>
 
@@ -438,14 +455,14 @@ export const BackupManager: React.FC = () => {
                       >
                         <ArrowDownToLine className="w-4 h-4" />
                       </button>
-                      {snapshot.type === 'manual' && (
+                      {snapshot.type !== 'auto' && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             deleteSnapshot(snapshot.id);
                           }}
                           className="p-2 bg-red-900 hover:bg-red-800 text-white rounded transition-colors"
-                          title="Delete"
+                          title="Delete snapshot"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -454,6 +471,13 @@ export const BackupManager: React.FC = () => {
                   </div>
                 </div>
               ))}
+              {snapshots.length === 0 && (
+                <div className="p-12 text-center text-slate-500">
+                  <Clock className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                  <p className="text-sm font-semibold">No snapshots yet</p>
+                  <p className="text-xs mt-1">Create a manual snapshot or enable auto-backup to start protecting your work.</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -466,7 +490,7 @@ export const BackupManager: React.FC = () => {
             <div className="grid grid-cols-4 gap-3 text-xs text-blue-200">
               <div>
                 <strong className="block text-blue-300 mb-1">Auto</strong>
-                <p>Created every hour automatically</p>
+                <p>Created automatically on the configured interval</p>
               </div>
               <div>
                 <strong className="block text-green-300 mb-1">Manual</strong>

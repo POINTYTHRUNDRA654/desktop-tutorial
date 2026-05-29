@@ -9,7 +9,6 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import {
   Brain,
   AlertTriangle,
@@ -236,721 +235,353 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
   ];
 
   return (
-    <div className="advanced-analysis-panel">
-      <div className="mb-3 p-3 bg-amber-900/20 border border-amber-700/40 text-amber-200 rounded text-sm flex items-center gap-2">
-        <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-400" />
-        <span>ℹ️ Demo/Prototype Feature: The Advanced Analysis Panel is a prototype demonstration of planned ML-assisted mod analysis capabilities.</span>
+    <div className="space-y-4">
+      {/* Engine status — no Demo/Prototype label */}
+      <div className="mb-3 p-2.5 bg-emerald-900/20 border border-emerald-700/30 text-emerald-200 rounded-lg text-xs flex items-center gap-2">
+        <Zap className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+        {engineReady
+          ? 'Analysis engine ready. Scan plugins in The Auditor first for the richest results, or run analysis now using baseline data.'
+          : 'Initialising analysis engine…'}
       </div>
-      <div className="panel-header">
-        <div className="mb-2 p-2 bg-emerald-900/20 border border-emerald-700/40 text-emerald-200 rounded text-sm flex items-center gap-2">
-          <Zap className="w-4 h-4 flex-shrink-0 text-emerald-400" />
-          {engineReady
-            ? 'Analysis engine ready. Scan plugins in The Auditor first to get the richest results — or run analysis now with baseline data.'
-            : 'Initialising analysis engine…'}
-        </div>
-        <h2 className="panel-title">
-          <Brain className="panel-icon" />
+
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-base font-black text-white flex items-center gap-2">
+          <Brain className="w-5 h-5 text-brain-400 text-purple-400" />
           Advanced Analysis Engine
         </h2>
-        <div className="panel-controls">
-          <Link
-            to="/reference"
-            className="control-button"
-            title="Open help"
-          >
-            Help
-          </Link>
+        <div className="flex gap-2">
           <button
-            className="control-button"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 transition-all disabled:opacity-40"
             onClick={() => tabs.find(t => t.id === activeTab)?.action()}
             disabled={isAnalyzing}
           >
-            {isAnalyzing ? <RefreshCw className="spinning" /> : <Play />}
-            {isAnalyzing ? 'Analyzing...' : 'Run Analysis'}
+            {isAnalyzing
+              ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analysing…</>
+              : <><Play className="w-3.5 h-3.5" /> Run Analysis</>}
           </button>
           {onClose && (
-            <button className="control-button close" onClick={onClose}>
-              ×
+            <button
+              className="px-2 py-1.5 text-[11px] rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-all"
+              onClick={onClose}
+            >
+              ✕
             </button>
           )}
         </div>
       </div>
 
-      <div className="analysis-tabs">
+      {/* Tab bar */}
+      <div className="flex flex-wrap gap-1 mb-4">
         {tabs.map(tab => (
           <button
             key={tab.id}
-            className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
             onClick={() => setActiveTab(tab.id as any)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg whitespace-nowrap transition-all ${
+              activeTab === tab.id
+                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
           >
-            <tab.icon className="tab-icon" />
+            <tab.icon className="w-3.5 h-3.5" />
             {tab.label}
           </button>
         ))}
       </div>
 
-      <div className="analysis-content">
-        {activeTab === 'patterns' && (
-          <div className="analysis-section">
-            <h3>Pattern Recognition Engine</h3>
-            <p>ML-based analysis of modding patterns and optimization opportunities</p>
-
-            {analysisResults.patterns && (
-              <div className="results-grid">
-                <div className="result-card">
-                  <h4>Detected Patterns</h4>
-                  <div className="patterns-list">
-                    {analysisResults.patterns.patterns.map((pattern, idx) => (
-                      <div key={idx} className="pattern-item">
-                        <span className="pattern-type">{pattern.type}</span>
-                        <span className="pattern-confidence">Frequency: {pattern.frequency}</span>
+      {/* ── Pattern Recognition ── */}
+      {activeTab === 'patterns' && (
+        <div className="space-y-4">
+          <p className="text-xs text-slate-400">
+            Rule-based pattern analysis of your modding configuration — identifies common footguns,
+            load-order anti-patterns, and optimisation opportunities.
+          </p>
+          {analysisResults.patterns ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
+                <h4 className="text-sm font-bold text-white mb-3">Detected Patterns</h4>
+                {analysisResults.patterns.patterns.length === 0 ? (
+                  <p className="text-xs text-slate-500">No significant patterns detected.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {analysisResults.patterns.patterns.map((pattern: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between rounded-lg bg-slate-800/50 px-3 py-2 text-[11px]">
+                        <span className="font-semibold text-purple-300">{pattern.type}</span>
+                        <span className="text-slate-400">×{pattern.frequency}</span>
                       </div>
                     ))}
                   </div>
-                </div>
-
-                <div className="result-card">
-                  <h4>Recommendations</h4>
-                  <div className="recommendations-list">
-                    {analysisResults.patterns.recommendations.map((rec, idx) => (
-                      <div key={idx} className="recommendation-item">
-                        <span className="rec-type">{rec.type}</span>
-                        <p>{rec.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+              <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
+                <h4 className="text-sm font-bold text-white mb-3">Recommendations</h4>
+                {analysisResults.patterns.recommendations.length === 0 ? (
+                  <p className="text-xs text-slate-500">No actionable recommendations.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {analysisResults.patterns.recommendations.map((rec: any, idx: number) => (
+                      <div key={idx} className="rounded-lg bg-slate-800/50 px-3 py-2 text-[11px]">
+                        <div className="font-semibold text-emerald-300 mb-0.5">{rec.type}</div>
+                        <div className="text-slate-300">{rec.description}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-12 text-slate-500">
+              <Brain className="w-8 h-8 mr-3 opacity-40" />
+              <span className="text-sm">Press Run Analysis to start pattern recognition.</span>
+            </div>
+          )}
+        </div>
+      )}
 
-        {activeTab === 'conflicts' && (
-          <div className="analysis-section">
-            <h3>Mod Conflict Prediction</h3>
-            <p>ML-based prediction of potential conflicts before installation</p>
-
-            {analysisResults.conflicts && (
-              <div className="conflicts-list">
-                {analysisResults.conflicts.map((prediction, idx) => (
-                  <div key={idx} className="conflict-card">
-                    <div className="conflict-header">
-                      <span className="mod-pair">
+      {/* ── Conflict Prediction ── */}
+      {activeTab === 'conflicts' && (
+        <div className="space-y-4">
+          <p className="text-xs text-slate-400">
+            Rule-based conflict prediction across scanned plugin pairs — surfaces record overlap,
+            leveled list conflicts, and FormID collision risks before you hit them in-game.
+          </p>
+          {analysisResults.conflicts ? (
+            <div className="space-y-3">
+              {analysisResults.conflicts.map((prediction: any, idx: number) => {
+                const pct = Math.round((prediction.probability ?? 0) * 100);
+                const sev = prediction.severity ?? 'minor';
+                const sevStyle = sev === 'critical' ? 'border-red-500/40 bg-red-950/20 text-red-400'
+                  : sev === 'major'    ? 'border-orange-500/40 bg-orange-950/20 text-orange-400'
+                  : 'border-yellow-500/40 bg-yellow-950/20 text-yellow-400';
+                return (
+                  <div key={idx} className={`rounded-xl border p-4 ${sevStyle}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-bold text-white">
                         {prediction.modA} ↔ {prediction.modB}
                       </span>
-                      <span className={`severity ${prediction.severity}`}>
-                        {prediction.severity}
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border border-current`}>
+                        {sev}
                       </span>
                     </div>
-
-                    <div className="conflict-details">
-                      <div className="probability-bar">
-                        <div
-                          className="probability-fill"
-                          style={{ width: `${prediction.probability * 100}%` }}
-                        />
-                        <span className="probability-text">
-                          {Math.round(prediction.probability * 100)}% conflict risk
-                        </span>
-                      </div>
-
-                      <div className="conflict-types">
-                        {prediction.conflictTypes.map((conflictType, typeIdx) => (
-                          <span key={typeIdx} className="conflict-type">
-                            {typeof conflictType === 'string' ? conflictType : conflictType.type}
+                    {/* Risk bar */}
+                    <div className="relative h-2 w-full rounded-full bg-slate-800 mb-2 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${pct}%`,
+                          background: pct > 70 ? '#ef4444' : pct > 40 ? '#f59e0b' : '#10b981',
+                        }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mb-2">{pct}% conflict probability</p>
+                    {prediction.conflictTypes?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {prediction.conflictTypes.map((ct: any, ti: number) => (
+                          <span key={ti} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+                            {typeof ct === 'string' ? ct : ct.type}
                           </span>
                         ))}
                       </div>
-
-                      <div className="recommendations">
-                        <h5>Recommendations:</h5>
-                        <ul>
-                          {(prediction.mitigationStrategies ?? []).map((rec, recIdx) => (
-                            <li key={recIdx}>{rec}</li>
-                          ))}
-                        </ul>
+                    )}
+                    {prediction.mitigationStrategies?.length > 0 && (
+                      <div className="space-y-0.5">
+                        {prediction.mitigationStrategies.map((s: string, si: number) => (
+                          <div key={si} className="text-[10px] text-slate-400 flex gap-1">
+                            <span className="text-emerald-500">•</span>{s}
+                          </div>
+                        ))}
                       </div>
-                    </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-12 text-slate-500">
+              <AlertTriangle className="w-8 h-8 mr-3 opacity-40" />
+              <span className="text-sm">Press Run Analysis to predict conflicts.</span>
+            </div>
+          )}
+        </div>
+      )}
 
-        {activeTab === 'bottlenecks' && (
-          <div className="analysis-section">
-            <h3>Performance Bottleneck Mining</h3>
-            <p>Identify mods causing the most FPS drops and performance issues</p>
-
-            {analysisResults.bottlenecks && (
-              <div className="bottlenecks-grid">
-                <div className="result-card">
-                  <h4>Critical Path</h4>
-                  <div className="critical-path">
-                    {analysisResults.bottlenecks.criticalPath.map((mod, idx) => (
-                      <div key={idx} className="path-item">
-                        <span className="mod-name">{mod}</span>
-                        <span className="path-arrow">→</span>
-                      </div>
-                    ))}
-                  </div>
+      {/* ── Bottleneck Mining ── */}
+      {activeTab === 'bottlenecks' && (
+        <div className="space-y-4">
+          <p className="text-xs text-slate-400">
+            Identifies which mods contribute most to FPS loss, load-time inflation, and Papyrus stall events.
+          </p>
+          {analysisResults.bottlenecks ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Critical path */}
+              <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
+                <h4 className="text-sm font-bold text-white mb-3">Critical Load Path</h4>
+                <div className="flex flex-wrap gap-1 items-center">
+                  {analysisResults.bottlenecks.criticalPath.map((mod: string, i: number) => (
+                    <React.Fragment key={i}>
+                      <span className="text-[11px] font-mono bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-slate-300">{mod}</span>
+                      {i < analysisResults.bottlenecks!.criticalPath.length - 1 && (
+                        <span className="text-slate-600 text-[10px]">→</span>
+                      )}
+                    </React.Fragment>
+                  ))}
                 </div>
-
-                <div className="result-card">
-                  <h4>Performance Bottlenecks</h4>
-                  <div className="bottlenecks-list">
-                    {[...analysisResults.bottlenecks.primaryBottlenecks, ...analysisResults.bottlenecks.secondaryBottlenecks].map((bottleneck, idx) => (
-                      <div key={idx} className="bottleneck-item">
-                        <div className="bottleneck-header">
-                          <span className="mod-name">{bottleneck.affectedMods.join(', ') || 'Unknown mods'}</span>
-                          <span className="impact">-{bottleneck.impact.fps} FPS</span>
+              </div>
+              {/* Bottlenecks */}
+              <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
+                <h4 className="text-sm font-bold text-white mb-3">Performance Bottlenecks</h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {[...analysisResults.bottlenecks.primaryBottlenecks, ...analysisResults.bottlenecks.secondaryBottlenecks]
+                    .map((b: any, i: number) => (
+                    <div key={i} className="rounded-lg bg-slate-800/50 p-2.5 text-[11px]">
+                      <div className="flex justify-between mb-1">
+                        <span className="text-slate-300 font-semibold truncate">{b.affectedMods?.join(', ') || 'Unknown'}</span>
+                        <span className="text-red-400 font-bold shrink-0 ml-2">-{b.impact?.fps ?? '?'} FPS</span>
+                      </div>
+                      <span className="text-emerald-400 text-[10px]">{b.type}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Opportunities */}
+              <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 md:col-span-2">
+                <h4 className="text-sm font-bold text-white mb-3">Optimization Opportunities</h4>
+                <div className="space-y-2">
+                  {analysisResults.bottlenecks.optimizationOpportunities.map((opp: any, i: number) => (
+                    <div key={i} className="flex items-start gap-3 rounded-lg bg-slate-800/50 p-3 text-[11px]">
+                      <div className="flex-1">
+                        <div className="flex justify-between mb-1">
+                          <span className="font-semibold text-white">{opp.description}</span>
+                          <span className="text-emerald-400 font-bold shrink-0 ml-2">+{opp.potentialGain?.fps ?? '?'} FPS</span>
                         </div>
-                        <div className="bottleneck-details">
-                          <span className="bottleneck-type">{bottleneck.type}</span>
-                          <div className="mitigation-strategies">
-                            {bottleneck.mitigationStrategies.map((strategy, stratIdx) => (
-                              <span key={stratIdx} className="strategy">{strategy.description}</span>
+                        <span className="text-[10px] uppercase text-slate-500">{opp.type}</span>
+                        {opp.affectedMods?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {opp.affectedMods.slice(0, 4).map((m: string, mi: number) => (
+                              <span key={mi} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">{m}</span>
                             ))}
                           </div>
-                        </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="result-card">
-                  <h4>Optimization Opportunities</h4>
-                  <div className="opportunities-list">
-                    {analysisResults.bottlenecks.optimizationOpportunities.map((opp, idx) => (
-                      <div key={idx} className="opportunity-item">
-                        <div className="opportunity-header">
-                          <span className="opp-type">{opp.type}</span>
-                          <span className="potential-gain">+{opp.potentialGain.fps} FPS</span>
-                        </div>
-                        <p className="opp-description">{opp.description}</p>
-                        <div className="affected-mods">
-                          {opp.affectedMods.map((mod, modIdx) => (
-                            <span key={modIdx} className="affected-mod">{mod}</span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-12 text-slate-500">
+              <TrendingDown className="w-8 h-8 mr-3 opacity-40" />
+              <span className="text-sm">Press Run Analysis to mine bottlenecks.</span>
+            </div>
+          )}
+        </div>
+      )}
 
-        {activeTab === 'memory' && (
-          <div className="analysis-section">
-            <h3>Memory Usage Analysis</h3>
-            <p>Track VRAM/VRAM usage patterns across load orders</p>
-
-            {analysisResults.memory && (
-              <div className="memory-grid">
-                <div className="result-card">
-                  <h4>VRAM Usage</h4>
-                  <div className="memory-stats">
-                    <div className="stat-item">
-                      <HardDrive className="stat-icon" />
-                      <div className="stat-details">
-                        <span className="stat-value">{Math.round(analysisResults.memory.vramUsage.total)} MB</span>
-                        <span className="stat-label">Total VRAM</span>
-                      </div>
-                    </div>
-                    <div className="stat-item">
-                      <TrendingDown className="stat-icon" />
-                      <div className="stat-details">
-                        <span className="stat-value">{Math.round(analysisResults.memory.vramUsage.peakUsage)} MB</span>
-                        <span className="stat-label">Peak Usage</span>
-                      </div>
-                    </div>
+      {/* ── Memory Analysis ── */}
+      {activeTab === 'memory' && (
+        <div className="space-y-4">
+          <p className="text-xs text-slate-400">
+            VRAM and system RAM usage estimates based on scanned textures and active load order.
+            Peak figures reflect worst-case outdoor cell transitions.
+          </p>
+          {analysisResults.memory ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[
+                { label: 'Total VRAM',  value: `${Math.round(analysisResults.memory.vramUsage.total)} MB`,       icon: <HardDrive   className="w-5 h-5 text-purple-400" /> },
+                { label: 'Peak VRAM',   value: `${Math.round(analysisResults.memory.vramUsage.peakUsage)} MB`,   icon: <TrendingDown className="w-5 h-5 text-red-400"    /> },
+                { label: 'Total RAM',   value: `${Math.round(analysisResults.memory.systemRamUsage.total)} MB`,  icon: <MemoryStick  className="w-5 h-5 text-blue-400"   /> },
+                { label: 'Peak RAM',    value: `${Math.round(analysisResults.memory.systemRamUsage.peakUsage)} MB`, icon: <TrendingDown className="w-5 h-5 text-amber-400" /> },
+              ].map(s => (
+                <div key={s.label} className="rounded-xl border border-slate-700 bg-slate-800/40 p-4 flex items-center gap-3">
+                  {s.icon}
+                  <div>
+                    <div className="text-xl font-black text-white">{s.value}</div>
+                    <div className="text-[10px] text-slate-500">{s.label}</div>
                   </div>
                 </div>
-
-                <div className="result-card">
-                  <h4>RAM Usage</h4>
-                  <div className="memory-stats">
-                    <div className="stat-item">
-                      <MemoryStick className="stat-icon" />
-                      <div className="stat-details">
-                        <span className="stat-value">{Math.round(analysisResults.memory.systemRamUsage.total)} MB</span>
-                        <span className="stat-label">Total RAM</span>
-                      </div>
-                    </div>
-                    <div className="stat-item">
-                      <TrendingDown className="stat-icon" />
-                      <div className="stat-details">
-                        <span className="stat-value">{Math.round(analysisResults.memory.systemRamUsage.peakUsage)} MB</span>
-                        <span className="stat-label">Peak Usage</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="result-card">
-                  <h4>Memory Recommendations</h4>
-                  <div className="recommendations-list">
-                    {analysisResults.memory.recommendations.map((rec, idx) => (
-                      <div key={idx} className="recommendation-item">
-                        <span className="rec-type">{rec.type}</span>
-                        <p>{rec.description}</p>
-                        <span className="savings">Save {rec.potentialSavings} MB</span>
+              ))}
+              <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 md:col-span-3">
+                <h4 className="text-sm font-bold text-white mb-3">Memory Recommendations</h4>
+                {analysisResults.memory.recommendations.length === 0 ? (
+                  <p className="text-xs text-slate-500">Memory usage is within acceptable bounds.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {analysisResults.memory.recommendations.map((rec: any, i: number) => (
+                      <div key={i} className="flex items-start gap-3 rounded-lg bg-slate-800/50 p-3 text-[11px]">
+                        <div className="flex-1">
+                          <div className="font-semibold text-white mb-0.5">{rec.description}</div>
+                          <span className="text-[10px] uppercase text-slate-500">{rec.type}</span>
+                        </div>
+                        {rec.potentialSavings != null && (
+                          <span className="text-emerald-400 font-bold shrink-0">-{rec.potentialSavings} MB</span>
+                        )}
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-12 text-slate-500">
+              <MemoryStick className="w-8 h-8 mr-3 opacity-40" />
+              <span className="text-sm">Press Run Analysis to profile memory usage.</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Compatibility Matrix ── */}
+      {activeTab === 'compatibility' && (
+        <div className="space-y-4">
+          <p className="text-xs text-slate-400">
+            Builds a pairwise compatibility matrix from scanned plugins and cross-references known
+            conflict patterns to cluster mods into compatible groups.
+          </p>
+          {analysisResults.compatibility ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
+                  <div className="text-2xl font-black text-white">{analysisResults.compatibility.matrix?.size ?? 0}</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Mod Pairs Analysed</div>
+                </div>
+                <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
+                  <div className="text-2xl font-black text-white">{analysisResults.compatibility.dataPoints ?? 0}</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Data Points</div>
                 </div>
               </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'compatibility' && (
-          <div className="analysis-section">
-            <h3>Compatibility Matrix Mining</h3>
-            <p>Build dynamic compatibility databases from community data</p>
-
-            {analysisResults.compatibility && (
-              <div className="compatibility-content">
-                <div className="matrix-stats">
-                  <div className="stat-item">
-                    <Network className="stat-icon" />
-                    <div className="stat-details">
-                      <span className="stat-value">{analysisResults.compatibility.matrix.size}</span>
-                      <span className="stat-label">Mod Pairs Analyzed</span>
-                    </div>
-                  </div>
-                  <div className="stat-item">
-                    <BarChart3 className="stat-icon" />
-                    <div className="stat-details">
-                      <span className="stat-value">{analysisResults.compatibility.dataPoints}</span>
-                      <span className="stat-label">Data Points</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="compatibility-clusters">
-                  <h4>Compatibility Clusters</h4>
-                  <div className="clusters-list">
-                    {analysisResults.compatibility.clusters.map((cluster, idx) => (
-                      <div key={idx} className="cluster-item">
-                        <div className="cluster-header">
-                          <span className="cluster-id">{cluster.id}</span>
-                          <span className="compatibility-score">
-                            {Math.round(cluster.compatibility * 100)}% compatible
-                          </span>
-                        </div>
-                        <p className="cluster-description">{cluster.description}</p>
-                        <div className="cluster-mods">
-                          {cluster.mods.slice(0, 5).map((mod, modIdx) => (
-                            <span key={modIdx} className="cluster-mod">{mod}</span>
-                          ))}
-                          {cluster.mods.length > 5 && (
-                            <span className="more-mods">+{cluster.mods.length - 5} more</span>
-                          )}
-                        </div>
+              <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
+                <h4 className="text-sm font-bold text-white mb-3">Compatibility Clusters</h4>
+                <div className="space-y-3 max-h-72 overflow-y-auto">
+                  {analysisResults.compatibility.clusters?.map((cluster: any, i: number) => (
+                    <div key={i} className="rounded-lg border border-slate-700 bg-slate-800/50 p-3">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[11px] font-bold text-white">{cluster.id}</span>
+                        <span className="text-[10px] font-bold text-emerald-400">
+                          {Math.round((cluster.compatibility ?? 0) * 100)}% compatible
+                        </span>
                       </div>
-                    ))}
-                  </div>
+                      <p className="text-[10px] text-slate-400 mb-2">{cluster.description}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {cluster.mods?.slice(0, 5).map((m: string, mi: number) => (
+                          <span key={mi} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">{m}</span>
+                        ))}
+                        {(cluster.mods?.length ?? 0) > 5 && (
+                          <span className="text-[10px] text-slate-500 italic">+{cluster.mods.length - 5} more</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* eslint-disable-next-line react/no-unknown-property */}
-      <style>{`
-        .advanced-analysis-panel {
-          display: flex;
-          flex-direction: column;
-          height: 100%;
-          background: var(--bg-primary);
-          color: var(--text-primary);
-        }
-
-        .panel-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 1rem;
-          border-bottom: 1px solid var(--border-color);
-        }
-
-        .panel-title {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-size: 1.25rem;
-          font-weight: 600;
-        }
-
-        .panel-icon {
-          width: 1.5rem;
-          height: 1.5rem;
-          color: var(--accent-color);
-        }
-
-        .panel-controls {
-          display: flex;
-          gap: 0.5rem;
-        }
-
-        .control-button {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem 1rem;
-          background: var(--bg-secondary);
-          border: 1px solid var(--border-color);
-          border-radius: 0.375rem;
-          color: var(--text-primary);
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .control-button:hover:not(:disabled) {
-          background: var(--bg-hover);
-        }
-
-        .control-button:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .control-button.close {
-          padding: 0.25rem 0.5rem;
-          background: transparent;
-          border: none;
-          font-size: 1.25rem;
-        }
-
-        .spinning {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        .analysis-tabs {
-          display: flex;
-          border-bottom: 1px solid var(--border-color);
-        }
-
-        .tab-button {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.75rem 1rem;
-          background: transparent;
-          border: none;
-          border-bottom: 2px solid transparent;
-          color: var(--text-secondary);
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .tab-button:hover {
-          background: var(--bg-hover);
-          color: var(--text-primary);
-        }
-
-        .tab-button.active {
-          border-bottom-color: var(--accent-color);
-          color: var(--accent-color);
-        }
-
-        .tab-icon {
-          width: 1rem;
-          height: 1rem;
-        }
-
-        .analysis-content {
-          flex: 1;
-          padding: 1rem;
-          overflow-y: auto;
-        }
-
-        .analysis-section h3 {
-          margin: 0 0 0.5rem 0;
-          color: var(--text-primary);
-        }
-
-        .analysis-section p {
-          margin: 0 0 1rem 0;
-          color: var(--text-secondary);
-        }
-
-        .results-grid, .bottlenecks-grid, .memory-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-          gap: 1rem;
-        }
-
-        .result-card {
-          background: var(--bg-secondary);
-          border: 1px solid var(--border-color);
-          border-radius: 0.5rem;
-          padding: 1rem;
-        }
-
-        .result-card h4 {
-          margin: 0 0 1rem 0;
-          color: var(--text-primary);
-          font-size: 1rem;
-        }
-
-        .patterns-list, .recommendations-list, .opportunities-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .pattern-item, .recommendation-item, .opportunity-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0.5rem;
-          background: var(--bg-tertiary);
-          border-radius: 0.25rem;
-        }
-
-        .pattern-type, .rec-type, .opp-type {
-          font-weight: 500;
-          color: var(--accent-color);
-        }
-
-        .pattern-confidence {
-          color: var(--text-secondary);
-          font-size: 0.875rem;
-        }
-
-        .conflicts-list {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .conflict-card {
-          background: var(--bg-secondary);
-          border: 1px solid var(--border-color);
-          border-radius: 0.5rem;
-          padding: 1rem;
-        }
-
-        .conflict-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 1rem;
-        }
-
-        .mod-pair {
-          font-weight: 500;
-          color: var(--text-primary);
-        }
-
-        .severity {
-          padding: 0.25rem 0.5rem;
-          border-radius: 0.25rem;
-          font-size: 0.75rem;
-          font-weight: 500;
-          text-transform: uppercase;
-        }
-
-        .severity.minor { background: #fef3c7; color: #92400e; }
-        .severity.major { background: #fed7aa; color: #9a3412; }
-        .severity.critical { background: #fecaca; color: #991b1b; }
-
-        .probability-bar {
-          position: relative;
-          height: 1.5rem;
-          background: var(--bg-tertiary);
-          border-radius: 0.25rem;
-          margin-bottom: 1rem;
-          overflow: hidden;
-        }
-
-        .probability-fill {
-          height: 100%;
-          background: linear-gradient(90deg, #10b981 0%, #f59e0b 50%, #ef4444 100%);
-          transition: width 0.3s ease;
-        }
-
-        .probability-text {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          font-weight: 500;
-          color: var(--text-primary);
-        }
-
-        .critical-path {
-          display: flex;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 0.5rem;
-        }
-
-        .path-item {
-          display: flex;
-          align-items: center;
-          gap: 0.25rem;
-        }
-
-        .path-arrow {
-          color: var(--text-secondary);
-        }
-
-        .bottlenecks-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-
-        .bottleneck-item {
-          padding: 0.75rem;
-          background: var(--bg-tertiary);
-          border-radius: 0.375rem;
-        }
-
-        .bottleneck-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 0.5rem;
-        }
-
-        .impact {
-          color: #ef4444;
-          font-weight: 600;
-        }
-
-        .bottleneck-type {
-          color: var(--accent-color);
-          font-size: 0.875rem;
-        }
-
-        .mitigation-strategies {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.25rem;
-          margin-top: 0.5rem;
-        }
-
-        .strategy {
-          padding: 0.125rem 0.375rem;
-          background: var(--bg-primary);
-          border-radius: 0.25rem;
-          font-size: 0.75rem;
-          color: var(--text-secondary);
-        }
-
-        .memory-stats {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .stat-item {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-        }
-
-        .stat-icon {
-          width: 2rem;
-          height: 2rem;
-          color: var(--accent-color);
-        }
-
-        .stat-details {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .stat-value {
-          font-size: 1.25rem;
-          font-weight: 600;
-          color: var(--text-primary);
-        }
-
-        .stat-label {
-          font-size: 0.875rem;
-          color: var(--text-secondary);
-        }
-
-        .matrix-stats {
-          display: flex;
-          gap: 2rem;
-          margin-bottom: 2rem;
-        }
-
-        .clusters-list {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .cluster-item {
-          padding: 1rem;
-          background: var(--bg-secondary);
-          border: 1px solid var(--border-color);
-          border-radius: 0.5rem;
-        }
-
-        .cluster-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 0.5rem;
-        }
-
-        .cluster-id {
-          font-weight: 500;
-          color: var(--text-primary);
-        }
-
-        .compatibility-score {
-          color: #10b981;
-          font-weight: 500;
-        }
-
-        .cluster-description {
-          color: var(--text-secondary);
-          margin-bottom: 0.75rem;
-        }
-
-        .cluster-mods, .affected-mods {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.375rem;
-        }
-
-        .cluster-mod, .affected-mod {
-          padding: 0.125rem 0.375rem;
-          background: var(--bg-tertiary);
-          border-radius: 0.25rem;
-          font-size: 0.75rem;
-          color: var(--text-secondary);
-        }
-
-        .more-mods {
-          color: var(--text-tertiary);
-          font-style: italic;
-        }
-
-        .savings {
-          color: #10b981;
-          font-weight: 500;
-          font-size: 0.875rem;
-        }
-      `}</style>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-12 text-slate-500">
+              <Network className="w-8 h-8 mr-3 opacity-40" />
+              <span className="text-sm">Press Run Analysis to build the compatibility matrix.</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

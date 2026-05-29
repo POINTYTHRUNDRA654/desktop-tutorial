@@ -105,6 +105,7 @@ import { MiningPipelineOrchestrator } from '../mining/mining-pipeline';
 import { ESPParser } from '../mining/esp-parser';
 import { DependencyGraphBuilder } from '../mining/dependency-graph-builder';
 import { DataSource, MiningResult } from '../shared/types';
+import { whisperServer } from './whisperServerManager';
 
 // Keep dev and packaged builds using the same userData folder for consistent onboarding/memory.
 app.setName('mossy-desktop');
@@ -201,71 +202,31 @@ const sendDiagnosticsToRenderer = (webContents: any) => {
     backendTokenLength: process.env.MOSSY_BACKEND_TOKEN ? process.env.MOSSY_BACKEND_TOKEN.length : 0,
     backendUrl: process.env.MOSSY_BACKEND_URL || 'not set',
   }
-// --- Local Whisper transcription IPC handler ---
-// Handles audio ArrayBuffer from renderer, writes to temp file, invokes
-// a local Python whisper service (if available) and returns JSON result.
+// --- Persistent Whisper transcription IPC handler ---
+// Uses whisperServerManager: model is loaded ONCE at startup and stays in memory.
+// Requests are piped via stdin/stdout — no per-clip spawn or model-reload overhead.
+
+// Start the persistent server eagerly (non-blocking — errors are logged, not thrown).
+// The handler below will also auto-start on first call if this fails during startup.
+whisperServer.start()
+  .then((info: { device: string; compute: string }) => {
+    writeMainLog(`[TRANSCRIBE] Whisper server ready — device=${info.device} compute=${info.compute}`);
+  })
+  .catch((err: Error) => {
+    writeMainLog(`[TRANSCRIBE] Whisper server startup warning (will retry on first call): ${err?.message || err}`);
+  });
+
 ipcMain.handle(IPC_CHANNELS.TRANSCRIBE_AUDIO, async (_event, arrayBuffer: ArrayBuffer, mimeType?: string) => {
   try {
-    // Choose a safe temporary filename
-    const tmpDir = os.tmpdir();
-    const tmpName = 'mossy_transcribe_';
-    const ext = (typeof mimeType === 'string' && mimeType.includes('ogg')) ? '.ogg' : '.webm';
-    const tmpPath = path.join(tmpDir, tmpName + ext);
-
-    // Buffer the incoming ArrayBuffer and write to disk
-    const buffer = Buffer.from(arrayBuffer);
-    fs.writeFileSync(tmpPath, buffer);
-
-    // Determine python executable and script path. Allow override via env var
-    const pythonPath = process.env.LOCAL_WHISPER_PYTHON || 'python';
-    // Script is expected at resources/python/whisper_service.py or src/python during dev
-    const candidateScriptPaths = [
-      path.join(app.getAppPath(), 'src', 'python', 'whisper_service.py'),
-      path.join(app.getAppPath(), 'python', 'whisper_service.py'),
-      path.join(process.resourcesPath || '', 'python', 'whisper_service.py'),
-      path.join(process.cwd(), 'src', 'python', 'whisper_service.py'),
-    ];
-    const scriptPath = candidateScriptPaths.find(p => fs.existsSync(p));
-    if (!scriptPath) {
-      try { fs.unlinkSync(tmpPath); } catch {}
-      return { success: false, error: 'whisper_script_missing' };
-    }
-
-    writeMainLog('[TRANSCRIBE] Spawning whisper:   ');
-
-    // Spawn python process
-    const child = spawn(pythonPath, [scriptPath, tmpPath], { windowsHide: true });
-    let stdout = '';
-    let stderr = '';
-    child.stdout?.on('data', (d) => { stdout += String(d); });
-    child.stderr?.on('data', (d) => { stderr += String(d); });
-
-    const exitCode: number = await new Promise((resolve) => {
-      child.on('close', (code) => resolve(code ?? 0));
-      child.on('error', () => resolve(-1));
-    });
-
-    // Clean up temp file
-    try { fs.unlinkSync(tmpPath); } catch (e) { /* ignore */ }
-
-    if (exitCode !== 0) {
-      writeMainLog(`[TRANSCRIBE] Whisper failed (code=${exitCode}): `);
-      return { success: false, error: 'whisper_process_failed', details: stderr.slice(0,200) };
-    }
-
-    // Parse stdout (should be JSON object)
-    try {
-      const parsed = JSON.parse(stdout || '{}');
-      return parsed;
-    } catch (e) {
-      writeMainLog('[TRANSCRIBE] Failed to parse whisper JSON output: ' + String(e));
-      return { success: false, error: 'parse_error', raw: stdout };
-    }
+    writeMainLog('[TRANSCRIBE] transcribeAudio called via persistent server');
+    const result = await whisperServer.transcribe(arrayBuffer, mimeType);
+    writeMainLog(`[TRANSCRIBE] result: success=${result.success} device=${result.device || '?'} text="${String(result.text || '').slice(0, 60)}"`);
+    return result;
   } catch (err) {
     console.error('[Main] transcribe-audio handler error:', err);
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
-});;
+});
   
   webContents.send('main:diagnostics', diagnostics);
 }
@@ -1019,6 +980,118 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
 }
 
 /**
+ * runWhisperAutoInstall
+ *
+ * Mirrors runPytorchAutoInstall — automatically installs faster-whisper on
+ * first launch so voice input works out of the box with no user action.
+ *
+ * Uses the same detectPythonExecutable / bootstrapEmbeddedPip infrastructure.
+ * The resolved Python exe is saved to settings as `whisperPythonPath` and
+ * read by whisperServerManager on startup.
+ */
+async function runWhisperAutoInstall(win: BrowserWindow | null) {
+  const sendProgress = (msg: string) => {
+    console.log('[Whisper Auto-Setup]', msg);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('whisper-setup-progress', { message: msg });
+    }
+  };
+
+  const INSTALL_TIMEOUT_MS = 600_000; // 10 min
+
+  const runCmd = (
+    cmd: string,
+    args: string[],
+    extraEnv?: Record<string, string>,
+  ): Promise<{ code: number; stdout: string; stderr: string }> =>
+    new Promise((resolve) => {
+      const child = spawn(cmd, args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: INSTALL_TIMEOUT_MS,
+        windowsHide: true,
+        env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
+      });
+      let stdout = '';
+      let stderr = '';
+      child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+      child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+      child.on('close', (code: number | null) => resolve({ code: code ?? -1, stdout, stderr }));
+      child.on('error', (err: Error) => resolve({ code: -1, stdout: '', stderr: err.message }));
+    });
+
+  try {
+    // ── 0. Already set up? ────────────────────────────────────────────────────
+    const s = loadSettings();
+    const savedPython = (s?.whisperPythonPath as string | undefined) ?? '';
+    if (savedPython && fs.existsSync(savedPython)) {
+      const check = await runCmd(savedPython, ['-c', 'import faster_whisper; print("ok")']);
+      if (check.code === 0 && check.stdout.includes('ok')) {
+        sendProgress('✅ faster-whisper already configured.');
+        whisperServer.setPythonPath(savedPython);
+        return;
+      }
+    }
+
+    // ── 1. Quick check: system Python already has faster-whisper ─────────────
+    sendProgress('Checking for faster-whisper…');
+    const quickCandidates = process.platform === 'win32' ? ['python', 'python3', 'py'] : ['python3', 'python'];
+    for (const pyCmd of quickCandidates) {
+      const r = await runCmd(pyCmd, ['-c', 'import faster_whisper; print("ok")']);
+      if (r.code === 0 && r.stdout.includes('ok')) {
+        sendProgress(`✅ faster-whisper found via ${pyCmd}.`);
+        saveSettings({ ...loadSettings(), whisperPythonPath: pyCmd });
+        whisperServer.setPythonPath(pyCmd);
+        return;
+      }
+    }
+
+    // ── 2. Find Python ────────────────────────────────────────────────────────
+    sendProgress('Searching for Python…');
+    const detectionResult = await detectPythonExecutable(runCmd, sendProgress);
+    let pythonExe = detectionResult.pythonExe;
+
+    if (!pythonExe) {
+      sendProgress('⚠️ Python not found. Voice transcription requires Python 3.9+.');
+      sendProgress('Install Python from https://www.python.org/downloads/ and restart Mossy.');
+      return;
+    }
+
+    // If bundled Python, bootstrap pip first
+    if (process.platform === 'win32') {
+      const bundledPython = path.join(process.resourcesPath, 'python-embedded', 'python.exe');
+      if (pythonExe === bundledPython) {
+        sendProgress('Using bundled Python — bootstrapping pip…');
+        const ok = await bootstrapEmbeddedPip(bundledPython, sendProgress, runCmd);
+        if (!ok) {
+          sendProgress('⚠️ pip bootstrap failed. Please install Python 3.9+ from python.org.');
+          return;
+        }
+      }
+    }
+
+    // ── 3. Install faster-whisper ─────────────────────────────────────────────
+    sendProgress('Installing faster-whisper (one-time, ~200 MB — this may take a few minutes)…');
+    const pkgs = ['faster-whisper', 'nvidia-cublas-cu12', 'nvidia-cudnn-cu12'];
+    const installResult = await runCmd(pythonExe, ['-m', 'pip', 'install', '--no-warn-script-location', ...pkgs]);
+
+    const verify = await runCmd(pythonExe, ['-c', 'import faster_whisper; print("ok")']);
+    if (verify.code !== 0 || !verify.stdout.includes('ok')) {
+      sendProgress(`⚠️ faster-whisper install failed:\n${installResult.stderr.slice(0, 400)}`);
+      sendProgress('Run manually: pip install faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu12');
+      return;
+    }
+
+    // ── 4. Save and activate ──────────────────────────────────────────────────
+    saveSettings({ ...loadSettings(), whisperPythonPath: pythonExe });
+    whisperServer.setPythonPath(pythonExe);
+    sendProgress(`✅ faster-whisper installed. Voice transcription is ready (device will be detected on first use).`);
+
+  } catch (err: any) {
+    sendProgress(`❌ Whisper auto-setup error: ${err?.message || String(err)}`);
+  }
+}
+
+/**
  * bootstrapEmbeddedPip
  *
  * Prepares the Windows embedded Python at embeddedPythonExe to accept pip by:
@@ -1243,6 +1316,22 @@ function createWindow() {
     ipcMain.once('pytorch-renderer-ready', () => triggerPytorchSetup());
     // Safety fallback: if the renderer never signals, start after 15 s
     setTimeout(triggerPytorchSetup, 15_000);
+
+    // ── Whisper auto-setup (same pattern as PyTorch above) ───────────────────
+    let whisperSetupTriggered = false;
+    const triggerWhisperSetup = async () => {
+      if (whisperSetupTriggered) return;
+      whisperSetupTriggered = true;
+      try {
+        await runWhisperAutoInstall(mainWindow);
+      } catch (err: any) {
+        console.error('[Whisper Auto-Setup] Unexpected error:', err?.message || err);
+      }
+    };
+    // Piggyback on pytorch-renderer-ready (renderer sends it on load anyway),
+    // or wait 20 s as a safety net.
+    ipcMain.once('pytorch-renderer-ready', () => setTimeout(triggerWhisperSetup, 2_000));
+    setTimeout(triggerWhisperSetup, 20_000);
   });
 
   mainWindow.on('closed', () => {
@@ -1866,7 +1955,7 @@ let lastIpcRegistrationReport: {
  */
 function registerBethelHandlers(
   bethel: InstanceType<typeof BethelIntegration>,
-  mainWindow: BrowserWindow | null,
+  getWindow: () => BrowserWindow | null,
   dataDir: string
 ) {
   /**
@@ -1887,8 +1976,9 @@ function registerBethelHandlers(
   ipcMain.handle('bethel:analyze', async (event, jobId: string) => {
     try {
       const job = await bethel.analyzeUploadedMod(jobId);
-      if (mainWindow) {
-        mainWindow.webContents.send('bethel:analyzed', job);
+      const win = getWindow();
+      if (win) {
+        win.webContents.send('bethel:analyzed', job);
       }
       return { success: true, job };
     } catch (err: any) {
@@ -1903,9 +1993,10 @@ function registerBethelHandlers(
     'bethel:enhance',
     async (event, jobId: string, enhancementLevel: 4 | 8 | 16 = 4) => {
       try {
-        const job = await bethel.enhanceMod(jobId, enhancementLevel, mainWindow);
-        if (mainWindow) {
-          mainWindow.webContents.send('bethel:enhancement-complete', job);
+        const win = getWindow();
+        const job = await bethel.enhanceMod(jobId, enhancementLevel, win);
+        if (win) {
+          win.webContents.send('bethel:enhancement-complete', job);
         }
         return { success: true, job };
       } catch (err: any) {
@@ -1926,8 +2017,9 @@ function registerBethelHandlers(
     ) => {
       try {
         const job = await bethel.exportEnhancedMod(jobId, format);
-        if (mainWindow) {
-          mainWindow.webContents.send('bethel:export-complete', job);
+        const win = getWindow();
+        if (win) {
+          win.webContents.send('bethel:export-complete', job);
         }
         return { success: true, job };
       } catch (err: any) {
@@ -2517,8 +2609,13 @@ function setupIpcHandlers() {
     }
   });
 
-  // Audio transcription handler (runs in main process; renderer never sees API keys)
-  ipcMain.handle('transcribe-audio', async (_event, arrayBuffer: ArrayBuffer, mimeType?: string) => {
+  // NOTE: 'transcribe-audio' IPC is handled by the persistent WhisperServerManager
+  // registered at the top of this file (ipcMain.handle(IPC_CHANNELS.TRANSCRIBE_AUDIO, ...)).
+  // The handler below is intentionally removed to avoid duplicate-channel errors.
+  // Legacy cloud/backend fallback paths (OpenAI, backend proxy) remain available
+  // via Settings → STT Provider if the user configures them.
+  if (false) // eslint-disable-line no-constant-condition
+  ipcMain.handle('transcribe-audio--DISABLED', async (_event, arrayBuffer: ArrayBuffer, mimeType?: string) => {
     console.error('🎤 [TRANSCRIBE-AUDIO] Handler called with arrayBuffer length:', arrayBuffer?.byteLength || 0, 'mimeType:', mimeType);
     let tempAudioPath: string | null = null;
 
@@ -30999,51 +31096,6 @@ ${steps}
     }
   });
 
-  // ── Onboarding Wizard state handlers ─────────────────────────────────────
-  // Persists first-run wizard step so users can close and resume.
-
-  const WIZARD_STATE_FILE = path.join(app.getPath('userData'), 'wizard-state.json');
-
-  registerHandler(IPC_CHANNELS.WIZARD_GET_STATE, async () => {
-    try {
-      if (!fs.existsSync(WIZARD_STATE_FILE)) return { step: 0, completed: false };
-      return JSON.parse(fs.readFileSync(WIZARD_STATE_FILE, 'utf-8'));
-    } catch {
-      return { step: 0, completed: false };
-    }
-  });
-
-  registerHandler(IPC_CHANNELS.WIZARD_UPDATE_STEP, async (_event, step: number) => {
-    try {
-      const current = fs.existsSync(WIZARD_STATE_FILE)
-        ? JSON.parse(fs.readFileSync(WIZARD_STATE_FILE, 'utf-8'))
-        : { step: 0, completed: false };
-      const next = { ...current, step: Number(step), updatedAt: Date.now() };
-      fs.writeFileSync(WIZARD_STATE_FILE, JSON.stringify(next, null, 2), 'utf-8');
-      return { ok: true };
-    } catch (err: any) {
-      return { ok: false, error: String(err?.message || err) };
-    }
-  });
-
-  registerHandler(IPC_CHANNELS.WIZARD_SUBMIT_ACTION, async (_event, action: any) => {
-    try {
-      const current = fs.existsSync(WIZARD_STATE_FILE)
-        ? JSON.parse(fs.readFileSync(WIZARD_STATE_FILE, 'utf-8'))
-        : { step: 0, completed: false };
-      const next = {
-        ...current,
-        completed: action?.complete === true,
-        lastAction: action,
-        updatedAt: Date.now(),
-      };
-      fs.writeFileSync(WIZARD_STATE_FILE, JSON.stringify(next, null, 2), 'utf-8');
-      return { ok: true };
-    } catch (err: any) {
-      return { ok: false, error: String(err?.message || err) };
-    }
-  });
-
   // ── Observer status ───────────────────────────────────────────────────────
 
   registerHandler(IPC_CHANNELS.OBSERVER_GET_STATUS, async () => {
@@ -32326,6 +32378,133 @@ ${steps}
   }
 }
 
+// ── Onboarding Wizard IPC handlers ────────────────────────────────────────
+// Registered via their own dedicated function (NOT inside setupIpcHandlers)
+// so they are guaranteed to execute regardless of what happens in the larger
+// handler setup function. Called directly from app.whenReady().
+function setupWizardIpcHandlers(): void {
+  const WIZARD_STATES_FILE = path.join(app.getPath('userData'), 'wizard-states.json');
+
+  const WIZARD_DEFINITIONS: Record<string, Array<{ id: string; title: string; description: string; type: string }>> = {
+    'script-writer': [
+      { id: 'choose',   title: 'Choose Script Type',  description: 'Select the Papyrus script type you want to create.', type: 'setup' },
+      { id: 'generate', title: 'Generate Script',      description: 'Enter a name and generate your Papyrus template.', type: 'script' },
+      { id: 'compile',  title: 'Compile & Verify',     description: 'Compile the script in the Creation Kit and confirm it builds.', type: 'setup' },
+    ],
+    'blender-companion': [
+      { id: 'settings', title: 'Configure Blender',    description: 'Verify your Blender path in External Tools Settings.', type: 'setup' },
+      { id: 'inject',   title: 'Apply FO4 Standards',  description: 'Apply Metric (cm), 60 FPS, and focal-length presets to Blender.', type: 'blender' },
+      { id: 'export',   title: 'Export & Verify',      description: 'Export as NIF and confirm the mesh loads in NifSkope.', type: 'setup' },
+    ],
+    'audit-fixer': [
+      { id: 'scan',     title: 'Scan Project',         description: 'Scan your mod files for common issues.', type: 'audit' },
+      { id: 'fix',      title: 'Apply Fixes',          description: 'Apply recommended fixes to identified problems.', type: 'audit' },
+      { id: 'verify',   title: 'Verify Clean',         description: 'Re-scan to confirm all issues are resolved.', type: 'audit' },
+    ],
+  };
+
+  const readWizardStates = (): Record<string, any> => {
+    try {
+      if (!fs.existsSync(WIZARD_STATES_FILE)) return {};
+      return JSON.parse(fs.readFileSync(WIZARD_STATES_FILE, 'utf-8'));
+    } catch {
+      return {};
+    }
+  };
+
+  const writeWizardStates = (states: Record<string, any>): void => {
+    try {
+      fs.writeFileSync(WIZARD_STATES_FILE, JSON.stringify(states, null, 2), 'utf-8');
+    } catch (err: any) {
+      console.error('[Wizard] Failed to write wizard states:', err?.message);
+    }
+  };
+
+  const buildWizardState = (wizardId: string, persisted: any) => {
+    const defs = WIZARD_DEFINITIONS[wizardId] ?? [];
+    const savedSteps: Record<string, any> = persisted?.stepData ?? {};
+    const steps = defs.map(def => ({
+      id:          def.id,
+      title:       def.title,
+      description: def.description,
+      type:        def.type,
+      status:      savedSteps[def.id]?.status ?? 'not-started',
+      data:        savedSteps[def.id]?.data   ?? undefined,
+    }));
+    const savedIndex = typeof persisted?.currentStepIndex === 'number' ? persisted.currentStepIndex : -1;
+    const firstPending = steps.findIndex(s => s.status !== 'completed');
+    const currentStepIndex = savedIndex >= 0 ? savedIndex : (firstPending >= 0 ? firstPending : 0);
+    return {
+      id:               wizardId,
+      projectId:        persisted?.projectId ?? '',
+      name:             persisted?.name ?? wizardId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      steps,
+      currentStepIndex: Math.max(0, Math.min(currentStepIndex, Math.max(steps.length - 1, 0))),
+      lastUpdated:      persisted?.lastUpdated ?? Date.now(),
+    };
+  };
+
+  // Safe registration — skip silently if already registered (e.g. hot-reload)
+  const tryHandle = (channel: string, handler: Parameters<typeof ipcMain.handle>[1]) => {
+    try {
+      ipcMain.handle(channel, handler);
+      console.log(`[Wizard] ✅ Registered handler for '${channel}'`);
+      writeMainLog(`[Wizard] Registered '${channel}'`);
+    } catch (err: any) {
+      if (String(err?.message).includes('second handler')) {
+        console.log(`[Wizard] ⚠️ Handler for '${channel}' already registered, skipping`);
+      } else {
+        console.error(`[Wizard] ❌ Failed to register '${channel}':`, err?.message || err);
+        writeMainLog(`[Wizard] ERROR registering '${channel}': ${err?.message || err}`);
+      }
+    }
+  };
+
+  tryHandle(IPC_CHANNELS.WIZARD_GET_STATE, async (_event, wizardId: string) => {
+    try {
+      const safeId = String(wizardId || 'unknown');
+      const states = readWizardStates();
+      return buildWizardState(safeId, states[safeId] ?? {});
+    } catch (err: any) {
+      return null;
+    }
+  });
+
+  tryHandle(IPC_CHANNELS.WIZARD_UPDATE_STEP, async (_event, wizardId: string, stepId: string, status: string, data?: any) => {
+    try {
+      const safeId = String(wizardId || 'unknown');
+      const states = readWizardStates();
+      const current = states[safeId] ?? {};
+      const stepData = current.stepData ?? {};
+      stepData[String(stepId)] = { status: String(status), data: data ?? undefined };
+      const wizardState = buildWizardState(safeId, { ...current, stepData });
+      const defs = WIZARD_DEFINITIONS[safeId] ?? [];
+      const idx = defs.findIndex(d => d.id === stepId);
+      const nextIndex = status === 'completed' && idx >= 0
+        ? Math.min(idx + 1, Math.max(defs.length - 1, 0))
+        : wizardState.currentStepIndex;
+      states[safeId] = { ...current, stepData, currentStepIndex: nextIndex, lastUpdated: Date.now() };
+      writeWizardStates(states);
+      return buildWizardState(safeId, states[safeId]);
+    } catch (err: any) {
+      return null;
+    }
+  });
+
+  tryHandle(IPC_CHANNELS.WIZARD_SUBMIT_ACTION, async (_event, wizardId: string, actionType: string, payload: any) => {
+    try {
+      const safeId = String(wizardId || 'unknown');
+      const states = readWizardStates();
+      const current = states[safeId] ?? {};
+      states[safeId] = { ...current, lastAction: { type: String(actionType), payload, ts: Date.now() }, lastUpdated: Date.now() };
+      writeWizardStates(states);
+      return { success: true, wizardId: safeId, actionType: String(actionType), payload };
+    } catch (err: any) {
+      return { success: false, error: String(err?.message || err) };
+    }
+  });
+}
+
 /**
  * App lifecycle
  */
@@ -32438,6 +32617,22 @@ app.whenReady().then(() => {
   console.log('[Main] ─── setupIpcHandlers() complete ───');
   writeMainLog('setupIpcHandlers() call complete, moving to createWindow()');
 
+  // ── Wizard handlers — registered separately to guarantee execution ─────────
+  try {
+    writeMainLog('Calling setupWizardIpcHandlers()...');
+    setupWizardIpcHandlers();
+    writeMainLog('setupWizardIpcHandlers() completed successfully');
+  } catch (err: any) {
+    console.error('[Main] ERROR: Failed to register wizard IPC handlers:', err);
+    writeMainLog(`ERROR in setupWizardIpcHandlers: ${err?.message || err}`);
+  }
+
+  // Initialize Bethel Integration BEFORE createWindow() so the renderer can
+  // call bethel:list-jobs immediately on mount without a "no handler" race.
+  const dataDir = path.join(app.getPath('userData'), '.mossy');
+  const bethel = new BethelIntegration(bridge, dataDir);
+  registerBethelHandlers(bethel, () => mainWindow, dataDir);
+
   // Continue normal startup
   createWindow();
   bridge.start();
@@ -32447,11 +32642,6 @@ app.whenReady().then(() => {
 
   // Register Cloud Sync handlers exposed by preload cloudSync API.
   registerCloudSyncHandlers();
-
-  // Initialize Bethel Integration (auto mod upload → enhance → export)
-  const dataDir = path.join(app.getPath('userData'), '.mossy');
-  const bethel = new BethelIntegration(bridge, dataDir);
-  registerBethelHandlers(bethel, mainWindow, dataDir);
 
   // ── IPC backup: send TRIGGER_FRESH_INSTALL after renderer loads ──────────
   // This is a secondary mechanism in case the ?freshInstall URL param path is

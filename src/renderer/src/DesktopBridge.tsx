@@ -743,7 +743,7 @@ const DesktopBridge: React.FC = () => {
         try {
             const api = getElectronApi();
             if (api?.onSettingsUpdated) {
-                api.onSettingsUpdated((s: any) => {
+                const unsub = api.onSettingsUpdated((s: any) => {
                     setCkSettings({
                         creationKitPath: String(s?.creationKitPath || ''),
                         fallout4Path: String(s?.fallout4Path || ''),
@@ -757,6 +757,7 @@ const DesktopBridge: React.FC = () => {
                     const lib = Array.isArray(s?.papyrusTemplateLibrary) ? s.papyrusTemplateLibrary : [];
                     setPapyrusLibrary(lib);
                 });
+                return () => unsub?.();
             }
         } catch {
             // ignore
@@ -1808,7 +1809,7 @@ pause
                 <div className="px-6 pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <ToolsInstallVerifyPanel
                         accentClassName="text-emerald-300"
-                        description="Desktop Bridge connects the UI to local capabilities (hardware info, screenshots, clipboard, file listing). The UI can render without it, but actions will fail if the local bridge server isn’t reachable."
+                        description="Desktop Bridge connects the UI to local capabilities (hardware info, screenshots, clipboard, file listing). The UI can render without it, but actions will fail if the local bridge server isn't reachable."
                         tools={[]}
                         verify={[
                             'Click Test Connection and confirm the status flips ONLINE (or shows a meaningful error).',
@@ -2026,7 +2027,7 @@ pause
                                             Creation Kit Link
                                         </h3>
                                         <p className="text-sm text-emerald-200 mt-1 leading-relaxed">
-                                            Configure Papyrus paths, generate a .psc, and compile to .pex. This uses the desktop app’s local tool bridge (no Python server required).
+                                            Configure Papyrus paths, generate a .psc, and compile to .pex. This uses the desktop app's local tool bridge (no Python server required).
                                         </p>
                                     </div>
 
@@ -3167,14 +3168,14 @@ pause
                                 <div className="mt-6 bg-black/30 border border-slate-800 rounded p-3">
                                     <div className="text-xs font-bold text-slate-200 mb-2">FO4 animation export checklist (HKX pipeline)</div>
                                     <div className="text-[11px] text-slate-400">
-                                        This is a practical checklist that matches common FO4 animation workflows (Blender → FBX → Havok tools → HKX packaging). It’s not a replacement for the rig author’s guide.
+                                        This is a practical checklist that matches common FO4 animation workflows (Blender → FBX → Havok tools → HKX packaging). It's not a replacement for the rig author's guide.
                                     </div>
                                     <ul className="mt-2 text-xs text-slate-300 space-y-1">
                                         <li>• Confirm Blender version + required add-ons are installed for your rig.</li>
                                         <li>• Ensure the Armature is active and an Action is selected (Scan Scene will show it).</li>
                                         <li>• Verify timing: many FO4 pipelines assume 30 FPS (Mossy warns if different).</li>
                                         <li>• If your pipeline uses annotation/events: add pose markers to the Action.</li>
-                                        <li>• Export using “Animation transfer (FBX, baked)” to an output folder.</li>
+                                        <li>• Export using "Animation transfer (FBX, baked)" to an output folder.</li>
                                         <li>• Convert/export to the expected FBX flavor if needed (e.g., via Autodesk FBX Converter).</li>
                                         <li>• Run Havok Content Tools to produce HKX, then pack with your preferred HKX packer UI.</li>
                                         <li>• Validate in-game / with your preview tooling before shipping.</li>

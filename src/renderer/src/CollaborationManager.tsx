@@ -55,8 +55,8 @@ export const CollaborationManager: React.FC<CollaborationManagerProps> = ({ embe
           name: newSessionName.trim(),
           description: newSessionDescription.trim(),
         });
-        if (session?.success === false) {
-          throw new Error(session.error || 'Failed to create collaboration session');
+        if ((session as any)?.success === false) {
+          throw new Error((session as any).error || 'Failed to create collaboration session');
         }
       }
 

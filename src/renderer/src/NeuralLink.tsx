@@ -186,12 +186,12 @@ const NeuralLink: React.FC<NeuralLinkProps> = ({ embedded = false }) => {
                     accentClassName="text-blue-300"
                     description="Neural Link reads running processes via the Electron desktop bridge. In a plain browser build, process scanning is unavailable."
                     verify={[
-                        'Click “Manual Refresh” and confirm the scan completes without errors.',
-                        'If running in the desktop app, confirm “Active Modding Session” populates when tools are open.'
+                        'Click "Manual Refresh" and confirm the scan completes without errors.',
+                        'If running in the desktop app, confirm "Active Modding Session" populates when tools are open.'
                     ]}
                     firstTestLoop={[
                         'Open Desktop Bridge and confirm it is connected.',
-                        'Launch one tool (e.g., Blender) → return here → click “Manual Refresh” → confirm it appears.',
+                        'Launch one tool (e.g., Blender) → return here → click "Manual Refresh" → confirm it appears.',
                         'Leave it running for 10 seconds and confirm the auto-scan updates the list.'
                     ]}
                     troubleshooting={[

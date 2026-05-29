@@ -135,7 +135,7 @@ export const PackagingReleaseWizard: React.FC<PackagingReleaseWizardProps> = ({ 
           {
             id: 'flags',
             title: 'ESL/ESP/ESM flags are intentional',
-            details: <>Don’t flip flags “because it fits”. Understand the implications and test on a fresh save if required.</>,
+            details: <>Don't flip flags "because it fits". Understand the implications and test on a fresh save if required.</>,
           },
           {
             id: 'xedit-clean',
@@ -312,7 +312,7 @@ export const PackagingReleaseWizard: React.FC<PackagingReleaseWizardProps> = ({ 
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="text-xs font-black tracking-widest uppercase text-slate-400">Install & Verify</div>
-              <div className="text-[11px] text-slate-400 mt-1">A release isn’t “done” until you can install it cleanly and prove it works.</div>
+              <div className="text-[11px] text-slate-400 mt-1">A release isn't "done" until you can install it cleanly and prove it works.</div>
             </div>
             <div className="text-[11px] text-slate-500">Use the sidebar to open Vault or Install Wizard if you need them.</div>
           </div>
@@ -322,7 +322,7 @@ export const PackagingReleaseWizard: React.FC<PackagingReleaseWizardProps> = ({ 
               <div className="text-xs font-black text-white">Tool reality check</div>
               <ul className="mt-2 space-y-2 text-[11px] text-slate-300 leading-relaxed">
                 <li>• <span className="font-semibold">Archive2</span>: comes with CK installs; verify you can create/open a BA2 and that file paths inside the archive match <span className="font-mono">Data/...</span></li>
-                <li>• <span className="font-semibold">FO4Edit/xEdit</span>: verify your plugin loads with zero “missing masters” warnings</li>
+                <li>• <span className="font-semibold">FO4Edit/xEdit</span>: verify your plugin loads with zero "missing masters" warnings</li>
                 <li>• <span className="font-semibold">BAE (optional)</span>: verify you can inspect your BA2 after building (sanity-check contents)</li>
               </ul>
             </div>
@@ -333,7 +333,7 @@ export const PackagingReleaseWizard: React.FC<PackagingReleaseWizardProps> = ({ 
                 <li>Build your zip/BA2 exactly like you will publish it.</li>
                 <li>Install into a <span className="font-semibold">clean profile</span> (only required deps + your mod).</li>
                 <li>Start a new game (or a safe test save) and verify the headline feature in under 2 minutes.</li>
-                <li>Do one “uninstall + reinstall” cycle to catch missing loose files and stale scripts.</li>
+                <li>Do one "uninstall + reinstall" cycle to catch missing loose files and stale scripts.</li>
               </ol>
             </div>
           </div>

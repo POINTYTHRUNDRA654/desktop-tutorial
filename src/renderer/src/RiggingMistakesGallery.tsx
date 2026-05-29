@@ -425,8 +425,8 @@ export const RiggingMistakesGallery: React.FC<RiggingMistakesGalleryProps> = ({ 
               'Repeat until the symptom changes; then move to the next step.'
             ]}
             troubleshooting={[
-              'If you do not know “what changed”, fix one variable at a time (one bone, one weight group, one export toggle).',
-              'If “everything looks wrong”, start with scale + bone naming before touching weights.'
+              'If you do not know "what changed", fix one variable at a time (one bone, one weight group, one export toggle).',
+              'If "everything looks wrong", start with scale + bone naming before touching weights.'
             ]}
           />
 

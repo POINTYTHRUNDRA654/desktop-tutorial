@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Code, FileCode, Palette, Check, X, AlertTriangle, Zap, Copy, Play, BookOpen, Save, Trash2, Upload, ArrowDownToLine, Info, Search, ExternalLink } from 'lucide-react';
+import { Code, FileCode, Palette, Check, X, AlertTriangle, Zap, Copy, Play, BookOpen, Save, Trash2, Upload, ArrowDownToLine, Info, Search, ExternalLink, RefreshCw, Terminal } from 'lucide-react';
 import ProjectWizard from './components/ProjectWizard';
 import type { ScriptBundle, ScriptTemplate, Settings } from '../../shared/types';
 import { openExternal } from './utils/openExternal';
@@ -37,6 +37,10 @@ export const TheScribe: React.FC = () => {
   const [runOutput, setRunOutput] = useState<string>('');
 
   const [xeditScriptStatus, setXeditScriptStatus] = useState<string>('');
+  // xEdit runner live output log
+  const [xeditRunning, setXeditRunning] = useState(false);
+  const [xeditRunLog, setXeditRunLog] = useState<string[]>([]);
+  const xeditLogRef = React.useRef<HTMLDivElement>(null);
 
   const [scriptBundles, setScriptBundles] = useState<ScriptBundle[]>([]);
   const [bundleSelectedId, setBundleSelectedId] = useState<string>('');
@@ -806,6 +810,99 @@ export const TheScribe: React.FC = () => {
     }
   };
 
+  // ── xEdit: install then run with -script flag, show live output ───────────
+  const addXeditLog = (line: string) => {
+    setXeditRunLog(prev => [...prev, line]);
+    // Auto-scroll on next tick
+    setTimeout(() => {
+      if (xeditLogRef.current) xeditLogRef.current.scrollTop = xeditLogRef.current.scrollHeight;
+    }, 0);
+  };
+
+  const handleRunXeditScript = async () => {
+    if (activeTab !== 'xedit') return;
+    const exe = getActiveToolPath().trim();
+    if (!exe) { toast.error('Set your xEdit path in Tool Settings first.'); return; }
+
+    const api: any = (window as any).electron?.api || (window as any).electronAPI;
+    const body = String(code || '').trimEnd();
+    if (!body.trim()) { addXeditLog('Nothing to run — editor is empty.'); return; }
+
+    setXeditRunning(true);
+    setXeditRunLog([]);
+    const base = safeFilenameBase(libraryTitle || 'xedit_script');
+    const filename = base.toLowerCase().endsWith('.pas') ? base : `${base}.pas`;
+
+    // Step 1: install script to Edit Scripts folder
+    addXeditLog(`[1/3] Installing script → ${filename}…`);
+    let scriptPath = '';
+    try {
+      if (typeof api?.installScript === 'function') {
+        const res = await api.installScript('xedit', base, body);
+        if (res?.success) {
+          scriptPath = String(res.path || '');
+          addXeditLog(`[1/3] ✓ Installed to: ${scriptPath}`);
+        } else {
+          addXeditLog(`[1/3] Install failed: ${res?.error || 'unknown'} — running from temp file.`);
+        }
+      } else {
+        addXeditLog('[1/3] installScript API not available — will try temp file path.');
+      }
+    } catch (e: any) {
+      addXeditLog(`[1/3] Install error: ${e?.message || e}`);
+    }
+
+    // Step 2: write temp script file as fallback / to guarantee freshness
+    addXeditLog('[2/3] Writing temp script file…');
+    let tempPath = '';
+    try {
+      if (typeof api?.writeLoadOrderUserDataFile === 'function') {
+        tempPath = await api.writeLoadOrderUserDataFile(filename, body);
+        addXeditLog(`[2/3] ✓ Temp file: ${tempPath}`);
+      } else {
+        addXeditLog('[2/3] writeLoadOrderUserDataFile not available.');
+      }
+    } catch (e: any) {
+      addXeditLog(`[2/3] Temp write error: ${e?.message || e}`);
+    }
+
+    // Step 3: run xEdit with -script flag pointing at the best available path
+    const runPath = scriptPath || tempPath;
+    if (!runPath) {
+      addXeditLog('[3/3] No script path available — cannot run. Try "Install Script" manually.');
+      setXeditRunning(false);
+      return;
+    }
+
+    addXeditLog(`[3/3] Launching xEdit with -script flag…`);
+    addXeditLog(`      ${exe} -script:"${runPath}"`);
+    try {
+      if (typeof api?.runTool === 'function') {
+        const res = await api.runTool({
+          cmd: exe,
+          args: ['-script:' + runPath],
+          cwd: undefined,
+        });
+        const stdout = String(res?.stdout || '').trim();
+        const stderr = String(res?.stderr || '').trim();
+        const exitCode = Number(res?.exitCode ?? -1);
+        addXeditLog(`[3/3] Exited with code ${exitCode}.`);
+        if (stdout) { addXeditLog(''); addXeditLog('── STDOUT ──'); stdout.split('\n').forEach(l => addXeditLog(l)); }
+        if (stderr) { addXeditLog(''); addXeditLog('── STDERR ──'); stderr.split('\n').forEach(l => addXeditLog(l)); }
+        if (!stdout && !stderr) addXeditLog('(no output — xEdit may have run as a GUI process)');
+      } else {
+        // Fallback: just open xEdit without -script (GUI mode)
+        addXeditLog('[3/3] runTool not available — opening xEdit normally (GUI mode).');
+        if (typeof api?.openExternal === 'function') await api.openExternal(exe);
+        else addXeditLog('      openExternal not available either.');
+      }
+    } catch (e: any) {
+      addXeditLog(`[3/3] Run error: ${e?.message || e}`);
+    }
+
+    setXeditRunning(false);
+  };
+
   const handleInstallPapyrusScript = async () => {
     if (activeTab !== 'papyrus') return;
     try {
@@ -1374,7 +1471,7 @@ print("Batch processing complete")`,
           <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
             <li><strong>Papyrus:</strong> Creation Kit installed (for compiling <span className="font-mono">.psc → .pex</span>).</li>
             <li><strong>xEdit scripts:</strong> FO4Edit installed (to run scripts and patch records).</li>
-            <li><strong>Blender scripts:</strong> Blender installed (run from Blender’s Text Editor / Scripting workspace).</li>
+            <li><strong>Blender scripts:</strong> Blender installed (run from Blender's Text Editor / Scripting workspace).</li>
           </ul>
 
           <div className="mt-3 flex flex-wrap gap-2">
@@ -1477,6 +1574,15 @@ print("Batch processing complete")`,
                     Install Script
                   </button>
                   <button
+                    onClick={() => void handleRunXeditScript()}
+                    disabled={xeditRunning || !getActiveToolPath().trim()}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                    title="Install script to Edit Scripts folder then launch xEdit with -script flag. Shows live output."
+                  >
+                    {xeditRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                    {xeditRunning ? 'Running…' : 'Run Script'}
+                  </button>
+                  <button
                     onClick={() => void handleExportXeditScriptToFile()}
                     className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm font-medium transition-colors"
                     title="Exports this script as a .pas file (works for any xEdit version)."
@@ -1545,12 +1651,49 @@ print("Batch processing complete")`,
             <div className="border-b border-slate-700/50 bg-slate-900/30 p-3">
               <div className="text-[11px] text-slate-400">
                 {activeTab === 'xedit' ? (
-                  <>Tip: Use “Install Script” to write directly to <span className="font-mono">Edit Scripts</span>, then run it from xEdit’s Apply Script menu.</>
+                  <>Use <strong>Run Script</strong> to install to <span className="font-mono">Edit Scripts</span> and launch xEdit with <span className="font-mono">-script</span> — output appears below.</>
                 ) : (
-                  <>Tip: “Install Script” writes to <span className="font-mono">Data/Scripts/Source/User</span>. You must still compile it in the Creation Kit.</>
+                  <>Tip: "Install Script" writes to <span className="font-mono">Data/Scripts/Source/User</span>. You must still compile it in the Creation Kit.</>
                 )}
               </div>
               {xeditScriptStatus && <div className="text-xs text-amber-400 mt-2 font-medium">{xeditScriptStatus}</div>}
+            </div>
+          )}
+
+          {/* xEdit live run log */}
+          {activeTab === 'xedit' && (xeditRunning || xeditRunLog.length > 0) && (
+            <div className="border-b border-slate-700/50 bg-slate-950/60 flex flex-col" style={{ maxHeight: '180px' }}>
+              <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900/60 border-b border-slate-700/40 flex-shrink-0">
+                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <Terminal className="w-3 h-3" />
+                  xEdit Runner Output
+                  {xeditRunning && <RefreshCw className="w-3 h-3 animate-spin text-emerald-400" />}
+                </div>
+                <button
+                  onClick={() => setXeditRunLog([])}
+                  className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+              <div
+                ref={xeditLogRef}
+                className="flex-1 overflow-y-auto px-3 py-2 font-mono text-[11px] text-slate-300 space-y-0.5"
+              >
+                {xeditRunLog.map((line, i) => (
+                  <div key={i} className={
+                    line.startsWith('[1/') || line.startsWith('[2/') || line.startsWith('[3/') ? 'text-emerald-400' :
+                    line.includes('error') || line.includes('Error') || line.includes('failed') ? 'text-red-400' :
+                    line.startsWith('──') ? 'text-slate-500 mt-1' :
+                    'text-slate-300'
+                  }>
+                    {line || ' '}
+                  </div>
+                ))}
+                {xeditRunning && (
+                  <div className="text-slate-500 animate-pulse">▌</div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1930,7 +2073,7 @@ print("Batch processing complete")`,
                 <>
                   <p>• Start with &quot;unit&quot; declaration</p>
                   <p>• Implement Initialize/Process/Finalize</p>
-                  <p>• Use AddMessage() for logging</p>
+                           <p>• Use AddMessage() for logging</p>
                   <p>• End with &quot;end.&quot;</p>
                 </>
               )}

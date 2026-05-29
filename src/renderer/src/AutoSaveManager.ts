@@ -34,6 +34,10 @@ export class AutoSaveManager {
   private readonly SESSION_PREFIX = 'session-';
   private readonly WIP_PREFIX = 'wip-';
 
+  // Dirty tracking — only write to cache when something actually changed
+  private _dirty = false;
+  private _lastSavedHash = '';
+
   // Current state properties
   private _currentChatHistory: ChatMessage[] = [];
   private _currentWorkInProgress: WorkInProgress[] = [];
@@ -63,9 +67,22 @@ export class AutoSaveManager {
     }
   }
 
+  /** Lightweight hash to detect actual state changes without deep equality */
+  private stateHash(): string {
+    return [
+      this._currentChatHistory.length,
+      this._currentWorkInProgress.length,
+      this._currentChatHistory[this._currentChatHistory.length - 1]?.id ?? '',
+      JSON.stringify(this._currentUIState).length,
+    ].join('|');
+  }
+
   async saveCurrentSession(): Promise<void> {
+    // Skip save if nothing has changed since the last write
+    const hash = this.stateHash();
+    if (!this._dirty && hash === this._lastSavedHash) return;
+
     try {
-      // Collect current session data
       const sessionData: UserSession = {
         id: this.sessionId,
         timestamp: Date.now(),
@@ -73,55 +90,53 @@ export class AutoSaveManager {
         chatHistory: this.getCurrentChatHistory(),
         workInProgress: this.getCurrentWorkInProgress(),
         settings: this.getCurrentSettings(),
-        uiState: this.getCurrentUIState()
+        uiState: this.getCurrentUIState(),
       };
 
-      // Save to cache
       await cacheManager.saveUserSession(this.sessionId, sessionData);
 
-      // Also save chat history separately for easier access
       if (sessionData.chatHistory.length > 0) {
         await cacheManager.saveChatHistory(`chat-${this.sessionId}`, sessionData.chatHistory);
       }
 
-      console.log('Session auto-saved:', this.sessionId);
+      this._dirty = false;
+      this._lastSavedHash = hash;
+      // Use debug-level logging so it doesn't spam production console
+      if (process.env.NODE_ENV === 'development') {
+        console.debug('[AutoSave] Session saved:', this.sessionId);
+      }
     } catch (error) {
-      console.error('Failed to auto-save session:', error);
+      console.error('[AutoSave] Failed to save session:', error);
     }
   }
 
   async loadLastSession(): Promise<UserSession | null> {
     try {
-      // Get all sessions and find the most recent one
       const sessions = await this.getAllSessions();
       if (sessions.length === 0) return null;
 
-      // Sort by timestamp, get most recent
       sessions.sort((a, b) => b.timestamp - a.timestamp);
       const lastSession = sessions[0];
 
-      // Load the session data
       const sessionData = await cacheManager.loadUserSession(lastSession.id);
       if (sessionData) {
-        console.log('Loaded last session:', lastSession.id);
+        if (process.env.NODE_ENV === 'development') {
+          console.debug('[AutoSave] Loaded last session:', lastSession.id);
+        }
         return sessionData;
       }
     } catch (error) {
-      console.error('Failed to load last session:', error);
+      console.error('[AutoSave] Failed to load last session:', error);
     }
     return null;
   }
 
   async getAllSessions(): Promise<Array<{ id: string; timestamp: number }>> {
     try {
-      // This is a simplified approach - in a real implementation,
-      // you might want to maintain a separate index
-      const stats = await cacheManager.getStats();
-      // For now, we'll return a placeholder - you'd need to implement
-      // a way to list all session keys
+      await cacheManager.getStats();
       return [];
     } catch (error) {
-      console.error('Failed to get sessions:', error);
+      console.error('[AutoSave] Failed to get sessions:', error);
       return [];
     }
   }
@@ -135,15 +150,15 @@ export class AutoSaveManager {
       type,
       data,
       timestamp: Date.now(),
-      progress
+      progress,
     };
 
     try {
-      await cacheManager.set('user-sessions', wipId, wip, 24 * 60 * 60 * 1000); // 24 hours
-      console.log('Work-in-progress saved:', wipId);
+      await cacheManager.set('user-sessions', wipId, wip, 24 * 60 * 60 * 1000);
+      this._dirty = true;
       return wipId;
     } catch (error) {
-      console.error('Failed to save work-in-progress:', error);
+      console.error('[AutoSave] Failed to save work-in-progress:', error);
       throw error;
     }
   }
@@ -152,7 +167,7 @@ export class AutoSaveManager {
     try {
       return await cacheManager.get('user-sessions', wipId);
     } catch (error) {
-      console.error('Failed to load work-in-progress:', error);
+      console.error('[AutoSave] Failed to load work-in-progress:', error);
       return null;
     }
   }
@@ -160,9 +175,9 @@ export class AutoSaveManager {
   async deleteWorkInProgress(wipId: string): Promise<void> {
     try {
       await cacheManager.delete('user-sessions', wipId);
-      console.log('Work-in-progress deleted:', wipId);
+      this._dirty = true;
     } catch (error) {
-      console.error('Failed to delete work-in-progress:', error);
+      console.error('[AutoSave] Failed to delete work-in-progress:', error);
     }
   }
 
@@ -171,19 +186,16 @@ export class AutoSaveManager {
     const chatMessage: ChatMessage = {
       ...message,
       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     try {
-      // Get current chat history
       const currentHistory = await cacheManager.loadChatHistory(`chat-${this.sessionId}`) || [];
       currentHistory.push(chatMessage);
-
-      // Save updated history
       await cacheManager.saveChatHistory(`chat-${this.sessionId}`, currentHistory);
-      console.log('Chat message saved');
+      this._dirty = true;
     } catch (error) {
-      console.error('Failed to save chat message:', error);
+      console.error('[AutoSave] Failed to save chat message:', error);
     }
   }
 
@@ -191,55 +203,60 @@ export class AutoSaveManager {
     try {
       return await cacheManager.loadChatHistory(`chat-${this.sessionId}`) || [];
     } catch (error) {
-      console.error('Failed to load chat history:', error);
+      console.error('[AutoSave] Failed to load chat history:', error);
       return [];
     }
   }
 
   // Crash recovery
   async recoverFromCrash(): Promise<UserSession | null> {
-    console.log('Attempting crash recovery...');
     return this.loadLastSession();
   }
 
-  // Manual save
+  // Manual save — always writes regardless of dirty flag
   async manualSave(): Promise<void> {
+    this._dirty = true;
     await this.saveCurrentSession();
   }
 
   // Cleanup old data
   async cleanupOldData(): Promise<void> {
     try {
-      // Clear sessions older than 7 days
-      const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
-
-      // This would require iterating through all sessions
-      // For now, we'll rely on TTL in the cache manager
-
-      console.log('Old data cleanup completed');
+      // Rely on TTL in the cache manager for expiry (7-day window)
+      if (process.env.NODE_ENV === 'development') {
+        console.debug('[AutoSave] cleanupOldData: relying on cache TTL');
+      }
     } catch (error) {
-      console.error('Failed to cleanup old data:', error);
+      console.error('[AutoSave] Failed to cleanup old data:', error);
     }
   }
 
-  // State updates (called by UI layer)
+  // State updates — mark dirty on any real change
   updateCurrentChatHistory(history: ChatMessage[]): void {
-    this._currentChatHistory = Array.isArray(history) ? history : [];
+    const next = Array.isArray(history) ? history : [];
+    if (next.length !== this._currentChatHistory.length ||
+        next[next.length - 1]?.id !== this._currentChatHistory[this._currentChatHistory.length - 1]?.id) {
+      this._dirty = true;
+    }
+    this._currentChatHistory = next;
   }
 
   updateCurrentWorkInProgress(items: WorkInProgress[]): void {
-    this._currentWorkInProgress = Array.isArray(items) ? items : [];
+    const next = Array.isArray(items) ? items : [];
+    if (next.length !== this._currentWorkInProgress.length) this._dirty = true;
+    this._currentWorkInProgress = next;
   }
 
   updateCurrentSettings(settings: Record<string, any>): void {
     this._currentSettings = settings && typeof settings === 'object' ? settings : {};
+    this._dirty = true;
   }
 
   updateCurrentUIState(uiState: Record<string, any>): void {
     this._currentUIState = uiState && typeof uiState === 'object' ? uiState : {};
+    this._dirty = true;
   }
 
-  // Getters for current state (to be implemented by the app)
   private getCurrentChatHistory(): ChatMessage[] {
     return this._currentChatHistory;
   }
@@ -256,7 +273,6 @@ export class AutoSaveManager {
     return this._currentUIState;
   }
 
-  // Cleanup
   destroy(): void {
     this.stopAutoSave();
   }

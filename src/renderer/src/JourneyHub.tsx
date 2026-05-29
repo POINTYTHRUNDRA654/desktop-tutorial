@@ -32,6 +32,18 @@ const JourneyHub: React.FC = () => {
   useEffect(() => {
     sessionStorage.setItem('journey_hub_tab', activeTab);
   }, [activeTab]);
+  // ── Keyboard shortcuts (1-N) ────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable) return;
+      const n = parseInt(e.key);
+      if (!isNaN(n) && n >= 1 && n <= tabs.length) setActiveTab(tabs[n - 1].id);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
 
   return (
     <div className="h-full flex flex-col bg-[#0a0e0a] overflow-hidden">
@@ -39,7 +51,7 @@ const JourneyHub: React.FC = () => {
         <h1 className="text-xl font-black text-white tracking-tight">FO4 Mod Journey Hub</h1>
         <p className="text-xs text-slate-400 mt-1">First Success · Mod Projects · Roadmaps · Mod Browser</p>
         <div className="flex gap-1 mt-4 overflow-x-auto">
-          {tabs.map((tab) => (
+          {tabs.map((tab, idx) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -54,6 +66,7 @@ const JourneyHub: React.FC = () => {
               <span className={`text-[10px] ${activeTab === tab.id ? 'text-emerald-400/80' : 'text-slate-600'}`}>
                 {tab.sublabel}
               </span>
+              <kbd className={`ml-1 text-[9px] font-mono px-1 rounded border ${activeTab === tab.id ? 'border-emerald-500/30 text-emerald-500/60' : 'border-slate-700 text-slate-700'}`}>{idx + 1}</kbd>
             </button>
           ))}
         </div>

@@ -161,14 +161,14 @@ export const PlatformsHub: React.FC<PlatformsHubProps> = ({ embedded = false }) 
 
         <ToolsInstallVerifyPanel
           accentClassName="text-emerald-300"
-          description="Pick a platform to open a guided flow. If you’re unsure where to start, run Diagnostics first, then choose the wizard that matches your immediate goal."
+          description="Pick a platform to open a guided flow. If you're unsure where to start, run Diagnostics first, then choose the wizard that matches your immediate goal."
           verify={[
             'Click one card and confirm it navigates to the correct wizard page.',
             'Return here and confirm scroll position and navigation remain responsive.'
           ]}
           firstTestLoop={[
-            'Start with “Crash & Bug Triage” if you are unstable, otherwise start with “Install Wizard”.',
-            'After completing a wizard’s first loop, jump to Tool Settings to configure only what you actually need.'
+            'Start with "Crash & Bug Triage" if you are unstable, otherwise start with "Install Wizard".',
+            "After completing a wizard's first loop, jump to Tool Settings to configure only what you actually need."
           ]}
         />
 

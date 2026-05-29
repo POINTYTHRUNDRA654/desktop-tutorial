@@ -166,10 +166,10 @@ const HavokQuickStartGuide: React.FC<HavokQuickStartGuideProps> = ({ embedded = 
           ]}
           verify={[
             'Confirm you can open the tool links above (or copy them) from inside the app.',
-            'Confirm your “tiny test” export has a predictable frame rate and duration.'
+            'Confirm your "tiny test" export has a predictable frame rate and duration.'
           ]}
           firstTestLoop={[
-            'Author a 20–30 frame clip in Blender → export FBX → convert to FO4 HKX using your chosen method.',
+            'Author a 20-30 frame clip in Blender → export FBX → convert to FO4 HKX using your chosen method.',
             'Test in-game early; only then invest in SDK/HavokMax builds if you truly need them.'
           ]}
           troubleshooting={[
@@ -182,9 +182,9 @@ const HavokQuickStartGuide: React.FC<HavokQuickStartGuideProps> = ({ embedded = 
       <div style={calloutStyle}>
         <div style={{ color: '#00ff00', fontWeight: 'bold', marginBottom: '6px' }}>Reality check (Fallout 4 modding)</div>
         <div>
-          For Fallout 4, most modders don’t start by installing a full Havok SDK. The practical path is:
+          For Fallout 4, most modders don't start by installing a full Havok SDK. The practical path is:
           <strong> author animation in Blender → export → convert to FO4 HKX → verify in-game</strong>.
-          Legacy SDK/HavokMax setups exist, but they’re not the easiest first win.
+          Legacy SDK/HavokMax setups exist, but they're not the easiest first win.
         </div>
         <div style={buttonRowStyle}>
           <button style={buttonStyle} onClick={() => openNexusSearch('HKXPack')}>Nexus search: HKXPack</button>
@@ -206,7 +206,7 @@ const HavokQuickStartGuide: React.FC<HavokQuickStartGuideProps> = ({ embedded = 
               <li><strong>Legacy/Advanced:</strong> Havok SDK + HavokMax (3ds Max plugin) if you already have that environment working.</li>
             </ul>
             <p style={{ color: '#00d000' }}>
-              If you’re here specifically for Fallout 4, start with the in-app animation guide and only come back to SDK setup if you need it.
+              If you're here specifically for Fallout 4, start with the in-app animation guide and only come back to SDK setup if you need it.
             </p>
 
             <div style={headingStyle}>Step 2: (Optional) Install HavokMax (10 min)</div>

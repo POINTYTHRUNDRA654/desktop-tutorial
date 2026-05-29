@@ -137,7 +137,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Missing the Ctrl+K command palette for fast navigation across all 22 platforms',
       'Clicking "Help" and expecting it to open external docs — it opens the in-app FO4 Knowledge Hub',
       'Not checking the UPLINK badge before expecting local tool integrations to work',
-      'Starting the Stability step (Step 5) without knowing your game version — OG (1.10.163), NG (1.10.980–984), and AE/1.11.x all require different F4SE, Address Library, and crash tool builds',
+      'Starting the Stability step (Step 5) without knowing your game version — OG (1.10.163), NG (1.10.980-984), and AE/1.11.x all require different F4SE, Address Library, and crash tool builds',
     ],
     guides: [
       {
@@ -236,7 +236,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Keeping monitoring paused and expecting live tool-aware guidance',
       'Sending broad prompts instead of FO4-specific records/files/goals',
       'Ignoring the 👍/👎 buttons — rating responses builds a free training dataset you can use to fine-tune Mossy later',
-      'Not specifying your game version (OG 1.10.163 / NG 1.10.980–984 / AE 1.11.x) — version changes everything for F4SE, BA2 headers, Address Library, and crash tools',
+      'Not specifying your game version (OG 1.10.163 / NG 1.10.980-984 / AE 1.11.x) — version changes everything for F4SE, BA2 headers, Address Library, and crash tools',
       'Using AWKCR, Armorsmith Extended, or DEF_UI on NG/AE — these are deprecated and cause CTDs. Use ECO/NEO, LEO, and FallUI Suite instead.',
     ],
     guides: [
@@ -424,7 +424,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Not granting microphone permissions or OS-level mic access',
       'Selecting the wrong input (Stereo Mix) which echoes Mossy back',
       'Interrupting Mossy while she\'s speaking (wait for the listening indicator)',
-      'Expecting sub-second responses (allow 1–2s for processing)',
+      'Expecting sub-second responses (allow 1-2s for processing)',
       'Running voice in a noisy room without noise suppression',
     ],
     guides: [
@@ -461,7 +461,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         title: 'Troubleshooting Live Voice',
         steps: [
           'Confirm OS microphone permissions and that no other app is exclusively using the mic',
-          'Deepgram/remote STT can occasionally fail – Mossy will now automatically fall back to browser/Whisper if errors recur',
+          'Deepgram/remote STT can occasionally fail - Mossy will now automatically fall back to browser/Whisper if errors recur',
           'Your voice conversations are logged to a file (default `D:\\mossy_voice_history.txt`); you can review past chats any time',
           'Restart the Live Synapse session and check Tools Install / Verify panel suggestions',
         ],
@@ -516,7 +516,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Forgetting to re‑scan after applying fixes',
     ],
     guides: [
-      { title: 'Quick File Audit', steps: ['Click the DDS / NIF / ESP button to upload a file', 'Select the file from the Mod Manifest', 'Click Run Audit', 'Click any listed issue to read Mossy’s advice', 'Use Fix‑It or open the file in an external tool to remediate', 'Re‑run the audit to confirm the fix'] },
+      { title: 'Quick File Audit', steps: ['Click the DDS / NIF / ESP button to upload a file', 'Select the file from the Mod Manifest', 'Click Run Audit', "Click any listed issue to read Mossy's advice", 'Use Fix‑It or open the file in an external tool to remediate', 'Re‑run the audit to confirm the fix'] },
       { title: 'Full Mod Scan & Report', steps: ['Click Select Folder (or add multiple files)', 'Click Run Audit and monitor the progress bar', 'Prioritize errors (fix them first), then resolve warnings', 'Use Export Report to save the summary for reviewers', 'If needed, open problematic files in xEdit or NifSkope for manual fixes'] },
       { title: 'Using Mossy Advice & Fix‑It', steps: ['Click an issue to load Mossy Suggests in the right panel', 'Read the concise remediation steps', 'Click Fix‑It if available (or follow the recommended external-tool steps)', 'If Fix‑It runs, re‑scan to validate the result'] },
       { title: 'Visual Diagnostics for Textures', steps: ['Select a texture in the Mod Manifest', 'Inspect the Visual Diagnostics preview for dimensions/format', 'Check compression and power‑of‑two warnings', 'Use external image tooling or the Image Suite to correct and re‑export'] },
@@ -1034,7 +1034,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     features: [
       'Step 1 — Privacy & Security: control data collection, analytics opt-out, and security rule defaults',
       'Step 2 — Language: choose UI language and request new translations',
-      'Step 3 — AI Engine: select Groq primary model (Llama 3.1 8B, Llama 3.2 11B Vision, Llama 3.3 70B, DeepSeek R1, Gemma 2, Mixtral), max response tokens (512–4096), and self-critique loop toggle',
+      'Step 3 — AI Engine: select Groq primary model (Llama 3.1 8B, Llama 3.2 11B Vision, Llama 3.3 70B, DeepSeek R1, Gemma 2, Mixtral), max response tokens (512-4096), and self-critique loop toggle',
       'Step 3b — Local LLM (Ollama): connect to a local Ollama endpoint for offline AI assistance and check model pull status',
       'Step 4 — External Tools: browse and test-launch paths for all FO4 modding tools — xEdit (FO4Edit), Creation Kit, Fallout 4 game root, Papyrus compiler, F4SE, Archive2, LOOT, Mod Organizer 2, Wrye Bash, NifSkope, Blender, BodySlide, Outfit Studio, Vortex, FOMOD Creator, Upscayl, GIMP, and more; auto-detect for common install locations',
       'Step 5 — Backup & Restore: export or import a complete settings snapshot (JSON) for quick recovery after reinstall or machine migration',
@@ -1071,7 +1071,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'Self-critique loop toggle',
         type: 'toggle',
-        description: 'When ON, Mossy generates an answer then runs a second pass to find errors and gaps before delivering the final response. Adds 3–6 seconds per turn.',
+        description: 'When ON, Mossy generates an answer then runs a second pass to find errors and gaps before delivering the final response. Adds 3-6 seconds per turn.',
         whenToUse: 'Enable when reviewing Papyrus scripts or getting step-by-step FO4 mod build guidance where accuracy matters more than speed',
       },
       {
@@ -1142,7 +1142,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Not running Test Launch after setting a tool path — a path can look valid but point to the wrong version (e.g., Skyrim xEdit instead of FO4Edit)',
       'Setting Fallout 4 root to the Data folder instead of the game root — the correct path ends in \\Fallout4 (contains Fallout4.exe)',
       'Setting papyrusCompilerPath to PapyrusCompiler.exe in the wrong game\'s Scripts\\Compiler folder — must be the FO4 compiler, not Skyrim',
-      'Choosing the 70B Groq model for real-time voice chat — large models add 3–8 s latency; use 8B-instant for voice',
+      'Choosing the 70B Groq model for real-time voice chat — large models add 3-8 s latency; use 8B-instant for voice',
       'Not exporting a settings backup before a major Mossy update — settings structure can change between major versions',
       'Not running the Internet Access Test when online knowledge fetch returns empty results — one blocked provider can cause silent failures',
     ],
@@ -1277,7 +1277,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
           'Open Project Hub and click "New Mod"',
           'Enter a clear name, choose a Mod Type and add a short description',
           'Click "Create Mod Project" — it will become the current mod',
-          'Open the project and add 1–3 small steps to get started',
+          'Open the project and add 1-3 small steps to get started',
           'Run a quick test loop (change → build → test) and mark the step complete',
         ],
       },
@@ -1615,7 +1615,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Assuming the wizard installs external apps for you (it verifies and links only)',
       'Marking steps complete without performing the verification steps',
       'Not saving or exporting wizard progress before resetting',
-      'Not identifying your game version first (OG 1.10.163 / NG 1.10.980–984 / AE 1.11.x) — the correct F4SE build, Address Library build, and BA2 header version all depend on this',
+      'Not identifying your game version first (OG 1.10.163 / NG 1.10.980-984 / AE 1.11.x) — the correct F4SE build, Address Library build, and BA2 header version all depend on this',
       'Installing Buffout 4 standalone on NG/AE — use X-Cell (Addictol successor) instead',
     ],
     guides: [
@@ -1740,7 +1740,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Distributing a mod built with the NG CK to OG users without warning about BA2 V7/V8 incompatibility',
       'Installing AWKCR, Armorsmith Extended, or DEF_UI/DEF_HUD in any NG/AE mod — these are deprecated; see FO4 CK Guide tab',
       'Installing standalone Buffout 4 NG alongside Addictol — Addictol already includes it; installing both causes crashes',
-      'Treating the FO4 CK Guide tab as optional and missing ESL FormID limits (0x000–0xFFF) or precombine rules',
+      'Treating the FO4 CK Guide tab as optional and missing ESL FormID limits (0x000-0xFFF) or precombine rules',
     ],
     guides: [
       {
@@ -1765,7 +1765,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         title: 'Release-safe workflow checklist',
         steps: [
           'Open FO4 CK Guide tab → review Deprecated Frameworks and NG/AE sections',
-          'Validate ESL FormID boundary (0x000–0xFFF limit) — run xEdit Compact FormIDs if needed',
+          'Validate ESL FormID boundary (0x000-0xFFF limit) — run xEdit Compact FormIDs if needed',
           'Check BA2 header version matches your target runtime (V1 for OG, V2 for NG/AE)',
           'Run Spriggit (CK Safety tab) to serialize your ESP to YAML for Git before releasing',
         ],
@@ -1872,7 +1872,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         steps: [
           'Pick a small template (e.g., Weapon or Timer script) and copy its structure',
           'Create folders, add a trivial script, and compile/test in Creation Kit',
-          'Run Diagnostics/Tools Verify if the project doesn’t behave as expected',
+          "Run Diagnostics/Tools Verify if the project doesn't behave as expected",
         ],
       },
     ],
@@ -3071,7 +3071,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Using RegisterForUpdate() as a polling loop in Papyrus — use event-driven handlers (RegisterForRemoteEvent, RegisterForCustomEvent) instead',
       'Using the OG Creation Kit (1.10.163 build) on a NG/AE installation — install the NG CK + CKPE 0.5+ for 1.10.980+/1.11.x',
       'Installing standalone Buffout 4 on NG/AE — use Addictol (Nexus #84214) which bundles Buffout 4, X-Cell, and Papyrus VM patches',
-      'Not specifying runtime target (OG 1.10.163 / NG 1.10.980–984 / AE 1.11.x) before writing F4SE scripts or DLL plugins',
+      'Not specifying runtime target (OG 1.10.163 / NG 1.10.980-984 / AE 1.11.x) before writing F4SE scripts or DLL plugins',
     ],
     guides: [
       {
@@ -3401,7 +3401,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         title: 'Create & Save a Custom Preset',
         steps: [
           'Load an existing preset as a base',
-          'Adjust sliders gradually (5–10% increments)',
+          'Adjust sliders gradually (5-10% increments)',
           'Use Body Part Settings for fine adjustments',
           'Click "Save As" and give the preset a descriptive name',
           'Test in game and iterate',
@@ -3989,7 +3989,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'first-success': {
     pageId: 'first-success',
     pageName: 'First Success Wizard',
-    visualGuidePage: 4,
+    // Not a standalone tutorial page — it lives inside Journey Hub (page 4). No visualGuidePage.
     route: '/journey-hub',
     purpose: 'Guide you through the core onboarding checklist so Mossy can personalize help',
     features: [
@@ -4056,7 +4056,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   // pageName: 'What s New', (parity helper)
   // pageName: 'Whats New', (parity helper)
   // parity: pageName: "What's New"
-  // parity helper: pageName: "FO4 What’s New",
+  // parity helper: pageName: "FO4 What's New",
   'whats-new': {
     pageId: 'whats-new',
     pageName: "FO4 What's New",
@@ -4678,22 +4678,22 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     route: '/tools/precombine-generator',
     purpose: 'Two-in-one PRP toolset: (1) scan your full MO2 load order and generate a one-click PRP-compatible combined patch for everything; (2) rebuild precombines for a single mod you just built and generate a standalone PRP companion patch for it.',
     features: [
-      'Full load order patch – reads MO2 plugins.txt, generates real FO4Edit Pascal script that copies winning overrides and clears XCRI/XCMO for PRP',
-      'Single mod workflow – cell scan script, step-by-step Creation Kit precombine rebuild guide, PRP companion patch script',
+      'Full load order patch - reads MO2 plugins.txt, generates real FO4Edit Pascal script that copies winning overrides and clears XCRI/XCMO for PRP',
+      'Single mod workflow - cell scan script, step-by-step Creation Kit precombine rebuild guide, PRP companion patch script',
       'Auto-launch FO4Edit with script if xEdit path is configured',
       'Save scripts to disk for manual use',
     ],
     controls: [
-      { name: 'Pick MO2 Profile Folder', type: 'button', description: 'Browse to your active MO2 profile to read plugins.txt', whenToUse: 'Full Load Order tab – start here' },
+      { name: 'Pick MO2 Profile Folder', type: 'button', description: 'Browse to your active MO2 profile to read plugins.txt', whenToUse: 'Full Load Order tab - start here' },
       { name: 'Generate & Launch FO4Edit', type: 'button', description: 'Write the combined patch script and launch FO4Edit automatically', whenToUse: 'After reviewing your plugin list' },
-      { name: 'Browse for Mod File', type: 'button', description: 'Select the ESP/ESM for the single mod you want to process', whenToUse: 'Single Mod tab – start here' },
+      { name: 'Browse for Mod File', type: 'button', description: 'Select the ESP/ESM for the single mod you want to process', whenToUse: 'Single Mod tab - start here' },
       { name: 'Run Cell Scan in FO4Edit', type: 'button', description: 'Generate and launch the cell-listing prep script', whenToUse: 'Stage 1 of the single-mod workflow' },
-      { name: 'Generate & Save PRP Patch Script', type: 'button', description: 'Generate the standalone PRP companion patch script', whenToUse: 'Stage 3 – after rebuilding precombines in CK' },
+      { name: 'Generate & Save PRP Patch Script', type: 'button', description: 'Generate the standalone PRP companion patch script', whenToUse: 'Stage 3 - after rebuilding precombines in CK' },
     ],
     commonMistakes: [
       'Not loading the full load order in FO4Edit before running the combined patch script',
       'Forgetting to rebuild previs after precombines in Creation Kit',
-      'Placing the patch ESP in the wrong load order position – it must be at the very bottom, after PRP',
+      'Placing the patch ESP in the wrong load order position - it must be at the very bottom, after PRP',
       'Running the single-mod PRP patch script before finishing the CK precombine rebuild',
     ],
     guides: [{
