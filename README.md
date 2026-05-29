@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v5.4.64** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v5.4.67** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 > 🔄 **For Contributors:** If you have this repository cloned and want to update your local copy with recent bug fixes, see [GIT_UPDATE_GUIDE.md](GIT_UPDATE_GUIDE.md)
 > 
@@ -8,9 +8,9 @@
 
 ---
 
-## 🚀 Onboarding & Installer Notes (v5.4.64)
+## 🚀 Onboarding & Installer Notes (v5.4.67)
 
-**New in v5.4.64 (Latest):**
+**New in v5.4.67 (Latest):**
 - ✅ **Bethel Integration** - Automatic mod enhancement system! Upload any Fallout 4 mod → Auto-enhance textures → Export as ZIP or FOMOD
   - 4x/8x/16x AI upscaling with neural networks
   - Intelligent texture classification (diffuse, normal, specular, roughness, metallic, AO)
@@ -70,7 +70,7 @@
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 5.4.64)
+- Version is auto-set from `package.json` (currently 5.4.67)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 - Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
@@ -100,7 +100,7 @@
 
 **Ready to use Mossy?** Download the latest installer:
 
-👉 **[Download Mossy v5.4.64 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)**
+👉 **[Download Mossy v5.4.67 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)**
 
 ### System Requirements
 
@@ -568,7 +568,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 5.4.64.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 5.4.67.exe`).
 
 ---
 
