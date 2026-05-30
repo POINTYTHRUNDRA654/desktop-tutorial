@@ -15,9 +15,16 @@ export class BridgeServer {
     private server: http.Server | null = null;
     private port: number = 21337;
     private addonPort: number;
+    private pythonPath: string = '';
 
     constructor(addonPort: number = 9999) {
         this.addonPort = addonPort;
+    }
+
+    /** Set the Python executable to use for package installs. */
+    setPythonPath(exePath: string): void {
+        this.pythonPath = exePath;
+        console.log('[Bridge] Python path configured:', exePath);
     }
 
     start() {
@@ -524,6 +531,57 @@ export class BridgeServer {
                         res.writeHead(500, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ error: 'Failed to read Plugins.txt' }));
                     }
+                }
+
+                // POST /install_package — install one or more pip packages into Mossy's Python env
+                else if (url === '/install_package' && method === 'POST') {
+                    let body = '';
+                    req.on('data', chunk => { body += chunk.toString(); });
+                    req.on('end', () => {
+                        try {
+                            const payload = JSON.parse(body);
+                            // Accept { package: string } or { packages: string[] }
+                            const pkgs: string[] = Array.isArray(payload.packages)
+                                ? payload.packages
+                                : payload.package
+                                    ? [String(payload.package)]
+                                    : [];
+
+                            if (pkgs.length === 0) {
+                                res.writeHead(400, { 'Content-Type': 'application/json' });
+                                res.end(JSON.stringify({ status: 'error', message: 'No package specified. Provide "package" or "packages" in the request body.' }));
+                                return;
+                            }
+
+                            // Resolve python executable — use configured path, then fall back
+                            const pythonCandidates = this.pythonPath
+                                ? [this.pythonPath, 'python', 'python3', 'py']
+                                : ['python', 'python3', 'py'];
+
+                            const pythonExe = pythonCandidates[0];
+                            const safeNames = pkgs.map(p => p.replace(/[^a-zA-Z0-9_.=<>![\],\-]/g, ''));
+                            const cmd = `"${pythonExe}" -m pip install --no-warn-script-location ${safeNames.join(' ')}`;
+
+                            console.log('[Bridge] /install_package running:', cmd);
+
+                            exec(cmd, { timeout: 300_000 }, (err, stdout, stderr) => {
+                                const code = err ? (err as any).code ?? 1 : 0;
+                                const success = code === 0;
+                                console.log(`[Bridge] /install_package exit=${code}`);
+                                res.writeHead(success ? 200 : 500, { 'Content-Type': 'application/json' });
+                                res.end(JSON.stringify({
+                                    status: success ? 'success' : 'error',
+                                    packages: safeNames,
+                                    stdout: stdout.trim(),
+                                    stderr: stderr.trim(),
+                                    code,
+                                }));
+                            });
+                        } catch (parseErr: any) {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ status: 'error', message: 'Invalid JSON payload' }));
+                        }
+                    });
                 }
 
                 else {
