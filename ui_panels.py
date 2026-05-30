@@ -944,6 +944,9 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             row = box.row()
             row.enabled = has_mesh
             row.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
+            row = box.row()
+            row.enabled = has_mesh
+            row.operator("fo4.mossy_analyze_mesh", icon='SHADERFX')
             box.separator()
 
             # ── Collision ───────────────────────────────────────────────
@@ -2106,6 +2109,12 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
         row = fixes.row()
         op = row.operator("fo4.advisor_quick_fix", text="Validate Export", icon='CHECKMARK')
         op.action = 'VALIDATE_EXPORT'
+
+        # ── Mossy Proactive Analysis ─────────────────────────────────────
+        mossy_analysis = layout.box()
+        mossy_analysis.label(text="Mossy Proactive Analysis", icon='SHADERFX')
+        mossy_analysis.operator("fo4.mossy_analyze_mesh", icon='SHADERFX')
+        mossy_analysis.operator("fo4.mossy_analyze_textures", icon='TEXTURE')
 
         # ── Info / KB ────────────────────────────────────────────────────
         info = layout.box()

@@ -51,7 +51,18 @@ class ExportHelpers:
                 success, texture_issues = texture_helpers.TextureHelpers.validate_textures(obj)
                 if not success:
                     issues.extend(texture_issues)
-        
+
+            # Check bone weight limit (FO4 supports max 4 influences per vertex)
+            if obj.vertex_groups and obj.parent and obj.parent.type == 'ARMATURE':
+                for v in obj.data.vertices:
+                    influences = [g for g in v.groups if g.weight > 0.001]
+                    if len(influences) > 4:
+                        issues.append(
+                            f"Vertex {v.index} has {len(influences)} bone influences "
+                            "(max 4 for FO4). Run 'Enforce Bone Limit' before export."
+                        )
+                        break  # one warning is enough
+
         elif obj.type == 'ARMATURE':
             # Validate armature
             from . import animation_helpers

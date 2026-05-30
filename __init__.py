@@ -182,6 +182,31 @@ navmesh_helpers = _try_import("navmesh_helpers")
 # Asset library browser (registers PropertyGroups, UIList, and operators)
 asset_library = _try_import("asset_library")
 
+# One-click FO4 pipeline operators (static mesh, weapon, flora, navmesh, TRI morphs, textures, full mod)
+fo4_pipeline = _try_import("fo4_pipeline")
+
+# CK cell round-trip pipeline (import cell NIFs → edit in Blender → export back to CK)
+fo4_ck_cell = _try_import("fo4_ck_cell")
+
+# UE5 (and UE4) asset → FO4 NIF converter
+fo4_ue5_converter = _try_import("fo4_ue5_converter")
+fo4_unity_converter = _try_import("fo4_unity_converter")
+
+# Custom creature/flora rig builder + carnivorous plant
+fo4_creature_rig = _try_import("fo4_creature_rig")
+
+# Animation export pipeline (Blender action → HKX via ck-cmd)
+fo4_animation_export = _try_import("fo4_animation_export")
+
+# Advanced FO4 materials (translucency, parallax, glow, env map)
+fo4_advanced_materials = _try_import("fo4_advanced_materials")
+
+# LOD generator + high-to-low texture baker
+fo4_lod_generator = _try_import("fo4_lod_generator")
+
+# FO4 vanilla skeleton alignment wizard (armor / clothing weight painting)
+fo4_skeleton_helpers = _try_import("fo4_skeleton_helpers")
+
 # Minimal module containing the four tutorial/welcome operators that are
 # referenced unconditionally in FO4_PT_MainPanel.  Registering them before
 # the large operators.py bundle ensures they are always available in the UI
@@ -293,6 +318,15 @@ modules = list(
             mod_packaging_helpers,
             addon_updater,
             asset_library,
+            fo4_pipeline,
+            fo4_ck_cell,
+            fo4_ue5_converter,
+            fo4_unity_converter,
+            fo4_creature_rig,
+            fo4_animation_export,
+            fo4_advanced_materials,
+            fo4_lod_generator,
+            fo4_skeleton_helpers,
             tri_export_helpers,
             navmesh_helpers,
             bgsm_helpers,

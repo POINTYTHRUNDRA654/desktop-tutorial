@@ -1,6 +1,7 @@
 """AI/ML generation and analysis operators."""
 
 import bpy
+import bmesh
 import sys
 import importlib
 import threading
@@ -3303,6 +3304,145 @@ class FO4_OT_GeneratePointEImage(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_MossyAnalyzeMesh(bpy.types.Operator):
+    bl_idname = "fo4.mossy_analyze_mesh"
+    bl_label = "Mossy: Analyze Mesh for FO4"
+    bl_description = "Send full mesh context to Mossy AI for proactive issue detection before export"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        mesh = obj.data
+
+        # Collect mesh context
+        uv_layers = [uv.name for uv in mesh.uv_layers]
+        mat_names = [m.name for m in obj.material_slots if m.material]
+        has_armature = bool(obj.parent and obj.parent.type == 'ARMATURE')
+        has_shape_keys = bool(mesh.shape_keys and len(mesh.shape_keys.key_blocks) > 1)
+        vertex_count = len(mesh.vertices)
+        face_count = len(mesh.polygons)
+        non_tri_faces = sum(1 for p in mesh.polygons if len(p.vertices) != 3)
+
+        # UV stretch estimate (bmesh reserved for future channel analysis)
+        if uv_layers:
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            bm.free()
+
+        # Custom properties
+        custom_props = {k: v for k, v in obj.items() if not k.startswith('_')}
+
+        context_msg = f"""Analyze this Fallout 4 mesh for export issues:
+
+Mesh: {obj.name}
+Vertices: {vertex_count}
+Faces: {face_count}
+Non-triangle faces: {non_tri_faces} (must be 0 for FO4)
+UV layers: {uv_layers}
+Materials: {mat_names}
+Has armature/rigging: {has_armature}
+Has shape keys/morphs: {has_shape_keys}
+Custom properties: {custom_props}
+FO4 mesh type: {custom_props.get('fo4_mesh_type', 'not set')}
+
+What FO4 modding issues should I fix before exporting this mesh? Focus on:
+- NIF export compatibility
+- Collision requirements
+- Material/texture setup
+- Rigging issues if applicable
+- Polycount and UV concerns
+- Any missing FO4-specific setup"""
+
+        from . import mossy_link
+        try:
+            response = mossy_link.ask_mossy_fo4(context_msg)
+            if not response:
+                self.report({'WARNING'}, "No response from Mossy AI — is it running?")
+                return {'CANCELLED'}
+
+            def draw_popup(self_inner, context_inner):
+                layout = self_inner.layout
+                layout.label(text=f"Mossy Analysis: {obj.name}")
+                for line in response.split('\n')[:20]:  # cap lines
+                    layout.label(text=line[:80])
+            context.window_manager.popup_menu(draw_popup, title="Mossy FO4 Mesh Analysis", icon='INFO')
+        except Exception as e:
+            self.report({'ERROR'}, f"Mossy AI unavailable: {e}")
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+
+class FO4_OT_MossyAnalyzeTextures(bpy.types.Operator):
+    bl_idname = "fo4.mossy_analyze_textures"
+    bl_label = "Mossy: Analyze Textures"
+    bl_description = "Analyze all textures on active object and send channel data to Mossy AI for advice"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh first")
+            return {'CANCELLED'}
+
+        from . import mossy_link
+
+        # Collect texture stats from all material image nodes
+        texture_analyses = []
+        for slot in obj.material_slots:
+            mat = slot.material
+            if not mat or not mat.use_nodes:
+                continue
+            for node in mat.node_tree.nodes:
+                if node.type == 'TEX_IMAGE' and node.image:
+                    stats = mossy_link.analyze_texture_content(node.image)
+                    stats['material'] = mat.name
+                    stats['node_label'] = node.label or node.name
+                    texture_analyses.append(stats)
+
+        if not texture_analyses:
+            self.report({'WARNING'}, "No image textures found on active object's materials")
+            return {'CANCELLED'}
+
+        # Build query
+        lines = ["Analyze these Fallout 4 textures for issues (normal maps, diffuse, spec, etc):\n"]
+        for ta in texture_analyses:
+            lines.append(f"Texture: {ta.get('name')} ({ta.get('width')}x{ta.get('height')}, {ta.get('channels')}ch)")
+            lines.append(f"  Material: {ta.get('material')} / Node: {ta.get('node_label')}")
+            for ch in ['R', 'G', 'B', 'A']:
+                key = f'channel_{ch}_is_flat'
+                if key in ta and ta[key]:
+                    lines.append(f"  WARNING: Channel {ch} is flat (variance near 0) — possible incorrect texture slot assignment")
+                elif f'channel_{ch}_mean' in ta:
+                    lines.append(f"  Channel {ch}: min={ta.get(f'channel_{ch}_min')}, max={ta.get(f'channel_{ch}_max')}, mean={ta.get(f'channel_{ch}_mean')}")
+            lines.append("")
+
+        lines.append("For each texture: is it correctly set up for FO4? Are there any channel issues, format concerns, or DDS compression recommendations?")
+
+        query = "\n".join(lines)
+
+        try:
+            response = mossy_link.ask_mossy_fo4(query)
+            if not response:
+                self.report({'WARNING'}, "No response from Mossy AI — is it running?")
+                return {'CANCELLED'}
+
+            def draw_popup(self_inner, ctx):
+                layout = self_inner.layout
+                for line in response.split('\n')[:25]:
+                    layout.label(text=line[:80])
+            context.window_manager.popup_menu(draw_popup, title="Mossy Texture Analysis", icon='TEXTURE')
+        except Exception as e:
+            self.report({'ERROR'}, f"Mossy AI unavailable: {e}")
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+
 classes = (
     FO4_OT_ImageToMesh,
     FO4_OT_ApplyDisplacementMap,
@@ -3372,6 +3512,8 @@ classes = (
     FO4_OT_ShowPointEInfo,
     FO4_OT_GeneratePointEText,
     FO4_OT_GeneratePointEImage,
+    FO4_OT_MossyAnalyzeMesh,
+    FO4_OT_MossyAnalyzeTextures,
 )
 
 

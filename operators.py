@@ -9551,6 +9551,20 @@ class FO4_OT_ExportTRIMorphs(Operator):
         description="Name of the basis/reference shape key (leave empty to use the first key)",
         default="",
     )
+    generate_bodyslide: BoolProperty(
+        name="Generate BodySlide XML",
+        description=(
+            "After exporting the .tri file, also generate BodySlide SliderSet "
+            "and SliderGroups XML files in CalienteTools/BodySlide/ relative to "
+            "the Data/ root"
+        ),
+        default=False,
+    )
+    bodyslide_group: StringProperty(
+        name="BodySlide Group",
+        description="BodySlide group name the slider set will appear under",
+        default="Custom",
+    )
 
     def execute(self, context):
         if not tri_export_helpers:
@@ -9558,15 +9572,27 @@ class FO4_OT_ExportTRIMorphs(Operator):
             return {'CANCELLED'}
 
         obj = context.active_object
+        abs_filepath = bpy.path.abspath(self.filepath)
         ok, msg = tri_export_helpers.TRIExportHelpers.export_tri(
             obj,
-            bpy.path.abspath(self.filepath),
+            abs_filepath,
             basis_name=self.basis_name,
         )
         if ok:
             self.report({'INFO'}, msg)
             if notification_system:
                 notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            # Optionally generate BodySlide XML
+            if self.generate_bodyslide:
+                import os
+                output_name = os.path.splitext(os.path.basename(abs_filepath))[0]
+                bs_ok, bs_msg = tri_export_helpers.TRIExportHelpers.export_bodyslide_xml(
+                    obj,
+                    abs_filepath,
+                    output_name=output_name,
+                    group_name=self.bodyslide_group,
+                )
+                self.report({'INFO'} if bs_ok else {'WARNING'}, bs_msg)
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}

@@ -13,6 +13,59 @@ from pathlib import Path
 
 from . import preferences
 
+
+# ---------------------------------------------------------------------------
+# Slot-aware format detection
+# ---------------------------------------------------------------------------
+
+# Mapping from texture slot name to DDS compression format.
+# Slot names are returned by detect_slot_from_filename().
+FORMAT_FOR_SLOT: dict[str, str] = {
+    'diffuse':  'bc7',   # sRGB colour – BC7 for high quality
+    'normal':   'bc5',   # two-channel tangent-space
+    'specular': 'bc4',   # single-channel smoothspec / gloss mask
+    'glow':     'bc7',   # emissive / glow
+    'envmask':  'bc7',   # environment / cube-map mask
+    'unknown':  'bc7',   # safe high-quality default
+}
+
+
+def detect_slot_from_filename(filename: str) -> str:
+    """Detect the FO4 texture slot from a filename suffix.
+
+    Checks the stem (without extension) for the standard FO4 suffixes:
+      ``_d`` → diffuse
+      ``_n`` → normal
+      ``_s`` → specular / smoothspec
+      ``_g`` → glow / emissive
+      ``_e`` → environment / cube-map mask
+      ``_r`` → roughness / reflection mask (treated as specular)
+
+    Parameters
+    ----------
+    filename : str
+        Filename or full path; only the stem (no extension) is examined.
+
+    Returns
+    -------
+    str
+        One of ``'diffuse'``, ``'normal'``, ``'specular'``, ``'glow'``,
+        ``'envmask'``, or ``'unknown'``.
+    """
+    stem = Path(filename).stem  # strip extension
+    # FO4 suffixes are typically the last two characters of the stem
+    suffix = stem[-2:].lower() if len(stem) >= 2 else ""
+    mapping = {
+        '_d': 'diffuse',
+        '_n': 'normal',
+        '_s': 'specular',
+        '_g': 'glow',
+        '_e': 'envmask',
+        '_r': 'specular',   # roughness – treat as specular channel
+    }
+    return mapping.get(suffix, 'unknown')
+
+
 class NVTTHelpers:
     """Helper functions for NVIDIA Texture Tools integration"""
     
@@ -138,21 +191,43 @@ class NVTTHelpers:
         return fmt_map.get(texture_type.upper(), 'bc1')
     
     @staticmethod
-    def convert_to_dds(input_path, output_path=None, compression_format='bc1', quality='production', preferred_tool=None):
+    def convert_to_dds(input_path, output_path=None, compression_format='bc1',
+                       quality='production', preferred_tool=None, slot: str = None):
         """
-        Convert an image to DDS format using nvcompress or texconv
-        
+        Convert an image to DDS format using nvcompress or texconv.
+
+        The compression format can be chosen explicitly via *compression_format*,
+        or automatically detected from the texture slot.  When *slot* is ``None``
+        (the default) the slot is inferred from the filename using
+        :func:`detect_slot_from_filename` and :data:`FORMAT_FOR_SLOT`.  Passing
+        an explicit *compression_format* always overrides the slot-based selection.
+
         Args:
             input_path: Path to input image (PNG, JPG, TGA, etc.)
             output_path: Path for output DDS file (optional, defaults to input_path with .dds extension)
             compression_format: DDS compression format
                 - 'bc1' (DXT1): For diffuse textures without alpha
                 - 'bc3' (DXT5): For textures with alpha channel
+                - 'bc4':        Single-channel masks (specular, gloss)
                 - 'bc5' (ATI2): For normal maps
+                - 'bc7':        High-quality (default for slot-based auto-selection)
             quality: Compression quality ('fastest', 'normal', 'production', 'highest')
-        
+            preferred_tool: 'nvtt', 'texconv', or None (auto)
+            slot: Optional texture slot name ('diffuse', 'normal', 'specular',
+                  'glow', 'envmask', 'unknown').  When given, overrides the
+                  filename-based detection but is still overridden by an
+                  explicit *compression_format* that differs from the default.
+
         Returns: (bool success, str message)
         """
+        # Auto-select format from slot when the caller left compression_format
+        # at its default value ('bc1').  An explicit non-default format is
+        # always honoured without modification.
+        if compression_format == 'bc1':
+            resolved_slot = slot if slot is not None else detect_slot_from_filename(
+                input_path
+            )
+            compression_format = FORMAT_FOR_SLOT.get(resolved_slot, 'bc7')
         if not os.path.exists(input_path):
             return False, f"Input file not found: {input_path}"
 

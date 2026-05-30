@@ -36,6 +36,7 @@ from __future__ import annotations
 import os
 import json
 import datetime
+import subprocess
 import bpy
 
 # ---------------------------------------------------------------------------
@@ -486,6 +487,143 @@ Please report issues on the mod page.
         return not has_errors, issues
 
     # ------------------------------------------------------------------
+    # Archive2 / BA2 packing
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def pack_ba2(mod_root: str, mod_name: str,
+                 archive2_path: str = "") -> tuple[bool, str]:
+        """Pack loose mod files into FO4 BA2 archives using Archive2.exe.
+
+        Creates:
+          - ``<mod_root>/<mod_name> - Main.ba2``    for meshes and general files
+          - ``<mod_root>/<mod_name> - Textures.ba2`` for DDS textures
+
+        Parameters
+        ----------
+        mod_root : str
+            Root folder of the mod (contains the ``Data/`` sub-folder).
+        mod_name : str
+            Base name used for the output BA2 files.
+        archive2_path : str, optional
+            Full path to Archive2.exe.  When empty the method tries to read it
+            from the add-on preferences (``prefs.archive2_path``) and then
+            falls back to ``Archive2.exe`` on PATH.
+
+        Returns
+        -------
+        tuple[bool, str]
+            ``(True, success_message)`` or ``(False, error_message)``.
+        """
+        # Resolve Archive2.exe path
+        if not archive2_path:
+            try:
+                from . import preferences as _prefs
+                prefs = _prefs.get_preferences()
+                archive2_path = (
+                    getattr(prefs, "archive2_path", "") if prefs else ""
+                )
+            except Exception:
+                archive2_path = ""
+        if not archive2_path:
+            import shutil
+            found = shutil.which("Archive2.exe") or shutil.which("Archive2")
+            archive2_path = found or "Archive2.exe"
+
+        data_dir = os.path.join(mod_root, "Data")
+        textures_dir = os.path.join(data_dir, "Textures")
+
+        main_ba2 = os.path.join(mod_root, f"{mod_name} - Main.ba2")
+        tex_ba2  = os.path.join(mod_root, f"{mod_name} - Textures.ba2")
+
+        results = []
+        all_ok  = True
+
+        # General archive (meshes, scripts, sounds …)
+        if os.path.isdir(data_dir):
+            try:
+                cmd = [
+                    archive2_path,
+                    data_dir,
+                    f"-c={main_ba2}",
+                    "-f=General",
+                ]
+                proc = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=300
+                )
+                if proc.returncode == 0 and os.path.isfile(main_ba2):
+                    size_mb = os.path.getsize(main_ba2) / (1024 * 1024)
+                    results.append(
+                        f"Main BA2: {os.path.basename(main_ba2)} "
+                        f"({size_mb:.1f} MB)"
+                    )
+                else:
+                    err = proc.stderr or proc.stdout or "Unknown error"
+                    results.append(f"Main BA2 FAILED: {err.strip()[:200]}")
+                    all_ok = False
+            except FileNotFoundError:
+                results.append(
+                    f"Archive2.exe not found at '{archive2_path}'. "
+                    "Set path in add-on preferences or install it from the "
+                    "Bethesda Creation Kit."
+                )
+                all_ok = False
+            except subprocess.TimeoutExpired:
+                results.append("Archive2 timed out packing Main BA2 (>5 min).")
+                all_ok = False
+            except Exception as exc:
+                results.append(f"Main BA2 exception: {exc}")
+                all_ok = False
+        else:
+            results.append(f"Data directory not found: {data_dir}")
+            all_ok = False
+
+        # Texture archive (DDS only)
+        if os.path.isdir(textures_dir):
+            try:
+                cmd = [
+                    archive2_path,
+                    textures_dir,
+                    f"-c={tex_ba2}",
+                    "-f=DDS",
+                ]
+                proc = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=300
+                )
+                if proc.returncode == 0 and os.path.isfile(tex_ba2):
+                    size_mb = os.path.getsize(tex_ba2) / (1024 * 1024)
+                    results.append(
+                        f"Textures BA2: {os.path.basename(tex_ba2)} "
+                        f"({size_mb:.1f} MB)"
+                    )
+                else:
+                    err = proc.stderr or proc.stdout or "Unknown error"
+                    results.append(f"Textures BA2 FAILED: {err.strip()[:200]}")
+                    all_ok = False
+            except FileNotFoundError:
+                results.append(
+                    f"Archive2.exe not found at '{archive2_path}' "
+                    "(texture archive step)."
+                )
+                all_ok = False
+            except subprocess.TimeoutExpired:
+                results.append("Archive2 timed out packing Textures BA2 (>5 min).")
+                all_ok = False
+            except Exception as exc:
+                results.append(f"Textures BA2 exception: {exc}")
+                all_ok = False
+        else:
+            results.append(
+                f"Textures directory not found ({textures_dir}) — "
+                "Textures BA2 skipped."
+            )
+
+        summary = "\n".join(results)
+        if all_ok:
+            return True, f"BA2 packing complete:\n{summary}"
+        return False, f"BA2 packing finished with errors:\n{summary}"
+
+    # ------------------------------------------------------------------
     # Archive2 / BA2 pack scripts
     # ------------------------------------------------------------------
 
@@ -609,6 +747,42 @@ def _xml_esc(s: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# BA2 Pack operator
+# ---------------------------------------------------------------------------
+
+class FO4_OT_PackBA2(bpy.types.Operator):
+    """Pack the mod's loose files into FO4 BA2 archives via Archive2.exe."""
+    bl_idname  = "fo4.pack_ba2"
+    bl_label   = "Pack BA2 Archives"
+    bl_description = (
+        "Run Archive2.exe to pack Data/Meshes (and related folders) into "
+        "'ModName - Main.ba2' and Data/Textures into 'ModName - Textures.ba2'."
+    )
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        scene = context.scene
+        mod_root = bpy.path.abspath(
+            getattr(scene, "fo4_mod_root", "") or ""
+        ).strip()
+        mod_name = getattr(scene, "fo4_mod_name", "MyFO4Mod").strip() or "MyFO4Mod"
+
+        if not mod_root:
+            self.report(
+                {'ERROR'},
+                "Mod Root Folder is not set. Fill it in the Packaging panel first."
+            )
+            return {'CANCELLED'}
+
+        ok, msg = ModPackager.pack_ba2(mod_root, mod_name)
+        level = 'INFO' if ok else 'ERROR'
+        for line in msg.splitlines():
+            if line.strip():
+                self.report({level}, line)
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+
+# ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 
@@ -656,6 +830,8 @@ def register():
     )
 
     # ── Armor / Clothing properties ──────────────────────────────────────────
+    bpy.utils.register_class(FO4_OT_PackBA2)
+
     bpy.types.Scene.fo4_armor_body_slot = bpy.props.IntProperty(
         name="Body Slot",
         description=(
@@ -669,6 +845,10 @@ def register():
 
 
 def unregister():
+    try:
+        bpy.utils.unregister_class(FO4_OT_PackBA2)
+    except Exception:
+        pass
     for prop in (
         "fo4_mod_name", "fo4_mod_author", "fo4_mod_version",
         "fo4_mod_description", "fo4_mod_root", "fo4_mod_website",
