@@ -829,6 +829,7 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
             console.log(`[PyTorch Auto-Setup] Found system PyTorch ${version} at ${sitePkgs} via ${pyCmd}`);
             const s = loadSettings();
             saveSettings({ ...s, pytorchPath: sitePkgs });
+            bridge.setPythonPath(pyCmd);
             sendProgress(`✅ PyTorch ${version} already installed system-wide. Configured automatically.`);
             return;
           }
@@ -889,6 +890,7 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
       if (sitePkgs) {
         const s = loadSettings();
         saveSettings({ ...s, pytorchPath: sitePkgs });
+        bridge.setPythonPath(pythonExe);
         sendProgress(`✅ PyTorch ${version} detected and configured automatically.`);
         return;
       }
@@ -944,6 +946,7 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
     const torchVersion = verifyResult.stdout.trim();
     const s = loadSettings();
     saveSettings({ ...s, pytorchPath: torchPackagesDir });
+    bridge.setPythonPath(pythonExe);
 
     // ── 5. NVIDIA edition: install Unsloth for local fine-tuning ─────────────
     if (isNvidiaEdition) {
@@ -972,6 +975,20 @@ async function runPytorchAutoInstall(win: BrowserWindow | null) {
       sendProgress(`✅ PyTorch ${torchVersion} + Unsloth set up automatically. Fine-tuning and AI features are ready!`);
     } else {
       sendProgress(`✅ PyTorch ${torchVersion} set up automatically. AI features are ready!`);
+    }
+
+    // ── 6. Install Shap-E and Point-E (3D generation) ────────────────────────
+    sendProgress('📦 Installing Shap-E and Point-E 3D generation libraries…');
+    const shapeResult = await runCmd(pythonExe, [
+      '-m', 'pip', 'install',
+      'git+https://github.com/openai/shap-e.git',
+      'git+https://github.com/openai/point-e.git',
+      '--no-warn-script-location', '--timeout', '300',
+    ]);
+    if (shapeResult.code === 0) {
+      sendProgress('✅ Shap-E and Point-E installed successfully.');
+    } else {
+      sendProgress(`⚠️ Shap-E / Point-E install failed — 3D generation won't be available until resolved.\n${shapeResult.stderr || shapeResult.stdout}`);
     }
 
   } catch (err: any) {
