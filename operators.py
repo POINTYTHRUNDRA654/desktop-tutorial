@@ -4671,7 +4671,7 @@ class FO4_OT_ImportFO4AssetFile(Operator):
         subtype='FILE_PATH',
     )
     filter_glob: StringProperty(
-        default="*.fbx;*.obj;*.nif;*.dds;*.png;*.tga;*.bmp;*.jpg;*.jpeg",
+        default="*.fbx;*.obj;*.nif;*.duf;*.dsf;*.dds;*.png;*.tga;*.bmp;*.jpg;*.jpeg",
         options={'HIDDEN'},
     )
 
@@ -4776,9 +4776,25 @@ class FO4_OT_ImportFO4AssetFile(Operator):
                 self.report({'ERROR'}, f"Texture load failed: {e}")
                 return {'CANCELLED'}
 
+        # ── DAZ Studio format (.duf / .dsf) ─────────────────────────────────
+        if ext in {'.duf', '.dsf', '.duf.gz', '.dsf.gz'}:
+            if hasattr(bpy.ops, 'fo4') and hasattr(bpy.ops.fo4, 'import_dsf'):
+                try:
+                    bpy.ops.fo4.import_dsf('INVOKE_DEFAULT', filepath=filepath)
+                    return {'FINISHED'}
+                except Exception as e:
+                    self.report({'ERROR'}, f"DAZ import failed: {e}")
+                    return {'CANCELLED'}
+            else:
+                self.report({'ERROR'},
+                    "DAZ Studio importer not available. "
+                    "Try File → Import → DAZ Studio File (.dsf/.duf) instead."
+                )
+                return {'CANCELLED'}
+
         self.report({'ERROR'},
             f"Unsupported file type '{ext}'. "
-            "Supported: FBX, OBJ, NIF, DDS, PNG, TGA, BMP, JPG"
+            "Supported: FBX, OBJ, NIF, DUF, DSF, DDS, PNG, TGA, BMP, JPG"
         )
         return {'CANCELLED'}
 
