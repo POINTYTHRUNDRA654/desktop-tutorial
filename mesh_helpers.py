@@ -295,6 +295,37 @@ class MeshHelpers:
         return False, issues
     
     @staticmethod
+    def enforce_bone_limit(obj, max_influences: int = 4) -> str:
+        """Cap bone influences per vertex to max_influences and normalize weights.
+
+        Parameters
+        ----------
+        obj : bpy.types.Object
+            A skinned mesh object with vertex groups.
+        max_influences : int, optional
+            Maximum number of bone influences per vertex (default 4, FO4 limit).
+
+        Returns
+        -------
+        str
+            Human-readable status message.
+        """
+        prev_active = bpy.context.view_layer.objects.active
+        prev_mode = bpy.context.mode
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        if bpy.context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.vertex_group_limit_total(
+            group_select_mode='ALL', limit=max_influences
+        )
+        bpy.ops.object.vertex_group_normalize_all(
+            group_select_mode='ALL', lock_active=False
+        )
+        bpy.context.view_layer.objects.active = prev_active
+        return f"Bone influences capped at {max_influences} per vertex and normalized"
+
+    @staticmethod
     def add_collision_mesh(obj, simplify_ratio: float = None, collision_type: str = 'DEFAULT'):
         """Add a collision mesh for *obj* and return the new object.
 
@@ -952,6 +983,241 @@ class MeshHelpers:
             "then export with 'Export Mesh (.nif)'."
         )
 
+    @staticmethod
+    def add_compound_collision(obj, num_parts: int = 4) -> tuple:
+        """Create compound (multi-part) convex collision hulls for *obj*.
+
+        Attempts convex decomposition via trimesh/VHACD when available; falls
+        back to bounding-box splitting along the longest axis otherwise.
+
+        Each part is named ``UCX_{obj.name}_{i:02d}`` and given the same
+        Havok rigid-body settings that :meth:`add_collision_mesh` applies.
+
+        Parameters
+        ----------
+        obj : bpy.types.Object
+            Source mesh object.
+        num_parts : int
+            Maximum number of convex hull parts to generate (default 4).
+
+        Returns
+        -------
+        ``(success: bool, message: str, ucx_objects: list)``
+        """
+        if obj is None or obj.type != 'MESH':
+            return False, "Object must be a mesh", []
+
+        try:
+            import trimesh
+            import trimesh.decomposition
+            has_trimesh = True
+        except ImportError:
+            has_trimesh = False
+
+        ucx_objects = []
+        collision_type = 'DEFAULT'
+        phys = MeshHelpers._TYPE_PHYSICS_PRESETS.get(collision_type,
+                                                      MeshHelpers._TYPE_PHYSICS_PRESETS['DEFAULT'])
+
+        def _apply_ucx_props(ucx_obj):
+            """Apply standard FO4 Havok / rigid-body properties to a UCX_ object."""
+            ucx_obj["fo4_collision"] = True
+            ucx_obj.fo4_collision_type = collision_type
+            sound = MeshHelpers._SOUND_PRESETS.get(collision_type)
+            weight = MeshHelpers._WEIGHT_PRESETS.get(collision_type)
+            if sound is not None:
+                ucx_obj["fo4_collision_sound"] = sound
+            if weight is not None:
+                ucx_obj["fo4_collision_weight"] = weight
+            ucx_obj.data.materials.clear()
+            ucx_obj.vertex_groups.clear()
+            ucx_obj.display_type = 'WIRE'
+            ucx_obj.hide_render = True
+            ucx_obj.parent = obj
+            ucx_obj.matrix_parent_inverse = obj.matrix_world.inverted()
+            try:
+                bpy.ops.object.select_all(action='DESELECT')
+                ucx_obj.select_set(True)
+                bpy.context.view_layer.objects.active = ucx_obj
+                bpy.ops.rigidbody.object_add()
+                ucx_obj.rigid_body.type = 'PASSIVE'
+                ucx_obj.rigid_body.mesh_source = 'FINAL'
+                ucx_obj.rigid_body.collision_shape = 'CONVEX_HULL'
+                ucx_obj.rigid_body.mass = 0.0
+                ucx_obj.rigid_body.friction = phys['friction']
+                ucx_obj.rigid_body.restitution = phys['restitution']
+            except Exception:
+                pass
+
+        if has_trimesh:
+            # ── trimesh VHACD path ────────────────────────────────────────────
+            try:
+                import numpy as np
+
+                mesh = obj.data
+                vertices = np.array([v.co for v in mesh.vertices], dtype=np.float64)
+                faces = np.array(
+                    [[l for l in p.vertices] for p in mesh.polygons
+                     if len(p.vertices) == 3],
+                    dtype=np.int32,
+                )
+                if len(faces) == 0:
+                    # Triangulate first using bmesh
+                    bm = bmesh.new()
+                    bm.from_mesh(mesh)
+                    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+                    faces = np.array(
+                        [[v.index for v in f.verts] for f in bm.faces],
+                        dtype=np.int32,
+                    )
+                    bm.free()
+
+                tm = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+                hulls = trimesh.decomposition.convex_decomposition(
+                    tm, maxhulls=num_parts
+                )
+                if not isinstance(hulls, list):
+                    hulls = [hulls]
+
+                for i, hull in enumerate(hulls):
+                    ucx_name = f"UCX_{obj.name}_{i:02d}"
+                    existing = bpy.data.objects.get(ucx_name)
+                    if existing:
+                        bpy.data.objects.remove(existing, do_unlink=True)
+
+                    hull_verts = hull.vertices.tolist()
+                    hull_faces = hull.faces.tolist()
+
+                    ucx_mesh = bpy.data.meshes.new(ucx_name)
+                    ucx_mesh.from_pydata(hull_verts, [], hull_faces)
+                    ucx_mesh.update()
+
+                    ucx_obj = bpy.data.objects.new(ucx_name, ucx_mesh)
+                    ucx_obj.location = obj.location.copy()
+                    bpy.context.collection.objects.link(ucx_obj)
+
+                    _apply_ucx_props(ucx_obj)
+                    ucx_objects.append(ucx_obj)
+
+                # Restore selection
+                bpy.ops.object.select_all(action='DESELECT')
+                bpy.context.view_layer.objects.active = obj
+                obj.select_set(True)
+
+                n = len(ucx_objects)
+                return True, f"Created {n} convex hull part(s) via trimesh VHACD", ucx_objects
+
+            except Exception as exc:
+                # Fall through to bbox fallback if trimesh decomposition fails
+                has_trimesh = False
+                print(f"[FO4 Add-on] trimesh VHACD failed ({exc}), falling back to bbox split")
+
+        # ── Bounding-box fallback ─────────────────────────────────────────────
+        # Split the object's bounding box along the longest axis into num_parts
+        # rough sections and call add_collision_mesh() on each slice.
+        bbox = [Vector(c) for c in obj.bound_box]
+        min_co = Vector((
+            min(v.x for v in bbox),
+            min(v.y for v in bbox),
+            min(v.z for v in bbox),
+        ))
+        max_co = Vector((
+            max(v.x for v in bbox),
+            max(v.y for v in bbox),
+            max(v.z for v in bbox),
+        ))
+        extents = max_co - min_co
+        axis = extents.to_tuple().index(max(extents))  # 0=X 1=Y 2=Z
+        axis_name = ['x', 'y', 'z'][axis]
+
+        axis_min = getattr(min_co, axis_name)
+        axis_max = getattr(max_co, axis_name)
+        step = (axis_max - axis_min) / max(num_parts, 1)
+
+        prev_active = bpy.context.view_layer.objects.active
+        mesh_data = obj.data
+        all_verts = [v.co.copy() for v in mesh_data.vertices]
+        all_faces = [list(p.vertices) for p in mesh_data.polygons]
+
+        for i in range(num_parts):
+            slice_min = axis_min + i * step
+            slice_max = axis_min + (i + 1) * step + 1e-6
+
+            # Collect vertices within this slice
+            slice_vert_indices = {
+                j for j, co in enumerate(all_verts)
+                if slice_min <= getattr(co, axis_name) <= slice_max
+            }
+            if not slice_vert_indices:
+                continue
+
+            slice_faces = [
+                f for f in all_faces
+                if all(vi in slice_vert_indices for vi in f)
+            ]
+            if not slice_faces:
+                continue
+
+            # Build a temporary mesh for this slice
+            tmp_name = f"_fo4_slice_{i:02d}_TEMP"
+            tmp_mesh = bpy.data.meshes.new(tmp_name)
+            idx_map = {old: new for new, old in enumerate(sorted(slice_vert_indices))}
+            new_verts = [all_verts[j] for j in sorted(slice_vert_indices)]
+            new_faces = [[idx_map[vi] for vi in f] for f in slice_faces]
+            tmp_mesh.from_pydata(new_verts, [], new_faces)
+            tmp_mesh.update()
+
+            tmp_obj = bpy.data.objects.new(tmp_name, tmp_mesh)
+            tmp_obj.location = obj.location.copy()
+            bpy.context.collection.objects.link(tmp_obj)
+
+            # Build a convex hull for this slice
+            bm = bmesh.new()
+            bm.from_mesh(tmp_mesh)
+            bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.001)
+            bm.verts.ensure_lookup_table()
+            result = bmesh.ops.convex_hull(bm, input=bm.verts)
+            del_geom = result.get('geom_interior', []) + result.get('geom_unused', [])
+            del_verts = [g for g in del_geom if isinstance(g, bmesh.types.BMVert)]
+            if del_verts:
+                bmesh.ops.delete(bm, geom=del_verts, context='VERTS')
+            bmesh.ops.triangulate(bm, faces=bm.faces[:])
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+            bm.normal_update()
+            bm.to_mesh(tmp_mesh)
+            bm.free()
+            tmp_mesh.update()
+
+            if len(tmp_mesh.vertices) == 0:
+                bpy.data.objects.remove(tmp_obj, do_unlink=True)
+                continue
+
+            ucx_name = f"UCX_{obj.name}_{i:02d}"
+            existing = bpy.data.objects.get(ucx_name)
+            if existing:
+                bpy.data.objects.remove(existing, do_unlink=True)
+
+            tmp_obj.name = ucx_name
+            tmp_mesh.name = ucx_name
+
+            _apply_ucx_props(tmp_obj)
+            ucx_objects.append(tmp_obj)
+
+        # Restore selection
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+
+        n = len(ucx_objects)
+        if n == 0:
+            return False, "No convex hull parts could be generated", []
+        return (
+            True,
+            f"Created {n} convex hull part(s) via bounding-box split (trimesh not available)",
+            ucx_objects,
+        )
+
+
 class SmartPresets:
     """Game-asset catalog and NIF import helpers for Smart Presets.
 
@@ -1380,10 +1646,63 @@ class SmartPresets:
             texture_helpers.TextureHelpers.install_texture(obj, tex, tex_type)
 
 
+class FO4_OT_AddCompoundCollision(bpy.types.Operator):
+    """Add compound (multi-part) convex collision hulls to the active mesh.
+
+    Uses trimesh VHACD when available for accurate decomposition, or falls back
+    to bounding-box slicing along the longest axis.  Each part is named
+    UCX_{object_name}_{index:02d} following the FO4 / FBX collision convention.
+    """
+    bl_idname = "fo4.add_compound_collision"
+    bl_label = "Add Compound Collision"
+    bl_description = (
+        "Generate multiple convex collision hull parts (UCX_) for the active "
+        "mesh using trimesh VHACD (if installed) or bounding-box splitting."
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    num_parts: bpy.props.IntProperty(
+        name="Number of Parts",
+        description="Maximum number of convex hull parts to generate",
+        default=4,
+        min=1,
+        max=16,
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        ok, msg, ucx_objs = MeshHelpers.add_compound_collision(obj, self.num_parts)
+        if ok:
+            self.report({'INFO'}, msg)
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+_CLASSES = [
+    FO4_OT_AddCompoundCollision,
+]
+
+
 def register():
     """Register mesh helper functions"""
-    pass
+    for cls in _CLASSES:
+        try:
+            bpy.utils.register_class(cls)
+        except Exception as e:
+            print(f"[Mesh Helpers] Could not register {cls.__name__}: {e}")
+
 
 def unregister():
     """Unregister mesh helper functions"""
-    pass
+    for cls in reversed(_CLASSES):
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:
+            pass

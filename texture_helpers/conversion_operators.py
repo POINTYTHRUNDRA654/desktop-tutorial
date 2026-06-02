@@ -183,19 +183,36 @@ class FO4_OT_TestDDSConverters(Operator):
             return {'CANCELLED'}
 
         import tempfile
-        import base64
         import os
 
-        # Minimal 2x2 PNG (opaque magenta/cyan checker)
-        png_bytes = base64.b64decode(
-            b"iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAE0lEQVQI12NgYGD4z0AEYBxVSgBf3AHb8QeUkwAAAABJRU5ErkJggg=="
+        # Minimal 2x2 TGA (uncompressed RGB) — TGA is supported by both
+        # nvcompress and texconv; avoids the PNG-to-TGA pre-conversion step.
+        # TGA header: 18 bytes, then 4 pixels x 3 bytes BGR each.
+        import struct as _struct
+        tga_header = _struct.pack(
+            '<BBBHHBHHHHBB',
+            0,   # id_length
+            0,   # color_map_type
+            2,   # image_type: uncompressed RGB
+            0, 0, 0,  # color_map spec (ignored)
+            0, 0,     # x/y origin
+            2, 2,     # width, height
+            24,  # pixel depth
+            0,   # image descriptor
         )
+        tga_pixels = bytes([
+            255,   0, 255,   # magenta  (BGR)
+              0, 255, 255,   # cyan
+              0, 255, 255,   # cyan
+            255,   0, 255,   # magenta
+        ])
+        tga_bytes = tga_header + tga_pixels
 
         with tempfile.TemporaryDirectory() as tmp:
-            src = os.path.join(tmp, "test.png")
+            src = os.path.join(tmp, "test.tga")
             dst = os.path.join(tmp, "test.dds")
             with open(src, "wb") as f:
-                f.write(png_bytes)
+                f.write(tga_bytes)
 
             success, message = nvtt_helpers.NVTTHelpers.convert_to_dds(
                 src,

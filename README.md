@@ -1,6 +1,6 @@
 # Mossy Fallout 4 Blender Add-on
 
-**Professional Fallout 4 modding tools with FREE local AI assistance**  
+**Professional Fallout 4 modding tools with FREE local AI assistance**
 **A Mossy Industries Product**
 
 [![Build Status](https://github.com/POINTYTHRUNDRA654/Blender-add-on/workflows/Build%20Add-on%20Zips/badge.svg)](https://github.com/POINTYTHRUNDRA654/Blender-add-on/actions)
@@ -200,7 +200,7 @@ When using Mossy for AI features, Mossy provides PyTorch and all AI models:
 
 ```bash
 # Clone the repository
-git clone https://github.com/POINTYTHRUNDRA654/Blender-add-on.git
+git clone https://github.com/POINTYTHRUNDRA654/Blender-add-ongit
 cd Blender-add-on
 
 # Run integrity tests (219 tests)
@@ -239,10 +239,10 @@ python build_addon.py --version all --outdir dist
 
 Ready for submission to the official Blender extension marketplace:
 
-✅ **Extension-compliant manifest** (`blender_manifest.toml`)  
-✅ **GPL-3.0-or-later license** (required by Blender)  
-✅ **Clear permission descriptions** (network = localhost only)  
-✅ **Multi-version builds** (4.2+, 5.0+)  
+✅ **Extension-compliant manifest** (`blender_manifest.toml`)
+✅ **GPL-3.0-or-later license** (required by Blender)
+✅ **Clear permission descriptions** (network = localhost only)
+✅ **Multi-version builds** (4.2+, 5.0+)
 ✅ **No paid services** (all AI is local via Mossy)
 
 **Submission ready** - Upload `blender42.zip` or `blender5x.zip` to extensions.blender.org
@@ -292,6 +292,10 @@ This add-on is free software: you can redistribute it and/or modify it under the
 - **Niftools** - Legacy NIF tools
 - **Fallout 4 Modding Community** - Tools, documentation, support
 
+- **Patrons**: Thank you to everyone who supports development (see CONTRIBUTORS.md)
+
+For a full list of contributors, credits, and third-party components, see [CONTRIBUTORS.md](CONTRIBUTORS.md)
+
 ---
 
 ## 📞 Support & Links
@@ -321,5 +325,5 @@ This add-on is free software: you can redistribute it and/or modify it under the
 
 **Made with ❤️ by Mossy Industries for the Fallout 4 modding community**
 
-*No subscriptions. No API keys. Just great tools and free local AI.*  
+*No subscriptions. No API keys. Just great tools and free local AI.*
 *A Mossy Industries Product - Professional tools for game modders*

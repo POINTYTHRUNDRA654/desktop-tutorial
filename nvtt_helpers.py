@@ -13,6 +13,59 @@ from pathlib import Path
 
 from . import preferences
 
+
+# ---------------------------------------------------------------------------
+# Slot-aware format detection
+# ---------------------------------------------------------------------------
+
+# Mapping from texture slot name to DDS compression format.
+# Slot names are returned by detect_slot_from_filename().
+FORMAT_FOR_SLOT: dict[str, str] = {
+    'diffuse':  'bc7',   # sRGB colour – BC7 for high quality
+    'normal':   'bc5',   # two-channel tangent-space
+    'specular': 'bc4',   # single-channel smoothspec / gloss mask
+    'glow':     'bc7',   # emissive / glow
+    'envmask':  'bc7',   # environment / cube-map mask
+    'unknown':  'bc7',   # safe high-quality default
+}
+
+
+def detect_slot_from_filename(filename: str) -> str:
+    """Detect the FO4 texture slot from a filename suffix.
+
+    Checks the stem (without extension) for the standard FO4 suffixes:
+      ``_d`` → diffuse
+      ``_n`` → normal
+      ``_s`` → specular / smoothspec
+      ``_g`` → glow / emissive
+      ``_e`` → environment / cube-map mask
+      ``_r`` → roughness / reflection mask (treated as specular)
+
+    Parameters
+    ----------
+    filename : str
+        Filename or full path; only the stem (no extension) is examined.
+
+    Returns
+    -------
+    str
+        One of ``'diffuse'``, ``'normal'``, ``'specular'``, ``'glow'``,
+        ``'envmask'``, or ``'unknown'``.
+    """
+    stem = Path(filename).stem  # strip extension
+    # FO4 suffixes are typically the last two characters of the stem
+    suffix = stem[-2:].lower() if len(stem) >= 2 else ""
+    mapping = {
+        '_d': 'diffuse',
+        '_n': 'normal',
+        '_s': 'specular',
+        '_g': 'glow',
+        '_e': 'envmask',
+        '_r': 'specular',   # roughness – treat as specular channel
+    }
+    return mapping.get(suffix, 'unknown')
+
+
 class NVTTHelpers:
     """Helper functions for NVIDIA Texture Tools integration"""
     
@@ -138,21 +191,43 @@ class NVTTHelpers:
         return fmt_map.get(texture_type.upper(), 'bc1')
     
     @staticmethod
-    def convert_to_dds(input_path, output_path=None, compression_format='bc1', quality='production', preferred_tool=None):
+    def convert_to_dds(input_path, output_path=None, compression_format='bc1',
+                       quality='production', preferred_tool=None, slot: str = None):
         """
-        Convert an image to DDS format using nvcompress or texconv
-        
+        Convert an image to DDS format using nvcompress or texconv.
+
+        The compression format can be chosen explicitly via *compression_format*,
+        or automatically detected from the texture slot.  When *slot* is ``None``
+        (the default) the slot is inferred from the filename using
+        :func:`detect_slot_from_filename` and :data:`FORMAT_FOR_SLOT`.  Passing
+        an explicit *compression_format* always overrides the slot-based selection.
+
         Args:
             input_path: Path to input image (PNG, JPG, TGA, etc.)
             output_path: Path for output DDS file (optional, defaults to input_path with .dds extension)
             compression_format: DDS compression format
                 - 'bc1' (DXT1): For diffuse textures without alpha
                 - 'bc3' (DXT5): For textures with alpha channel
+                - 'bc4':        Single-channel masks (specular, gloss)
                 - 'bc5' (ATI2): For normal maps
+                - 'bc7':        High-quality (default for slot-based auto-selection)
             quality: Compression quality ('fastest', 'normal', 'production', 'highest')
-        
+            preferred_tool: 'nvtt', 'texconv', or None (auto)
+            slot: Optional texture slot name ('diffuse', 'normal', 'specular',
+                  'glow', 'envmask', 'unknown').  When given, overrides the
+                  filename-based detection but is still overridden by an
+                  explicit *compression_format* that differs from the default.
+
         Returns: (bool success, str message)
         """
+        # Auto-select format from slot when the caller left compression_format
+        # at its default value ('bc1').  An explicit non-default format is
+        # always honoured without modification.
+        if compression_format == 'bc1':
+            resolved_slot = slot if slot is not None else detect_slot_from_filename(
+                input_path
+            )
+            compression_format = FORMAT_FOR_SLOT.get(resolved_slot, 'bc7')
         if not os.path.exists(input_path):
             return False, f"Input file not found: {input_path}"
 
@@ -177,6 +252,83 @@ class NVTTHelpers:
         tool, tool_path, tool_message = NVTTHelpers._find_converter(preferred_tool)
         if not tool:
             return False, tool_message
+
+        # nvcompress (nvtt) does not support PNG input — convert to TGA first.
+        # texconv handles PNG fine so this only applies to the nvtt path.
+        _tmp_tga = None
+        try:
+            if tool == "nvtt" and str(input_path).lower().endswith(".png"):
+                import tempfile
+                _tmp_fd, _tmp_tga = tempfile.mkstemp(suffix=".tga")
+                os.close(_tmp_fd)
+                _converted = False
+                # Try Pillow first (fast, no bpy dependency)
+                try:
+                    from PIL import Image as _PILImage
+                    with _PILImage.open(input_path) as _im:
+                        _im.save(_tmp_tga, format="TGA")
+                    _converted = True
+                except ImportError:
+                    pass
+                # Fall back to bpy image save
+                if not _converted:
+                    try:
+                        import bpy as _bpy
+                        _img = _bpy.data.images.load(input_path)
+                        _img.file_format = 'TARGA'
+                        _img.filepath_raw = _tmp_tga
+                        _img.save()
+                        _bpy.data.images.remove(_img)
+                        _converted = True
+                    except Exception:
+                        pass
+                # Last resort: pure-Python PNG→TGA via struct+zlib (no Pillow/bpy needed)
+                if not _converted:
+                    try:
+                        import struct as _struct, zlib as _zlib
+                        with open(input_path, "rb") as _pf:
+                            _png = _pf.read()
+                        # Parse PNG IHDR to get dimensions
+                        _w = _struct.unpack(">I", _png[16:20])[0]
+                        _h = _struct.unpack(">I", _png[20:24])[0]
+                        # Decompress IDAT chunks
+                        _idat = b""
+                        _pos = 8
+                        while _pos < len(_png) - 12:
+                            _clen = _struct.unpack(">I", _png[_pos:_pos+4])[0]
+                            _ctype = _png[_pos+4:_pos+8]
+                            if _ctype == b"IDAT":
+                                _idat += _png[_pos+8:_pos+8+_clen]
+                            _pos += 12 + _clen
+                        _raw = zlib.decompress(_idat)
+                        # Reconstruct scanlines (filter byte per row)
+                        _stride = _w * 4  # assume RGBA
+                        _pixels = b""
+                        for _row in range(_h):
+                            _offset = _row * (_stride + 1) + 1
+                            _pixels += _raw[_offset:_offset + _stride]
+                        # Write 32-bit TGA (BGRA)
+                        _bgra = bytearray()
+                        for _i in range(0, len(_pixels), 4):
+                            r, g, b, a = _pixels[_i], _pixels[_i+1], _pixels[_i+2], _pixels[_i+3]
+                            _bgra += bytes([b, g, r, a])
+                        _tga_hdr = _struct.pack('<BBBHHBHHHHBB',
+                            0,0,2,0,0,0,0,0,0,0,_w,_h,32,0x20)
+                        with open(_tmp_tga, "wb") as _tf:
+                            _tf.write(_tga_hdr + bytes(_bgra))
+                        _converted = True
+                    except Exception as _py_err:
+                        print(f"[NVTT] Pure-Python PNG→TGA fallback failed: {_py_err}")
+
+                if _converted:
+                    input_path = _tmp_tga
+                else:
+                    os.unlink(_tmp_tga)
+                    _tmp_tga = None
+
+        except Exception as _conv_err:
+            print(f"[NVTT] PNG→TGA pre-convert warning: {_conv_err}")
+            _tmp_tga = None
 
         try:
             if tool == "nvtt":
@@ -231,7 +383,14 @@ class NVTTHelpers:
             return False, "Texture conversion timed out (90 seconds)"
         except Exception as e:
             return False, f"Failed to convert texture: {str(e)}"
-    
+        finally:
+            # Clean up temporary TGA file created for nvcompress PNG workaround
+            if _tmp_tga and os.path.exists(_tmp_tga):
+                try:
+                    os.unlink(_tmp_tga)
+                except Exception:
+                    pass
+
     @staticmethod
     def batch_convert_textures(texture_list, output_dir=None, compression_map=None, preferred_tool=None):
         """
@@ -385,6 +544,39 @@ class NVTTHelpers:
             return True, message, converted_files
         else:
             return False, "Failed to convert any textures", []
+
+
+# ---------------------------------------------------------------------------
+# Mossy AI texture routing
+# ---------------------------------------------------------------------------
+
+def _route_texture_via_mossy(image_path: str, fmt: str = "dds",
+                              quality: str = "high") -> tuple:
+    """Route texture conversion/compression through Mossy AI.
+
+    Mossy handles NVTT/texconv externally so Blender does not need local
+    CLI tools installed.  Returns (success, result_path_or_error).
+    """
+    try:
+        import base64, os, tempfile
+        from . import mossy_link
+        with open(image_path, "rb") as fh:
+            img_b64 = base64.b64encode(fh.read()).decode("utf-8")
+        result = mossy_link.process_texture(
+            image_data_base64=img_b64, fmt=fmt, quality=quality, timeout=60
+        )
+        if result and result.get("status") == "success":
+            tex_data = result.get("texture_data", "")
+            if tex_data:
+                ext = "." + result.get("format", fmt)
+                tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+                tmp.write(base64.b64decode(tex_data))
+                tmp.close()
+                return True, tmp.name
+        return False, result.get("message", "Mossy returned no texture data") if result else "Mossy offline"
+    except Exception as exc:
+        return False, f"Mossy texture route error: {exc}"
+
 
 def register():
     """Register NVTT helper functions"""

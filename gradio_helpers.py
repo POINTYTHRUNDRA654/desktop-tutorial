@@ -365,6 +365,18 @@ You can also create a public shareable link (optional).
 """
 
 
+
+def _fo4_post_process(obj, target_polys: int = 10000, name: str = "") -> tuple:
+    """Delegate to the canonical FO4 post-process pipeline."""
+    try:
+        from . import imageto3d_helpers as _ith
+        if hasattr(_ith, 'fo4_post_process'):
+            return _ith.fo4_post_process(obj, target_polys=target_polys, name=name)
+    except Exception:
+        pass
+    return False, "imageto3d_helpers not available"
+
+
 def register():
     """Register Gradio helper functions"""
     global GRADIO_AVAILABLE, GRADIO_ERROR

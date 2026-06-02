@@ -1099,6 +1099,33 @@ class FO4_OT_InstallInstantNGP(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_BuildInstantNGP(Operator):
+    """Auto-build Instant-NGP from source using CMake. Requires CUDA 11.3+, CMake, and Visual Studio Build Tools."""
+    bl_idname = "fo4.build_instantngp"
+    bl_label = "Build Instant-NGP"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        import importlib
+        from . import tool_installers
+        importlib.reload(tool_installers)
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("BUILDING INSTANT-NGP")
+            print("=" * 60)
+            ok, msg = tool_installers.build_instantngp()
+            print(msg)
+            print("=" * 60 + "\n")
+            level = 'INFO' if ok else 'ERROR'
+            notification_system.FO4_NotificationSystem.notify(msg[:200], level)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Building Instant-NGP in background — this can take 5-20 min. Check the console.")
+        return {'FINISHED'}
+
+
 class FO4_OT_InstallShapE(Operator):
     """Install Shap-E (text/image → 3D mesh). Downloads PyTorch CPU + shap-e via pip."""
     bl_idname = "fo4.install_shap_e"
@@ -1107,7 +1134,9 @@ class FO4_OT_InstallShapE(Operator):
 
     def execute(self, context):
         import threading
+        import importlib
         from . import tool_installers
+        importlib.reload(tool_installers)  # force fresh code, bypass stale .pyc
 
         def _run():
             print("\n" + "=" * 60)
@@ -1473,6 +1502,7 @@ classes = (
     FO4_OT_CheckRealESRGANInstallation,
     FO4_OT_InstallUpscalerDeps,
     FO4_OT_InstallInstantNGP,
+    FO4_OT_BuildInstantNGP,
     FO4_OT_InstallShapE,
     FO4_OT_InstallPointE,
     FO4_OT_InstallDiffusers,

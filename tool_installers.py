@@ -397,6 +397,81 @@ def _pip_install(packages: list[str], target_dir: "Path | None" = None) -> tuple
         return False, f"pip install error: {e}"
 
 
+def _clone_or_download_repo(
+    repo: str,
+    dest: Path,
+    branch: str = "main",
+    display_name: str = "",
+) -> tuple[bool, str]:
+    """
+    Get a GitHub repo into *dest* — tries git clone first, falls back to
+    downloading the repo as a zip (no git required).
+
+    This means all repo-based installs work automatically even if the user
+    doesn't have git installed — fully automatic, no manual steps needed.
+    Compliant with GitHub ToS and Nexus Mods policies: we download at
+    install time only, from the official upstream repo.
+
+    :param repo:    ``owner/name`` repo identifier on GitHub
+    :param dest:    Local directory to clone/extract into
+    :param branch:  Branch to use (default: ``main``)
+    :returns:       ``(success, message)``
+    """
+    from urllib import request as _req
+    import zipfile as _zf
+
+    name = display_name or repo.split("/")[-1]
+
+    if dest.exists() and any(dest.iterdir()):
+        return True, f"{name} already present at {dest}"
+
+    dest.mkdir(parents=True, exist_ok=True)
+
+    # ── Try git first (faster, gets full history for updates) ────────────────
+    git_exe = shutil.which("git")
+    if git_exe:
+        try:
+            result = subprocess.run(
+                [git_exe, "clone", "--depth", "1",
+                 f"https://github.com/{repo}.git", str(dest)],
+                capture_output=True, text=True, timeout=300,
+            )
+            if result.returncode == 0:
+                return True, f"{name} cloned via git to {dest}"
+        except Exception:
+            pass  # fall through to zip download
+
+    # ── Fallback: download zip from GitHub (no git needed) ───────────────────
+    zip_url = f"https://github.com/{repo}/archive/refs/heads/{branch}.zip"
+    tmp_zip = dest.parent / f"{name}_download.zip"
+    try:
+        print(f"[{name}] git not available — downloading zip from GitHub …")
+        _req.urlretrieve(zip_url, str(tmp_zip))
+
+        # Extract: GitHub zips have a top-level folder like "repo-main/"
+        with _zf.ZipFile(tmp_zip, 'r') as z:
+            z.extractall(str(dest.parent / f"{name}_extracted"))
+
+        extracted_root = dest.parent / f"{name}_extracted"
+        top_dirs = [d for d in extracted_root.iterdir() if d.is_dir()]
+        if not top_dirs:
+            return False, f"{name}: extracted zip was empty"
+
+        # Move contents into dest
+        src = top_dirs[0]
+        for item in src.iterdir():
+            shutil.move(str(item), str(dest / item.name))
+        shutil.rmtree(str(extracted_root), ignore_errors=True)
+
+        return True, f"{name} downloaded and extracted to {dest} (no git required)"
+
+    except Exception as exc:
+        return False, f"{name} download failed: {exc}"
+    finally:
+        if tmp_zip.exists():
+            tmp_zip.unlink(missing_ok=True)
+
+
 def _pip_install_requirements(req_file: Path) -> tuple[bool, str]:
     """Install packages listed in *req_file*, adapting to the running Python.
 
@@ -1003,14 +1078,99 @@ def install_pynifly() -> tuple[bool, str]:
     def _do_install():
         try:
             import bpy as _bpy
+            import zipfile as _zf
+            import os as _os
+
+            # ── Step 1: find the real module name from the zip itself ─────────
+            # The module name IS the top-level folder (or single .py file)
+            # inside the PyNifly zip — no guessing needed.
+            _real_module = None
+            try:
+                with _zf.ZipFile(_zip_str) as _z:
+                    _top = set()
+                    for _n in _z.namelist():
+                        _part = _n.split("/")[0]
+                        if _part and not _part.startswith("__"):
+                            _top.add(_part)
+                    # Filter to likely module names (not READMEs etc.)
+                    for _t in sorted(_top):
+                        if _t.lower().endswith(".py"):
+                            _real_module = _t[:-3]
+                            break
+                        if "." not in _t:  # bare directory name = module name
+                            _real_module = _t
+                            break
+            except Exception as _ze:
+                print(f"[PyNifly] Could not read zip to detect module name: {_ze}")
+
+            # ── Step 2: install the zip ───────────────────────────────────────
             _bpy.ops.preferences.addon_install(filepath=_zip_str, overwrite=True)
-            _bpy.ops.preferences.addon_enable(module="PyNifly")
+
+            # ── Step 3: enable using real name first, then fallbacks ──────────
+            _candidates = []
+            if _real_module:
+                _candidates.append(_real_module)
+            _candidates += ["PyNifly", "pynifly", "io_scene_nifly", "io_scene_nif", "nifly"]
+
+            _enabled = False
+            _enabled_mod = None
+            for _mod_name in _candidates:
+                try:
+                    _res = _bpy.ops.preferences.addon_enable(module=_mod_name)
+                    # addon_enable returns {'FINISHED'} on success
+                    if isinstance(_res, set) and 'FINISHED' in _res:
+                        _enabled = True
+                        _enabled_mod = _mod_name
+                        break
+                except Exception:
+                    continue
+
+            # ── Step 4: scan addon dirs on disk as last resort ────────────────
+            if not _enabled:
+                _addon_dirs = []
+                try:
+                    import addon_utils as _au
+                    for _p in _bpy.utils.script_paths(subdir="addons"):
+                        if _os.path.isdir(_p):
+                            _addon_dirs.append(_p)
+                except Exception:
+                    pass
+                for _adir in _addon_dirs:
+                    for _entry in _os.listdir(_adir):
+                        if "nifly" in _entry.lower() or "pynifly" in _entry.lower():
+                            _mod = _entry if not _entry.endswith(".py") else _entry[:-3]
+                            try:
+                                _res = _bpy.ops.preferences.addon_enable(module=_mod)
+                                if isinstance(_res, set) and 'FINISHED' in _res:
+                                    _enabled = True
+                                    _enabled_mod = _mod
+                                    break
+                            except Exception:
+                                continue
+                    if _enabled:
+                        break
+
             _configure_tool_paths()
+
+            # Save user preferences so PyNifly stays enabled after restart
+            try:
+                from . import preferences as _prefs_mod
+                _prefs_mod.save_prefs_deferred()
+            except Exception as _spe:
+                print(f"[PyNifly] Could not save prefs: {_spe}")
+
             _result[0] = True
-            _result[1] = (
-                f"PyNifly {_ver} installed from {Path(_zip_str).name}. "
-                f"Credit: BadDog (BadDogSkyrim) - https://github.com/BadDogSkyrim/PyNifly"
-            )
+            if _enabled:
+                _result[1] = (
+                    f"PyNifly {_ver} installed and enabled (module: {_enabled_mod}). "
+                    f"Credit: BadDog (BadDogSkyrim) - https://github.com/BadDogSkyrim/PyNifly"
+                )
+            else:
+                _result[1] = (
+                    f"PyNifly {_ver} installed but could not be auto-enabled. "
+                    f"Restart Blender — it will appear in Add-ons automatically. "
+                    f"Credit: BadDog (BadDogSkyrim)"
+                )
         except Exception as exc:
             _result[0] = False
             _result[1] = f"PyNifly install failed: {exc}"
@@ -1207,6 +1367,19 @@ def auto_configure_preferences() -> list[str]:
         except Exception as exc:
             print(f"auto_configure_preferences: ck-cmd path set failed: {exc}")
 
+    # ── Persist to disk if anything changed ───────────────────────────────────
+    # Without this, all the paths above vanish on the next Blender restart
+    # because they only exist in the in-memory prefs object.
+    if results:
+        try:
+            _prefs.save_api_keys()          # JSON keys file (resilient backup)
+        except Exception as _ke:
+            print(f"auto_configure_preferences: save_api_keys failed: {_ke}")
+        try:
+            _prefs.save_prefs_deferred()    # Blender userpref.blend
+        except Exception as _pe:
+            print(f"auto_configure_preferences: save_prefs_deferred failed: {_pe}")
+
     return results
 
 
@@ -1240,6 +1413,116 @@ def get_instantngp_dir() -> Path:
     dest = get_tools_root() / "instant-ngp"
     dest.parent.mkdir(parents=True, exist_ok=True)
     return dest
+
+
+def build_instantngp() -> tuple[bool, str]:
+    """
+    Auto-build Instant-NGP from already-cloned source.
+
+    Tries Mossy first (Mossy has CMake + CUDA + build tools pre-configured).
+    Falls back to a local CMake build if Mossy is unavailable.
+
+    Returns ``(True, message)`` when the build succeeds, ``(False, reason)``
+    otherwise with actionable instructions.
+    """
+    dest = get_instantngp_dir()
+
+    # Already built?
+    existing = find_instantngp_exe(dest)
+    if existing:
+        return True, f"Instant-NGP already built at: {existing}"
+
+    # ── Try Mossy first — handles CMake/CUDA/compiler automatically ──────────
+    mossy_result = _try_mossy_install(
+        package="instant-ngp",
+        github_url="https://github.com/NVlabs/instant-ngp.git",
+        display_name="Instant-NGP",
+    )
+    if mossy_result is not None:
+        return mossy_result
+
+    print("[Instant-NGP] Mossy offline/failed — attempting local CMake build")
+
+    # ── Verify source is present ──────────────────────────────────────────────
+    if not (dest / "CMakeLists.txt").exists():
+        return False, (
+            "Instant-NGP source not found and Mossy is offline.\n"
+            "Start Mossy and try again, or click 'Install Instant-NGP' first "
+            "to download the source."
+        )
+
+    # ── Check CMake ───────────────────────────────────────────────────────────
+    cmake_exe = shutil.which("cmake")
+    if not cmake_exe:
+        return False, (
+            "CMake not found on PATH and Mossy is offline.\n"
+            "Start Mossy to build automatically, or install CMake from\n"
+            "https://cmake.org/download/ and try again."
+        )
+
+    # ── Check CUDA (nvcc or CUDA_PATH env var) ────────────────────────────────
+    nvcc = shutil.which("nvcc")
+    cuda_path = os.environ.get("CUDA_PATH") or os.environ.get("CUDA_HOME")
+    if not nvcc and not cuda_path:
+        return False, (
+            "CUDA not found. Instant-NGP requires CUDA 11.3+.\n"
+            "Download from https://developer.nvidia.com/cuda-downloads\n"
+            "After installing, restart Blender and try again."
+        )
+
+    # ── Check for C++ compiler on Windows ────────────────────────────────────
+    if sys.platform == "win32":
+        # Look for MSBuild (Visual Studio) or ninja
+        msbuild = shutil.which("MSBuild") or shutil.which("msbuild")
+        ninja = shutil.which("ninja")
+        cl = shutil.which("cl")
+        if not any([msbuild, ninja, cl]):
+            return False, (
+                "No C++ compiler found. Install Visual Studio Build Tools:\n"
+                "https://visualstudio.microsoft.com/visual-cpp-build-tools/\n"
+                "Select 'Desktop development with C++' workload."
+            )
+
+    # ── CMake configure ───────────────────────────────────────────────────────
+    build_dir = dest / "build"
+    build_dir.mkdir(exist_ok=True)
+
+    print(f"[Instant-NGP] Configuring with CMake in {build_dir} …")
+    try:
+        cfg_result = subprocess.run(
+            [cmake_exe, str(dest), "-B", str(build_dir)],
+            capture_output=True, text=True, timeout=300, cwd=str(dest),
+        )
+        if cfg_result.returncode != 0:
+            return False, (
+                f"CMake configure failed:\n{cfg_result.stderr or cfg_result.stdout}\n"
+                "Common fix: make sure CUDA and Visual Studio are properly installed."
+            )
+    except subprocess.TimeoutExpired:
+        return False, "CMake configure timed out (5 min). Check your CUDA/compiler setup."
+
+    # ── CMake build ───────────────────────────────────────────────────────────
+    print(f"[Instant-NGP] Building … (this can take 5-20 minutes)")
+    try:
+        build_result = subprocess.run(
+            [cmake_exe, "--build", str(build_dir),
+             "--config", "RelWithDebInfo", "-j",
+             str(max(1, os.cpu_count() - 1))],
+            capture_output=True, text=True, timeout=1800, cwd=str(dest),
+        )
+        if build_result.returncode != 0:
+            return False, (
+                f"Build failed:\n{(build_result.stderr or build_result.stdout)[-1000:]}\n"
+                "See full output in the Blender console."
+            )
+    except subprocess.TimeoutExpired:
+        return False, "Build timed out (30 min). Your system may need more RAM or a faster GPU."
+
+    # ── Verify executable was produced ────────────────────────────────────────
+    exe = find_instantngp_exe(dest)
+    if exe:
+        return True, f"Instant-NGP built successfully! Executable at: {exe}"
+    return False, "Build completed but executable not found — check the Blender console for errors."
 
 
 def find_instantngp_exe(search_dir: Path | None = None) -> Path | None:
@@ -1276,20 +1559,33 @@ def find_instantngp_exe(search_dir: Path | None = None) -> Path | None:
 
 
 def install_instantngp() -> tuple[bool, str]:
-    """Clone Instant-NGP from GitHub.
-    
-    Requires git to be available on PATH.
-    
+    """Install Instant-NGP via Mossy (preferred) or direct GitHub clone.
+
+    Mossy handles the CMake build + CUDA environment so the user does not need
+    CMake, Visual Studio, or CUDA installed locally.
+
     Returns:
         (success, message)
     """
     dest = get_instantngp_dir()
-    
+
     # Check if already installed
     existing_exe = find_instantngp_exe(dest)
     if existing_exe:
         return True, f"Instant-NGP already built at: {existing_exe}"
-    
+
+    # Try Mossy first — it has CMake + CUDA + build tools
+    mossy_result = _try_mossy_install(
+        package="instant-ngp",
+        github_url="https://github.com/NVlabs/instant-ngp.git",
+        display_name="Instant-NGP",
+    )
+    if mossy_result is not None:
+        return mossy_result
+
+    # Fallback: clone source locally (user must build manually)
+    print("[Instant-NGP] Mossy offline/failed — downloading source for manual build")
+
     # Check if source is already cloned
     if (dest / "CMakeLists.txt").exists():
         return True, (
@@ -1299,93 +1595,181 @@ def install_instantngp() -> tuple[bool, str]:
             "  cmake . -B build\n"
             "  cmake --build build --config RelWithDebInfo -j\n"
         )
-    
-    # Clone from GitHub
+
+    ok, msg = _clone_or_download_repo(
+        repo="NVlabs/instant-ngp",
+        dest=dest,
+        branch="master",
+        display_name="Instant-NGP",
+    )
+    if not ok:
+        return False, msg
+
+    return True, (
+        f"Instant-NGP source downloaded to: {dest}\n\n"
+        "Next, build it (requires NVIDIA GPU + CUDA 11.3+):\n"
+        f"  cd \"{dest}\"\n"
+        "  cmake . -B build\n"
+        "  cmake --build build --config RelWithDebInfo -j\n\n"
+        "Tip: start Mossy and click Install again — Mossy can build it automatically."
+    )
+
+
+def _install_from_github_zip(
+    repo: str,
+    branch: str = "main",
+    display_name: str = "",
+    license_note: str = "",
+) -> tuple[bool, str]:
+    """
+    Download a GitHub repo as a zip and install it via pip — no git required.
+
+    This approach is fully compliant with GitHub's ToS and Nexus Mods policies:
+    - We do NOT bundle any third-party code in our addon zip
+    - We download at install time only, from the official upstream repo
+    - The MIT license of both Shap-E and Point-E permits this use
+
+    :param repo:         GitHub repo in ``owner/name`` format
+    :param branch:       Branch to download (default: ``main``)
+    :param display_name: Human-readable name for log messages
+    :param license_note: Attribution string for the success message
+    """
+    import subprocess, sys, tempfile, shutil, os
+    from urllib import request as _req
+
+    name = display_name or repo.split("/")[-1]
+    zip_url = f"https://github.com/{repo}/archive/refs/heads/{branch}.zip"
+
+    tmp_dir = tempfile.mkdtemp(prefix=f"{name.lower().replace('-','_')}_")
+    zip_path = os.path.join(tmp_dir, f"{name}.zip")
+    extract_dir = os.path.join(tmp_dir, "extracted")
+
     try:
-        print(f"Cloning Instant-NGP from GitHub to {dest}...")
-        
-        # Check if git is available
-        git_exe = shutil.which("git")
-        if not git_exe:
-            return False, (
-                "git not found on PATH.\n\n"
-                "Please install Git from https://git-scm.com/\n"
-                "Then clone manually:\n"
-                "  git clone --recursive https://github.com/NVlabs/instant-ngp.git \\\n"
-                f"    \"{dest}\"\n"
-            )
-        
-        # Create parent directory
-        dest.mkdir(parents=True, exist_ok=True)
-        
-        # Clone with submodules
-        cmd = [
-            git_exe,
-            "clone",
-            "--recursive",
-            "https://github.com/NVlabs/instant-ngp.git",
-            str(dest),
-        ]
-        
+        # ── 1. Download repo zip from GitHub ─────────────────────────────────
+        print(f"[{name}] Downloading from {zip_url} …")
+        try:
+            _req.urlretrieve(zip_url, zip_path)
+        except Exception as dl_err:
+            return False, f"{name} download failed: {dl_err}"
+
+        # ── 2. Extract ────────────────────────────────────────────────────────
+        import zipfile as _zf
+        os.makedirs(extract_dir, exist_ok=True)
+        with _zf.ZipFile(zip_path, 'r') as z:
+            z.extractall(extract_dir)
+
+        # GitHub zips have a top-level folder like "shap-e-main/"
+        extracted_items = os.listdir(extract_dir)
+        if not extracted_items:
+            return False, f"{name}: extracted zip was empty"
+        src_dir = os.path.join(extract_dir, extracted_items[0])
+
+        # ── 3. pip install from local extracted folder ────────────────────────
+        python_exe = sys.executable
         result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=300,  # 5 minutes
+            [python_exe, "-m", "pip", "install", src_dir],
+            capture_output=True, text=True, timeout=300
         )
-        
-        if result.returncode != 0:
-            error = result.stderr or result.stdout
-            return False, f"Failed to clone Instant-NGP:\n{error}"
-        
-        print(f"✓ Instant-NGP cloned to {dest}")
-        
-        return True, (
-            f"Instant-NGP source cloned to: {dest}\n\n"
-            "Next, build it (requires NVIDIA GPU + CUDA 11.3+):\n"
-            f"  cd \"{dest}\"\n"
-            "  cmake . -B build\n"
-            "  cmake --build build --config RelWithDebInfo -j\n\n"
-            "See https://github.com/NVlabs/instant-ngp for build instructions."
+
+        if result.returncode == 0:
+            return True, (
+                f"{name} installed successfully. Restart Blender to activate.\n"
+                + (f"Credit: {license_note}" if license_note else "")
+            )
+        return False, f"{name} pip install failed: {result.stderr.strip()}"
+
+    except Exception as exc:
+        return False, f"{name} install failed: {exc}"
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def _try_mossy_install(package: str, github_url: str, display_name: str) -> "tuple[bool, str] | None":
+    """
+    Try to install *package* via Mossy's Python environment.
+
+    Returns (True, msg) on success.
+    Returns None if Mossy is offline OR if the install failed (so the caller
+    can fall back to a direct install).  Never raises.
+    """
+    try:
+        from . import mossy_link
+        bridge_ok, _ = mossy_link.check_bridge(timeout=2.0)
+        if not bridge_ok:
+            print(f"[{display_name}] Mossy bridge offline — will try direct install")
+            return None
+        print(f"[{display_name}] Mossy bridge online — routing install through Mossy")
+        ok, msg = mossy_link.install_package_via_mossy(
+            package=package,
+            github_url=github_url,
+            timeout=300,
         )
-    
-    except subprocess.TimeoutExpired:
-        return False, "Clone operation timed out (took more than 5 minutes)"
-    except Exception as e:
-        return False, f"Failed to clone Instant-NGP: {e}"
+        if ok:
+            return True, msg
+        # Mossy was reachable but install failed (e.g. HTTP 500) — fall back
+        print(f"[{display_name}] Mossy install failed ({msg}) — falling back to direct install")
+        return None
+    except Exception as exc:
+        print(f"[{display_name}] Mossy install attempt failed: {exc}")
+        return None
 
 
 def install_shap_e() -> tuple[bool, str]:
-    """Install OpenAI Shap-E (text/image → 3D mesh) via pip.
+    """Install OpenAI Shap-E (text/image → 3D mesh).
 
-    Installs the ``shap-e`` package (and its dependencies including PyTorch)
-    into Blender's bundled Python environment.
+    Tries Mossy first (recommended — Mossy's Python environment works reliably
+    for AI packages). Falls back to direct GitHub zip download if Mossy is
+    not running.
 
     Returns
     -------
     tuple[bool, str]
         ``(True, message)`` on success, ``(False, reason)`` otherwise.
     """
-    ok, msg = _pip_install(["shap-e"])
-    if ok:
-        return True, "Shap-E installed successfully. Restart Blender to activate."
-    return False, f"Shap-E install failed: {msg}"
+    # Try via Mossy first
+    result = _try_mossy_install(
+        package="shap-e",
+        github_url="https://github.com/openai/shap-e.git",
+        display_name="Shap-E",
+    )
+    if result is not None:
+        return result
+
+    # Fallback: direct GitHub zip download
+    print("[Shap-E] Mossy offline — attempting direct GitHub zip install")
+    return _install_from_github_zip(
+        repo="openai/shap-e",
+        branch="main",
+        display_name="Shap-E",
+        license_note="OpenAI Shap-E — MIT License — https://github.com/openai/shap-e",
+    )
 
 
 def install_point_e() -> tuple[bool, str]:
-    """Install OpenAI Point-E (text/image → point cloud) via pip.
+    """Install OpenAI Point-E (text/image → point cloud).
 
-    Installs the ``point-e`` package into Blender's bundled Python environment.
+    Tries Mossy first, falls back to direct GitHub zip download.
 
     Returns
     -------
     tuple[bool, str]
         ``(True, message)`` on success, ``(False, reason)`` otherwise.
     """
-    ok, msg = _pip_install(["point-e"])
-    if ok:
-        return True, "Point-E installed successfully. Restart Blender to activate."
-    return False, f"Point-E install failed: {msg}"
+    result = _try_mossy_install(
+        package="point-e",
+        github_url="https://github.com/openai/point-e.git",
+        display_name="Point-E",
+    )
+    if result is not None:
+        return result
+
+    print("[Point-E] Mossy offline — attempting direct GitHub zip install")
+    return _install_from_github_zip(
+        repo="openai/point-e",
+        branch="main",
+        display_name="Point-E",
+        license_note="OpenAI Point-E — MIT License — https://github.com/openai/point-e",
+    )
 
 
 def install_gradio() -> tuple[bool, str]:
@@ -1419,36 +1803,28 @@ def install_zoedepth() -> tuple[bool, str]:
     """
     dest = _ensure_tools_dir("ZoeDepth")
 
-    if (dest / "README.md").exists():
-        return True, f"ZoeDepth already present at {dest}"
+    # Try Mossy first (preferred for AI packages)
+    mossy_result = _try_mossy_install(
+        package="zoedepth",
+        github_url="https://github.com/isl-org/ZoeDepth.git",
+        display_name="ZoeDepth",
+    )
+    if mossy_result is not None:
+        return mossy_result
 
-    git_exe = shutil.which("git")
-    if not git_exe:
-        return False, (
-            "git not found on PATH - cannot clone ZoeDepth.\n"
-            "Install Git from https://git-scm.com/ then try again.\n"
-            "Or clone manually:\n"
-            "  git clone https://github.com/isl-org/ZoeDepth.git"
-        )
+    print("[ZoeDepth] Mossy offline/failed — attempting direct GitHub install")
+    ok, msg = _clone_or_download_repo(
+        repo="isl-org/ZoeDepth",
+        dest=dest,
+        branch="main",
+        display_name="ZoeDepth",
+    )
+    if not ok:
+        return False, msg
 
-    try:
-        dest.mkdir(parents=True, exist_ok=True)
-        result = subprocess.run(
-            [git_exe, "clone", "--depth", "1",
-             "https://github.com/isl-org/ZoeDepth.git", str(dest)],
-            capture_output=True, text=True, timeout=300,
-        )
-        if result.returncode != 0:
-            return False, f"ZoeDepth clone failed:\n{result.stderr or result.stdout}"
-    except subprocess.TimeoutExpired:
-        return False, "ZoeDepth clone timed out (> 5 min)"
-    except Exception as exc:
-        return False, f"ZoeDepth clone error: {exc}"
-
-    # Install lightweight runtime deps (torch installed separately by user)
+    # Install runtime dependencies
     _pip_install(["timm", "matplotlib"])
-    return True, f"ZoeDepth cloned to {dest}.{_torch_install_note()}"
-
+    return True, f"ZoeDepth installed at {dest}.{_torch_install_note()}"
 
 def install_triposr() -> tuple[bool, str]:
     """Clone TripoSR (VAST-AI-Research) from GitHub and install pip deps.
@@ -1463,36 +1839,27 @@ def install_triposr() -> tuple[bool, str]:
     """
     dest = _ensure_tools_dir("TripoSR")
 
-    if (dest / "README.md").exists():
-        return True, f"TripoSR already present at {dest}"
+    mossy_result = _try_mossy_install(
+        package="triposr",
+        github_url="https://github.com/VAST-AI-Research/TripoSR.git",
+        display_name="TripoSR",
+    )
+    if mossy_result is not None:
+        return mossy_result
 
-    git_exe = shutil.which("git")
-    if not git_exe:
-        return False, (
-            "git not found on PATH - cannot clone TripoSR.\n"
-            "Install Git from https://git-scm.com/ then try again.\n"
-            "Or clone manually:\n"
-            "  git clone https://github.com/VAST-AI-Research/TripoSR.git"
-        )
+    print("[TripoSR] Mossy offline/failed — attempting direct GitHub install")
+    ok, msg = _clone_or_download_repo(
+        repo="VAST-AI-Research/TripoSR",
+        dest=dest,
+        branch="main",
+        display_name="TripoSR",
+    )
+    if not ok:
+        return False, msg
 
-    try:
-        dest.mkdir(parents=True, exist_ok=True)
-        result = subprocess.run(
-            [git_exe, "clone", "--depth", "1",
-             "https://github.com/VAST-AI-Research/TripoSR.git", str(dest)],
-            capture_output=True, text=True, timeout=300,
-        )
-        if result.returncode != 0:
-            return False, f"TripoSR clone failed:\n{result.stderr or result.stdout}"
-    except subprocess.TimeoutExpired:
-        return False, "TripoSR clone timed out (> 5 min)"
-    except Exception as exc:
-        return False, f"TripoSR clone error: {exc}"
-
-    # Install lightweight runtime deps
+    # Install runtime dependencies
     _pip_install(["trimesh", "huggingface_hub", "einops", "omegaconf"])
-    return True, f"TripoSR cloned to {dest}.{_torch_install_note()}"
-
+    return True, f"TripoSR installed at {dest}.{_torch_install_note()}"
 
 def install_hunyuan3d() -> tuple[bool, str]:
     """Clone Hunyuan3D-2 (Tencent) from GitHub and install pip deps.
@@ -1507,59 +1874,26 @@ def install_hunyuan3d() -> tuple[bool, str]:
     """
     dest = _ensure_tools_dir("Hunyuan3D-2")
 
-    # A valid install has the hy3dgen package directory.
-    # README.md alone means a partial / interrupted clone.
-    if (dest / "hy3dgen").is_dir():
-        return True, f"Hunyuan3D-2 already present at {dest}"
+    mossy_result = _try_mossy_install(
+        package="hunyuan3d",
+        github_url="https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git",
+        display_name="Hunyuan3D-2",
+    )
+    if mossy_result is not None:
+        return mossy_result
 
-    git_exe = shutil.which("git")
-    if not git_exe:
-        return False, (
-            "git not found on PATH - cannot clone Hunyuan3D-2.\n"
-            "Install Git from https://git-scm.com/ then try again.\n"
-            "Or clone manually:\n"
-            "  git clone https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git"
-        )
+    print("[Hunyuan3D-2] Mossy offline/failed — attempting direct GitHub install")
+    ok, msg = _clone_or_download_repo(
+        repo="Tencent-Hunyuan/Hunyuan3D-2",
+        dest=dest,
+        branch="main",
+        display_name="Hunyuan3D-2",
+    )
+    if not ok:
+        return False, msg
 
-    try:
-        # If the directory exists as a git repo (partial/interrupted clone),
-        # attempt a pull to complete/repair it rather than failing with
-        # "destination path already exists and is not an empty directory".
-        if dest.is_dir() and (dest / ".git").is_dir():
-            result = subprocess.run(
-                [git_exe, "pull"],
-                capture_output=True, text=True, timeout=600, cwd=str(dest),
-            )
-            if result.returncode != 0:
-                return False, (
-                    f"Hunyuan3D-2 directory exists at {dest} but the hy3dgen package is missing "
-                    f"and git pull failed:\n{result.stderr or result.stdout}\n"
-                    "Delete the folder manually and click Install again."
-                )
-        elif dest.is_dir():
-            # Non-git directory present but incomplete - guide user to remove it.
-            return False, (
-                f"Hunyuan3D-2 directory exists at {dest} but the hy3dgen package is missing "
-                "and it is not a git repository.\n"
-                "Delete the folder manually and click Install again."
-            )
-        else:
-            dest.mkdir(parents=True, exist_ok=True)
-            result = subprocess.run(
-                [git_exe, "clone", "--depth", "1",
-                 "https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git", str(dest)],
-                capture_output=True, text=True, timeout=600,
-            )
-            if result.returncode != 0:
-                return False, f"Hunyuan3D-2 clone failed:\n{result.stderr or result.stdout}"
-    except subprocess.TimeoutExpired:
-        return False, "Hunyuan3D-2 clone timed out (> 10 min)"
-    except Exception as exc:
-        return False, f"Hunyuan3D-2 clone error: {exc}"
-
-    # Install lightweight runtime deps
     _pip_install(["einops", "omegaconf", "huggingface_hub"])
-    return True, f"Hunyuan3D-2 cloned to {dest}.{_torch_install_note()}"
+    return True, f"Hunyuan3D-2 installed at {dest}.{_torch_install_note()}"
 
 
 def install_hymotion() -> tuple[bool, str]:
@@ -1575,52 +1909,26 @@ def install_hymotion() -> tuple[bool, str]:
     """
     dest = _ensure_tools_dir("HY-Motion-1.0")
 
-    if (dest / "README.md").exists():
-        return True, f"HY-Motion already present at {dest}"
+    mossy_result = _try_mossy_install(
+        package="hy-motion",
+        github_url="https://github.com/Tencent-Hunyuan/HY-Motion-1.0.git",
+        display_name="HY-Motion",
+    )
+    if mossy_result is not None:
+        return mossy_result
 
-    git_exe = shutil.which("git")
-    if not git_exe:
-        return False, (
-            "git not found on PATH - cannot clone HY-Motion-1.0.\n"
-            "Install Git from https://git-scm.com/ then try again.\n"
-            "Or clone manually:\n"
-            "  git clone https://github.com/Tencent-Hunyuan/HY-Motion-1.0.git"
-        )
-
-    # Official HY-Motion-1.0 repository on Tencent-Hunyuan GitHub org.
-    candidates = [
-        "https://github.com/Tencent-Hunyuan/HY-Motion-1.0.git",
-    ]
-    last_err = "unknown error"
-    for url in candidates:
-        try:
-            dest.mkdir(parents=True, exist_ok=True)
-            result = subprocess.run(
-                [git_exe, "clone", "--depth", "1", url, str(dest)],
-                capture_output=True, text=True, timeout=600,
-            )
-            if result.returncode == 0:
-                break
-            last_err = result.stderr or result.stdout
-            # Remove partial clone before retrying
-            if dest.exists():
-                shutil.rmtree(dest, ignore_errors=True)
-        except subprocess.TimeoutExpired:
-            last_err = "timed out"
-            break
-        except Exception as exc:
-            last_err = str(exc)
-    else:
-        return False, (
-            f"HY-Motion clone failed from all candidates: {last_err}\n"
-            "Please clone manually from https://github.com/Tencent-Hunyuan/HY-Motion-1.0"
-        )
-
-    if not (dest / "README.md").exists():
-        return False, f"HY-Motion clone failed: {last_err}"
+    print("[HY-Motion] Mossy offline/failed — attempting direct GitHub install")
+    ok, msg = _clone_or_download_repo(
+        repo="Tencent-Hunyuan/HY-Motion-1.0",
+        dest=dest,
+        branch="main",
+        display_name="HY-Motion",
+    )
+    if not ok:
+        return False, msg
 
     _pip_install(["einops", "omegaconf"])
-    return True, f"HY-Motion cloned to {dest}.{_torch_install_note()}"
+    return True, f"HY-Motion installed at {dest}.{_torch_install_note()}"
 
 
 def install_diffusers() -> tuple[bool, str]:
@@ -1641,46 +1949,39 @@ def install_diffusers() -> tuple[bool, str]:
 
 
 def install_libigl() -> tuple[bool, str]:
-    """Install libigl Python bindings via pip.
+    """Install libigl Python bindings via Mossy (preferred) or pip.
 
-    Installs the ``libigl`` package (published as ``libigl`` on PyPI) into
-    Blender's bundled Python environment.  The ``igl`` module becomes
-    importable after installation.
-
-    .. note::
-        ``libigl >= 2.5`` builds from source using scikit-build-core + CMake
-        and requires Python development headers (``Include/`` + import library).
-        Blender's bundled Python does **not** ship these headers, so any version
-        that lacks a pre-built wheel for the running interpreter will fail with
-        a CMake error.  This function detects the missing headers up-front and
-        returns a clear, actionable message rather than a confusing build log.
+    Mossy is strongly preferred here: libigl >= 2.5 builds from source when
+    no pre-built wheel exists, which requires Python development headers that
+    Blender's bundled Python does not ship.  Mossy has its own full Python
+    environment with headers and CMake, so it can install libigl cleanly.
 
     Returns
     -------
     tuple[bool, str]
         ``(True, message)`` on success, ``(False, reason)`` otherwise.
     """
+    # Try Mossy first — it has Python dev headers + CMake needed for source builds
+    mossy_result = _try_mossy_install(
+        package="libigl",
+        github_url="https://github.com/libigl/libigl-python-bindings.git",
+        display_name="libigl",
+    )
+    if mossy_result is not None:
+        return mossy_result
+
+    print("[libigl] Mossy offline/failed — attempting local pip install")
+
     import sysconfig
 
     # Pre-flight: detect missing Python development headers.
-    # libigl falls back to a source build when no binary wheel is available for
-    # the running interpreter.  The CMake build requires the Python Include/
-    # directory to exist.  Blender ships Python without these headers, so the
-    # build always fails with "Cannot find the directory ... /python/Include".
-    # Detect this early and return a human-readable error instead of a wall of
-    # CMake output.
+    # libigl >= 2.5 builds from source when no pre-built wheel is available.
+    # Blender ships Python without these headers, so the build will fail.
     inc_dir = sysconfig.get_path("include")
     if not (inc_dir and os.path.isdir(inc_dir)):
         return False, (
-            "libigl cannot be installed automatically because Blender's "
-            "bundled Python does not include C development headers "
-            f"(expected directory: {inc_dir!r}).\n\n"
-            "libigl >= 2.5 builds from source when no pre-built wheel is "
-            "available for your Python version, which requires those headers.\n\n"
-            "Workaround: install libigl into a standalone Python environment "
-            "that shares the same version as Blender's Python, then add that "
-            "environment's site-packages path via the PyTorch / Mossy path "
-            "preference in the add-on settings."
+            "libigl requires Mossy to install (Blender's Python lacks C headers).\n"
+            "Start Mossy and click Install libigl again — Mossy handles the build automatically."
         )
 
     ok, msg = _pip_install(["libigl"])

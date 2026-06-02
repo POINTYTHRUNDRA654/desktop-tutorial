@@ -33,6 +33,7 @@ import sys
 import tempfile
 import textwrap
 import zipfile
+import json
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -239,6 +240,19 @@ def build_nexus_bundle(outdir: Path, addon_version: str,
 
     with zipfile.ZipFile(bundle_path, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("INSTALL_GUIDE.txt", install_guide)
+        # Nexus metadata (included for Nexus listing and external stores)
+        nexus_meta = {
+            "name": ZIP_FILE_PREFIX,
+            "version": addon_version,
+            "repository": "https://github.com/POINTYTHRUNDRA654/Blender-add-on",
+            "issues": "https://github.com/POINTYTHRUNDRA654/Blender-add-on/issues",
+            "sponsors": "https://github.com/sponsors/POINTYTHRUNDRA654",
+            "patreon": "https://www.patreon.com/c/Pointytundra654",
+            "donations": {
+                "buymeacoffee": "https://buymeacoffee.com/tundra654"
+            }
+        }
+        zf.writestr("NEXUS_METADATA.json", json.dumps(nexus_meta, indent=2))
         for zp in variant_zips:
             zf.write(zp, zp.name)
 
@@ -324,6 +338,41 @@ def main(argv=None):
     outdir.mkdir(parents=True, exist_ok=True)
 
     addon_version = _read_addon_version(root)
+
+    # ---- Pre-build validation: null bytes, syntax, class ordering ---------------
+    import ast as _ast, re as _re
+    _pre_errors = []
+    for _pyf in sorted(root.rglob("*.py")):
+        if any(p in _pyf.parts for p in [".venv","venv","__pycache__","build_temp"]):
+            continue
+        try:
+            _src = _pyf.read_bytes()
+        except Exception:
+            continue
+        if b"\x00" in _src:
+            _pre_errors.append(f"NULL BYTES: {_pyf.relative_to(root)}")
+            continue
+        _txt = _src.decode("utf-8", errors="replace")
+        try:
+            _ast.parse(_txt)
+        except SyntaxError as _se:
+            _pre_errors.append(f"SYNTAX {_pyf.name} line {_se.lineno}: {_se.msg}")
+            continue
+        _cm = _re.search(r"\n_CLASSES\s*=\s*\[([^\]]+)\]", _txt, _re.DOTALL)
+        if _cm:
+            _lp = _cm.start()
+            for _cn in _re.findall(r"(FO4_\w+|TORCH_\w+|IMPORT_\w+|GENERATE_\w+)", _cm.group(1)):
+                _dp = _txt.find(f"class {_cn}")
+                if _dp != -1 and _dp > _lp:
+                    _pre_errors.append(f"ORDER: {_pyf.name}: {_cn} defined after _CLASSES")
+    if _pre_errors:
+        print(f"PRE-BUILD ERRORS ({len(_pre_errors)}) -- fix before packaging:")
+        for _e in _pre_errors:
+            print(f"  FAIL: {_e}")
+        raise SystemExit(1)
+    print("Pre-build validation: OK")
+    # -----------------------------------------------------------------------------
+
     print(f"Building Mossy Fallout 4 Blender Add-on  v{addon_version}")
     print(f"Output → {outdir}")
 

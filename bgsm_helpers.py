@@ -1169,6 +1169,39 @@ def import_bgsm_for_object(obj, bgsm_path: str) -> tuple[bool, str]:
 # Module registration (required by Blender add-on framework)
 # ---------------------------------------------------------------------------
 
+
+# ---------------------------------------------------------------------------
+# Mossy AI texture routing
+# ---------------------------------------------------------------------------
+
+def _route_texture_via_mossy(image_path: str, fmt: str = "dds",
+                              quality: str = "high") -> tuple:
+    """Route texture conversion/compression through Mossy AI.
+
+    Mossy handles NVTT/texconv externally so Blender does not need local
+    CLI tools installed.  Returns (success, result_path_or_error).
+    """
+    try:
+        import base64, os, tempfile
+        from . import mossy_link
+        with open(image_path, "rb") as fh:
+            img_b64 = base64.b64encode(fh.read()).decode("utf-8")
+        result = mossy_link.process_texture(
+            image_data_base64=img_b64, fmt=fmt, quality=quality, timeout=60
+        )
+        if result and result.get("status") == "success":
+            tex_data = result.get("texture_data", "")
+            if tex_data:
+                ext = "." + result.get("format", fmt)
+                tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+                tmp.write(base64.b64decode(tex_data))
+                tmp.close()
+                return True, tmp.name
+        return False, result.get("message", "Mossy returned no texture data") if result else "Mossy offline"
+    except Exception as exc:
+        return False, f"Mossy texture route error: {exc}"
+
+
 def register():
     """Register bgsm_helpers (no Blender classes to register)."""
     pass

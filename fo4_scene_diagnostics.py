@@ -981,6 +981,15 @@ class SceneDiagnostics:
     def export_report(report: dict, filepath: str) -> tuple[bool, str]:
         """Save the diagnostic report as a human-readable text file."""
         try:
+            # Normalise the path: strip trailing separators so os.path.dirname
+            # and open() work correctly even when the user supplies a bare
+            # directory path (e.g. "C:\Users\Owner\Downloads\").
+            filepath = filepath.rstrip("/\\")
+            if not filepath:
+                return False, "No report path set — set a file path in the diagnostics panel"
+            # If the path has no extension treat it as a directory and append a filename
+            if not os.path.splitext(os.path.basename(filepath))[1]:
+                filepath = os.path.join(filepath, "fo4_diagnostics.txt")
             os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
             lines = []
             lines.append("=" * 70)

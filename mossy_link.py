@@ -39,6 +39,10 @@ import time
 from urllib import error as _url_error
 from urllib import request as _url_request
 
+# ── Context-push throttle state ───────────────────────────────────────────────
+_last_context_push = 0.0
+_PUSH_THROTTLE_SECONDS = 2.0
+
 # ── Internal state ─────────────────────────────────────────────────────────────
 _server_thread: "threading.Thread | None" = None
 _server_socket: "socket.socket | None" = None
@@ -360,6 +364,31 @@ def _execute_command_on_main_thread(cmd: dict, bpy) -> dict:
             ns = {"bpy": bpy, "__name__": "__mossy_script__"}
             exec(compile(code, name, "exec"), ns)  # noqa: S102
         return {"status": "success", "message": f"Text block '{name}' updated"}
+
+    if cmd_type == "operator":
+        op_id = cmd.get("id", "")          # e.g. "fo4.pipeline_static_mesh"
+        params = cmd.get("params", {})      # e.g. {"auto_pack_ba2": True}
+
+        if not op_id:
+            return {"status": "error", "message": "operator id required"}
+
+        # Resolve bpy.ops.<category>.<name>
+        parts = op_id.split(".", 1)
+        if len(parts) != 2:
+            return {"status": "error", "message": f"Invalid operator id format: {op_id}"}
+
+        category, name = parts
+        try:
+            op_category = getattr(bpy.ops, category)
+            op_func = getattr(op_category, name)
+        except AttributeError:
+            return {"status": "error", "message": f"Operator not found: {op_id}"}
+
+        try:
+            result = op_func(**params)
+            return {"status": "ok", "result": str(result)}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
     return {"status": "error", "message": f"Unknown command type: {cmd_type!r}"}
 
@@ -731,6 +760,40 @@ def process_texture(
     except Exception as exc:
         print(f"[Mossy Link] process_texture error: {exc}")
     return None
+
+
+def analyze_texture_content(image) -> dict:
+    """
+    Analyze a Blender image's channel content for AI context.
+    Returns a dict with stats Mossy can use to give texture advice.
+    """
+    try:
+        import numpy as np
+        pixels = np.array(image.pixels[:])
+        w, h = image.size
+        channels = image.channels  # usually 4 (RGBA)
+        pixels = pixels.reshape((h, w, channels))
+
+        stats = {
+            "name": image.name,
+            "width": w,
+            "height": h,
+            "channels": channels,
+            "has_alpha": channels == 4,
+        }
+
+        for i, ch_name in enumerate(['R', 'G', 'B', 'A'][:channels]):
+            ch = pixels[:, :, i]
+            stats[f"channel_{ch_name}_min"] = round(float(ch.min()), 3)
+            stats[f"channel_{ch_name}_max"] = round(float(ch.max()), 3)
+            stats[f"channel_{ch_name}_mean"] = round(float(ch.mean()), 3)
+            stats[f"channel_{ch_name}_variance"] = round(float(ch.var()), 5)
+            # Flag flat channels (possible mis-assignment)
+            stats[f"channel_{ch_name}_is_flat"] = bool(ch.var() < 0.001)
+
+        return stats
+    except Exception as e:
+        return {"error": str(e), "name": getattr(image, 'name', 'unknown')}
 
 
 def analyze_scene(scene_info: dict, timeout: float = 30) -> "str | None":

@@ -7524,7 +7524,7 @@ class FO4_OT_CheckDesktopConnection(Operator):
         if status['connected']:
             self.report({'INFO'}, f"Connected to {status['server_url']}")
         else:
-            error_msg = status.get('last_error', 'Not connected')
+            error_msg = status.get('last_error') or 'Make sure Mossy is running'
             self.report({'WARNING'}, f"Not connected: {error_msg}")
         
         return {'FINISHED'}
@@ -8316,6 +8316,25 @@ class FO4_OT_RunSceneDiagnostics(Operator):
         score    = s.get("score",         0)
         ready    = s.get("export_ready",  False)
 
+        # Print failing checks to System Console so the user can see them
+        if errors or warnings:
+            print("\n── FO4 Scene Diagnostics ─────────────────────────────────────")
+            for check in report.get("scene", []):
+                if check["severity"] in ("ERROR", "WARNING"):
+                    icon = "❌" if check["severity"] == "ERROR" else "⚠ "
+                    af = " [auto-fixable]" if check.get("auto_fixable") else ""
+                    print(f"  {icon} [{check['category']}]{af} {check['message']}")
+            for obj_r in report.get("objects", []):
+                obj_issues = [c for c in obj_r["checks"] if c["severity"] in ("ERROR", "WARNING")]
+                if obj_issues:
+                    print(f"  ── {obj_r['name']} ──")
+                    for check in obj_issues:
+                        icon = "❌" if check["severity"] == "ERROR" else "⚠ "
+                        af = " [auto-fixable]" if check.get("auto_fixable") else ""
+                        print(f"    {icon} [{check['category']}]{af} {check['message']}")
+            print(f"  Score: {score}/100 — {errors} error(s), {warnings} warning(s)")
+            print("─────────────────────────────────────────────────────────────\n")
+
         msg = (f"Score {score}/100 – "
                f"{errors} error(s), {warnings} warning(s). "
                f"{'✅ Export ready' if ready else '❌ Fix errors before export'}")
@@ -8402,8 +8421,17 @@ class FO4_OT_ExportDiagnosticsReport(Operator):
         ok, msg = fo4_scene_diagnostics.SceneDiagnostics.export_report(
             report, self.filepath
         )
+        # Also save a JSON version alongside the .txt for machine-readable access
+        try:
+            import json as _json, os as _os
+            json_path = _os.path.splitext(self.filepath)[0] + ".json"
+            with open(json_path, "w", encoding="utf-8") as _jf:
+                _json.dump(report, _jf, indent=2, default=str)
+        except Exception:
+            pass
+
         if ok:
-            self.report({'INFO'}, msg)
+            self.report({'INFO'}, msg + " (+ .json)")
             notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
@@ -9551,6 +9579,20 @@ class FO4_OT_ExportTRIMorphs(Operator):
         description="Name of the basis/reference shape key (leave empty to use the first key)",
         default="",
     )
+    generate_bodyslide: BoolProperty(
+        name="Generate BodySlide XML",
+        description=(
+            "After exporting the .tri file, also generate BodySlide SliderSet "
+            "and SliderGroups XML files in CalienteTools/BodySlide/ relative to "
+            "the Data/ root"
+        ),
+        default=False,
+    )
+    bodyslide_group: StringProperty(
+        name="BodySlide Group",
+        description="BodySlide group name the slider set will appear under",
+        default="Custom",
+    )
 
     def execute(self, context):
         if not tri_export_helpers:
@@ -9558,15 +9600,27 @@ class FO4_OT_ExportTRIMorphs(Operator):
             return {'CANCELLED'}
 
         obj = context.active_object
+        abs_filepath = bpy.path.abspath(self.filepath)
         ok, msg = tri_export_helpers.TRIExportHelpers.export_tri(
             obj,
-            bpy.path.abspath(self.filepath),
+            abs_filepath,
             basis_name=self.basis_name,
         )
         if ok:
             self.report({'INFO'}, msg)
             if notification_system:
                 notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            # Optionally generate BodySlide XML
+            if self.generate_bodyslide:
+                import os
+                output_name = os.path.splitext(os.path.basename(abs_filepath))[0]
+                bs_ok, bs_msg = tri_export_helpers.TRIExportHelpers.export_bodyslide_xml(
+                    obj,
+                    abs_filepath,
+                    output_name=output_name,
+                    group_name=self.bodyslide_group,
+                )
+                self.report({'INFO'} if bs_ok else {'WARNING'}, bs_msg)
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}

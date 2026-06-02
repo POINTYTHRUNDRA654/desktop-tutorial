@@ -275,23 +275,80 @@ def deferred_startup():
 
     Returns ``None`` so the timer does not reschedule.
     """
-    # ── Step 3: add addon lib/ to sys.path now that register() has returned ─────
-    # register() intentionally calls _refresh_import_paths(_add_lib=False) so
-    # that Blender 5's extension policy checker does not flag "Policy violation
-    # with sys.path: .\lib" (the checker only monitors sys.path during the
-    # register() call itself).  Here — safely outside that window — we call
-    # the full version which adds _PIP_LIB_DIR, then invalidate the dependency
-    # status cache so the Setup panel immediately shows correct [OK] / [MISSING]
-    # status for trimesh, pypdf, and other pip-installed packages.
+    # ── Step 3: refresh import paths in background (non-blocking) ───────────────
+    import threading as _th3
+    def _refresh_paths_bg():
+        try:
+            from . import tool_installers as _ti_lib
+            if _ti_lib and hasattr(_ti_lib, "_refresh_import_paths"):
+                _ti_lib._refresh_import_paths()
+            from . import ui_panels as _uip_lib
+            if _uip_lib and hasattr(_uip_lib, "invalidate_dep_cache"):
+                _uip_lib.invalidate_dep_cache()
+        except Exception as _e_lib:
+            print(f"Path refresh skipped: {_e_lib}")
+    _th3.Thread(target=_refresh_paths_bg, daemon=True, name="MossyPathRefresh").start()
+
+
+    # ── Auto-install missing core Python packages (background thread) ──────────
+    # Runs 2 s after load in a daemon thread so it never blocks the UI.
     try:
-        from . import tool_installers as _ti_lib
-        if _ti_lib and hasattr(_ti_lib, "_refresh_import_paths"):
-            _ti_lib._refresh_import_paths()
-        from . import ui_panels as _uip_lib
-        if _uip_lib and hasattr(_uip_lib, "invalidate_dep_cache"):
-            _uip_lib.invalidate_dep_cache()
-    except Exception as _e_lib:
-        print(f"Deferred lib/ path refresh skipped: {_e_lib}")
+        import importlib.util as _ilu
+        import threading as _th_pkg
+
+        _CORE_PACKAGES = {
+            "PIL":      "Pillow",
+            "numpy":    "numpy",
+            "requests": "requests",
+            "trimesh":  "trimesh",
+            "pypdf":    "pypdf",
+            "scipy":    "scipy",
+            "igl":      "libigl",
+        }
+        # Use a cache file so we skip find_spec calls after first successful install
+        import json as _json, pathlib as _pl
+        _cache_file = _pl.Path(bpy.utils.user_resource("CONFIG")) / "fo4_pkg_cache.json"
+        _cached_ok = set()
+        try:
+            if _cache_file.exists():
+                _cached_ok = set(_json.loads(_cache_file.read_text()).get("installed", []))
+        except Exception:
+            pass
+        _missing_pkgs = [pip for mod, pip in _CORE_PACKAGES.items()
+                         if mod not in _cached_ok and _ilu.find_spec(mod) is None]
+
+        if _missing_pkgs:
+            def _auto_install():
+                import subprocess, sys as _sys
+                print(f"[Auto-Install] Installing: {_missing_pkgs}")
+                try:
+                    cmd = [_sys.executable, "-m", "pip", "install",
+                           "--quiet", "--break-system-packages"] + _missing_pkgs
+                    r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+                    if r.returncode == 0:
+                        print(f"[Auto-Install] Done: {', '.join(_missing_pkgs)}")
+                        # Cache successful installs so next startup skips find_spec
+                        try:
+                            all_ok = list(_cached_ok) + _missing_pkgs
+                            _cache_file.write_text(_json.dumps({"installed": all_ok}))
+                        except Exception:
+                            pass
+                        try:
+                            from . import ui_panels as _uip
+                            if _uip and hasattr(_uip, "invalidate_dep_cache"):
+                                _uip.invalidate_dep_cache()
+                        except Exception:
+                            pass
+                    else:
+                        print(f"[Auto-Install] pip error: {r.stderr.strip()[:200]}")
+                except Exception as _exc:
+                    print(f"[Auto-Install] Failed: {_exc}")
+            _th_pkg.Thread(target=_auto_install, daemon=True,
+                           name="MossyAutoInstall").start()
+        else:
+            print("[Auto-Install] All core Python packages present")
+    except Exception as _ai_exc:
+        print(f"[Auto-Install] Check skipped: {_ai_exc}")
 
     # ── Step 4: auto-discover installed CLI tools and wire up preferences ─────
     # If ffmpeg / nvcompress / texconv are present in the tools folder but
@@ -311,6 +368,14 @@ def deferred_startup():
     # used for the AI-tool availability checks (Step 6b) and the Mossy bridge
     # check (Step 7) below.
     def _background_tool_downloads():
+        # Migrate ML packages from lib/ to lib/ml/ (avoids extension policy warnings)
+        try:
+            from . import tool_installers as _ti_mig
+            if _ti_mig and hasattr(_ti_mig, "_migrate_ml_packages"):
+                _ti_mig._migrate_ml_packages()
+        except Exception:
+            pass
+
         # Step 5: auto-download UModel if missing and auto-install enabled ─────
         # Runs only when the user has 'Auto-install missing tools' turned on and
         # UModel has not been successfully installed before.
@@ -536,7 +601,7 @@ def deferred_startup():
         try:
             from . import mossy_link as _ml
             from . import ui_panels as _ui
-            bridge_ok, bridge_msg = _ml.check_bridge(timeout=1.0)
+            bridge_ok, bridge_msg = _ml.check_bridge(timeout=0.3)
             if bridge_ok:
                 def _apply(msg=bridge_msg):
                     try:

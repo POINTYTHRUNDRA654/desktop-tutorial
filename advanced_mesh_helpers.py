@@ -829,6 +829,18 @@ class AdvancedMeshHelpers:
         return True, msg, total_seams
 
 
+
+def _fo4_post_process(obj, target_polys: int = 10000, name: str = "") -> tuple:
+    """Apply FO4 post-processing to a mesh object (triangulate, UV, poly-cap, material)."""
+    try:
+        from . import imageto3d_helpers as _ith
+        if hasattr(_ith, 'fo4_post_process'):
+            return _ith.fo4_post_process(obj, target_polys=target_polys, name=name)
+    except Exception:
+        pass
+    return False, "imageto3d_helpers not available — install addon properly"
+
+
 def register():
     """Register advanced mesh helper functions"""
     pass

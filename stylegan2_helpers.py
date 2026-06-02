@@ -5,6 +5,7 @@ Provides AI-powered texture generation functionality for Fallout 4 modding
 
 import bpy
 import os
+from .path_utils import candidate_paths, find_first
 import subprocess
 import sys
 import shutil
@@ -19,13 +20,7 @@ class StyleGAN2Helpers:
         try:
             import torch
             # Check for StyleGAN2 installation
-            possible_paths = [
-                os.path.expanduser('~/stylegan2'),
-                os.path.expanduser('~/Projects/stylegan2'),
-                os.path.expanduser('~/stylegan2-pytorch'),
-                '/opt/stylegan2',
-                'C:/Projects/stylegan2',
-            ]
+            possible_paths = candidate_paths("stylegan2", "stylegan2-pytorch")
             
             for path in possible_paths:
                 if os.path.exists(path):
@@ -38,15 +33,7 @@ class StyleGAN2Helpers:
     @staticmethod
     def find_stylegan2_path():
         """Find StyleGAN2 installation path"""
-        possible_paths = [
-            os.path.expanduser('~/stylegan2'),
-            os.path.expanduser('~/Projects/stylegan2'),
-            os.path.expanduser('~/stylegan2-pytorch'),
-            os.path.expanduser('~/Documents/stylegan2'),
-            '/opt/stylegan2',
-            'C:/Projects/stylegan2',
-            'C:/Users/' + os.environ.get('USERNAME', '') + '/stylegan2',
-        ]
+        possible_paths = candidate_paths("stylegan2", "stylegan2-pytorch", "Documents/stylegan2", "Users/")
         
         for path in possible_paths:
             if os.path.exists(os.path.join(path, 'generate.py')):
@@ -375,6 +362,18 @@ See NVIDIA_RESOURCES.md for detailed instructions
         }
         
         return suggestions.get(texture_type, 'Use general-purpose StyleGAN2 model')
+
+
+def _fo4_post_process(obj, target_polys: int = 10000, name: str = "") -> tuple:
+    """Delegate to the canonical FO4 post-process pipeline."""
+    try:
+        from . import imageto3d_helpers as _ith
+        if hasattr(_ith, 'fo4_post_process'):
+            return _ith.fo4_post_process(obj, target_polys=target_polys, name=name)
+    except Exception:
+        pass
+    return False, "imageto3d_helpers not available"
+
 
 def register():
     """Register StyleGAN2 helper functions"""
