@@ -44,7 +44,7 @@ ZIP_FILE_PREFIX   = "mossy-fo4-blender-addon"
 
 # Files and directories to EXCLUDE from every zip
 EXCLUDE = {
-    ".git", ".github", ".gitattributes", ".gitignore", ".githooks", ".vscode", ".vs",
+    ".git", ".github", ".gitattributes", ".gitignore", ".githooks", ".vscode", ".vs", ".claude",
     "build_temp", "build_addon.py", "build.ps1", "build.log",
     "*.zip", "*.pyc", "__pycache__",
     "README.md", "GIT_RECOVERY_GUIDE.md", "BUTTON_PATTERN_GUIDE.md",
