@@ -303,7 +303,10 @@ def deferred_startup():
             "trimesh":  "trimesh",
             "pypdf":    "pypdf",
             "scipy":    "scipy",
-            "igl":      "libigl",
+            # libigl removed from auto-install — requires C++ compilation
+            # and has no pre-built wheels for Blender's bundled Python,
+            # causing startup lag and build failures. It is an optional
+            # dependency for RigNet only; install manually if needed.
         }
         # Use a cache file so we skip find_spec calls after first successful install
         import json as _json, pathlib as _pl
