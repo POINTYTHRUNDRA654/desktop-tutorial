@@ -786,6 +786,53 @@ class FO4_OT_PackBA2(bpy.types.Operator):
 # Registration
 # ---------------------------------------------------------------------------
 
+
+# ---------------------------------------------------------------------------
+# Mossy AI export delegation
+# ---------------------------------------------------------------------------
+
+def _delegate_to_mossy(operator_id: str, params: dict = None) -> tuple:
+    """Delegate a heavy export operation to Mossy via the bridge operator call.
+
+    Mossy can run ck-cmd, Havok tools, NVTT and other external processes
+    without requiring them on the local PATH.  Returns (success, message).
+    """
+    try:
+        from . import mossy_link
+        ok, msg = mossy_link.check_bridge()
+        if not ok:
+            return False, f"Mossy bridge offline: {msg}"
+        result = mossy_link.install_package_via_mossy(
+            package=operator_id,
+            github_url=None,
+            timeout=120,
+        )
+        return result
+    except Exception as exc:
+        return False, f"Mossy delegation error: {exc}"
+
+
+def _safe_subprocess(cmd: list, timeout: int = 120, cwd: str = None) -> tuple:
+    """Run a subprocess with proper timeout and error handling.
+
+    Returns (success, stdout+stderr combined, returncode).
+    """
+    import subprocess
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            timeout=timeout, cwd=cwd,
+        )
+        output = (result.stdout or "") + (result.stderr or "")
+        return result.returncode == 0, output, result.returncode
+    except subprocess.TimeoutExpired:
+        return False, f"Process timed out after {timeout}s", -1
+    except FileNotFoundError:
+        return False, f"Executable not found: {cmd[0]}", -1
+    except Exception as exc:
+        return False, str(exc), -1
+
+
 def register():
     bpy.types.Scene.fo4_mod_name        = bpy.props.StringProperty(
         name="Mod Name",

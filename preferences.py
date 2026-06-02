@@ -39,30 +39,61 @@ def _get_keys_file_path() -> str:
     return os.path.join(os.path.expanduser("~"), _KEYS_FILENAME)
 
 
+# All preference fields that must survive addon reinstalls.
+# Stored in the home-directory JSON so they are never wiped by a zip install.
+_PERSISTENT_PREF_FIELDS = [
+    # Mossy / AI
+    "token", "pytorch_path", "port", "mossy_http_port", "autostart",
+    "use_mossy_as_ai",
+    # Tool paths
+    "havok2fbx_path", "ckcmd_path", "ckcmd_skeleton_path",
+    "nvtt_path", "ffmpeg_path", "texconv_path",
+    "umodel_path", "rignet_path", "libigl_path",
+    "tools_root", "instantngp_path", "torch_custom_path",
+    "extra_python_paths", "knowledge_base_path",
+    # Game asset paths
+    "fo4_assets_path", "fo4_assets_mesh_path", "fo4_assets_tex_path",
+    "fo4_assets_mat_path", "unity_assets_path", "unreal_assets_path",
+    # Havok / animation settings
+    "havok_output_dir", "havok_anim_name", "havok_anim_type",
+    "havok_fps", "havok_loop", "havok_root_motion", "havok_bake_anim",
+    "havok_key_all_bones", "havok_apply_transforms", "havok_scale",
+    "havok_simplify_value", "havok_force_frame_range",
+    # Mesh / UI settings
+    "mesh_panel_unified", "optimize_preserve_uvs", "optimize_apply_transforms",
+    "optimize_remove_doubles_threshold",
+    # Toggles
+    "auto_install_tools", "auto_register_tools", "auto_install_python",
+    "auto_install_pytorch", "advisor_auto_monitor_enabled",
+    "advisor_auto_monitor_interval", "knowledge_base_enabled",
+    "llm_enabled",
+]
+
+
 def save_api_keys() -> None:
-    """Write the current API keys and pytorch_path from preferences to the persistent keys file.
+    """Write ALL critical preferences to the persistent JSON file.
 
-    Safe to call from any context; silently swallows I/O errors so a
-    permission problem never crashes the addon.
-
-    pytorch_path is included so the Mossy-provided PyTorch directory survives
-    Blender restarts even when bpy.ops.wm.save_userpref() fails (e.g. due to
-    missing window context in a timer callback).  load_api_keys() reads it back.
+    This file lives in the user home directory and survives addon reinstalls,
+    Blender version upgrades, and addon renames.  It is the safety net that
+    means users never have to re-enter their paths after installing an update.
     """
     prefs = get_preferences()
     if not prefs:
         return
-    keys: dict = {
-        "mossy_token": prefs.token,
-        "pytorch_path": prefs.pytorch_path,
-    }
+    data: dict = {}
+    for field in _PERSISTENT_PREF_FIELDS:
+        val = getattr(prefs, field, None)
+        if val is not None:
+            data[field] = val
+    # Legacy key name kept for backwards compat with older JSON files
+    data["mossy_token"] = data.get("token", "")
     try:
-        path = _get_keys_file_path()
-        with open(path, "w", encoding="utf-8") as fh:
-            json.dump(keys, fh, indent=2)
-        print(f"✓ API keys persisted to {path}")
+        fpath = _get_keys_file_path()
+        with open(fpath, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2)
+        print(f"✓ All preferences persisted to {fpath}")
     except Exception as exc:
-        print(f"Could not save API keys: {exc}")
+        print(f"Could not save preferences: {exc}")
 
 
 def load_api_keys() -> None:
@@ -94,39 +125,53 @@ def load_api_keys() -> None:
     except Exception as exc:
         print(f"Key migration from old addon skipped: {exc}")
 
-    # ── 2. Restore from the persistent keys file ──────────────────────────
-    path = _get_keys_file_path()
-    if not os.path.isfile(path):
+    # ── 2. Restore from the persistent JSON file ─────────────────────────
+    fpath = _get_keys_file_path()
+    if not os.path.isfile(fpath):
         return
     try:
-        with open(path, "r", encoding="utf-8") as fh:
-            keys: dict = json.load(fh)
+        with open(fpath, "r", encoding="utf-8") as fh:
+            saved: dict = json.load(fh)
     except Exception as exc:
-        print(f"Could not read saved API keys from {path}: {exc}")
+        print(f"Could not read saved preferences from {fpath}: {exc}")
         return
 
-    mossy_token = keys.get("mossy_token", "")
-    if mossy_token and not prefs.token.strip():
-        prefs.token = mossy_token
-        print("✓ Mossy Link token restored from keys file")
-
-    # Restore the Mossy-provided PyTorch path from the JSON backup.
-    # This is the safety net for when bpy.ops.wm.save_userpref() failed to
-    # persist prefs.pytorch_path to userpref.blend (e.g. missing window context
-    # when the timer fired).  If prefs.pytorch_path is already populated from
-    # userpref.blend we leave it alone; if it is empty we fill it from the JSON.
-    saved_pytorch = keys.get("pytorch_path", "").strip()
-    if saved_pytorch and not prefs.pytorch_path.strip():
+    # Restore ALL persisted fields.  String/path fields: only fill when the
+    # current pref is empty (so a user-entered value always wins).
+    # Bool/int/float fields: always restore so toggles survive reinstalls.
+    restored = []
+    for field in _PERSISTENT_PREF_FIELDS:
+        if field not in saved:
+            continue
+        if not hasattr(prefs, field):
+            continue
+        current = getattr(prefs, field, None)
+        saved_val = saved[field]
         try:
-            prefs.pytorch_path = saved_pytorch
-            print(f"✓ Mossy PyTorch path restored from keys file: {saved_pytorch}")
-        except Exception as exc:
-            print(f"Could not restore pytorch_path to prefs: {exc}")
-    # Regardless of where the path came from, ensure it is in sys.path for
-    # this session.  restore_extra_python_paths() runs before load_api_keys()
-    # in the register() sequence, so we must apply it here if it wasn't already
-    # added by that earlier call.
-    effective_pytorch = prefs.pytorch_path.strip() or saved_pytorch
+            if isinstance(saved_val, str):
+                # Only fill empty string fields
+                if not str(current).strip() and str(saved_val).strip():
+                    setattr(prefs, field, saved_val)
+                    restored.append(field)
+            else:
+                # Bool / int / float: always restore
+                setattr(prefs, field, saved_val)
+                restored.append(field)
+        except Exception:
+            pass
+
+    # Legacy compat: token may have been saved as "mossy_token"
+    if not prefs.token.strip():
+        legacy = saved.get("mossy_token", "")
+        if legacy.strip():
+            prefs.token = legacy
+            restored.append("token(legacy)")
+
+    if restored:
+        print(f"✓ Restored {len(restored)} preferences from {fpath}")
+
+    # Ensure pytorch path is on sys.path for this session
+    effective_pytorch = prefs.pytorch_path.strip()
     if effective_pytorch:
         import sys as _sys
         if os.path.isdir(effective_pytorch) and effective_pytorch not in _sys.path:
@@ -292,18 +337,18 @@ def set_umodel_path(path: str) -> None:
 def _pref_path_update(self, context):  # noqa: ARG001
     """Update callback for addon-preference path properties.
 
-    Blender updates the in-memory preference immediately when the user edits a
-    path field that is bound via ``layout.prop(prefs, ...)``, but it does NOT
-    automatically flush those changes to disk.  Attaching this function as the
-    ``update=`` handler ensures that every keystroke (or paste) in a path field
-    schedules a deferred ``save_userpref()`` call so the value is persisted
-    across Blender restarts.
+    Saves to BOTH userpref.blend (via save_prefs_deferred) AND the persistent
+    JSON file (via save_api_keys_deferred) so settings survive addon reinstalls.
+    Both are debounced so rapid changes (e.g. Blender loading prefs on startup)
+    collapse into a single write rather than firing once per property.
     """
     save_prefs_deferred()
+    save_api_keys_deferred()
 
 
-# Global flag to prevent multiple timers from stacking up (fixes Blender 5.0 lag)
+# Global flags to prevent multiple timers from stacking up (fixes Blender 5.0 lag)
 _prefs_save_pending = False
+_keys_save_pending  = False
 
 def save_prefs_deferred() -> None:
     """Schedule an explicit save of Blender user preferences via a timer.
@@ -355,6 +400,34 @@ def save_prefs_deferred() -> None:
         print(f"Could not schedule preference save: {e}")
 
 
+def save_api_keys_deferred() -> None:
+    """Schedule save_api_keys() via a timer so rapid property changes collapse into one write."""
+    global _keys_save_pending
+    if _keys_save_pending:
+        return
+
+    def _do_keys_save():
+        global _keys_save_pending
+        try:
+            save_api_keys()
+        except Exception:
+            pass
+        finally:
+            _keys_save_pending = False
+        return None
+
+    try:
+        _keys_save_pending = True
+        import bpy as _bpy
+        _bpy.app.timers.register(_do_keys_save, first_interval=1.0)
+    except Exception:
+        _keys_save_pending = False
+        try:
+            save_api_keys()
+        except Exception:
+            pass
+
+
 def restore_scene_props_from_prefs(scene) -> None:
     """Copy persisted addon-preference values into scene properties.
 
@@ -375,10 +448,10 @@ def restore_scene_props_from_prefs(scene) -> None:
 
     # ── Path properties: restore only when the scene property is empty ────────
     _PATH_PREF_TO_SCENE = {
-        "fo4_assets_path":      "fo4_assets_path",
-        "fo4_assets_mesh_path": "fo4_assets_mesh_path",
-        "fo4_assets_tex_path":  "fo4_assets_tex_path",
-        "fo4_assets_mat_path":  "fo4_assets_mat_path",
+        "fo4_assets_path":      "fo4_asset_lib_path",
+        "fo4_assets_mesh_path": "fo4_asset_lib_mesh_path",
+        "fo4_assets_tex_path":  "fo4_asset_lib_tex_path",
+        "fo4_assets_mat_path":  "fo4_asset_lib_mat_path",
         "unity_assets_path":    "fo4_unity_assets_path",
         "unreal_assets_path":   "fo4_unreal_assets_path",
         # Tool/runtime paths – backed by addon preferences so they survive
@@ -518,6 +591,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         subtype="DIR_PATH",
         default=_DEFAULT_HAVOK2FBX_PATH,
         description="Folder containing Havok2FBX binaries (existing install)",
+        update=_pref_path_update,
     )
 
     ckcmd_path: bpy.props.StringProperty(
@@ -525,6 +599,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         subtype="DIR_PATH",
         default="",
         description="Folder containing ck-cmd.exe (aerisarn/ck-cmd — open-source FBX→HKX converter)",
+        update=_pref_path_update,
     )
 
     ckcmd_skeleton_path: bpy.props.StringProperty(
@@ -535,12 +610,14 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Path to the Fallout 4 skeleton.hkx required by ck-cmd importanimation. "
             "Usually found at Data\\Meshes\\Actors\\Character\\CharacterAssets\\skeleton.hkx"
         ),
+        update=_pref_path_update,
     )
 
     mesh_panel_unified: bpy.props.BoolProperty(
         name="Unified Mesh Panel",
         description="Show all mesh helpers (basic, collision, advanced) in one box",
         default=True,
+        update=_pref_path_update,
     )
 
     nvtt_path: bpy.props.StringProperty(
@@ -548,6 +625,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         subtype="FILE_PATH",
         default=_DEFAULT_NVTT_PATH,
         description="Path to nvcompress.exe or its folder (NVIDIA Texture Tools)",
+        update=_pref_path_update,
     )
 
     ffmpeg_path: bpy.props.StringProperty(
@@ -555,6 +633,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         subtype="FILE_PATH",
         default="",
         description="Path to ffmpeg.exe or its folder (optional, installer will place binaries under tools/ffmpeg)",
+        update=_pref_path_update,
     )
 
     texconv_path: bpy.props.StringProperty(
@@ -562,6 +641,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         subtype="FILE_PATH",
         default=_DEFAULT_TEXCONV_PATH,
         description="Path to texconv.exe or its folder (DirectXTex)",
+        update=_pref_path_update,
     )
 
     fo4_assets_path: bpy.props.StringProperty(
@@ -609,6 +689,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Should contain folders like Models, Textures, Materials, etc. "
             "Example: H:/Unity Projects/MyProject/Assets"
         ),
+        update=_pref_path_update,
     )
 
     unreal_assets_path: bpy.props.StringProperty(
@@ -620,6 +701,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Should contain folders like Meshes, Textures, Materials, etc. "
             "Example: H:/UnrealProjects/MyProject/Content"
         ),
+        update=_pref_path_update,
     )
 
     # ──────────────────────────────────────────────────────────────────────
@@ -631,6 +713,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         name="Advisor Auto-Monitor",
         default=True,
         description="Run advisor periodically in the background to surface issues",
+        update=_pref_path_update,
     )
 
     advisor_auto_monitor_interval: bpy.props.IntProperty(
@@ -639,12 +722,14 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         min=5,
         max=600,
         description="Seconds between advisor checks",
+        update=_pref_path_update,
     )
 
     knowledge_base_enabled: bpy.props.BoolProperty(
         name="Use Knowledge Base",
         default=True,
         description="Include snippets from knowledge_base/ (txt/md) in advisor LLM context",
+        update=_pref_path_update,
     )
 
     knowledge_base_path: bpy.props.StringProperty(
@@ -652,6 +737,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         default=_DEFAULT_KB_PATH,
         subtype='DIR_PATH',
         description="Folder with txt/md docs to feed the advisor; defaults to bundled knowledge_base/",
+        update=_pref_path_update,
     )
 
     auto_install_tools: bpy.props.BoolProperty(
@@ -662,6 +748,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "on startup. Disabled by default - enable this only if you want the add-on to "
             "fetch executables from the internet without a manual button click."
         ),
+        update=_pref_path_update,
     )
 
     auto_register_tools: bpy.props.BoolProperty(
@@ -673,12 +760,14 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "This may trigger \"policy violation\" warnings from Blender; leave "
             "disabled to load them manually."
         ),
+        update=_pref_path_update,
     )
 
     auto_install_python: bpy.props.BoolProperty(
         name="Auto Install Python",
         default=True,
         description="If enabled, core Python dependencies will be installed on startup",
+        update=_pref_path_update,
     )
 
     auto_install_pytorch: bpy.props.BoolProperty(
@@ -707,6 +796,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "~/.local/lib/python3.12/site-packages). "
             "Added to sys.path on every Blender startup so torch is importable."
         ),
+        update=_pref_path_update,
     )
 
     pytorch_path: bpy.props.StringProperty(
@@ -720,6 +810,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "like RigNet, Shape-E, and Point-E."
         ),
         options={'HIDDEN'},
+        update=_pref_path_update,
     )
 
     umodel_path: bpy.props.StringProperty(
@@ -731,6 +822,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Set automatically on first download. "
             "Used to locate umodel.exe on every Blender startup."
         ),
+        update=_pref_path_update,
     )
 
     umodel_install_attempted: bpy.props.BoolProperty(
@@ -747,6 +839,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "every Blender startup.  Use this to make packages installed outside "
             "Blender's site-packages (e.g. via pip --target) permanently accessible."
         ),
+        update=_pref_path_update,
     )
 
     # ---- Mesh optimization settings ----
@@ -756,16 +849,19 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         min=0.0,
         max=0.01,
         description="Distance threshold for merging duplicate vertices during optimization",
+        update=_pref_path_update,
     )
     optimize_preserve_uvs: bpy.props.BoolProperty(
         name="Preserve UVs",
         default=True,
         description="Keep UV seams from being collapsed when removing doubles",
+        update=_pref_path_update,
     )
     optimize_apply_transforms: bpy.props.BoolProperty(
         name="Apply Transforms",
         default=True,
         description="Automatically apply object transforms before optimization",
+        update=_pref_path_update,
     )
 
     # ---- Havok2FBX animation export settings ----
@@ -780,6 +876,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             ('FIRSTPERSON', "First-Person",  "First-person arms / weapon animation"),
         ],
         description="Default animation type for Havok2FBX export; persisted as global default",
+        update=_pref_path_update,
     )
     havok_fps: bpy.props.IntProperty(
         name="FPS",
@@ -787,31 +884,37 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         min=1,
         max=120,
         description="Default frame rate for Havok2FBX export",
+        update=_pref_path_update,
     )
     havok_loop: bpy.props.BoolProperty(
         name="Loop Animation",
         default=False,
         description="Default loop flag for Havok2FBX export",
+        update=_pref_path_update,
     )
     havok_root_motion: bpy.props.BoolProperty(
         name="Root Motion",
         default=False,
         description="Default root motion flag for Havok2FBX export",
+        update=_pref_path_update,
     )
     havok_bake_anim: bpy.props.BoolProperty(
         name="Bake Animation",
         default=True,
         description="Default bake animation flag for Havok2FBX export",
+        update=_pref_path_update,
     )
     havok_key_all_bones: bpy.props.BoolProperty(
         name="Key All Bones",
         default=False,
         description="Default key-all-bones flag for Havok2FBX export",
+        update=_pref_path_update,
     )
     havok_apply_transforms: bpy.props.BoolProperty(
         name="Apply Transforms",
         default=True,
         description="Default apply-transforms flag for Havok2FBX export",
+        update=_pref_path_update,
     )
     havok_scale: bpy.props.FloatProperty(
         name="Scale",
@@ -820,17 +923,20 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         max=100.0,
         precision=3,
         description="Default scale factor for Havok2FBX export",
+        update=_pref_path_update,
     )
     havok_output_dir: bpy.props.StringProperty(
         name="Output Directory",
         subtype='DIR_PATH',
         default="",
         description="Default output directory for Havok2FBX export; persisted globally",
+        update=_pref_path_update,
     )
     havok_anim_name: bpy.props.StringProperty(
         name="Animation Name Override",
         default="",
         description="Default animation name override for Havok2FBX export",
+        update=_pref_path_update,
     )
     havok_simplify_value: bpy.props.FloatProperty(
         name="Simplify Value",
@@ -839,20 +945,47 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         max=1.0,
         precision=2,
         description="Default animation simplification threshold for Havok2FBX export",
+        update=_pref_path_update,
     )
     havok_force_frame_range: bpy.props.BoolProperty(
         name="Force Frame Range",
         default=True,
         description="Default force-frame-range flag for Havok2FBX export",
+        update=_pref_path_update,
     )
 
     # ---- Mossy Link ----
+    rignet_path: bpy.props.StringProperty(
+        name="RigNet Path",
+        default="",
+        subtype='DIR_PATH',
+        description=(
+            "Path to your RigNet or rignet-gj repository folder on any drive "
+            "(e.g. D:/rignet-gj or E:/Projects/RigNet). "
+            "Leave blank to auto-detect across all drives."
+        ),
+        update=_pref_path_update,
+    )
+
+    libigl_path: bpy.props.StringProperty(
+        name="libigl Path",
+        default="",
+        subtype='DIR_PATH',
+        description=(
+            "Path to your libigl or libigl-python-bindings folder on any drive "
+            "(e.g. D:/libigl-python-bindings). "
+            "Leave blank to auto-detect across all drives."
+        ),
+        update=_pref_path_update,
+    )
+
     port: bpy.props.IntProperty(
         name="Mossy Link Port",
         default=9999,
         min=1024,
         max=65535,
         description="TCP port the Mossy Link server (inside Blender) listens on for commands from Mossy",
+        update=_pref_path_update,
     )
 
     token: bpy.props.StringProperty(
@@ -875,6 +1008,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Start the Mossy Link server automatically when the add-on loads. "
             "Requires a non-empty Mossy Link Token to be set first."
         ),
+        update=_pref_path_update,
     )
 
     mossy_http_port: bpy.props.IntProperty(
@@ -887,6 +1021,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Blender connects here to send AI advisor questions to Mossy. "
             "Must match the port shown in your Mossy desktop app."
         ),
+        update=_pref_path_update,
     )
 
     use_mossy_as_ai: bpy.props.BoolProperty(
@@ -897,6 +1032,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Requires Mossy to be running (100% free, 100% local - no cloud, no API keys). "
             "All AI processing stays on your machine."
         ),
+        update=_pref_path_update,
     )
 
     tools_root: bpy.props.StringProperty(
@@ -907,6 +1043,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Root folder where FO4 modding CLI tools (ffmpeg, nvcompress, texconv, etc.) "
             "are installed. Persisted globally so you don't have to re-enter it every session."
         ),
+        update=_pref_path_update,
     )
 
     instantngp_path: bpy.props.StringProperty(
@@ -917,6 +1054,7 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Path to InstantNGP installation folder. "
             "Persisted globally so you don't need to re-enter it after restarting Blender."
         ),
+        update=_pref_path_update,
     )
 
     def draw(self, context):

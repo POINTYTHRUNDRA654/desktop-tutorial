@@ -11,37 +11,53 @@ from urllib import request, error
 from urllib.parse import urljoin
 
 class DesktopTutorialClient:
-    """Client for connecting to desktop tutorial server"""
-    
+    """Client for connecting to the Mossy desktop application.
+
+    Communicates via Mossy's bridge server (port 21337 by default).
+    Falls back to a legacy standalone tutorial server on port 8080 if
+    the bridge is not available.
+    """
+
     # Connection state
     is_connected = False
-    server_url = "http://localhost:8080"
+    server_url = "http://localhost:21337"   # Mossy bridge port
     last_error = None
     connection_thread = None
-    
+
+    # Port preference order: Mossy bridge first, legacy fallback second
+    _CANDIDATE_PORTS = (21337, 8080)
+
     @staticmethod
-    def set_server_url(host="localhost", port=8080):
+    def set_server_url(host="localhost", port=21337):
         """Set the server URL"""
         DesktopTutorialClient.server_url = f"http://{host}:{port}"
-    
+
     @staticmethod
     def test_connection():
-        """Test connection to desktop tutorial server"""
-        try:
-            url = urljoin(DesktopTutorialClient.server_url, '/status')
-            req = request.Request(url, method='GET')
-            
-            with request.urlopen(req, timeout=5) as response:
-                if response.status == 200:
-                    data = json.loads(response.read().decode('utf-8'))
-                    return True, f"Connected to server v{data.get('version', 'unknown')}"
-                else:
-                    return False, f"Server returned status {response.status}"
-        
-        except error.URLError as e:
-            return False, f"Connection failed: {str(e.reason)}"
-        except Exception as e:
-            return False, f"Error: {str(e)}"
+        """Test connection to the Mossy bridge / tutorial server.
+
+        Tries each candidate port in order and returns as soon as one responds.
+        """
+        from urllib.parse import urlparse
+        parsed = urlparse(DesktopTutorialClient.server_url)
+        host = parsed.hostname or "localhost"
+
+        for port in DesktopTutorialClient._CANDIDATE_PORTS:
+            # Mossy bridge uses /health; legacy server uses /status
+            for endpoint in ("/health", "/status"):
+                try:
+                    url = f"http://{host}:{port}{endpoint}"
+                    req = request.Request(url, method='GET')
+                    with request.urlopen(req, timeout=3) as response:
+                        if response.status == 200:
+                            data = json.loads(response.read().decode('utf-8'))
+                            DesktopTutorialClient.server_url = f"http://{host}:{port}"
+                            version = data.get('version', 'unknown')
+                            return True, f"Connected to Mossy (v{version}) on port {port}"
+                except Exception:
+                    continue
+
+        return False, "Mossy not reachable — make sure Mossy is running"
     
     @staticmethod
     def connect():

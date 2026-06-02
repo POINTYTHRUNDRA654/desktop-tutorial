@@ -913,12 +913,281 @@ class FO4_OT_ExportCKObject(Operator):
 
 # ── Registration ───────────────────────────────────────────────────────────────
 
+class FO4_OT_ImportESPCell(bpy.types.Operator):
+    """Import CELL placements directly from a binary ESP/ESM file.
+
+    No xEdit required — reads REFR records directly and imports referenced
+    NIFs (from your extracted BA2 folder) at correct world positions.
+
+    Workflow:
+      1. Extract your BA2 archives to get loose NIF files
+         (use BAE, Mod Organizer 2, or the addon\'s AssetRipper tools)
+      2. Point this operator at your .esp file and NIF folder
+      3. The cell is reconstructed in Blender ready to edit
+      4. Use \'Export CK Cell\' to write modified placements back as ESP
+    """
+    bl_idname  = "fo4.import_esp_cell"
+    bl_label   = "Import ESP Cell (Binary)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    esp_path: bpy.props.StringProperty(
+        name="ESP / ESM File",
+        description="Path to the Fallout4.esm, DLC, or mod .esp file",
+        subtype='FILE_PATH',
+    )
+    nif_folder: bpy.props.StringProperty(
+        name="Extracted NIF Folder",
+        description="Root folder of BA2-extracted NIF files (Data\Meshes\)",
+        subtype='DIR_PATH',
+        default="",
+    )
+    max_refs: bpy.props.IntProperty(
+        name="Max References to Import",
+        description="Limit imports for large cells (0 = no limit)",
+        default=200, min=0,
+    )
+    cell_scale: bpy.props.FloatProperty(
+        name="World Scale",
+        description="Scale factor from game units to Blender units",
+        default=0.0142857,   # 1 FO4 unit ≈ 1/70 meters
+        min=0.001, max=10.0,
+    )
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        import os
+        esp  = bpy.path.abspath(self.esp_path)
+        nifs = bpy.path.abspath(self.nif_folder) if self.nif_folder else ""
+
+        if not os.path.isfile(esp):
+            self.report({'ERROR'}, f"ESP not found: {esp}")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, "Parsing ESP binary…")
+        placements = extract_cell_placements(esp)
+
+        if not placements:
+            self.report({'WARNING'}, "No REFR placements found in ESP")
+            return {'CANCELLED'}
+
+        # Limit for large cells
+        if self.max_refs and len(placements) > self.max_refs:
+            placements = placements[:self.max_refs]
+            self.report({'INFO'}, f"Limiting to {self.max_refs} references")
+
+        cell_col  = _get_or_create_collection("FO4_ESP_Cell")
+        imported  = 0
+        sk        = self.cell_scale
+
+        for ref in placements:
+            nif_rel = ref["model_path"]
+            nif_abs = ""
+
+            if nif_rel and nifs:
+                nif_abs = os.path.join(nifs, nif_rel.replace("/", os.sep))
+
+            # Place an empty or import NIF
+            if nif_abs and os.path.isfile(nif_abs):
+                before = set(bpy.data.objects)
+                try:
+                    if hasattr(bpy.ops.wm, 'obj_import'):
+                        bpy.ops.wm.obj_import(filepath=nif_abs)
+                    else:
+                        bpy.ops.import_scene.obj(filepath=nif_abs)
+                    new_objs = [o for o in bpy.data.objects if o not in before]
+                except Exception:
+                    new_objs = []
+
+                if not new_objs:
+                    # Fallback: place empty at position
+                    bpy.ops.object.empty_add(type='CUBE', location=(0,0,0))
+                    new_objs = [context.active_object]
+                    new_objs[0].name = ref.get("editor_id") or f"REF_{ref['formid']}"
+
+                for obj in new_objs:
+                    obj.location = ref["pos"]  * sk
+                    obj.rotation_euler = ref["rot"]
+                    obj.scale = (ref["scale"],) * 3
+                    obj[_PROP_FORMID] = ref["formid"]
+                    for c in obj.users_collection:
+                        c.objects.unlink(obj)
+                    cell_col.objects.link(obj)
+            else:
+                # No NIF — place labelled empty
+                bpy.ops.object.empty_add(type='ARROWS',
+                                          location=tuple(v * sk for v in ref["pos"]))
+                emp = context.active_object
+                emp.name = ref.get("editor_id") or f"REF_{ref['formid']}"
+                emp.rotation_euler = ref["rot"]
+                emp.scale = (ref["scale"],) * 3
+                emp[_PROP_FORMID] = ref["formid"]
+                for c in emp.users_collection:
+                    c.objects.unlink(emp)
+                cell_col.objects.link(emp)
+
+            imported += 1
+
+        self.report({'INFO'},
+            f"Cell imported: {imported}/{len(placements)} references "
+            f"into collection '{cell_col.name}'")
+        return {'FINISHED'}
+
+
 _CLASSES = [
     FO4_OT_ImportCKCell,
     FO4_OT_PrepareCellEdit,
     FO4_OT_ExportCKCell,
     FO4_OT_ExportCKObject,
+    FO4_OT_ImportESPCell,
 ]
+
+
+
+# ---------------------------------------------------------------------------
+# Direct binary ESP / ESM parser for CELL + REFR extraction
+# ---------------------------------------------------------------------------
+
+def _read_esp_records(esp_path: str,
+                       target_types: set = None) -> list:
+    """Read records from a binary ESP/ESM file.
+
+    Returns a list of dicts:
+      {type, formid, flags, subrecords: {type_code: bytes}}
+
+    Only reads record types in target_types (all if None).
+    Skips GRUP wrappers transparently.
+    """
+    import struct, io
+    records = []
+    target_types = target_types or {"CELL","REFR","STAT","FLOR","ACTI","WEAP","ARMO","MISC"}
+
+    with open(esp_path, "rb") as fh:
+        data = fh.read()
+
+    pos = 0
+    n   = len(data)
+
+    while pos + 24 <= n:
+        rtype = data[pos:pos+4].decode("ascii", errors="replace")
+
+        # GRUP — skip header, recurse into group data
+        if rtype == "GRUP":
+            grp_size = struct.unpack_from("<I", data, pos+4)[0]
+            pos += 24   # GRUP header = 24 bytes
+            # grp_size includes the 24-byte header, so next group starts at:
+            # pos + (grp_size - 24), but we just walk linearly
+            continue
+
+        # Normal record header: type(4) + dataSize(4) + flags(4) + formID(4) + ver(2) + unk(2)
+        if pos + 24 > n:
+            break
+        data_size, flags, formid = struct.unpack_from("<III", data, pos+4)
+        record_data = data[pos+24 : pos+24+data_size]
+        pos += 24 + data_size
+
+        if rtype not in target_types:
+            continue
+
+        # Parse subrecords
+        subs = {}
+        sp = 0
+        while sp + 6 <= len(record_data):
+            st   = record_data[sp:sp+4].decode("ascii", errors="replace")
+            ssz  = struct.unpack_from("<H", record_data, sp+4)[0]
+            sdat = record_data[sp+6:sp+6+ssz]
+            sp  += 6 + ssz
+            subs[st] = sdat
+
+        records.append({
+            "type":       rtype,
+            "formid":     formid,
+            "flags":      flags,
+            "subrecords": subs,
+        })
+
+    return records
+
+
+def extract_cell_placements(esp_path: str) -> list:
+    """Extract REFR (object reference) placements from a binary ESP/ESM.
+
+    Returns list of placement dicts compatible with _parse_xedit_csv() output:
+      {formid, editor_id, base_formid, model_path, pos, rot, scale}
+
+    model_path is resolved from STAT/FLOR/ACTI/WEAP/ARMO records in the
+    same ESP.  References to Fallout4.esm base objects will have an empty
+    model_path (user must point to extracted NIF folder separately).
+    """
+    import struct
+    import mathutils
+
+    records = _read_esp_records(esp_path)
+
+    # Build base-object FormID → NIF path map from this ESP
+    base_nif_map = {}
+    for rec in records:
+        if rec["type"] in {"STAT","FLOR","ACTI","WEAP","ARMO","MISC","LIGH"}:
+            subs = rec["subrecords"]
+            nif  = ""
+            if "MODL" in subs:
+                try:
+                    nif = subs["MODL"].rstrip(b"\x00").decode("utf-8", errors="replace")
+                except Exception:
+                    pass
+            base_nif_map[rec["formid"]] = nif
+
+    # Process REFR records
+    placements = []
+    for rec in records:
+        if rec["type"] != "REFR":
+            continue
+
+        subs = rec["subrecords"]
+
+        # Editor ID
+        eid = ""
+        if "EDID" in subs:
+            try:
+                eid = subs["EDID"].rstrip(b"\x00").decode("utf-8", errors="replace")
+            except Exception:
+                pass
+
+        # Base object FormID (NAME subrecord)
+        base_formid = 0
+        if "NAME" in subs and len(subs["NAME"]) >= 4:
+            base_formid = struct.unpack_from("<I", subs["NAME"])[0]
+
+        # Position + Rotation (DATA subrecord: 6 floats — X,Y,Z pos, X,Y,Z rot)
+        pos_vec = mathutils.Vector((0, 0, 0))
+        rot_eu  = mathutils.Euler((0, 0, 0), "XYZ")
+        if "DATA" in subs and len(subs["DATA"]) >= 24:
+            px, py, pz, rx, ry, rz = struct.unpack_from("<6f", subs["DATA"])
+            pos_vec = mathutils.Vector((px, py, pz))
+            rot_eu  = mathutils.Euler((rx, ry, rz), "XYZ")
+
+        # Scale (XSCL subrecord, optional)
+        scale = 1.0
+        if "XSCL" in subs and len(subs["XSCL"]) >= 4:
+            scale = struct.unpack_from("<f", subs["XSCL"])[0]
+
+        nif_path = base_nif_map.get(base_formid, "")
+
+        placements.append({
+            "formid":      hex(rec["formid"]),
+            "editor_id":   eid,
+            "base_formid": hex(base_formid),
+            "model_path":  nif_path,
+            "pos":         pos_vec,
+            "rot":         rot_eu,
+            "scale":       scale,
+        })
+
+    print(f"[CK Cell] ESP parse: {len(records)} records, "
+          f"{len(placements)} placements, {len(base_nif_map)} base objects mapped")
+    return placements
 
 
 def register():

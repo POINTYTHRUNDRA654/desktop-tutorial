@@ -200,7 +200,7 @@ When using Mossy for AI features, Mossy provides PyTorch and all AI models:
 
 ```bash
 # Clone the repository
-git clone https://github.com/POINTYTHRUNDRA654/Blender-add-on.git
+git clone https://github.com/POINTYTHRUNDRA654/Blender-add-ongit
 cd Blender-add-on
 
 # Run integrity tests (219 tests)

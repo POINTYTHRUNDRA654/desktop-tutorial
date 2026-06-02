@@ -200,6 +200,91 @@ _CLASSES = [
 ]
 
 
+
+# ---------------------------------------------------------------------------
+# FO4 bone validation helpers
+# ---------------------------------------------------------------------------
+
+# FO4 hard limits
+_FO4_MAX_BONES       = 128   # max active bones per skinned mesh
+_FO4_MAX_INFLUENCES  = 4     # max bone influences per vertex
+
+# Expected FO4 skeleton root bone names
+_FO4_ROOT_BONES = {"COM", "NPC Root [Root]", "Root", "NPC Root"}
+
+
+def _validate_fo4_rig(armature_obj) -> list:
+    """Check an armature against FO4 bone constraints.
+
+    Returns a list of issue dicts: {severity, message, fix_hint}.
+    """
+    issues = []
+    if armature_obj is None or armature_obj.type != 'ARMATURE':
+        return [{"severity": "error",
+                 "message": "Not an armature object",
+                 "fix_hint": "Select the armature object"}]
+
+    bones = armature_obj.data.bones
+    bone_count = len(bones)
+
+    if bone_count > _FO4_MAX_BONES:
+        issues.append({
+            "severity": "warning",
+            "message": f"{bone_count} bones — FO4 recommends ≤{_FO4_MAX_BONES}",
+            "fix_hint": "Remove unused bones or split skinned mesh",
+        })
+
+    # Check for root bone
+    root_names = {b.name for b in bones if b.parent is None}
+    if not root_names.intersection(_FO4_ROOT_BONES):
+        issues.append({
+            "severity": "warning",
+            "message": f"No standard FO4 root bone found (roots: {root_names})",
+            "fix_hint": "Rename root bone to 'COM' or use fo4_skeleton.nif as base",
+        })
+
+    # Check for bones with spaces (NIF exporter issues)
+    bad_names = [b.name for b in bones if "  " in b.name]
+    if bad_names:
+        issues.append({
+            "severity": "error",
+            "message": f"{len(bad_names)} bone(s) have double-spaces in name",
+            "fix_hint": "Rename bones to remove double-spaces",
+        })
+
+    return issues
+
+
+def _check_vertex_influences(mesh_obj, armature_obj) -> list:
+    """Check that no vertex has more than FO4_MAX_INFLUENCES bone weights."""
+    issues = []
+    if mesh_obj is None or mesh_obj.type != 'MESH':
+        return issues
+    try:
+        import bpy
+        me = mesh_obj.data
+        for v in me.vertices:
+            if len(v.groups) > _FO4_MAX_INFLUENCES:
+                issues.append({
+                    "severity": "error",
+                    "message": (
+                        f"Vertex {v.index} has {len(v.groups)} bone influences "
+                        f"— FO4 max is {_FO4_MAX_INFLUENCES}"
+                    ),
+                    "fix_hint": "Use Weights > Limit Total (4) in Weight Paint mode",
+                })
+                if len(issues) >= 5:
+                    issues.append({"severity": "info",
+                                   "message": "… (more vertices affected)",
+                                   "fix_hint": "Run Weights > Limit Total on all vertices"})
+                    break
+    except Exception as exc:
+        issues.append({"severity": "error",
+                        "message": f"Could not check vertex influences: {exc}",
+                        "fix_hint": ""})
+    return issues
+
+
 def register():
     if bpy is None:
         return

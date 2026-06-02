@@ -27,6 +27,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from .path_utils import candidate_paths, find_first
 
 try:
     from . import tool_installers as _ti
@@ -95,37 +96,58 @@ class RigNetHelpers:
                     and not RigNetHelpers._mossy_provides_torch()):
                 import torch
             
-            # Check for common RigNet installation paths
+            # Check for common RigNet installation paths across all drives
             # First check for rignet-gj (joint prediction reimplementation)
             # Then check for original RigNet or other variants
-            possible_paths = [
-                os.path.expanduser("~/rignet-gj"),
-                os.path.expanduser("~/Projects/rignet-gj"),
-                os.path.expanduser("~/RigNet"),
-                os.path.expanduser("~/Projects/RigNet"),
-                os.path.join(os.path.dirname(__file__), "rignet-gj"),
-                os.path.join(os.path.dirname(__file__), "RigNet"),
-                "C:/rignet-gj" if sys.platform == "win32" else "/opt/rignet-gj",
-                "C:/RigNet" if sys.platform == "win32" else "/opt/RigNet"
-            ]
-            
-            rignet_path = None
-            for path in possible_paths:
-                if os.path.exists(path) and os.path.isdir(path):
-                    rignet_path = path
-                    break
+            # Also check user-configured path from preferences
+            possible_paths = candidate_paths("rignet-gj", "RigNet")
+
+            # Also check inside D:\blender_tools (the addon's default tools root)
+            import sys as _sys
+            for _drive in (["D:/", "E:/", "F:/"] if _sys.platform == "win32" else ["/"]):
+                possible_paths += [
+                    os.path.join(_drive, "blender_tools", "rignet-gj"),
+                    os.path.join(_drive, "blender_tools", "RigNet"),
+                    os.path.join(_drive, "blender_tools", "rignet"),
+                ]
+
+            # Prepend user-configured path if set
+            try:
+                from . import preferences as _prefs_mod
+                prefs = _prefs_mod.get_preferences()
+                user_path = getattr(prefs, "rignet_path", "").strip()
+                if user_path:
+                    possible_paths = [user_path] + possible_paths
+            except Exception:
+                pass
+
+            rignet_path = find_first(possible_paths)
             
             if rignet_path:
-                # Check for different RigNet variants
-                # rignet-gj has utilities/ folder
-                # original RigNet has checkpoints/ folder
-                utils_path = os.path.join(rignet_path, "utilities")
+                # Validate the RigNet install — accept any of these structures:
+                #   rignet-gj:      utilities/ folder
+                #   original RigNet: checkpoints/ folder
+                #   partial clone:   any .py files at root (repo is present, just incomplete)
+                #   models variant:  models/ folder
+                utils_path       = os.path.join(rignet_path, "utilities")
                 checkpoints_path = os.path.join(rignet_path, "checkpoints")
-                
-                if os.path.exists(utils_path) or os.path.exists(checkpoints_path):
+                models_path      = os.path.join(rignet_path, "models")
+                has_py_files     = any(
+                    f.endswith(".py")
+                    for f in os.listdir(rignet_path)
+                    if os.path.isfile(os.path.join(rignet_path, f))
+                )
+
+                if (os.path.exists(utils_path)
+                        or os.path.exists(checkpoints_path)
+                        or os.path.exists(models_path)
+                        or has_py_files):
                     return True, rignet_path
                 else:
-                    return False, "RigNet found but required files not present"
+                    return False, (
+                        "RigNet folder found but appears empty — "
+                        "run 'Install RigNet' to re-clone the repository"
+                    )
             else:
                 return False, "RigNet repository not found in common locations"
                 
@@ -147,17 +169,26 @@ class RigNetHelpers:
             # Try to import libigl Python bindings
             import igl
             
-            # Check for libigl-python-bindings repository
-            possible_paths = [
-                os.path.expanduser("~/libigl-python-bindings"),
-                os.path.expanduser("~/Projects/libigl-python-bindings"),
-                os.path.expanduser("~/libigl"),
-                os.path.expanduser("~/Projects/libigl"),
-                os.path.join(os.path.dirname(__file__), "libigl-python-bindings"),
-                os.path.join(os.path.dirname(__file__), "libigl"),
-                "C:/libigl-python-bindings" if sys.platform == "win32" else "/opt/libigl-python-bindings",
-                "C:/libigl" if sys.platform == "win32" else "/opt/libigl"
-            ]
+            # Check for libigl-python-bindings repository across all drives
+            possible_paths = candidate_paths("libigl-python-bindings", "libigl")
+
+            # Also check inside D:\blender_tools
+            import sys as _sys
+            for _drive in (["D:/", "E:/", "F:/"] if _sys.platform == "win32" else ["/"]):
+                possible_paths += [
+                    os.path.join(_drive, "blender_tools", "libigl-python-bindings"),
+                    os.path.join(_drive, "blender_tools", "libigl"),
+                ]
+
+            # Prepend user-configured path if set
+            try:
+                from . import preferences as _prefs_mod
+                prefs = _prefs_mod.get_preferences()
+                user_path = getattr(prefs, "libigl_path", "").strip()
+                if user_path:
+                    possible_paths = [user_path] + possible_paths
+            except Exception:
+                pass
             
             libigl_path = None
             for path in possible_paths:
@@ -182,10 +213,20 @@ class RigNetHelpers:
                 "C:/libigl" if sys.platform == "win32" else "/opt/libigl"
             ]
             
-            for path in possible_paths:
-                if os.path.exists(path) and os.path.isdir(path):
-                    return False, f"libigl repository found at {path} but Python bindings not built/installed"
-            
+            # Also check fallback paths across all drives
+            fallback_paths = candidate_paths("libigl-python-bindings", "libigl")
+            try:
+                from . import preferences as _prefs_mod
+                prefs = _prefs_mod.get_preferences()
+                user_path = getattr(prefs, "libigl_path", "").strip()
+                if user_path:
+                    fallback_paths = [user_path] + fallback_paths
+            except Exception:
+                pass
+            found = find_first(fallback_paths)
+            if found:
+                return False, f"libigl repository found at {found} but Python bindings not built/installed"
+
             return False, "libigl not found. Install with: pip install libigl OR gh repo clone libigl/libigl-python-bindings"
         except Exception as e:
             return False, f"Error checking libigl: {str(e)}"
@@ -198,36 +239,17 @@ class RigNetHelpers:
             import mediapipe as mp
             
             # Check for ntu-rris/google-mediapipe repository (optional, for demos)
-            possible_paths = [
-                os.path.expanduser("~/google-mediapipe"),
-                os.path.expanduser("~/Projects/google-mediapipe"),
-                os.path.join(os.path.dirname(__file__), "google-mediapipe"),
-                "C:/google-mediapipe" if sys.platform == "win32" else "/opt/google-mediapipe"
-            ]
-            
-            repo_path = None
-            for path in possible_paths:
-                if os.path.exists(path) and os.path.isdir(path):
-                    repo_path = path
-                    break
-            
+            repo_path = find_first(candidate_paths("google-mediapipe"))
             if repo_path:
                 return True, f"MediaPipe available with demo repo at {repo_path}"
             else:
                 return True, "MediaPipe available (installed via pip)"
-                
+
         except ImportError:
             # Check if demo repository exists even without mediapipe installed
-            possible_paths = [
-                os.path.expanduser("~/google-mediapipe"),
-                os.path.expanduser("~/Projects/google-mediapipe"),
-                "C:/google-mediapipe" if sys.platform == "win32" else "/opt/google-mediapipe"
-            ]
-            
-            for path in possible_paths:
-                if os.path.exists(path) and os.path.isdir(path):
-                    return False, f"MediaPipe demo repo found at {path} but mediapipe not installed"
-            
+            found = find_first(candidate_paths("google-mediapipe"))
+            if found:
+                return False, f"MediaPipe demo repo found at {found} but mediapipe not installed"
             return False, "MediaPipe not found. Install with: pip install mediapipe"
         except Exception as e:
             return False, f"Error checking MediaPipe: {str(e)}"
@@ -938,6 +960,91 @@ For more details:
             return False, f"Required package not installed: {e}. Install with: pip install libigl scipy"
         except Exception as e:
             return False, f"Error computing BBW skinning: {str(e)}"
+
+
+# ---------------------------------------------------------------------------
+# FO4 bone validation helpers
+# ---------------------------------------------------------------------------
+
+# FO4 hard limits
+_FO4_MAX_BONES       = 128   # max active bones per skinned mesh
+_FO4_MAX_INFLUENCES  = 4     # max bone influences per vertex
+
+# Expected FO4 skeleton root bone names
+_FO4_ROOT_BONES = {"COM", "NPC Root [Root]", "Root", "NPC Root"}
+
+
+def _validate_fo4_rig(armature_obj) -> list:
+    """Check an armature against FO4 bone constraints.
+
+    Returns a list of issue dicts: {severity, message, fix_hint}.
+    """
+    issues = []
+    if armature_obj is None or armature_obj.type != 'ARMATURE':
+        return [{"severity": "error",
+                 "message": "Not an armature object",
+                 "fix_hint": "Select the armature object"}]
+
+    bones = armature_obj.data.bones
+    bone_count = len(bones)
+
+    if bone_count > _FO4_MAX_BONES:
+        issues.append({
+            "severity": "warning",
+            "message": f"{bone_count} bones — FO4 recommends ≤{_FO4_MAX_BONES}",
+            "fix_hint": "Remove unused bones or split skinned mesh",
+        })
+
+    # Check for root bone
+    root_names = {b.name for b in bones if b.parent is None}
+    if not root_names.intersection(_FO4_ROOT_BONES):
+        issues.append({
+            "severity": "warning",
+            "message": f"No standard FO4 root bone found (roots: {root_names})",
+            "fix_hint": "Rename root bone to 'COM' or use fo4_skeleton.nif as base",
+        })
+
+    # Check for bones with spaces (NIF exporter issues)
+    bad_names = [b.name for b in bones if "  " in b.name]
+    if bad_names:
+        issues.append({
+            "severity": "error",
+            "message": f"{len(bad_names)} bone(s) have double-spaces in name",
+            "fix_hint": "Rename bones to remove double-spaces",
+        })
+
+    return issues
+
+
+def _check_vertex_influences(mesh_obj, armature_obj) -> list:
+    """Check that no vertex has more than FO4_MAX_INFLUENCES bone weights."""
+    issues = []
+    if mesh_obj is None or mesh_obj.type != 'MESH':
+        return issues
+    try:
+        import bpy
+        me = mesh_obj.data
+        for v in me.vertices:
+            if len(v.groups) > _FO4_MAX_INFLUENCES:
+                issues.append({
+                    "severity": "error",
+                    "message": (
+                        f"Vertex {v.index} has {len(v.groups)} bone influences "
+                        f"— FO4 max is {_FO4_MAX_INFLUENCES}"
+                    ),
+                    "fix_hint": "Use Weights > Limit Total (4) in Weight Paint mode",
+                })
+                if len(issues) >= 5:
+                    issues.append({"severity": "info",
+                                   "message": "… (more vertices affected)",
+                                   "fix_hint": "Run Weights > Limit Total on all vertices"})
+                    break
+    except Exception as exc:
+        issues.append({"severity": "error",
+                        "message": f"Could not check vertex influences: {exc}",
+                        "fix_hint": ""})
+    return issues
+
 
 def register():
     """Register RigNet helper functions"""

@@ -24,16 +24,29 @@ try:
 except ImportError:
     _winreg = None  # type: ignore[assignment]
 
+from .path_utils import available_drives, candidate_paths
 
-# Common Fallout 4 installation locations
-FO4_COMMON_PATHS = [
-    Path("C:/Program Files (x86)/Steam/steamapps/common/Fallout 4"),
-    Path("D:/SteamLibrary/steamapps/common/Fallout 4"),
-    Path("E:/SteamLibrary/steamapps/common/Fallout 4"),
-    Path("C:/Program Files/Fallout 4"),
-    Path("D:/Games/Fallout 4"),
-    Path("C:/GOG Games/Fallout 4"),
-]
+
+def _fo4_common_paths() -> list[Path]:
+    """Build Fallout 4 search paths across all available drives at runtime."""
+    paths: list[Path] = []
+    for drive in available_drives():
+        d = drive.rstrip("/")
+        paths += [
+            Path(f"{d}/Program Files (x86)/Steam/steamapps/common/Fallout 4"),
+            Path(f"{d}/Program Files/Steam/steamapps/common/Fallout 4"),
+            Path(f"{d}/SteamLibrary/steamapps/common/Fallout 4"),
+            Path(f"{d}/Steam/steamapps/common/Fallout 4"),
+            Path(f"{d}/Program Files/Fallout 4"),
+            Path(f"{d}/Program Files (x86)/Fallout 4"),
+            Path(f"{d}/Games/Fallout 4"),
+            Path(f"{d}/GOG Games/Fallout 4"),
+        ]
+    return paths
+
+
+# Common Fallout 4 installation locations (generated at import time)
+FO4_COMMON_PATHS = _fo4_common_paths()
 
 
 class FO4GameAssets:
@@ -340,12 +353,17 @@ class FO4GameAssets:
         except Exception:
             pass
 
-        # Fall back to common Creation Kit installation paths
-        ck_search = [
-            Path("C:/Program Files (x86)/Steam/steamapps/common/Fallout 4/Tools/Archive2/Archive2.exe"),
-            Path("C:/Program Files (x86)/Steam/steamapps/common/Fallout 4 Creation Kit/Archive2.exe"),
-            Path("C:/Games/Fallout 4/Tools/Archive2/Archive2.exe"),
-        ]
+        # Fall back to common Creation Kit installation paths across all drives
+        ck_search = []
+        for drive in available_drives():
+            d = drive.rstrip("/")
+            ck_search += [
+                Path(f"{d}/Program Files (x86)/Steam/steamapps/common/Fallout 4/Tools/Archive2/Archive2.exe"),
+                Path(f"{d}/Program Files/Steam/steamapps/common/Fallout 4/Tools/Archive2/Archive2.exe"),
+                Path(f"{d}/SteamLibrary/steamapps/common/Fallout 4/Tools/Archive2/Archive2.exe"),
+                Path(f"{d}/Program Files (x86)/Steam/steamapps/common/Fallout 4 Creation Kit/Archive2.exe"),
+                Path(f"{d}/Games/Fallout 4/Tools/Archive2/Archive2.exe"),
+            ]
         # Also check beside the game directory
         game_dir = FO4GameAssets.detect_fo4_installation()
         if game_dir:

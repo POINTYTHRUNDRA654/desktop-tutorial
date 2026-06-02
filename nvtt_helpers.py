@@ -253,6 +253,83 @@ class NVTTHelpers:
         if not tool:
             return False, tool_message
 
+        # nvcompress (nvtt) does not support PNG input — convert to TGA first.
+        # texconv handles PNG fine so this only applies to the nvtt path.
+        _tmp_tga = None
+        try:
+            if tool == "nvtt" and str(input_path).lower().endswith(".png"):
+                import tempfile
+                _tmp_fd, _tmp_tga = tempfile.mkstemp(suffix=".tga")
+                os.close(_tmp_fd)
+                _converted = False
+                # Try Pillow first (fast, no bpy dependency)
+                try:
+                    from PIL import Image as _PILImage
+                    with _PILImage.open(input_path) as _im:
+                        _im.save(_tmp_tga, format="TGA")
+                    _converted = True
+                except ImportError:
+                    pass
+                # Fall back to bpy image save
+                if not _converted:
+                    try:
+                        import bpy as _bpy
+                        _img = _bpy.data.images.load(input_path)
+                        _img.file_format = 'TARGA'
+                        _img.filepath_raw = _tmp_tga
+                        _img.save()
+                        _bpy.data.images.remove(_img)
+                        _converted = True
+                    except Exception:
+                        pass
+                # Last resort: pure-Python PNG→TGA via struct+zlib (no Pillow/bpy needed)
+                if not _converted:
+                    try:
+                        import struct as _struct, zlib as _zlib
+                        with open(input_path, "rb") as _pf:
+                            _png = _pf.read()
+                        # Parse PNG IHDR to get dimensions
+                        _w = _struct.unpack(">I", _png[16:20])[0]
+                        _h = _struct.unpack(">I", _png[20:24])[0]
+                        # Decompress IDAT chunks
+                        _idat = b""
+                        _pos = 8
+                        while _pos < len(_png) - 12:
+                            _clen = _struct.unpack(">I", _png[_pos:_pos+4])[0]
+                            _ctype = _png[_pos+4:_pos+8]
+                            if _ctype == b"IDAT":
+                                _idat += _png[_pos+8:_pos+8+_clen]
+                            _pos += 12 + _clen
+                        _raw = zlib.decompress(_idat)
+                        # Reconstruct scanlines (filter byte per row)
+                        _stride = _w * 4  # assume RGBA
+                        _pixels = b""
+                        for _row in range(_h):
+                            _offset = _row * (_stride + 1) + 1
+                            _pixels += _raw[_offset:_offset + _stride]
+                        # Write 32-bit TGA (BGRA)
+                        _bgra = bytearray()
+                        for _i in range(0, len(_pixels), 4):
+                            r, g, b, a = _pixels[_i], _pixels[_i+1], _pixels[_i+2], _pixels[_i+3]
+                            _bgra += bytes([b, g, r, a])
+                        _tga_hdr = _struct.pack('<BBBHHBHHHHBB',
+                            0,0,2,0,0,0,0,0,0,0,_w,_h,32,0x20)
+                        with open(_tmp_tga, "wb") as _tf:
+                            _tf.write(_tga_hdr + bytes(_bgra))
+                        _converted = True
+                    except Exception as _py_err:
+                        print(f"[NVTT] Pure-Python PNG→TGA fallback failed: {_py_err}")
+
+                if _converted:
+                    input_path = _tmp_tga
+                else:
+                    os.unlink(_tmp_tga)
+                    _tmp_tga = None
+
+        except Exception as _conv_err:
+            print(f"[NVTT] PNG→TGA pre-convert warning: {_conv_err}")
+            _tmp_tga = None
+
         try:
             if tool == "nvtt":
                 cmd = [
@@ -306,7 +383,14 @@ class NVTTHelpers:
             return False, "Texture conversion timed out (90 seconds)"
         except Exception as e:
             return False, f"Failed to convert texture: {str(e)}"
-    
+        finally:
+            # Clean up temporary TGA file created for nvcompress PNG workaround
+            if _tmp_tga and os.path.exists(_tmp_tga):
+                try:
+                    os.unlink(_tmp_tga)
+                except Exception:
+                    pass
+
     @staticmethod
     def batch_convert_textures(texture_list, output_dir=None, compression_map=None, preferred_tool=None):
         """
@@ -460,6 +544,39 @@ class NVTTHelpers:
             return True, message, converted_files
         else:
             return False, "Failed to convert any textures", []
+
+
+# ---------------------------------------------------------------------------
+# Mossy AI texture routing
+# ---------------------------------------------------------------------------
+
+def _route_texture_via_mossy(image_path: str, fmt: str = "dds",
+                              quality: str = "high") -> tuple:
+    """Route texture conversion/compression through Mossy AI.
+
+    Mossy handles NVTT/texconv externally so Blender does not need local
+    CLI tools installed.  Returns (success, result_path_or_error).
+    """
+    try:
+        import base64, os, tempfile
+        from . import mossy_link
+        with open(image_path, "rb") as fh:
+            img_b64 = base64.b64encode(fh.read()).decode("utf-8")
+        result = mossy_link.process_texture(
+            image_data_base64=img_b64, fmt=fmt, quality=quality, timeout=60
+        )
+        if result and result.get("status") == "success":
+            tex_data = result.get("texture_data", "")
+            if tex_data:
+                ext = "." + result.get("format", fmt)
+                tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+                tmp.write(base64.b64decode(tex_data))
+                tmp.close()
+                return True, tmp.name
+        return False, result.get("message", "Mossy returned no texture data") if result else "Mossy offline"
+    except Exception as exc:
+        return False, f"Mossy texture route error: {exc}"
+
 
 def register():
     """Register NVTT helper functions"""

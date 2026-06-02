@@ -1854,7 +1854,8 @@ class FO4_OT_ShowInstantNGPInfo(Operator):
             print(f"  100 images without RTX: {instantngp_helpers.InstantNGPHelpers.estimate_training_time(100, False)}")
             print("="*70 + "\n")
         else:
-            self.report({'WARNING'}, _instantngp_status_report(message))
+            level = {'INFO'} if 'source found' in message.lower() or 'already cloned' in message.lower() else {'WARNING'}
+            self.report(level, _instantngp_status_report(message))
             print("\n" + "="*70)
             print("INSTANT-NGP INSTALLATION")
             print("="*70)
@@ -1892,7 +1893,8 @@ class FO4_OT_CheckInstantNGPInstallation(Operator):
             print("Use 'About Instant-NGP' for workflow guide")
             print("="*70 + "\n")
         else:
-            self.report({'WARNING'}, _instantngp_status_report(message))
+            level = {'INFO'} if 'source found' in message.lower() or 'already cloned' in message.lower() else {'WARNING'}
+            self.report(level, _instantngp_status_report(message))
             print("\n" + "="*70)
             print("INSTANT-NGP INSTALLATION")
             print("="*70)

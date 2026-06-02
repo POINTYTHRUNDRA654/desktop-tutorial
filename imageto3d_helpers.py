@@ -6,6 +6,7 @@ Consolidates various image-to-3D solutions for Fallout 4 modding
 import bpy
 import importlib.util
 import os
+from .path_utils import candidate_paths, find_first
 import subprocess
 import shutil
 import time
@@ -57,12 +58,7 @@ class ImageTo3DHelpers:
                 return False
 
             # Check for TripoSR installation
-            possible_paths = [
-                os.path.expanduser('~/TripoSR'),
-                os.path.expanduser('~/Projects/TripoSR'),
-                '/opt/TripoSR',
-                'C:/Projects/TripoSR',
-            ]
+            possible_paths = candidate_paths("TripoSR")
 
             # Also check the tool_installers managed directory and nearby tool roots
             try:
@@ -93,14 +89,7 @@ class ImageTo3DHelpers:
     @staticmethod
     def find_triposr_path():
         """Find TripoSR installation path"""
-        possible_paths = [
-            os.path.expanduser('~/TripoSR'),
-            os.path.expanduser('~/Projects/TripoSR'),
-            os.path.expanduser('~/Documents/TripoSR'),
-            '/opt/TripoSR',
-            'C:/Projects/TripoSR',
-            'C:/Users/' + os.environ.get('USERNAME', '') + '/TripoSR',
-        ]
+        possible_paths = candidate_paths("TripoSR", "Documents/TripoSR", "Users/")
 
         # Also check the tool_installers managed directory and nearby tool roots
         try:
@@ -226,13 +215,7 @@ class ImageTo3DHelpers:
     @staticmethod
     def find_triposr_texture_gen_path():
         """Find triposr-texture-gen installation path"""
-        possible_paths = [
-            os.path.expanduser('~/triposr-texture-gen'),
-            os.path.expanduser('~/Projects/triposr-texture-gen'),
-            os.path.expanduser('~/Documents/triposr-texture-gen'),
-            '/opt/triposr-texture-gen',
-            'C:/Projects/triposr-texture-gen',
-        ]
+        possible_paths = candidate_paths("triposr-texture-gen", "Documents/triposr-texture-gen")
         
         for path in possible_paths:
             if os.path.exists(os.path.join(path, 'generate_texture.py')):
@@ -564,12 +547,7 @@ See README.md for Fallout 4 modding guide.
         """Check if DreamGaussian is available"""
         try:
             import torch
-            possible_paths = [
-                os.path.expanduser('~/dreamgaussian'),
-                os.path.expanduser('~/Projects/dreamgaussian'),
-                '/opt/dreamgaussian',
-                'C:/Projects/dreamgaussian',
-            ]
+            possible_paths = candidate_paths("dreamgaussian")
             
             for path in possible_paths:
                 if os.path.exists(path):
@@ -582,13 +560,7 @@ See README.md for Fallout 4 modding guide.
     @staticmethod
     def find_dreamgaussian_path():
         """Find DreamGaussian installation path"""
-        possible_paths = [
-            os.path.expanduser('~/dreamgaussian'),
-            os.path.expanduser('~/Projects/dreamgaussian'),
-            os.path.expanduser('~/Documents/dreamgaussian'),
-            '/opt/dreamgaussian',
-            'C:/Projects/dreamgaussian',
-        ]
+        possible_paths = candidate_paths("dreamgaussian", "Documents/dreamgaussian")
         
         for path in possible_paths:
             if os.path.exists(os.path.join(path, 'main.py')):
@@ -833,13 +805,7 @@ See NVIDIA_RESOURCES.md for detailed setup instructions.
     @staticmethod
     def find_stereo_triposr_path():
         """Find super-ai-vision-stereo-world-generate-triposr installation path"""
-        possible_paths = [
-            os.path.expanduser('~/super-ai-vision-stereo-world-generate-triposr'),
-            os.path.expanduser('~/Projects/super-ai-vision-stereo-world-generate-triposr'),
-            os.path.expanduser('~/stereo-triposr'),
-            '/opt/stereo-triposr',
-            'C:/Projects/stereo-triposr',
-        ]
+        possible_paths = candidate_paths("super-ai-vision-stereo-world-generate-triposr", "stereo-triposr")
         
         for path in possible_paths:
             if os.path.exists(os.path.join(path, 'generate.py')):
@@ -894,13 +860,7 @@ See NVIDIA_RESOURCES.md for detailed setup instructions.
     @staticmethod
     def find_triposr_bake_path():
         """Find TripoSR-Bake installation path"""
-        possible_paths = [
-            os.path.expanduser('~/TripoSR-Bake'),
-            os.path.expanduser('~/Projects/TripoSR-Bake'),
-            os.path.expanduser('~/Documents/TripoSR-Bake'),
-            '/opt/TripoSR-Bake',
-            'C:/Projects/TripoSR-Bake',
-        ]
+        possible_paths = candidate_paths("TripoSR-Bake", "Documents/TripoSR-Bake")
         
         for path in possible_paths:
             if os.path.exists(os.path.join(path, 'bake.py')):
@@ -1344,13 +1304,7 @@ See NVIDIA_RESOURCES.md for more AI tools.
     @staticmethod
     def find_triposr_light_path():
         """Find triposr_light installation path"""
-        possible_paths = [
-            os.path.expanduser('~/triposr_light'),
-            os.path.expanduser('~/Projects/triposr_light'),
-            os.path.expanduser('~/Documents/triposr_light'),
-            '/opt/triposr_light',
-            'C:/Projects/triposr_light',
-        ]
+        possible_paths = candidate_paths("triposr_light", "Documents/triposr_light")
         
         for path in possible_paths:
             if os.path.exists(os.path.join(path, 'run.py')):
@@ -1826,13 +1780,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
     @staticmethod
     def find_triposr_pythonic_path():
         """Find triposr-implementation (pythonic) installation path"""
-        possible_paths = [
-            os.path.expanduser('~/triposr-implementation'),
-            os.path.expanduser('~/Projects/triposr-implementation'),
-            os.path.expanduser('~/Documents/triposr-implementation'),
-            '/opt/triposr-implementation',
-            'C:/Projects/triposr-implementation',
-        ]
+        possible_paths = candidate_paths("triposr-implementation", "Documents/triposr-implementation")
         
         for path in possible_paths:
             if os.path.exists(os.path.join(path, 'triposr.py')):
@@ -2034,7 +1982,10 @@ def generate_and_import(image_path):
     mesh.export(temp_obj)
     
     # Import to Blender
-    bpy.ops.import_scene.obj(filepath=temp_obj)
+    if hasattr(bpy.ops.wm, 'obj_import'):
+        bpy.ops.wm.obj_import(filepath=temp_obj)
+    else:
+        bpy.ops.import_scene.obj(filepath=temp_obj)
     
     # Get imported object
     obj = bpy.context.selected_objects[0]
@@ -2088,7 +2039,10 @@ def batch_import_from_folder(folder_path):
         mesh.export(obj_path)
         
         # Import to Blender
-        bpy.ops.import_scene.obj(filepath=obj_path)
+        if hasattr(bpy.ops.wm, 'obj_import'):
+            bpy.ops.wm.obj_import(filepath=obj_path)
+        else:
+            bpy.ops.import_scene.obj(filepath=obj_path)
         
         print(f"Imported: {obj_name}")
 
@@ -2449,14 +2403,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
     @staticmethod
     def find_starxsky_triposr_path():
         """Find StarxSky TRIPOSR installation path"""
-        possible_paths = [
-            os.path.expanduser('~/TRIPOSR'),
-            os.path.expanduser('~/StarxSky-TRIPOSR'),
-            os.path.expanduser('~/Projects/TRIPOSR'),
-            os.path.expanduser('~/Documents/TRIPOSR'),
-            '/opt/TRIPOSR',
-            'C:/Projects/TRIPOSR',
-        ]
+        possible_paths = candidate_paths("TRIPOSR", "StarxSky-TRIPOSR", "Documents/TRIPOSR")
         
         for path in possible_paths:
             if os.path.exists(os.path.join(path, 'run.py')):
@@ -2902,7 +2849,10 @@ def generate_asset_from_text(prompt):
     mesh.export(temp_obj)
     
     # Import to Blender
-    bpy.ops.import_scene.obj(filepath=temp_obj)
+    if hasattr(bpy.ops.wm, 'obj_import'):
+        bpy.ops.wm.obj_import(filepath=temp_obj)
+    else:
+        bpy.ops.import_scene.obj(filepath=temp_obj)
     obj = bpy.context.selected_objects[0]
     
     # Optimize
@@ -3247,14 +3197,7 @@ See NVIDIA_RESOURCES.md for all AI tools.
     @staticmethod
     def find_oneclick_imageto3d_path():
         """Find oneClick Windows ImageTo3D installation path"""
-        possible_paths = [
-            os.path.expanduser('~/oneClick_Windows_ImageTo3D_install'),
-            os.path.expanduser('~/Projects/oneClick_Windows_ImageTo3D_install'),
-            os.path.expanduser('~/Documents/oneClick_Windows_ImageTo3D_install'),
-            '/opt/oneClick_Windows_ImageTo3D_install',
-            'C:/Projects/oneClick_Windows_ImageTo3D_install',
-            'C:/oneClick_Windows_ImageTo3D_install',
-        ]
+        possible_paths = candidate_paths("oneClick_Windows_ImageTo3D_install", "Documents/oneClick_Windows_ImageTo3D_install")
         
         for path in possible_paths:
             if os.path.exists(path):
@@ -3328,10 +3271,260 @@ See NVIDIA_RESOURCES.md for all AI tools.
             
             return False, install_msg
 
+            return False, install_msg
+
+
+# ---------------------------------------------------------------------------
+# FO4-Ready Image-to-Mesh Pipeline
+# ---------------------------------------------------------------------------
+
+def fo4_post_process(obj, target_polys: int = 10000, name: str = "") -> tuple:
+    """Post-process a generated mesh to meet Fallout 4 requirements.
+
+    Steps: merge doubles → recalculate normals → triangulate → UV unwrap →
+    apply scale → remesh/decimate to target_polys → rename → add material slot.
+    """
+    import math
+
+    if obj is None or obj.type != 'MESH':
+        return False, "Object is not a mesh"
+
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+
+    try:
+        # 1. Merge by distance
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.remove_doubles(threshold=0.0001)
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        # 2. Recalculate normals
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.normals_make_consistent(inside=False)
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        # 3. Triangulate (FO4 requires all-tris)
+        tri_mod = obj.modifiers.new(name="Triangulate_FO4", type='TRIANGULATE')
+        tri_mod.quad_method = 'BEAUTY'
+        tri_mod.ngon_method = 'BEAUTY'
+        bpy.ops.object.modifier_apply(modifier=tri_mod.name)
+
+        # 4. Smart UV unwrap if no UV map
+        if not obj.data.uv_layers:
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.02)
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        # 5. Apply scale
+        bpy.ops.object.transform_apply(scale=True)
+
+        # 6. Reduce poly count to FO4 limit
+        poly_count = len(obj.data.polygons)
+        fo4_limit  = 65535
+        effective_target = min(target_polys or fo4_limit, fo4_limit)
+
+        if poly_count > effective_target:
+            ratio = max(0.01, effective_target / max(poly_count, 1))
+            try:
+                bpy.ops.object.quadriflow_remesh(
+                    target_faces=effective_target,
+                    use_preserve_sharp=True,
+                    use_preserve_boundary=True,
+                )
+                # Quadriflow outputs quads — triangulate again
+                tri2 = obj.modifiers.new(name="Triangulate_Post", type='TRIANGULATE')
+                bpy.ops.object.modifier_apply(modifier=tri2.name)
+            except Exception:
+                # Blender version without Quadriflow — use Decimate
+                dec = obj.modifiers.new(name="Decimate_FO4", type='DECIMATE')
+                dec.ratio = ratio
+                bpy.ops.object.modifier_apply(modifier=dec.name)
+
+        # 7. Rename with FO4 convention
+        if name:
+            safe = name.replace(" ", "_")[:63]
+            obj.name      = safe
+            obj.data.name = safe + "_mesh"
+
+        # 8. Add material slot
+        if not any(s.material for s in obj.material_slots):
+            mat_name = (obj.name or "FO4_Asset") + "_mat"
+            mat = bpy.data.materials.get(mat_name) or bpy.data.materials.new(mat_name)
+            mat.use_nodes = True
+            if not obj.data.materials:
+                obj.data.materials.append(mat)
+            else:
+                obj.material_slots[0].material = mat
+
+        final = len(obj.data.polygons)
+        uv_ok = bool(obj.data.uv_layers)
+        mat_ok = any(s.material for s in obj.material_slots)
+        return True, (
+            f"FO4 ready: {final:,} tris | "
+            f"UV {'✓' if uv_ok else '✗'} | "
+            f"Material {'✓' if mat_ok else '✗'}"
+        )
+
+    except Exception as exc:
+        try:
+            bpy.ops.object.mode_set(mode='OBJECT')
+        except Exception:
+            pass
+        return False, f"Post-process error: {exc}"
+
+
+def route_image_to_mesh_via_mossy(image_path: str,
+                                   style: str = "lowpoly",
+                                   timeout: float = 180) -> tuple:
+    """Route image-to-3D through Mossy AI. Returns (success, obj_path_or_error)."""
+    try:
+        import base64, tempfile, os
+        from . import mossy_link
+
+        with open(image_path, "rb") as fh:
+            img_b64 = base64.b64encode(fh.read()).decode("utf-8")
+
+        result = mossy_link.generate_mesh(
+            prompt="Game asset mesh for Fallout 4, low-poly, clean topology",
+            image_base64=img_b64,
+            style=style,
+            timeout=timeout,
+        )
+        if result and result.get("status") == "success" and result.get("obj_data"):
+            tmp = tempfile.NamedTemporaryFile(suffix=".obj", delete=False)
+            tmp.write(result["obj_data"].encode("utf-8"))
+            tmp.close()
+            return True, tmp.name
+        return False, (result.get("message", "No mesh data") if result else "Mossy offline")
+    except Exception as exc:
+        return False, f"Mossy route error: {exc}"
+
+
+class FO4_OT_ImageToMeshFO4(bpy.types.Operator):
+    """Convert an image to a Fallout 4-ready mesh via Mossy AI or local TripoSR.
+    Output is automatically triangulated, UV-mapped, and poly-capped at FO4 limits."""
+
+    bl_idname  = "fo4.image_to_mesh_fo4"
+    bl_label   = "Image → FO4 Mesh"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: bpy.props.StringProperty(
+        name="Image", subtype='FILE_PATH',
+        description="Source image (PNG, JPG, TGA)",
+    )
+    target_polys: bpy.props.IntProperty(
+        name="Target Poly Count",
+        description="Triangle target (FO4 hard limit: 65535)",
+        default=10000, min=500, max=65535,
+    )
+    style: bpy.props.EnumProperty(
+        name="Style",
+        items=[
+            ('lowpoly',   "Low-Poly",   "Clean low-poly — best for FO4"),
+            ('realistic', "Realistic",  "Higher detail, more decimation needed"),
+            ('armor',     "Armor/Hard", "Hard-surface: armor, weapons, props"),
+        ],
+        default='lowpoly',
+    )
+    use_mossy: bpy.props.BoolProperty(
+        name="Use Mossy AI",
+        description="Route generation through Mossy (recommended)",
+        default=True,
+    )
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        import os
+
+        path = bpy.path.abspath(self.filepath)
+        if not os.path.isfile(path):
+            self.report({'ERROR'}, f"Image not found: {path}")
+            return {'CANCELLED'}
+
+        obj_path    = None
+        method_used = ""
+
+        # Try Mossy first
+        if self.use_mossy:
+            ok, result = route_image_to_mesh_via_mossy(path, style=self.style)
+            if ok:
+                obj_path    = result
+                method_used = "Mossy AI"
+            else:
+                self.report({'INFO'}, f"Mossy unavailable ({result}), trying local TripoSR…")
+
+        # Local TripoSR fallback
+        if obj_path is None:
+            try:
+                if ImageTo3DHelpers.is_triposr_available():
+                    ok, msg, obj_path = ImageTo3DHelpers.convert_image_to_3d_triposr(path)
+                    if ok:
+                        method_used = "TripoSR (local)"
+                    else:
+                        self.report({'WARNING'}, f"TripoSR: {msg}")
+                else:
+                    self.report({'WARNING'},
+                        "Mossy offline and TripoSR not installed. "
+                        "Start Mossy or install TripoSR to use AI generation.")
+                    return {'CANCELLED'}
+            except Exception as exc:
+                self.report({'ERROR'}, f"TripoSR error: {exc}")
+                return {'CANCELLED'}
+
+        if not obj_path:
+            self.report({'ERROR'}, "Generation failed — no mesh produced")
+            return {'CANCELLED'}
+
+        # Import into Blender
+        before = set(bpy.data.objects)
+        try:
+            if hasattr(bpy.ops.wm, 'obj_import'):
+                bpy.ops.wm.obj_import(filepath=obj_path)
+            else:
+                bpy.ops.import_scene.obj(filepath=obj_path)
+        except Exception as exc:
+            self.report({'ERROR'}, f"Import failed: {exc}")
+            return {'CANCELLED'}
+
+        new_objs = [o for o in bpy.data.objects
+                    if o not in before and o.type == 'MESH']
+        if not new_objs:
+            self.report({'ERROR'}, "Import succeeded but no mesh object found")
+            return {'CANCELLED'}
+
+        asset_name = os.path.splitext(os.path.basename(path))[0]
+        ok, msg = fo4_post_process(new_objs[0],
+                                   target_polys=self.target_polys,
+                                   name=asset_name)
+        level = 'INFO' if ok else 'WARNING'
+        self.report({level}, f"[{method_used}] {msg}")
+
+        # Clean up temp OBJ
+        try:
+            import tempfile
+            if obj_path and os.path.dirname(obj_path) == tempfile.gettempdir():
+                os.unlink(obj_path)
+        except Exception:
+            pass
+
+        return {'FINISHED'}
+
+
 def register():
-    """Register image-to-3D helper functions"""
-    pass
+    try:
+        bpy.utils.register_class(FO4_OT_ImageToMeshFO4)
+    except Exception:
+        pass
+
 
 def unregister():
-    """Unregister image-to-3D helper functions"""
-    pass
+    try:
+        bpy.utils.unregister_class(FO4_OT_ImageToMeshFO4)
+    except Exception:
+        pass

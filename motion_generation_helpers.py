@@ -16,6 +16,7 @@ https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node
 
 import bpy
 import os
+from .path_utils import candidate_paths, find_first
 import subprocess
 import sys
 from pathlib import Path
@@ -28,23 +29,25 @@ class MotionGenerationHelpers:
         """Check if HY-Motion-1.0 is installed and available"""
         try:
             import torch
-            
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, "PyTorch DLL failed to load (CUDA/driver mismatch) — reinstall PyTorch for your GPU driver or use CPU-only build"
+            return False, f"PyTorch failed to load: {e}"
+        except ImportError:
+            return False, "PyTorch not installed"
+        except Exception as e:
+            return False, f"Error checking HY-Motion: {str(e)}"
+
+        try:
             # Check for HY-Motion-1.0 repository
-            possible_paths = [
-                os.path.expanduser("~/HY-Motion-1.0"),
-                os.path.expanduser("~/Projects/HY-Motion-1.0"),
-                os.path.join(os.path.dirname(__file__), "HY-Motion-1.0"),
-                "C:/HY-Motion-1.0" if sys.platform == "win32" else "/opt/HY-Motion-1.0"
-            ]
-            
+            possible_paths = candidate_paths("HY-Motion-1.0")
+
             for path in possible_paths:
                 if os.path.exists(path) and os.path.isdir(path):
                     return True, f"HY-Motion-1.0 available at {path}"
-            
+
             return False, "HY-Motion-1.0 repository not found"
-                
-        except ImportError:
-            return False, "PyTorch not installed"
+
         except Exception as e:
             return False, f"Error checking HY-Motion: {str(e)}"
     
@@ -53,37 +56,35 @@ class MotionGenerationHelpers:
         """Check if MotionDiffuse is installed and available"""
         try:
             import torch
-            
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, "PyTorch DLL failed to load (CUDA/driver mismatch) — reinstall PyTorch for your GPU driver or use CPU-only build"
+            return False, f"PyTorch failed to load: {e}"
+        except ImportError:
+            return False, "PyTorch not installed"
+
+        try:
             # Check for both original MotionDiffuse and SMPL-X extension
-            possible_paths = [
-                # Original MotionDiffuse
-                (os.path.expanduser("~/MotionDiffuse"), "original"),
-                (os.path.expanduser("~/Projects/MotionDiffuse"), "original"),
-                (os.path.join(os.path.dirname(__file__), "MotionDiffuse"), "original"),
-                ("C:/MotionDiffuse" if sys.platform == "win32" else "/opt/MotionDiffuse", "original"),
-            ]
-            
+            possible_paths = candidate_paths("MotionDiffuse")
+
             # Check for SMPL-X extension (ellemcfarlane fork)
-            # This might be in a different directory or the same one
             smplx_paths = [
                 (os.path.expanduser("~/MotionDiffuse-SMPLX"), "smplx"),
                 (os.path.expanduser("~/Projects/MotionDiffuse-SMPLX"), "smplx"),
                 (os.path.expanduser("~/ellemcfarlane-MotionDiffuse"), "smplx"),
                 (os.path.expanduser("~/Projects/ellemcfarlane-MotionDiffuse"), "smplx"),
             ]
-            
+
             all_paths = possible_paths + smplx_paths
-            
+
             found_versions = []
             for path, version_type in all_paths:
                 if os.path.exists(path) and os.path.isdir(path):
-                    # Check for text2motion directory
                     text2motion_path = os.path.join(path, "text2motion")
                     if os.path.exists(text2motion_path):
                         found_versions.append((path, version_type))
-            
+
             if found_versions:
-                # Prefer SMPL-X version if available
                 smplx_versions = [(p, v) for p, v in found_versions if v == "smplx"]
                 if smplx_versions:
                     path, _ = smplx_versions[0]
@@ -91,11 +92,9 @@ class MotionGenerationHelpers:
                 else:
                     path, _ = found_versions[0]
                     return True, f"MotionDiffuse available at {path}"
-            
+
             return False, "MotionDiffuse repository not found"
-                
-        except ImportError:
-            return False, "PyTorch not installed"
+
         except Exception as e:
             return False, f"Error checking MotionDiffuse: {str(e)}"
     
@@ -104,23 +103,23 @@ class MotionGenerationHelpers:
         """Check if ComfyUI-MotionDiff is installed and available"""
         try:
             import torch
-            
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 1114 or "WinError 1114" in str(e):
+                return False, "PyTorch DLL failed to load (CUDA/driver mismatch) — reinstall PyTorch for your GPU driver or use CPU-only build"
+            return False, f"PyTorch failed to load: {e}"
+        except ImportError:
+            return False, "PyTorch not installed"
+
+        try:
             # Check for ComfyUI-MotionDiff repository
-            possible_paths = [
-                os.path.expanduser("~/ComfyUI-MotionDiff"),
-                os.path.expanduser("~/Projects/ComfyUI-MotionDiff"),
-                os.path.join(os.path.dirname(__file__), "ComfyUI-MotionDiff"),
-                "C:/ComfyUI-MotionDiff" if sys.platform == "win32" else "/opt/ComfyUI-MotionDiff"
-            ]
-            
+            possible_paths = candidate_paths("ComfyUI-MotionDiff")
+
             for path in possible_paths:
                 if os.path.exists(path) and os.path.isdir(path):
                     return True, f"ComfyUI-MotionDiff available at {path}"
-            
+
             return False, "ComfyUI-MotionDiff repository not found"
-                
-        except ImportError:
-            return False, "PyTorch not installed"
+
         except Exception as e:
             return False, f"Error checking ComfyUI-MotionDiff: {str(e)}"
     
@@ -138,12 +137,7 @@ class MotionGenerationHelpers:
                 return True, "ComfyUI-BlenderAI-node add-on is installed and enabled"
             
             # Check for repository in common locations
-            possible_paths = [
-                os.path.expanduser("~/ComfyUI-BlenderAI-node"),
-                os.path.expanduser("~/Projects/ComfyUI-BlenderAI-node"),
-                os.path.join(os.path.dirname(__file__), "ComfyUI-BlenderAI-node"),
-                "C:/ComfyUI-BlenderAI-node" if sys.platform == "win32" else "/opt/ComfyUI-BlenderAI-node"
-            ]
+            possible_paths = candidate_paths("ComfyUI-BlenderAI-node")
             
             for path in possible_paths:
                 if os.path.exists(path) and os.path.isdir(path):
@@ -653,6 +647,18 @@ For more details:
             return True, f"Motion generated in {output_dir}", output_dir
 
         return False, f"Unknown motion generation system: {system}", None
+
+
+def _fo4_post_process(obj, target_polys: int = 10000, name: str = "") -> tuple:
+    """Delegate to the canonical FO4 post-process pipeline."""
+    try:
+        from . import imageto3d_helpers as _ith
+        if hasattr(_ith, 'fo4_post_process'):
+            return _ith.fo4_post_process(obj, target_polys=target_polys, name=name)
+    except Exception:
+        pass
+    return False, "imageto3d_helpers not available"
+
 
 def register():
     """Register motion generation helper functions"""

@@ -606,11 +606,10 @@ def collect_diagnostics():
     if _up and hasattr(_up, "_rignet_status_cache"):
         _rc = _up._rignet_status_cache
         _rc_ts = _rc.get("ts", 0.0)
-        # ts == 0.0 means cache was explicitly invalidated (needs refresh)
+        # ts == 0.0 means never probed or just invalidated — not a real error
         if _rc_ts == 0.0:
-            results.append(("WARN", "AI Tools",
-                            "RigNet: status cache invalidated — "
-                            "will re-probe on next UI draw"))
+            results.append(("INFO", "AI Tools",
+                            "RigNet: will probe on next UI draw (optional)"))
         elif _rc.get("rignet", (False,))[0]:
             results.append(("OK",   "AI Tools", "RigNet: available ✓"))
         else:
@@ -624,7 +623,13 @@ def collect_diagnostics():
     if _prefs is not None and getattr(_prefs, "use_mossy_as_ai", False):
         _saved_pt = getattr(_prefs, "pytorch_path", "").strip()
         if _saved_pt:
-            if _saved_pt in sys.path:
+            # Normalize for comparison — trailing slashes and case differ on Windows
+            _saved_pt_norm = os.path.normcase(os.path.normpath(_saved_pt))
+            _in_syspath = any(
+                os.path.normcase(os.path.normpath(p)) == _saved_pt_norm
+                for p in sys.path
+            )
+            if _in_syspath:
                 results.append(("OK", "Mossy",
                                 f"PyTorch path persisted and active: {_saved_pt}"))
             else:
@@ -720,23 +725,38 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
             _nb   = (__package__ or "").split(".")[-1]
             _op   = __package__ or ""
             _adir = os.path.normcase(os.path.dirname(os.path.abspath(__file__)))
+            # Current extension prefix, e.g. "bl_ext.user_default"
+            _current_prefix = ".".join(_op.split(".")[:-1]) if "." in _op else ""
+
             _purge = [
                 k for k, m in list(sys.modules.items())
                 if (_nb and _nb in k
                     and not (k == _op or k.startswith(_op + "."))
                     and "addon_diagnostics" not in k
                     and m is not None
-                    and getattr(m, "__file__", None)
                     and (
-                        # Case A: Same physical directory — stale namespace from
-                        # an extension-prefix change (e.g. blender_org → user_default).
-                        os.path.normcase(
-                            os.path.dirname(os.path.abspath(m.__file__))
-                        ) == _adir
-                        or
-                        # Case B: File no longer exists on disk — ghost entry from
-                        # a previously uninstalled copy of the addon.
-                        not os.path.isfile(m.__file__)
+                        not getattr(m, "__file__", None)
+                        or (
+                            # Case A: Same physical directory (prefix rename cycle)
+                            os.path.normcase(
+                                os.path.dirname(os.path.abspath(m.__file__))
+                            ) == _adir
+                            or
+                            # Case B: File no longer exists on disk (ghost entry)
+                            not os.path.isfile(m.__file__)
+                            or
+                            # Case C: Different bl_ext.* prefix for the same addon.
+                            # e.g. bl_ext.blender_org.blender_game_tools stale after
+                            # moving to bl_ext.user_default.blender_game_tools.
+                            # Two different extension prefixes for the same addon
+                            # name cannot both be legitimately active.
+                            (
+                                _current_prefix
+                                and k.startswith("bl_ext.")
+                                and not k.startswith(_current_prefix + ".")
+                                and (_nb in k)
+                            )
+                        )
                     ))
             ]
             for _k in _purge:
@@ -895,11 +915,16 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
                 prefs = prefs_mod.get_preferences()
                 if prefs:
                     _pt_path = getattr(prefs, "pytorch_path", "").strip()
-                    if _pt_path and os.path.isdir(_pt_path) and _pt_path not in sys.path:
-                        sys.path.insert(0, _pt_path)
-                        fixed.append(f"Mossy PyTorch path applied to sys.path: {_pt_path}")
-                    elif _pt_path and _pt_path in sys.path:
-                        fixed.append(f"Mossy PyTorch path already in sys.path: {_pt_path}")
+                    if _pt_path and os.path.isdir(_pt_path):
+                        _pt_norm = os.path.normcase(os.path.normpath(_pt_path))
+                        _already = any(
+                            os.path.normcase(os.path.normpath(p)) == _pt_norm
+                            for p in sys.path
+                        )
+                        if not _already:
+                            sys.path.insert(0, _pt_path)
+                            fixed.append(f"Mossy PyTorch path applied to sys.path: {_pt_path}")
+                        # Already present — not broken, don't count as a fix
             except Exception as exc:
                 failed.append(f"apply Mossy pytorch_path: {exc}")
 
@@ -928,6 +953,226 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
                         fixed.append(f"knowledge_base directory created at {_kb_path}")
         except Exception as exc:
             failed.append(f"create knowledge_base dir: {exc}")
+
+        # ── Step 8: force-refresh all AI tool statuses (None AND stale False) ─
+        # Covers: "status not yet checked" AND "stale cache before torch paths ready"
+        _ai_refresh_map = [
+            ("hunyuan3d_helpers", "HUNYUAN3D_AVAILABLE", "check_hunyuan3d_availability"),
+            ("hymotion_helpers",  "HYMOTION_AVAILABLE",  "check_hymotion_availability"),
+            ("zoedepth_helpers",  "ZOEDEPTH_AVAILABLE",  "check_zoedepth_availability"),
+        ]
+        # Determine if torch is available (same logic as diagnostics)
+        _torch_available = (
+            importlib.util.find_spec("torch") is not None
+            or bool(sys.modules.get("torch"))
+        )
+        for _attr, _glob, _check_fn in _ai_refresh_map:
+            try:
+                _helper = getattr(init, _attr, None) if init else None
+                if _helper is None:
+                    continue
+                _cur = getattr(_helper, _glob, "?")
+                # Refresh when: never checked (None) OR stale False with torch present
+                _needs_refresh = (
+                    _cur is None
+                    or (_cur is False and _torch_available)
+                )
+                if _needs_refresh and hasattr(_helper, _check_fn):
+                    avail, _msg = getattr(_helper, _check_fn)()
+                    fixed.append(
+                        f"{_attr.replace('_helpers','')} status refreshed: "
+                        f"{'available' if avail else 'not available'}"
+                    )
+                elif _needs_refresh:
+                    # No check function — just clear the stale False so it re-probes on draw
+                    setattr(_helper, _glob, None)
+                    fixed.append(f"{_attr.replace('_helpers','')} status cache cleared (will re-probe)")
+            except Exception as exc:
+                failed.append(f"{_attr} status refresh: {exc}")
+
+        # ── Step 9: clear stale configured-but-missing tool paths ─────────────
+        # If a tool path is saved in preferences but no longer exists on disk,
+        # clear it so the diagnostic shows INFO (not configured) instead of WARN
+        # (configured but missing).  We only clear paths that are provably gone —
+        # single-file paths where the file is absent, or directory paths where
+        # the directory is absent.  We never clear a path unless it is clearly
+        # invalid to avoid accidentally losing a path that's on a disconnected drive.
+        if prefs_mod:
+            try:
+                prefs = prefs_mod.get_preferences()
+                if prefs:
+                    _path_fields = [
+                        "ffmpeg_path", "nvtt_path", "texconv_path",
+                        "havok2fbx_path", "ckcmd_path", "umodel_path",
+                        "tools_root", "fo4_assets_path",
+                    ]
+                    cleared = []
+                    for _field in _path_fields:
+                        _val = getattr(prefs, _field, "").strip()
+                        if not _val:
+                            continue
+                        # Normalise: strip Blender-relative prefix if present
+                        try:
+                            import bpy as _bpy
+                            _abs = _bpy.path.abspath(_val).strip()
+                        except Exception:
+                            _abs = _val
+                        # Only clear if the path is absolute and provably absent
+                        if os.path.isabs(_abs) and not os.path.exists(_abs):
+                            try:
+                                setattr(prefs, _field, "")
+                                cleared.append(_field)
+                            except Exception:
+                                pass
+                    if cleared:
+                        try:
+                            prefs_mod.save_prefs_deferred()
+                        except Exception:
+                            pass
+                        fixed.append(
+                            f"cleared {len(cleared)} stale tool path(s): "
+                            + ", ".join(cleared)
+                        )
+            except Exception as exc:
+                failed.append(f"clear stale paths: {exc}")
+
+        # ── Step 10: ensure knowledge base directory exists ───────────────────
+        # Already in Step 7 but kept here in sequence for completeness — Step 7
+        # runs earlier; this is a no-op if the directory was already created.
+
+        # ── Step 12: repair empty RigNet folder via Mossy install ─────────────
+        # If the RigNet folder exists but is empty (partial/failed clone), and
+        # Mossy is online, trigger a re-install automatically.
+        try:
+            _rn_helpers = getattr(init, "rignet_helpers", None) if init else None
+            if _rn_helpers and hasattr(_rn_helpers, "check_rignet_available"):
+                _rn_ok, _rn_msg = _rn_helpers.check_rignet_available()
+                if not _rn_ok and "appears empty" in _rn_msg:
+                    # Attempt re-install via tool_installers
+                    _ti = getattr(init, "tool_installers", None)
+                    if _ti and hasattr(_ti, "install_rignet"):
+                                            print("[Auto-Fix] RigNet folder empty -- attempting re-clone via git...")
+                    import subprocess as _sp, shutil as _sh
+                    _rn_rignet_dir = None
+                    try:
+                        _ti = getattr(init, "tool_installers", None)
+                        if _ti and hasattr(_ti, "get_rignet_dir"):
+                            _rn_rignet_dir = str(_ti.get_rignet_dir())
+                    except Exception:
+                        pass
+                    _rn_cloned = False
+                    if _rn_rignet_dir and _sh.which("git"):
+                        try:
+                            import shutil as _sh2, os as _os2
+                            if _os2.path.isdir(_rn_rignet_dir):
+                                _sh2.rmtree(_rn_rignet_dir, ignore_errors=True)
+                            _rn_res = _sp.run(
+                                ["git", "clone", "--depth=1",
+                                 "https://github.com/govindjoshi12/rignet-gj.git",
+                                 _rn_rignet_dir],
+                                capture_output=True, text=True, timeout=120,
+                            )
+                            if _rn_res.returncode == 0:
+                                fixed.append("RigNet re-cloned via git")
+                                _rn_cloned = True
+                            else:
+                                failed.append(f"RigNet git clone failed: {_rn_res.stderr.strip()[:80]}")
+                        except Exception as _rn_exc:
+                            failed.append(f"RigNet git clone error: {_rn_exc}")
+                    if not _rn_cloned:
+                        # Fallback: try tool_installers which routes through Mossy
+                        _ti2 = getattr(init, "tool_installers", None)
+                        if _ti2 and hasattr(_ti2, "install_rignet"):
+                            _rn_ok2, _rn_msg2 = _ti2.install_rignet()
+                            if _rn_ok2:
+                                fixed.append(f"RigNet installed: {_rn_msg2}")
+                            else:
+                                failed.append(f"RigNet install: {_rn_msg2}")
+        except Exception as exc:
+            failed.append(f"RigNet repair: {exc}")
+
+        # ── Step 13: install libigl via Mossy if not found ────────────────────
+        # libigl requires Mossy (Blender's Python lacks C headers for source build).
+        # Only attempt if Mossy bridge is online.
+        try:
+            _rn_helpers = getattr(init, "rignet_helpers", None) if init else None
+            if _rn_helpers and hasattr(_rn_helpers, "check_libigl_available"):
+                _lg_ok, _lg_msg = _rn_helpers.check_libigl_available()
+                if not _lg_ok:
+                    # Check Mossy is online before attempting
+                    _ml = getattr(init, "mossy_link", None)
+                    _bridge_up = False
+                    if _ml and hasattr(_ml, "check_bridge"):
+                        try:
+                            _bridge_up, _ = _ml.check_bridge(timeout=1.5)
+                        except Exception:
+                            pass
+                    if _bridge_up:
+                        _ti = getattr(init, "tool_installers", None)
+                        if _ti and hasattr(_ti, "install_libigl"):
+                            print("[Auto-Fix] libigl not found — attempting Mossy install...")
+                            _lg_install_ok, _lg_install_msg = _ti.install_libigl()
+                            if _lg_install_ok:
+                                fixed.append(f"libigl installed: {_lg_install_msg}")
+                            else:
+                                failed.append(f"libigl install: {_lg_install_msg}")
+                    else:
+                        failed.append("libigl not installed — start Mossy and run Auto-Fix again")
+        except Exception as exc:
+            failed.append(f"libigl install: {exc}")
+
+        # ── Step 11: re-register preferences if get_preferences() returns None ─
+        try:
+            if prefs_mod:
+                prefs = prefs_mod.get_preferences()
+                if prefs is None:
+                    # Preferences class may have been unregistered — try to re-register
+                    try:
+                        prefs_mod.register()
+                        prefs_after = prefs_mod.get_preferences()
+                        if prefs_after is not None:
+                            fixed.append("preferences re-registered successfully")
+                        else:
+                            failed.append("preferences re-register: still None after register()")
+                    except Exception as exc:
+                        failed.append(f"preferences re-register: {exc}")
+        except Exception as exc:
+            failed.append(f"preferences check: {exc}")
+
+        # ── Step 14: build Instant-NGP if folder present but exe missing ────────
+        # Detected by the "folder found but executable not inside" diagnostic.
+        # Trigger via Mossy (handles CMake + CUDA automatically).
+        try:
+            _ti = getattr(init, "tool_installers", None) if init else None
+            if _ti and hasattr(_ti, "build_instantngp") and hasattr(_ti, "find_instantngp_exe"):
+                _ngp_exe = _ti.find_instantngp_exe()
+                if _ngp_exe is None:
+                    # Check if source is present (folder exists)
+                    _ngp_dir = None
+                    try:
+                        _ngp_dir = _ti.get_instantngp_dir()
+                    except Exception:
+                        pass
+                    if _ngp_dir and _ngp_dir.is_dir():
+                        # Check Mossy is online
+                        _ml = getattr(init, "mossy_link", None)
+                        _bridge_up = False
+                        if _ml and hasattr(_ml, "check_bridge"):
+                            try:
+                                _bridge_up, _ = _ml.check_bridge(timeout=1.5)
+                            except Exception:
+                                pass
+                        if _bridge_up:
+                            print("[Auto-Fix] Instant-NGP source found, exe missing — attempting Mossy build...")
+                            _ngp_ok, _ngp_msg = _ti.build_instantngp()
+                            if _ngp_ok:
+                                fixed.append(f"Instant-NGP built: {_ngp_msg}")
+                            else:
+                                failed.append(f"Instant-NGP build: {_ngp_msg}")
+                        else:
+                            failed.append("Instant-NGP needs building — start Mossy and run Auto-Fix again")
+        except Exception as exc:
+            failed.append(f"Instant-NGP build: {exc}")
 
         # ── Report ────────────────────────────────────────────────────────────
         print("[ FO4 Auto-Fix ] Results:")

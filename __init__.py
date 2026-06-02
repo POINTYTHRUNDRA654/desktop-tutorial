@@ -123,6 +123,8 @@ gradio_helpers = _try_import("gradio_helpers")
 hymotion_helpers = _try_import("hymotion_helpers")
 nvtt_helpers = _try_import("nvtt_helpers")
 realesrgan_helpers = _try_import("realesrgan_helpers")
+texture_enhance_helpers = _try_import("texture_enhance_helpers")
+gpu_manager = _try_import("gpu_manager")
 get3d_helpers = _try_import("get3d_helpers")
 stylegan2_helpers = _try_import("stylegan2_helpers")
 instantngp_helpers = _try_import("instantngp_helpers")
@@ -148,6 +150,7 @@ torch_path_manager = _try_import("torch_path_manager")
 # registration-time dependency checks.  Import it here so the name exists.
 # we don't add it to `modules` because it has no register()/unregister().
 tool_installers = _try_import("tool_installers")
+dsf_importer = _try_import("dsf_importer")
 
 # External tool integration helpers
 ue_importer_helpers = _try_import("ue_importer_helpers")
@@ -194,6 +197,19 @@ fo4_unity_converter = _try_import("fo4_unity_converter")
 
 # Custom creature/flora rig builder + carnivorous plant
 fo4_creature_rig = _try_import("fo4_creature_rig")
+fo4_creature_animation = _try_import("fo4_creature_animation")
+fo4_armor_animation = _try_import("fo4_armor_animation")
+fo4_weapon_animation = _try_import("fo4_weapon_animation")
+fo4_npc_animation = _try_import("fo4_npc_animation")
+fo4_glow_effects = _try_import("fo4_glow_effects")
+fo4_esp_generator = _try_import("fo4_esp_generator")
+fo4_texture_generator = _try_import("fo4_texture_generator")
+fo4_batch_tools = _try_import("fo4_batch_tools")
+fo4_workshop_helper = _try_import("fo4_workshop_helper")
+fo4_compatibility_checker = _try_import("fo4_compatibility_checker")
+fo4_dialogue_editor = _try_import("fo4_dialogue_editor")
+fo4_weather_interior = _try_import("fo4_weather_interior")
+fo4_navmesh_generator = _try_import("fo4_navmesh_generator")
 
 # Animation export pipeline (Blender action → HKX via ck-cmd)
 fo4_animation_export = _try_import("fo4_animation_export")
@@ -289,6 +305,8 @@ modules = list(
             hymotion_helpers,
             nvtt_helpers,
             realesrgan_helpers,
+            texture_enhance_helpers,
+            gpu_manager,
             get3d_helpers,
             stylegan2_helpers,
             instantngp_helpers,
@@ -323,6 +341,19 @@ modules = list(
             fo4_ue5_converter,
             fo4_unity_converter,
             fo4_creature_rig,
+            fo4_creature_animation,
+            fo4_armor_animation,
+            fo4_weapon_animation,
+            fo4_npc_animation,
+            fo4_glow_effects,
+            fo4_esp_generator,
+            fo4_texture_generator,
+            fo4_batch_tools,
+            fo4_workshop_helper,
+            fo4_compatibility_checker,
+            fo4_dialogue_editor,
+            fo4_weather_interior,
+            fo4_navmesh_generator,
             fo4_animation_export,
             fo4_advanced_materials,
             fo4_lod_generator,
@@ -330,6 +361,7 @@ modules = list(
             tri_export_helpers,
             navmesh_helpers,
             bgsm_helpers,
+            dsf_importer,
         ],
     )
 )
@@ -366,17 +398,9 @@ def register():
             "  Try clicking 'Install Core Dependencies' again to work around this."
         )
 
-    # ── Step 0a: migrate ML packages from lib/ to lib/ml/ ────────────────────
-    # scipy and open3d installed before this fix landed in lib/ directly, which
-    # causes Blender 5's extension policy checker to flag every scipy submodule
-    # as a "Policy violation" on startup.  _migrate_ml_packages() reads each
-    # package's pip RECORD file and moves all associated files from lib/ to
-    # lib/ml/ so they are no longer visible to the startup sys.path scan.
-    try:
-        if tool_installers and hasattr(tool_installers, "_migrate_ml_packages"):
-            tool_installers._migrate_ml_packages()
-    except Exception as _e:
-        print(f"⚠ Could not migrate ML packages to lib/ml/: {_e}")
+    # ── Step 0a: ML package migration deferred to background ─────────────────
+    # _migrate_ml_packages() reads pip RECORD files — filesystem I/O.
+    # Moved to deferred_startup() background thread to keep register() fast.
 
     # ── Step 0b: purge stale sys.modules entries from a prior addon namespace ─
     # When the addon transitions between naming conventions (e.g. legacy
@@ -472,24 +496,9 @@ def register():
     except Exception as e:
         print(f"Could not restore API keys: {e}")
 
-    # ── Step 2d: synchronous tool auto-discovery ──────────────────────────────
-    # Scan the tools folder(s) right now - before the UI first draws - so that
-    # any tools already on disk (e.g. ffmpeg, nvtt, texconv in the sibling
-    # tools/ folder next to the addon) are wired into preferences immediately.
-    # This is pure filesystem scanning: no network I/O, no subprocess calls,
-    # sub-millisecond on a local drive. Runs synchronously so the Setup panel
-    # shows correct ✓/✗ status on its very first draw instead of showing ✗ for
-    # 2 seconds while the deferred timer hasn't fired yet.
-    try:
-        if tool_installers:
-            _configured = tool_installers.auto_configure_preferences()
-            if _configured:
-                print(f"✓ Auto-configured {len(_configured)} tool(s): "
-                      f"{', '.join(_configured)}")
-            else:
-                print("Tool auto-discovery: no unconfigured tools found on startup")
-    except Exception as e:
-        print(f"Tool auto-discovery (startup) skipped: {e}")
+    # ── Step 2d: tool auto-discovery runs in deferred_startup() Step 4 ────────
+    # Moved to deferred so register() returns immediately and Blender's
+    # UI becomes responsive before any filesystem scanning happens.
 
     # ── Steps 3-5: deferred to avoid blocking Blender's UI on startup ─────────
     # PyTorch detection, tool auto-discovery, and UModel auto-download all
@@ -520,39 +529,10 @@ def register():
     except Exception as e:
         print(f"⚠ Could not initialize tutorials: {e}")
 
-    # Check for core Python dependencies - install automatically if missing.
-    # DISABLED: Auto-installation causes severe performance issues during startup
-    # Users should use the "Install Core Dependencies" button in the Setup panel instead
-    # import importlib.util as _ilu
-    # _core_packages = {
-    #     "PIL": "Pillow",
-    #     "numpy": "numpy",
-    #     "requests": "requests",
-    #     "trimesh": "trimesh",
-    #     "PyPDF2": "PyPDF2",
-    # }
-    # missing = {mod: pip for mod, pip in _core_packages.items() if _ilu.find_spec(mod) is None}
-    # if missing:
-    #     import sys as _sys
-    #     py_ver = f"{_sys.version_info.major}.{_sys.version_info.minor}"
-    #     missing_desc = ", ".join(f"{pip} (import {mod})" for mod, pip in missing.items())
-    #     print(f"⚠ Missing Python packages: {missing_desc}")
-    #     print(f"  Python {py_ver} - attempting version-aware automatic installation …")
-    #     if tool_installers:
-    #         try:
-    #             ok, msg = tool_installers.install_python_requirements(include_optional=False)
-    #         except Exception as e:
-    #             ok, msg = False, f"installation routine threw: {e}"
-    #     else:
-    #         ok, msg = False, "tool_installers module unavailable"
-    #
-    #     if ok:
-    #         print(f"✓ {msg}")
-    #     else:
-    #         print(f"  Auto-install failed: {msg}")
-    #         print("  Use the 'Install Core Dependencies' button in the Setup & Status panel.")
-    # else:
-    #     print("✓ All core Python dependencies present")
+    # Core Python package auto-install runs in deferred_startup() (2 s after load)
+    # in a background daemon thread — see startup_helpers.py Step 2b.
+    # This keeps register() fast while still ensuring trimesh, pypdf, scipy etc.
+    # are installed automatically on first run without blocking the UI.
 
     print(
         f"✓ Mossy Fallout 4 Blender Add-on registered successfully (Blender {version_string})"

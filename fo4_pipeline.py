@@ -31,6 +31,7 @@ Supported pipelines (one operator per workflow):
 from __future__ import annotations
 
 import os
+from .path_utils import system_drive_root as _system_root
 import traceback
 
 try:
@@ -336,7 +337,7 @@ class FO4_OT_PipelineStaticMesh(Operator):
     def invoke(self, context, event):
         if not self.mod_folder:
             blend_dir = os.path.dirname(bpy.data.filepath) if bpy.data.filepath else ""
-            self.mod_folder = blend_dir or "C:/"
+            self.mod_folder = blend_dir or _system_root()
         if not self.filepath:
             obj = context.active_object
             name = obj.name if obj else "mesh"
@@ -494,7 +495,7 @@ class FO4_OT_PipelineWeapon(Operator):
         obj = context.active_object
         if obj:
             blend_dir = os.path.dirname(bpy.data.filepath) if bpy.data.filepath else ""
-            self.filepath = os.path.join(blend_dir or "C:/", f"{obj.name}_weapon.nif")
+            self.filepath = os.path.join(blend_dir or _system_root(), f"{obj.name}_weapon.nif")
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -607,7 +608,7 @@ class FO4_OT_PipelineFlora(Operator):
         obj = context.active_object
         if obj:
             blend_dir = os.path.dirname(bpy.data.filepath) if bpy.data.filepath else ""
-            self.filepath = os.path.join(blend_dir or "C:/", f"{obj.name}_flora.nif")
+            self.filepath = os.path.join(blend_dir or _system_root(), f"{obj.name}_flora.nif")
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -719,7 +720,7 @@ class FO4_OT_PipelineNavMesh(Operator):
         obj = context.active_object
         if obj:
             blend_dir = os.path.dirname(bpy.data.filepath) if bpy.data.filepath else ""
-            self.filepath = os.path.join(blend_dir or "C:/", f"{obj.name}_navmesh.fbx")
+            self.filepath = os.path.join(blend_dir or _system_root(), f"{obj.name}_navmesh.fbx")
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -841,7 +842,7 @@ class FO4_OT_PipelineTRIMorphs(Operator):
         obj = context.active_object
         if obj:
             blend_dir = os.path.dirname(bpy.data.filepath) if bpy.data.filepath else ""
-            self.filepath = os.path.join(blend_dir or "C:/", f"{obj.name}.tri")
+            self.filepath = os.path.join(blend_dir or _system_root(), f"{obj.name}.tri")
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -912,7 +913,7 @@ class FO4_OT_PipelineTextures(Operator):
 
     def invoke(self, context, event):
         blend_dir = os.path.dirname(bpy.data.filepath) if bpy.data.filepath else ""
-        self.output_dir = os.path.join(blend_dir or "C:/", "textures")
+        self.output_dir = os.path.join(blend_dir or _system_root(), "textures")
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -1025,7 +1026,7 @@ class FO4_OT_PipelineFullMod(Operator):
 
     def invoke(self, context, event):
         blend_dir = os.path.dirname(bpy.data.filepath) if bpy.data.filepath else ""
-        self.output_dir = os.path.join(blend_dir or "C:/", "ModOutput")
+        self.output_dir = os.path.join(blend_dir or _system_root(), "ModOutput")
         if not self.mod_name or self.mod_name == "MyFO4Mod":
             self.mod_name = os.path.splitext(
                 os.path.basename(bpy.data.filepath or "MyMod.blend")

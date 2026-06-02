@@ -59,8 +59,101 @@ _llm_online: bool = False
 _reconnect_attempts: int = 0
 _MAX_RECONNECT: int = 5                # give up auto-reconnect after this many failures
 
+def _run_fo4_diagnostics(obj, bpy) -> list:
+    """
+    Run lightweight FO4 validation checks on *obj* and return a list of
+    issue dicts that Mossy can use to decide whether to push a fix.
+
+    Each issue dict has:
+      ``{"code": str, "severity": "error"|"warning"|"info",
+         "message": str, "fix_hint": str}``
+
+    Kept intentionally fast — no heavy mesh analysis, just limit checks
+    and flag inspections that complete in microseconds.
+    """
+    issues = []
+    if not obj or obj.type != 'MESH':
+        return issues
+
+    me = obj.data
+
+    # ── Vertex / face limits ──────────────────────────────────────────────────
+    vc = len(me.vertices)
+    fc = len(me.polygons)
+    if vc > 65535:
+        issues.append({
+            "code": "VERT_LIMIT",
+            "severity": "error",
+            "message": f"Vertex count {vc} exceeds FO4 limit of 65535",
+            "fix_hint": "Split mesh into multiple BSTriShape objects under 65535 vertices each",
+        })
+    if fc > 65535:
+        issues.append({
+            "code": "FACE_LIMIT",
+            "severity": "error",
+            "message": f"Face count {fc} exceeds FO4 limit of 65535",
+            "fix_hint": "Decimate or split the mesh",
+        })
+
+    # ── Non-triangulated faces ────────────────────────────────────────────────
+    quads_or_ngons = sum(1 for p in me.polygons if len(p.vertices) > 3)
+    if quads_or_ngons:
+        issues.append({
+            "code": "NOT_TRIANGULATED",
+            "severity": "error",
+            "message": f"{quads_or_ngons} non-triangle faces found — FO4 NIFs require all-tris",
+            "fix_hint": "Apply a Triangulate modifier or use Mesh > Faces > Triangulate Faces",
+        })
+
+    # ── UV maps ──────────────────────────────────────────────────────────────
+    if not me.uv_layers:
+        issues.append({
+            "code": "NO_UV",
+            "severity": "error",
+            "message": "No UV map found — FO4 meshes require at least one UV map",
+            "fix_hint": "Unwrap the mesh (U key in Edit Mode)",
+        })
+
+    # ── Materials ────────────────────────────────────────────────────────────
+    if not any(s.material for s in obj.material_slots):
+        issues.append({
+            "code": "NO_MATERIAL",
+            "severity": "warning",
+            "message": "No material assigned — FO4 meshes need a BGSM material",
+            "fix_hint": "Add a material and set its BGSM path in the FO4 properties",
+        })
+
+    # ── Scale applied ────────────────────────────────────────────────────────
+    scale = obj.scale
+    if abs(scale.x - 1.0) > 0.001 or abs(scale.y - 1.0) > 0.001 or abs(scale.z - 1.0) > 0.001:
+        issues.append({
+            "code": "UNAPPLIED_SCALE",
+            "severity": "warning",
+            "message": f"Unapplied scale {scale.x:.3f}, {scale.y:.3f}, {scale.z:.3f} — FO4 exporters expect scale 1,1,1",
+            "fix_hint": "Apply scale with Ctrl+A > Scale",
+        })
+
+    # ── Armature modifier / bone count ───────────────────────────────────────
+    arm_mod = next((m for m in obj.modifiers if m.type == 'ARMATURE'), None)
+    if arm_mod and arm_mod.object:
+        bone_count = len(arm_mod.object.data.bones)
+        if bone_count > 128:
+            issues.append({
+                "code": "BONE_LIMIT",
+                "severity": "warning",
+                "message": f"Armature has {bone_count} bones — FO4 recommends ≤128 active bones",
+                "fix_hint": "Remove unused bones or split the skinned mesh",
+            })
+
+    return issues
+
+
 def _push_context_to_mossy(scene, depsgraph):
-    """Throttled depsgraph handler: push active object state to Mossy bridge."""
+    """
+    Throttled depsgraph handler: push active object state + FO4 diagnostics
+    to Mossy bridge so Mossy can proactively detect issues and push fix scripts
+    back through the TCP bridge.
+    """
     global _last_context_push
     now = _time.time()
     if now - _last_context_push < _PUSH_THROTTLE_SECONDS:
@@ -68,27 +161,54 @@ def _push_context_to_mossy(scene, depsgraph):
     _last_context_push = now
 
     try:
-        import bpy, requests, threading as _th
+        import bpy, threading as _th
         obj = bpy.context.active_object
         if not obj:
             return
 
+        # Run fast FO4 diagnostics on main thread (safe — no heavy ops)
+        issues = _run_fo4_diagnostics(obj, bpy)
+
+        obj_data = {
+            "name": obj.name,
+            "type": obj.type,
+            "vertex_count": len(obj.data.vertices) if obj.type == 'MESH' else 0,
+            "face_count": len(obj.data.polygons) if obj.type == 'MESH' else 0,
+            "has_armature": bool(obj.parent and obj.parent.type == 'ARMATURE')
+                            or any(m.type == 'ARMATURE' for m in obj.modifiers),
+            "fo4_mesh_type": obj.get('fo4_mesh_type', ''),
+            "materials": [m.material.name for m in obj.material_slots if m.material]
+                         if obj.type == 'MESH' else [],
+            "uv_layers": [uv.name for uv in obj.data.uv_layers]
+                         if obj.type == 'MESH' else [],
+            "scale": [round(obj.scale.x, 4), round(obj.scale.y, 4), round(obj.scale.z, 4)],
+            "location": [round(obj.location.x, 4), round(obj.location.y, 4), round(obj.location.z, 4)],
+            "modifiers": [m.type for m in obj.modifiers],
+            "custom_props": {k: v for k, v in obj.items() if not k.startswith("_")},
+        }
+
         payload = {
             "event": "active_object_changed",
-            "object": {
-                "name": obj.name,
-                "type": obj.type,
-                "vertex_count": len(obj.data.vertices) if obj.type == 'MESH' else 0,
-                "face_count": len(obj.data.polygons) if obj.type == 'MESH' else 0,
-                "has_armature": bool(obj.parent and obj.parent.type == 'ARMATURE'),
-                "fo4_mesh_type": obj.get('fo4_mesh_type', ''),
-                "materials": [m.name for m in obj.material_slots if m.material] if obj.type == 'MESH' else [],
-            }
+            "object": obj_data,
+            # Mossy inspects this list to decide if a fix script should be pushed back
+            "issues": issues,
+            "issue_count": len(issues),
+            "has_errors": any(i["severity"] == "error" for i in issues),
         }
 
         def _do_push():
             try:
-                requests.post("http://localhost:21337/blender_context", json=payload, timeout=1.0)
+                # Use urllib (always available) rather than requests (optional dep)
+                import json
+                from urllib import request as _req
+                data = json.dumps(payload).encode("utf-8")
+                r = _req.Request(
+                    "http://localhost:21337/blender_context",
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                _req.urlopen(r, timeout=1.0)
             except Exception:
                 pass  # Mossy not running is fine
 
@@ -889,17 +1009,20 @@ def analyze_scene(scene_info: dict, timeout: float = 30) -> "str | None":
 
 # ── Health monitor (auto-reconnect) ───────────────────────────────────────────
 
+# Guards to prevent spawning multiple concurrent health-check threads.
+_health_check_pending: bool = False
+
+
 def _health_monitor() -> "float | None":
     """
     Blender timer callback: runs every ``_health_check_interval`` seconds on
     the main thread.
 
-    * Pings the Mossy Bridge (port 21337) and Nemotron LLM (port 5000).
-    * Updates ``_bridge_online`` / ``_llm_online`` so the UI reflects live status.
-    * If the TCP command server was active but the thread died, attempts to
-      restart it automatically (up to ``_MAX_RECONNECT`` times).
+    Health checks (HTTP requests with timeouts) are dispatched to a daemon
+    background thread so they NEVER block Blender's main thread.  Only the
+    lightweight auto-reconnect logic and WM property sync run inline.
     """
-    global _last_health_check, _bridge_online, _llm_online
+    global _last_health_check, _health_check_pending
     global _reconnect_attempts, _server_thread
 
     now = time.monotonic()
@@ -908,21 +1031,47 @@ def _health_monitor() -> "float | None":
 
     _last_health_check = now
 
-    # Bridge health
-    try:
-        bridge_ok, _ = check_bridge(timeout=2.0)
-        _bridge_online = bridge_ok
-    except Exception:
-        _bridge_online = False
+    # ── Dispatch HTTP pings to a background thread ──────────────────────
+    if not _health_check_pending:
+        _health_check_pending = True
 
-    # LLM health
-    try:
-        llm_ok, _ = check_llm(timeout=2.0)
-        _llm_online = llm_ok
-    except Exception:
-        _llm_online = False
+        def _do_checks():
+            global _bridge_online, _llm_online, _health_check_pending
+            try:
+                try:
+                    bridge_ok, _ = check_bridge(timeout=2.0)
+                    _bridge_online = bridge_ok
+                except Exception:
+                    _bridge_online = False
+                try:
+                    llm_ok, _ = check_llm(timeout=2.0)
+                    _llm_online = llm_ok
+                except Exception:
+                    _llm_online = False
+                # Push WM property update back to main thread via timer
+                try:
+                    import bpy as _bpy
+                    def _sync_wm():
+                        try:
+                            wm = _bpy.context.window_manager
+                            if hasattr(wm, "mossy_link_active"):
+                                wm.mossy_link_active = _active
+                            if hasattr(wm, "mossy_bridge_status"):
+                                wm.mossy_bridge_status = (
+                                    "Mossy Bridge online" if _bridge_online
+                                    else "Mossy Bridge offline"
+                                )
+                        except Exception:
+                            pass
+                    _bpy.app.timers.register(_sync_wm, first_interval=0.0, persistent=False)
+                except Exception:
+                    pass
+            finally:
+                _health_check_pending = False
 
-    # Auto-reconnect TCP server if it crashed
+        threading.Thread(target=_do_checks, daemon=True, name="MossyHealthCheck").start()
+
+    # ── Auto-reconnect TCP server if it crashed (lightweight, no I/O) ───
     if _active and (_server_thread is None or not _server_thread.is_alive()):
         if _reconnect_attempts < _MAX_RECONNECT:
             _reconnect_attempts += 1
@@ -947,18 +1096,62 @@ def _health_monitor() -> "float | None":
             print(f"[Mossy Link] Max reconnect attempts ({_MAX_RECONNECT}) reached — "
                   "stopping auto-reconnect.")
 
-    # Sync status to WindowManager for UI
-    try:
-        import bpy as _bpy
-        wm = _bpy.context.window_manager
-        if hasattr(wm, "mossy_link_active"):
-            wm.mossy_link_active = _active
-        if hasattr(wm, "mossy_bridge_status"):
-            wm.mossy_bridge_status = "Mossy Bridge online" if _bridge_online else "Mossy Bridge offline"
-    except Exception:
-        pass
-
     return _health_check_interval
+
+
+def install_package_via_mossy(
+    package: str,
+    github_url: "str | None" = None,
+    timeout: float = 300,
+) -> "tuple[bool, str]":
+    """
+    Ask Mossy to install a Python package in its own environment, then make
+    it available to Blender via the shared PyTorch/AI path.
+
+    This is the preferred install method for packages that fail in Blender's
+    bundled Python (e.g. shap-e, point-e) because Mossy's Python environment
+    is already set up correctly for AI/ML work.
+
+    Mossy must be running and the bridge must be online.
+
+    :param package:    Package name (e.g. ``"shap-e"``) or pip install spec.
+    :param github_url: If given, install from this GitHub URL instead of PyPI.
+    :param timeout:    Seconds to wait for installation to complete.
+    :returns:          ``(success, message)``
+    """
+    install_spec = github_url or package
+    payload = json.dumps({
+        "action": "install_package",
+        "package": package,
+        "install_spec": install_spec,
+    }).encode("utf-8")
+
+    try:
+        req = _url_request.Request(
+            f"http://localhost:{_BRIDGE_PORT}/install_package",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read().decode("utf-8")
+            data = json.loads(body) if body.strip() else {}
+            ok  = data.get("success", False)
+            msg = data.get("message", "No message returned")
+            return ok, msg
+    except _url_error.HTTPError as exc:
+        # Read the error body — Mossy may include a helpful message
+        try:
+            body = exc.read().decode("utf-8")
+            data = json.loads(body) if body.strip() else {}
+            detail = data.get("message", data.get("error", str(exc)))
+        except Exception:
+            detail = str(exc)
+        return False, f"Mossy install endpoint error ({exc.code}): {detail}"
+    except _url_error.URLError as exc:
+        return False, f"Mossy not reachable: {exc.reason}"
+    except Exception as exc:
+        return False, f"Mossy install failed: {exc}"
 
 
 def get_connection_status() -> dict:

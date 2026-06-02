@@ -937,6 +937,61 @@ For more info: https://github.com/openai/point-e
         return PointEHelpers._create_point_cloud_mesh(coords, colors, name)
 
 
+
+# ---------------------------------------------------------------------------
+# FO4 post-processing integration
+# ---------------------------------------------------------------------------
+
+def _fo4_post_process(obj, target_polys: int = 10000, name: str = "") -> tuple:
+    """Apply full FO4 post-processing to a generated mesh.
+    Delegates to imageto3d_helpers.fo4_post_process for the canonical pipeline
+    (triangulate, UV unwrap, poly-cap, scale apply, material slot).
+    """
+    try:
+        from . import imageto3d_helpers as _ith
+        if hasattr(_ith, 'fo4_post_process'):
+            return _ith.fo4_post_process(obj, target_polys=target_polys, name=name)
+    except Exception:
+        pass
+    # Minimal inline fallback
+    import math, bpy as _bpy
+    if obj is None or obj.type != 'MESH':
+        return False, "Not a mesh"
+    try:
+        _bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        _bpy.ops.object.mode_set(mode='EDIT')
+        _bpy.ops.mesh.select_all(action='SELECT')
+        _bpy.ops.mesh.remove_doubles(threshold=0.0001)
+        _bpy.ops.mesh.normals_make_consistent(inside=False)
+        _bpy.ops.object.mode_set(mode='OBJECT')
+        tri = obj.modifiers.new("Tri_FO4", 'TRIANGULATE')
+        _bpy.ops.object.modifier_apply(modifier=tri.name)
+        if not obj.data.uv_layers:
+            _bpy.ops.object.mode_set(mode='EDIT')
+            _bpy.ops.mesh.select_all(action='SELECT')
+            _bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.02)
+            _bpy.ops.object.mode_set(mode='OBJECT')
+        _bpy.ops.object.transform_apply(scale=True)
+        poly = len(obj.data.polygons)
+        limit = min(target_polys, 65535)
+        if poly > limit:
+            dec = obj.modifiers.new("Dec_FO4", 'DECIMATE')
+            dec.ratio = max(0.01, limit / max(poly, 1))
+            _bpy.ops.object.modifier_apply(modifier=dec.name)
+        if name:
+            obj.name = name.replace(" ", "_")[:63]
+        if not any(s.material for s in obj.material_slots):
+            import bpy
+            mat = bpy.data.materials.new((obj.name or "FO4_Asset") + "_mat")
+            mat.use_nodes = True
+            obj.data.materials.append(mat)
+        return True, f"FO4 ready: {len(obj.data.polygons):,} tris"
+    except Exception as exc:
+        try: import bpy; bpy.ops.object.mode_set(mode='OBJECT')
+        except Exception: pass
+        return False, str(exc)
+
 def register():
     """Register Point-E properties"""
     if bpy is None:  # pragma: no cover - only runs inside Blender
@@ -1026,3 +1081,5 @@ def unregister():
         del bpy.types.Scene.fo4_point_e_use_gpu
     if hasattr(bpy.types.Scene, 'fo4_point_e_inference_steps'):
         del bpy.types.Scene.fo4_point_e_inference_steps
+
+

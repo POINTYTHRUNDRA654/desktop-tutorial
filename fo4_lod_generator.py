@@ -41,6 +41,7 @@ FO4 bake settings:
 from __future__ import annotations
 
 import os
+from .path_utils import system_drive_root as _system_root
 import traceback
 
 try:
@@ -614,7 +615,7 @@ class FO4_OT_ExportFullLODChain(Operator):
                 blend_dir = (
                     os.path.dirname(bpy.data.filepath) if bpy.data.filepath else ""
                 )
-                self.output_dir = blend_dir or "C:/"
+                self.output_dir = blend_dir or _system_root()
         return context.window_manager.invoke_props_dialog(self, width=460)
 
     def draw(self, context):
@@ -826,12 +827,148 @@ class FO4_OT_SetupAOBake(Operator):
 
 # ── Registration ───────────────────────────────────────────────────────────────
 
+class FO4_OT_BatchGenerateAndExportLODs(bpy.types.Operator):
+    """Generate LOD1/2/3 for ALL selected objects and export each level as NIF.
+
+    One click replaces the manual workflow:
+      select → generate LOD1 → export → generate LOD2 → export → generate LOD3 → export
+    Names follow FO4 convention:  ObjectName_LOD0.nif / _LOD1.nif / _LOD2.nif / _LOD3.nif
+    """
+    bl_idname  = "fo4.batch_lod_export"
+    bl_label   = "Batch LOD Generate + Export"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    output_dir: bpy.props.StringProperty(
+        name="Output Folder", subtype="DIR_PATH", default="",
+        description="Where to save the NIF files (default: next to .blend)",
+    )
+    lod1_ratio: bpy.props.FloatProperty(name="LOD1", default=0.30, min=0.05, max=0.95)
+    lod2_ratio: bpy.props.FloatProperty(name="LOD2", default=0.12, min=0.01, max=0.50)
+    lod3_ratio: bpy.props.FloatProperty(name="LOD3", default=0.04, min=0.005, max=0.20)
+
+    def execute(self, context):
+        import os, subprocess, tempfile
+        base_dir = bpy.path.abspath(self.output_dir) if self.output_dir else bpy.path.abspath("//")
+        os.makedirs(base_dir, exist_ok=True)
+
+        source_objects = [o for o in context.selected_objects if o.type == "MESH"]
+        if not source_objects:
+            self.report({"ERROR"}, "No mesh objects selected")
+            return {"CANCELLED"}
+
+        total_exported = 0
+        for src in source_objects:
+            context.view_layer.objects.active = src
+            base_name = src.name.replace(" ", "_")
+
+            for level, ratio in [("LOD1", self.lod1_ratio),
+                                   ("LOD2", self.lod2_ratio),
+                                   ("LOD3", self.lod3_ratio)]:
+                lod_name = f"{base_name}_{level}"
+                # Use existing generate_lod_mesh helper
+                lod_obj, msg = generate_lod_mesh(src, ratio, lod_name)
+                if lod_obj is None:
+                    print(f"[LOD Batch] Could not generate {level} for {src.name}: {msg}")
+                    continue
+
+                # Select only the LOD object and export
+                bpy.ops.object.select_all(action="DESELECT")
+                lod_obj.select_set(True)
+                context.view_layer.objects.active = lod_obj
+
+                nif_path = os.path.join(base_dir, lod_name + ".nif")
+                exported = False
+
+                # Try PyNifly first
+                try:
+                    bpy.ops.export_scene.pynifly(filepath=nif_path)
+                    exported = True
+                except Exception:
+                    pass
+
+                # Fallback: FBX
+                if not exported:
+                    fbx_path = nif_path.replace(".nif", ".fbx")
+                    try:
+                        bpy.ops.export_scene.fbx(filepath=fbx_path,
+                                                   use_selection=True)
+                        print(f"[LOD Batch] Exported FBX: {os.path.basename(fbx_path)}")
+                        exported = True
+                    except Exception as exc:
+                        print(f"[LOD Batch] Export failed for {lod_name}: {exc}")
+
+                if exported:
+                    total_exported += 1
+                    print(f"[LOD Batch] ✓ {lod_name}")
+
+                # Clean up temporary LOD object
+                bpy.data.objects.remove(lod_obj, do_unlink=True)
+
+            # Re-select original
+            src.select_set(True)
+            context.view_layer.objects.active = src
+
+        self.report({"INFO"},
+            f"Batch LOD complete: {total_exported} files exported to {base_dir}")
+        return {"FINISHED"}
+
+
+
 _CLASSES = [
     FO4_OT_GenerateLODs,
+    FO4_OT_BatchGenerateAndExportLODs,
     FO4_OT_ExportFullLODChain,
     FO4_OT_SetupNormalBake,
     FO4_OT_SetupAOBake,
 ]
+
+
+
+# ---------------------------------------------------------------------------
+# Mossy AI export delegation
+# ---------------------------------------------------------------------------
+
+def _delegate_to_mossy(operator_id: str, params: dict = None) -> tuple:
+    """Delegate a heavy export operation to Mossy via the bridge operator call.
+
+    Mossy can run ck-cmd, Havok tools, NVTT and other external processes
+    without requiring them on the local PATH.  Returns (success, message).
+    """
+    try:
+        from . import mossy_link
+        ok, msg = mossy_link.check_bridge()
+        if not ok:
+            return False, f"Mossy bridge offline: {msg}"
+        result = mossy_link.install_package_via_mossy(
+            package=operator_id,
+            github_url=None,
+            timeout=120,
+        )
+        return result
+    except Exception as exc:
+        return False, f"Mossy delegation error: {exc}"
+
+
+def _safe_subprocess(cmd: list, timeout: int = 120, cwd: str = None) -> tuple:
+    """Run a subprocess with proper timeout and error handling.
+
+    Returns (success, stdout+stderr combined, returncode).
+    """
+    import subprocess
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            timeout=timeout, cwd=cwd,
+        )
+        output = (result.stdout or "") + (result.stderr or "")
+        return result.returncode == 0, output, result.returncode
+    except subprocess.TimeoutExpired:
+        return False, f"Process timed out after {timeout}s", -1
+    except FileNotFoundError:
+        return False, f"Executable not found: {cmd[0]}", -1
+    except Exception as exc:
+        return False, str(exc), -1
+
 
 
 def register():

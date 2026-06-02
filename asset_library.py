@@ -45,50 +45,86 @@ _ALL_EXTS: frozenset[str] = _MESH_EXTS | _TEXTURE_EXTS | _MATERIAL_EXTS
 # Categories inferred from semantic path keywords - kept as a module-level
 # constant so neither _populate_asset_list nor the scan operator recreate it.
 _SEMANTIC_MESH_CATEGORIES: frozenset[str] = frozenset({
-    'Characters', 'Weapons', 'Vegetation',
-    'Architecture', 'Vehicles', 'Props',
+    'Characters', 'Creatures', 'Weapons', 'Armor', 'Vegetation',
+    'Architecture', 'Vehicles', 'Props', 'Furniture', 'Clutter',
+    'Effects', 'Landscape', 'Interiors', 'Settlements',
 })
 
-# Keywords used to infer an asset's category from its path / name.
-# Checked in order; first match wins.
+# FO4 folder-path based category detection.
+# Uses the actual FO4 data folder structure (meshes/actors/, meshes/weapons/, etc.)
+# Checked in order; first match wins.  Path segments are lowercased before matching.
+_FO4_PATH_CATEGORIES: list[tuple[str, list[str]]] = [
+    ("Characters",   ["actors/character", "actors/human", "actors/people",
+                      "character/character", "npc", "humanfemale", "humanmale"]),
+    ("Creatures",    ["actors/creature", "actors/animal", "actors/monster",
+                      "deathclaw", "mirelurk", "radscorpion", "supermutant",
+                      "synth", "ghoul", "radroach", "bloatfly", "brahmin",
+                      "molerat", "yao guai", "robot", "sentry", "protectron",
+                      "assaultron", "eyebot", "robobrain", "fogcrawler"]),
+    ("Weapons",      ["weapons/", "weapon/", "guns/", "melee/",
+                      "pistol", "rifle", "shotgun", "launcher", "explosive"]),
+    ("Armor",        ["armor/", "armour/", "clothes/", "clothing/",
+                      "powerarmor", "power_armor", "outfit", "wearable"]),
+    ("Vegetation",   ["vegetation/", "trees/", "plants/", "foliage/",
+                      "shrubs/", "grass/", "nature/", "flora/"]),
+    ("Architecture", ["architecture/", "buildings/", "structure/", "ruins/",
+                      "vault/", "bunker/", "settlement/setdressing",
+                      "walls/", "floors/", "ceilings/", "doors/", "windows/"]),
+    ("Furniture",    ["furniture/", "seating/", "workbench", "crafting/",
+                      "beds/", "chairs/", "tables/", "desk", "shelv"]),
+    ("Vehicles",     ["vehicles/", "vehicle/", "cars/", "trucks/",
+                      "vertibird", "blimp", "boat", "bus", "helicopter"]),
+    ("Settlements",  ["settlement/", "workshop/", "scrapable/", "buildinsets/",
+                      "snappable/", "placeable/"]),
+    ("Effects",      ["effects/", "fx/", "magic/", "impact/", "projectile/"]),
+    ("Landscape",    ["landscape/", "terrain/", "rocks/", "cliffs/",
+                      "water/", "ground/"]),
+    ("Interiors",    ["interiors/", "interior/", "rooms/", "hallways/",
+                      "corridors/", "vaultpieces/"]),
+    ("Clutter",      ["clutter/", "misc/", "junk/", "debris/",
+                      "garbage/", "rubble/", "scrap/"]),
+    ("Props",        ["props/", "prop/", "statics/", "static/",
+                      "decorations/", "deco/", "signs/", "lights/"]),
+]
+
+# Legacy filename keyword fallback (used when path matching fails)
 _CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
-    ("Characters", [
-        "human", "character", "npc", "people", "person",
-        "male", "female", "body", "head", "skeleton", "humanoid",
-    ]),
-    ("Weapons", [
-        "weapon", "gun", "rifle", "pistol", "sword", "blade",
-        "melee", "ammo", "explosive", "launcher", "knife", "axe", "hammer",
-    ]),
-    ("Vegetation", [
-        "tree", "foliage", "plant", "bush", "shrub", "grass",
-        "leaf", "flower", "weed", "vine", "vegetation", "nature",
-    ]),
-    ("Architecture", [
-        "building", "arch", "wall", "floor", "ceiling", "door",
-        "window", "ruin", "structure", "room", "interior", "exterior", "bridge",
-    ]),
-    ("Vehicles", [
-        "vehicle", "car", "truck", "bus", "bike",
-        "motorcycle", "tank", "plane", "helicopter", "boat", "ship",
-    ]),
-    ("Props", [
-        "prop", "furniture", "table", "chair", "bed", "lamp",
-        "box", "barrel", "crate", "cabinet", "shelf", "misc", "item",
-    ]),
+    ("Characters",  ["humanfemale", "humanmale", "skeleton_female", "skeleton_male"]),
+    ("Creatures",   ["deathclaw", "mirelurk", "radscorpion", "supermutant",
+                     "ghoul", "radroach", "bloatfly", "brahmin", "molerat"]),
+    ("Weapons",     ["weapon", "gun", "rifle", "pistol", "sword", "blade",
+                     "melee", "explosive", "launcher", "knife", "axe"]),
+    ("Armor",       ["armor", "armour", "outfit", "powerarmor", "helmet"]),
+    ("Vegetation",  ["tree", "plant", "bush", "shrub", "grass", "leaf",
+                     "flower", "weed", "vine"]),
+    ("Architecture",["wall", "floor", "ceiling", "door", "window",
+                     "ruin", "vault", "bridge"]),
+    ("Furniture",   ["furniture", "table", "chair", "bed", "shelf",
+                     "workbench", "desk"]),
+    ("Vehicles",    ["vertibird", "car", "truck", "bus", "tank", "boat"]),
+    ("Props",       ["barrel", "crate", "cabinet", "lamp", "sign", "light"]),
+    ("Clutter",     ["clutter", "junk", "debris", "scrap", "rubble"]),
 ]
 
 _CATEGORY_ITEMS: list[tuple[str, str, str]] = [
     ('ALL',          "All",          "Show every asset"),
-    ('Meshes',       "Meshes",       "3D mesh files (FBX, OBJ, NIF …)"),
+    ('Meshes',       "Meshes",       "3D mesh files (NIF, FBX, OBJ …)"),
     ('Textures',     "Textures",     "Image / texture files (DDS, PNG, TGA …)"),
     ('Materials',    "Materials",    "Blender material libraries (.blend)"),
     ('Characters',   "Characters",   "Human / NPC models"),
+    ('Creatures',    "Creatures",    "Creature and animal models"),
     ('Weapons',      "Weapons",      "Weapon models"),
+    ('Armor',        "Armor",        "Armor and clothing"),
     ('Vegetation',   "Vegetation",   "Trees, plants, foliage"),
     ('Architecture', "Architecture", "Buildings and structures"),
+    ('Furniture',    "Furniture",    "Furniture and workbenches"),
     ('Vehicles',     "Vehicles",     "Vehicle models"),
-    ('Props',        "Props",        "Props and miscellaneous items"),
+    ('Settlements',  "Settlements",  "Settlement / workshop pieces"),
+    ('Effects',      "Effects",      "FX and particle meshes"),
+    ('Landscape',    "Landscape",    "Terrain, rocks, water"),
+    ('Interiors',    "Interiors",    "Interior room pieces"),
+    ('Clutter',      "Clutter",      "Junk, debris, misc clutter"),
+    ('Props',        "Props",        "Static props and decorations"),
     ('Other',        "Other",        "Uncategorised assets"),
 ]
 
@@ -112,16 +148,30 @@ _CATEGORY_ICONS: dict[str, str] = {
 
 
 def _detect_category(filepath: str, ext: str) -> str:
-    """Return the most likely category for an asset given its path and extension."""
-    lower = filepath.lower()
-    for category, keywords in _CATEGORY_KEYWORDS:
-        for kw in keywords:
-            if kw in lower:
-                return category
+    """Return the most likely category for an asset given its path and extension.
+
+    Uses the actual FO4 folder structure first (most accurate), then falls back
+    to filename keyword matching, then file-type defaults.
+    """
     if ext in _TEXTURE_EXTS:
         return 'Textures'
     if ext in _MATERIAL_EXTS:
         return 'Materials'
+
+    lower = filepath.replace("\\", "/").lower()
+
+    # 1. FO4 path-structure match (most accurate for game assets)
+    for category, path_fragments in _FO4_PATH_CATEGORIES:
+        for frag in path_fragments:
+            if frag in lower:
+                return category
+
+    # 2. Filename keyword fallback
+    for category, keywords in _CATEGORY_KEYWORDS:
+        for kw in keywords:
+            if kw in lower:
+                return category
+
     return 'Meshes'
 
 
@@ -317,18 +367,24 @@ class FO4_UL_AssetLibrary(UIList):
         items = getattr(data, propname)
         scene = context.scene
         search      = getattr(scene, 'fo4_asset_lib_search',   '').lower()
+        path_filter = getattr(scene, 'fo4_asset_lib_path_filter', '').lower().replace("\\", "/")
         cat_filter  = getattr(scene, 'fo4_asset_lib_category', 'ALL')
 
         flt_flags: list[int] = []
         for item in items:
             visible = True
+            # Name / type search
             if search and (
                 search not in item.name.lower()
                 and search not in item.category.lower()
                 and search not in item.filetype.lower()
             ):
                 visible = False
+            # Category filter
             if cat_filter != 'ALL' and item.category != cat_filter:
+                visible = False
+            # Path filter — narrows by folder path substring
+            if path_filter and path_filter not in item.filepath.replace("\\", "/").lower():
                 visible = False
             flt_flags.append(self.bitflag_filter_item if visible else 0)
 
@@ -367,6 +423,17 @@ class FO4_OT_SetAssetLibPath(Operator):
             return {'CANCELLED'}
 
         setattr(context.scene, 'fo4_asset_lib_path', path)
+
+        # Persist to addon preferences so the path survives restarts/reinstalls
+        try:
+            from . import preferences as _prefs_mod
+            prefs = _prefs_mod.get_preferences()
+            if prefs is not None:
+                prefs.fo4_assets_path = path
+                _prefs_mod.save_prefs_deferred()
+                _prefs_mod.save_api_keys()
+        except Exception:
+            pass
 
         # Auto-scan immediately
         bpy.ops.fo4.scan_asset_library()
@@ -408,6 +475,24 @@ class FO4_OT_SetAssetFolderPath(Operator):
         }
         prop = prop_map.get(self.slot, 'fo4_asset_lib_mesh_path')
         setattr(context.scene, prop, path)
+
+        # Persist to addon preferences so the path survives restarts/reinstalls
+        pref_map = {
+            'meshes':    'fo4_assets_mesh_path',
+            'textures':  'fo4_assets_tex_path',
+            'materials': 'fo4_assets_mat_path',
+        }
+        pref_field = pref_map.get(self.slot)
+        if pref_field:
+            try:
+                from . import preferences as _prefs_mod
+                prefs = _prefs_mod.get_preferences()
+                if prefs is not None:
+                    setattr(prefs, pref_field, path)
+                    _prefs_mod.save_prefs_deferred()
+                    _prefs_mod.save_api_keys()
+            except Exception:
+                pass
 
         # Auto-scan immediately
         bpy.ops.fo4.scan_asset_library()
@@ -725,6 +810,111 @@ _SCENE_PROPS: list[tuple[str, object]] = [
         name="Category",
         items=_CATEGORY_ITEMS,
         default='ALL',
+    )),
+]
+
+
+def register() -> None:
+    for cls in _CLASSES:
+        bpy.utils.register_class(cls)
+    for name, prop in _SCENE_PROPS:
+        setattr(bpy.types.Scene, name, prop)
+
+
+def unregister() -> None:
+    for name, _ in reversed(_SCENE_PROPS):
+        if hasattr(bpy.types.Scene, name):
+            try:
+                delattr(bpy.types.Scene, name)
+            except Exception:
+                pass
+    for cls in reversed(_CLASSES):
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:
+            pass
+    try:
+        from . import fo4_game_assets
+        fo4_game_assets.FO4GameAssets.invalidate_cache()
+    except Exception:
+        pass
+
+    # Reverse-sync: mesh sub-path → Data root → fo4_assets_path
+    try:
+        from pathlib import Path as _P
+        mesh_path = getattr(self, 'fo4_asset_lib_mesh_path', '').strip()
+        if mesh_path:
+            p = _P(mesh_path)
+            if p.is_dir() and p.name.lower() == 'meshes':
+                parent = p.parent
+                if parent.is_dir():
+                    current = getattr(self, 'fo4_assets_path', '').strip()
+                    if not current:
+                        self.fo4_assets_path = str(parent)
+    except Exception:
+        pass
+
+    save_asset_paths(self)
+
+
+_SCENE_PROPS: list[tuple[str, object]] = [
+    # ── Paths ────────────────────────────────────────────────────────────────
+    ("fo4_asset_lib_path", StringProperty(
+        name="All Assets Path",
+        description=(
+            "Folder or .blend file that contains all your assets. "
+            "Supports FBX, OBJ, NIF, glTF, DDS, PNG, TGA and .blend libraries"
+        ),
+        default="",
+        subtype='FILE_PATH',
+        update=_invalidate_game_asset_cache,
+    )),
+    ("fo4_asset_lib_mesh_path", StringProperty(
+        name="Meshes Path",
+        description="Dedicated folder for mesh files (FBX, OBJ, NIF, glTF …)",
+        default="",
+        subtype='DIR_PATH',
+        update=_invalidate_game_asset_cache,
+    )),
+    ("fo4_asset_lib_tex_path", StringProperty(
+        name="Textures Path",
+        description="Dedicated folder for texture files (DDS, PNG, TGA, EXR …)",
+        default="",
+        subtype='DIR_PATH',
+        update=_invalidate_game_asset_cache,
+    )),
+    ("fo4_asset_lib_mat_path", StringProperty(
+        name="Materials Path",
+        description=(
+            "Dedicated folder for material libraries (.blend files whose "
+            "objects will be listed for import)"
+        ),
+        default="",
+        subtype='DIR_PATH',
+        update=_invalidate_game_asset_cache,
+    )),
+    # ── List state ───────────────────────────────────────────────────────────
+    ("fo4_asset_lib_items", CollectionProperty(type=FO4_AssetLibraryItem)),
+    ("fo4_asset_lib_active", IntProperty(name="Active Asset", default=0, min=0)),
+    # ── Filters ──────────────────────────────────────────────────────────────
+    ("fo4_asset_lib_search", StringProperty(
+        name="Search",
+        description="Filter by name, category, or file type",
+        default="",
+    )),
+    ("fo4_asset_lib_category", EnumProperty(
+        name="Category",
+        items=_CATEGORY_ITEMS,
+        default='ALL',
+    )),
+    # ── Path/folder filter ───────────────────────────────────────────────────
+    ("fo4_asset_lib_path_filter", StringProperty(
+        name="Folder Filter",
+        description=(
+            "Narrow results by folder path — type part of the path to show only "
+            "assets under that subfolder (e.g. 'weapons/gun' or 'actors/character')"
+        ),
+        default="",
     )),
 ]
 

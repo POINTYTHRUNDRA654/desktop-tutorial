@@ -944,9 +944,6 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             row = box.row()
             row.enabled = has_mesh
             row.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
-            row = box.row()
-            row.enabled = has_mesh
-            row.operator("fo4.mossy_analyze_mesh", icon='SHADERFX')
             box.separator()
 
             # ── Collision ───────────────────────────────────────────────
@@ -2109,12 +2106,6 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
         row = fixes.row()
         op = row.operator("fo4.advisor_quick_fix", text="Validate Export", icon='CHECKMARK')
         op.action = 'VALIDATE_EXPORT'
-
-        # ── Mossy Proactive Analysis ─────────────────────────────────────
-        mossy_analysis = layout.box()
-        mossy_analysis.label(text="Mossy Proactive Analysis", icon='SHADERFX')
-        mossy_analysis.operator("fo4.mossy_analyze_mesh", icon='SHADERFX')
-        mossy_analysis.operator("fo4.mossy_analyze_textures", icon='TEXTURE')
 
         # ── Info / KB ────────────────────────────────────────────────────
         info = layout.box()
@@ -4402,6 +4393,353 @@ classes = (
     # Mossy tab - dedicated 'Mossy' category in the sidebar
     FO4_PT_MossyPanel,
 )
+
+
+# ---------------------------------------------------------------------------
+# New panels added in v5.2 development
+# ---------------------------------------------------------------------------
+
+class FO4_PT_NPCAnimPanel(_FO4SubPanel):
+    bl_label = "NPCs & Creatures"; bl_idname = "FO4_PT_npc_anim_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout; scene = context.scene
+        obj = context.active_object; has_arm = bool(obj and obj.type == 'ARMATURE')
+        box = layout.box(); box.label(text="AI NPC & Creature Animations", icon='SHADERFX')
+        desc_box = box.box()
+        desc_box.label(text="Describe what the NPC/creature does:", icon='OUTLINER_DATA_ARMATURE')
+        desc_box.prop(scene, "fo4_npc_description", text="")
+        pre = box.box(); pre.label(text="Quick Picks:", icon='PRESET')
+        groups = [
+            ("Movement",  [("Idle","idle stand breathing"),("Crouch","duck crouch idle"),
+                           ("Slide","slide on ground"),("Dodge","dodge roll evade")]),
+            ("Cover",     [("Hide","take cover hide"),("Lean L","lean left cover"),
+                           ("Lean R","lean right cover"),("Peek","peek over top cover")]),
+            ("Combat HTH",[("Jab","left jab punch"),("Cross","right cross punch"),
+                           ("Kick","front kick"),("Combo","jab cross kick combo")]),
+            ("Sneak",     [("Sneak","sneak stealth idle"),("Atk Front","sneak attack front stab"),
+                           ("Atk Back","sneak attack from behind"),("Atk Side","sneak attack left side")]),
+            ("Reactions", [("Hit","hit react front stagger"),("Stagger","stagger stumble"),
+                           ("Death Fwd","death fall forward"),("Epic Death","dramatic epic death spin fall")]),
+            ("Creature",  [("Charge","creature charge rush"),("Pounce","creature pounce leap"),
+                           ("Bite","creature bite attack"),("Roar","creature roar")]),
+            ("Social",    [("Wave","greet wave hello"),("Point","point at target"),
+                           ("Shrug","shrug don't know"),("Surrender","hands up surrender")]),
+            ("Power Armor",[("PA Walk","power armor walk stomp"),("PA Punch","power armor power punch"),
+                            ("PA Slam","power armor ground slam"),("PA Stomp","power armor stomp")]),
+        ]
+        for group_label, items in groups:
+            grp = pre.column(align=True); grp.label(text=group_label + ":")
+            row = grp.row(align=True)
+            for btn_label, preset in items:
+                op = row.operator("fo4.set_npc_preset", text=btn_label)
+                op.preset = preset
+        kw = box.box(); kw.label(text="Keywords (combine freely):", icon='INFO')
+        col = kw.column(align=True); col.scale_y = 0.72
+        for line in ["idle/stand/crouch/duck/slide/dodge/roll",
+                     "cover/lean/peek  |  punch/jab/kick/combo/block",
+                     "sneak/stealth/sneak attack  |  hit/stagger/death",
+                     "creature/charge/pounce/bite/claw/roar",
+                     "wave/point/shrug/surrender/taunt  |  power armor/stomp"]:
+            col.label(text=line)
+        box.separator(factor=0.4)
+        btn = box.column(align=True); btn.scale_y = 1.3
+        btn.operator("fo4.npc_full_pipeline", text="Full Pipeline (Build Skeleton + Animate)", icon='PLAY')
+        sub = btn.row(); sub.enabled = has_arm
+        sub.operator("fo4.generate_npc_animations", text="Generate Animations", icon='OUTLINER_DATA_ARMATURE')
+
+
+class FO4_PT_WeaponPanel(_FO4SubPanel):
+    bl_label = "Weapons"; bl_idname = "FO4_PT_weapon_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout; scene = context.scene
+        obj = context.active_object
+        has_mesh = bool(obj and obj.type == 'MESH')
+        has_arm = bool(obj and obj.type == 'ARMATURE')
+        box = layout.box(); box.label(text="AI Weapon Setup", icon='SHADERFX')
+        desc_box = box.box()
+        desc_box.label(text="Describe your weapon:", icon='MODIFIER_DATA')
+        desc_box.prop(scene, "fo4_weapon_description", text="")
+        pre = box.box(); pre.label(text="Quick Picks:", icon='PRESET')
+        guns = pre.column(align=True); guns.label(text="Firearms:")
+        row = guns.row(align=True)
+        for label, preset in [("10mm Pistol","10mm pistol handgun"),
+                               ("Pipe Pistol","pipe pistol"),
+                               ("Combat Rifle","combat rifle assault")]:
+            op = row.operator("fo4.set_weapon_preset", text=label); op.preset = preset
+        row2 = guns.row(align=True)
+        for label, preset in [("Hunting Rifle","hunting rifle sniper"),
+                               ("Shotgun","double barrel shotgun"),
+                               ("Launcher","rocket missile launcher")]:
+            op = row2.operator("fo4.set_weapon_preset", text=label); op.preset = preset
+        melee = pre.column(align=True); melee.label(text="Melee:")
+        row3 = melee.row(align=True)
+        for label, preset in [("Combat Knife","combat knife blade"),
+                               ("Baseball Bat","baseball bat blunt"),
+                               ("Pipe Wrench","pipe wrench blunt"),
+                               ("Frag Grenade","frag grenade thrown")]:
+            op = row3.operator("fo4.set_weapon_preset", text=label); op.preset = preset
+        kw = box.box(); kw.label(text="Keywords:", icon='INFO')
+        col = kw.column(align=True); col.scale_y = 0.72
+        for line in ["pistol/handgun/revolver  →  Pistol + reload + slide",
+                     "rifle/assault/sniper     →  Rifle + reload + bolt",
+                     "shotgun / launcher       →  Heavy weapon anims",
+                     "knife/blade/sword/bat    →  Melee swing + power attack",
+                     "grenade/molotov/thrown   →  Throw release arc"]:
+            col.label(text=line)
+        box.separator(factor=0.4)
+        btn = box.column(align=True); btn.scale_y = 1.3
+        full = btn.row(); full.enabled = has_mesh
+        full.operator("fo4.weapon_full_pipeline", text="Full Pipeline: Rig + Animate", icon='PLAY')
+        btn.separator(factor=0.3)
+        sub = btn.row(align=True); sub.enabled = has_mesh
+        sub.operator("fo4.auto_rig_weapon", text="Auto-Rig Only", icon='BONE_DATA')
+        sub2 = btn.row(); sub2.enabled = has_arm
+        sub2.operator("fo4.generate_weapon_animations", text="Generate Animations", icon='OUTLINER_DATA_ARMATURE')
+
+
+class FO4_PT_GlowEffectsPanel(_FO4SubPanel):
+    bl_label = "Glow & Spore Effects"; bl_idname = "FO4_PT_glow_effects_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout; scene = context.scene
+        obj = context.active_object; has_mesh = bool(obj and obj.type == 'MESH')
+        box = layout.box(); box.label(text="Animated Glow & Spore Effects", icon='LIGHT')
+        ctrl = box.box(); ctrl.label(text="Settings:", icon='MODIFIER')
+        ctrl.prop(scene, "fo4_glow_color", text="Color")
+        row = ctrl.row(align=True)
+        row.prop(scene, "fo4_glow_speed",    text="Speed")
+        row.prop(scene, "fo4_glow_strength", text="Strength")
+        desc = box.box(); desc.label(text="Describe the effect:", icon='OUTLINER_DATA_LIGHTPROBE')
+        desc.prop(scene, "fo4_glow_description", text="")
+        pre = box.box(); pre.label(text="Quick Picks:", icon='PRESET')
+        light_row = pre.row(align=True)
+        for label, preset in [("Pulse","pulsate heartbeat"),("Breathe","breathe inhale exhale"),
+                               ("Flicker","organic flicker bioluminescent"),("Aurora","aurora flow shimmer")]:
+            op = light_row.operator("fo4.set_glow_preset", text=label, icon='LIGHT'); op.preset = preset
+        spore_row = pre.row(align=True)
+        for label, preset in [("Spore Cloud","spore cloud drift float upward"),
+                               ("Toxic Puff","toxic spore puff affect NPC poison"),
+                               ("Mushroom","mushroom spore puff particle flicker"),
+                               ("Rainbow","rainbow hue cycle color")]:
+            op = spore_row.operator("fo4.set_glow_preset", text=label, icon='PARTICLES'); op.preset = preset
+        out = box.box(); out.label(text="Output (Papyrus/baked textures):", icon='FILE_FOLDER')
+        out.prop(scene, "fo4_glow_output", text="")
+        btn = box.column(align=True); btn.scale_y = 1.3
+        go = btn.row(); go.enabled = has_mesh
+        go.operator("fo4.apply_glow_from_description", text="Apply Glow Effect", icon='PLAY')
+        sub = btn.row(align=True); sub.enabled = has_mesh
+        sub.operator("fo4.apply_glow_effect",   text="Manual Settings", icon='PREFERENCES')
+        sub.operator("fo4.bake_glow_sequence",  text="Bake _g Sequence", icon='RENDER_STILL')
+
+
+class FO4_PT_CKCellPanel(_FO4SubPanel):
+    bl_label = "CK Cell Editor"; bl_idname = "FO4_PT_ck_cell_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout
+        imp = layout.box(); imp.label(text="Import Cell into Blender", icon='IMPORT')
+        new_row = imp.row(); new_row.scale_y = 1.3
+        new_row.operator("fo4.import_esp_cell", text="Import from ESP/ESM (No xEdit needed)", icon='FILE_SCRIPT')
+        imp.separator(factor=0.3); imp.label(text="OR via xEdit CSV export:", icon='INFO')
+        imp.operator("fo4.import_ck_cell", text="Import from xEdit CSV", icon='FILE_FOLDER')
+        edit = layout.box(); edit.label(text="Prepare for Editing", icon='EDITMODE_HLT')
+        edit.operator("fo4.prepare_cell_edit", text="Prepare Cell for Editing", icon='MODIFIER')
+        exp = layout.box(); exp.label(text="Export Modified Cell", icon='EXPORT')
+        exp.operator("fo4.export_ck_cell",   text="Export Cell NIF + ESP", icon='FILE_NEW')
+        exp.operator("fo4.export_ck_object", text="Export Single Object",  icon='MESH_DATA')
+
+
+class FO4_PT_ESPGeneratorPanel(_FO4SubPanel):
+    bl_label = "ESP Generator"; bl_idname = "FO4_PT_esp_generator_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout; scene = context.scene
+        selected = [o for o in context.selected_objects if o.type == 'MESH']
+        box = layout.box(); box.label(text="Auto-Generate ESP Records", icon='FILE_SCRIPT')
+        info = box.column(align=True); info.scale_y = 0.75
+        info.label(text=f"Selected: {len(selected)} mesh object(s)", icon='MESH_DATA')
+        info.label(text="STAT  FLOR  ACTI  WEAP  ARMO  MISC  LIGH", icon='DOT')
+        box.separator(factor=0.5)
+        box.prop(scene, "fo4_plugin_name", text="Plugin Name")
+        box.prop(scene, "fo4_esp_author",  text="Author")
+        box.prop(scene, "fo4_esp_output",  text="Output Folder")
+        box.prop(scene, "fo4_esp_xedit",   text="Also write xEdit script (.pas)")
+        go = box.row(); go.scale_y = 1.4; go.enabled = len(selected) > 0
+        go.operator("fo4.generate_esp", text=f"Generate ESP ({len(selected)} objects)", icon='FILE_NEW')
+
+
+class FO4_PT_TextureGeneratorPanel(_FO4SubPanel):
+    bl_label = "AI Texture Generator"; bl_idname = "FO4_PT_texture_generator_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout; scene = context.scene
+        box = layout.box(); box.label(text="Generate New Textures from Description", icon='SHADERFX')
+        box.prop(scene, "fo4_tex_name",        text="Base Name")
+        box.prop(scene, "fo4_tex_description", text="")
+        box.prop(scene, "fo4_tex_resolution",  text="Resolution")
+        box.prop(scene, "fo4_tex_output",      text="Output Folder")
+        pre = box.box(); pre.label(text="Quick Picks:", icon='PRESET')
+        presets = [("Rusted Iron","rusted iron metal heavily corroded orange rust streaks"),
+                   ("Worn Wood","weathered wooden planks cracked grain dark stains"),
+                   ("Concrete","cracked concrete wall gray stains moss crevices"),
+                   ("Leather","dark brown worn leather armor scratches stitching"),
+                   ("Circuit Board","green circuit board electronic traces solder points"),
+                   ("Vault Wall","vault-tec yellow painted concrete panels bolts"),
+                   ("Tree Bark","rough tree bark brown gray mossy crevices"),
+                   ("Brick Wall","old red brick wall mortar cracks worn")]
+        for i in range(0, len(presets), 4):
+            row = pre.row(align=True)
+            for label, desc in presets[i:i+4]:
+                op = row.operator("fo4.set_texture_preset", text=label); op.preset = desc
+        go = box.row(); go.scale_y = 1.3
+        go.operator("fo4.generate_texture", text="Generate Texture Set (diffuse + normal + spec)", icon='IMAGE_DATA')
+
+
+class FO4_PT_BatchToolsPanel(_FO4SubPanel):
+    bl_label = "Batch Export & Presets"; bl_idname = "FO4_PT_batch_tools_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout; scene = context.scene
+        selected = [o for o in context.selected_objects if o.type == 'MESH']
+        exp = layout.box(); exp.label(text=f"Batch Export ({len(selected)} selected)", icon='EXPORT')
+        exp.prop(scene, "fo4_batch_output",   text="Output Folder")
+        exp.prop(scene, "fo4_batch_fo4_prep", text="Apply FO4 Prep")
+        go = exp.row(); go.scale_y = 1.3; go.enabled = len(selected) > 0
+        go.operator("fo4.batch_export", text=f"Export {len(selected)} Objects as NIFs", icon='FILE_NEW')
+        lod = layout.box(); lod.label(text="Batch LOD Generate + Export", icon='MOD_DECIM')
+        lod.operator("fo4.batch_lod_export", text="Auto LOD1/2/3 for Selected", icon='OUTLINER_OB_MESH')
+        pre = layout.box(); pre.label(text="Workflow Presets", icon='PRESET')
+        row = pre.row(align=True)
+        row.operator("fo4.save_preset", text="Save Current Settings", icon='FILE_TICK')
+        row.operator("fo4.load_preset", text="Load Preset",           icon='FILE_FOLDER')
+
+
+class FO4_PT_WorkshopPanel(_FO4SubPanel):
+    bl_label = "Settlement Workshop"; bl_idname = "FO4_PT_workshop_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout; scene = context.scene
+        sel = [o for o in context.selected_objects if o.type == 'MESH']
+        box = layout.box(); box.label(text="Settlement Workshop Setup", icon='COMMUNITY')
+        box.label(text=f"{len(sel)} mesh(es) selected", icon='MESH_DATA')
+        snap = box.box(); snap.label(text="Snap Points", icon='ANCHOR_CENTER')
+        snap.operator("fo4.add_snap_points", text="Add Snap Points (Auto-Detect)", icon='EMPTY_ARROWS')
+        bud = box.box(); bud.label(text="Performance Budget", icon='RESTRICT_RENDER_OFF')
+        bud.operator("fo4.check_workshop_budget", text="Check Budget", icon='CHECKMARK')
+        cobj = box.box(); cobj.label(text="COBJ / Workshop Menu Stubs", icon='FILE_SCRIPT')
+        cobj.prop(scene, "fo4_plugin_name", text="Plugin")
+        cats = [("STRUCTURES","Structures"),("FURNITURE","Furniture"),("POWER","Power"),
+                ("STORES","Stores"),("FOOD","Food"),("DEFENSE","Defense"),
+                ("LIGHTING","Lighting"),("DECORATIONS","Decorations"),("MISC","Misc")]
+        row = cobj.row(align=True)
+        for code, label in cats[:5]:
+            op = row.operator("fo4.generate_workshop_stubs", text=label)
+            op.category = code
+        row2 = cobj.row(align=True)
+        for code, label in cats[5:]:
+            op = row2.operator("fo4.generate_workshop_stubs", text=label)
+            op.category = code
+
+
+class FO4_PT_CompatibilityPanel(_FO4SubPanel):
+    bl_label = "Compatibility Checker"; bl_idname = "FO4_PT_compat_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout; scene = context.scene
+        box = layout.box(); box.label(text="Mod Compatibility Check", icon='CHECKMARK')
+        box.label(text="Detects: CBBE conflicts, bone limits, naming issues", icon='INFO')
+        box.prop(scene, "fo4_compat_data_path", text="FO4 Data Folder")
+        go = box.row(); go.scale_y = 1.3
+        go.operator("fo4.run_compatibility_check", text="Run Full Compatibility Scan", icon='PLAY')
+        hint = box.column(align=True); hint.scale_y = 0.72
+        hint.label(text="Results printed to System Console")
+        hint.label(text="Checks: skeleton, scale, naming, CBBE, AWKCR, slot conflicts")
+
+
+class FO4_PT_DialoguePanel(_FO4SubPanel):
+    bl_label = "Dialogue Tree Editor"; bl_idname = "FO4_PT_dialogue_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout
+        box = layout.box(); box.label(text="FO4 Dialogue Tree", icon='OUTLINER_DATA_FONT')
+        box.label(text="Visual node-based NPC conversation editor", icon='INFO')
+        trees = [t for t in bpy.data.node_groups if t.bl_idname == 'FO4DialogueTreeType']
+        box.label(text=f"Trees: {len(trees)}", icon='NODETREE')
+        row = box.row(align=True)
+        row.operator("fo4.new_dialogue_tree",     text="New Dialogue Tree",        icon='ADD')
+        row.operator("fo4.export_dialogue_tree",  text="Export JSON + xEdit",      icon='EXPORT')
+        hint = box.column(align=True); hint.scale_y = 0.72
+        hint.label(text="1. Click New Dialogue Tree")
+        hint.label(text="2. Open Node Editor, switch to FO4 Dialogue Tree")
+        hint.label(text="3. Add/connect FO4DialogueNode nodes")
+        hint.label(text="4. Export, run .pas in FO4Edit")
+
+
+class FO4_PT_WeatherInteriorPanel(_FO4SubPanel):
+    bl_label = "Weather & Interior"; bl_idname = "FO4_PT_weather_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout
+        wbox = layout.box(); wbox.label(text="Weather Particle Systems", icon='FORCE_WIND')
+        row = wbox.row(align=True)
+        for wtype, label in [("RAIN","Rain"),("SNOW","Snow"),("ASH","Ash"),
+                              ("RAD_STORM","Rad Storm"),("FOG","Fog"),("BLIZZARD","Blizzard")]:
+            op = row.operator("fo4.add_weather_particles", text=label); op.weather_type = wtype
+        ibox = layout.box(); ibox.label(text="Interior Cell Helpers", icon='HOME')
+        ibox.label(text="Auto-place lights above floor surfaces:")
+        row2 = ibox.row(align=True)
+        for ltype, label in [("INTERIOR_WARM","Warm"),("INTERIOR_COOL","Cool"),
+                              ("VAULT_FLUORO","Vault"),("NEON_RED","Neon R"),
+                              ("NEON_BLUE","Neon B"),("CANDLE","Candle"),("RADIOACTIVE","Rad")]:
+            op = row2.operator("fo4.place_interior_lights", text=label); op.light_preset = ltype
+        ibox.operator("fo4.add_room_snap_grid", text="Add Room Snap Grid", icon='SNAP_GRID')
+
+
+class FO4_PT_NavMeshPanel(_FO4SubPanel):
+    bl_label = "NavMesh Generator"; bl_idname = "FO4_PT_navmesh_gen_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout; obj = context.active_object
+        box = layout.box(); box.label(text="NavMesh Generator", icon='MOD_REMESH')
+        box.label(text="FO4 limits: 32767 verts / 16384 tris / all-tris", icon='INFO')
+        gen = box.row(); gen.scale_y = 1.3
+        gen.operator("fo4.generate_navmesh", text="Generate NavMesh from Selected", icon='PLAY')
+        box.separator(factor=0.3)
+        val = box.row(align=True); val.enabled = obj is not None and obj.type == 'MESH'
+        val.operator("fo4.validate_navmesh2", text="Validate",  icon='CHECKMARK')
+        val.operator("fo4.decimate_navmesh",  text="Decimate",  icon='MOD_DECIM')
+        cover = box.box(); cover.label(text="Cover Markers", icon='ANCHOR_CENTER')
+        row = cover.row(align=True)
+        for ctype, label in [("LEFT","Left Cover"),("RIGHT","Right Cover"),
+                              ("EDGE","Edge Cover"),("NONE","Clear")]:
+            op = row.operator("fo4.add_cover_marker", text=label); op.cover_type = ctype
+
 
 def register():
     for cls in classes:
