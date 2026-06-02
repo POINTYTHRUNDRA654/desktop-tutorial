@@ -224,9 +224,10 @@ setup_operators = _try_import("setup_operators")
 # Diagnostics module - adds Run Diagnostics / Auto-Fix buttons to the
 # Setup & Status panel.  Registered before operators so the buttons are
 # always available even if the large operators.py bundle fails to load.
-addon_diagnostics = _try_import("addon_diagnostics")
-install_operators = _try_import("install_operators")
-ai_gen_operators  = _try_import("ai_gen_operators")
+addon_diagnostics   = _try_import("addon_diagnostics")
+install_operators   = _try_import("install_operators")
+ai_gen_operators    = _try_import("ai_gen_operators")
+fo4_plane_thickener = _try_import("fo4_plane_thickener")
 
 
 # core modules that are safe to import and register unconditionally.
@@ -307,6 +308,7 @@ modules = list(
             addon_diagnostics,
             ai_gen_operators,
             install_operators,
+            fo4_plane_thickener,
             operators,
             ui_panels,
             content_panels,

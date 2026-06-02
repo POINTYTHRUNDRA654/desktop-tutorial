@@ -1771,6 +1771,21 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
         row.enabled = bool(obj and obj.type == 'ARMATURE')
         row.operator("fo4.create_idle_animation", text="Create Idle Animation", icon='ACTION')
 
+        # ── Thicken Flat Planes ───────────────────────────────────────────────
+        thick_box = layout.box()
+        thick_box.label(text="Thicken Flat Planes", icon='MOD_SOLIDIFY')
+        hint = thick_box.column(align=True)
+        hint.scale_y = 0.75
+        hint.label(text="Make alpha-cutout leaf/grass cards look 3D.", icon='INFO')
+        hint.label(text="Cross Card = best for leaves & foliage.", icon='DOT')
+        hint.label(text="Solidify  = best for signs, fences, thin props.", icon='DOT')
+        row = thick_box.row(align=True)
+        row.enabled = has_mesh
+        row.scale_y = 1.3
+        row.operator("fo4.thicken_flat_plane", text="Thicken Selected Plane", icon='MOD_SOLIDIFY')
+        row2 = thick_box.row()
+        row2.operator("fo4.thicken_selected_planes", text="Batch — All Selected", icon='MOD_ARRAY')
+
         # ── One-click wind setup ──────────────────────────────────────────────
         wind_box = layout.box()
         wind_box.label(text="Wind Setup (Vegetation)", icon='FORCE_WIND')

@@ -389,15 +389,18 @@ def deferred_startup():
     _th_opt.Thread(target=_try_mossy_optional, daemon=True,
                    name="MossyOptionalInstall").start()
 
-    # ── Step 4: auto-discover installed CLI tools and wire up preferences ─────
-    # If ffmpeg / nvcompress / texconv are present in the tools folder but
-    # the preference paths are blank, fill them in automatically.
-    try:
-        from . import tool_installers as _ti
-        if _ti:
-            _ti.auto_configure_preferences()
-    except Exception as e:
-        print(f"Tool auto-discovery skipped: {e}")
+    # ── Step 4: auto-discover installed CLI tools (background, not blocking) ────
+    # Moved to a daemon thread so filesystem scanning never stalls the UI.
+    def _bg_tool_discovery():
+        try:
+            from . import tool_installers as _ti
+            if _ti:
+                _ti.auto_configure_preferences()
+        except Exception as e:
+            print(f"Tool auto-discovery skipped: {e}")
+    import threading as _th_td
+    _th_td.Thread(target=_bg_tool_discovery, daemon=True,
+                  name="MossyToolDiscovery").start()
 
     # ── Steps 5 / 5b / 5c: auto-download tools (background thread) ───────────
     # All three download steps are grouped into a single daemon thread so that
@@ -522,8 +525,21 @@ def deferred_startup():
         except Exception as _e_tools:
             print(f"Tool auto-download step skipped: {_e_tools}")
 
+    # Only run tool downloads when the user has opted in AND we haven't
+    # already checked this session (prevents hammering the network every
+    # time Blender opens a new file or reloads the addon).
     import threading as _thr
-    _thr.Thread(target=_background_tool_downloads, daemon=True).start()
+    try:
+        from . import preferences as _prefs_gate
+        _p_gate = _prefs_gate.get_preferences() if _prefs_gate else None
+        if _p_gate and getattr(_p_gate, 'auto_install_tools', False):
+            _thr.Thread(target=_background_tool_downloads, daemon=True,
+                        name="MossyToolDownloads").start()
+        else:
+            print("[Startup] auto_install_tools off — skipping tool downloads")
+    except Exception:
+        # Preferences not yet ready; skip downloads rather than crashing
+        pass
 
     # ── Step 6: deferred tutorial-operator safety check ──────────────────────
     # A 2-second window after startup is enough time for other extensions

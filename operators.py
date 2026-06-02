@@ -4780,7 +4780,7 @@ class FO4_OT_ImportFO4AssetFile(Operator):
         if ext in {'.duf', '.dsf', '.duf.gz', '.dsf.gz'}:
             if hasattr(bpy.ops, 'fo4') and hasattr(bpy.ops.fo4, 'import_dsf'):
                 try:
-                    bpy.ops.fo4.import_dsf('INVOKE_DEFAULT', filepath=filepath)
+                    bpy.ops.fo4.import_dsf('EXEC_DEFAULT', filepath=filepath)
                     return {'FINISHED'}
                 except Exception as e:
                     self.report({'ERROR'}, f"DAZ import failed: {e}")
