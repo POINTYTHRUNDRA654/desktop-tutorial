@@ -35,6 +35,7 @@ import queue
 import socket
 import sys
 import threading
+import time
 from urllib import error as _url_error
 from urllib import request as _url_request
 
@@ -44,6 +45,36 @@ _server_socket: "socket.socket | None" = None
 _active: bool = False
 _command_queue: queue.Queue = queue.Queue()
 _pytorch_path: "str | None" = None  # Will be set by Mossy via set_pytorch_path command
+
+# ── Auto-reconnect / health monitor state ─────────────────────────────────────
+_last_health_check: float = 0.0
+_health_check_interval: float = 15.0   # seconds between bridge health pings
+_bridge_online: bool = False
+_llm_online: bool = False
+_reconnect_attempts: int = 0
+_MAX_RECONNECT: int = 5                # give up auto-reconnect after this many failures
+
+# ── FO4 system context injected into every LLM query ─────────────────────────
+# This ensures the Nemotron model always answers in the FO4 modding context
+# regardless of how the query is phrased.
+_FO4_SYSTEM_CONTEXT = (
+    "You are an expert Fallout 4 modding assistant integrated into Blender via the "
+    "Mossy Industries addon. You have deep knowledge of:\n"
+    "- NIF file format (version 20.2.0.7, UserVer 12, BSVersion 130)\n"
+    "- BSTriShape, BSFadeNode, BSLightingShaderProperty, BSShaderTextureSet\n"
+    "- BGSM/BGEM material files (Data/Materials/), texture slots (_d, _n, _s, _g .dds)\n"
+    "- FO4 mesh limits: 65535 verts/tris per BSTriShape, 4 bone influences per vertex\n"
+    "- Havok physics (bhkRigidBody, bhkConvexVerticesShape, bhkCollisionObject)\n"
+    "- FO4 skeleton (fo4_skeleton.nif), NPC bone names, armor biped slots\n"
+    "- Shape-key → .tri morph export (FRTRI003 format)\n"
+    "- NavMesh requirements: all-tris, manifold, max 32767 verts, max 16384 tris\n"
+    "- Papyrus scripting, Creation Kit workflow, BA2 archives\n"
+    "- PyNifly (Blender 4.x/5.x) and Niftools v0.1.1 (Blender 3.6 LTS) exporters\n"
+    "- Cathedral Assets Optimizer (CAO) for post-processing NIF/DDS files\n"
+    "- FO4Edit/xEdit for record editing and conflict resolution\n"
+    "Always give concise, actionable answers specific to Fallout 4 modding.\n"
+    "When describing fixes, give the exact steps a Blender user would take.\n"
+)
 
 # ── Port helpers ───────────────────────────────────────────────────────────────
 
@@ -428,7 +459,14 @@ def stop_server() -> tuple:
 
 # ── Outbound: Nemotron LLM (Mossy brain) ──────────────────────────────────────
 
-def ask_mossy(query: str, context_data=None, timeout: float = 15) -> "str | None":
+def ask_mossy(
+    query: str,
+    context_data=None,
+    timeout: float = 15,
+    fo4_context: bool = True,
+    max_tokens: int = 500,
+    temperature: float = 0.7,
+) -> "str | None":
     """
     Send a natural-language query to Mossy's local Nemotron AI service.
 
@@ -440,21 +478,26 @@ def ask_mossy(query: str, context_data=None, timeout: float = 15) -> "str | None
     :param context_data: Optional dict of structured context (e.g. mesh issues,
                          UV analysis).  Serialised and appended to the prompt.
     :param timeout:      Seconds to wait before giving up.
+    :param fo4_context:  When True (default), prepends the FO4 system context so
+                         the AI always answers in the Fallout 4 modding domain.
+    :param max_tokens:   Maximum tokens in the response.
+    :param temperature:  Sampling temperature (lower = more deterministic).
     :returns:            The AI's plain-text response, or ``None`` on any error.
     """
     _tcp_port, llm_port, _token = _get_ports()
 
-    # Build a single prompt string.
-    parts = [query]
+    # ── Build prompt with optional FO4 system context ─────────────────────────
+    parts = []
+    if fo4_context:
+        parts.append(_FO4_SYSTEM_CONTEXT)
+    parts.append(query)
+
     if context_data:
         try:
-            # Truncate context_data BEFORE serialising so the result is always
-            # valid JSON (truncating after serialisation can split mid-escape).
             def _trim(obj, max_chars=1800):
                 serialised = json.dumps(obj)
                 if len(serialised) <= max_chars:
                     return obj
-                # Rebuild with fewer items / shorter strings until it fits.
                 if isinstance(obj, dict):
                     trimmed = {}
                     for k, v in obj.items():
@@ -471,17 +514,18 @@ def ask_mossy(query: str, context_data=None, timeout: float = 15) -> "str | None
                             result.pop()
                             break
                     return result
-                return obj  # scalar - return as-is
+                return obj
 
             parts.append("\nContext:\n" + json.dumps(_trim(context_data), indent=2))
         except Exception:
             pass
+
     full_prompt = "\n".join(parts)
 
     payload = json.dumps({
         "prompt":      full_prompt,
-        "max_tokens":  500,
-        "temperature": 0.7,
+        "max_tokens":  max_tokens,
+        "temperature": temperature,
         "top_p":       0.9,
     }).encode("utf-8")
 
@@ -495,8 +539,6 @@ def ask_mossy(query: str, context_data=None, timeout: float = 15) -> "str | None
         with _url_request.urlopen(req, timeout=timeout) as resp:
             if resp.status == 200:
                 data = json.loads(resp.read().decode("utf-8"))
-                # Nemotron returns {"response": "..."} - fall back to other keys
-                # in case the endpoint changes.
                 return (
                     data.get("response")
                     or data.get("text")
@@ -507,6 +549,51 @@ def ask_mossy(query: str, context_data=None, timeout: float = 15) -> "str | None
         pass
 
     return None
+
+
+def ask_mossy_fo4(
+    query: str,
+    mesh_obj=None,
+    issues: "list | None" = None,
+    timeout: float = 20,
+) -> "str | None":
+    """
+    Ask Mossy AI a Fallout 4-specific question with automatic mesh context.
+
+    Convenience wrapper around :func:`ask_mossy` that builds the ``context_data``
+    dict from a Blender mesh object automatically.  Always injects FO4 system
+    context so the AI knows the full FO4 modding domain.
+
+    :param query:    The specific question (e.g. "How do I fix this UV issue?").
+    :param mesh_obj: Optional active Blender mesh object for auto context.
+    :param issues:   Optional list of validation issue strings from validators.
+    :param timeout:  Seconds to wait.
+    :returns:        AI advice string, or ``None`` when Mossy is offline.
+    """
+    context: dict = {"domain": "fallout4_modding"}
+
+    if mesh_obj is not None:
+        try:
+            me = mesh_obj.data
+            context["object_name"]  = mesh_obj.name
+            context["vertex_count"] = len(me.vertices)
+            context["face_count"]   = len(me.polygons)
+            context["material_count"] = len(mesh_obj.material_slots)
+            context["uv_layers"]    = [uv.name for uv in me.uv_layers]
+            context["has_armature"] = any(
+                m.type == 'ARMATURE' for m in mesh_obj.modifiers
+            )
+            context["custom_props"] = {
+                k: v for k, v in mesh_obj.items()
+                if not k.startswith("_")
+            }
+        except Exception:
+            pass
+
+    if issues:
+        context["validation_issues"] = issues[:10]  # cap to avoid overflow
+
+    return ask_mossy(query, context_data=context, timeout=timeout, fo4_context=True)
 
 # ── Outbound: Bridge health check ─────────────────────────────────────────────
 
@@ -613,7 +700,7 @@ def process_texture(
     """
     Ask Mossy AI to convert or compress a texture.
 
-    Offloads DDS/BC7 compression (NVTT, texconv, …) to the Mossy desktop
+    Offloads DDS/BC7 compression (NVTT, texconv) to the Mossy desktop
     application so the Blender add-on does not need local CLI tools.
 
     :param image_data_base64: Base-64 encoded source image (PNG/JPEG/TGA).
@@ -660,8 +747,12 @@ def analyze_scene(scene_info: dict, timeout: float = 30) -> "str | None":
     :returns:          Plain-text analysis/advice, or ``None`` on error.
     """
     _tcp_port, llm_port, _token = _get_ports()
+    # Inject FO4 context into scene analysis so the AI knows the domain
+    scene_info_with_ctx = dict(scene_info)
+    scene_info_with_ctx.setdefault("domain", "fallout4_modding")
     payload = json.dumps({
-        "scene_info":  scene_info,
+        "scene_info":  scene_info_with_ctx,
+        "system":      _FO4_SYSTEM_CONTEXT,
         "max_tokens":  800,
         "temperature": 0.4,
     }).encode("utf-8")
@@ -685,12 +776,105 @@ def analyze_scene(scene_info: dict, timeout: float = 30) -> "str | None":
     return None
 
 
+# ── Health monitor (auto-reconnect) ───────────────────────────────────────────
+
+def _health_monitor() -> "float | None":
+    """
+    Blender timer callback: runs every ``_health_check_interval`` seconds on
+    the main thread.
+
+    * Pings the Mossy Bridge (port 21337) and Nemotron LLM (port 5000).
+    * Updates ``_bridge_online`` / ``_llm_online`` so the UI reflects live status.
+    * If the TCP command server was active but the thread died, attempts to
+      restart it automatically (up to ``_MAX_RECONNECT`` times).
+    """
+    global _last_health_check, _bridge_online, _llm_online
+    global _reconnect_attempts, _server_thread
+
+    now = time.monotonic()
+    if now - _last_health_check < _health_check_interval:
+        return _health_check_interval
+
+    _last_health_check = now
+
+    # Bridge health
+    try:
+        bridge_ok, _ = check_bridge(timeout=2.0)
+        _bridge_online = bridge_ok
+    except Exception:
+        _bridge_online = False
+
+    # LLM health
+    try:
+        llm_ok, _ = check_llm(timeout=2.0)
+        _llm_online = llm_ok
+    except Exception:
+        _llm_online = False
+
+    # Auto-reconnect TCP server if it crashed
+    if _active and (_server_thread is None or not _server_thread.is_alive()):
+        if _reconnect_attempts < _MAX_RECONNECT:
+            _reconnect_attempts += 1
+            print(f"[Mossy Link] TCP server appears dead — auto-reconnect attempt "
+                  f"{_reconnect_attempts}/{_MAX_RECONNECT}")
+            try:
+                tcp_port, _, token = _get_ports()
+                if token and token.strip():
+                    t = threading.Thread(
+                        target=_tcp_server_loop,
+                        args=("127.0.0.1", tcp_port, token),
+                        daemon=True,
+                        name="MossyLinkTCP",
+                    )
+                    t.start()
+                    _server_thread = t
+                    print("[Mossy Link] TCP server restarted successfully.")
+                    _reconnect_attempts = 0
+            except Exception as exc:
+                print(f"[Mossy Link] Auto-reconnect failed: {exc}")
+        else:
+            print(f"[Mossy Link] Max reconnect attempts ({_MAX_RECONNECT}) reached — "
+                  "stopping auto-reconnect.")
+
+    # Sync status to WindowManager for UI
+    try:
+        import bpy as _bpy
+        wm = _bpy.context.window_manager
+        if hasattr(wm, "mossy_link_active"):
+            wm.mossy_link_active = _active
+        if hasattr(wm, "mossy_bridge_status"):
+            wm.mossy_bridge_status = "Mossy Bridge online" if _bridge_online else "Mossy Bridge offline"
+    except Exception:
+        pass
+
+    return _health_check_interval
+
+
+def get_connection_status() -> dict:
+    """
+    Return a dict summarising the current Mossy connection state.
+
+        status = mossy_link.get_connection_status()
+        # {"server_active": True, "bridge_online": True, "llm_online": False,
+        #   "pytorch_path": "D:/torch", "reconnect_attempts": 0}
+    """
+    return {
+        "server_active":      _active,
+        "bridge_online":      _bridge_online,
+        "llm_online":         _llm_online,
+        "pytorch_path":       _pytorch_path,
+        "reconnect_attempts": _reconnect_attempts,
+    }
+
+
 # ── Blender register / unregister ─────────────────────────────────────────────
 
 def register() -> None:
     """Called by the add-on register().  Auto-starts the server if preferred."""
+    global _reconnect_attempts
+    _reconnect_attempts = 0
+
     try:
-        # Load PyTorch path from preferences on add-on load
         pytorch_path = _load_pytorch_path_from_prefs()
         if pytorch_path:
             print(f"[Mossy Link] PyTorch path loaded on add-on register: {pytorch_path}")
@@ -703,9 +887,24 @@ def register() -> None:
     except Exception as exc:
         print(f"[Mossy Link] register() error: {exc}")
 
+    # Start the health monitor timer (15 s interval, very low overhead)
+    try:
+        import bpy as _bpy
+        if not _bpy.app.timers.is_registered(_health_monitor):
+            _bpy.app.timers.register(_health_monitor, first_interval=5.0)
+            print("[Mossy Link] Health monitor started (15 s interval)")
+    except Exception as exc:
+        print(f"[Mossy Link] Could not start health monitor: {exc}")
+
 
 def unregister() -> None:
-    """Called by the add-on unregister().  Stops the server."""
+    """Called by the add-on unregister().  Stops the server and monitor."""
+    try:
+        import bpy as _bpy
+        if _bpy.app.timers.is_registered(_health_monitor):
+            _bpy.app.timers.unregister(_health_monitor)
+    except Exception:
+        pass
     try:
         stop_server()
     except Exception as exc:
