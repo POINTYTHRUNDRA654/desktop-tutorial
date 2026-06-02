@@ -296,17 +296,17 @@ def deferred_startup():
         import importlib.util as _ilu
         import threading as _th_pkg
 
+        # Lightweight pure-Python packages — safe to pip-install directly.
+        # Keep this list small: anything large or requiring compilation goes
+        # through Mossy instead (see _try_mossy_optional below).
         _CORE_PACKAGES = {
             "PIL":      "Pillow",
             "numpy":    "numpy",
             "requests": "requests",
-            "trimesh":  "trimesh",
             "pypdf":    "pypdf",
-            "scipy":    "scipy",
-            # libigl removed from auto-install — requires C++ compilation
-            # and has no pre-built wheels for Blender's bundled Python,
-            # causing startup lag and build failures. It is an optional
-            # dependency for RigNet only; install manually if needed.
+            # scipy, trimesh, and libigl moved to Mossy-managed installs —
+            # they are large / have C++ deps and caused startup lag when
+            # pip tried to build them inside Blender's bundled Python.
         }
         # Use a cache file so we skip find_spec calls after first successful install
         import json as _json, pathlib as _pl
@@ -352,6 +352,42 @@ def deferred_startup():
             print("[Auto-Install] All core Python packages present")
     except Exception as _ai_exc:
         print(f"[Auto-Install] Check skipped: {_ai_exc}")
+
+    # ── Step 3b: install heavy/compiled packages via Mossy (background) ────────
+    # scipy, trimesh, and libigl are large or require C++ compilation.
+    # Blender's bundled pip cannot build them reliably, causing lag and errors.
+    # If Mossy Bridge is online it handles the build toolchain transparently.
+    # We skip silently when Mossy is offline — nothing breaks, features that
+    # need these packages (RigNet, mesh analysis) just show "not available".
+    def _try_mossy_optional():
+        import importlib.util as _ilu2
+        _MOSSY_PACKAGES = {
+            "scipy":   "scipy",    # large numerical library
+            "trimesh": "trimesh",  # mesh analysis, pulls many deps
+            "igl":     "libigl",   # RigNet — requires C++ compilation
+        }
+        missing = [pip for mod, pip in _MOSSY_PACKAGES.items()
+                   if _ilu2.find_spec(mod) is None]
+        if not missing:
+            return  # all already installed
+
+        try:
+            from . import mossy_link as _ml_opt
+            bridge_ok, _ = _ml_opt.check_bridge(timeout=1.0)
+            if not bridge_ok:
+                print(f"[Mossy Install] Mossy offline — skipping {missing}")
+                return
+            print(f"[Mossy Install] Requesting via Mossy: {missing}")
+            results = _ml_opt.request_packages_install(missing, timeout=300.0)
+            for pkg, (ok, msg) in results.items():
+                status = "installed" if ok else "skipped"
+                print(f"[Mossy Install] {pkg}: {status} — {msg}")
+        except Exception as _e_opt:
+            print(f"[Mossy Install] Optional install skipped: {_e_opt}")
+
+    import threading as _th_opt
+    _th_opt.Thread(target=_try_mossy_optional, daemon=True,
+                   name="MossyOptionalInstall").start()
 
     # ── Step 4: auto-discover installed CLI tools and wire up preferences ─────
     # If ffmpeg / nvcompress / texconv are present in the tools folder but

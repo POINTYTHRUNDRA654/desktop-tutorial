@@ -649,6 +649,102 @@ def check_bridge(timeout: float = 3.0) -> tuple:
     return False, "Mossy Bridge returned unexpected status"
 
 
+def request_package_install(
+    package: str,
+    timeout: float = 120.0,
+) -> "tuple[bool, str]":
+    """
+    Ask the Mossy desktop app to install a single Python package into
+    Blender's bundled Python environment.
+
+    Mossy handles the build toolchain (Visual Studio, cmake, ninja) so
+    packages requiring C++ compilation (e.g. libigl) install cleanly.
+
+    Sends ``POST http://localhost:21337/install_package``::
+
+        {"package": "libigl", "python_exe": "...", "reason": "..."}
+
+    Expected response::
+
+        {"status": "success"|"error", "message": "...", "requires_restart": false}
+
+    :param package:  pip package name (e.g. ``"libigl"``).
+    :param timeout:  Seconds to wait for Mossy to finish.
+    :returns:        ``(success: bool, message: str)``
+    """
+    import sys as _sys
+    try:
+        payload = json.dumps({
+            "package":    package,
+            "python_exe": _sys.executable,
+            "reason":     f"Requested by Mossy Blender add-on",
+        }).encode("utf-8")
+        req = _url_request.Request(
+            f"http://localhost:{_BRIDGE_PORT}/install_package",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            ok = data.get("status") == "success"
+            return ok, data.get("message", "No message returned")
+    except _url_error.URLError:
+        return False, "Mossy Bridge not reachable — start Mossy desktop app first"
+    except Exception as exc:
+        return False, f"install_package request failed: {exc}"
+
+
+def request_packages_install(
+    packages: "list[str]",
+    timeout: float = 300.0,
+) -> "dict[str, tuple[bool, str]]":
+    """
+    Ask Mossy to install multiple packages, returning a per-package result dict.
+
+    Sends ``POST http://localhost:21337/install_packages`` (batch endpoint)::
+
+        {"packages": ["scipy", "trimesh", "libigl"], "python_exe": "..."}
+
+    Falls back to calling :func:`request_package_install` one-by-one if the
+    batch endpoint is not available (older Mossy versions).
+
+    :param packages: List of pip package names.
+    :param timeout:  Total seconds to wait for all installs.
+    :returns:        ``{package: (success, message), ...}``
+    """
+    import sys as _sys
+    results: "dict[str, tuple[bool, str]]" = {}
+
+    # Try the batch endpoint first
+    try:
+        payload = json.dumps({
+            "packages":   packages,
+            "python_exe": _sys.executable,
+        }).encode("utf-8")
+        req = _url_request.Request(
+            f"http://localhost:{_BRIDGE_PORT}/install_packages",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            for pkg in packages:
+                pkg_data = data.get(pkg, {})
+                ok = pkg_data.get("status") == "success"
+                results[pkg] = (ok, pkg_data.get("message", "no detail"))
+            return results
+    except Exception:
+        pass  # fall through to one-by-one
+
+    # Per-package fallback
+    per_timeout = max(60.0, timeout / max(len(packages), 1))
+    for pkg in packages:
+        results[pkg] = request_package_install(pkg, timeout=per_timeout)
+    return results
+
+
 def check_llm(timeout: float = 3.0) -> tuple:
     """
     Check whether Mossy's Nemotron LLM service is running.
