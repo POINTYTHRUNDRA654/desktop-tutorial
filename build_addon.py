@@ -103,7 +103,7 @@ def _read_addon_version(root: Path) -> str:
     dot-separated string (e.g. ``'5.0.0'`` for ``(5, 0, 0)``).
     Falls back to ``'0.0.0'`` if the version cannot be parsed."""
     src = (root / "__init__.py").read_text(encoding="utf-8")
-    m = re.search(r'"version"\s*:\s*\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)\)', src)
+    m = re.search(r'"version"\s*:\s*\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)[^)]*\)', src)
     if m:
         return f"{m.group(1)}.{m.group(2)}.{m.group(3)}"
     return "0.0.0"
