@@ -56,3 +56,26 @@ Issues: https://github.com/POINTYTHRUNDRA654/Blender-add-on/issues
 Mossy Industries - Professional tools for game modders
 
 ════════════════════════════════════════════════════════════════════════
+
+CREDITS
+
+Third-party libraries, tools, and projects used by this add-on:
+- PyNifly / Niftools — NIF export support
+- RealESRGAN — texture upscaling (optional)
+- RigNet — auto-rigging utilities (optional)
+- Shape-E / Point-E — model/mesh helpers (optional)
+- NVTT / texconv — texture conversion & DDS tools
+- Havok2FBX / Havok animation/export helpers
+
+CONTRIBUTORS
+
+See CONTRIBUTORS.md for a list of contributors, maintainers, and acknowledgements.
+To be added: open a PR with your name and role (code, docs, testing, assets, etc.).
+
+PATRON SUPPORT
+
+If you'd like to support continued development, consider buying me a coffee:
+- Tundra654 — https://buymeacoffee.com/tundra654
+
+Thank you to everyone who has contributed, tested, and supported this project.
+

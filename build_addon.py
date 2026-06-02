@@ -33,6 +33,7 @@ import sys
 import tempfile
 import textwrap
 import zipfile
+import json
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -239,6 +240,19 @@ def build_nexus_bundle(outdir: Path, addon_version: str,
 
     with zipfile.ZipFile(bundle_path, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("INSTALL_GUIDE.txt", install_guide)
+        # Nexus metadata (included for Nexus listing and external stores)
+        nexus_meta = {
+            "name": ZIP_FILE_PREFIX,
+            "version": addon_version,
+            "repository": "https://github.com/POINTYTHRUNDRA654/Blender-add-on",
+            "issues": "https://github.com/POINTYTHRUNDRA654/Blender-add-on/issues",
+            "sponsors": "https://github.com/sponsors/POINTYTHRUNDRA654",
+            "patreon": "https://www.patreon.com/c/Pointytundra654",
+            "donations": {
+                "buymeacoffee": "https://buymeacoffee.com/tundra654"
+            }
+        }
+        zf.writestr("NEXUS_METADATA.json", json.dumps(nexus_meta, indent=2))
         for zp in variant_zips:
             zf.write(zp, zp.name)
 

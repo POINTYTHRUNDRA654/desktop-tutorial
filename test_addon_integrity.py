@@ -198,23 +198,23 @@ class TestOperatorsRegistered(unittest.TestCase):
         have their own register() / classes tuple (e.g. asset_library.py).
         """
         ids = set()
-        # Files that define and register their own operator classes
-        files_to_scan = [
-            "operators.py",
-            "install_operators.py",
-            "ai_gen_operators.py",
-            "tutorial_operators.py",
-            "setup_operators.py",
-            "addon_diagnostics.py",
-            "asset_library.py",
-            "torch_path_manager.py",
-            "texture_helpers/conversion_operators.py",
-        ]
+        # Scan all .py files in the addon for bl_idname declarations. This
+        # ensures operator definitions spread across helper modules are
+        # correctly discovered by the static integrity checks.
         pattern = re.compile(r'bl_idname\s*=\s*["\']([^"\']+)["\']')
-        for fname in files_to_scan:
-            fpath = _path(fname)
-            if os.path.isfile(fpath):
-                ids.update(pattern.findall(_read(fname)))
+        # Walk the addon tree so nested modules (e.g. texture_helpers/...) are
+        # also scanned for operator bl_idname declarations.
+        for root, _, files in os.walk(ADDON_DIR):
+            for fname in files:
+                if not fname.endswith('.py'):
+                    continue
+                fpath = os.path.join(root, fname)
+                try:
+                    with open(fpath, encoding='utf-8') as fh:
+                        src = fh.read()
+                except FileNotFoundError:
+                    continue
+                ids.update(pattern.findall(src))
         return ids
 
     def test_all_used_operators_registered(self):
@@ -801,12 +801,9 @@ class TestScenePropsRegistered(unittest.TestCase):
     Blender silently reports as "property not found: Scene.X" on every redraw.
     """
 
-    # Files that use a list/setattr pattern to register scene props instead of
-    # the standard ``bpy.types.Scene.X = bpy.props.*`` assignment.
-    # Maps filename → list of prop name strings found via custom logic.
-    _LIST_PATTERN_FILES = {
-        "asset_library.py",
-    }
+    # Some modules register scene properties via a _SCENE_PROPS list and
+    # setattr() calls; detect those files dynamically by looking for the
+    # `_SCENE_PROPS` marker in the source.
 
     def _collect_registered_scene_props(self):
         """Return the set of Scene property names registered across all .py files."""
@@ -818,12 +815,14 @@ class TestScenePropsRegistered(unittest.TestCase):
 
         # Pattern 2 (asset_library.py setattr list):
         # ("prop_name", SomePropType(...))  as items in a list assigned to _SCENE_PROPS
-        pat2 = re.compile(r'["\'](fo4_\w+)["\']\s*,\s*\w+Property\s*\(')
+        pat2 = re.compile(r'["\'](fo4_\w+)["\']\s*,\s*(?:[\w\.]+)Property\s*\(')
 
         for fname in _py_files():
             src = _read(fname)
             registered.update(pat1.findall(src))
-            if fname in self._LIST_PATTERN_FILES:
+            # If the module uses a _SCENE_PROPS list + setattr() pattern,
+            # extract prop names from that list as well.
+            if '_SCENE_PROPS' in src:
                 registered.update(pat2.findall(src))
 
         return registered

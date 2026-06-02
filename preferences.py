@@ -85,6 +85,9 @@ def save_api_keys() -> None:
         val = getattr(prefs, field, None)
         if val is not None:
             data[field] = val
+    # Explicitly ensure pytorch_path is persisted for Mossy-provided PyTorch
+    if hasattr(prefs, "pytorch_path") and prefs.pytorch_path:
+        data["pytorch_path"] = prefs.pytorch_path
     # Legacy key name kept for backwards compat with older JSON files
     data["mossy_token"] = data.get("token", "")
     try:

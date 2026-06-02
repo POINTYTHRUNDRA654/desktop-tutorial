@@ -4,9 +4,9 @@ A comprehensive tutorial and helper system for creating Fallout 4 mods in Blende
 """
 
 bl_info = {
-    "name": "Mossy Fallout 4 Blender Add-on",
+    "name": "Mossy Industries blender addon",
     "author": "Mossy Industries",
-    "version": (5, 1, 0),
+    "version": (5, 1, 0, "alpha"),
     "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x
     "location": "View3D > Sidebar > Fallout 4",
     "description": (
@@ -437,7 +437,7 @@ def register():
     blender_version = bpy.app.version
     version_string = f"{blender_version[0]}.{blender_version[1]}.{blender_version[2]}"
 
-    print(f"Mossy Fallout 4 Blender Add-on - Initializing for Blender {version_string}")
+    print(f"Mossy Industries blender addon - Initializing for Blender {version_string}")
 
     # Register all modules, but continue even if one fails so the
     # user can see the error in the console and report it.
@@ -535,7 +535,7 @@ def register():
     # are installed automatically on first run without blocking the UI.
 
     print(
-        f"✓ Mossy Fallout 4 Blender Add-on registered successfully (Blender {version_string})"
+        f"✓ Mossy Industries blender addon registered successfully (Blender {version_string})"
     )
 
     # schedule a quick environment check once Blender is ready
@@ -639,7 +639,7 @@ def unregister():
 
             traceback.print_exc()
 
-    print("Mossy Fallout 4 Blender Add-on unregistered")
+    print("Mossy Industries blender addon unregistered")
 
 
 if __name__ == "__main__":
