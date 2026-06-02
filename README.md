@@ -2,6 +2,15 @@
 
 **Mossy v5.4.67** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
+## Support the Developer
+
+If Mossy.Space has helped your modding workflow, consider supporting continued development:
+
+[![Patreon](https://img.shields.io/badge/Patreon-Support-orange?logo=patreon)](https://www.patreon.com/c/Pointytundra654)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Tip-yellow?logo=buymeacoffee)](https://buymeacoffee.com/tundra654)
+
+---
+
 > 🔄 **For Contributors:** If you have this repository cloned and want to update your local copy with recent bug fixes, see [GIT_UPDATE_GUIDE.md](GIT_UPDATE_GUIDE.md)
 > 
 > 🔀 **Merge & Cleanup:** Ready to merge to master or clean up temporary files? See [MERGE_TO_MASTER_GUIDE.md](MERGE_TO_MASTER_GUIDE.md) and [REPOSITORY_CLEANUP_GUIDE.md](REPOSITORY_CLEANUP_GUIDE.md)

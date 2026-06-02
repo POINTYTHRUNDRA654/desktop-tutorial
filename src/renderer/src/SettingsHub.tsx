@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import {
   ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw,
   Settings as SettingsIcon, Wifi, Wrench, Check, Brain, Zap,
-  Package, Palette, Shield,
+  Package, Palette, Shield, Coffee, Star,
 } from 'lucide-react';
+import { openExternal } from './utils/openExternal';
 import type { ElectronAPI } from '../../electron/types';
 import { useI18n } from './i18n';
 import PrivacySettings from './PrivacySettings';
@@ -447,6 +448,44 @@ const SettingsHub: React.FC = () => {
       description: t('settings.hub.credits.desc', 'View the open-source projects and tools that power Mossy.'),
       icon: Heart,
       content: <CredsSection />,
+    },
+    {
+      id: 'support',
+      title: 'Support the Developer',
+      description: 'Help keep Mossy.Space and the FO4 Advanced AI project alive.',
+      icon: Coffee,
+      badge: 'OPTIONAL',
+      badgeStyle: 'bg-amber-900/40 border-amber-600/40 text-amber-300',
+      content: (
+        <div className="space-y-4 text-sm">
+          <p className="text-slate-300 text-xs leading-relaxed">
+            Mossy.Space is a free, passion-driven project. If it's helped your modding workflow, consider supporting continued development — every contribution helps keep the lights on.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              onClick={() => void openExternal('https://www.patreon.com/c/Pointytundra654')}
+              className="flex items-center gap-3 p-4 rounded-lg border border-orange-600/40 bg-orange-900/20 hover:bg-orange-900/40 hover:border-orange-500/60 transition-all text-left group"
+            >
+              <Star className="w-6 h-6 text-orange-400 shrink-0 group-hover:scale-110 transition-transform" />
+              <div>
+                <div className="font-semibold text-orange-200 text-sm">Patreon</div>
+                <div className="text-xs text-orange-300/70">Monthly membership & exclusive updates</div>
+              </div>
+            </button>
+            <button
+              onClick={() => void openExternal('https://buymeacoffee.com/tundra654')}
+              className="flex items-center gap-3 p-4 rounded-lg border border-yellow-600/40 bg-yellow-900/20 hover:bg-yellow-900/40 hover:border-yellow-500/60 transition-all text-left group"
+            >
+              <Coffee className="w-6 h-6 text-yellow-400 shrink-0 group-hover:scale-110 transition-transform" />
+              <div>
+                <div className="font-semibold text-yellow-200 text-sm">Buy Me a Coffee</div>
+                <div className="text-xs text-yellow-300/70">One-time tip, any amount</div>
+              </div>
+            </button>
+          </div>
+          <p className="text-slate-500 text-xs">Thank you for using Mossy.Space. Your support means everything.</p>
+        </div>
+      ),
     },
   ];
 
