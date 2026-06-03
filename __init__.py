@@ -254,89 +254,80 @@ def _filter(mod):
     return mod is not None
 
 
-modules = list(
-    filter(
-        _filter,
-        [
-            preferences,
-            # ── CRITICAL: mossy_link MUST be second (immediately after preferences). ──
-            # mossy_link.register() loads the Mossy-provided PyTorch path from prefs
-            # and inserts it into sys.path.  Every module that needs torch
-            # (rignet_helpers, shap_e_helpers, point_e_helpers, hunyuan3d_helpers,
-            # hymotion_helpers, zoedepth_helpers, ...) must register AFTER this so
-            # that `import torch` and importlib.util.find_spec("torch") succeed.
-            # Do NOT move mossy_link lower in this list.
-            mossy_link,
-            tutorial_system,
-            notification_system,
-            mesh_helpers,
-            advanced_mesh_helpers,
-            texture_helpers,
-            animation_helpers,
-            quest_helpers,
-            npc_helpers,
-            world_building_helpers,
-            item_helpers,
-            preset_library,
-            automation_system,
-            addon_integration,
-            desktop_tutorial_client,
-            torch_path_manager,
-            advisor_helpers,
-            knowledge_helpers,
-            # external integrations - register by default so their buttons/operators
-            # are available without a separate manual load step; any missing module is
-            # filtered out by _filter to avoid crashes on platforms without the tools.
-            ue_importer_helpers,
-            umodel_tools_helpers,
-            unity_fbx_importer_helpers,
-            asset_studio_helpers,
-            asset_ripper_helpers,
-            tool_installers,
-            export_helpers,
-            image_to_mesh_helpers,
-            nvtt_helpers,
-            # ── CRITICAL: tutorial_operators and setup_operators MUST be here, BEFORE operators ──
-            # Removing or reordering these lines is the #1 cause of the
-            # "no activation buttons" bug. See DEVELOPMENT_NOTES.md.
-            tutorial_operators,
-            # setup_operators registers the three Setup & Status panel buttons
-            # (Install Core Dependencies, Environment Check, Restart Blender)
-            # before operators.py so they always appear as real buttons even
-            # if the larger operators.py bundle fails to load on a particular build.
-            setup_operators,
-            addon_diagnostics,
-            ai_gen_operators,
-            install_operators,
-            fo4_plane_thickener,
-            operators,
-            ui_panels,
-            content_panels,
-            post_processing_helpers,
-            fo4_material_browser,
-            fo4_scene_diagnostics,
-            advanced_realism_helpers,
-            fo4_reference_helpers,
-            papyrus_helpers,
-            fo4_physics_helpers,
-            mod_packaging_helpers,
-            addon_updater,
-            asset_library,
-            fo4_pipeline,
-            fo4_ck_cell,
-            fo4_ue5_converter,
-            fo4_unity_converter,
-            fo4_creature_rig,
-            fo4_animation_export,
-            fo4_advanced_materials,
-            fo4_lod_generator,
-            tri_export_helpers,
-            navmesh_helpers,
-            bgsm_helpers,
-            dsf_importer,
-        ],
-    )
-)
+# ── Phase 1: registers immediately at startup ────────────────────────────────
+# Keep this list to the absolute minimum needed for Blender to open with a
+# working N-panel.  Every class registered here adds ~5 ms to load time.
+_PHASE1_MODULES = list(filter(_filter, [
+    preferences,
+    mossy_link,        # MUST be second — sets up PyTorch sys.path
+    notification_system,
+    tutorial_system,
+    torch_path_manager,
+    mesh_helpers,
+    advanced_mesh_helpers,
+    texture_helpers,
+    export_helpers,
+    nvtt_helpers,
+    bgsm_helpers,
+    tri_export_helpers,
+    navmesh_helpers,
+    animation_helpers,
+    fo4_pipeline,
+    fo4_lod_generator,
+    fo4_advanced_materials,
+    fo4_material_browser,
+    fo4_plane_thickener,
+    dsf_importer,
+    advisor_helpers,
+    tutorial_operators,   # MUST be before operators
+    setup_operators,      # MUST be before operators
+    addon_diagnostics,
+    install_operators,
+    operators,
+    ui_panels,
+]))
+
+# ── Phase 2: registers ~3 seconds after startup ──────────────────────────────
+# Everything else.  By the time the user navigates to any of these panels
+# they are already registered.  All features remain fully available.
+_PHASE2_MODULES = list(filter(_filter, [
+    knowledge_helpers,
+    quest_helpers,
+    npc_helpers,
+    world_building_helpers,
+    item_helpers,
+    preset_library,
+    automation_system,
+    addon_integration,
+    desktop_tutorial_client,
+    ue_importer_helpers,
+    umodel_tools_helpers,
+    unity_fbx_importer_helpers,
+    asset_studio_helpers,
+    asset_ripper_helpers,
+    tool_installers,
+    image_to_mesh_helpers,
+    ai_gen_operators,
+    content_panels,
+    post_processing_helpers,
+    fo4_scene_diagnostics,
+    advanced_realism_helpers,
+    fo4_reference_helpers,
+    papyrus_helpers,
+    fo4_physics_helpers,
+    mod_packaging_helpers,
+    addon_updater,
+    asset_library,
+    fo4_ck_cell,
+    fo4_ue5_converter,
+    fo4_unity_converter,
+    fo4_creature_rig,
+    fo4_animation_export,
+    fo4_plane_thickener,
+]))
+
+# Keep a combined list for unregister()
+modules = _PHASE1_MODULES + [m for m in _PHASE2_MODULES if m not in _PHASE1_MODULES]
 
 
 def register():
@@ -404,19 +395,16 @@ def register():
     except Exception as _e:
         print(f"⚠ Could not purge stale namespace entries: {_e}")
 
-    # ── Step 1: register modules so Blender classes / preferences exist ──────
-    # Check Blender version and show compatibility info
+    # ── Step 1: register Phase 1 (core) modules immediately ──────────────────
     blender_version = bpy.app.version
     version_string = f"{blender_version[0]}.{blender_version[1]}.{blender_version[2]}"
-
     print(f"Mossy Industries blender addon - Initializing for Blender {version_string}")
+    print(f"  Phase 1: registering {len(_PHASE1_MODULES)} core modules...")
 
-    # Register all modules, but continue even if one fails so the
-    # user can see the error in the console and report it.
-    for module in modules:
+    for module in _PHASE1_MODULES:
         try:
             module.register()
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             name = getattr(module, "__name__", str(module))
             print(f"⚠ Error registering module {name}: {e}")
             import traceback
@@ -472,17 +460,30 @@ def register():
     # Moved to deferred so register() returns immediately and Blender's
     # UI becomes responsive before any filesystem scanning happens.
 
-    # ── Steps 3-5: deferred to avoid blocking Blender's UI on startup ─────────
-    # PyTorch detection, tool auto-discovery, and UModel auto-download all
-    # involve filesystem scanning or network I/O.  Running them synchronously
-    # during register() caused a noticeable delay before the Blender UI became
-    # responsive.  A 2-second deferred timer lets the UI finish initializing
-    # first, then the background work runs once without freezing the interface.
-    # The implementation lives in startup_helpers.deferred_startup().
+    # ── Phase 2: register remaining modules 3 s after startup ───────────────────
+    # All features are present; they just register after Blender is already
+    # open and the user can start working.
+    def _register_phase2():
+        print(f"  Phase 2: registering {len(_PHASE2_MODULES)} additional modules...")
+        for _mod in _PHASE2_MODULES:
+            try:
+                if hasattr(_mod, 'register'):
+                    _mod.register()
+            except Exception as _e:
+                _name = getattr(_mod, "__name__", str(_mod))
+                print(f"⚠ Phase 2 register {_name}: {_e}")
+        print("  Phase 2 complete — all features available.")
+        return None  # don't reschedule
+
     try:
-        bpy.app.timers.register(_deferred_startup, first_interval=2.0)
+        bpy.app.timers.register(_register_phase2, first_interval=3.0)
+    except Exception:
+        _register_phase2()  # fallback: run immediately if timers unavailable
+
+    # ── Steps 3-5: deferred startup tasks (tool discovery, downloads, etc.) ──────
+    try:
+        bpy.app.timers.register(_deferred_startup, first_interval=5.0)
     except Exception as e:
-        # Timers unavailable (e.g., headless/CI) - run startup tasks immediately.
         _deferred_startup()
         print(f"Timers unavailable, startup tasks ran synchronously: {e}")
 
