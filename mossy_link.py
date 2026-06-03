@@ -956,19 +956,23 @@ def _health_monitor() -> "float | None":
 
     _last_health_check = now
 
-    # Bridge health
-    try:
-        bridge_ok, _ = check_bridge(timeout=2.0)
-        _bridge_online = bridge_ok
-    except Exception:
-        _bridge_online = False
-
-    # LLM health
-    try:
-        llm_ok, _ = check_llm(timeout=2.0)
-        _llm_online = llm_ok
-    except Exception:
-        _llm_online = False
+    # Run health pings in a background thread so HTTP timeouts never
+    # block Blender's main thread.  Results are written back to the
+    # module-level flags which the UI reads on the next redraw.
+    def _bg_health_ping():
+        global _bridge_online, _llm_online
+        try:
+            bridge_ok, _ = check_bridge(timeout=0.5)
+            _bridge_online = bridge_ok
+        except Exception:
+            _bridge_online = False
+        try:
+            llm_ok, _ = check_llm(timeout=0.5)
+            _llm_online = llm_ok
+        except Exception:
+            _llm_online = False
+    threading.Thread(target=_bg_health_ping, daemon=True,
+                     name="MossyHealthPing").start()
 
     # Auto-reconnect TCP server if it crashed
     if _active and (_server_thread is None or not _server_thread.is_alive()):
