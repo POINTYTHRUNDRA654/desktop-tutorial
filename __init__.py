@@ -117,20 +117,7 @@ animation_helpers = _try_import("animation_helpers")
 export_helpers = _try_import("export_helpers")
 notification_system = _try_import("notification_system")
 image_to_mesh_helpers = _try_import("image_to_mesh_helpers")
-hunyuan3d_helpers = _try_import("hunyuan3d_helpers")
-zoedepth_helpers = _try_import("zoedepth_helpers")
-gradio_helpers = _try_import("gradio_helpers")
-hymotion_helpers = _try_import("hymotion_helpers")
 nvtt_helpers = _try_import("nvtt_helpers")
-realesrgan_helpers = _try_import("realesrgan_helpers")
-texture_enhance_helpers = _try_import("texture_enhance_helpers")
-gpu_manager = _try_import("gpu_manager")
-get3d_helpers = _try_import("get3d_helpers")
-stylegan2_helpers = _try_import("stylegan2_helpers")
-instantngp_helpers = _try_import("instantngp_helpers")
-imageto3d_helpers = _try_import("imageto3d_helpers")
-rignet_helpers = _try_import("rignet_helpers")
-motion_generation_helpers = _try_import("motion_generation_helpers")
 quest_helpers = _try_import("quest_helpers")
 npc_helpers = _try_import("npc_helpers")
 world_building_helpers = _try_import("world_building_helpers")
@@ -139,10 +126,38 @@ preset_library = _try_import("preset_library")
 automation_system = _try_import("automation_system")
 addon_integration = _try_import("addon_integration")
 desktop_tutorial_client = _try_import("desktop_tutorial_client")
-shap_e_helpers = _try_import("shap_e_helpers")
-point_e_helpers = _try_import("point_e_helpers")
 advisor_helpers = _try_import("advisor_helpers")
 knowledge_helpers = _try_import("knowledge_helpers")
+
+# ── AI / optional modules — lazy-loaded, NOT imported at startup ──────────────
+# These modules may trigger torch/CUDA initialisation on import.  Importing
+# them at Blender startup caused multi-second UI freezes.  They are loaded
+# on first access via _lazy_import() which is called from their respective
+# panel sections, so startup cost is zero.
+def _lazy_import(name):
+    """Import an optional module only when first accessed (not at addon load)."""
+    try:
+        import importlib
+        pkg = __name__.rsplit(".", 1)[0] if "." in __name__ else __name__
+        return importlib.import_module(f".{name}", package=__package__ or pkg)
+    except Exception:
+        return None
+
+hunyuan3d_helpers      = None  # loaded on demand in AI panel
+zoedepth_helpers       = None
+gradio_helpers         = None
+hymotion_helpers       = None
+realesrgan_helpers     = None
+texture_enhance_helpers = None
+gpu_manager            = None
+get3d_helpers          = None
+stylegan2_helpers      = None
+instantngp_helpers     = None
+imageto3d_helpers      = None
+rignet_helpers         = None
+motion_generation_helpers = None
+shap_e_helpers         = None
+point_e_helpers        = None
 mossy_link = _try_import("mossy_link")
 torch_path_manager = _try_import("torch_path_manager")
 
@@ -258,8 +273,6 @@ modules = list(
             advanced_mesh_helpers,
             texture_helpers,
             animation_helpers,
-            rignet_helpers,
-            motion_generation_helpers,
             quest_helpers,
             npc_helpers,
             world_building_helpers,
@@ -269,8 +282,6 @@ modules = list(
             addon_integration,
             desktop_tutorial_client,
             torch_path_manager,
-            shap_e_helpers,
-            point_e_helpers,
             advisor_helpers,
             knowledge_helpers,
             # external integrations - register by default so their buttons/operators
@@ -284,18 +295,7 @@ modules = list(
             tool_installers,
             export_helpers,
             image_to_mesh_helpers,
-            hunyuan3d_helpers,
-            zoedepth_helpers,
-            gradio_helpers,
-            hymotion_helpers,
             nvtt_helpers,
-            realesrgan_helpers,
-            texture_enhance_helpers,
-            gpu_manager,
-            get3d_helpers,
-            stylegan2_helpers,
-            instantngp_helpers,
-            imageto3d_helpers,
             # ── CRITICAL: tutorial_operators and setup_operators MUST be here, BEFORE operators ──
             # Removing or reordering these lines is the #1 cause of the
             # "no activation buttons" bug. See DEVELOPMENT_NOTES.md.
