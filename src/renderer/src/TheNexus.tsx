@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Zap, Wrench, Database, Mic, Volume2, Activity, AlertCircle, CheckCircle2, Archive, Brain, Binary, Code, Hammer, Layers, BookOpen, Package, Radio, ShieldCheck, Sparkles, Target, Settings, Star } from 'lucide-react';
+import { Zap, Wrench, Database, Mic, Volume2, Activity, AlertCircle, CheckCircle2, Archive, Brain, Binary, Code, Hammer, Layers, BookOpen, Package, Radio, ShieldCheck, Sparkles, Target, Settings, Star, Coffee, Heart } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
+import { openExternal } from './utils/openExternal';
 import packageJson from '../../../package.json';
 
 interface Insight {
@@ -421,6 +422,34 @@ const TheNexus: React.FC = () => {
               <p className="text-emerald-400/70 text-xs font-bold tracking-widest uppercase italic">
                 The neural link is active and monitoring your workspace
               </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Support Banner */}
+        <div className="mt-6 px-2">
+          <div className="border border-emerald-700/30 rounded-xl bg-black/40 backdrop-blur-sm p-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-2 text-slate-300">
+                <Heart className="w-4 h-4 text-rose-400 shrink-0" />
+                <span className="text-xs font-semibold">Mossy.Space is free &amp; open — if it's helped your modding, consider supporting development</span>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  onClick={() => void openExternal('https://www.patreon.com/c/Pointytundra654')}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-orange-500/40 bg-orange-900/20 hover:bg-orange-900/40 hover:border-orange-500/60 transition-all text-xs font-bold text-orange-200"
+                >
+                  <Star className="w-3.5 h-3.5 text-orange-400" />
+                  Patreon
+                </button>
+                <button
+                  onClick={() => void openExternal('https://buymeacoffee.com/tundra654')}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-yellow-500/40 bg-yellow-900/20 hover:bg-yellow-900/40 hover:border-yellow-500/60 transition-all text-xs font-bold text-yellow-200"
+                >
+                  <Coffee className="w-3.5 h-3.5 text-yellow-400" />
+                  Buy Me a Coffee
+                </button>
+              </div>
             </div>
           </div>
         </div>
