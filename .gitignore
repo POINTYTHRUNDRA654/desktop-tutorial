@@ -152,6 +152,9 @@ actionlint*
 # Local rollback safety snapshots created before publishing releases
 .release-safety/
 
+# Accidental git clone inside repo
+Fallout 4 Advanced AI/https-github.com-*/
+
 # Embedded Python zip (downloaded at build time)
 resources/python-*.zip
 
