@@ -4256,6 +4256,22 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         # Addon preferences - the server reads these, so we must display/edit them.
         prefs = preferences.get_preferences() if preferences else None
 
+        # ── Quick Connect — one-click setup ──────────────────────────────────
+        qc_box = layout.box()
+        qc_box.label(text="Connect to Mossy", icon='LINKED')
+        qc_row = qc_box.row()
+        qc_row.scale_y = 1.6
+        qc_row.operator("wm.mossy_quick_connect",
+                        text="Quick Connect to Mossy",
+                        icon='PLAY')
+        hint = qc_box.column(align=True)
+        hint.scale_y = 0.75
+        hint.label(text="1. Start Mossy desktop app first", icon='DOT')
+        hint.label(text="2. Click Quick Connect — auto-configures everything", icon='DOT')
+        hint.label(text="3. Copy the token shown into Mossy settings if prompted", icon='DOT')
+
+        layout.separator()
+
         # ── TCP server (Blender → Mossy bridge) ───────────────────────────────
         srv_box = layout.box()
         row = srv_box.row()
@@ -4265,9 +4281,9 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         )
 
         if server_active:
-            srv_box.label(text="✓ Server running - Mossy can control Blender", icon='CHECKMARK')
+            srv_box.label(text="✓ Server running — Mossy can control Blender", icon='CHECKMARK')
         else:
-            srv_box.label(text="Server stopped - Mossy cannot send commands", icon='RADIOBUT_OFF')
+            srv_box.label(text="Server stopped — click Quick Connect above", icon='RADIOBUT_OFF')
 
         toggle_text = "Stop Mossy Link Server" if server_active else "Start Mossy Link Server"
         toggle_icon = 'PAUSE' if server_active else 'PLAY'

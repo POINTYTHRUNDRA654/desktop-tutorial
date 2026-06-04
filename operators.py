@@ -9563,6 +9563,55 @@ class WM_OT_MossyCheckHttp(Operator):
 
 
 # ---------------------------------------------------------------------------
+# Mossy Quick Connect Operator
+# ---------------------------------------------------------------------------
+
+class WM_OT_MossyQuickConnect(Operator):
+    """Connect Blender to the Mossy desktop app in one click.
+Tests bridge + AI, starts the TCP server, auto-generates a token if needed."""
+    bl_idname = "wm.mossy_quick_connect"
+    bl_label  = "Quick Connect to Mossy"
+
+    def execute(self, context):
+        try:
+            from . import mossy_link as _ml
+        except Exception as exc:
+            self.report({'ERROR'}, f"Could not import mossy_link: {exc}")
+            return {'CANCELLED'}
+
+        status = _ml.quick_connect()
+        wm = context.window_manager
+
+        bridge_ok, bridge_msg = status["bridge"]
+        llm_ok,    llm_msg    = status["llm"]
+        server_ok, server_msg = status["server"]
+        token = status.get("token", "")
+
+        wm["mossy_bridge_status"] = bridge_msg
+        wm["mossy_llm_status"]    = llm_msg
+        wm["mossy_link_active"]   = _ml.is_server_running()
+
+        lines = []
+        lines.append(f"Bridge: {'✓' if bridge_ok else '✗'}  {bridge_msg}")
+        lines.append(f"AI/LLM: {'✓' if llm_ok else '✗'}  {llm_msg}")
+        lines.append(f"Server: {'✓' if server_ok else '✗'}  {server_msg}")
+        if token:
+            lines.append(f"Token: {token}  (copy into Mossy settings)")
+
+        for line in lines:
+            print(f"[Mossy Quick Connect] {line}")
+
+        if bridge_ok or llm_ok:
+            self.report({'INFO'}, f"Mossy connected! Bridge:{'✓' if bridge_ok else '✗'} AI:{'✓' if llm_ok else '✗'}")
+        else:
+            self.report({'WARNING'},
+                "Mossy not reachable — make sure the Mossy desktop app is running, "
+                "then click Quick Connect again.")
+
+        return {'FINISHED'}
+
+
+# ---------------------------------------------------------------------------
 # TRI Morph Export Operator
 # ---------------------------------------------------------------------------
 
@@ -10846,6 +10895,7 @@ classes = (
     # Mossy Link operators
     WM_OT_MossyLinkToggle,
     WM_OT_MossyCheckHttp,
+    WM_OT_MossyQuickConnect,
     # TRI morph export
     FO4_OT_ExportTRIMorphs,
     # Navmesh validation

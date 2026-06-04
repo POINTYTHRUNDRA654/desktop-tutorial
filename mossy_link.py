@@ -454,16 +454,21 @@ def start_server() -> tuple:
 
     tcp_port, _llm_port, token = _get_ports()
 
-    # Refuse to open the exec() gateway without authentication.
-    # Set a token in Add-ons > Blender Game Tools > Mossy Link Token and enter
-    # the same value in your Mossy desktop app settings, then start the server.
+    # Auto-generate a token if none is set — saves the user from having to
+    # configure one manually on first run.  The generated token is saved to
+    # preferences so it persists across sessions and Mossy can read it.
     if not token or not token.strip():
-        return (
-            False,
-            "Mossy Link server requires a non-empty token. "
-            "Set one in Add-ons > Blender Game Tools > Mossy Link Token, "
-            "enter the same value in Mossy, then start the server.",
-        )
+        import secrets as _secrets
+        token = _secrets.token_hex(16)
+        try:
+            from . import preferences as _prefs_tok
+            prefs = _prefs_tok.get_preferences()
+            if prefs and hasattr(prefs, "token"):
+                prefs.token = token
+                print(f"[Mossy Link] Auto-generated token: {token}")
+                print(f"[Mossy Link] Copy this token into Mossy desktop app settings.")
+        except Exception:
+            pass
 
     _active = True
 
@@ -675,6 +680,39 @@ def ask_mossy_fo4(
         pass
 
     return ask_mossy(query, context_data=context, timeout=timeout, fo4_context=True)
+
+
+def quick_connect() -> dict:
+    """
+    One-click connection to Mossy.  Tests bridge + LLM, starts the TCP
+    server (auto-generating a token if needed), and returns a status dict:
+
+        {
+            "bridge": (True, "Mossy Bridge online (v1.2)"),
+            "llm":    (True, "Mossy LLM online"),
+            "server": (True, "Mossy Link server started on port 9999"),
+            "token":  "abc123...",   # the token to enter in Mossy settings
+        }
+    """
+    result = {}
+
+    # 1. Test outbound connections (no token needed)
+    result["bridge"] = check_bridge(timeout=2.0)
+    result["llm"]    = check_llm(timeout=2.0)
+
+    # 2. Start inbound TCP server (auto-generates token if blank)
+    if not is_server_running():
+        ok, msg = start_server()
+        result["server"] = (ok, msg)
+    else:
+        result["server"] = (True, "Mossy Link server already running")
+
+    # 3. Return current token so user can copy it into Mossy
+    _, _, token = _get_ports()
+    result["token"] = token
+
+    return result
+
 
 # ── Outbound: Bridge health check ─────────────────────────────────────────────
 
