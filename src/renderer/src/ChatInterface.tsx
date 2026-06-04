@@ -933,7 +933,9 @@ export const ChatInterface: React.FC = () => {
         window.addEventListener('mossy-blender-linked', checkState);
         window.addEventListener('mossy-monitoring-toggle', checkState);
         window.addEventListener('storage', checkState);
-        const bridgePoll = setInterval(checkState, 2000);
+        // Reduced from 2s to 10s — event listeners above already handle all
+        // real-time state changes. This is just a safety net for missed events.
+        const bridgePoll = setInterval(checkState, 10000);
 
         // Initial Load
         const loadInitialState = async () => {

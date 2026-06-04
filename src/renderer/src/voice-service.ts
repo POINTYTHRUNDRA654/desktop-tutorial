@@ -721,7 +721,11 @@ export class VoiceService {
           }
         }
 
-        requestAnimationFrame(checkSilence);
+        // Use setInterval instead of requestAnimationFrame so the silence-detection
+        // loop runs at a consistent 50ms cadence even when the Electron window is
+        // in the background (e.g. user is working in Blender). rAF is throttled to
+        // ~1fps in backgrounded Chromium contexts; setInterval is not.
+        setTimeout(checkSilence, 50);
       };
 
       checkSilence();
