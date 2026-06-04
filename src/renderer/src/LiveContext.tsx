@@ -644,6 +644,29 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [mode, isActive, transcription]);
 
+  // When the Electron window regains focus (user switched to Blender or another app
+  // and came back), resume the microphone. Chromium suspends AudioContext when the
+  // window loses focus, which silently kills the silence-detection loop and leaves
+  // the mic dead until the user manually reconnects.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isActive && voiceServiceRef.current) {
+        console.log('[LiveContext] Window became visible — restarting mic after focus return');
+        setTimeout(() => {
+          if (isActive && voiceServiceRef.current) {
+            voiceServiceRef.current.safeMicrophoneRestart();
+          }
+        }, 300);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
+  }, [isActive]);
+
   const checkVoicePipeline = async (): Promise<void> => {
     const api = (window as any).electron?.api || (window as any).electronAPI;
     if (!api?.getSettings) {

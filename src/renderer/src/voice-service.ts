@@ -648,6 +648,12 @@ export class VoiceService {
       // Set up silence detection to stop recording
       let silenceTimer: NodeJS.Timeout | undefined;
       const audioContext = new AudioContext();
+      // Electron/Chrome can start AudioContext in a suspended state due to autoplay
+      // policy. Without resume() the analyser never receives data and silence
+      // detection never fires, making the mic appear dead on first connect.
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume().catch(e => console.warn('[VoiceService] AudioContext resume failed:', e));
+      }
       const analyser = audioContext.createAnalyser();
       const microphone = audioContext.createMediaStreamSource(stream);
 
@@ -778,16 +784,13 @@ export class VoiceService {
         console.log('[VoiceService] ⏱️ TTS resume: scheduling microphone restart at', resumeScheduledAt, 'after', this.TTS_RESUME_DELAY_MS, 'ms');
 
         setTimeout(() => {
-          if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt && !this.isRecording) {
+          if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt) {
             console.log('[VoiceService] ▶️ TTS resume: restarting recording at', new Date().toISOString(), '(', this.TTS_RESUME_DELAY_MS, 'ms after TTS ended)');
-            this.startRecording();
-          } else {
-            console.log('[VoiceService] ⏸️ TTS resume: skipping restart at', new Date().toISOString(), '(conditions not met)', {
-              isListening: this.isListening,
-              shouldStop: this.shouldStop,
-              isUsingBrowserStt: this.isUsingBrowserStt,
-              isRecording: this.isRecording
-            });
+            // Use safeMicrophoneRestart instead of startRecording directly.
+            // If MediaRecorder.onstop never fired (Electron/Chromium bug), isRecording
+            // stays true and startRecording() bails out silently. safeMicrophoneRestart
+            // detects and clears the stuck state before calling startRecording.
+            this.safeMicrophoneRestart();
           }
         }, this.TTS_RESUME_DELAY_MS);
       }
