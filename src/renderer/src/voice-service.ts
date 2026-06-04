@@ -455,6 +455,25 @@ export class VoiceService {
 
       this.activeStream = stream;
 
+      // Safety net: if the OS or browser forcibly ends the audio track (e.g.
+      // another app takes exclusive mic access, or the stream is killed while
+      // backgrounded), restart recording automatically so voice stays alive.
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.onended = () => {
+          console.log('[VoiceService] Audio track ended unexpectedly — restarting recording');
+          this.isRecording = false;
+          this.activeStream = null;
+          if (this.isListening && !this.shouldStop && !this.isUsingBrowserStt) {
+            setTimeout(() => {
+              if (this.isListening && !this.shouldStop && !this.isRecording) {
+                this.startRecording();
+              }
+            }, 500);
+          }
+        };
+      }
+
       // Create MediaRecorder
       this.mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus'
