@@ -107,6 +107,17 @@ import { DependencyGraphBuilder } from '../mining/dependency-graph-builder';
 import { DataSource, MiningResult } from '../shared/types';
 import { whisperServer } from './whisperServerManager';
 
+// ── Chromium background-throttling prevention ────────────────────────────────
+// These flags must be set BEFORE app.whenReady(). They prevent Chromium from
+// reducing renderer priority, throttling timers, or suspending media when the
+// Mossy window loses focus — so voice stays active while the user works in
+// Blender, xEdit, or any other app.
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-background-media-suspend');
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Keep dev and packaged builds using the same userData folder for consistent onboarding/memory.
 app.setName('mossy-desktop');
 app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
