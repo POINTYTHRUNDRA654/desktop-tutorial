@@ -1589,8 +1589,33 @@ export const ChatInterface: React.FC = () => {
                 ? (() => { try { return buildBlenderAddonContext(); } catch { return ''; } })()
                 : '';
             const blenderContext = isBlenderLinked
-                ? `**BLENDER LINK: ACTIVE (Mossy Link v6 — Fallout 4 Edition)**\nYou are co-piloting the user's Blender session. You can see their scene context, execute Python scripts, and run FO4 automation presets.\nIMPORTANT: Tell the user they MUST click the 'Run Command' button that appears in the chat to execute any script.${blenderAddonKnowledge ? '\n' + blenderAddonKnowledge : ''}`
-                : "**BLENDER LINK: OFFLINE**\n(If the user asks to control Blender, tell them to go to Runtime Hub → Desktop Bridge and install the 'Mossy Link v6' add-on first.)";
+                ? `**BLENDER LINK: ACTIVE (Mossy Link v6 — Fallout 4 Edition)**
+You are co-piloting the user's live Blender session via the Mossy Link v6 add-on (port 9999).
+
+WHAT YOU CAN DO (Mossy Link v6 capabilities):
+- Execute Python scripts directly in Blender — the user clicks "Run Command" in chat to trigger them
+- Read and report the user's current scene context (selected objects, modifiers, materials, mesh stats)
+- Run FO4 NIF export presets: correct unit scale (1.0), FPS 30, apply transforms, triangulate, export via PyNifly
+- Automate mesh cleanup: remove doubles, recalculate normals, fix UV seams, check for non-manifold geometry
+- Set up FO4 Blender workflow: correct import settings for vanilla NIFs, skeleton alignment, bone weight display
+- Run animation checks: verify armature hierarchy, bone roll, FO4 skeleton compatibility
+- Assist with material/texture setup: PBR node setup for FO4 BGSM workflow, DDS texture assignment
+- Help with PyNifly operations: import/export FO4 NIFs, handle BSSubIndexTriShape, fix skeleton data
+
+RULES FOR BLENDER LINK ACTIVE:
+- ALWAYS offer to run a Python script for any Blender task — don't just explain steps manually
+- Tell the user to click the "Run Command" button that appears in chat BEFORE the script executes
+- Reference the user's actual scene when context is available (selected mesh name, poly count, etc.)
+- For FO4 NIF export, always use PyNifly — never the old Blender NIF plugin (incompatible with FO4)
+- The user does NOT have 3DS Max unless they explicitly say so — do not mention it unprompted
+${blenderAddonKnowledge ? '\n' + blenderAddonKnowledge : ''}`
+                : `**BLENDER LINK: OFFLINE**
+The Mossy Link v6 Blender add-on is NOT currently connected to the Desktop Bridge.
+IMPORTANT RULES when Blender is detected or the user asks about Blender:
+- DO NOT assume the user has 3DS Max, Maya, or any other 3D tool unless they explicitly say so. The knowledge base mentions 3DS Max in animation workflow guides but that does NOT mean the user has it installed.
+- Guide the user to connect the Mossy Link v6 add-on: Runtime Hub (/runtime-hub) → Desktop Bridge → install 'Mossy Link v6'.
+- Until connected, you can still explain what the Mossy Blender add-on does: it lets Mossy execute Python scripts directly in Blender, sync scene context, run FO4 NIF export presets, and automate mesh/animation workflows without the user copy-pasting code.
+- For Blender questions, focus on MOSSY.SPACE-specific workflows (FO4 NIF export, PyNifly, unit scale 1.0, FPS 30, applying transforms before export) rather than generic Blender tutorials.`;
             const toolAck = localStorage.getItem('mossy_tool_connection_ack') === 'true';
             const toolAckLine = `**Tool Connection Notice:** ${toolAck ? 'ACKNOWLEDGED (do not repeat unless asked)' : 'NOT ACKNOWLEDGED'}`;
             const monitoringLine = `**Monitoring Status:** ${isMonitoringPaused ? 'PAUSED' : 'ACTIVE'}`;

@@ -1203,6 +1203,7 @@ function createWindow() {
       contextIsolation: true,      // Security: isolate preload context
       nodeIntegration: false,       // Security: disabled for renderer
       sandbox: true,                // Security: sandboxed renderer
+      backgroundThrottling: false,  // Keep audio + timers alive when window loses focus (voice stays active in Blender etc.)
     },
     show: false, // Don't show until ready
     title: 'Mossy Pip-Boy - Fallout 4 Modding Assistant',
