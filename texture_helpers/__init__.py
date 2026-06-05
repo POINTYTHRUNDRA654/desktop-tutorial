@@ -145,6 +145,90 @@ class TextureHelpers:
         return mat
     
     @staticmethod
+    def setup_vegetation_material(obj):
+        """Setup a Fallout 4 vegetation/foliage material with alpha cutout and translucency.
+
+        Configures the material for leaf cards:
+        - Alpha CLIP (cutout transparency for leaf silhouettes)
+        - Two-sided so leaf backs are visible in-game
+        - SF1_BACK_LIGHTING flag so sunlight shines through leaves
+        - Translucency block: mixes the leaf colour into transmitted light
+          so leaves glow green/yellow when backlit
+        - Translucent BSDF mixed into the viewport shader for a preview
+          of the backlit effect inside Blender
+        """
+        mat = TextureHelpers.setup_fo4_material(obj)
+        if mat is None:
+            return None
+
+        # Alpha clip — standard FO4 foliage
+        mat.blend_method    = 'CLIP'
+        mat.alpha_threshold = 0.5
+        mat.use_backface_culling = False
+
+        # Custom properties read by BGSM export to set shader flags + translucency block
+        mat["fo4_shader_type"]               = "vegetation"
+        mat["fo4_core_profile"]              = "foliage"
+        mat["fo4_translucency"]              = True
+        mat["fo4_translucency_subsurface_r"] = 0.35   # warm leaf-green (R)
+        mat["fo4_translucency_subsurface_g"] = 0.60   # (G)
+        mat["fo4_translucency_subsurface_b"] = 0.15   # (B)
+        mat["fo4_translucency_scale"]        = 0.55   # how much light passes through
+        mat["fo4_translucency_mix_albedo"]   = True   # tint transmitted light with leaf colour
+
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+
+        bsdf = None
+        output_node = None
+        for node in nodes:
+            if node.type == 'BSDF_PRINCIPLED':
+                bsdf = node
+            elif node.type == 'OUTPUT_MATERIAL':
+                output_node = node
+
+        if bsdf is not None:
+            # Emission off for vegetation
+            strength = bsdf.inputs.get('Emission Strength')
+            if strength:
+                strength.default_value = 0.0
+
+            # Subsurface gives a soft backlit look in Blender's viewport
+            subsurface = bsdf.inputs.get('Subsurface Weight') or bsdf.inputs.get('Subsurface')
+            if subsurface:
+                subsurface.default_value = 0.25
+            subsurface_color = bsdf.inputs.get('Subsurface Color') or bsdf.inputs.get('Subsurface Radius')
+            if subsurface_color and hasattr(subsurface_color, 'default_value'):
+                try:
+                    subsurface_color.default_value = (0.35, 0.60, 0.15, 1.0)
+                except Exception:
+                    pass
+
+            # Add a Translucent BSDF mixed with Principled so the viewport
+            # actually shows light coming through the leaf backs.
+            if output_node is not None:
+                translucent = nodes.new('ShaderNodeBsdfTranslucent')
+                translucent.location = (bsdf.location[0], bsdf.location[1] - 280)
+                translucent.inputs['Color'].default_value = (0.35, 0.60, 0.15, 1.0)
+
+                mix_shader = nodes.new('ShaderNodeMixShader')
+                mix_shader.location = (output_node.location[0] - 180, output_node.location[1])
+                mix_shader.inputs['Fac'].default_value = 0.35  # 35% translucent
+
+                # Re-route: Principled + Translucent → Mix → Output
+                # Disconnect existing Principled→Output link first
+                for lnk in list(links):
+                    if lnk.to_node == output_node and lnk.to_socket.name == 'Surface':
+                        links.remove(lnk)
+                        break
+
+                links.new(bsdf.outputs['BSDF'],         mix_shader.inputs[1])
+                links.new(translucent.outputs['BSDF'],  mix_shader.inputs[2])
+                links.new(mix_shader.outputs['Shader'], output_node.inputs['Surface'])
+
+        return mat
+
+    @staticmethod
     def install_texture(obj, texture_path, texture_type='DIFFUSE'):
         """Install a texture into the object's material.
 
@@ -247,9 +331,15 @@ class TextureHelpers:
                         "Use 'Texture Conversion (NVTT)' to convert."
                     )
 
+                # Blender lazy-loads DDS headers; reload if size is still 0x0.
+                if img.size[0] == 0 or img.size[1] == 0:
+                    try:
+                        img.reload()
+                    except Exception:
+                        pass
                 if img.size[0] == 0 or img.size[1] == 0:
                     issues.append(f"{tex_name} texture has invalid size")
-                
+
                 # FO4 requires power-of-2 dimensions for DDS textures.
                 # 512, 1024, 2048, 4096 and 8192 are all valid for 4K / 8K assets.
                 width, height = img.size[0], img.size[1]

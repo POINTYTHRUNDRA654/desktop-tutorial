@@ -191,39 +191,33 @@ class NVTTHelpers:
         return fmt_map.get(texture_type.upper(), 'bc1')
     
     @staticmethod
-    def convert_to_dds(input_path, output_path=None, compression_format='bc1',
+    def convert_to_dds(input_path, output_path=None, compression_format='auto',
                        quality='production', preferred_tool=None, slot: str = None):
         """
         Convert an image to DDS format using nvcompress or texconv.
 
-        The compression format can be chosen explicitly via *compression_format*,
-        or automatically detected from the texture slot.  When *slot* is ``None``
-        (the default) the slot is inferred from the filename using
-        :func:`detect_slot_from_filename` and :data:`FORMAT_FOR_SLOT`.  Passing
-        an explicit *compression_format* always overrides the slot-based selection.
+        Pass an explicit *compression_format* ('bc1', 'bc3', 'bc4', 'bc5', 'bc7')
+        to pin the format.  Leave it as 'auto' (default) to have it inferred from
+        the filename suffix via :func:`detect_slot_from_filename`.
 
         Args:
             input_path: Path to input image (PNG, JPG, TGA, etc.)
             output_path: Path for output DDS file (optional, defaults to input_path with .dds extension)
-            compression_format: DDS compression format
-                - 'bc1' (DXT1): For diffuse textures without alpha
-                - 'bc3' (DXT5): For textures with alpha channel
-                - 'bc4':        Single-channel masks (specular, gloss)
-                - 'bc5' (ATI2): For normal maps
-                - 'bc7':        High-quality (default for slot-based auto-selection)
+            compression_format: DDS compression format or 'auto' for filename-based detection
+                - 'auto':        Detect from filename suffix (default)
+                - 'bc1' (DXT1): Diffuse without alpha
+                - 'bc3' (DXT5): Textures with alpha channel
+                - 'bc4':        Single-channel masks
+                - 'bc5' (ATI2): Normal maps
+                - 'bc7':        High-quality (slow)
             quality: Compression quality ('fastest', 'normal', 'production', 'highest')
             preferred_tool: 'nvtt', 'texconv', or None (auto)
-            slot: Optional texture slot name ('diffuse', 'normal', 'specular',
-                  'glow', 'envmask', 'unknown').  When given, overrides the
-                  filename-based detection but is still overridden by an
-                  explicit *compression_format* that differs from the default.
+            slot: Optional texture slot name to guide auto-detection when
+                  compression_format is 'auto'.
 
         Returns: (bool success, str message)
         """
-        # Auto-select format from slot when the caller left compression_format
-        # at its default value ('bc1').  An explicit non-default format is
-        # always honoured without modification.
-        if compression_format == 'bc1':
+        if compression_format == 'auto':
             resolved_slot = slot if slot is not None else detect_slot_from_filename(
                 input_path
             )
@@ -361,7 +355,7 @@ class NVTTHelpers:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=90
+                timeout=300
             )
 
             if result.returncode == 0:
@@ -380,7 +374,7 @@ class NVTTHelpers:
             return False, f"{tool} failed: {error_msg}"
 
         except subprocess.TimeoutExpired:
-            return False, "Texture conversion timed out (90 seconds)"
+            return False, "Texture conversion timed out (300 seconds)"
         except Exception as e:
             return False, f"Failed to convert texture: {str(e)}"
         finally:

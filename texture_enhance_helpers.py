@@ -220,6 +220,53 @@ def _generate_normal_map(diffuse_path: str, strength: float = 2.0,
         return False, f"Normal map generation failed: {exc}"
 
 
+def _generate_specular_map(diffuse_path: str, tile_px: int = 2048) -> tuple:
+    """Generate a specular/smoothness map from a diffuse texture.
+
+    Converts the high-res diffuse to a single-channel specular map using
+    perceptual luminosity.  Bright areas become more specular (good for
+    organic materials like leaves where veins and waxy surfaces catch light).
+    Returns (success, spec_png_path_or_error).
+    """
+    try:
+        from PIL import Image, ImageFilter, ImageEnhance, ImageOps
+        import numpy as np
+
+        spec_path = os.path.splitext(diffuse_path)[0] + "_spec_gen.png"
+
+        with Image.open(diffuse_path) as img:
+            img = img.convert("RGB")
+            w, h = img.size
+
+            # Process in tiles to handle large intermediates (8K / 16K)
+            result = Image.new("L", (w, h))
+            for ty in range(0, h, tile_px):
+                for tx in range(0, w, tile_px):
+                    box   = (tx, ty, min(tx + tile_px, w), min(ty + tile_px, h))
+                    tile  = img.crop(box)
+
+                    # Perceptual luminosity (ITU-R BT.709 weights)
+                    arr   = np.array(tile, dtype=np.float32)
+                    lum   = (0.2126 * arr[:, :, 0] +
+                             0.7152 * arr[:, :, 1] +
+                             0.0722 * arr[:, :, 2])
+
+                    # Boost contrast so specular highlights stand out
+                    lum   = np.clip((lum - 64) * 1.4 + 64, 0, 255).astype(np.uint8)
+                    spec_tile = Image.fromarray(lum, mode="L")
+
+                    # Light blur to smooth noise before downscaling
+                    spec_tile = spec_tile.filter(ImageFilter.GaussianBlur(radius=1.0))
+
+                    result.paste(spec_tile, (tx, ty))
+
+            result.save(spec_path, "PNG")
+            return True, spec_path
+
+    except Exception as exc:
+        return False, f"Specular map generation failed: {exc}"
+
+
 def _downscale_perceptual(image_path: str, target_size: tuple,
                            out_path: str = None) -> tuple:
     """Lanczos downscale to target_size. Returns (success, out_path)."""
@@ -266,6 +313,7 @@ def enhance_texture(texture_path: str,
                     output_dir: str = None,
                     normal_strength: float = 2.5,
                     generate_normal: bool = True,
+                    generate_specular: bool = True,
                     to_dds: bool = True,
                     tile_size: int = 512) -> dict:
     """
@@ -274,9 +322,9 @@ def enhance_texture(texture_path: str,
     tier values: "1K_4K" | "2K_8K" | "4K_16K"
 
     Pipeline:
-      DDS->PNG -> AI upscale 4x -> normal map from hi-res -> Lanczos downscale -> BC7 DDS
+      DDS->PNG -> AI upscale 4x -> normal + specular from hi-res -> Lanczos downscale -> BC7/BC5/BC4 DDS
 
-    Returns dict: {success, diffuse_path, normal_path, message, steps, tier}
+    Returns dict: {success, diffuse_path, normal_path, specular_path, message, steps, tier}
     """
     tier_map = {
         "1K_4K":  1024,
@@ -287,12 +335,13 @@ def enhance_texture(texture_path: str,
 
     steps  = []
     result = {
-        "success":      False,
-        "diffuse_path": None,
-        "normal_path":  None,
-        "message":      "",
-        "steps":        steps,
-        "tier":         tier,
+        "success":        False,
+        "diffuse_path":   None,
+        "normal_path":    None,
+        "specular_path":  None,
+        "message":        "",
+        "steps":          steps,
+        "tier":           tier,
     }
 
     if not os.path.isfile(texture_path):
@@ -353,6 +402,22 @@ def enhance_texture(texture_path: str,
         else:
             steps.append(f"⚠ Normal map skipped: {nrm}")
 
+    # -- Step 3b: Generate specular map from high-res intermediate ------------
+    specular_png = None
+    if generate_specular:
+        ok, spec = _generate_specular_map(upscaled_path, tile_px=2048)
+        if ok:
+            steps.append(f"Specular map from {inter_w}x{inter_h} intermediate")
+            spec_out = os.path.join(
+                work_dir,
+                Path(texture_path).stem.replace("_d", "") + f"_s_enhanced_{src_w}.png"
+            )
+            ok2, spec_1x = _downscale_perceptual(spec, (src_w, src_h), spec_out)
+            specular_png = spec_1x if ok2 else spec
+            steps.append(f"Specular Lanczos -> {src_w}x{src_h}")
+        else:
+            steps.append(f"⚠ Specular map skipped: {spec}")
+
     # -- Step 4: Downscale enhanced diffuse -> source resolution --------------
     diff_out = os.path.join(
         work_dir,
@@ -364,29 +429,43 @@ def enhance_texture(texture_path: str,
         return result
     steps.append(f"Diffuse Lanczos -> {src_w}x{src_h}")
 
-    # -- Step 5: PNG -> BC7 DDS -----------------------------------------------
+    # -- Step 5: PNG -> DDS (BC7 diffuse, BC5 normal, BC4 specular) -----------
     diff_final = diff_1x
     nrm_final  = normal_png
+    spec_final = specular_png
 
     if to_dds:
         ok, dds = _convert_png_to_dds(diff_1x, work_dir, fmt="BC7_UNORM")
         if ok:
             diff_final = dds
-            steps.append(f"Diffuse -> BC7 DDS")
+            steps.append("Diffuse -> BC7 DDS")
         else:
-            steps.append(f"⚠ DDS skipped: {dds}")
+            steps.append(f"⚠ Diffuse DDS skipped: {dds}")
 
         if normal_png and os.path.isfile(normal_png):
             ok, nrm_dds = _convert_png_to_dds(normal_png, work_dir, fmt="BC5_UNORM")
             if ok:
                 nrm_final = nrm_dds
-                steps.append(f"Normal -> BC5 DDS")
+                steps.append("Normal -> BC5 DDS (two-channel tangent-space)")
+            else:
+                steps.append(f"⚠ Normal DDS skipped: {nrm_dds}")
 
-    result["success"]      = True
-    result["diffuse_path"] = diff_final
-    result["normal_path"]  = nrm_final
-    result["message"]      = (
-        f"{tier.replace('_','->')} complete -- {src_w}x{src_h} output, "
+        if specular_png and os.path.isfile(specular_png):
+            # BC4 is single-channel (R only) — perfect for a greyscale specular mask
+            ok, spec_dds = _convert_png_to_dds(specular_png, work_dir, fmt="BC4_UNORM")
+            if ok:
+                spec_final = spec_dds
+                steps.append("Specular -> BC4 DDS (single-channel smoothness)")
+            else:
+                steps.append(f"⚠ Specular DDS skipped: {spec_dds}")
+
+    maps_built = sum(1 for p in (diff_final, nrm_final, spec_final) if p and os.path.isfile(p))
+    result["success"]        = True
+    result["diffuse_path"]   = diff_final
+    result["normal_path"]    = nrm_final
+    result["specular_path"]  = spec_final
+    result["message"]        = (
+        f"{tier.replace('_','->')} complete — {maps_built} maps at {src_w}x{src_h}, "
         f"detail extracted from {inter_w}x{inter_h} AI intermediate"
     )
     return result
@@ -435,11 +514,15 @@ class FO4_OT_EnhanceTexture(bpy.types.Operator):
     )
     generate_normal: bpy.props.BoolProperty(
         name="Generate Normal Map", default=True,
-        description="Generate a high-quality normal map from the AI intermediate",
+        description="Generate a BC5 normal map from the AI intermediate at full resolution",
+    )
+    generate_specular: bpy.props.BoolProperty(
+        name="Generate Specular Map", default=True,
+        description="Generate a BC4 specular/smoothness map from the AI intermediate",
     )
     to_dds: bpy.props.BoolProperty(
-        name="Output as BC7 DDS", default=True,
-        description="Re-encode as BC7 DDS (better quality than vanilla BC3/DXT5)",
+        name="Output as DDS", default=True,
+        description="BC7 diffuse, BC5 normal, BC4 specular — best quality for FO4",
     )
 
     def invoke(self, context, event):
@@ -461,6 +544,7 @@ class FO4_OT_EnhanceTexture(bpy.types.Operator):
             output_dir=out_dir,
             normal_strength=self.normal_strength,
             generate_normal=self.generate_normal,
+            generate_specular=self.generate_specular,
             to_dds=self.to_dds,
         )
 
@@ -469,7 +553,10 @@ class FO4_OT_EnhanceTexture(bpy.types.Operator):
 
         if result["success"]:
             self.report({'INFO'}, result["message"])
-            print(f"[Texture Enhance] ✅ {result['message']}")
+            if result.get("normal_path"):
+                self.report({'INFO'}, f"Normal map: {os.path.basename(result['normal_path'])}")
+            if result.get("specular_path"):
+                self.report({'INFO'}, f"Specular map: {os.path.basename(result['specular_path'])}")
         else:
             self.report({'ERROR'}, result["message"])
         return {'FINISHED'}

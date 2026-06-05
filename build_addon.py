@@ -257,7 +257,7 @@ def build_nexus_bundle(outdir: Path, addon_version: str,
             zf.write(zp, zp.name)
 
     size_kb = bundle_path.stat().st_size // 1024
-    print(f"  ✓  {bundle_name}  ({size_kb} KB)  [Nexus bundle — all variants + install guide]")
+    print(f"  OK  {bundle_name}  ({size_kb} KB)  [Nexus bundle - all variants + install guide]")
     return bundle_path
 
 
@@ -308,7 +308,7 @@ def build_variant(root: Path, outdir: Path, addon_version: str,
             zf.writestr("blender_manifest.toml", manifest_src)
 
     size_kb = zip_path.stat().st_size // 1024
-    print(f"  ✓  {zip_name}  ({size_kb} KB)  [{variant['label']}]")
+    print(f"  OK  {zip_name}  ({size_kb} KB)  [{variant['label']}]")
     return zip_path
 
 
@@ -374,7 +374,7 @@ def main(argv=None):
     # -----------------------------------------------------------------------------
 
     print(f"Building Mossy Fallout 4 Blender Add-on  v{addon_version}")
-    print(f"Output → {outdir}")
+    print(f"Output -> {outdir}")
 
     # Show the git branch and commit so you can verify you're building the
     # right code.  If branch is not 'main', the latest fixes may not be
@@ -390,10 +390,10 @@ def main(argv=None):
             ["git", "rev-parse", "--short", "HEAD"],
             cwd=str(root), text=True, stderr=_sp.DEVNULL,
         ).strip()
-        print(f"Source  → branch={_branch}  commit={_commit}")
+        print(f"Source  -> branch={_branch}  commit={_commit}")
         if _branch not in ("main", "HEAD"):
             print(
-                f"  ⚠  You are on branch '{_branch}', not 'main'.\n"
+                f"  WARNING  You are on branch '{_branch}', not 'main'.\n"
                 "     If you are missing recent fixes, merge the open Pull\n"
                 "     Request on GitHub, run start_session.bat, then rebuild."
             )

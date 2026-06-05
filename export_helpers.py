@@ -379,6 +379,14 @@ class ExportHelpers:
         bpy.context.view_layer.objects.active = obj
         obj.select_set(True)
 
+        # 0. Fix unweighted vertices ------------------------------------------
+        #    Vertices with zero total bone weight cause NIF exporters to produce
+        #    corrupted or missing geometry.  Auto-assign them to the nearest
+        #    bone before any other prep step runs.
+        if obj.vertex_groups:
+            from . import mesh_helpers as _mh_prep
+            _mh_prep.MeshHelpers.fix_unweighted_vertices(obj)
+
         # 1. Apply scale and rotation -----------------------------------------
         #    Unapplied scale causes geometry to arrive at the wrong size in FO4;
         #    unapplied rotation causes normals to point in the wrong direction.
@@ -930,19 +938,4 @@ def _safe_subprocess(cmd: list, timeout: int = 120, cwd: str = None) -> tuple:
             timeout=timeout, cwd=cwd,
         )
         output = (result.stdout or "") + (result.stderr or "")
-        return result.returncode == 0, output, result.returncode
-    except subprocess.TimeoutExpired:
-        return False, f"Process timed out after {timeout}s", -1
-    except FileNotFoundError:
-        return False, f"Executable not found: {cmd[0]}", -1
-    except Exception as exc:
-        return False, str(exc), -1
-
-
-def register():
-    """Register export helper functions"""
-    pass
-
-def unregister():
-    """Unregister export helper functions"""
-    pass
+        return result.returncod

@@ -251,15 +251,79 @@ class AdvisorHelpers:
                 return False, str(e)
 
         if action == 'MAKE_MANIFOLD':
-            # Built-in fill holes
+            # Multi-pass manifold repair:
+            # 1. Merge by distance — fixes T-junctions and doubled verts (main cause)
+            # 2. Fill holes (up to 8-sided) — closes open boundary loops
+            # 3. Delete degenerate faces — removes zero-area triangles left behind
+            # 4. Delete loose — cleans up any orphaned verts/edges
             try:
                 bpy.ops.object.mode_set(mode='EDIT')
                 bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.mesh.fill()
+
+                # Pass 1 — merge near-coincident vertices
+                try:
+                    bpy.ops.mesh.merge_vertices(type='DISTANCE', threshold=0.0001)
+                except Exception:
+                    try:
+                        bpy.ops.mesh.remove_doubles(threshold=0.0001)
+                    except Exception:
+                        pass
+
+                # Pass 2 — fill open boundary loops (holes)
+                bpy.ops.mesh.select_all(action='DESELECT')
+                bpy.ops.mesh.select_non_manifold(
+                    extend=False, use_wire=False, use_boundary=True,
+                    use_multi_face=False, use_non_contiguous=False, use_verts=False,
+                )
+                try:
+                    bpy.ops.mesh.fill_holes(sides=8)
+                except Exception:
+                    try:
+                        bpy.ops.mesh.fill()
+                    except Exception:
+                        pass
+
+                # Pass 3 — remove degenerate (zero-area) faces
+                bpy.ops.mesh.select_all(action='SELECT')
+                try:
+                    bpy.ops.mesh.dissolve_degenerate(threshold=0.0001)
+                except Exception:
+                    pass
+
+                # Pass 4 — delete any remaining loose geometry
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.delete_loose()
+
                 bpy.ops.object.mode_set(mode='OBJECT')
-                return True, "Filled non-manifold holes"
+                return True, "Non-manifold repair complete (merge + fill holes + dissolve degenerate)"
             except Exception as e:
+                try:
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                except Exception:
+                    pass
                 return False, str(e)
+
+        if action == 'SETUP_FO4_MATERIAL':
+            # Create a proper FO4 material with Diffuse/Normal/Specular nodes
+            # on every selected mesh that lacks one.
+            from . import texture_helpers as _th
+            fixed = 0
+            for obj in objs:
+                if not obj.data.materials or not obj.data.materials[0].use_nodes:
+                    _th.TextureHelpers.setup_fo4_material(obj)
+                    fixed += 1
+                else:
+                    # Material exists but may be missing specific texture nodes
+                    mat   = obj.data.materials[0]
+                    nodes = mat.node_tree.nodes
+                    missing = [n for n in ("Diffuse", "Normal", "Specular")
+                               if not nodes.get(n)]
+                    if missing:
+                        _th.TextureHelpers.setup_fo4_material(obj)
+                        fixed += 1
+            if fixed:
+                return True, f"Set up FO4 material with texture nodes on {fixed} object(s)"
+            return True, "FO4 material nodes already present"
 
         if action == 'TRIANGULATE':
             try:

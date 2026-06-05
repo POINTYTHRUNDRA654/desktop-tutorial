@@ -921,8 +921,24 @@ def blender_mat_to_bgsm(mat) -> BGSMData:
 
     # Inherit fo4_shader custom property from material or object
     fo4_shader = getattr(mat, "fo4_shader", None) or mat.get("fo4_material_preset", "")
-    if fo4_shader:
-        _apply_shader_hints(data, str(fo4_shader))
+    # Also check fo4_shader_type and fo4_core_profile set by setup_vegetation_material
+    fo4_shader_type    = mat.get("fo4_shader_type", "")
+    fo4_core_profile   = mat.get("fo4_core_profile", "")
+    combined_hint = " ".join(filter(None, [fo4_shader, fo4_shader_type, fo4_core_profile]))
+    if combined_hint:
+        _apply_shader_hints(data, combined_hint)
+
+    # Override translucency values if the artist set per-material custom props
+    if mat.get("fo4_translucency"):
+        data.translucency = True
+        data.translucency_mix_albedo_with_subsurface = bool(mat.get("fo4_translucency_mix_albedo", True))
+        r = float(mat.get("fo4_translucency_subsurface_r", 0.35))
+        g = float(mat.get("fo4_translucency_subsurface_g", 0.60))
+        b = float(mat.get("fo4_translucency_subsurface_b", 0.15))
+        data.translucency_subsurface_color = (r, g, b)
+        data.translucency_transmissive_scale = float(mat.get("fo4_translucency_scale", 0.55))
+        data.translucency_turbulence = float(mat.get("fo4_translucency_turbulence", 0.0))
+        data.shader_flags1 |= SF1_BACK_LIGHTING
 
     return data
 
@@ -970,6 +986,15 @@ def _apply_shader_hints(data: BGSMData, hint: str) -> None:
         data.facegen = True
     if "two_sided" in hint_lower or "foliage" in hint_lower or "vegetation" in hint_lower:
         data.shader_flags2 |= SF2_DOUBLE_SIDED
+        # Back-lighting flag makes sunlight pass through leaf surfaces in-game.
+        # Combined with the translucency block this is what gives leaves their
+        # characteristic glow when the sun is behind them.
+        data.shader_flags1 |= SF1_BACK_LIGHTING
+        data.translucency = True
+        data.translucency_mix_albedo_with_subsurface = True
+        data.translucency_subsurface_color = (0.35, 0.60, 0.15)
+        data.translucency_transmissive_scale = 0.55
+        data.translucency_turbulence = 0.0
 
 
 def bgsm_to_blender_mat(data: BGSMData, mat) -> None:

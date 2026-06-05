@@ -598,6 +598,7 @@ knowledge_helpers = _safe_import("knowledge_helpers")
 export_helpers = _safe_import("export_helpers")
 addon_updater = _safe_import("addon_updater")
 realesrgan_helpers = _safe_import("realesrgan_helpers")
+texture_enhance_helpers = _safe_import("texture_enhance_helpers")
 instantngp_helpers = _safe_import("instantngp_helpers")
 imageto3d_helpers = _safe_import("imageto3d_helpers")
 zoedepth_helpers = _safe_import("zoedepth_helpers")
@@ -1058,6 +1059,27 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
                 text="Hybrid Unwrap",
                 icon='UV_SYNC_SELECT',
             )
+            obj = context.active_object
+            has_bake_src = (
+                obj and obj.type == 'MESH'
+                and obj.data.uv_layers.get('UV_bake_src') is not None
+            )
+            if has_bake_src:
+                row2 = uv_box.row()
+                row2.alert = True
+                row2.operator(
+                    "fo4.rebake_texture_to_uv",
+                    text="Rebake Texture to New UV",
+                    icon='RENDER_STILL',
+                )
+            # Foliage / leaf-card mesh UV — shows for all meshes
+            row_fol = uv_box.row()
+            row_fol.enabled = has_mesh
+            row_fol.operator(
+                "fo4.foliage_uv_unwrap",
+                text="Foliage UV Unwrap (leaf cards)",
+                icon='SHADERFX',
+            )
             uv_box.separator()
 
             # Step 2 - face-picking for selective unwrap
@@ -1301,6 +1323,22 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
         else:
             krea_box.label(text="Engine: PIL fallback (install Real-ESRGAN above for best quality)", icon='INFO')
         krea_box.operator("fo4.upscale_krea_legacy", text="Upscale Texture", icon='FULLSCREEN_ENTER')
+
+        # ── Enhance Texture (Upscale -> Normal/Spec -> Downscale) ────────────
+        enh_box = layout.box()
+        enh_box.label(text="Enhance Texture + Auto Normal/Specular", icon='OUTLINER_OB_IMAGE')
+        enh_col = enh_box.column(align=True)
+        enh_col.scale_y = 0.75
+        enh_col.label(text="AI upscales to high-res intermediate, generates", icon='DOT')
+        enh_col.label(text="normal + specular maps at that resolution, then", icon='DOT')
+        enh_col.label(text="Lanczos-downscales ALL maps back to target size.", icon='DOT')
+        enh_col.label(text="Tiers: 1K->4K | 2K->8K | 4K->16K (select in dialog)", icon='INFO')
+        enh_box.operator("fo4.enhance_texture_1k",
+                         text="Enhance Single Texture (choose tier in dialog)",
+                         icon='FULLSCREEN_ENTER')
+        enh_box.operator("fo4.batch_enhance_1k_textures",
+                         text="Batch Enhance Folder (choose tier in dialog)",
+                         icon='FILE_FOLDER')
 
         # BGSM Material Files
         bgsm_box = layout.box()

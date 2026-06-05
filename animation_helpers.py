@@ -95,9 +95,14 @@ def _get_action_fcurves(action):
     if hasattr(strip, 'channels'):
         return strip.channels(slot.handle).fcurves
 
-    # Last resort: a populated channelbags collection may exist already.
-    if hasattr(strip, 'channelbags') and strip.channelbags:
-        return strip.channelbags[0].fcurves
+    # Blender 5.1+: strip.channels was removed; channelbags is the only API.
+    # The collection is empty on a fresh strip, so create one if needed.
+    # new() expects the ActionSlot object, not slot.handle (an int).
+    if hasattr(strip, 'channelbags'):
+        if strip.channelbags:
+            return strip.channelbags[0].fcurves
+        channelbag = strip.channelbags.new(slot)
+        return channelbag.fcurves
 
     raise RuntimeError(
         f"Cannot resolve action fcurves on Blender "

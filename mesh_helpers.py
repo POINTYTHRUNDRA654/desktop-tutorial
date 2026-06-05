@@ -326,6 +326,105 @@ class MeshHelpers:
         return f"Bone influences capped at {max_influences} per vertex and normalized"
 
     @staticmethod
+    def fix_unweighted_vertices(obj) -> str:
+        """Automatically fix unweighted vertices before export.
+
+        Unweighted vertices (zero total vertex-group weight) cause FO4 NIF
+        exporters to produce corrupted or missing geometry.  Behaviour depends
+        on whether the mesh is skinned to an armature:
+
+        **Skinned mesh (armature parent):** each unweighted vertex is assigned
+        to the nearest bone with weight 1.0.
+
+        **Vegetation / foliage (no armature):** FO4 wind animation is driven by
+        a single per-vertex weight channel – 0.0 (blue) at the base where there
+        is no movement and 1.0 (red) at the tips where movement is greatest.
+        The full Wind vertex group is regenerated as a bottom-to-top Z gradient
+        so every vertex gets a physically correct weight.
+
+        Parameters
+        ----------
+        obj : bpy.types.Object
+            A mesh object, optionally parented to an armature.
+
+        Returns
+        -------
+        str
+            Human-readable status message describing what was fixed.
+        """
+        if obj.type != 'MESH':
+            return "Object is not a mesh – skipped"
+
+        mesh = obj.data
+
+        # Collect unweighted vertices: no group assignment OR all weights == 0.
+        unweighted = []
+        for v in mesh.vertices:
+            total = sum(g.weight for g in v.groups)
+            if total < 1e-6:
+                unweighted.append(v)
+
+        if not unweighted:
+            return "No unweighted vertices found"
+
+        # Resolve armature and build {group_name: bone_head_world} map.
+        armature_obj = None
+        if obj.parent and obj.parent.type == 'ARMATURE':
+            armature_obj = obj.parent
+
+        if armature_obj:
+            # Pre-compute world-space bone head positions.
+            arm_data = armature_obj.data
+            arm_mat = armature_obj.matrix_world
+            bone_positions = {}
+            for bone in arm_data.bones:
+                world_head = arm_mat @ bone.head_local
+                bone_positions[bone.name] = world_head
+
+            # Ensure a vertex group exists for every bone referenced.
+            for bone_name in bone_positions:
+                if bone_name not in obj.vertex_groups:
+                    obj.vertex_groups.new(name=bone_name)
+
+            obj_mat = obj.matrix_world
+
+            for v in unweighted:
+                v_world = obj_mat @ v.co
+                # Find the nearest bone.
+                nearest_bone = min(
+                    bone_positions.keys(),
+                    key=lambda b: (bone_positions[b] - v_world).length
+                )
+                vg = obj.vertex_groups[nearest_bone]
+                vg.add([v.index], 1.0, 'REPLACE')
+
+            msg = (
+                f"Fixed {len(unweighted)} unweighted vertex/vertices – "
+                f"assigned each to nearest bone"
+            )
+        else:
+            # No armature – this is vegetation / foliage using FO4 wind weights.
+            # FO4 wind animation is driven by a single per-vertex weight channel:
+            #   0.0 (blue)  = base / roots – no movement
+            #   1.0 (red)   = tips / top   – full wind movement
+            # Regenerate the full gradient so every vertex gets a correct weight
+            # rather than a flat 1.0 that would make the whole plant thrash.
+            from . import animation_helpers as _ah
+            success, wind_msg = _ah.AnimationHelpers.generate_wind_weights(
+                obj, group_name="Wind", axis='Z', invert=False
+            )
+            if success:
+                msg = (
+                    f"Fixed {len(unweighted)} unweighted vertex/vertices – "
+                    f"regenerated Wind weight gradient (blue=root, red=tip)"
+                )
+            else:
+                msg = f"Could not fix unweighted vertices: {wind_msg}"
+
+        print(f"[MeshHelpers] fix_unweighted_vertices: {msg}")
+        return msg
+
+    @staticmethod
     def add_collision_mesh(obj, simplify_ratio: float = None, collision_type: str = 'DEFAULT'):
         """Add a collision mesh for *obj* and return the new object.
 
@@ -1588,121 +1687,3 @@ class SmartPresets:
                     c for c in context.active_object.children_recursive
                     if c.type == 'MESH'
                 ]
-        except Exception:
-            pass
-
-        for obj in selected:
-            if obj.type != 'MESH':
-                continue
-            try:
-                obj.fo4_mesh_type = mesh_type
-            except Exception:
-                pass
-            try:
-                obj.fo4_collision_type = coll_type
-            except Exception:
-                pass
-            # Store the NIF wire-format constants as informational custom
-            # properties so they're visible in the Properties panel.  These
-            # match what ExportHelpers._build_pynifly_export_kwargs() passes
-            # to PyNifly at export time.
-            obj['nif_version'] = '20.2.0.7'
-            obj['nif_user_version'] = 12
-            obj['nif_bs_version'] = 130
-            obj['nif_target_game'] = 'FO4'
-            obj['nif_export_modifiers'] = True
-            obj['nif_export_collision'] = True
-            obj['nif_rename_bones'] = True
-            obj['nif_blender_xf'] = False
-
-        # Default scene game version to FO4 if not yet set
-        try:
-            if not getattr(context.scene, 'fo4_game_version', None):
-                context.scene.fo4_game_version = 'FO4'
-        except Exception:
-            pass
-
-    @staticmethod
-    def apply_textures_to_active(texture_paths: list, root):
-        """Apply provided texture paths (relative to root) to the active mesh."""
-        import os
-        from . import texture_helpers
-
-        obj = bpy.context.active_object
-        if not obj or obj.type != 'MESH' or not texture_paths:
-            return
-
-        abs_paths = []
-        for t in texture_paths:
-            p = os.path.join(root, t) if root else t
-            if os.path.exists(p):
-                abs_paths.append(p)
-        if not abs_paths:
-            return
-
-        mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
-        for tex in abs_paths:
-            tex_type = texture_helpers.TextureHelpers.detect_fo4_texture_type(tex)
-            texture_helpers.TextureHelpers.install_texture(obj, tex, tex_type)
-
-
-class FO4_OT_AddCompoundCollision(bpy.types.Operator):
-    """Add compound (multi-part) convex collision hulls to the active mesh.
-
-    Uses trimesh VHACD when available for accurate decomposition, or falls back
-    to bounding-box slicing along the longest axis.  Each part is named
-    UCX_{object_name}_{index:02d} following the FO4 / FBX collision convention.
-    """
-    bl_idname = "fo4.add_compound_collision"
-    bl_label = "Add Compound Collision"
-    bl_description = (
-        "Generate multiple convex collision hull parts (UCX_) for the active "
-        "mesh using trimesh VHACD (if installed) or bounding-box splitting."
-    )
-    bl_options = {'REGISTER', 'UNDO'}
-
-    num_parts: bpy.props.IntProperty(
-        name="Number of Parts",
-        description="Maximum number of convex hull parts to generate",
-        default=4,
-        min=1,
-        max=16,
-    )
-
-    def execute(self, context):
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "Select a mesh object first")
-            return {'CANCELLED'}
-        ok, msg, ucx_objs = MeshHelpers.add_compound_collision(obj, self.num_parts)
-        if ok:
-            self.report({'INFO'}, msg)
-            return {'FINISHED'}
-        self.report({'ERROR'}, msg)
-        return {'CANCELLED'}
-
-    def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
-
-
-_CLASSES = [
-    FO4_OT_AddCompoundCollision,
-]
-
-
-def register():
-    """Register mesh helper functions"""
-    for cls in _CLASSES:
-        try:
-            bpy.utils.register_class(cls)
-        except Exception as e:
-            print(f"[Mesh Helpers] Could not register {cls.__name__}: {e}")
-
-
-def unregister():
-    """Unregister mesh helper functions"""
-    for cls in reversed(_CLASSES):
-        try:
-            bpy.utils.unregister_class(cls)
-        except Exception:
-            pass

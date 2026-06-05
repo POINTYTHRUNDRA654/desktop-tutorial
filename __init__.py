@@ -128,6 +128,7 @@ addon_integration = _try_import("addon_integration")
 desktop_tutorial_client = _try_import("desktop_tutorial_client")
 advisor_helpers = _try_import("advisor_helpers")
 knowledge_helpers = _try_import("knowledge_helpers")
+texture_enhance_helpers = _try_import("texture_enhance_helpers")
 
 # ── AI / optional modules — lazy-loaded, NOT imported at startup ──────────────
 # These modules may trigger torch/CUDA initialisation on import.  Importing
@@ -148,7 +149,6 @@ zoedepth_helpers       = None
 gradio_helpers         = None
 hymotion_helpers       = None
 realesrgan_helpers     = None
-texture_enhance_helpers = None
 gpu_manager            = None
 get3d_helpers          = None
 stylegan2_helpers      = None
@@ -283,6 +283,7 @@ _PHASE1_MODULES = list(filter(_filter, [
     setup_operators,      # MUST be before operators
     addon_diagnostics,
     install_operators,
+    texture_enhance_helpers,  # operators needed by ui_panels — register before panels
     operators,
     ui_panels,
 ]))
