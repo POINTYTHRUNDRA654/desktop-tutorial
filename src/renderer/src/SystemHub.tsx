@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect, useState } from 'react';
-import { Container, Coffee, Gauge, ShieldCheck, Wrench, Save, Eye } from 'lucide-react';
+import { Container, Coffee, Gauge, ShieldCheck, Wrench, Save, Eye, BotMessageSquare } from 'lucide-react';
 
 const DiagnosticsHub = React.lazy(() => import('./DiagnosticsHub'));
 const LocalCapabilities = React.lazy(() => import('./LocalCapabilities'));
@@ -12,12 +12,16 @@ const BackupManager = React.lazy(() =>
 const FileWatcher = React.lazy(() =>
   import('./FileWatcher').then((m) => ({ default: m.FileWatcher }))
 );
+const LocalAIEngine = React.lazy(() =>
+  import('./LocalAIEngine').then((m) => ({ default: m.LocalAIEngine }))
+);
 
-type SystemTab = 'diagnostics' | 'capabilities' | 'security' | 'vault' | 'support' | 'backup' | 'watcher';
+type SystemTab = 'diagnostics' | 'capabilities' | 'security' | 'vault' | 'support' | 'backup' | 'watcher' | 'local-ai';
 
 const tabs: Array<{ id: SystemTab; label: string; sublabel: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: 'diagnostics', label: 'Diagnostics', sublabel: 'Troubleshoot tools', icon: Wrench },
   { id: 'capabilities', label: 'Capabilities', sublabel: 'Local AI/runtime', icon: Gauge },
+  { id: 'local-ai', label: 'Local AI Engine', sublabel: 'KoboldCPP + models', icon: BotMessageSquare },
   { id: 'security', label: 'Whitelist & Blacklist', sublabel: 'Safety rules', icon: ShieldCheck },
   { id: 'vault', label: 'Asset Vault', sublabel: 'Manifest + verification', icon: Container },
   { id: 'support', label: 'Support Mossy', sublabel: 'Support links', icon: Coffee },
@@ -59,7 +63,7 @@ const SystemHub: React.FC = () => {
     <div className="h-full flex flex-col bg-[#0a0e0a] overflow-hidden">
       <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-slate-800/60">
         <h1 className="text-xl font-black text-white tracking-tight">FO4 System &amp; Diagnostics Hub</h1>
-        <p className="text-xs text-slate-400 mt-1">Diagnostics · Capabilities · Whitelist & Blacklist · Asset Vault · Support · Backup Manager · File Watcher</p>
+        <p className="text-xs text-slate-400 mt-1">Diagnostics · Capabilities · Local AI Engine · Whitelist & Blacklist · Asset Vault · Support · Backup Manager · File Watcher</p>
         <div className="flex gap-1 mt-4 overflow-x-auto">
           {tabs.map((tab, idx) => (
             <button
@@ -84,6 +88,7 @@ const SystemHub: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-6">
         {activeTab === 'diagnostics' && <PanelLoader><DiagnosticsHub /></PanelLoader>}
         {activeTab === 'capabilities' && <PanelLoader><LocalCapabilities /></PanelLoader>}
+        {activeTab === 'local-ai' && <PanelLoader><LocalAIEngine /></PanelLoader>}
         {activeTab === 'security' && <PanelLoader><SecurityValidator /></PanelLoader>}
         {activeTab === 'vault' && <PanelLoader><TheVault /></PanelLoader>}
         {activeTab === 'support' && <PanelLoader><DonationSupport /></PanelLoader>}

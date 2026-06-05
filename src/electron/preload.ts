@@ -4494,6 +4494,16 @@ aiTextureEnhancer: {
     ipcRenderer.invoke('git:init-repo', payload?.path || '', `Backup-${new Date().toISOString().split('T')[0]}`),
   versionControlDeleteBackup: (_id?: string) =>
     Promise.resolve({ success: true }),
+
+  // Local AI Engine (KoboldCPP + GGUF model)
+  checkLocalAI: (): Promise<any> => ipcRenderer.invoke('check-local-ai'),
+  downloadKoboldCpp: (): Promise<any> => ipcRenderer.invoke('download-koboldcpp'),
+  downloadGgufModel: (modelId?: string): Promise<any> => ipcRenderer.invoke('download-gguf-model', modelId),
+  onLocalAiProgress: (callback: (data: any) => void): (() => void) => {
+    const sub = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('local-ai-progress', sub);
+    return () => ipcRenderer.removeListener('local-ai-progress', sub);
+  },
 };
 
 /**
