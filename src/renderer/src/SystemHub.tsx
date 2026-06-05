@@ -12,8 +12,8 @@ const BackupManager = React.lazy(() =>
 const FileWatcher = React.lazy(() =>
   import('./FileWatcher').then((m) => ({ default: m.FileWatcher }))
 );
-const LocalAIEngine = React.lazy(() =>
-  import('./LocalAIEngine').then((m) => ({ default: m.LocalAIEngine }))
+const KoboldSetup = React.lazy(() =>
+  import('./KoboldSetup').then((m) => ({ default: m.LocalAIEngine }))
 );
 
 type SystemTab = 'diagnostics' | 'capabilities' | 'security' | 'vault' | 'support' | 'backup' | 'watcher' | 'local-ai';
@@ -88,7 +88,7 @@ const SystemHub: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-6">
         {activeTab === 'diagnostics' && <PanelLoader><DiagnosticsHub /></PanelLoader>}
         {activeTab === 'capabilities' && <PanelLoader><LocalCapabilities /></PanelLoader>}
-        {activeTab === 'local-ai' && <PanelLoader><LocalAIEngine /></PanelLoader>}
+        {activeTab === 'local-ai' && <PanelLoader><KoboldSetup /></PanelLoader>}
         {activeTab === 'security' && <PanelLoader><SecurityValidator /></PanelLoader>}
         {activeTab === 'vault' && <PanelLoader><TheVault /></PanelLoader>}
         {activeTab === 'support' && <PanelLoader><DonationSupport /></PanelLoader>}
