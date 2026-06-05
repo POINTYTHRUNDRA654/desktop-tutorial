@@ -32987,6 +32987,136 @@ app.whenReady().then(() => {
     DesktopShortcutManager.createDesktopShortcut();
   }
 
+  // ── Local AI Engine: KoboldCPP + GGUF model download ───────────────────────
+  // KoboldCPP by LostRuins (Henk717) — https://github.com/LostRuins/koboldcpp
+  // Licensed under AGPL-3.0. Mossy downloads it on request with explicit credit.
+  ipcMain.handle('check-local-ai', async () => {
+    const runtimeDir = path.join(app.getPath('userData'), 'runtime');
+    const modelsDir = path.join(app.getPath('userData'), 'models');
+    const koboldPath = path.join(runtimeDir, 'koboldcpp.exe');
+    const modelPath = path.join(modelsDir, 'tinyllama-1.1b-chat.gguf');
+    const koboldExists = fs.existsSync(koboldPath);
+    const modelExists = fs.existsSync(modelPath);
+    let koboldSize: number | null = null;
+    let modelSize: number | null = null;
+    if (koboldExists) { try { koboldSize = fs.statSync(koboldPath).size; } catch { /* ignore */ } }
+    if (modelExists) { try { modelSize = fs.statSync(modelPath).size; } catch { /* ignore */ } }
+    return { ok: true, koboldcpp: { exists: koboldExists, path: koboldPath, size: koboldSize }, model: { exists: modelExists, path: modelPath, size: modelSize }, runtimeDir, modelsDir };
+  });
+
+  ipcMain.handle('download-koboldcpp', async (event) => {
+    const KOBOLD_DOWNLOAD_URL = 'https://github.com/LostRuins/koboldcpp/releases/latest/download/koboldcpp.exe';
+    const TRUSTED_HOSTS = ['github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com'];
+    const TIMEOUT_MS = 300_000;
+    const runtimeDir = path.join(app.getPath('userData'), 'runtime');
+    const destPath = path.join(runtimeDir, 'koboldcpp.exe');
+    const tmpPath = path.join(os.tmpdir(), 'koboldcpp_download.exe');
+    try {
+      if (!fs.existsSync(runtimeDir)) fs.mkdirSync(runtimeDir, { recursive: true });
+      event.sender.send('local-ai-progress', { type: 'koboldcpp', phase: 'start', percent: 0, message: 'Connecting to GitHub…' });
+      await new Promise<void>((resolve, reject) => {
+        const doDownload = (url: string, hops: number) => {
+          if (hops > 5) { reject(new Error('Too many redirects')); return; }
+          const req = https.get(url, { timeout: TIMEOUT_MS }, (res) => {
+            if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+              const next = res.headers.location.startsWith('/') ? new URL(res.headers.location, url).href : res.headers.location;
+              if (!/^https:\/\//i.test(next)) { reject(new Error('Redirect to non-HTTPS blocked')); return; }
+              try {
+                const host = new URL(next).hostname;
+                if (!TRUSTED_HOSTS.some(h => host === h || host.endsWith(`.${h}`))) { reject(new Error(`Untrusted redirect: ${host}`)); return; }
+              } catch { reject(new Error('Invalid redirect URL')); return; }
+              res.resume(); doDownload(next, hops + 1); return;
+            }
+            if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
+            const total = parseInt(res.headers['content-length'] || '0', 10);
+            let received = 0;
+            const out = fs.createWriteStream(tmpPath);
+            res.on('data', (chunk: Buffer) => {
+              received += chunk.length;
+              event.sender.send('local-ai-progress', { type: 'koboldcpp', phase: 'downloading', percent: total > 0 ? Math.round((received / total) * 100) : 0, bytesReceived: received, totalBytes: total });
+            });
+            res.pipe(out);
+            out.on('finish', () => out.close(() => resolve()));
+            out.on('error', reject);
+          });
+          req.on('error', reject);
+          req.on('timeout', () => { req.destroy(); reject(new Error('Download timed out')); });
+        };
+        doDownload(KOBOLD_DOWNLOAD_URL, 0);
+      });
+      if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
+      fs.renameSync(tmpPath, destPath);
+      event.sender.send('local-ai-progress', { type: 'koboldcpp', phase: 'done', percent: 100, message: 'KoboldCPP installed successfully' });
+      return { success: true, path: destPath };
+    } catch (error: any) {
+      try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+      const msg = error?.message || String(error);
+      event.sender.send('local-ai-progress', { type: 'koboldcpp', phase: 'error', percent: 0, message: msg });
+      return { success: false, error: msg };
+    }
+  });
+
+  ipcMain.handle('download-gguf-model', async (event, modelId?: string) => {
+    const MODELS: Record<string, { url: string; filename: string; label: string; sizeHint: string }> = {
+      tinyllama: {
+        url: 'https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf',
+        filename: 'tinyllama-1.1b-chat.gguf',
+        label: 'TinyLlama 1.1B Chat (Q4_K_M)',
+        sizeHint: '~670 MB',
+      },
+    };
+    const TRUSTED_HOSTS = ['huggingface.co', 'cdn-lfs.huggingface.co', 'cdn-lfs-us-1.huggingface.co'];
+    const TIMEOUT_MS = 600_000;
+    const model = MODELS[modelId || 'tinyllama'];
+    if (!model) return { success: false, error: `Unknown model ID: ${modelId}` };
+    const modelsDir = path.join(app.getPath('userData'), 'models');
+    const destPath = path.join(modelsDir, model.filename);
+    const tmpPath = path.join(os.tmpdir(), `${model.filename}.download`);
+    try {
+      if (!fs.existsSync(modelsDir)) fs.mkdirSync(modelsDir, { recursive: true });
+      event.sender.send('local-ai-progress', { type: 'model', phase: 'start', percent: 0, message: `Connecting to HuggingFace (${model.sizeHint})…` });
+      await new Promise<void>((resolve, reject) => {
+        const doDownload = (url: string, hops: number) => {
+          if (hops > 5) { reject(new Error('Too many redirects')); return; }
+          const req = https.get(url, { timeout: TIMEOUT_MS }, (res) => {
+            if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+              const next = res.headers.location.startsWith('/') ? new URL(res.headers.location, url).href : res.headers.location;
+              if (!/^https:\/\//i.test(next)) { reject(new Error('Redirect to non-HTTPS blocked')); return; }
+              try {
+                const host = new URL(next).hostname;
+                if (!TRUSTED_HOSTS.some(h => host === h || host.endsWith(`.${h}`))) { reject(new Error(`Untrusted redirect: ${host}`)); return; }
+              } catch { reject(new Error('Invalid redirect URL')); return; }
+              res.resume(); doDownload(next, hops + 1); return;
+            }
+            if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
+            const total = parseInt(res.headers['content-length'] || '0', 10);
+            let received = 0;
+            const out = fs.createWriteStream(tmpPath);
+            res.on('data', (chunk: Buffer) => {
+              received += chunk.length;
+              event.sender.send('local-ai-progress', { type: 'model', phase: 'downloading', percent: total > 0 ? Math.round((received / total) * 100) : 0, bytesReceived: received, totalBytes: total });
+            });
+            res.pipe(out);
+            out.on('finish', () => out.close(() => resolve()));
+            out.on('error', reject);
+          });
+          req.on('error', reject);
+          req.on('timeout', () => { req.destroy(); reject(new Error('Download timed out')); });
+        };
+        doDownload(model.url, 0);
+      });
+      if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
+      fs.renameSync(tmpPath, destPath);
+      event.sender.send('local-ai-progress', { type: 'model', phase: 'done', percent: 100, message: `${model.label} installed successfully` });
+      return { success: true, path: destPath };
+    } catch (error: any) {
+      try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+      const msg = error?.message || String(error);
+      event.sender.send('local-ai-progress', { type: 'model', phase: 'error', percent: 0, message: msg });
+      return { success: false, error: msg };
+    }
+  });
+
   app.on('activate', () => {
     // On macOS, re-create window when dock icon is clicked and no windows are open
     if (BrowserWindow.getAllWindows().length === 0) {
