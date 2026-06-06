@@ -12,6 +12,10 @@ const ROOT   = __dirname;
 const TMP    = path.join(os.tmpdir(), 'mossy-full-deploy');
 const DEST   = path.join(ROOT, 'Mossy', 'Mossy NVIDIA', 'resources', 'app.asar');
 const BACKUP = DEST + '.bak';
+// Fix minimatch CJS default-export mismatch in @electron/asar
+// minimatch v9+ exports { minimatch } but asar.js calls minimatch_1.default()
+const mmMod = require(path.join(ROOT, 'node_modules', 'minimatch'));
+if (!mmMod.default && mmMod.minimatch) mmMod.default = mmMod.minimatch;
 const ASAR   = require(path.join(ROOT, 'node_modules', '@electron', 'asar', 'lib', 'asar.js'));
 
 function copyDir(src, dest) {

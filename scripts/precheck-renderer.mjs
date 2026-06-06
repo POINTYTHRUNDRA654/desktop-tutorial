@@ -30,7 +30,7 @@ const ELECTRON_SRC = join(ROOT, 'src', 'electron');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-const CURLY_QUOTES = /[''""]/g;
+const CURLY_QUOTES = /[‘’“”]/g;
 
 function* walkTs(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

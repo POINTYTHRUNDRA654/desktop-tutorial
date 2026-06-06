@@ -4504,6 +4504,20 @@ aiTextureEnhancer: {
     ipcRenderer.on('local-ai-progress', sub);
     return () => ipcRenderer.removeListener('local-ai-progress', sub);
   },
+  // KoboldCPP server process control
+  startKobold: (): Promise<any> => ipcRenderer.invoke('start-kobold'),
+  stopKobold: (): Promise<any> => ipcRenderer.invoke('stop-kobold'),
+  koboldStatus: (): Promise<any> => ipcRenderer.invoke('kobold-status'),
+  onKoboldServerStatus: (callback: (data: any) => void): (() => void) => {
+    const sub = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('kobold-server-status', sub);
+    return () => ipcRenderer.removeListener('kobold-server-status', sub);
+  },
+  onLocalAiAutoSetup: (callback: (data: any) => void): (() => void) => {
+    const sub = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('local-ai-auto-setup', sub);
+    return () => ipcRenderer.removeListener('local-ai-auto-setup', sub);
+  },
 };
 
 /**
