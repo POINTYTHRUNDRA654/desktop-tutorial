@@ -32538,6 +32538,9 @@ function setupWizardIpcHandlers(): void {
  * App lifecycle
  */
 
+// ── KoboldCPP process state (module-level so will-quit can reach it) ────────
+let _koboldProcess: import('child_process').ChildProcess | null = null;
+const KOBOLD_PORT = 5001;
 
 app.whenReady().then(() => {
   writeMainLog('═══ app.whenReady() FIRED ═══');
@@ -33117,6 +33120,81 @@ app.whenReady().then(() => {
     }
   });
 
+  // ── KoboldCPP process management ──────────────────────────────────────────
+  ipcMain.handle('start-kobold', async (event) => {
+    const userData = app.getPath('userData');
+    const exePath = path.join(userData, 'runtime', 'koboldcpp.exe');
+    const modelPath = path.join(userData, 'models', 'tinyllama-1.1b-chat.gguf');
+    if (!fs.existsSync(exePath)) return { ok: false, error: 'KoboldCPP not installed' };
+    if (!fs.existsSync(modelPath)) return { ok: false, error: 'Model not installed' };
+    if (_koboldProcess && !_koboldProcess.killed) {
+      return { ok: true, alreadyRunning: true, port: KOBOLD_PORT };
+    }
+    try {
+      const { spawn } = await import('child_process');
+      event.sender.send('kobold-server-status', { phase: 'starting', port: KOBOLD_PORT });
+      _koboldProcess = spawn(exePath, [
+        '--model', modelPath,
+        '--port', String(KOBOLD_PORT),
+        '--contextsize', '2048',
+        '--quiet',
+        '--nommap',
+      ], { detached: false, stdio: 'ignore' });
+      _koboldProcess.on('exit', () => { _koboldProcess = null; });
+      _koboldProcess.on('error', () => { _koboldProcess = null; });
+      // Poll until KoboldCPP's /api/v1/info responds (up to 60s)
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        try {
+          const http = await import('http');
+          await new Promise<void>((res, rej) => {
+            const req = http.get(`http://127.0.0.1:${KOBOLD_PORT}/api/v1/info`, { timeout: 1500 }, (r2) => {
+              r2.resume(); r2.on('end', res);
+            });
+            req.on('error', rej); req.on('timeout', rej);
+          });
+          event.sender.send('kobold-server-status', { phase: 'ready', port: KOBOLD_PORT });
+          return { ok: true, port: KOBOLD_PORT };
+        } catch { /* still starting */ }
+      }
+      return { ok: false, error: 'KoboldCPP did not respond within 60s' };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle('stop-kobold', async () => {
+    if (_koboldProcess) { try { _koboldProcess.kill(); } catch { /* ignore */ } _koboldProcess = null; }
+    return { ok: true };
+  });
+
+  ipcMain.handle('kobold-status', async () => {
+    if (!_koboldProcess || _koboldProcess.killed) return { running: false, port: KOBOLD_PORT };
+    try {
+      const http = await import('http');
+      await new Promise<void>((res, rej) => {
+        const req = http.get(`http://127.0.0.1:${KOBOLD_PORT}/api/v1/info`, { timeout: 2000 }, (r2) => {
+          r2.resume(); r2.on('end', res);
+        });
+        req.on('error', rej); req.on('timeout', rej);
+      });
+      return { running: true, port: KOBOLD_PORT };
+    } catch {
+      return { running: false, port: KOBOLD_PORT };
+    }
+  });
+
+  // ── Auto-setup: notify renderer on load if files are missing ──────────────
+  if (mainWindow) {
+    mainWindow.webContents.once('did-finish-load', () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      const userData = app.getPath('userData');
+      const koboldOk = fs.existsSync(path.join(userData, 'runtime', 'koboldcpp.exe'));
+      const modelOk  = fs.existsSync(path.join(userData, 'models', 'tinyllama-1.1b-chat.gguf'));
+      mainWindow.webContents.send('local-ai-auto-setup', { koboldOk, modelOk, needsSetup: !koboldOk || !modelOk });
+    });
+  }
+
   app.on('activate', () => {
     // On macOS, re-create window when dock icon is clicked and no windows are open
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -33135,6 +33213,7 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   console.log('[MOSSY] Shutting down Neural Bridge...');
   bridge.stop();
+  if (_koboldProcess) { try { _koboldProcess.kill(); } catch { /* ignore */ } _koboldProcess = null; }
 });
 
 // Handle second instance (ensure single instance) - MOVED INSIDE app.whenReady()
