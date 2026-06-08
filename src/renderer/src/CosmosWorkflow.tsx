@@ -386,15 +386,23 @@ const CosmosWorkflow: React.FC = () => {
     if (!searchQuery.trim()) return;
     setSearchBusy(true); setSearchError(''); setSearchResults([]);
     try {
-      if (!api?.mlSearch) {
-        setSearchError('Knowledge Search unavailable. Build the index in the Knowledge Search page first.');
+      if (!api?.searchGlobal) {
+        setSearchError('Knowledge Search unavailable — Electron API not loaded.');
         return;
       }
-      const res = await api.mlSearch({ query: searchQuery.trim(), topK: 5, roots: loadRoots() });
-      if (Array.isArray(res)) {
-        setSearchResults(res);
-        if (!res.length) setSearchError('No results. Ensure the index is built and repos are registered.');
-      } else { setSearchError('Unexpected response from search engine.'); }
+      const res = await api.searchGlobal({ query: searchQuery.trim(), topK: 5 });
+      if (!res?.ok) {
+        setSearchError(res?.error ?? 'Search failed. Build the global index first.');
+        return;
+      }
+      const results: InlineResult[] = (res.results ?? []).map((r: any) => ({
+        score:      typeof r.score === 'number' ? r.score : 0,
+        sourcePath: r.sourcePath ?? r.path ?? '',
+        title:      r.title ?? r.sourcePath?.split(/[\\/]/).pop() ?? 'Result',
+        content:    r.content ?? r.text ?? r.snippet ?? '',
+      }));
+      setSearchResults(results);
+      if (!results.length) setSearchError('No results. Ensure the global index is built and repos are registered.');
     } catch (e: any) { setSearchError(e?.message ?? 'Search failed.'); }
     finally { setSearchBusy(false); }
   }, [api, searchQuery]);

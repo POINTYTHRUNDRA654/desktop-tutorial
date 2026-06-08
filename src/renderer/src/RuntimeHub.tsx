@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect, useState } from 'react';
-import { Gamepad2, Monitor, Radio } from 'lucide-react';
+import { Gamepad2, Monitor, Radio, Brain } from 'lucide-react';
 
 const VoiceChat = React.lazy(() => import('./VoiceChat'));
 const DesktopBridge = React.lazy(() => import('./DesktopBridge'));
@@ -38,12 +38,28 @@ const RuntimeHub: React.FC = () => {
   const [bridgeOnline, setBridgeOnline] = useState(false);
   const [blenderLinked, setBlenderLinked] = useState(false);
 
+  // F4AI pipeline status — sourced from the bridge registry event bus
+  type F4AIPipelineState = 'offline' | 'relay' | 'partial' | 'active';
+  const [f4aiState, setF4aiState] = useState<F4AIPipelineState>('offline');
+  const [f4aiDetail, setF4aiDetail] = useState<string>('');
+
   // ── Persistent tab — localStorage so it survives full app reloads ──────────
   useEffect(() => {
     try {
       const saved = localStorage.getItem('runtime_hub_tab') as RuntimeTab | null;
       if (saved && tabs.some((t) => t.id === saved)) setActiveTab(saved);
     } catch { /* sandbox may block */ }
+  }, []);
+
+  // ── Keyboard shortcuts 1-3 for tab switching (matches other hub pattern) ───
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const idx = parseInt(e.key, 10) - 1;
+      if (idx >= 0 && idx < tabs.length) setActiveTab(tabs[idx].id);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
   useEffect(() => {
@@ -69,6 +85,32 @@ const RuntimeHub: React.FC = () => {
       window.removeEventListener('mossy-blender-linked', sync);
       clearInterval(interval);
     };
+  }, []);
+
+  // ── F4AI pipeline chip — driven by bridge registry events ─────────────────
+  useEffect(() => {
+    const onBridgeStatus = (e: Event) => {
+      const ev = e as CustomEvent<{ id: string; status: string; statusDetail?: string }>;
+      if (ev.detail?.id !== 'f4ai-bridge') return;
+      const detail = ev.detail.statusDetail ?? '';
+      setF4aiDetail(detail);
+      if (ev.detail.status === 'connected') {
+        setF4aiState('active');
+      } else if (ev.detail.status === 'connecting') {
+        // Distinguish relay-only vs partial vs fully waiting
+        if (detail.includes('KoboldCPP online')) {
+          setF4aiState('partial');
+        } else if (detail.includes('Mossy relay ready')) {
+          setF4aiState('relay');
+        } else {
+          setF4aiState('offline');
+        }
+      } else {
+        setF4aiState('offline');
+      }
+    };
+    window.addEventListener('mossy-bridge-status-changed', onBridgeStatus);
+    return () => window.removeEventListener('mossy-bridge-status-changed', onBridgeStatus);
   }, []);
 
   return (
@@ -102,6 +144,38 @@ const RuntimeHub: React.FC = () => {
               />
               Bridge {bridgeOnline ? 'Online' : 'Offline'}
             </span>
+
+            {/* F4AI pipeline chip — always visible, reflects real pipeline state */}
+            {(() => {
+              const chipStyles: Record<string, string> = {
+                active:  'border-violet-700/60 text-violet-300 bg-violet-900/20',
+                partial: 'border-yellow-700/60 text-yellow-300 bg-yellow-900/20',
+                relay:   'border-blue-700/60 text-blue-300 bg-blue-900/20',
+                offline: 'border-slate-700/50 text-slate-500 bg-slate-900/20',
+              };
+              const dotStyles: Record<string, string> = {
+                active:  'bg-violet-400 shadow-[0_0_5px_#a78bfa] animate-pulse',
+                partial: 'bg-yellow-400 shadow-[0_0_5px_#facc15] animate-pulse',
+                relay:   'bg-blue-400 shadow-[0_0_4px_#60a5fa]',
+                offline: 'bg-slate-600',
+              };
+              const labels: Record<string, string> = {
+                active:  'AI Active',
+                partial: 'AI Partial',
+                relay:   'AI Relay',
+                offline: 'AI Offline',
+              };
+              return (
+                <span
+                  title={f4aiDetail || 'F4AI pipeline status'}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] font-mono font-bold uppercase tracking-widest transition-all ${chipStyles[f4aiState]}`}
+                >
+                  <Brain className="w-3 h-3 flex-shrink-0" />
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotStyles[f4aiState]}`} />
+                  {labels[f4aiState]}
+                </span>
+              );
+            })()}
 
             {/* Blender chip — only visible when linked */}
             {blenderLinked && (

@@ -4,21 +4,11 @@ import { LocalAIEngine } from './LocalAIEngine';
 import { getFullSystemInstruction } from './MossyBrain';
 import { useHorizontalScroll } from './components/useHorizontalScroll';
 
-// prefer preload API when available, otherwise fall back to in-memory engine for dev
-let bridge: any = (window as any).electron?.api || (window as any).electronAPI;
-try {
-  if (!bridge || !bridge.aiModAssistant) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const local = require('../../mining/aiModAssistant');
-    if (!bridge) {
-      bridge = { aiModAssistant: local.aiModAssistant || local.default };
-    } else {
-      bridge.aiModAssistant = local.aiModAssistant || local.default;
-    }
-  }
-} catch (err) {
-  // ignore - UI will still render but actions will fail gracefully
-}
+// Preload API — dual-path for compatibility (window.electron.api or window.electronAPI)
+// The `require('../../mining/aiModAssistant')` path was removed: Vite does not bundle
+// raw Node require() paths and the mining module does not exist in the renderer bundle.
+// All AI mod assistant capabilities are routed through LocalAIEngine and the preload API.
+const bridge: any = (window as any).electron?.api || (window as any).electronAPI;
 
 // When Generate Script is clicked, Mossy enters "script wizard" mode.
 // The next user message is treated as the description of what to build.
@@ -215,12 +205,14 @@ const AIModAssistant: React.FC = () => {
 
 
   const toggleListening = async () => {
+    // Voice commands are under bridge.voiceCommands — not bridge.sttStart/sttStop
+    const voiceApi = bridge?.voiceCommands;
     if (!listening) {
       setListening(true);
-      try { await bridge.sttStart?.(); } catch (err) { console.warn('Voice start failed', err); }
+      try { await voiceApi?.startListening?.(); } catch (err) { console.warn('Voice start failed', err); }
     } else {
       setListening(false);
-      try { await bridge.sttStop?.(); } catch (err) { console.warn('Voice stop failed', err); }
+      try { await voiceApi?.stopListening?.(); } catch (err) { console.warn('Voice stop failed', err); }
     }
   };
 

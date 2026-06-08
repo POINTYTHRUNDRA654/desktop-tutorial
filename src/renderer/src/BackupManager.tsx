@@ -71,13 +71,13 @@ export const BackupManager: React.FC = () => {
       return;
     }
     try {
-      const response = await fetch('http://localhost:21337/git/status');
+      const response = await fetch('http://127.0.0.1:21337/git/status');
       if (response.ok) {
         const data = await response.json();
         setGitStatus(data);
       } else {
-        // Bridge endpoint not implemented (404) — clear flag so we stop retrying
-        localStorage.removeItem('mossy_bridge_active');
+        // Endpoint not yet implemented — silently skip; do NOT touch mossy_bridge_active
+        // (clearing it here would break the bridge status badge across the entire app)
         setGitStatus(null);
       }
     } catch (error) {
@@ -95,7 +95,8 @@ export const BackupManager: React.FC = () => {
       try {
         const stats = await bridge.getDirectoryStats(workspacePath);
         fileCount = stats?.fileCount ?? 0;
-        sizeLabel = stats?.totalSizeMB ? `${stats.totalSizeMB} MB` : '';
+        // IPC returns totalBytes — convert to MB for display
+        sizeLabel = stats?.totalBytes ? `${(stats.totalBytes / 1_048_576).toFixed(1)} MB` : '';
       } catch { /* non-critical */ }
     }
 

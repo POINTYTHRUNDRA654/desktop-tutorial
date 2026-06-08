@@ -139,6 +139,7 @@ export const LocalAIEngine = {
     | { ok: true; provider: 'cosmos'; baseUrl: string; models: string[] }
     | { ok: true; provider: 'openai_compat'; baseUrl: string; models: string[] }
     | { ok: true; provider: 'koboldcpp'; baseUrl: string; models: string[] }
+    | { ok: true; provider: 'fo4bridge'; baseUrl: string; models: string[] }
     | { ok: false; reason: string }
   > {
     try {
@@ -163,11 +164,23 @@ export const LocalAIEngine = {
       } catch { /* not available */ }
       const KOBOLD_BASE = 'http://127.0.0.1:5001/v1';
 
+      // Check FO4 Advanced AI bridge (port 28485) — has llama-cpp-python inline
+      let bridgeOk = false;
+      try {
+        const br = await fetch('http://127.0.0.1:28485/llm/status', { signal: AbortSignal.timeout(1500) });
+        if (br.ok) {
+          const bs = await br.json();
+          bridgeOk = bs?.model_loaded || bs?.koboldcpp_running;
+        }
+      } catch { /* not running */ }
+      const BRIDGE_BASE = 'http://127.0.0.1:28485';
+
       const pickAuto = () => {
         if (cosmosOk) return { ok: true as const, provider: 'cosmos' as const, baseUrl: caps.cosmos.baseUrl, models: caps.cosmos.models || [] };
         if (ollamaOk) return { ok: true as const, provider: 'ollama' as const, baseUrl: caps.ollama.baseUrl, models: caps.ollama.models || [] };
         if (openaiOk) return { ok: true as const, provider: 'openai_compat' as const, baseUrl: caps.openaiCompat.baseUrl, models: caps.openaiCompat.models || [] };
         if (koboldOk) return { ok: true as const, provider: 'koboldcpp' as const, baseUrl: KOBOLD_BASE, models: ['tinyllama'] };
+        if (bridgeOk) return { ok: true as const, provider: 'fo4bridge' as const, baseUrl: BRIDGE_BASE, models: ['tinyllama'] };
         return { ok: false as const, reason: 'No local provider detected.' };
       };
 
@@ -676,7 +689,7 @@ export const LocalAIEngine = {
         const localStatusAny = localStatus as any;
         const provider = localStatusAny.provider as string | undefined;
 
-        // KoboldCPP uses its own OpenAI-compatible fetch path (not mlLlmGenerate IPC)
+        // KoboldCPP — OpenAI-compatible endpoint on port 5001
         if (provider === 'koboldcpp') {
           const messages: Array<{ role: string; content: string }> = [
             { role: 'system', content: enhancedSystemInstruction + injectedContext },
@@ -692,6 +705,22 @@ export const LocalAIEngine = {
           const data = await resp.json();
           const text = data?.choices?.[0]?.message?.content || '';
           return { content: text || 'KoboldCPP returned an empty response.' };
+        }
+
+        // FO4 Advanced AI bridge — llama-cpp-python inline on port 28485
+        if (provider === 'fo4bridge') {
+          const resp = await fetch('http://127.0.0.1:28485/generate/text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: query,
+              system: enhancedSystemInstruction + injectedContext,
+              max_tokens: 512,
+            }),
+          });
+          if (!resp.ok) throw new Error(`FO4 Bridge HTTP ${resp.status}`);
+          const data = await resp.json();
+          return { content: data?.text || 'Bridge returned an empty response.' };
         }
 
         const model = provider === 'ollama'

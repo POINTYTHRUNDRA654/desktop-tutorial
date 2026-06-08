@@ -45,7 +45,7 @@ const ASSET_BUDGETS = [
   { category: 'Papyrus script poll rate', budget: '> 0.5 s between updates', details: 'Scripts polling faster than 500 ms stack in the Papyrus queue. Prefer event-driven design. Tight loops cause "Papyrus is overloaded" crashes.' },
   { category: 'Loose files vs BA2', budget: 'Release only in BA2', details: 'Loose files bypass the archive system and fragment the texture streamer. Always pack into BA2 for distribution. Keep loose only during dev.' },
   { category: 'Leveled list depth', budget: '< 5 nesting levels', details: 'FO4 evaluates leveled lists recursively. Lists nested more than 5 levels deep cause noticeable micro-stutter when evaluated at runtime.' },
-  { category: 'FormID count per ESP', budget: '< 4096 for ESL / 16M for ESP', details: 'ESL: strict 2048 new FormIDs (range 0x000–0x7FF). Standard ESP: 16M. Do not approach the limit — leave headroom for patches.' },
+  { category: 'FormID count per ESP', budget: '≤ 4096 for ESL / 16M for ESP', details: 'ESL/ESP-FE: max 4096 new FormIDs (range 0x000–0xFFF). ESM-flagged-as-ESL: stricter 2048 limit (0x000–0x7FF). Standard ESP: 16M total. Compact FormIDs in xEdit before ESL-flagging.' },
 ];
 
 const CONFLICT_TYPES = [
