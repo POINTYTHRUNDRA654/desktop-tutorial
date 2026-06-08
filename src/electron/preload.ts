@@ -1070,6 +1070,14 @@ const electronAPI = {
   },
 
   /**
+   * FS: Get directory stats — file count, total size, last-modified timestamp.
+   * Used by BackupManager to enrich snapshot metadata.
+   */
+  getDirectoryStats: (dirPath: string): Promise<{ fileCount: number; totalBytes: number; lastModified: string | null; error?: string }> => {
+    return ipcRenderer.invoke('get-directory-stats', dirPath);
+  },
+
+  /**
    * Workshop: Read DDS texture preview info
    */
   readDdsPreview: (filePath: string): Promise<{ width: number; height: number; format: string; data?: string }> => {
@@ -1282,6 +1290,161 @@ const electronAPI = {
    */
   ckPickPlugin: (): Promise<{ success: boolean; path?: string; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_PICK_PLUGIN);
+  },
+
+  /**
+   * Plugin Inspector: Full binary deep-scan of an ESP/ESM/ESL.
+   * Extracts FormID count, masters, flags, deleted NAVMs, record type counts,
+   * BA2 companion archives, precombine detection, and actionable fix hints.
+   */
+  ckInspectPlugin: (pluginPath: string): Promise<{
+    success: boolean;
+    error?: string;
+    data?: {
+      formIdCount: number;
+      numRecords: number;
+      masters: string[];
+      eslSafe: boolean;
+      eslFlag: boolean;
+      esmFlag: boolean;
+      hasScripts: boolean;
+      hasNavmesh: boolean;
+      hasPrecombines: boolean;
+      deletedNavmeshCount: number;
+      fileSizeMB: number;
+      ba2Archives: string[];
+      typeCounts: Record<string, number>;
+      warnings: Array<{ level: 'error' | 'warn' | 'info'; msg: string; fixId?: string; fixLabel?: string }>;
+    };
+  }> => {
+    return ipcRenderer.invoke('ck:inspect-plugin', pluginPath);
+  },
+
+  /** Auto-fix: rename plugin file replacing spaces with underscores. */
+  ckAutofixRename: (pluginPath: string): Promise<{ success: boolean; newPath?: string; message?: string; error?: string }> => {
+    return ipcRenderer.invoke('ck:autofix-rename', pluginPath);
+  },
+
+  /** Auto-fix: binary undelete+disable all NAVM records with the Deleted flag. Saves .bak first. */
+  ckAutofixUndeleteNavmesh: (pluginPath: string): Promise<{ success: boolean; fixCount?: number; message?: string; error?: string }> => {
+    return ipcRenderer.invoke('ck:autofix-undelete-navmesh', pluginPath);
+  },
+
+  /**
+   * Launch FO4Edit against this plugin.
+   * mode 'clean'   → -quickautoclean (removes ITMs and re-enables UDRs)
+   * mode 'compact' → opens plugin for user to run Compact FormIDs for ESL
+   * mode 'open'    → just open the plugin in xEdit
+   */
+  ckAutofixLaunchXedit: (pluginPath: string, mode: 'clean' | 'compact' | 'open'): Promise<{ success: boolean; message?: string; error?: string }> => {
+    return ipcRenderer.invoke('ck:autofix-launch-xedit', pluginPath, mode);
+  },
+
+  /** Launch Creation Kit with -GeneratePrevisiblesForPlugin to rebuild precombines. */
+  ckAutofixRebuildPrecombines: (pluginPath: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    return ipcRenderer.invoke('ck:autofix-rebuild-precombines', pluginPath);
+  },
+
+  // ── Previsbines & PRP automated system ────────────────────────────────────
+
+  /**
+   * Check environment for all tools needed for previsbine generation:
+   * CK, CKPE, xEdit, PJM Scripts (FO4Check_Previsbines.pas, GeneratePrevisibines.bat),
+   * PRP.esp/PPF.esm, steam_appid.txt, Archive2.
+   */
+  ckEnvCheck: (dataDir: string): Promise<{
+    success: boolean; error?: string;
+    fo4Dir?: string;
+    ck?: { found: boolean; path: string };
+    ckpe?: { found: boolean; iniFound: boolean; ownArchiveLoader?: boolean; pointerHandle?: boolean };
+    xedit?: { found: boolean; path: string };
+    pjmScripts?: { found: boolean; scripts: string[]; batPath: string };
+    prp?: { found: boolean; path: string; name: string };
+    steamAppId?: { found: boolean; correct: boolean; content: string };
+    archive2?: { found: boolean; path: string };
+  }> => {
+    return ipcRenderer.invoke('ck:env-check', dataDir);
+  },
+
+  /** Create steam_appid.txt in the FO4 root (required for GeneratePrevisibines.bat without MO2). */
+  ckSetupGenerationEnv: (fo4Dir: string): Promise<{ success: boolean; steps?: string[]; error?: string }> => {
+    return ipcRenderer.invoke('ck:setup-generation-env', fo4Dir);
+  },
+
+  /**
+   * Binary scan a plugin for all CELL FormIDs it touches (directly or via REFR overrides).
+   * Returns the affected cells with reasons — these need precombine/previs regen or a PRP patch.
+   */
+  ckDetectXcriCells: (pluginPath: string): Promise<{
+    success: boolean; error?: string;
+    cells?: Array<{ formId: number; formIdHex: string; masterName: string; reasons: string[]; needsPrevis: boolean }>;
+    total?: number;
+    xcriCount?: number;
+  }> => {
+    return ipcRenderer.invoke('ck:detect-xcri-cells', pluginPath);
+  },
+
+  /**
+   * Create a binary PRP compatibility patch ESP.
+   * Finds PRP's CELL records for all cells the user's plugin touches and writes
+   * a patch that lets PRP's precombines coexist with the mod's changes.
+   * Load the patch AFTER your mod AND PRP.
+   */
+  ckCreatePrpPatch: (pluginPath: string, prpPath: string, patchPath: string): Promise<{
+    success: boolean; error?: string;
+    patchPath?: string;
+    cellsAffected?: number;
+    cellsPatched?: number;
+    masterCount?: number;
+    message?: string;
+  }> => {
+    return ipcRenderer.invoke('ck:create-prp-patch', pluginPath, prpPath, patchPath);
+  },
+
+  /**
+   * Launch the PJM Scripts previsbine generation workflow.
+   * mode 'check'    → Opens FO4Edit with the plugin; user applies FO4Check_Previsbines.pas
+   * mode 'generate' → Launches GeneratePrevisibines.bat with the plugin name
+   */
+  ckLaunchPrevisWorkflow: (pluginPath: string, xeditPath: string, mode: 'check' | 'generate'): Promise<{ success: boolean; message?: string; error?: string }> => {
+    return ipcRenderer.invoke('ck:launch-previs-workflow', pluginPath, xeditPath, mode);
+  },
+
+  /** Strip existing precombine data from a plugin before regeneration (FO4RemovePrecombines.pas). */
+  ckCleanPluginPrecombines: (pluginPath: string, xeditPath: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    return ipcRenderer.invoke('ck:clean-plugin-precombines', pluginPath, xeditPath);
+  },
+
+  /**
+   * Scan two plugins for conflicting FormID overrides (records both modify from a shared master).
+   * Returns the conflict list and total override counts for each plugin.
+   */
+  ckScanConflicts: (pathA: string, pathB: string): Promise<{
+    success: boolean;
+    error?: string;
+    conflicts?: Array<{ key: string; type: string; masterName: string }>;
+    totalA?: number;
+    totalB?: number;
+    mastersA?: string[];
+    mastersB?: string[];
+  }> => {
+    return ipcRenderer.invoke('ck:scan-conflicts', pathA, pathB);
+  },
+
+  /**
+   * Create a compatibility patch ESP from two conflicting plugins.
+   * The patch takes the `winner` plugin's version of each conflicting record.
+   * Writes an ESL-flagged patch to `patchPath`.
+   */
+  ckCreatePatch: (pathA: string, pathB: string, patchPath: string, winner: 'A' | 'B'): Promise<{
+    success: boolean;
+    error?: string;
+    patchPath?: string;
+    conflictCount?: number;
+    masterCount?: number;
+    message?: string;
+  }> => {
+    return ipcRenderer.invoke('ck:create-patch', pathA, pathB, patchPath, winner);
   },
 
   /**
@@ -4508,6 +4671,7 @@ aiTextureEnhancer: {
   startKobold: (): Promise<any> => ipcRenderer.invoke('start-kobold'),
   stopKobold: (): Promise<any> => ipcRenderer.invoke('stop-kobold'),
   koboldStatus: (): Promise<any> => ipcRenderer.invoke('kobold-status'),
+  f4aiBridgeStatus: (): Promise<any> => ipcRenderer.invoke('f4ai-bridge-status'),
   onKoboldServerStatus: (callback: (data: any) => void): (() => void) => {
     const sub = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
     ipcRenderer.on('kobold-server-status', sub);

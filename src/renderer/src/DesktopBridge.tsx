@@ -800,6 +800,45 @@ const DesktopBridge: React.FC = () => {
         return () => clearInterval(interval);
     }, [activeTab]);
 
+    // ── Main bridge (port 21337) liveness heartbeat ────────────────────────
+    // Probes /health every 10 s and clears mossy_bridge_active if the server
+    // has gone away — prevents the UI from showing a stale "Online" badge.
+    useEffect(() => {
+        const probeBridge = async () => {
+            const base = (() => {
+                try { return localStorage.getItem('mossy_bridge_base_url') || 'http://127.0.0.1:21337'; }
+                catch { return 'http://127.0.0.1:21337'; }
+            })();
+            try {
+                const controller = new AbortController();
+                const tid = setTimeout(() => controller.abort(), 2000);
+                const res = await fetch(`${base}/health`, { signal: controller.signal });
+                clearTimeout(tid);
+                if (res.ok) {
+                    try { localStorage.setItem('mossy_bridge_active', 'true'); } catch { /* ignore */ }
+                    setBridgeConnected(true);
+                } else {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+            } catch {
+                // Only mark offline if we previously thought it was online
+                const wasOnline = (() => {
+                    try { return localStorage.getItem('mossy_bridge_active') === 'true'; } catch { return false; }
+                })();
+                if (wasOnline) {
+                    try { localStorage.setItem('mossy_bridge_active', 'false'); } catch { /* ignore */ }
+                    setBridgeConnected(false);
+                }
+            }
+        };
+
+        const interval = setInterval(probeBridge, 10_000);
+        // Run once immediately so the badge is accurate on first render
+        void probeBridge();
+
+        return () => clearInterval(interval);
+    }, []);
+
     // ── Blender Token Sync ─────────────────────────────────────────────────
     // Save token to settings when changed
     const saveBlenderToken = async (token: string) => {
@@ -1349,6 +1388,7 @@ pause
             addLog('Bridge', 'Connection failed: All endpoints unreachable.', 'err');
             addLog('Bridge', 'TROUBLESHOOTING: 1. Is Python server running? 2. Check Firewall. 3. Try running as Admin.', 'warn');
             setBridgeConnected(false);
+            try { localStorage.setItem('mossy_bridge_active', 'false'); } catch { /* ignore */ }
         }
 
         setTestingBridge(false);

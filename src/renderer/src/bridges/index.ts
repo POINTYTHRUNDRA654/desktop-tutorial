@@ -22,10 +22,17 @@
 import { BridgeRegistry } from './BridgeRegistry';
 import { HttpPluginBridge } from './HttpPluginBridge';
 import { Mo2Bridge } from './Mo2Bridge';
+import { F4AIBridge } from './F4AIBridge';
 
 // ── Register bridges here ────────────────────────────────────────────────────
 
-BridgeRegistry.register(new Mo2Bridge());
+const _mo2 = new Mo2Bridge();
+BridgeRegistry.register(_mo2);
+void _mo2.connect();
+
+const _f4ai = new F4AIBridge();
+BridgeRegistry.register(_f4ai);
+void _f4ai.connect();
 
 const normalizePluginBridgeConfigs = (plugin: any): any[] => {
     const manifestBridge = plugin?.manifest?.mossyBridge;

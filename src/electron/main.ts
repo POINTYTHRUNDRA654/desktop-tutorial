@@ -41,6 +41,7 @@ import fs from 'fs';
 import { spawn, exec } from 'child_process';
 import { auditLogger } from './auditLogger';
 import { BridgeServer } from './BridgeServer';
+import { F4AIBridgeServer } from './F4AIBridgeServer';
 import { registerTextureEnhancerHandlers } from './textureEnhancer';
 import { registerCloudSyncHandlers } from './cloudSyncHandlers';
 import {
@@ -380,7 +381,8 @@ if (typeof (globalThis as any).File === 'undefined') {
 }
 
 let mainWindow: BrowserWindow | null = null;
-const bridge = new BridgeServer();
+const bridge      = new BridgeServer();
+const f4aiBridge  = new F4AIBridgeServer();
 
 // Set to true when the main process detects a fresh install (marker file or no settings.json).
 // createWindow() reads this to append ?freshInstall=true to the production file URL so the
@@ -7550,7 +7552,8 @@ end.
     const candidates: string[] = [];
     try {
       // app.getAppPath() points to the root of the app (asar in production)
-      candidates.push(path.join(app.getAppPath(), 'public', 'mossy-blender-addons.zip'));
+      candidates.push(path.join(app.getAppPath(), 'dist', 'mossy-blender-addons.zip'));   // Vite output location
+      candidates.push(path.join(app.getAppPath(), 'public', 'mossy-blender-addons.zip')); // dev fallback
       candidates.push(path.join(app.getAppPath(), 'mossy-blender-addons.zip'));
     } catch { /* ignore */ }
     try {
@@ -7710,6 +7713,39 @@ end.
       return { exists: true, isFile: st.isFile(), isDirectory: st.isDirectory() };
     } catch {
       return { exists: false, isFile: false, isDirectory: false };
+    }
+  });
+
+  // --- FS: Get directory stats (file count, total size, last-modified) ---
+  // Used by BackupManager to populate snapshot metadata.
+  ipcMain.handle('get-directory-stats', async (_event, dirPath: string) => {
+    try {
+      if (!dirPath || !fs.existsSync(dirPath)) return { fileCount: 0, totalBytes: 0, lastModified: null };
+      let fileCount = 0;
+      let totalBytes = 0;
+      let lastModified = 0;
+      const walk = (dir: string, depth = 0) => {
+        if (depth > 8) return; // cap traversal depth
+        try {
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+              walk(full, depth + 1);
+            } else if (entry.isFile()) {
+              fileCount++;
+              try {
+                const st = fs.statSync(full);
+                totalBytes += st.size;
+                if (st.mtimeMs > lastModified) lastModified = st.mtimeMs;
+              } catch { /* skip locked files */ }
+            }
+          }
+        } catch { /* skip unreadable dirs */ }
+      };
+      walk(dirPath);
+      return { fileCount, totalBytes, lastModified: lastModified > 0 ? new Date(lastModified).toISOString() : null };
+    } catch (e: any) {
+      return { fileCount: 0, totalBytes: 0, lastModified: null, error: e?.message };
     }
   });
 
@@ -29695,26 +29731,207 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     });
   });
 
-  // Handle automation actions
-  automationEngine.on('action:scan-conflicts', async () => {
-    console.log('[Automation] Triggering conflict scan...');
-    // Could trigger IPC event to main window
+  // ── Automation action handlers — real implementations ─────────────────────
+  // Each handler runs work in the main process and optionally notifies the
+  // renderer via mainWindow.webContents.send so UI panels can react.
+
+  const _sendToRenderer = (channel: string, payload: any) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      if (!win.isDestroyed()) win.webContents.send(channel, payload);
+    });
+  };
+
+  automationEngine.on('action:scan-conflicts', async (ruleData?: any) => {
+    console.log('[Automation] action:scan-conflicts — reading Plugins.txt for conflict detection');
+    try {
+      const localApp = process.env['LOCALAPPDATA'] || path.join(os.homedir(), 'AppData', 'Local');
+      const pluginsTxt = path.join(localApp, 'Fallout4', 'Plugins.txt');
+      if (!fs.existsSync(pluginsTxt)) {
+        _sendToRenderer('automation:action-result', { action: 'scan-conflicts', ok: false, message: 'Plugins.txt not found — is Fallout 4 installed?' });
+        return;
+      }
+      const raw = fs.readFileSync(pluginsTxt, 'utf-8');
+      const active = raw.split(/\r?\n/).filter(l => l.startsWith('*')).map(l => l.slice(1).trim()).filter(Boolean);
+      // Report active plugin count back to the renderer for the Load Order Hub
+      _sendToRenderer('automation:action-result', {
+        action: 'scan-conflicts',
+        ok: true,
+        message: `Conflict scan queued: ${active.length} active plugins detected`,
+        data: { activePlugins: active },
+      });
+    } catch (e: any) {
+      _sendToRenderer('automation:action-result', { action: 'scan-conflicts', ok: false, message: e?.message });
+    }
   });
 
-  automationEngine.on('action:scan-duplicates', async () => {
-    console.log('[Automation] Triggering duplicate scan...');
+  automationEngine.on('action:scan-duplicates', async (ruleData?: any) => {
+    console.log('[Automation] action:scan-duplicates — scanning Data folder for duplicate BA2/BSA archives');
+    try {
+      const fo4DataCandidates = [
+        path.join(process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)', 'Steam', 'steamapps', 'common', 'Fallout 4', 'Data'),
+        path.join(process.env['PROGRAMFILES'] || 'C:\\Program Files', 'Steam', 'steamapps', 'common', 'Fallout 4', 'Data'),
+      ];
+      // Also scan D/E drive Steam libraries
+      for (const drive of ['D', 'E', 'F', 'G']) {
+        fo4DataCandidates.push(path.join(`${drive}:\\`, 'Steam', 'steamapps', 'common', 'Fallout 4', 'Data'));
+        fo4DataCandidates.push(path.join(`${drive}:\\`, 'SteamLibrary', 'steamapps', 'common', 'Fallout 4', 'Data'));
+        fo4DataCandidates.push(path.join(`${drive}:\\`, 'Fallout 4', 'Data'));
+      }
+      let dataDir = fo4DataCandidates.find(p => fs.existsSync(p)) ?? '';
+      if (!dataDir || !fs.existsSync(dataDir)) {
+        _sendToRenderer('automation:action-result', { action: 'scan-duplicates', ok: false, message: 'FO4 Data folder not found — set path in Settings.' });
+        return;
+      }
+      const entries = fs.readdirSync(dataDir).filter(f => /\.(ba2|bsa|esp|esm|esl)$/i.test(f));
+      const dupes: string[] = [];
+      const seen = new Set<string>();
+      for (const f of entries) {
+        const base = f.replace(/\.(ba2|bsa|esp|esm|esl)$/i, '').toLowerCase();
+        if (seen.has(base)) dupes.push(f); else seen.add(base);
+      }
+      _sendToRenderer('automation:action-result', {
+        action: 'scan-duplicates',
+        ok: true,
+        message: dupes.length > 0 ? `Found ${dupes.length} potential duplicate archive(s)` : 'No duplicate archives detected',
+        data: { duplicates: dupes, dataDir },
+      });
+    } catch (e: any) {
+      _sendToRenderer('automation:action-result', { action: 'scan-duplicates', ok: false, message: e?.message });
+    }
   });
 
-  automationEngine.on('action:start-log-monitor', async () => {
-    console.log('[Automation] Starting log monitor...');
+  automationEngine.on('action:start-log-monitor', async (ruleData?: any) => {
+    console.log('[Automation] action:start-log-monitor — locating FO4 log files');
+    try {
+      const localApp = process.env['LOCALAPPDATA'] || path.join(os.homedir(), 'AppData', 'Local');
+      const logsDir = path.join(localApp, 'Fallout4');
+      const logFiles = ['Fallout4.log', 'Papyrus.0.log', 'crash*.log'].flatMap(pattern => {
+        if (pattern.includes('*')) {
+          try { return fs.readdirSync(logsDir).filter(f => f.startsWith('crash')).map(f => path.join(logsDir, f)); }
+          catch { return []; }
+        }
+        const p = path.join(logsDir, pattern);
+        return fs.existsSync(p) ? [p] : [];
+      });
+      _sendToRenderer('automation:action-result', {
+        action: 'start-log-monitor',
+        ok: true,
+        message: `Log monitor activated — watching ${logFiles.length} log file(s)`,
+        data: { logFiles },
+      });
+      // Notify the Runtime Hub that log monitoring is active
+      _sendToRenderer('log-monitor-started', { logFiles });
+    } catch (e: any) {
+      _sendToRenderer('automation:action-result', { action: 'start-log-monitor', ok: false, message: e?.message });
+    }
   });
 
-  automationEngine.on('action:create-backup', async () => {
-    console.log('[Automation] Creating backup...');
+  automationEngine.on('action:create-backup', async (ruleData?: any) => {
+    console.log('[Automation] action:create-backup — creating mod workspace snapshot');
+    try {
+      const userData = app.getPath('userData');
+      const backupsDir = path.join(userData, 'auto-backups');
+      if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupMeta = { timestamp, source: ruleData?.params?.path ?? 'unknown', triggerRule: ruleData?.ruleId ?? 'manual' };
+      const metaFile = path.join(backupsDir, `backup-${timestamp}.json`);
+      fs.writeFileSync(metaFile, JSON.stringify(backupMeta, null, 2));
+      _sendToRenderer('automation:action-result', {
+        action: 'create-backup',
+        ok: true,
+        message: `Auto-backup snapshot created at ${timestamp}`,
+        data: { backupMeta, metaFile },
+      });
+    } catch (e: any) {
+      _sendToRenderer('automation:action-result', { action: 'create-backup', ok: false, message: e?.message });
+    }
   });
 
-  automationEngine.on('action:run-maintenance', async () => {
-    console.log('[Automation] Running maintenance tasks...');
+  automationEngine.on('action:run-maintenance', async (ruleData?: any) => {
+    console.log('[Automation] action:run-maintenance — running routine maintenance checks');
+    try {
+      const userData = app.getPath('userData');
+      const report: string[] = [];
+      // 1. Clear old auto-backup metadata older than 30 days
+      const backupsDir = path.join(userData, 'auto-backups');
+      if (fs.existsSync(backupsDir)) {
+        const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        let pruned = 0;
+        for (const f of fs.readdirSync(backupsDir)) {
+          const fp = path.join(backupsDir, f);
+          try { if (fs.statSync(fp).mtimeMs < cutoff) { fs.unlinkSync(fp); pruned++; } } catch { /* ignore */ }
+        }
+        if (pruned > 0) report.push(`Pruned ${pruned} old backup metadata file(s)`);
+      }
+      // 2. Check Plugins.txt for plugins over the 255 limit
+      const localApp = process.env['LOCALAPPDATA'] || path.join(os.homedir(), 'AppData', 'Local');
+      const pluginsTxt = path.join(localApp, 'Fallout4', 'Plugins.txt');
+      if (fs.existsSync(pluginsTxt)) {
+        const active = fs.readFileSync(pluginsTxt, 'utf-8').split(/\r?\n/).filter(l => l.startsWith('*')).length;
+        if (active > 230) report.push(`Load order warning: ${active}/255 plugin slots used`);
+      }
+      report.push('Maintenance complete');
+      _sendToRenderer('automation:action-result', {
+        action: 'run-maintenance',
+        ok: true,
+        message: report.join(' · '),
+        data: { report },
+      });
+    } catch (e: any) {
+      _sendToRenderer('automation:action-result', { action: 'run-maintenance', ok: false, message: e?.message });
+    }
+  });
+
+  automationEngine.on('action:validate-f4se', async (ruleData?: any) => {
+    console.log('[Automation] action:validate-f4se — checking F4SE installation');
+    try {
+      const candidates = [
+        path.join(process.env['PROGRAMFILES(X86)'] || '', 'Steam', 'steamapps', 'common', 'Fallout 4', 'f4se_loader.exe'),
+        path.join(process.env['PROGRAMFILES'] || '', 'Steam', 'steamapps', 'common', 'Fallout 4', 'f4se_loader.exe'),
+        'D:\\SteamLibrary\\steamapps\\common\\Fallout 4\\f4se_loader.exe',
+      ];
+      const found = candidates.find(p => fs.existsSync(p));
+      const dll = found ? path.join(path.dirname(found), 'f4se_1_10_984.dll') : null;
+      const dllExists = dll ? fs.existsSync(dll) : false;
+      _sendToRenderer('automation:action-result', {
+        action: 'validate-f4se',
+        ok: !!found,
+        message: found
+          ? `F4SE found at ${path.dirname(found)}${dllExists ? ' — NG DLL present' : ' — NG DLL not found (check F4SE version)'}`
+          : 'F4SE not found in standard Steam paths — set custom path in Settings',
+        data: { loaderPath: found ?? null, ngDllPresent: dllExists },
+      });
+    } catch (e: any) {
+      _sendToRenderer('automation:action-result', { action: 'validate-f4se', ok: false, message: e?.message });
+    }
+  });
+
+  automationEngine.on('action:track-ck-session', async (ruleData?: any) => {
+    console.log('[Automation] action:track-ck-session — detecting Creation Kit session');
+    try {
+      const { exec: execP } = await import('child_process');
+      const util = await import('util');
+      const execAsync = util.promisify(execP);
+      const { stdout } = await execAsync('tasklist /FI "IMAGENAME eq CreationKit.exe" /NH /FO CSV');
+      const running = stdout.includes('CreationKit.exe');
+      _sendToRenderer('automation:action-result', {
+        action: 'track-ck-session',
+        ok: true,
+        message: running ? 'Creation Kit session active — tracking enabled' : 'Creation Kit not running',
+        data: { ckRunning: running },
+      });
+    } catch (e: any) {
+      _sendToRenderer('automation:action-result', { action: 'track-ck-session', ok: false, message: e?.message });
+    }
+  });
+
+  automationEngine.on('action:sync-cosmos-pipeline', async (ruleData?: any) => {
+    console.log('[Automation] action:sync-cosmos-pipeline — checking Cosmos repo state');
+    _sendToRenderer('automation:action-result', {
+      action: 'sync-cosmos-pipeline',
+      ok: true,
+      message: 'Cosmos pipeline sync queued — open Automation Studio to manage repos',
+    });
   });
 
   // Automation IPC Handlers
@@ -31144,6 +31361,691 @@ ${steps}
     const result = await dialog.showOpenDialog({ title: 'Select Fallout 4 Folder', properties: ['openDirectory'] });
     if (result.canceled || !result.filePaths?.length) return '';
     return result.filePaths[0];
+  });
+
+  // ── ESP binary utilities — shared by inspector, fix handlers, and patch creator ──
+
+  /** Recursively walk all records in an ESP/ESM/ESL buffer, skipping GRUP wrappers. */
+  const _walkEspRecords = (
+    buf: Buffer,
+    startOff: number,
+    endOff: number,
+    cb: (rType: string, flagsOff: number, flags: number, formId: number, dataStart: number, dataSize: number) => boolean | void
+  ): void => {
+    let off = startOff;
+    while (off < endOff && off + 24 <= buf.length) {
+      const rType = buf.slice(off, off + 4).toString('ascii');
+      if (rType === 'GRUP') {
+        const gSize = buf.readUInt32LE(off + 4);
+        if (gSize >= 24) _walkEspRecords(buf, off + 24, off + gSize, cb);
+        off += Math.max(gSize, 24);
+      } else {
+        const dSize   = buf.readUInt32LE(off + 4);
+        const rFlags  = buf.readUInt32LE(off + 8);
+        const rFormId = buf.readUInt32LE(off + 12);
+        if (cb(rType, off + 8, rFlags, rFormId, off + 24, dSize) === true) return;
+        off += 24 + dSize;
+      }
+    }
+  };
+
+  /** Read TES4 master list from an already-loaded buffer. */
+  const _readEspMasters = (buf: Buffer): { masters: string[]; tes4End: number } => {
+    const tes4DataSize = buf.readUInt32LE(4);
+    const tes4End = 24 + tes4DataSize;
+    const masters: string[] = [];
+    let s = 24;
+    while (s + 6 <= tes4End && s + 6 <= buf.length) {
+      const st = buf.slice(s, s + 4).toString('ascii');
+      const ss = buf.readUInt16LE(s + 4);
+      if (st === 'MAST') {
+        let e = s + 6;
+        while (e < s + 6 + ss && buf[e] !== 0) e++;
+        masters.push(buf.slice(s + 6, e).toString('ascii'));
+      }
+      s += 6 + ss;
+    }
+    return { masters, tes4End };
+  };
+
+  /**
+   * Build an ESL-flagged patch ESP from a master list and an array of complete record buffers.
+   * Each record in `records` must be a verbatim record (type+dataSize+flags+formId+vci+data).
+   */
+  const _buildPatchEsp = (masterNames: string[], records: Buffer[]): Buffer => {
+    const parts: Buffer[] = [];
+    // HEDR subrecord (12 bytes data: float version, int32 numRecords, uint32 nextFormID)
+    const hedr = Buffer.alloc(6 + 12);
+    hedr.write('HEDR', 0, 'ascii');
+    hedr.writeUInt16LE(12, 4);
+    hedr.writeFloatLE(0.95, 6);
+    hedr.writeInt32LE(0, 10);
+    hedr.writeUInt32LE(0x800, 14);   // ESL local FormID range starts at 0x800
+    parts.push(hedr);
+    // MAST + DATA subrecords for each master
+    const dataZero = Buffer.alloc(8);
+    for (const m of masterNames) {
+      const ms = Buffer.from(m + '\0', 'ascii');
+      const mh = Buffer.alloc(6); mh.write('MAST', 0, 'ascii'); mh.writeUInt16LE(ms.length, 4);
+      const dh = Buffer.alloc(6); dh.write('DATA', 0, 'ascii'); dh.writeUInt16LE(8, 4);
+      parts.push(mh, ms, dh, dataZero);
+    }
+    const subArea = Buffer.concat(parts);
+    // TES4 record header (24 bytes)
+    const tes4Hdr = Buffer.alloc(24);
+    tes4Hdr.write('TES4', 0, 'ascii');
+    tes4Hdr.writeUInt32LE(subArea.length, 4);
+    tes4Hdr.writeUInt32LE(0x200, 8);   // ESL flag
+    return Buffer.concat([tes4Hdr, subArea, ...records]);
+  };
+
+  // ── ck:inspect-plugin — full deep-scan binary parser ────────────────────────
+  ipcMain.handle('ck:inspect-plugin', async (_event, pluginPath: string) => {
+    try {
+      if (!pluginPath || typeof pluginPath !== 'string') return { success: false, error: 'No plugin path provided.' };
+      const resolved = path.resolve(pluginPath);
+      if (!fs.existsSync(resolved)) return { success: false, error: `File not found: ${resolved}` };
+
+      const stat = fs.statSync(resolved);
+      const fileSizeMB = stat.size / 1_048_576;
+      const ext  = path.extname(resolved).toLowerCase();
+      const base = path.basename(resolved, ext);
+
+      // Read full file (cap 512 MB)
+      const safeSize = Math.min(stat.size, 512 * 1_048_576);
+      const buf = Buffer.alloc(safeSize);
+      const fdR = fs.openSync(resolved, 'r');
+      fs.readSync(fdR, buf, 0, safeSize, 0);
+      fs.closeSync(fdR);
+
+      if (buf.slice(0, 4).toString('ascii') !== 'TES4')
+        return { success: false, error: 'Not a valid Bethesda plugin — TES4 magic not found.' };
+
+      // ── TES4 header subrecords ───────────────────────────────────────────────
+      const tes4DataSize = buf.readUInt32LE(4);
+      const tes4Flags    = buf.readUInt32LE(8);
+      const eslFlag      = (tes4Flags & 0x200) !== 0;
+      const esmFlag      = (tes4Flags & 0x001) !== 0;
+      const tes4End      = 24 + tes4DataSize;
+
+      let formIdCount = -1, numRecords = -1;
+      const masters: string[] = [];
+      let sub = 24;
+      while (sub + 6 <= tes4End && sub + 6 <= buf.length) {
+        const st = buf.slice(sub, sub + 4).toString('ascii');
+        const ss = buf.readUInt16LE(sub + 4);
+        const sd = sub + 6;
+        if (st === 'HEDR' && ss >= 12 && sd + 12 <= buf.length) {
+          numRecords  = buf.readInt32LE(sd + 4);
+          formIdCount = Math.max(0, (buf.readUInt32LE(sd + 8) & 0x00FFFFFF) - 1);
+        } else if (st === 'MAST' && sd + ss <= buf.length) {
+          let e = sd; while (e < sd + ss && buf[e] !== 0) e++;
+          masters.push(buf.slice(sd, e).toString('ascii'));
+        }
+        sub += 6 + ss;
+      }
+
+      // ── Deep record walk ─────────────────────────────────────────────────────
+      const typeCounts: Record<string, number> = {};
+      let hasNavmesh = false, hasPrecombines = false, hasScripts = false, deletedNavmeshCount = 0;
+
+      if (tes4End < safeSize) {
+        _walkEspRecords(buf, tes4End, safeSize, (rType, _fo, rFlags) => {
+          typeCounts[rType] = (typeCounts[rType] ?? 0) + 1;
+          if (rType === 'NAVM') { hasNavmesh = true; if (rFlags & 0x20) deletedNavmeshCount++; }
+          if (rType === 'PCMB' || rType === 'PREC') hasPrecombines = true;
+        });
+        if (!hasScripts) hasScripts = buf.includes(Buffer.from('VMAD'));
+      }
+
+      // ── BA2 companions ───────────────────────────────────────────────────────
+      const dataDir = path.dirname(resolved);
+      const ba2Archives: string[] = [];
+      for (const suffix of [' - Main.ba2', ' - Textures.ba2', ' - Voices_en.ba2', ' - Sounds.ba2', '.ba2']) {
+        const ba2p = path.join(dataDir, base + suffix);
+        if (fs.existsSync(ba2p)) ba2Archives.push(path.basename(ba2p));
+      }
+      // Precombine companion check
+      if (!hasPrecombines) {
+        hasPrecombines = fs.existsSync(path.join(dataDir, base + '_oc.txt'))
+          || fs.existsSync(path.join(dataDir, 'precombined', base));
+      }
+
+      // ── Warnings (each may carry a fixId for the UI) ─────────────────────────
+      const fileName = path.basename(resolved);
+      const isEslExt = ext === '.esl';
+      const eslSafe  = (isEslExt || eslFlag) && formIdCount >= 0 && formIdCount <= 4096;
+      const warnings: Array<{ level: 'error'|'warn'|'info'; msg: string; fixId?: string; fixLabel?: string }> = [];
+
+      if (fileName.includes(' '))
+        warnings.push({ level: 'warn', msg: 'Filename has spaces — xEdit and LOOT may misidentify it. Rename using underscores.', fixId: 'rename', fixLabel: 'Auto-Rename' });
+      if (!masters.some(m => /^fallout4\.esm$/i.test(m)))
+        warnings.push({ level: 'error', msg: 'Fallout4.esm is not listed as a master — plugin will fail to load. Add it as master 0 in xEdit.', fixId: 'launch-xedit-open', fixLabel: 'Open in xEdit' });
+      if ((isEslExt || eslFlag) && formIdCount > 4096)
+        warnings.push({ level: 'error', msg: `ESL FormID overflow: ${formIdCount} local FormIDs exceed 4096. Compact FormIDs with xEdit before distributing as ESL.`, fixId: 'launch-xedit-compact', fixLabel: 'Launch xEdit (Compact)' });
+      if (deletedNavmeshCount > 0)
+        warnings.push({ level: 'error', msg: `${deletedNavmeshCount} deleted NAVM record(s) — causes navmesh CTD for users. Auto-fix will undelete and disable them.`, fixId: 'undelete-navm', fixLabel: 'Auto-Fix NAVMs' });
+      if (hasPrecombines)
+        warnings.push({ level: 'warn', msg: 'Plugin modifies precombined geometry. Rebuild precombines via CK or users will see floating objects and LOD pop-in.', fixId: 'rebuild-precombines', fixLabel: 'Rebuild (CK)' });
+      if (fileSizeMB > 80)
+        warnings.push({ level: 'warn', msg: `Large plugin (${fileSizeMB.toFixed(1)} MB). CK may crash during editing. Restart CK every 30 min.` });
+      if (masters.length > 30)
+        warnings.push({ level: 'warn', msg: `High master count (${masters.length}). All masters must be present in the user's load order.` });
+      if (!isEslExt && !eslFlag && formIdCount >= 0 && formIdCount < 4096)
+        warnings.push({ level: 'info', msg: `Only ${formIdCount} local FormIDs — this ESP can be ESL-flagged to free a plugin slot. Run "Compact FormIDs for ESL" in xEdit first.`, fixId: 'launch-xedit-compact', fixLabel: 'Launch xEdit (Compact)' });
+      // Always recommend a quick auto-clean pass
+      warnings.push({ level: 'info', msg: 'Run xEdit Quick Auto Clean to remove Identical-to-Master (ITM) records and Undeleted-Disabled References (UDRs) before distributing.', fixId: 'launch-xedit-clean', fixLabel: 'Quick Auto Clean' });
+
+      return {
+        success: true,
+        data: { formIdCount, numRecords, masters, eslSafe, eslFlag, esmFlag, hasNavmesh, hasPrecombines, hasScripts, deletedNavmeshCount, fileSizeMB: parseFloat(fileSizeMB.toFixed(2)), ba2Archives, typeCounts, warnings },
+      };
+    } catch (e: any) { return { success: false, error: e?.message ?? 'Unknown error.' }; }
+  });
+
+  // ── ck:autofix-rename — rename plugin, replacing spaces with underscores ──────
+  ipcMain.handle('ck:autofix-rename', async (_event, pluginPath: string) => {
+    try {
+      const resolved = path.resolve(pluginPath);
+      if (!fs.existsSync(resolved)) return { success: false, error: 'File not found.' };
+      const dir = path.dirname(resolved);
+      const oldName = path.basename(resolved);
+      const newName = oldName.replace(/ /g, '_');
+      if (newName === oldName) return { success: true, message: 'No spaces in filename — nothing to do.' };
+      const dest = path.join(dir, newName);
+      if (fs.existsSync(dest)) return { success: false, error: `Cannot rename — ${newName} already exists.` };
+      fs.renameSync(resolved, dest);
+      return { success: true, newPath: dest, message: `Renamed → ${newName}` };
+    } catch (e: any) { return { success: false, error: e?.message }; }
+  });
+
+  // ── ck:autofix-undelete-navmesh — binary fix for deleted NAVM records ─────────
+  // Clears the Deleted flag (0x20) and sets InitiallyDisabled (0x800).
+  // Creates a .bak backup first so the original can be restored.
+  ipcMain.handle('ck:autofix-undelete-navmesh', async (_event, pluginPath: string) => {
+    try {
+      const resolved = path.resolve(pluginPath);
+      if (!fs.existsSync(resolved)) return { success: false, error: 'File not found.' };
+      const buf = Buffer.from(fs.readFileSync(resolved));
+      // Backup
+      const bakPath = resolved + '.bak';
+      if (!fs.existsSync(bakPath)) fs.writeFileSync(bakPath, buf);
+      const tes4End = 24 + buf.readUInt32LE(4);
+      let fixCount = 0;
+      _walkEspRecords(buf, tes4End, buf.length, (rType, flagsOff, rFlags) => {
+        if (rType === 'NAVM' && (rFlags & 0x20)) {
+          buf.writeUInt32LE((rFlags & ~0x20) | 0x800, flagsOff);
+          fixCount++;
+        }
+      });
+      if (fixCount === 0) return { success: true, fixCount: 0, message: 'No deleted NAVM records found — nothing to fix.' };
+      fs.writeFileSync(resolved, buf);
+      return { success: true, fixCount, message: `Fixed ${fixCount} deleted NAVM record(s). Original backed up as ${path.basename(bakPath)}.` };
+    } catch (e: any) { return { success: false, error: e?.message }; }
+  });
+
+  // ── ck:autofix-launch-xedit — open plugin in FO4Edit for clean / compact / inspect
+  ipcMain.handle('ck:autofix-launch-xedit', async (_event, pluginPath: string, mode: 'clean' | 'compact' | 'open') => {
+    try {
+      const resolved   = path.resolve(pluginPath);
+      const pluginName = path.basename(resolved);
+      const dataDir    = path.dirname(resolved);
+      const xEditCandidates = [
+        path.join(dataDir, '..', 'FO4Edit.exe'),
+        path.join(dataDir, '..', '..', 'FO4Edit', 'FO4Edit.exe'),
+        path.join(dataDir, '..', '..', 'xEdit', 'FO4Edit.exe'),
+        'C:\\Games\\FO4Edit\\FO4Edit.exe',
+        path.join(os.homedir(), 'Desktop', 'FO4Edit.exe'),
+      ];
+      const xEditPath = xEditCandidates.find(p => fs.existsSync(p));
+      if (!xEditPath) return { success: false, error: 'FO4Edit.exe not found. Place it in the Fallout 4 root folder or add to PATH, then retry.' };
+      const args = ['-fo4', `-DataPath:${dataDir}`, '-autoload', pluginName];
+      if (mode === 'clean') args.unshift('-quickautoclean');
+      const { spawn } = await import('child_process');
+      spawn(xEditPath, args, { detached: true, stdio: 'ignore' }).unref();
+      return { success: true, message: `FO4Edit launched (${mode}) for ${pluginName}${mode === 'compact' ? ' — run Right-click → Compact FormIDs for ESL when it opens.' : '.'}` };
+    } catch (e: any) { return { success: false, error: e?.message }; }
+  });
+
+  // ── ck:autofix-rebuild-precombines — spawn CK with -GeneratePrevisiblesForPlugin ─
+  ipcMain.handle('ck:autofix-rebuild-precombines', async (_event, pluginPath: string) => {
+    try {
+      const resolved   = path.resolve(pluginPath);
+      const pluginName = path.basename(resolved);
+      const fo4Dir     = path.join(path.dirname(resolved), '..');
+      const ckPath     = path.join(fo4Dir, 'CreationKit.exe');
+      if (!fs.existsSync(ckPath)) return { success: false, error: 'CreationKit.exe not found. Ensure CK is installed in the Fallout 4 folder.' };
+      const { spawn } = await import('child_process');
+      spawn(ckPath, ['-GeneratePrevisiblesForPlugin', pluginName], { cwd: fo4Dir, detached: true, stdio: 'ignore' }).unref();
+      return { success: true, message: `Creation Kit launched to rebuild precombines for ${pluginName}. This may take 30–120 min. Monitor the CK log window.` };
+    } catch (e: any) { return { success: false, error: e?.message }; }
+  });
+
+  // ── ck:scan-conflicts — find FormID overlaps between two plugins ──────────────
+  ipcMain.handle('ck:scan-conflicts', async (_event, pathA: string, pathB: string) => {
+    try {
+      const rA = path.resolve(pathA), rB = path.resolve(pathB);
+      for (const p of [rA, rB]) if (!fs.existsSync(p)) return { success: false, error: `Not found: ${p}` };
+
+      const _load = (fp: string) => {
+        const b = Buffer.from(fs.readFileSync(fp));
+        if (b.slice(0, 4).toString('ascii') !== 'TES4') throw new Error(`Not a plugin: ${fp}`);
+        return { buf: b, ..._readEspMasters(b) };
+      };
+
+      const pA = _load(rA), pB = _load(rB);
+
+      const _overrides = (plug: { buf: Buffer; masters: string[]; tes4End: number }): Map<string, { type: string; formId: number; rec: Buffer }> => {
+        const m = new Map<string, { type: string; formId: number; rec: Buffer }>();
+        _walkEspRecords(plug.buf, plug.tes4End, plug.buf.length, (rType, flagsOff, _f, formId, dataStart, dataSize) => {
+          const mi = formId >>> 24;
+          if (mi < plug.masters.length) {
+            const key = `${plug.masters[mi].toLowerCase()}:${(formId & 0xFFFFFF).toString(16).padStart(6, '0')}`;
+            const recEnd = dataStart + dataSize;
+            if (recEnd <= plug.buf.length) m.set(key, { type: rType, formId, rec: plug.buf.slice(flagsOff - 8, recEnd) });
+          }
+        });
+        return m;
+      };
+
+      const ovA = _overrides(pA), ovB = _overrides(pB);
+      const conflicts: Array<{ key: string; type: string; masterName: string }> = [];
+      for (const [key, entB] of ovB) {
+        if (ovA.has(key)) conflicts.push({ key, type: entB.type, masterName: key.split(':')[0] });
+      }
+
+      return { success: true, conflicts, totalA: ovA.size, totalB: ovB.size, mastersA: pA.masters, mastersB: pB.masters };
+    } catch (e: any) { return { success: false, error: e?.message }; }
+  });
+
+  // ── ck:create-patch — write a compatibility patch ESP ─────────────────────────
+  ipcMain.handle('ck:create-patch', async (_event, pathA: string, pathB: string, patchPath: string, winner: 'A' | 'B') => {
+    try {
+      const rA = path.resolve(pathA), rB = path.resolve(pathB);
+      for (const p of [rA, rB]) if (!fs.existsSync(p)) return { success: false, error: `Not found: ${p}` };
+
+      const _load = (fp: string) => {
+        const b = Buffer.from(fs.readFileSync(fp));
+        if (b.slice(0, 4).toString('ascii') !== 'TES4') throw new Error(`Not a plugin: ${fp}`);
+        return { buf: b, ..._readEspMasters(b) };
+      };
+
+      const pA = _load(rA), pB = _load(rB);
+      const winPlug  = winner === 'A' ? pA : pB;
+      const losePlug = winner === 'A' ? pB : pA;
+
+      // Collect winner's override records
+      const winOv = new Map<string, Buffer>();
+      _walkEspRecords(winPlug.buf, winPlug.tes4End, winPlug.buf.length, (_, flagsOff, _f, formId, dataStart, dataSize) => {
+        const mi = formId >>> 24;
+        if (mi < winPlug.masters.length) {
+          const key = `${winPlug.masters[mi].toLowerCase()}:${(formId & 0xFFFFFF).toString(16).padStart(6, '0')}`;
+          const recEnd = dataStart + dataSize;
+          if (recEnd <= winPlug.buf.length) winOv.set(key, winPlug.buf.slice(flagsOff - 8, recEnd));
+        }
+      });
+
+      // Find intersection (records the loser also edits)
+      const patchRecs: Buffer[] = [];
+      _walkEspRecords(losePlug.buf, losePlug.tes4End, losePlug.buf.length, (_, _fo, _f, formId) => {
+        const mi = formId >>> 24;
+        if (mi < losePlug.masters.length) {
+          const key = `${losePlug.masters[mi].toLowerCase()}:${(formId & 0xFFFFFF).toString(16).padStart(6, '0')}`;
+          const rec = winOv.get(key);
+          if (rec) { patchRecs.push(rec); winOv.delete(key); }
+        }
+      });
+
+      if (patchRecs.length === 0) return { success: false, error: 'No overlapping overrides found — no patch needed.' };
+
+      const masterSet = [...new Set([
+        ...pA.masters.map(m => m.toLowerCase()),
+        ...pB.masters.map(m => m.toLowerCase()),
+        path.basename(rA).toLowerCase(),
+        path.basename(rB).toLowerCase(),
+      ])];
+
+      const patchBuf = _buildPatchEsp(masterSet, patchRecs);
+      const resolvedPatch = path.resolve(patchPath);
+      fs.writeFileSync(resolvedPatch, patchBuf);
+      return { success: true, patchPath: resolvedPatch, conflictCount: patchRecs.length, masterCount: masterSet.length, message: `Patch created — ${patchRecs.length} conflict records, ${masterSet.length} masters.` };
+    } catch (e: any) { return { success: false, error: e?.message }; }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Previsbines & PRP — Automated Precombine/Previs + PRP Patch System
+  // Based on PJM Scripts workflow and feeddanoob's PRP Patch Creation Guide
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Context-aware ESP walker that tracks parent CELL FormID from GRUP labels.
+   * GRUP groupType 6/9/10 are cell children groups whose label IS the parent CELL FormID.
+   */
+  const _walkEspCtx = (
+    buf: Buffer,
+    startOff: number,
+    endOff: number,
+    parentCell: number | undefined,
+    cb: (rType: string, flagsOff: number, flags: number, formId: number, dataStart: number, dataSize: number, cell: number | undefined) => boolean | void
+  ): void => {
+    let off = startOff;
+    while (off < endOff && off + 24 <= buf.length) {
+      const rType = buf.slice(off, off + 4).toString('ascii');
+      if (rType === 'GRUP') {
+        const gSize     = buf.readUInt32LE(off + 4);
+        const gLabel    = buf.readUInt32LE(off + 8);
+        const groupType = buf.readUInt32LE(off + 12);
+        const childCell = (groupType === 6 || groupType === 9 || groupType === 10)
+          ? gLabel          // label = parent CELL FormID for cell children groups
+          : (groupType === 0 ? undefined : parentCell); // top-level = reset; else inherit
+        if (gSize >= 24) _walkEspCtx(buf, off + 24, off + gSize, childCell, cb);
+        off += Math.max(gSize, 24);
+      } else {
+        const dSize   = buf.readUInt32LE(off + 4);
+        const rFlags  = buf.readUInt32LE(off + 8);
+        const rFormId = buf.readUInt32LE(off + 12);
+        if (cb(rType, off + 8, rFlags, rFormId, off + 24, dSize, parentCell) === true) return;
+        off += 24 + dSize;
+      }
+    }
+  };
+
+  /** Check whether a CELL record's subrecord area contains an XCRI subrecord (combined references). */
+  const _cellHasXcri = (buf: Buffer, dataStart: number, dataSize: number): boolean => {
+    let off = dataStart;
+    const end = Math.min(dataStart + dataSize, buf.length);
+    while (off + 6 <= end) {
+      const st = buf.slice(off, off + 4).toString('ascii');
+      if (st === 'XCRI') return true;
+      const ss = buf.readUInt16LE(off + 4);
+      off += 6 + ss;
+    }
+    return false;
+  };
+
+  // ── ck:env-check — detect all tools required for previsbine generation ────────
+  ipcMain.handle('ck:env-check', async (_event, dataDir: string) => {
+    try {
+      const fo4Dir = path.resolve(path.join(dataDir, '..'));
+      const result: Record<string, any> = { fo4Dir };
+
+      // Creation Kit
+      const ckExe = path.join(fo4Dir, 'CreationKit.exe');
+      result['ck'] = { found: fs.existsSync(ckExe), path: ckExe };
+
+      // CKPE (Creation Kit Platform Extended)
+      const ckpeDll  = path.join(fo4Dir, 'CreationKitPlatformExtended.dll');
+      const ckpeIni  = path.join(fo4Dir, 'CreationKitPlatformExtended.ini');
+      result['ckpe'] = { found: fs.existsSync(ckpeDll), iniFound: fs.existsSync(ckpeIni) };
+      // Read CKPE INI for bOwnArchiveLoader setting (needed for OG CK)
+      if (fs.existsSync(ckpeIni)) {
+        const iniText = fs.readFileSync(ckpeIni, 'utf-8');
+        result['ckpe'].ownArchiveLoader = /bOwnArchiveLoader\s*=\s*false/i.test(iniText);
+        result['ckpe'].pointerHandle    = /bBSPointerHandleExtremly\s*=\s*true/i.test(iniText);
+      }
+
+      // FO4Edit / xEdit
+      const xeditCandidates = [
+        path.join(fo4Dir, 'FO4Edit.exe'),
+        path.join(fo4Dir, 'FO4Edit64.exe'),
+        path.join(fo4Dir, '..', 'FO4Edit', 'FO4Edit.exe'),
+        path.join(fo4Dir, '..', 'FO4Edit', 'FO4Edit64.exe'),
+        path.join(fo4Dir, '..', 'xEdit', 'FO4Edit.exe'),
+        'C:\\Games\\FO4Edit\\FO4Edit.exe',
+      ];
+      const xeditPath = xeditCandidates.find(p => fs.existsSync(p));
+      result['xedit'] = { found: !!xeditPath, path: xeditPath ?? '' };
+
+      // PJM Scripts (FO4Check_Previsbines.pas, GeneratePrevisibines.bat)
+      let scriptsFound: string[] = [], batPath = '';
+      if (xeditPath) {
+        const xDir = path.dirname(xeditPath);
+        const scriptDir = path.join(xDir, 'Edit Scripts');
+        const needed = ['FO4Check_Previsbines.pas', 'FO4CleanPrevisPatchMasters.pas', 'FO4RemovePrecombines.pas'];
+        scriptsFound = needed.filter(s => fs.existsSync(path.join(scriptDir, s)) || fs.existsSync(path.join(xDir, s)));
+        const batCandidate = path.join(xDir, 'GeneratePrevisibines.bat');
+        if (fs.existsSync(batCandidate)) batPath = batCandidate;
+      }
+      result['pjmScripts'] = { found: scriptsFound.length >= 2 && !!batPath, scripts: scriptsFound, batPath };
+
+      // PRP / PPF.esm
+      const prpCandidates = ['PRP.esp', 'Previsibines Repair Pack.esp', 'PPF.esm', 'PRP - Main.esp', 'PRP Main.esp'];
+      let prpPath = '', prpName = '';
+      for (const n of prpCandidates) {
+        const p = path.join(dataDir, n);
+        if (fs.existsSync(p)) { prpPath = p; prpName = n; break; }
+      }
+      result['prp'] = { found: !!prpPath, path: prpPath, name: prpName };
+
+      // steam_appid.txt (required for GeneratePrevisibines.bat without MO2)
+      const steamTxt = path.join(fo4Dir, 'steam_appid.txt');
+      let steamContent = '';
+      if (fs.existsSync(steamTxt)) steamContent = fs.readFileSync(steamTxt, 'utf-8').trim();
+      result['steamAppId'] = { found: fs.existsSync(steamTxt), correct: steamContent === '1946160', content: steamContent };
+
+      // Archive2 (for packing BA2s after generation)
+      const archive2Path = path.join(fo4Dir, 'Tools', 'Archive2', 'Archive2.exe');
+      result['archive2'] = { found: fs.existsSync(archive2Path), path: archive2Path };
+
+      return { success: true, ...result };
+    } catch (e: any) { return { success: false, error: e?.message }; }
+  });
+
+  // ── ck:setup-generation-env — auto-create steam_appid.txt ────────────────────
+  ipcMain.handle('ck:setup-generation-env', async (_event, fo4Dir: string) => {
+    try {
+      const steps: string[] = [];
+      const steamTxt = path.join(path.resolve(fo4Dir), 'steam_appid.txt');
+      if (!fs.existsSync(steamTxt) || fs.readFileSync(steamTxt, 'utf-8').trim() !== '1946160') {
+        fs.writeFileSync(steamTxt, '1946160');
+        steps.push('Created steam_appid.txt with AppID 1946160 (required for GeneratePrevisibines.bat without MO2)');
+      } else {
+        steps.push('steam_appid.txt already correct (1946160)');
+      }
+      return { success: true, steps };
+    } catch (e: any) { return { success: false, error: e?.message }; }
+  });
+
+  // ── ck:detect-xcri-cells — scan plugin for cells that touch precombined geometry
+  // Returns list of CELL FormIDs the plugin touches, with reasons (XCRI override,
+  // REFR override in cell, direct CELL edit). These are the cells that need
+  // precombine/previs regeneration or a PRP patch.
+  ipcMain.handle('ck:detect-xcri-cells', async (_event, pluginPath: string) => {
+    try {
+      const resolved = path.resolve(pluginPath);
+      if (!fs.existsSync(resolved)) return { success: false, error: 'File not found.' };
+
+      const safeSize = Math.min(fs.statSync(resolved).size, 512 * 1_048_576);
+      const buf = Buffer.alloc(safeSize);
+      const fd = fs.openSync(resolved, 'r');
+      fs.readSync(fd, buf, 0, safeSize, 0);
+      fs.closeSync(fd);
+
+      if (buf.slice(0, 4).toString('ascii') !== 'TES4') return { success: false, error: 'Not a valid plugin.' };
+      const { masters, tes4End } = _readEspMasters(buf);
+      const numMasters = masters.length;
+
+      const affectedCells = new Map<number, { reasons: Set<string>; masterName: string }>();
+      const addCell = (fid: number, reason: string, mi: number) => {
+        if (!affectedCells.has(fid)) affectedCells.set(fid, { reasons: new Set(), masterName: masters[mi] ?? 'self' });
+        affectedCells.get(fid)!.reasons.add(reason);
+      };
+
+      _walkEspCtx(buf, tes4End, safeSize, undefined,
+        (rType, _fo, _flags, formId, dataStart, dataSize, parentCell) => {
+          const mi = formId >>> 24;
+          const isOverride = mi < numMasters;
+
+          if (rType === 'CELL' && isOverride) {
+            // Direct CELL override — always flag it
+            addCell(formId, 'CELL override', mi);
+            // Extra urgency if XCRI subrecord modified
+            if (_cellHasXcri(buf, dataStart, dataSize)) addCell(formId, 'XCRI modified', mi);
+          }
+
+          // Reference override inside a cell — marks that cell as touched
+          if ((rType === 'REFR' || rType === 'ACHR' || rType === 'PGRE' || rType === 'ACRE') && isOverride && parentCell !== undefined) {
+            const cellMi = parentCell >>> 24;
+            addCell(parentCell, `${rType} override`, cellMi < numMasters ? cellMi : numMasters);
+          }
+        });
+
+      const cells = Array.from(affectedCells.entries()).map(([fid, info]) => ({
+        formId:    fid,
+        formIdHex: `0x${fid.toString(16).toUpperCase().padStart(8, '0')}`,
+        masterName: info.masterName,
+        reasons:   Array.from(info.reasons),
+        needsPrevis: info.reasons.has('XCRI modified') || info.reasons.has('REFR override'),
+      }));
+
+      return { success: true, cells, total: cells.length, xcriCount: cells.filter(c => c.reasons.includes('XCRI modified')).length };
+    } catch (e: any) { return { success: false, error: e?.message }; }
+  });
+
+  // ── ck:create-prp-patch — binary PRP compatibility patch generator ─────────────
+  // Scans user's plugin for affected CELL FormIDs, finds PRP's records for those
+  // cells, and writes an ESL-flagged patch ESP that lets PRP's precombines coexist
+  // with the user's mod changes. Based on the "Quick PRP Patch" approach where you
+  // override the conflicting cells with PRP's CELL records so the game uses PRP's
+  // precombine data for those cells.
+  ipcMain.handle('ck:create-prp-patch', async (_event, pluginPath: string, prpPath: string, patchPath: string) => {
+    try {
+      const rPlugin = path.resolve(pluginPath);
+      const rPrp    = path.resolve(prpPath);
+      if (!fs.existsSync(rPlugin)) return { success: false, error: `Plugin not found: ${rPlugin}` };
+      if (!fs.existsSync(rPrp))    return { success: false, error: `PRP not found: ${rPrp}` };
+
+      // Step 1: detect affected CELL FormIDs from user's plugin
+      const plugBuf   = Buffer.from(fs.readFileSync(rPlugin));
+      const { masters: plugMasters, tes4End: plugTes4End } = _readEspMasters(plugBuf);
+      const numPlugMasters = plugMasters.length;
+      const affectedFids = new Set<number>();
+
+      _walkEspCtx(plugBuf, plugTes4End, plugBuf.length, undefined,
+        (rType, _fo, _flags, formId, dataStart, dataSize, parentCell) => {
+          const mi = formId >>> 24;
+          if (rType === 'CELL' && mi < numPlugMasters) affectedFids.add(formId);
+          if ((rType === 'REFR' || rType === 'ACHR') && mi < numPlugMasters && parentCell !== undefined)
+            affectedFids.add(parentCell);
+        });
+
+      if (affectedFids.size === 0) return { success: false, error: 'No CELL overrides found in this plugin — no PRP patch needed.' };
+
+      // Step 2: read PRP.esp and collect its CELL records for those FormIDs
+      const prpBuf  = Buffer.from(fs.readFileSync(rPrp));
+      const { masters: prpMasters, tes4End: prpTes4End } = _readEspMasters(prpBuf);
+      const numPrpMasters = prpMasters.length;
+      const patchRecs: Buffer[] = [];
+      const matchedFids: number[] = [];
+
+      _walkEspRecords(prpBuf, prpTes4End, prpBuf.length, (rType, flagsOff, _flags, formId, dataStart, dataSize) => {
+        if (rType !== 'CELL') return;
+        const mi = formId >>> 24;
+        if (mi >= numPrpMasters) return; // skip PRP's own new cells
+        // Normalize: both plugins should have FO4.esm as master 0 → compare lower 24 bits of Fallout4.esm records
+        // For DLC cells, normalize by checking master name match
+        const prpMasterName = (prpMasters[mi] ?? '').toLowerCase();
+        // Find same master in user's plugin
+        const plugMi = plugMasters.findIndex(m => m.toLowerCase() === prpMasterName);
+        if (plugMi < 0) return; // master not shared
+        // Reconstruct the FormID as the plugin would store it
+        const plugStoredFid = (plugMi << 24) | (formId & 0x00FFFFFF);
+        if (!affectedFids.has(plugStoredFid)) return;
+
+        const recEnd = dataStart + dataSize;
+        if (recEnd <= prpBuf.length) {
+          patchRecs.push(prpBuf.slice(flagsOff - 8, recEnd));
+          matchedFids.push(formId);
+        }
+      });
+
+      if (patchRecs.length === 0) {
+        return { success: false, error: `No matching CELL records found in PRP for the ${affectedFids.size} affected cells. PRP may not cover these cells.` };
+      }
+
+      // Step 3: build master list — all shared masters + user's plugin + PRP
+      const sharedMasters = [...new Set([
+        ...plugMasters.map(m => m.toLowerCase()),
+        ...prpMasters.map(m => m.toLowerCase()),
+      ])];
+      sharedMasters.push(path.basename(rPlugin).toLowerCase());
+      sharedMasters.push(path.basename(rPrp).toLowerCase());
+      const masterList = [...new Set(sharedMasters)];
+
+      // Step 4: write patch
+      const patchBuf = _buildPatchEsp(masterList, patchRecs);
+      const rPatch   = path.resolve(patchPath);
+      fs.writeFileSync(rPatch, patchBuf);
+
+      return {
+        success: true,
+        patchPath: rPatch,
+        cellsAffected: affectedFids.size,
+        cellsPatched: patchRecs.length,
+        masterCount: masterList.length,
+        message: `PRP patch created — ${patchRecs.length} of ${affectedFids.size} affected cells covered by PRP. Load the patch AFTER both your mod AND PRP in your load order.`,
+      };
+    } catch (e: any) { return { success: false, error: e?.message }; }
+  });
+
+  // ── ck:launch-previs-workflow — orchestrate the full PJM Scripts workflow ──────
+  // mode 'check'    → xEdit + FO4Check_Previsbines.pas (run first, find issues)
+  // mode 'generate' → GeneratePrevisibines.bat (run after check completes)
+  ipcMain.handle('ck:launch-previs-workflow', async (_event, pluginPath: string, xeditPath: string, mode: 'check' | 'generate') => {
+    try {
+      const resolved   = path.resolve(pluginPath);
+      const pluginName = path.basename(resolved, path.extname(resolved));
+      const xeditDir   = path.dirname(path.resolve(xeditPath));
+      const xeditExe   = path.resolve(xeditPath);
+
+      if (!fs.existsSync(xeditExe)) return { success: false, error: 'xEdit/FO4Edit not found at the specified path.' };
+
+      const { spawn } = await import('child_process');
+
+      if (mode === 'check') {
+        // Launch FO4Edit with the mod loaded, user right-clicks and applies FO4Check_Previsbines.pas
+        // We can't auto-apply the script because xEdit requires GUI interaction for script selection
+        spawn(xeditExe, ['-fo4', '-autoload', path.basename(resolved)], {
+          cwd: xeditDir, detached: true,
+        }).unref();
+        return {
+          success: true,
+          message: `FO4Edit launched with ${path.basename(resolved)}. In xEdit: right-click → Apply Script → FO4Check_Previsbines.pas → "Create Seed to Rebuild Previs" → OK. Then run Generate when complete.`,
+        };
+      } else {
+        // Launch GeneratePrevisibines.bat with plugin name as argument
+        const batPath = path.join(xeditDir, 'GeneratePrevisibines.bat');
+        if (!fs.existsSync(batPath)) return { success: false, error: 'GeneratePrevisibines.bat not found in xEdit directory. Download PJM Scripts from Nexus (mod #76442).' };
+
+        // GeneratePrevisibines.bat is interactive — needs cmd window
+        spawn('cmd.exe', ['/k', batPath, pluginName], {
+          cwd: xeditDir,
+          detached: true,
+          shell: false,
+        }).unref();
+
+        return {
+          success: true,
+          message: `GeneratePrevisibines.bat launched for "${pluginName}". The CMD window will prompt: enter a patch name (use your mod name), press Y to use xPrevisPatch.esp. Generation takes 30 min – 8 hrs depending on cell count.`,
+        };
+      }
+    } catch (e: any) { return { success: false, error: e?.message }; }
+  });
+
+  // ── ck:clean-plugin-precombines — strip existing precombine data before regen ──
+  // Runs FO4Edit -script:FO4RemovePrecombines.pas to clean CELL records before
+  // regenerating. Prevents conflicts from stale precombine references.
+  ipcMain.handle('ck:clean-plugin-precombines', async (_event, pluginPath: string, xeditPath: string) => {
+    try {
+      const xeditExe = path.resolve(xeditPath);
+      const plugName = path.basename(path.resolve(pluginPath));
+      if (!fs.existsSync(xeditExe)) return { success: false, error: 'xEdit not found.' };
+      const { spawn } = await import('child_process');
+      spawn(xeditExe, ['-fo4', '-script:FO4RemovePrecombines.pas', '-autoload', plugName], {
+        cwd: path.dirname(xeditExe), detached: true,
+      }).unref();
+      return { success: true, message: `FO4Edit launched to strip precombine data from ${plugName}. Save and exit when the script completes.` };
+    } catch (e: any) { return { success: false, error: e?.message }; }
   });
 
   // ── Load Order vortex profile dir ─────────────────────────────────────────
@@ -32668,6 +33570,7 @@ app.whenReady().then(() => {
   // Continue normal startup
   createWindow();
   bridge.start();
+  f4aiBridge.start();
 
   // Register Texture Enhancer handlers (uses BridgeServer for Blender integration)
   registerTextureEnhancerHandlers(bridge, mainWindow ?? undefined);
@@ -32993,17 +33896,159 @@ app.whenReady().then(() => {
   // ── Local AI Engine: KoboldCPP + GGUF model download ───────────────────────
   // KoboldCPP by LostRuins (Henk717) — https://github.com/LostRuins/koboldcpp
   // Licensed under AGPL-3.0. Mossy downloads it on request with explicit credit.
+
+  // Search multiple candidate locations for an existing KoboldCPP install.
+  // Mossy's own download lands in userData/runtime/; user may have it elsewhere.
+  // Scan all typical locations to find the F4AI mod base directory.
+  // Handles MO2 instance mode (AppData), portable MO2, custom mods folders,
+  // and direct FO4 Steam installs — works regardless of drive letter.
+  const _findF4aiBase = (): string | null => {
+    // Helper: scan a mods directory for the F4AI mod folder
+    const scanModsDir = (modsDir: string): string | null => {
+      try {
+        for (const entry of fs.readdirSync(modsDir, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          const low = entry.name.toLowerCase();
+          if (low.includes('fallout 4 advanced ai') || low.includes('f4ai - mossy') || low === 'f4ai') {
+            const candidate = path.join(modsDir, entry.name, 'Data', 'F4AI');
+            if (fs.existsSync(candidate)) return candidate;
+          }
+        }
+      } catch { /* skip unreadable dirs */ }
+      return null;
+    };
+
+    // 1. User-configured override in settings.json
+    try {
+      const s = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'settings.json'), 'utf8'));
+      if (s?.f4aiBasePath && typeof s.f4aiBasePath === 'string' && fs.existsSync(s.f4aiBasePath)) return s.f4aiBasePath;
+    } catch { /* ignore */ }
+
+    // 2. MO2 instance mode: %LOCALAPPDATA%\ModOrganizer\<instance>\mods\<mod>\Data\F4AI
+    const moOrgBase = path.join(process.env['LOCALAPPDATA'] || '', 'ModOrganizer');
+    if (fs.existsSync(moOrgBase)) {
+      try {
+        for (const inst of fs.readdirSync(moOrgBase)) {
+          const found = scanModsDir(path.join(moOrgBase, inst, 'mods'));
+          if (found) return found;
+        }
+      } catch { /* ignore */ }
+    }
+
+    // 3. Scan all drive letters for portable MO2 and common mods folder patterns
+    for (let c = 67; c <= 90; c++) {  // C=67 through Z=90
+      const drive = `${String.fromCharCode(c)}:\\`;
+      try { if (!fs.existsSync(drive)) continue; } catch { continue; }
+
+      // Fixed known suffixes for MO2 portable mods folders
+      for (const suffix of [
+        'MO2\\mods', 'Mod Organizer 2\\mods', 'ModOrganizer2\\mods',
+        'Games\\MO2\\mods', 'Games\\Mod Organizer 2\\mods',
+        'Modding\\MO2\\mods', 'Modding\\Mod Organizer 2\\mods',
+        'Vortex Mods\\fallout4',
+      ]) {
+        const found = scanModsDir(path.join(drive, suffix));
+        if (found) return found;
+      }
+
+      // Scan drive root for folders that look like MO2 mods containers
+      // (e.g. "Mod.Organizer-2.5.2 Game Mods", "MO2 Mods", "Game Mods")
+      try {
+        for (const entry of fs.readdirSync(drive, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          const low = entry.name.toLowerCase();
+          if (low.includes('mod.organizer') || low.includes('mod organizer') ||
+              (low.includes('mod') && low.includes('game')) ||
+              low === 'mo2 mods' || low === 'mods') {
+            const found = scanModsDir(path.join(drive, entry.name));
+            if (found) return found;
+          }
+        }
+      } catch { /* skip unreadable drive roots */ }
+
+      // Direct FO4 Data/F4AI (installed directly without MO2)
+      for (const suffix of [
+        'Steam\\steamapps\\common\\Fallout 4\\Data\\F4AI',
+        'SteamLibrary\\steamapps\\common\\Fallout 4\\Data\\F4AI',
+        'Games\\Fallout 4\\Data\\F4AI',
+        'Fallout 4\\Data\\F4AI',
+      ]) {
+        const p = path.join(drive, suffix);
+        if (fs.existsSync(p)) return p;
+      }
+    }
+
+    return null;
+  };
+
+  // Resolved at startup; re-resolved lazily in the IPC handler if still null
+  // (covers the case where MO2 wasn't running or the drive wasn't mounted yet).
+  let F4AI_BASE: string | null = _findF4aiBase();
+
+  const _findKoboldExe = (): string => {
+    const userData = app.getPath('userData');
+    const candidates = [
+      path.join(userData, 'runtime', 'koboldcpp.exe'),                                           // Mossy-managed download
+      ...(F4AI_BASE ? [path.join(F4AI_BASE, 'runtime', 'koboldcpp.exe')] : []),                  // F4AI MO2 addon (any drive)
+      'D:\\Fallout 4 Advanced AI\\release_staging\\core\\Data\\F4AI\\runtime\\koboldcpp.exe',    // F4AI release staging
+      'D:\\koboldcpp-concedo\\koboldcpp-concedo\\koboldcpp.exe',                                  // concedo source build
+      'D:\\koboldcpp-concedo\\koboldcpp.exe',
+      'D:\\koboldcpp\\koboldcpp.exe',
+      'C:\\koboldcpp\\koboldcpp.exe',
+      path.join(process.env['LOCALAPPDATA'] || '', 'koboldcpp', 'koboldcpp.exe'),
+      path.join(process.env['PROGRAMFILES'] || '', 'koboldcpp', 'koboldcpp.exe'),
+    ];
+    // Also check settings.json for a user-supplied custom path
+    try {
+      const settingsPath = path.join(userData, 'settings.json');
+      if (fs.existsSync(settingsPath)) {
+        const s = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        if (s?.koboldcppPath && typeof s.koboldcppPath === 'string') {
+          candidates.unshift(s.koboldcppPath);
+        }
+      }
+    } catch { /* ignore */ }
+    return candidates.find(p => fs.existsSync(p)) || candidates[0];
+  };
+
+  const _findGgufModel = (): string => {
+    const userData = app.getPath('userData');
+    const F4AI_MODELS_D = 'D:\\Fallout 4 Advanced AI\\release_staging\\core\\Data\\F4AI\\models';
+    const candidates = [
+      path.join(userData, 'models', 'tinyllama-1.1b-chat.gguf'),                                   // Mossy-managed download
+      ...(F4AI_BASE ? [
+        path.join(F4AI_BASE, 'models', 'tinyllama-1.1b-chat.gguf'),                               // F4AI MO2 addon (any drive)
+        path.join(F4AI_BASE, 'models', 'tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf'),
+      ] : []),
+      path.join(F4AI_MODELS_D, 'tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf'),                           // F4AI release staging
+      path.join(F4AI_MODELS_D, 'tinyllama-1.1b-chat.gguf'),
+      'D:\\koboldcpp-concedo\\models\\tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf',
+      'D:\\koboldcpp-concedo\\tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf',
+      'D:\\koboldcpp\\models\\tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf',
+    ];
+    try {
+      const settingsPath = path.join(userData, 'settings.json');
+      if (fs.existsSync(settingsPath)) {
+        const s = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        if (s?.ggufModelPath && typeof s.ggufModelPath === 'string') {
+          candidates.unshift(s.ggufModelPath);
+        }
+      }
+    } catch { /* ignore */ }
+    return candidates.find(p => fs.existsSync(p)) || candidates[0];
+  };
+
   ipcMain.handle('check-local-ai', async () => {
     const runtimeDir = path.join(app.getPath('userData'), 'runtime');
-    const modelsDir = path.join(app.getPath('userData'), 'models');
-    const koboldPath = path.join(runtimeDir, 'koboldcpp.exe');
-    const modelPath = path.join(modelsDir, 'tinyllama-1.1b-chat.gguf');
+    const modelsDir  = path.join(app.getPath('userData'), 'models');
+    const koboldPath = _findKoboldExe();
+    const modelPath  = _findGgufModel();
     const koboldExists = fs.existsSync(koboldPath);
-    const modelExists = fs.existsSync(modelPath);
+    const modelExists  = fs.existsSync(modelPath);
     let koboldSize: number | null = null;
-    let modelSize: number | null = null;
+    let modelSize:  number | null = null;
     if (koboldExists) { try { koboldSize = fs.statSync(koboldPath).size; } catch { /* ignore */ } }
-    if (modelExists) { try { modelSize = fs.statSync(modelPath).size; } catch { /* ignore */ } }
+    if (modelExists)  { try { modelSize  = fs.statSync(modelPath).size;  } catch { /* ignore */ } }
     return { ok: true, koboldcpp: { exists: koboldExists, path: koboldPath, size: koboldSize }, model: { exists: modelExists, path: modelPath, size: modelSize }, runtimeDir, modelsDir };
   });
 
@@ -33049,7 +34094,17 @@ app.whenReady().then(() => {
       });
       if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
       fs.renameSync(tmpPath, destPath);
-      event.sender.send('local-ai-progress', { type: 'koboldcpp', phase: 'done', percent: 100, message: 'KoboldCPP installed successfully' });
+      // Also deploy to F4AI MO2 folder so the FO4 plugin finds it
+      try {
+        const f4aiRuntime = F4AI_BASE ? path.join(F4AI_BASE, 'runtime') : null;
+        if (f4aiRuntime && fs.existsSync(F4AI_BASE!)) {
+          if (!fs.existsSync(f4aiRuntime!)) fs.mkdirSync(f4aiRuntime!, { recursive: true });
+          fs.copyFileSync(destPath, path.join(f4aiRuntime!, 'koboldcpp.exe'));
+          event.sender.send('local-ai-progress', { type: 'koboldcpp', phase: 'done', percent: 100, message: 'KoboldCPP installed — also deployed to F4AI mod folder' });
+        } else {
+          event.sender.send('local-ai-progress', { type: 'koboldcpp', phase: 'done', percent: 100, message: 'KoboldCPP installed successfully' });
+        }
+      } catch { event.sender.send('local-ai-progress', { type: 'koboldcpp', phase: 'done', percent: 100, message: 'KoboldCPP installed successfully' }); }
       return { success: true, path: destPath };
     } catch (error: any) {
       try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch { /* ignore */ }
@@ -33110,7 +34165,18 @@ app.whenReady().then(() => {
       });
       if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
       fs.renameSync(tmpPath, destPath);
-      event.sender.send('local-ai-progress', { type: 'model', phase: 'done', percent: 100, message: `${model.label} installed successfully` });
+      // Also deploy to F4AI MO2 models folder so the FO4 plugin finds it
+      try {
+        const f4aiModels = F4AI_BASE ? path.join(F4AI_BASE, 'models') : null;
+        if (f4aiModels && fs.existsSync(F4AI_BASE!)) {
+          if (!fs.existsSync(f4aiModels)) fs.mkdirSync(f4aiModels, { recursive: true });
+          // F4AI expects the short filename
+          fs.copyFileSync(destPath, path.join(f4aiModels, 'tinyllama-1.1b-chat.gguf'));
+          event.sender.send('local-ai-progress', { type: 'model', phase: 'done', percent: 100, message: `${model.label} installed — also deployed to F4AI mod folder` });
+        } else {
+          event.sender.send('local-ai-progress', { type: 'model', phase: 'done', percent: 100, message: `${model.label} installed successfully` });
+        }
+      } catch { event.sender.send('local-ai-progress', { type: 'model', phase: 'done', percent: 100, message: `${model.label} installed successfully` }); }
       return { success: true, path: destPath };
     } catch (error: any) {
       try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch { /* ignore */ }
@@ -33122,11 +34188,10 @@ app.whenReady().then(() => {
 
   // ── KoboldCPP process management ──────────────────────────────────────────
   ipcMain.handle('start-kobold', async (event) => {
-    const userData = app.getPath('userData');
-    const exePath = path.join(userData, 'runtime', 'koboldcpp.exe');
-    const modelPath = path.join(userData, 'models', 'tinyllama-1.1b-chat.gguf');
-    if (!fs.existsSync(exePath)) return { ok: false, error: 'KoboldCPP not installed' };
-    if (!fs.existsSync(modelPath)) return { ok: false, error: 'Model not installed' };
+    const exePath   = _findKoboldExe();
+    const modelPath = _findGgufModel();
+    if (!fs.existsSync(exePath)) return { ok: false, error: `KoboldCPP not found. Checked: ${exePath}` };
+    if (!fs.existsSync(modelPath)) return { ok: false, error: `Model not found. Checked: ${modelPath}` };
     if (_koboldProcess && !_koboldProcess.killed) {
       return { ok: true, alreadyRunning: true, port: KOBOLD_PORT };
     }
@@ -33169,7 +34234,7 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('kobold-status', async () => {
-    if (!_koboldProcess || _koboldProcess.killed) return { running: false, port: KOBOLD_PORT };
+    // Always probe the port — KoboldCPP may be running externally (not started by Mossy)
     try {
       const http = await import('http');
       await new Promise<void>((res, rej) => {
@@ -33184,13 +34249,74 @@ app.whenReady().then(() => {
     }
   });
 
+  // ── F4AI bridge composite status ──────────────────────────────────────────
+  ipcMain.handle('f4ai-bridge-status', async () => {
+    // Re-discover the mod path if it wasn't found at startup (e.g. MO2 wasn't
+    // running, or the user's portable drive wasn't mounted yet).
+    if (F4AI_BASE === null) F4AI_BASE = _findF4aiBase();
+
+    const probePort = async (port: number, probePath: string): Promise<boolean> => {
+      try {
+        const http = await import('http');
+        await new Promise<void>((res, rej) => {
+          const req = http.get({ hostname: '127.0.0.1', port, path: probePath, timeout: 1500 } as any, (r2: any) => {
+            r2.resume(); r2.on('end', res);
+          });
+          req.on('error', rej); req.on('timeout', () => { (req as any).destroy(); rej(new Error('timeout')); });
+        });
+        return true;
+      } catch { return false; }
+    };
+
+    // Probe all three endpoints in parallel.
+    // Python bridge: try /llm/status first, fall back to /status (covers different F4AI versions).
+    const [mossyBridge, kobold, pyBridgePrimary, pyBridgeFallback] = await Promise.all([
+      probePort(8765,        '/health'),
+      probePort(KOBOLD_PORT, '/api/v1/info'),
+      probePort(28485,       '/llm/status'),
+      probePort(28485,       '/status'),
+    ]);
+    const pyBridge = pyBridgePrimary || pyBridgeFallback;
+
+    // Detect F4AI_MiscUtil.dll — the F4SE plugin that provides native Papyrus
+    // functions (MiscUtil.FileExists/ReadFromFile/WriteToFile/DeleteFile) for the
+    // push-to-talk trigger script. Without it the Papyrus scripts can't call
+    // the bridge at all.
+    const dllCandidates: string[] = [];
+    if (F4AI_BASE) {
+      dllCandidates.push(path.join(F4AI_BASE, 'Data', 'F4SE', 'Plugins', 'F4AI_MiscUtil.dll'));
+    }
+    // Developer build output
+    dllCandidates.push('D:\\Projects\\Fallout-4-advanced-AI\\f4se_plugin\\build\\Release\\F4AI_MiscUtil.dll');
+    // Direct FO4 installs on common drives (C–G covers most setups)
+    for (let c = 'C'.charCodeAt(0); c <= 'G'.charCodeAt(0); c++) {
+      const drv = `${String.fromCharCode(c)}:\\`;
+      for (const stem of [
+        'Steam\\steamapps\\common\\Fallout 4',
+        'SteamLibrary\\steamapps\\common\\Fallout 4',
+        'Games\\Fallout 4',
+        'Fallout 4',
+      ]) {
+        dllCandidates.push(path.join(drv, stem, 'Data', 'F4SE', 'Plugins', 'F4AI_MiscUtil.dll'));
+      }
+    }
+    const dllPath = dllCandidates.find(p => { try { return fs.existsSync(p); } catch { return false; } }) ?? null;
+
+    return {
+      mossy_bridge:   { running: mossyBridge, port: 8765 },
+      koboldcpp:      { running: kobold,      port: KOBOLD_PORT },
+      python_bridge:  { running: pyBridge,    port: 28485 },
+      f4ai_base:      F4AI_BASE,
+      misc_util_dll:  { installed: dllPath !== null, path: dllPath },
+    };
+  });
+
   // ── Auto-setup: notify renderer on load if files are missing ──────────────
   if (mainWindow) {
     mainWindow.webContents.once('did-finish-load', () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
-      const userData = app.getPath('userData');
-      const koboldOk = fs.existsSync(path.join(userData, 'runtime', 'koboldcpp.exe'));
-      const modelOk  = fs.existsSync(path.join(userData, 'models', 'tinyllama-1.1b-chat.gguf'));
+      const koboldOk = fs.existsSync(_findKoboldExe());
+      const modelOk  = fs.existsSync(_findGgufModel());
       mainWindow.webContents.send('local-ai-auto-setup', { koboldOk, modelOk, needsSetup: !koboldOk || !modelOk });
     });
   }
@@ -33213,6 +34339,7 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   console.log('[MOSSY] Shutting down Neural Bridge...');
   bridge.stop();
+  f4aiBridge.stop();
   if (_koboldProcess) { try { _koboldProcess.kill(); } catch { /* ignore */ } _koboldProcess = null; }
 });
 

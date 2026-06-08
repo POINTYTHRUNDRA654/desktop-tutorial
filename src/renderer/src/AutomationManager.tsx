@@ -362,6 +362,7 @@ export default function AutomationManager() {
   const [message, setMessage] = useState<{ text: string; type: 'ok' | 'err' } | null>(null);
   const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
+  const [liveEvents, setLiveEvents] = useState<Array<{ id: string; ruleId: string; ruleName: string; action: string; ts: number }>>([]);
 
   // Editor state
   const [editorRule, setEditorRule] = useState<AutomationRule | null | 'new'>('new' as any);
@@ -398,6 +399,19 @@ export default function AutomationManager() {
     const interval = setInterval(loadStatistics, 5000);
     return () => clearInterval(interval);
   }, [loadSettings, loadStatistics]);
+
+  // ── Live rule-executed notifications ────────────────────────────────────────
+  useEffect(() => {
+    const unsubscribe = api?.automation?.onRuleExecuted?.((data: any) => {
+      setLiveEvents(prev => [
+        { id: `${Date.now()}-${Math.random()}`, ruleId: data.ruleId, ruleName: data.ruleName ?? data.ruleId, action: data.action ?? 'triggered', ts: Date.now() },
+        ...prev.slice(0, 49), // keep last 50
+      ]);
+      // Refresh stats so counters update immediately on rule execution
+      void loadStatistics();
+    });
+    return () => { unsubscribe?.(); };
+  }, [api, loadStatistics]);
 
   const toggleEngine = async () => {
     try {
@@ -763,6 +777,32 @@ export default function AutomationManager() {
           })}
         </div>
       </div>
+
+      {/* Live rule execution feed */}
+      {liveEvents.length > 0 && (
+        <div className="mt-5 bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Live Activity
+            </h2>
+            <button onClick={() => setLiveEvents([])} className="text-xs text-slate-500 hover:text-slate-300 transition underline">Clear</button>
+          </div>
+          <div className="divide-y divide-slate-800/40 max-h-48 overflow-y-auto">
+            {liveEvents.map(ev => (
+              <div key={ev.id} className="flex items-center gap-3 px-5 py-2.5 text-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                <span className="text-slate-300 font-medium truncate">{ev.ruleName}</span>
+                <span className="text-slate-500">→</span>
+                <span className="text-emerald-400 font-mono">{ev.action}</span>
+                <span className="ml-auto text-slate-600 tabular-nums shrink-0">
+                  {new Date(ev.ts).toLocaleTimeString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Info cards */}
       <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">

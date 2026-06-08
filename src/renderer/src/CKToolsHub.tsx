@@ -5,8 +5,8 @@
  * Consolidates: CK Safety (Crash Prevention) · CK Extension (auto-save, scripting) · FO4 CK Guide
  */
 
-import React, { useState, useEffect, Suspense, useCallback } from 'react';
-import { Shield, Wrench, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Info, Scroll, Activity, Save, Monitor, Link, Search, ClipboardList, Settings, Package, FileCode, Cpu, Zap, XCircle, HelpCircle, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
+import { Shield, Wrench, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Info, Scroll, Activity, Save, Monitor, Link, Search, ClipboardList, Settings, Package, FileCode, Cpu, Zap, XCircle, HelpCircle, RefreshCw, Hammer, Terminal, GitMerge, FolderOpen, ChevronDown, Loader2, CheckCircle2, FilePlus } from 'lucide-react';
 
 const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
 const CKExtension = React.lazy(() =>
@@ -41,244 +41,795 @@ const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>;
 ];
 
 // ============================================================================
-// Plugin Inspector
+// Plugin Repair Platform — Inspector + Auto-Fix + Patch Creator
 // ============================================================================
 
+interface PluginWarning {
+  level: 'error' | 'warn' | 'info';
+  msg: string;
+  fixId?: string;
+  fixLabel?: string;
+}
+
 interface PluginInspectorResult {
-  pluginType: string;
   formIdCount: number;
+  numRecords: number;
   eslSafe: boolean;
+  eslFlag: boolean;
+  esmFlag: boolean;
   masters: string[];
   hasNavmesh: boolean;
   hasPrecombines: boolean;
   hasScripts: boolean;
+  deletedNavmeshCount: number;
   fileSizeMB: number;
   ba2Archives: string[];
-  warnings: { level: 'error' | 'warn' | 'info'; msg: string }[];
+  typeCounts: Record<string, number>;
+  warnings: PluginWarning[];
 }
 
-const ESL_MAX_LOCAL_FORMIDS = 4096;
-
-/** Client-side heuristic analysis of a plugin filename/path — real binary read needs IPC */
-function heuristicInspect(pluginPath: string): PluginInspectorResult {
-  const name = pluginPath.split(/[\\/]/).pop() ?? pluginPath;
-  const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  const warnings: { level: 'error' | 'warn' | 'info'; msg: string }[] = [];
-
-  const isEsl = ext === 'esl';
-  const isEsm = ext === 'esm';
-
-  if (name.toLowerCase().includes(' ')) {
-    warnings.push({ level: 'warn', msg: 'Plugin filename contains spaces — some tools (xEdit, LOOT) may have trouble. Rename to use underscores.' });
-  }
-  if (isEsl) {
-    warnings.push({ level: 'info', msg: 'ESL plugin: FormID local range is 0x000–0xFFF (max 4096 new records). Run xEdit "Compact FormIDs for ESL" before distributing.' });
-  }
-  if (isEsm) {
-    warnings.push({ level: 'info', msg: 'ESM master file: ensure all child plugins load after this in their master list. LOOT handles this automatically.' });
-  }
-  if (!isEsl && !isEsm && ext === 'esp') {
-    warnings.push({ level: 'info', msg: 'Standard ESP: counts toward the 255-plugin limit. Consider ESL-flagging if new FormID count is under 4096.' });
-  }
-
-  return {
-    pluginType: isEsm ? 'ESM (Master)' : isEsl ? 'ESL (Light Plugin)' : 'ESP (Standard Plugin)',
-    formIdCount: -1, // requires IPC binary read
-    eslSafe: isEsl,
-    masters: [],
-    hasNavmesh: false,
-    hasPrecombines: false,
-    hasScripts: false,
-    fileSizeMB: -1,
-    ba2Archives: [],
-    warnings,
-  };
+interface FixLogEntry {
+  ts: string;
+  action: string;
+  ok: boolean;
+  msg: string;
 }
+
+type InspectorTab = 'inspect' | 'patch' | 'previs';
 
 const PluginInspectorPanel: React.FC = () => {
-  const [pluginPath, setPluginPath] = useState('');
-  const [result, setResult] = useState<PluginInspectorResult | null>(null);
-  const [ipcResult, setIpcResult] = useState<any | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
   const api = () => (window as any).electron?.api || (window as any).electronAPI;
 
-  const pickPlugin = async () => {
+  // ── Main inspect state ───────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<InspectorTab>('inspect');
+  const [pluginPath, setPluginPath] = useState('');
+  const [result, setResult] = useState<PluginInspectorResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [scanError, setScanError] = useState('');
+
+  // ── Fix state ────────────────────────────────────────────────────────────────
+  const [fixingId, setFixingId] = useState<string | null>(null);
+  const [fixAll, setFixAll] = useState(false);
+  const [fixLog, setFixLog] = useState<FixLogEntry[]>([]);
+  const [logOpen, setLogOpen] = useState(false);
+  const logRef = useRef<HTMLDivElement>(null);
+
+  // ── Patch creator state ──────────────────────────────────────────────────────
+  const [patchA, setPatchA] = useState('');
+  const [patchB, setPatchB] = useState('');
+  const [patchOut, setPatchOut] = useState('');
+  const [patchWinner, setPatchWinner] = useState<'A' | 'B'>('B');
+  const [conflictResult, setConflictResult] = useState<any>(null);
+  const [patchBusy, setPatchBusy] = useState(false);
+  const [patchMsg, setPatchMsg] = useState('');
+  const [patchErr, setPatchErr] = useState('');
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+  const addLog = (action: string, ok: boolean, msg: string) => {
+    const entry: FixLogEntry = { ts: new Date().toLocaleTimeString(), action, ok, msg };
+    setFixLog(prev => [...prev.slice(-99), entry]);
+    setLogOpen(true);
+    setTimeout(() => logRef.current?.scrollTo({ top: 99999, behavior: 'smooth' }), 50);
+  };
+
+  const warnBorder = (level: string) =>
+    level === 'error' ? 'border-red-600/40 bg-red-950/20 text-red-300'
+    : level === 'warn'  ? 'border-yellow-600/40 bg-yellow-950/20 text-yellow-300'
+    : 'border-sky-600/30 bg-sky-950/10 text-sky-300';
+
+  const warnIcon = (level: string) =>
+    level === 'error' ? <XCircle className="h-3.5 w-3.5 flex-shrink-0" />
+    : level === 'warn'  ? <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+    : <Info className="h-3.5 w-3.5 flex-shrink-0" />;
+
+  // ── Pick plugin from disk ───────────────────────────────────────────────────
+  const pickPlugin = async (setter: (p: string) => void) => {
     const a = api();
     if (!a) return;
     try {
       const res = typeof a.ckPickPlugin === 'function' ? await a.ckPickPlugin()
         : typeof a.invoke === 'function' ? await a.invoke('ck-crash-prevention:pick-plugin') : null;
-      if (res?.success && res.path) setPluginPath(res.path);
+      if (res?.success && res.path) setter(res.path);
     } catch { /* silent */ }
   };
 
+  // ── Deep scan ──────────────────────────────────────────────────────────────
   const runInspect = useCallback(async () => {
-    if (!pluginPath.trim()) { setError('Enter or browse to a plugin path first.'); return; }
-    setError(''); setBusy(true); setResult(null); setIpcResult(null);
-
-    // Always do client heuristic first
-    const heuristic = heuristicInspect(pluginPath.trim());
-
-    // Try IPC deep scan
+    if (!pluginPath.trim()) { setScanError('Enter or browse to a plugin path first.'); return; }
+    setScanError(''); setBusy(true); setResult(null);
     const a = api();
-    if (a) {
-      try {
-        const raw = typeof a.ckInspectPlugin === 'function'
-          ? await a.ckInspectPlugin(pluginPath.trim())
-          : typeof a.invoke === 'function'
-          ? await a.invoke('ck:inspect-plugin', pluginPath.trim())
-          : null;
-
-        if (raw?.success !== false && raw) {
-          const d = raw?.data ?? raw;
-          // Merge IPC data into heuristic result
-          heuristic.formIdCount = d.formIdCount ?? heuristic.formIdCount;
-          heuristic.masters = Array.isArray(d.masters) ? d.masters : heuristic.masters;
-          heuristic.hasNavmesh = d.hasNavmesh ?? heuristic.hasNavmesh;
-          heuristic.hasPrecombines = d.hasPrecombines ?? heuristic.hasPrecombines;
-          heuristic.hasScripts = d.hasScripts ?? heuristic.hasScripts;
-          heuristic.fileSizeMB = d.fileSizeMB ?? heuristic.fileSizeMB;
-          heuristic.ba2Archives = Array.isArray(d.ba2Archives) ? d.ba2Archives : [];
-          if (Array.isArray(d.warnings)) {
-            heuristic.warnings.push(...d.warnings);
-          }
-          // ESL FormID overflow check
-          if (heuristic.eslSafe && heuristic.formIdCount > ESL_MAX_LOCAL_FORMIDS) {
-            heuristic.warnings.push({ level: 'error', msg: `ESL FormID overflow: ${heuristic.formIdCount} local FormIDs exceed the 4096 ESL maximum. Compact FormIDs in xEdit before flagging as ESL.` });
-          }
-          // Large file warning
-          if (heuristic.fileSizeMB > 80) {
-            heuristic.warnings.push({ level: 'warn', msg: `Large plugin (${heuristic.fileSizeMB.toFixed(1)} MB). CK may use excessive memory loading this. Session-restart every 30 min recommended.` });
-          }
-          if (d.ba2Version && (d.ba2Version === 7 || d.ba2Version === 8)) {
-            heuristic.warnings.push({ level: 'warn', msg: `BA2 Header V${d.ba2Version} detected — NG/AE format. OG game (1.10.163) cannot load this archive. Repack with Archive2 for OG if needed.` });
-          }
-          setIpcResult(d);
-        }
-      } catch { /* IPC unavailable — heuristic only */ }
-    }
-
-    setResult(heuristic);
-    setBusy(false);
+    if (!a?.ckInspectPlugin) { setScanError('Electron API unavailable — run as desktop app.'); setBusy(false); return; }
+    try {
+      const raw = await a.ckInspectPlugin(pluginPath.trim());
+      if (!raw?.success) { setScanError(raw?.error ?? 'Scan failed.'); return; }
+      setResult(raw.data);
+    } catch (e: any) { setScanError(e?.message ?? 'Unknown error.'); }
+    finally { setBusy(false); }
   }, [pluginPath]);
 
-  const warnColor = (level: string) =>
-    level === 'error' ? 'text-red-400 border-red-600/40 bg-red-950/20'
-    : level === 'warn' ? 'text-yellow-400 border-yellow-600/40 bg-yellow-950/20'
-    : 'text-sky-400 border-sky-600/40 bg-sky-950/20';
+  // ── Run a single fix ────────────────────────────────────────────────────────
+  const runFix = useCallback(async (fixId: string, label: string) => {
+    const a = api();
+    setFixingId(fixId);
+    try {
+      let res: any = null;
+      if (fixId === 'rename') {
+        res = await a.ckAutofixRename?.(pluginPath);
+        if (res?.newPath) setPluginPath(res.newPath);
+      } else if (fixId === 'undelete-navm') {
+        res = await a.ckAutofixUndeleteNavmesh?.(pluginPath);
+      } else if (fixId === 'launch-xedit-clean') {
+        res = await a.ckAutofixLaunchXedit?.(pluginPath, 'clean');
+      } else if (fixId === 'launch-xedit-compact') {
+        res = await a.ckAutofixLaunchXedit?.(pluginPath, 'compact');
+      } else if (fixId === 'launch-xedit-open') {
+        res = await a.ckAutofixLaunchXedit?.(pluginPath, 'open');
+      } else if (fixId === 'rebuild-precombines') {
+        res = await a.ckAutofixRebuildPrecombines?.(pluginPath);
+      }
+      if (res) addLog(label, !!res.success, res.message ?? res.error ?? (res.success ? 'Done.' : 'Failed.'));
+      // Re-scan after binary fix so results update
+      if (res?.success && (fixId === 'rename' || fixId === 'undelete-navm')) {
+        await runInspect();
+      }
+    } catch (e: any) { addLog(label, false, e?.message ?? 'Error.'); }
+    finally { setFixingId(null); }
+  }, [pluginPath, runInspect]);
 
+  // ── Run all automatable fixes in sequence ───────────────────────────────────
+  const runAllFixes = useCallback(async () => {
+    if (!result) return;
+    setFixAll(true);
+    const fixableIds = [...new Set(result.warnings.filter(w => w.fixId).map(w => w.fixId!))];
+    for (const fid of fixableIds) {
+      const w = result.warnings.find(x => x.fixId === fid);
+      if (w) await runFix(fid, w.fixLabel ?? fid);
+    }
+    setFixAll(false);
+  }, [result, runFix]);
+
+  // ── Patch creator ───────────────────────────────────────────────────────────
+  const scanConflicts = async () => {
+    const a = api();
+    if (!a?.ckScanConflicts) { setPatchErr('Electron API unavailable.'); return; }
+    setPatchBusy(true); setPatchErr(''); setConflictResult(null); setPatchMsg('');
+    try {
+      const res = await a.ckScanConflicts(patchA, patchB);
+      if (!res?.success) { setPatchErr(res?.error ?? 'Scan failed.'); return; }
+      setConflictResult(res);
+    } catch (e: any) { setPatchErr(e?.message ?? 'Error.'); }
+    finally { setPatchBusy(false); }
+  };
+
+  const createPatch = async () => {
+    const a = api();
+    if (!a?.ckCreatePatch) { setPatchErr('Electron API unavailable.'); return; }
+    if (!patchOut.trim()) { setPatchErr('Enter a path for the patch file (e.g. C:\\FO4\\Data\\Patch.esp).'); return; }
+    setPatchBusy(true); setPatchErr(''); setPatchMsg('');
+    try {
+      const res = await a.ckCreatePatch(patchA, patchB, patchOut, patchWinner);
+      if (!res?.success) { setPatchErr(res?.error ?? 'Patch creation failed.'); return; }
+      setPatchMsg(res.message ?? `Patch written to ${res.patchPath}`);
+    } catch (e: any) { setPatchErr(e?.message ?? 'Error.'); }
+    finally { setPatchBusy(false); }
+  };
+
+  // ── Previsbines & PRP state ─────────────────────────────────────────────────
+  const [envResult,    setEnvResult]    = useState<any>(null);
+  const [envBusy,      setEnvBusy]      = useState(false);
+  const [setupMsg,     setSetupMsg]     = useState('');
+  const [xcriPlugin,   setXcriPlugin]   = useState('');
+  const [xcriCells,    setXcriCells]    = useState<any[] | null>(null);
+  const [xcirBusy,     setXcirBusy]     = useState(false);
+  const [xcriErr,      setXcriErr]      = useState('');
+  const [prpPlugin,    setPrpPlugin]    = useState('');
+  const [prpFile,      setPrpFile]      = useState('');
+  const [prpOut,       setPrpOut]       = useState('');
+  const [prpBusy,      setPrpBusy]      = useState(false);
+  const [prpMsg,       setPrpMsg]       = useState('');
+  const [prpErr,       setPrpErr]       = useState('');
+  const [cleanPlugin,  setCleanPlugin]  = useState('');
+  const [cleanBusy,    setCleanBusy]    = useState(false);
+  const [cleanMsg,     setCleanMsg]     = useState('');
+  const [previsPlugin, setPrevisPlugin] = useState('');
+  const [previsStep,   setPrevisStep]   = useState<'idle'|'checking'|'generating'>('idle');
+  const [previsMsg,    setPrevisMsg]    = useState('');
+
+  const runEnvCheck = async () => {
+    const a = api(); if (!a?.ckEnvCheck) return;
+    setEnvBusy(true); setEnvResult(null); setSetupMsg('');
+    try { const r = await a.ckEnvCheck(); if (r?.ok) setEnvResult(r); }
+    catch { /* silent */ } finally { setEnvBusy(false); }
+  };
+  const runSetupEnv = async () => {
+    const a = api(); if (!a?.ckSetupGenerationEnv) return;
+    try { const r = await a.ckSetupGenerationEnv(); setSetupMsg(r?.message ?? 'Done.'); }
+    catch (e: any) { setSetupMsg(e?.message ?? 'Error.'); }
+  };
+  const runXcriScan = async () => {
+    const a = api(); if (!a?.ckDetectXcriCells || !xcriPlugin.trim()) return;
+    setXcirBusy(true); setXcriErr(''); setXcriCells(null);
+    try {
+      const r = await a.ckDetectXcriCells(xcriPlugin.trim());
+      if (!r?.ok) { setXcriErr(r?.error ?? 'Scan failed.'); return; }
+      setXcriCells(r.cells ?? []);
+    } catch (e: any) { setXcriErr(e?.message ?? 'Error.'); }
+    finally { setXcirBusy(false); }
+  };
+  const runPrpPatch = async () => {
+    const a = api(); if (!a?.ckCreatePrpPatch) return;
+    if (!prpPlugin.trim() || !prpFile.trim() || !prpOut.trim()) { setPrpErr('All three paths are required.'); return; }
+    setPrpBusy(true); setPrpErr(''); setPrpMsg('');
+    try {
+      const r = await a.ckCreatePrpPatch(prpPlugin.trim(), prpFile.trim(), prpOut.trim());
+      if (!r?.ok) { setPrpErr(r?.error ?? 'Failed.'); return; }
+      setPrpMsg(r.message ?? `Patch written to ${r.patchPath}`);
+    } catch (e: any) { setPrpErr(e?.message ?? 'Error.'); }
+    finally { setPrpBusy(false); }
+  };
+  const runClean = async () => {
+    const a = api(); if (!a?.ckCleanPluginPrecombines || !cleanPlugin.trim()) return;
+    setCleanBusy(true); setCleanMsg('');
+    try {
+      const r = await a.ckCleanPluginPrecombines(cleanPlugin.trim());
+      setCleanMsg(r?.message ?? (r?.ok ? 'xEdit launched.' : r?.error ?? 'Failed.'));
+    } catch (e: any) { setCleanMsg(e?.message ?? 'Error.'); }
+    finally { setCleanBusy(false); }
+  };
+  const runPrevis = async (mode: 'check' | 'generate') => {
+    const a = api(); if (!a?.ckLaunchPrevisWorkflow) return;
+    setPrevisStep(mode === 'check' ? 'checking' : 'generating'); setPrevisMsg('');
+    try {
+      const r = await a.ckLaunchPrevisWorkflow(previsPlugin.trim(), mode);
+      setPrevisMsg(r?.message ?? (r?.ok ? 'Launched.' : r?.error ?? 'Failed.'));
+    } catch (e: any) { setPrevisMsg(e?.message ?? 'Error.'); }
+    finally { setPrevisStep('idle'); }
+  };
+
+  // ── Plugin type label from flags ────────────────────────────────────────────
+  const pluginTypeLabel = (r: PluginInspectorResult) => {
+    if (r.esmFlag && r.eslFlag) return 'ESM-as-ESL (2048 FormID cap)';
+    if (r.eslFlag) return 'ESL-flagged ESP';
+    if (r.esmFlag) return 'ESM (Master File)';
+    const ext = pluginPath.split('.').pop()?.toLowerCase();
+    if (ext === 'esl') return 'ESL (Light Plugin)';
+    if (ext === 'esm') return 'ESM (Master File)';
+    return 'ESP (Standard Plugin)';
+  };
+
+  const fixableCount = result?.warnings.filter(w => w.fixId).length ?? 0;
+  const errorCount   = result?.warnings.filter(w => w.level === 'error').length ?? 0;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-5 text-sm text-slate-200">
+    <div className="space-y-4 text-sm text-slate-200">
+
       {/* Header */}
       <div className="rounded-xl border border-sky-500/30 bg-gradient-to-br from-sky-900/20 to-black/40 p-5">
-        <h2 className="text-xl font-black text-white mb-1 flex items-center gap-2">
-          <Search className="h-5 w-5 text-sky-300" /> Plugin Inspector
-        </h2>
-        <p className="text-sky-100/70 text-xs">Deep analysis of an ESP/ESM/ESL — plugin type, FormID count, master list, BA2 archives, ESL safety, and pre-flight warnings.</p>
-      </div>
-
-      {/* Input */}
-      <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-3">
-        <div className="flex gap-2">
-          <input
-            value={pluginPath}
-            onChange={e => setPluginPath(e.target.value)}
-            placeholder="Path to .esp / .esm / .esl (paste or browse)…"
-            className="flex-1 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          />
-          <button onClick={pickPlugin} className="rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-600 transition-colors flex items-center gap-1">
-            <Package className="h-3.5 w-3.5" /> Browse
-          </button>
+        <div className="flex items-center gap-3 mb-1 flex-wrap">
+          <Hammer className="h-5 w-5 text-sky-300" />
+          <h2 className="text-xl font-black text-white">Plugin Repair Platform</h2>
+          {errorCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-red-900/40 border border-red-600/40 text-red-300 text-[10px] font-bold">{errorCount} ERROR{errorCount > 1 ? 'S' : ''}</span>
+          )}
         </div>
-        <button
-          onClick={runInspect}
-          disabled={busy}
-          className="w-full rounded-lg bg-sky-600 py-2.5 font-bold text-white hover:bg-sky-500 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
-        >
-          {busy ? <><RefreshCw className="h-4 w-4 animate-spin" /> Inspecting…</> : <><Search className="h-4 w-4" /> Inspect Plugin</>}
-        </button>
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        <p className="text-sky-100/70 text-xs">Binary deep-scan · Auto-fix (NAVM undelete, rename, xEdit launch, CK rebuild) · Compatibility patch creator</p>
+        {/* Tab bar */}
+        <div className="flex gap-1 mt-4">
+          {([['inspect', Search, 'Inspect & Fix'], ['patch', GitMerge, 'Patch Creator'], ['previs', Zap, 'Previsbines & PRP']] as [string, any, string][]).map(([id, Icon, label]) => (
+            <button key={id} onClick={() => setActiveTab(id as InspectorTab)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                activeTab === (id as string) ? 'bg-sky-700/60 text-white border border-sky-500/40' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}>
+              <Icon className="h-3.5 w-3.5" />{label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Results */}
-      {result && (
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* INSPECT & FIX TAB                                                      */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'inspect' && (
         <div className="space-y-4">
-          {/* Summary row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: 'Type', value: result.pluginType, color: 'text-sky-300' },
-              { label: 'FormIDs', value: result.formIdCount < 0 ? 'IPC required' : result.formIdCount.toLocaleString(), color: result.formIdCount > ESL_MAX_LOCAL_FORMIDS ? 'text-red-400' : 'text-emerald-300' },
-              { label: 'File Size', value: result.fileSizeMB < 0 ? 'IPC required' : `${result.fileSizeMB.toFixed(1)} MB`, color: 'text-slate-300' },
-              { label: 'Masters', value: result.masters.length < 0 ? 'IPC required' : result.masters.length === 0 ? 'None listed' : String(result.masters.length), color: 'text-slate-300' },
-            ].map(item => (
-              <div key={item.label} className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
-                <div className="text-[10px] text-slate-500 uppercase tracking-wider">{item.label}</div>
-                <div className={`font-bold text-xs mt-1 ${item.color}`}>{item.value}</div>
-              </div>
-            ))}
+          {/* Path input */}
+          <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-3">
+            <div className="flex gap-2">
+              <input value={pluginPath} onChange={e => setPluginPath(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && runInspect()}
+                placeholder="Path to .esp / .esm / .esl — paste or browse…"
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              <button onClick={() => pickPlugin(setPluginPath)}
+                className="rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-600 transition-colors flex items-center gap-1">
+                <FolderOpen className="h-3.5 w-3.5" /> Browse
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={runInspect} disabled={busy}
+                className="flex-1 rounded-lg bg-sky-600 py-2 font-bold text-white hover:bg-sky-500 disabled:opacity-60 transition-colors flex items-center justify-center gap-2 text-xs">
+                {busy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Deep Scanning…</> : <><Search className="h-3.5 w-3.5" />Deep Scan Plugin</>}
+              </button>
+              {result && fixableCount > 0 && (
+                <button onClick={runAllFixes} disabled={fixAll || fixingId !== null}
+                  className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 text-xs font-bold text-white disabled:opacity-60 transition-colors flex items-center gap-1.5">
+                  {fixAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Hammer className="h-3.5 w-3.5" />}
+                  Auto-Fix All ({fixableCount})
+                </button>
+              )}
+            </div>
+            {scanError && <p className="text-xs text-red-400 flex items-center gap-1"><XCircle className="h-3 w-3" />{scanError}</p>}
           </div>
 
-          {/* Feature flags */}
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: 'Navmesh', value: result.hasNavmesh },
-              { label: 'Precombines', value: result.hasPrecombines },
-              { label: 'Papyrus Scripts', value: result.hasScripts },
-            ].map(f => (
-              <div key={f.label} className={`rounded-lg border px-3 py-2 text-xs flex items-center gap-2 ${f.value ? 'border-amber-600/40 bg-amber-950/20 text-amber-300' : 'border-slate-700 bg-slate-900/40 text-slate-500'}`}>
-                {f.value ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
-                {f.label}: {f.value ? 'Yes' : 'No'}
+          {/* Results */}
+          {result && (
+            <div className="space-y-4">
+              {/* Summary grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: 'Type',      value: pluginTypeLabel(result), color: 'text-sky-300' },
+                  { label: 'FormIDs',   value: result.formIdCount < 0 ? '—' : result.formIdCount.toLocaleString(), color: result.formIdCount > 4096 ? 'text-red-400' : 'text-emerald-300' },
+                  { label: 'File Size', value: result.fileSizeMB < 0 ? '—' : `${result.fileSizeMB.toFixed(1)} MB`, color: result.fileSizeMB > 80 ? 'text-amber-400' : 'text-slate-300' },
+                  { label: 'Masters',   value: result.masters.length === 0 ? 'None listed' : String(result.masters.length), color: 'text-slate-300' },
+                ].map(item => (
+                  <div key={item.label} className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{item.label}</div>
+                    <div className={`font-bold text-xs ${item.color}`}>{item.value}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* Master list */}
-          {result.masters.length > 0 && (
-            <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
-              <p className="text-xs font-bold text-slate-300 mb-2">Master Dependencies ({result.masters.length})</p>
-              <ul className="space-y-1">
-                {result.masters.map(m => (
-                  <li key={m} className="text-xs font-mono text-emerald-300 flex items-center gap-2">
-                    <ChevronRight className="h-3 w-3 text-slate-500" />{m}
-                  </li>
+              {/* Feature chips */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {[
+                  { label: 'Navmesh',   value: result.hasNavmesh,     badge: result.deletedNavmeshCount > 0 ? `${result.deletedNavmeshCount} DELETED` : undefined },
+                  { label: 'Precombines', value: result.hasPrecombines },
+                  { label: 'Scripts',   value: result.hasScripts },
+                  { label: 'ESL-Safe',  value: result.eslSafe, good: true },
+                ].map(f => (
+                  <div key={f.label} className={`rounded-lg border px-3 py-2 text-xs flex items-center gap-2 ${
+                    f.badge ? 'border-red-600/40 bg-red-950/20 text-red-300' :
+                    f.good ? (f.value ? 'border-emerald-600/40 bg-emerald-950/20 text-emerald-300' : 'border-slate-700 bg-slate-900/40 text-slate-500') :
+                    f.value ? 'border-amber-600/40 bg-amber-950/20 text-amber-300' : 'border-slate-700 bg-slate-900/40 text-slate-500'
+                  }`}>
+                    {f.badge ? <XCircle className="h-3.5 w-3.5 flex-shrink-0" /> : f.value ? <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" /> : <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />}
+                    <span>{f.label}: {f.badge ?? (f.value ? 'Yes' : 'No')}</span>
+                  </div>
                 ))}
-              </ul>
-            </div>
-          )}
+              </div>
 
-          {/* BA2 archives */}
-          {result.ba2Archives.length > 0 && (
-            <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
-              <p className="text-xs font-bold text-slate-300 mb-2">BA2 Archives ({result.ba2Archives.length})</p>
-              <ul className="space-y-1">
-                {result.ba2Archives.map(b => (
-                  <li key={b} className="text-xs font-mono text-sky-300 flex items-center gap-2">
-                    <Package className="h-3 w-3 text-slate-500" />{b}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Warnings */}
-          {result.warnings.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-bold text-slate-300">Inspection Results ({result.warnings.length})</p>
-              {result.warnings.map((w, i) => (
-                <div key={i} className={`rounded-lg border px-3 py-2 text-xs ${warnColor(w.level)}`}>
-                  {w.level === 'error' ? '❌' : w.level === 'warn' ? '⚠️' : 'ℹ️'} {w.msg}
+              {/* Master list */}
+              {result.masters.length > 0 && (
+                <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+                  <p className="text-xs font-bold text-slate-300 mb-2">Master Dependencies ({result.masters.length})</p>
+                  <ul className="space-y-0.5">
+                    {result.masters.map((m, i) => (
+                      <li key={m} className="text-xs font-mono flex items-center gap-2">
+                        <span className="text-slate-600 w-5 text-right">{i}</span>
+                        <ChevronRight className="h-3 w-3 text-slate-600" />
+                        <span className={/fallout4\.esm/i.test(m) ? 'text-emerald-300' : 'text-slate-300'}>{m}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              ))}
+              )}
+
+              {/* BA2 companions */}
+              {result.ba2Archives.length > 0 && (
+                <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+                  <p className="text-xs font-bold text-slate-300 mb-2">BA2 Archives ({result.ba2Archives.length})</p>
+                  <ul className="space-y-0.5">
+                    {result.ba2Archives.map(b => (
+                      <li key={b} className="text-xs font-mono text-sky-300 flex items-center gap-2">
+                        <Package className="h-3 w-3 text-slate-500" />{b}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Record type breakdown (top 8) */}
+              {Object.keys(result.typeCounts ?? {}).length > 0 && (
+                <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+                  <p className="text-xs font-bold text-slate-300 mb-2">Record Types</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(result.typeCounts)
+                      .sort(([,a],[,b]) => b - a).slice(0, 12)
+                      .map(([type, count]) => (
+                        <span key={type} className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono text-slate-300">
+                          {type} <span className="text-emerald-400">{count}</span>
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Issues + Fix buttons */}
+              {result.warnings.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-slate-300">Issues & Actions ({result.warnings.length})</p>
+                  {result.warnings.map((w, i) => (
+                    <div key={i} className={`rounded-lg border px-3 py-2.5 flex items-start gap-2 ${warnBorder(w.level)}`}>
+                      {warnIcon(w.level)}
+                      <p className="flex-1 text-xs leading-relaxed">{w.msg}</p>
+                      {w.fixId && w.fixLabel && (
+                        <button
+                          onClick={() => runFix(w.fixId!, w.fixLabel!)}
+                          disabled={fixingId !== null || fixAll}
+                          className="shrink-0 px-2.5 py-1 rounded bg-slate-900/60 hover:bg-slate-700 border border-slate-600 text-[10px] font-bold text-emerald-300 hover:text-emerald-200 disabled:opacity-50 transition-colors flex items-center gap-1"
+                        >
+                          {fixingId === w.fixId
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <Hammer className="h-3 w-3" />}
+                          {w.fixLabel}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {!ipcResult && (
-            <div className="rounded-lg border border-slate-700 bg-slate-900/20 px-3 py-2 text-xs text-slate-500">
-              <Info className="h-3 w-3 inline mr-1" /> FormID count, master list, and BA2 details require the Mossy desktop bridge IPC handler (<code>ck:inspect-plugin</code>). Filename heuristics shown above are available without it.
+          {/* Fix log */}
+          {fixLog.length > 0 && (
+            <div className="rounded-xl border border-slate-700 bg-slate-900/60 overflow-hidden">
+              <button onClick={() => setLogOpen(v => !v)}
+                className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-slate-800/40 transition-colors text-left">
+                <Terminal className="h-3.5 w-3.5 text-emerald-400" />
+                <span className="text-xs font-bold text-slate-200">Fix Log ({fixLog.length})</span>
+                {logOpen ? <ChevronDown className="h-3.5 w-3.5 text-slate-500 ml-auto" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-500 ml-auto" />}
+              </button>
+              {logOpen && (
+                <div ref={logRef} className="max-h-48 overflow-y-auto px-4 pb-3 space-y-1 border-t border-slate-800">
+                  {fixLog.map((e, i) => (
+                    <div key={i} className="flex items-start gap-2 text-[10px] font-mono">
+                      <span className="text-slate-600 shrink-0">{e.ts}</span>
+                      {e.ok ? <CheckCircle2 className="h-3 w-3 text-emerald-400 mt-0.5 shrink-0" /> : <XCircle className="h-3 w-3 text-red-400 mt-0.5 shrink-0" />}
+                      <span className="text-slate-400 shrink-0">[{e.action}]</span>
+                      <span className={e.ok ? 'text-emerald-300' : 'text-red-300'}>{e.msg}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* PATCH CREATOR TAB                                                       */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'patch' && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-violet-500/30 bg-violet-900/10 p-4">
+            <p className="text-xs text-violet-200/80">
+              Scan two plugins for conflicting record overrides, then generate a compatibility patch ESP that resolves them.
+              The patch is ESL-flagged and takes the winning plugin's version of each conflicting record.
+              <span className="text-amber-300 font-semibold"> Binary patch — review in xEdit before distributing.</span>
+            </p>
+          </div>
+
+          {/* Plugin inputs */}
+          {[
+            { label: 'Plugin A', value: patchA, setter: setPatchA },
+            { label: 'Plugin B', value: patchB, setter: setPatchB },
+          ].map(({ label, value, setter }) => (
+            <div key={label} className="rounded-lg border border-slate-700 bg-slate-900/60 p-3 space-y-2">
+              <p className="text-xs font-semibold text-slate-300">{label}</p>
+              <div className="flex gap-2">
+                <input value={value} onChange={e => setter(e.target.value)}
+                  placeholder={`Path to ${label} (.esp / .esm / .esl)…`}
+                  className="flex-1 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                <button onClick={() => pickPlugin(setter)}
+                  className="rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-600 transition-colors flex items-center gap-1">
+                  <FolderOpen className="h-3.5 w-3.5" /> Browse
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Scan button */}
+          <button onClick={scanConflicts} disabled={patchBusy || !patchA.trim() || !patchB.trim()}
+            className="w-full py-2 rounded-lg bg-violet-700 hover:bg-violet-600 border border-violet-500 text-xs font-bold text-white disabled:opacity-60 transition-colors flex items-center justify-center gap-2">
+            {patchBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+            Scan for Conflicts
+          </button>
+
+          {/* Conflict results */}
+          {conflictResult && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3 space-y-2">
+                <div className="flex items-center gap-3 flex-wrap text-xs">
+                  <span className="text-slate-400">Plugin A overrides: <span className="text-slate-200 font-bold">{conflictResult.totalA}</span></span>
+                  <span className="text-slate-400">Plugin B overrides: <span className="text-slate-200 font-bold">{conflictResult.totalB}</span></span>
+                  <span className={`font-bold ${conflictResult.conflicts.length > 0 ? 'text-amber-300' : 'text-emerald-300'}`}>
+                    {conflictResult.conflicts.length} conflict{conflictResult.conflicts.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                {conflictResult.conflicts.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto space-y-1 mt-2">
+                    {conflictResult.conflicts.slice(0, 50).map((c: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+                        <span className="text-amber-400 shrink-0">{c.type}</span>
+                        <span className="text-slate-500">{c.key}</span>
+                        <span className="text-slate-600">via {c.masterName}</span>
+                      </div>
+                    ))}
+                    {conflictResult.conflicts.length > 50 && (
+                      <p className="text-[10px] text-slate-500">… and {conflictResult.conflicts.length - 50} more</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {conflictResult.conflicts.length > 0 && (
+                <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3 space-y-3">
+                  <p className="text-xs font-semibold text-slate-300">Create Compatibility Patch</p>
+
+                  {/* Winner selector */}
+                  <div className="flex gap-2">
+                    {(['A', 'B'] as const).map(w => (
+                      <button key={w} onClick={() => setPatchWinner(w)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${patchWinner === w ? 'bg-emerald-800 text-emerald-200 border-emerald-600' : 'text-slate-400 border-slate-700 hover:text-white hover:border-slate-500'}`}>
+                        Winner: Plugin {w}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-500">The winning plugin's record version is used in the patch for each conflict.</p>
+
+                  {/* Output path */}
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-400">Patch output path</p>
+                    <input value={patchOut} onChange={e => setPatchOut(e.target.value)}
+                      placeholder="e.g. C:\Fallout 4\Data\Patch - A and B.esp"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                  </div>
+
+                  <button onClick={createPatch} disabled={patchBusy || !patchOut.trim()}
+                    className="w-full py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 text-xs font-bold text-white disabled:opacity-60 transition-colors flex items-center justify-center gap-2">
+                    {patchBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FilePlus className="h-3.5 w-3.5" />}
+                    Create Patch ESP
+                  </button>
+
+                  {patchMsg && (
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-900/20 border border-emerald-600/30 text-xs text-emerald-300">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{patchMsg}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {patchErr && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-900/20 border border-red-600/30 text-xs text-red-300">
+              <XCircle className="h-3.5 w-3.5 shrink-0" />{patchErr}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* PREVISBINES & PRP TAB                                                  */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'previs' && (
+        <div className="space-y-5">
+
+          {/* Intro banner */}
+          <div className="rounded-xl border border-amber-500/30 bg-amber-900/10 p-4 text-xs text-amber-200/80 leading-relaxed">
+            <p className="font-bold text-amber-300 mb-1">Precombine / Previs Automation — Full Pipeline</p>
+            Exterior cell edits that break precombines cause CTD for users. This panel gives you an automated path
+            from detection → cleaning → generation → PRP compatibility patch — entirely inside Mossy, with no manual steps.
+            <span className="block mt-1 text-amber-400/70 font-semibold">
+              ⚠ Run generation outside MO2 (USVFS causes flickering in generated previs data).
+            </span>
+          </div>
+
+          {/* ── Environment Check ─────────────────────────────────────────── */}
+          <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-slate-200 flex items-center gap-2"><Monitor className="h-3.5 w-3.5 text-sky-400" />Environment Check</p>
+              <button onClick={runEnvCheck} disabled={envBusy}
+                className="px-3 py-1 rounded-lg bg-sky-700 hover:bg-sky-600 text-xs font-semibold text-white disabled:opacity-60 transition-colors flex items-center gap-1.5">
+                {envBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}Check
+              </button>
+            </div>
+
+            {envResult && (
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(envResult).filter(([k]) => k !== 'ok').map(([key, val]: [string, any]) => {
+                  const found = typeof val === 'object' ? val?.found : !!val;
+                  const label = { ck: 'Creation Kit', ckpe: 'CKPE', xedit: 'FO4Edit / xEdit', pjm: 'PJM Scripts', prp: 'PRP (Nexus)', steamAppId: 'steam_appid.txt', archive2: 'Archive2' }[key] ?? key;
+                  const detail = typeof val === 'object' ? (val?.path ?? '') : '';
+                  return (
+                    <div key={key} className={`rounded-lg border p-2.5 flex items-start gap-2 ${found ? 'border-emerald-600/30 bg-emerald-950/20' : 'border-red-600/30 bg-red-950/20'}`}>
+                      {found ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" /> : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />}
+                      <div className="min-w-0">
+                        <p className={`text-xs font-semibold ${found ? 'text-emerald-300' : 'text-red-300'}`}>{label}</p>
+                        {detail && <p className="text-[10px] text-slate-500 truncate" title={detail}>{detail}</p>}
+                        {!found && key === 'steamAppId' && (
+                          <button onClick={runSetupEnv} className="mt-1 text-[10px] px-2 py-0.5 rounded bg-amber-700 hover:bg-amber-600 text-white font-semibold transition-colors">
+                            Auto-create
+                          </button>
+                        )}
+                        {!found && key === 'ckpe' && (
+                          <a href="https://www.nexusmods.com/fallout4/mods/51165" target="_blank" rel="noreferrer" className="mt-1 text-[10px] text-sky-400 underline block">Get CKPE (Nexus)</a>
+                        )}
+                        {!found && key === 'pjm' && (
+                          <a href="https://www.nexusmods.com/fallout4/mods/64382" target="_blank" rel="noreferrer" className="mt-1 text-[10px] text-sky-400 underline block">Get PJM Scripts (Nexus)</a>
+                        )}
+                        {!found && key === 'prp' && (
+                          <a href="https://www.nexusmods.com/fallout4/mods/46403" target="_blank" rel="noreferrer" className="mt-1 text-[10px] text-sky-400 underline block">Get PRP (Nexus)</a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {setupMsg && <p className="text-xs text-emerald-300 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />{setupMsg}</p>}
+          </div>
+
+          {/* ── Step 1 — Clean plugin precombines ─────────────────────────── */}
+          <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="rounded-full w-5 h-5 flex items-center justify-center bg-sky-700 text-white text-[10px] font-black shrink-0">1</span>
+              <p className="text-xs font-bold text-slate-200">Clean Existing Precombines from Plugin</p>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Removes stale XCRI / precombine references from your plugin using the <code className="text-amber-300">FO4RemovePrecombines.pas</code> xEdit script.
+              Run this before regenerating so no old data conflicts with the new geometry.
+            </p>
+            <div className="flex gap-2">
+              <input value={cleanPlugin} onChange={e => setCleanPlugin(e.target.value)}
+                placeholder="Path to your .esp / .esm…"
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              <button onClick={() => pickPlugin(setCleanPlugin)}
+                className="rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-600 transition-colors flex items-center gap-1">
+                <FolderOpen className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <button onClick={runClean} disabled={cleanBusy || !cleanPlugin.trim()}
+              className="w-full py-2 rounded-lg bg-sky-700 hover:bg-sky-600 border border-sky-500 text-xs font-bold text-white disabled:opacity-60 transition-colors flex items-center justify-center gap-2">
+              {cleanBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Terminal className="h-3.5 w-3.5" />}
+              Launch xEdit — Remove Precombines
+            </button>
+            {cleanMsg && <p className={`text-xs flex items-center gap-1 ${cleanMsg.toLowerCase().includes('fail') || cleanMsg.toLowerCase().includes('error') ? 'text-red-400' : 'text-emerald-300'}`}>
+              {cleanMsg.toLowerCase().includes('fail') ? <XCircle className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}{cleanMsg}
+            </p>}
+          </div>
+
+          {/* ── Step 2 — Scan for XCRI / broken cells ─────────────────────── */}
+          <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="rounded-full w-5 h-5 flex items-center justify-center bg-violet-700 text-white text-[10px] font-black shrink-0">2</span>
+              <p className="text-xs font-bold text-slate-200">Detect Broken Precombine Cells (XCRI Scanner)</p>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Binary scan of your plugin for CELL records that override vanilla precombined geometry zones (XCRI subrecords or REFR additions inside precombine cells).
+              Each hit = a cell that will CTD for users who don't have precombines regenerated.
+            </p>
+            <div className="flex gap-2">
+              <input value={xcriPlugin} onChange={e => setXcriPlugin(e.target.value)}
+                placeholder="Path to your .esp / .esm…"
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500" />
+              <button onClick={() => pickPlugin(setXcriPlugin)}
+                className="rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-600 transition-colors flex items-center gap-1">
+                <FolderOpen className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <button onClick={runXcriScan} disabled={xcirBusy || !xcriPlugin.trim()}
+              className="w-full py-2 rounded-lg bg-violet-700 hover:bg-violet-600 border border-violet-500 text-xs font-bold text-white disabled:opacity-60 transition-colors flex items-center justify-center gap-2">
+              {xcirBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+              Scan for Broken Cells
+            </button>
+            {xcriErr && <p className="text-xs text-red-400 flex items-center gap-1"><XCircle className="h-3 w-3" />{xcriErr}</p>}
+            {xcriCells !== null && (
+              <div className="space-y-2">
+                <p className={`text-xs font-semibold ${xcriCells.length === 0 ? 'text-emerald-300' : 'text-amber-300'}`}>
+                  {xcriCells.length === 0 ? '✓ No broken precombine cells detected.' : `${xcriCells.length} cell${xcriCells.length !== 1 ? 's' : ''} with precombine overrides:`}
+                </p>
+                {xcriCells.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-slate-700 p-2">
+                    {xcriCells.slice(0, 100).map((c: any, i: number) => (
+                      <div key={i} className="flex items-center gap-3 text-[10px] font-mono text-slate-400">
+                        <span className="text-amber-400 shrink-0">{c.formId ?? '?'}</span>
+                        <span className="text-slate-500">{c.reason}</span>
+                        {c.refrCount > 0 && <span className="text-slate-600">{c.refrCount} REFR overrides</span>}
+                      </div>
+                    ))}
+                    {xcriCells.length > 100 && <p className="text-[10px] text-slate-500">… and {xcriCells.length - 100} more</p>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ── Step 3 — Generate previsbines ─────────────────────────────── */}
+          <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="rounded-full w-5 h-5 flex items-center justify-center bg-emerald-700 text-white text-[10px] font-black shrink-0">3</span>
+              <p className="text-xs font-bold text-slate-200">Regenerate Precombines & Previs</p>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Uses the PJM Scripts workflow: <code className="text-amber-300">FO4Check_Previsbines.pas</code> (xEdit) + <code className="text-amber-300">GeneratePrevisibines.bat</code>.
+              Step A runs an xEdit check to ensure the plugin is ready. Step B spawns the full generation batch — this takes 10–60+ minutes depending on cell count.
+            </p>
+            <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-950/10 text-[11px] text-amber-300/80 space-y-1">
+              <p className="font-semibold text-amber-300">Before generating:</p>
+              <p>• MO2 must be closed (USVFS causes flickering artefacts in output)</p>
+              <p>• CKPE must be installed (v0.3 for OG CK, v0.5 for NG CK)</p>
+              <p>• steam_appid.txt must contain "1946160" in FO4 root — use Environment Check above</p>
+              <p>• Estimated time: ~15 min for small mods, 60+ min for large worldspace edits</p>
+            </div>
+            <div className="flex gap-2">
+              <input value={previsPlugin} onChange={e => setPrevisPlugin(e.target.value)}
+                placeholder="Path to your .esp / .esm…"
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              <button onClick={() => pickPlugin(setPrevisPlugin)}
+                className="rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-600 transition-colors flex items-center gap-1">
+                <FolderOpen className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => runPrevis('check')} disabled={previsStep !== 'idle' || !previsPlugin.trim()}
+                className="flex-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 border border-slate-600 text-xs font-bold text-white disabled:opacity-60 transition-colors flex items-center justify-center gap-2">
+                {previsStep === 'checking' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                Step A — xEdit Check
+              </button>
+              <button onClick={() => runPrevis('generate')} disabled={previsStep !== 'idle' || !previsPlugin.trim()}
+                className="flex-1 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 text-xs font-bold text-white disabled:opacity-60 transition-colors flex items-center justify-center gap-2">
+                {previsStep === 'generating' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                Step B — Generate Previsbines
+              </button>
+            </div>
+            {previsMsg && <p className={`text-xs flex items-center gap-1 ${previsMsg.toLowerCase().includes('fail') || previsMsg.toLowerCase().includes('error') ? 'text-red-400' : 'text-emerald-300'}`}>
+              {previsMsg.toLowerCase().includes('fail') ? <XCircle className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}{previsMsg}
+            </p>}
+          </div>
+
+          {/* ── Step 4 — PRP Compatibility Patch ──────────────────────────── */}
+          <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="rounded-full w-5 h-5 flex items-center justify-center bg-amber-600 text-white text-[10px] font-black shrink-0">4</span>
+              <p className="text-xs font-bold text-slate-200">Create PRP Compatibility Patch (Binary — No xEdit Needed)</p>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Copies the CELL records from PRP that overlap with your plugin's affected cells and writes a new ESL-flagged compatibility patch ESP.
+              This allows users with PRP installed to use your mod without previs CTD.
+            </p>
+            {[
+              { label: 'Your Plugin', value: prpPlugin, setter: setPrpPlugin, placeholder: 'Path to your .esp…' },
+              { label: 'PRP Plugin File', value: prpFile, setter: setPrpFile, placeholder: 'e.g. C:\\FO4\\Data\\PRP.esp (or ESM)…' },
+              { label: 'Patch Output', value: prpOut, setter: setPrpOut, placeholder: 'e.g. C:\\FO4\\Data\\YourMod - PRP Patch.esp…' },
+            ].map(({ label, value, setter, placeholder }) => (
+              <div key={label} className="space-y-1">
+                <p className="text-[10px] text-slate-400">{label}</p>
+                <div className="flex gap-2">
+                  <input value={value} onChange={e => setter(e.target.value)} placeholder={placeholder}
+                    className="flex-1 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                  {label !== 'Patch Output' && (
+                    <button onClick={() => pickPlugin(setter)}
+                      className="rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-xs text-white hover:bg-slate-600 transition-colors flex items-center gap-1">
+                      <FolderOpen className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+            <button onClick={runPrpPatch} disabled={prpBusy || !prpPlugin.trim() || !prpFile.trim() || !prpOut.trim()}
+              className="w-full py-2 rounded-lg bg-amber-700 hover:bg-amber-600 border border-amber-500 text-xs font-bold text-white disabled:opacity-60 transition-colors flex items-center justify-center gap-2">
+              {prpBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FilePlus className="h-3.5 w-3.5" />}
+              Build PRP Compatibility Patch
+            </button>
+            {prpMsg && <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-900/20 border border-emerald-600/30 text-xs text-emerald-300">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{prpMsg}
+            </div>}
+            {prpErr && <div className="flex items-center gap-2 p-2 rounded-lg bg-red-900/20 border border-red-600/30 text-xs text-red-300">
+              <XCircle className="h-3.5 w-3.5 shrink-0" />{prpErr}
+            </div>}
+          </div>
+
         </div>
       )}
     </div>
@@ -635,7 +1186,7 @@ const CRASH_CAUSES = [
     cause: 'Too many forms in ESP (non-ESL)',
     severity: 'medium',
     detail:
-      'Standard ESP/ESM files have a 16M FormID space (0x000800 – 0xFFFFF per mod file). Mods with too many records fragment the space and can cause save corruption. Flag small mods as ESL if FormID count < 2048.',
+      'Standard ESP/ESM files have a 16M FormID space (0x000800 – 0xFFFFF per mod file). Mods with too many records fragment the space and can cause save corruption. Flag small mods as ESL if new FormID count is ≤ 4096 (0x000–0xFFF) — use xEdit "Compact FormIDs for ESL" first.',
   },
   {
     cause: 'Overlapping navmesh triangles',

@@ -172,282 +172,57 @@ export class BridgeServer {
                             const { type, script, target, name, run } = JSON.parse(body);
                             console.log('[Bridge] /execute payload', { type, script, target });
                             
-                            // Handle Blender Python Execution
+                            // ── Blender command dispatch — all types use this._blenderSend() ──────────
+                            const blenderErrResponse = (e: any, label: string) => {
+                                if (e?.type === 'timeout') {
+                                    res.writeHead(504, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ status: 'error', message: `Blender addon timed out during ${label}.` }));
+                                } else {
+                                    res.writeHead(503, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ status: 'error', message: `Blender addon not responding on port ${this.addonPort}. Is the addon active?` }));
+                                }
+                            };
+
                             if (type === 'blender') {
-                                console.log('[Bridge] executing blender type');
-                                // forward the script (or text block) to the add-on socket on port 9999
-                                // this mirrors the behaviour of the Python helper that users can download.
-                                const net = await import('net');
-                                const timeoutMs = 3000;
-
-                                const sendCommandToAddon = (payload: any) => {
-                                    console.log('[Bridge] sendCommandToAddon payload', payload);
-                                    return new Promise<string>((resolve, reject) => {
-                                        const socket = new net.Socket();
-                                        let finished = false;
-
-                                        const cleanup = () => {
-                                            try { socket.destroy(); } catch { /* ignore */ }
-                                        };
-
-                                        socket.setTimeout(timeoutMs);
-
-                                        socket.on('connect', () => {
-                                            console.log('[Bridge] socket connected');
-                                            try {
-                                                socket.write(JSON.stringify(payload));
-                                            } catch (e) {
-                                                console.log('[Bridge] socket write error', e);
-                                            }
-                                        });
-
-                                        socket.on('data', (data: Buffer) => {
-                                            console.log('[Bridge] socket data', data.toString());
-                                            if (finished) return;
-                                            finished = true;
-                                            const str = data.toString();
-                                            cleanup();
-                                            resolve(str);
-                                        });
-
-                                        socket.on('timeout', () => {
-                                            console.log('[Bridge] socket timeout');
-                                            if (finished) return;
-                                            finished = true;
-                                            cleanup();
-                                            reject({ type: 'timeout' });
-                                        });
-
-                                        socket.on('error', (err: any) => {
-                                            console.log('[Bridge] socket error', err);
-                                            if (finished) return;
-                                            finished = true;
-                                            cleanup();
-                                            reject({ type: 'conn', error: err });
-                                        });
-
-                                        socket.on('close', () => {
-                                            console.log('[Bridge] socket close');
-                                            if (!finished) {
-                                                finished = true;
-                                                reject({ type: 'conn', error: new Error('Connection closed prematurely') });
-                                            }
-                                        });
-
-                                        try {
-                                            socket.connect(this.addonPort, '127.0.0.1');
-                                        } catch (e) {
-                                            console.log('[Bridge] socket connect throw', e);
-                                            if (!finished) {
-                                                finished = true;
-                                                cleanup();
-                                                reject({ type: 'conn', error: e });
-                                            }
-                                        }
-                                    });
-                                };
-
                                 try {
-                                    const addonPayload: any = { type: 'script', code: script };
-                                    const responseText = await sendCommandToAddon(addonPayload);
+                                    const response = await this._blenderSend({ type: 'script', code: script }, 3_000);
                                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                                    res.end(JSON.stringify({ status: "success", message: "Blender command executed", response: responseText }));
-                                } catch (e: any) {
-                                    console.log('[Bridge] sendCommandToAddon failed', e);
-                                    if (e?.type === 'conn') {
-                                        res.writeHead(503, { 'Content-Type': 'application/json' });
-                                        res.end(JSON.stringify({ status: "error", message: `Blender addon not responding on port ${this.addonPort}. Is the addon active?` }));
-                                    } else if (e?.type === 'timeout') {
-                                        res.writeHead(504, { 'Content-Type': 'application/json' });
-                                        res.end(JSON.stringify({ status: "error", message: "Blender addon timed out (>3s)." }));
-                                    } else {
-                                        res.writeHead(500, { 'Content-Type': 'application/json' });
-                                        res.end(JSON.stringify({ status: "error", message: "Bridge internal error" }));
-                                    }
-                                }
-                            } 
-                            else if (type === 'text') {
-                                console.log('[Bridge] executing text type');
-                                // create or update a text datablock in Blender
-                                const net = await import('net');
-                                const timeoutMs = 3000;
+                                    res.end(JSON.stringify({ status: 'success', message: 'Blender command executed', response }));
+                                } catch (e: any) { blenderErrResponse(e, 'script execution'); }
 
-                                const sendCommandToAddon = (payload: any) => {
-                                    return new Promise<string>((resolve, reject) => {
-                                        const socket = new net.Socket();
-                                        let finished = false;
-                                        const cleanup = () => { try { socket.destroy(); } catch { /* ignore */ } };
-                                        socket.setTimeout(timeoutMs);
-                                        socket.on('connect', () => {
-                                            socket.write(JSON.stringify(payload));
-                                        });
-                                        socket.on('data', (data) => {
-                                            if (finished) return;
-                                            finished = true;
-                                            cleanup();
-                                            resolve(data.toString());
-                                        });
-                                        socket.on('timeout', () => {
-                                            if (finished) return;
-                                            finished = true;
-                                            cleanup();
-                                            reject({ type: 'timeout' });
-                                        });
-                                        socket.on('error', (err: any) => {
-                                            if (finished) return;
-                                            finished = true;
-                                            cleanup();
-                                            reject({ type: 'conn', error: err });
-                                        });
-                                        socket.on('close', () => {
-                                            if (!finished) {
-                                                finished = true;
-                                                reject({ type: 'conn', error: new Error('Connection closed prematurely') });
-                                            }
-                                        });
-                                        try { socket.connect(this.addonPort, '127.0.0.1'); } catch (e) {
-                                            if (!finished) {
-                                                finished = true;
-                                                cleanup();
-                                                reject({ type: 'conn', error: e });
-                                            }
-                                        }
-                                    });
-                                };
-
+                            } else if (type === 'text') {
                                 try {
-                                    const addonPayload: any = { type: 'text', code: script, name, run };
-                                    const responseText = await sendCommandToAddon(addonPayload);
+                                    const response = await this._blenderSend({ type: 'text', code: script, name, run }, 3_000);
                                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                                    res.end(JSON.stringify({ status: "success", message: "Blender text updated", response: responseText }));
-                                } catch (e: any) {
-                                    if (e?.type === 'conn') {
-                                        res.writeHead(503, { 'Content-Type': 'application/json' });
-                                        res.end(JSON.stringify({ status: "error", message: `Blender addon not responding on port ${this.addonPort}. Is the addon active?` }));
-                                    } else if (e?.type === 'timeout') {
-                                        res.writeHead(504, { 'Content-Type': 'application/json' });
-                                        res.end(JSON.stringify({ status: "error", message: "Blender addon timed out (>3s)." }));
-                                    } else {
-                                        res.writeHead(500, { 'Content-Type': 'application/json' });
-                                        res.end(JSON.stringify({ status: "error", message: "Bridge internal error" }));
-                                    }
-                                }
+                                    res.end(JSON.stringify({ status: 'success', message: 'Blender text updated', response }));
+                                } catch (e: any) { blenderErrResponse(e, 'text update'); }
+
                             } else if (type === 'context') {
-                                // Ask Blender add-on for a full scene context snapshot
-                                const netCtx = await import('net');
-                                const sendCtx = (payload: any) => new Promise<string>((resolve, reject) => {
-                                    const sock = new netCtx.Socket();
-                                    let done = false;
-                                    const cleanup = () => { try { sock.destroy(); } catch { /* ignore */ } };
-                                    sock.setTimeout(3000);
-                                    sock.on('connect', () => { try { sock.write(JSON.stringify(payload)); } catch (e) { if (!done) { done = true; cleanup(); reject(e); } } });
-                                    sock.on('data', (d: Buffer) => { if (done) return; done = true; cleanup(); resolve(d.toString()); });
-                                    sock.on('timeout', () => { if (done) return; done = true; cleanup(); reject({ type: 'timeout' }); });
-                                    sock.on('error', (e: any) => { if (done) return; done = true; cleanup(); reject({ type: 'conn', error: e }); });
-                                    sock.on('close', () => { if (!done) { done = true; reject({ type: 'conn', error: new Error('Closed prematurely') }); } });
-                                    try { sock.connect(this.addonPort, '127.0.0.1'); } catch (e) { if (!done) { done = true; cleanup(); reject({ type: 'conn', error: e }); } }
-                                });
                                 try {
-                                    const responseText = await sendCtx({ type: 'get_context' });
+                                    const response = await this._blenderSend({ type: 'get_context' }, 3_000);
                                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                                    res.end(JSON.stringify({ status: 'success', message: 'Blender context', response: responseText }));
-                                } catch (e: any) {
-                                    const code = e?.type === 'timeout' ? 504 : 503;
-                                    res.writeHead(code, { 'Content-Type': 'application/json' });
-                                    res.end(JSON.stringify({ status: 'error', message: e?.type === 'timeout' ? 'Blender addon timed out.' : `Blender addon not responding on port ${this.addonPort}.` }));
-                                }
+                                    res.end(JSON.stringify({ status: 'success', message: 'Blender context', response }));
+                                } catch (e: any) { blenderErrResponse(e, 'context fetch'); }
 
                             } else if (type === 'export_fbx') {
-                                // Trigger FBX export via add-on
-                                const netFbx = await import('net');
-                                const sendFbx = (payload: any) => new Promise<string>((resolve, reject) => {
-                                    const sock = new netFbx.Socket();
-                                    let done = false;
-                                    const cleanup = () => { try { sock.destroy(); } catch { /* ignore */ } };
-                                    sock.setTimeout(6000);
-                                    sock.on('connect', () => { try { sock.write(JSON.stringify(payload)); } catch (e) { if (!done) { done = true; cleanup(); reject(e); } } });
-                                    sock.on('data', (d: Buffer) => { if (done) return; done = true; cleanup(); resolve(d.toString()); });
-                                    sock.on('timeout', () => { if (done) return; done = true; cleanup(); reject({ type: 'timeout' }); });
-                                    sock.on('error', (e: any) => { if (done) return; done = true; cleanup(); reject({ type: 'conn', error: e }); });
-                                    sock.on('close', () => {
-                                        if (!done) {
-                                            done = true;
-                                            reject({ type: 'conn', error: new Error('Connection closed prematurely') });
-                                        }
-                                    });
-                                    try {
-                                        sock.connect(this.addonPort, '127.0.0.1');
-                                    } catch (connErr) {
-                                        if (!done) { done = true; cleanup(); reject({ type: 'conn', error: connErr }); }
-                                    }
-                                });
                                 try {
-                                    const fbxPayload = {
-                                        type: 'export_fbx',
-                                        filepath: target || script || '',
-                                        use_selection: true,
-                                        bake_anim: false,
-                                    };
-                                    const fbxResponse = await sendFbx(fbxPayload);
+                                    const response = await this._blenderSend(
+                                        { type: 'export_fbx', filepath: target || script || '', use_selection: true, bake_anim: false },
+                                        6_000,
+                                    );
                                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                                    res.end(JSON.stringify({ status: 'success', message: 'Blender export_fbx', response: fbxResponse }));
-                                } catch (e: any) {
-                                    const fbxCode = e?.type === 'timeout' ? 504 : 503;
-                                    res.writeHead(fbxCode, { 'Content-Type': 'application/json' });
-                                    res.end(JSON.stringify({ status: 'error', message: e?.type === 'timeout' ? 'Blender FBX export timed out (>6s).' : `Blender addon not responding on port ${this.addonPort}.` }));
-                                }
+                                    res.end(JSON.stringify({ status: 'success', message: 'Blender export_fbx', response }));
+                                } catch (e: any) { blenderErrResponse(e, 'FBX export'); }
 
                             } else if (type === 'export_obj') {
-                                // Trigger OBJ export via add-on (Outfit Studio pipeline)
-                                const netObj = await import('net');
-                                const sendObj = (objPayload: any) => new Promise<string>((resolveO, rejectO) => {
-                                    const sock = new netObj.Socket();
-                                    let done = false;
-                                    const cleanup = () => { try { sock.destroy(); } catch (_e) { /* ignore */ } };
-                                    sock.setTimeout(6000);
-                                    sock.on('connect', () => {
-                                        try { sock.write(JSON.stringify(objPayload)); } catch (we) {
-                                            if (!done) { done = true; cleanup(); rejectO(we); }
-                                        }
-                                    });
-                                    sock.on('data', (d: Buffer) => {
-                                        if (done) return;
-                                        done = true; cleanup(); resolveO(d.toString());
-                                    });
-                                    sock.on('timeout', () => {
-                                        if (done) return;
-                                        done = true; cleanup(); rejectO({ type: 'timeout' });
-                                    });
-                                    sock.on('error', (e: any) => {
-                                        if (done) return;
-                                        done = true; cleanup(); rejectO({ type: 'conn', error: e });
-                                    });
-                                    sock.on('close', () => {
-                                        if (!done) {
-                                            done = true;
-                                            rejectO({ type: 'conn', error: new Error('Connection closed prematurely') });
-                                        }
-                                    });
-                                    try {
-                                        sock.connect(this.addonPort, '127.0.0.1');
-                                    } catch (connErr2) {
-                                        if (!done) { done = true; cleanup(); rejectO({ type: 'conn', error: connErr2 }); }
-                                    }
-                                });
                                 try {
-                                    const exportObjPayload = {
-                                        type: 'export_obj',
-                                        filepath: target || script || '',
-                                        use_selection: true,
-                                    };
-                                    const objResponse = await sendObj(exportObjPayload);
+                                    const response = await this._blenderSend(
+                                        { type: 'export_obj', filepath: target || script || '', use_selection: true },
+                                        6_000,
+                                    );
                                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                                    res.end(JSON.stringify({ status: 'success', message: 'Blender export_obj', response: objResponse }));
-                                } catch (e: any) {
-                                    const objCode = e?.type === 'timeout' ? 504 : 503;
-                                    res.writeHead(objCode, { 'Content-Type': 'application/json' });
-                                    res.end(JSON.stringify({ status: 'error', message: e?.type === 'timeout' ? 'Blender OBJ export timed out (>6s).' : `Blender addon not responding on port ${this.addonPort}.` }));
-                                }
+                                    res.end(JSON.stringify({ status: 'success', message: 'Blender export_obj', response }));
+                                } catch (e: any) { blenderErrResponse(e, 'OBJ export'); }
 
                             } else if (type === 'shell') {
                                 exec(script, (err, stdout, stderr) => {
@@ -609,65 +384,83 @@ export class BridgeServer {
     }
 
     /**
-     * Execute texture enhancement script via Blender (Neural Link)
-     * Routes Python script to Blender addon on addonPort
+     * Low-level helper: open a TCP socket to the Blender addon, send a JSON
+     * payload, wait for a response, then close.  All /execute sub-handlers and
+     * executeBlenderScript use this instead of duplicating socket boilerplate.
+     *
+     * @param payload    JSON-serialisable object to send
+     * @param timeoutMs  Socket idle timeout in ms (default 3 000)
      */
-    async executeBlenderScript(payload: { script: string; jobId: string }): Promise<{ success: boolean; message: string }> {
+    private _blenderSend(payload: object, timeoutMs = 3_000): Promise<string> {
         return new Promise((resolve, reject) => {
             const net = require('net');
             const socket = new net.Socket();
-            const timeoutMs = 30000;
             let finished = false;
+
+            const cleanup = () => { try { socket.destroy(); } catch { /* ignore */ } };
 
             socket.setTimeout(timeoutMs);
 
-            socket.on('connect', () => {
-                console.log('[Bridge] Blender addon connected');
-                try {
-                    socket.write(JSON.stringify({
-                        type: 'texture_enhance',
-                        jobId: payload.jobId,
-                        script: payload.script,
-                    }));
-                } catch (e) {
-                    console.error('[Bridge] Socket write error:', e);
-                    finished = true;
-                    socket.destroy();
-                    reject(e);
-                }
+            socket.once('connect', () => {
+                try { socket.write(JSON.stringify(payload)); }
+                catch (e) { if (!finished) { finished = true; cleanup(); reject(e); } }
             });
 
             socket.on('data', (data: Buffer) => {
                 if (finished) return;
                 finished = true;
-                const response = data.toString();
-                console.log('[Bridge] Blender response:', response);
-                socket.destroy();
-                resolve({ success: true, message: response });
+                cleanup();
+                resolve(data.toString());
             });
 
-            socket.on('timeout', () => {
+            socket.once('timeout', () => {
                 if (finished) return;
                 finished = true;
-                console.log('[Bridge] Blender texture enhancement timed out');
-                socket.destroy();
-                reject(new Error('Blender texture enhancement timed out'));
+                cleanup();
+                reject({ type: 'timeout' });
             });
 
-            socket.on('error', (err: any) => {
+            socket.once('error', (err: any) => {
                 if (finished) return;
                 finished = true;
-                console.error('[Bridge] Blender socket error:', err);
-                socket.destroy();
-                reject(err);
+                cleanup();
+                reject({ type: 'conn', error: err });
             });
 
-            socket.on('close', () => {
-                console.log('[Bridge] Blender socket closed');
+            socket.once('close', () => {
+                if (!finished) {
+                    finished = true;
+                    reject({ type: 'conn', error: new Error('Connection closed prematurely') });
+                }
             });
 
-            socket.connect(this.addonPort, 'localhost');
+            try {
+                // Always use 127.0.0.1 — 'localhost' may resolve to ::1 (IPv6) on
+                // Windows and fail if the addon is only listening on IPv4.
+                socket.connect(this.addonPort, '127.0.0.1');
+            } catch (e) {
+                if (!finished) { finished = true; cleanup(); reject({ type: 'conn', error: e }); }
+            }
         });
+    }
+
+    /**
+     * Execute texture enhancement script via Blender (Neural Link).
+     * Routes Python script to the Blender addon on addonPort.
+     */
+    async executeBlenderScript(payload: { script: string; jobId: string }): Promise<{ success: boolean; message: string }> {
+        try {
+            const response = await this._blenderSend(
+                { type: 'texture_enhance', jobId: payload.jobId, script: payload.script },
+                30_000,
+            );
+            console.log('[Bridge] Blender texture_enhance response:', response);
+            return { success: true, message: response };
+        } catch (e: any) {
+            const msg = e?.error?.message ?? e?.message ?? String(e);
+            console.error('[Bridge] executeBlenderScript error:', msg);
+            throw new Error(msg);
+        }
     }
 
     stop() {
