@@ -33569,14 +33569,22 @@ app.whenReady().then(() => {
 
   // Continue normal startup
   createWindow();
-  bridge.start();
-  f4aiBridge.start();
+  writeMainLog('createWindow() returned');
+  try {
+    bridge.start();
+    f4aiBridge.start();
+  } catch (err: any) {
+    writeMainLog(`ERROR starting bridge servers: ${err?.message || err}`);
+  }
 
-  // Register Texture Enhancer handlers (uses BridgeServer for Blender integration)
-  registerTextureEnhancerHandlers(bridge, mainWindow ?? undefined);
-
-  // Register Cloud Sync handlers exposed by preload cloudSync API.
-  registerCloudSyncHandlers();
+  try {
+    // Register Texture Enhancer handlers (uses BridgeServer for Blender integration)
+    registerTextureEnhancerHandlers(bridge, mainWindow ?? undefined);
+    // Register Cloud Sync handlers exposed by preload cloudSync API.
+    registerCloudSyncHandlers();
+  } catch (err: any) {
+    writeMainLog(`ERROR registering textureEnhancer/cloudSync handlers: ${err?.message || err}`);
+  }
 
   // ── IPC backup: send TRIGGER_FRESH_INSTALL after renderer loads ──────────
   // This is a secondary mechanism in case the ?freshInstall URL param path is
@@ -33589,6 +33597,18 @@ app.whenReady().then(() => {
       }
     });
   }
+
+  // Duplicate-safe ipcMain.handle for late (post-setupIpcHandlers) registrations.
+  // A duplicate-channel throw here would silently kill the rest of this startup
+  // callback (the .then() swallows it), un-registering everything below —
+  // including 'f4ai-bridge-status'. Never let a registration error propagate.
+  const lateHandle = (channel: string, handler: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => any) => {
+    try {
+      ipcMain.handle(channel, handler);
+    } catch (err: any) {
+      writeMainLog(`WARN: late handler '${channel}' not registered: ${err?.message || err}`);
+    }
+  };
 
   // ── Blender Add-on HTTP Bridge (port 8080) ────────────────────────────────
   // Serves the REST API expected by desktop_tutorial_client.py in the
@@ -33851,7 +33871,7 @@ app.whenReady().then(() => {
   );
 
   // Register IPC handlers for the renderer to query Blender bridge status
-  ipcMain.handle('blender-bridge-status', () => ({
+  lateHandle('blender-bridge-status', () => ({
     running: _blenderBridgeState.server?.listening ?? false,
     port: 8080,
     currentStep: _blenderBridgeState.currentStep,
@@ -33859,7 +33879,7 @@ app.whenReady().then(() => {
     completedSteps: _blenderBridgeState.completedSteps.size,
   }));
 
-  ipcMain.handle('blender-bridge-set-steps', (_event, steps: { id: number; title: string; description: string }[]) => {
+  lateHandle('blender-bridge-set-steps', (_event, steps: { id: number; title: string; description: string }[]) => {
     _blenderBridgeState.steps = steps;
     _blenderBridgeState.currentStep = 0;
     _blenderBridgeState.completedSteps.clear();
@@ -34038,7 +34058,7 @@ app.whenReady().then(() => {
     return candidates.find(p => fs.existsSync(p)) || candidates[0];
   };
 
-  ipcMain.handle('check-local-ai', async () => {
+  lateHandle('check-local-ai', async () => {
     const runtimeDir = path.join(app.getPath('userData'), 'runtime');
     const modelsDir  = path.join(app.getPath('userData'), 'models');
     const koboldPath = _findKoboldExe();
@@ -34052,7 +34072,7 @@ app.whenReady().then(() => {
     return { ok: true, koboldcpp: { exists: koboldExists, path: koboldPath, size: koboldSize }, model: { exists: modelExists, path: modelPath, size: modelSize }, runtimeDir, modelsDir };
   });
 
-  ipcMain.handle('download-koboldcpp', async (event) => {
+  lateHandle('download-koboldcpp', async (event) => {
     const KOBOLD_DOWNLOAD_URL = 'https://github.com/LostRuins/koboldcpp/releases/latest/download/koboldcpp.exe';
     const TRUSTED_HOSTS = ['github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com'];
     const TIMEOUT_MS = 300_000;
@@ -34114,7 +34134,7 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('download-gguf-model', async (event, modelId?: string) => {
+  lateHandle('download-gguf-model', async (event, modelId?: string) => {
     const MODELS: Record<string, { url: string; filename: string; label: string; sizeHint: string }> = {
       tinyllama: {
         url: 'https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf',
@@ -34187,7 +34207,7 @@ app.whenReady().then(() => {
   });
 
   // ── KoboldCPP process management ──────────────────────────────────────────
-  ipcMain.handle('start-kobold', async (event) => {
+  lateHandle('start-kobold', async (event) => {
     const exePath   = _findKoboldExe();
     const modelPath = _findGgufModel();
     if (!fs.existsSync(exePath)) return { ok: false, error: `KoboldCPP not found. Checked: ${exePath}` };
@@ -34228,12 +34248,12 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('stop-kobold', async () => {
+  lateHandle('stop-kobold', async () => {
     if (_koboldProcess) { try { _koboldProcess.kill(); } catch { /* ignore */ } _koboldProcess = null; }
     return { ok: true };
   });
 
-  ipcMain.handle('kobold-status', async () => {
+  lateHandle('kobold-status', async () => {
     // Always probe the port — KoboldCPP may be running externally (not started by Mossy)
     try {
       const http = await import('http');
@@ -34250,7 +34270,7 @@ app.whenReady().then(() => {
   });
 
   // ── F4AI bridge composite status ──────────────────────────────────────────
-  ipcMain.handle('f4ai-bridge-status', async () => {
+  lateHandle('f4ai-bridge-status', async () => {
     // Re-discover the mod path if it wasn't found at startup (e.g. MO2 wasn't
     // running, or the user's portable drive wasn't mounted yet).
     if (F4AI_BASE === null) F4AI_BASE = _findF4aiBase();
@@ -34311,6 +34331,8 @@ app.whenReady().then(() => {
     };
   });
 
+  writeMainLog("Late IPC handlers registered (kobold + 'f4ai-bridge-status')");
+
   // ── Auto-setup: notify renderer on load if files are missing ──────────────
   if (mainWindow) {
     mainWindow.webContents.once('did-finish-load', () => {
@@ -34327,6 +34349,12 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+
+  writeMainLog('whenReady startup sequence complete');
+}).catch((err: any) => {
+  // Without this catch, any uncaught error in the startup callback above is
+  // swallowed as an unhandled rejection and startup dies silently mid-way.
+  writeMainLog(`FATAL error in whenReady startup: ${err?.stack || err?.message || err}`);
 });
 
 app.on('window-all-closed', () => {
@@ -34362,4 +34390,3 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason) => {
   console.error('[CRITICAL] Unhandled Rejection:', reason);
 });
-
