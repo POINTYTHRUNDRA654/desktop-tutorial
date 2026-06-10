@@ -2346,7 +2346,7 @@ function setupIpcHandlers() {
 
 
   // PDF parsing handler (runs in main process with Node.js)
-  ipcMain.handle('parse-pdf', async (_event, arrayBuffer: ArrayBuffer) => {
+  registerHandler('parse-pdf', async (_event, arrayBuffer: ArrayBuffer) => {
     try {
       const buffer = Buffer.from(arrayBuffer);
 
@@ -2364,7 +2364,7 @@ function setupIpcHandlers() {
   });
 
   // PSD parsing handler (runs in main process with Node.js)
-  ipcMain.handle('parse-psd', async (_event, arrayBuffer: ArrayBuffer) => {
+  registerHandler('parse-psd', async (_event, arrayBuffer: ArrayBuffer) => {
     try {
       const buffer = Buffer.from(arrayBuffer);
 
@@ -2404,7 +2404,7 @@ function setupIpcHandlers() {
   });
 
   // ABR parsing handler (Adobe Brush files)
-  ipcMain.handle('parse-abr', async (_event, arrayBuffer: ArrayBuffer) => {
+  registerHandler('parse-abr', async (_event, arrayBuffer: ArrayBuffer) => {
     try {
       const buffer = Buffer.from(arrayBuffer);
 
@@ -2441,7 +2441,7 @@ function setupIpcHandlers() {
   // NOTE: For security, the renderer should NOT pass API keys. This handler prefers
   // main-process stored secrets (safeStorage-encrypted settings) and env vars.
   // Back-compat: older renderers passed (apiKey, filename, projectId?, organizationId?).
-  ipcMain.handle('transcribe-video', async (_event, arrayBuffer: ArrayBuffer, ...args: any[]) => {
+  registerHandler('transcribe-video', async (_event, arrayBuffer: ArrayBuffer, ...args: any[]) => {
     let tempVideoPath: string | null = null;
     let tempAudioPath: string | null = null;
 
@@ -2646,7 +2646,7 @@ function setupIpcHandlers() {
   // Legacy cloud/backend fallback paths (OpenAI, backend proxy) remain available
   // via Settings → STT Provider if the user configures them.
   if (false) // eslint-disable-line no-constant-condition
-  ipcMain.handle('transcribe-audio--DISABLED', async (_event, arrayBuffer: ArrayBuffer, mimeType?: string) => {
+  registerHandler('transcribe-audio--DISABLED', async (_event, arrayBuffer: ArrayBuffer, mimeType?: string) => {
     console.error('🎤 [TRANSCRIBE-AUDIO] Handler called with arrayBuffer length:', arrayBuffer?.byteLength || 0, 'mimeType:', mimeType);
     let tempAudioPath: string | null = null;
 
@@ -3151,7 +3151,7 @@ function setupIpcHandlers() {
   });
 
   // Desktop shortcut handlers
-  ipcMain.handle('create-desktop-shortcut', async () => {
+  registerHandler('create-desktop-shortcut', async () => {
     try {
       const created = DesktopShortcutManager.createDesktopShortcut();
       return { success: created, message: created ? 'Desktop shortcut created successfully' : 'Failed to create desktop shortcut' };
@@ -3161,7 +3161,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('shortcut-exists', async () => {
+  registerHandler('shortcut-exists', async () => {
     try {
       return DesktopShortcutManager.shortcutExists();
     } catch (error) {
@@ -3170,7 +3170,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('get-settings', async () => {
+  registerHandler('get-settings', async () => {
     console.log('[Settings] get-settings called');
     const settings = loadSettings();
     const syncState = loadListSyncState();
@@ -3204,7 +3204,7 @@ function setupIpcHandlers() {
     });
   });
 
-  ipcMain.handle('set-settings', async (_event, newSettings: any) => {
+  registerHandler('set-settings', async (_event, newSettings: any) => {
     try {
       console.log('[Settings] set-settings called with keys:', Object.keys(newSettings || {}));
     } catch {
@@ -3263,7 +3263,7 @@ function setupIpcHandlers() {
     return;
   });
 
-  ipcMain.handle('list-sync:get-status', async () => {
+  registerHandler('list-sync:get-status', async () => {
     const settings = loadSettings();
     const state = loadListSyncState();
     return {
@@ -3276,7 +3276,7 @@ function setupIpcHandlers() {
     };
   });
 
-  ipcMain.handle('list-sync:sync-now', async () => {
+  registerHandler('list-sync:sync-now', async () => {
     const settings = loadSettings();
     const pull = await syncListsFromGitHub(settings);
     const refreshed = loadSettings();
@@ -3296,7 +3296,7 @@ function setupIpcHandlers() {
     return { ok, pull, push };
   });
 
-  ipcMain.handle('memory:append-event', async (_event, entry: any) => {
+  registerHandler('memory:append-event', async (_event, entry: any) => {
     try {
       const filePath = getMemoryFilePath('mossy-work-memory-events.jsonl');
       const payload = {
@@ -3315,7 +3315,7 @@ function setupIpcHandlers() {
     return getMemoryFilePath('chat-history.json');
   };
 
-  ipcMain.handle('save-chat-history', async (_event, messages: any[]) => {
+  registerHandler('save-chat-history', async (_event, messages: any[]) => {
     try {
       const filePath = getChatHistoryFilePath();
       fs.writeFileSync(filePath, JSON.stringify(messages, null, 2));
@@ -3327,7 +3327,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('load-chat-history', async () => {
+  registerHandler('load-chat-history', async () => {
     try {
       const filePath = getChatHistoryFilePath();
       if (!fs.existsSync(filePath)) {
@@ -3567,7 +3567,7 @@ function setupIpcHandlers() {
   });
 
   // Desktop Bridge: check Blender Mossy Link add-on socket
-  ipcMain.handle('check-blender-addon', async () => {
+  registerHandler('check-blender-addon', async () => {
     try {
       const net = await import('net');
       return await new Promise<{ connected: boolean; error?: string }>((resolve) => {
@@ -3697,7 +3697,7 @@ function setupIpcHandlers() {
    * @param commandData - Command payload (varies by type)
    * @param token - Optional authentication token (matches prefs.token in Blender)
    */
-  ipcMain.handle('send-blender-command', async (_event, commandType: string, commandData: any = {}, token?: string) => {
+  registerHandler('send-blender-command', async (_event, commandType: string, commandData: any = {}, token?: string) => {
     try {
       // AUTO-SEND PYTORCH PATH ON FIRST BLENDER COMMAND
       if (!_blenderPytorchPathSent) {
@@ -3760,7 +3760,7 @@ function setupIpcHandlers() {
   });
 
   // Regenerate Blender Link authentication token
-  ipcMain.handle('invoke-blender-token-regen', async () => {
+  registerHandler('invoke-blender-token-regen', async () => {
     try {
       const newToken = crypto.randomBytes(16).toString('hex');
       const settings = loadSettings();
@@ -3783,7 +3783,7 @@ function setupIpcHandlers() {
    * Sends the PyTorch installation path to the Blender add-on
    * The add-on will inject it into sys.path for torch imports
    */
-  ipcMain.handle('send-pytorch-path-to-blender', async () => {
+  registerHandler('send-pytorch-path-to-blender', async () => {
     try {
       const s = loadSettings();
       const pytorchPath = s?.pytorchPath as string | undefined;
@@ -3838,7 +3838,7 @@ function setupIpcHandlers() {
    * Exposes Mossy's available AI models, tools, and features to Blender
    * Returns list of capabilities that Blender can access
    */
-  ipcMain.handle('get-mossy-capabilities', async () => {
+  registerHandler('get-mossy-capabilities', async () => {
     try {
       const s = loadSettings();
       const openaiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
@@ -3904,7 +3904,7 @@ function setupIpcHandlers() {
    * Sends a query to Mossy AI and returns a response
    * Used for real-time guidance and assistance
    */
-  ipcMain.handle('blender-query-ai', async (_event, params: { query: string; context?: string; model?: string; temperature?: number }) => {
+  registerHandler('blender-query-ai', async (_event, params: { query: string; context?: string; model?: string; temperature?: number }) => {
     try {
       const { query, context, model, temperature } = params;
       if (!query || typeof query !== 'string') {
@@ -3961,7 +3961,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
    * Handler: blender-pytorch-inference
    * Allows Blender to run PyTorch models for image enhancement, super-resolution, etc.
    */
-  ipcMain.handle('blender-pytorch-inference', async (_event, params: { model: string; imagePath: string; outputPath: string; options?: Record<string, any> }) => {
+  registerHandler('blender-pytorch-inference', async (_event, params: { model: string; imagePath: string; outputPath: string; options?: Record<string, any> }) => {
     try {
       const { model, imagePath, outputPath, options } = params;
 
@@ -4010,7 +4010,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
    * Calls a Mossy tool function from Blender
    * Available tools: script-execution, mesh-analysis, texture-generation, etc.
    */
-  ipcMain.handle('blender-call-mossy-tool', async (_event, params: { tool: string; action: string; payload?: any }) => {
+  registerHandler('blender-call-mossy-tool', async (_event, params: { tool: string; action: string; payload?: any }) => {
     try {
       const { tool, action, payload } = params;
 
@@ -4102,7 +4102,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
    * Handler: blender-export-asset
    * Handles optimized asset export from Blender with Fallout 4 validation
    */
-  ipcMain.handle('blender-export-asset', async (_event, params: { filepath: string; format: 'nif' | 'fbx' | 'obj'; optimize?: boolean }) => {
+  registerHandler('blender-export-asset', async (_event, params: { filepath: string; format: 'nif' | 'fbx' | 'obj'; optimize?: boolean }) => {
     try {
       const { filepath, format, optimize } = params;
 
@@ -4135,13 +4135,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // Live token generation is disabled.
-  ipcMain.handle('generate-live-token', async () => {
+  registerHandler('generate-live-token', async () => {
     throw new Error('Live token generation is disabled.');
   });
 
   // Get real system information
   // Get real performance telemetry
-  ipcMain.handle('get-performance', async () => {
+  registerHandler('get-performance', async () => {
     try {
       const os = require('os');
       const totalMem = os.totalmem();
@@ -4174,7 +4174,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     }
   });
 
-  ipcMain.handle('get-system-info', async () => {
+  registerHandler('get-system-info', async () => {
     console.log('[Main] get-system-info IPC handler called');
     const { exec } = require('child_process');
     const util = require('util');
@@ -6189,7 +6189,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // --- Texture Generator: Generate complete PBR material set ---
-  ipcMain.handle('texture-generator:generate-material-set', async (_event, input: any) => {
+  registerHandler('texture-generator:generate-material-set', async (_event, input: any) => {
     try {
       if (!input || !input.sourceImage) {
         return { success: false, error: 'No source image provided' };
@@ -6281,7 +6281,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // --- Texture Generator: Generate specific map type ---
-  ipcMain.handle('texture-generator:generate-map', async (_event, mapType: string, sourceImage: string, settings?: any) => {
+  registerHandler('texture-generator:generate-map', async (_event, mapType: string, sourceImage: string, settings?: any) => {
     try {
       if (!sourceImage || !fs.existsSync(sourceImage)) {
         return { success: false, error: `Source image not found: ${sourceImage}` };
@@ -6335,7 +6335,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // --- Texture Generator: Make texture seamlessly tileable ---
-  ipcMain.handle('texture-generator:make-seamless', async (_event, imagePath: string, blendRadius?: number) => {
+  registerHandler('texture-generator:make-seamless', async (_event, imagePath: string, blendRadius?: number) => {
     try {
       if (!imagePath || !fs.existsSync(imagePath)) {
         return { success: false, error: `Image not found: ${imagePath}` };
@@ -6382,7 +6382,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // --- Texture Generator: AI upscale texture ---
-  ipcMain.handle('texture-generator:upscale', async (_event, imagePath: string, factor?: number) => {
+  registerHandler('texture-generator:upscale', async (_event, imagePath: string, factor?: number) => {
     try {
       if (!imagePath || !fs.existsSync(imagePath)) {
         return { success: false, error: `Image not found: ${imagePath}` };
@@ -6430,7 +6430,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // --- Texture Generator: Generate procedural texture ---
-  ipcMain.handle('texture-generator:generate-procedural', async (_event, textureType: string, settings?: any) => {
+  registerHandler('texture-generator:generate-procedural', async (_event, textureType: string, settings?: any) => {
     try {
       if (!textureType) {
         return { success: false, error: 'Texture type not specified' };
@@ -7699,7 +7699,7 @@ end.
   });
 
   // --- FS: Stat path (exists/isFile/isDirectory) ---
-  ipcMain.handle('fs-stat', async (_event, targetPath: string) => {
+  registerHandler('fs-stat', async (_event, targetPath: string) => {
     try {
       if (!targetPath || typeof targetPath !== 'string') {
         return { exists: false, isFile: false, isDirectory: false };
@@ -7718,7 +7718,7 @@ end.
 
   // --- FS: Get directory stats (file count, total size, last-modified) ---
   // Used by BackupManager to populate snapshot metadata.
-  ipcMain.handle('get-directory-stats', async (_event, dirPath: string) => {
+  registerHandler('get-directory-stats', async (_event, dirPath: string) => {
     try {
       if (!dirPath || !fs.existsSync(dirPath)) return { fileCount: 0, totalBytes: 0, lastModified: null };
       let fileCount = 0;
@@ -7750,7 +7750,7 @@ end.
   });
 
   // --- FS: Pick directory (native dialog) ---
-  ipcMain.handle('pick-directory', async (_event, title?: string) => {
+  registerHandler('pick-directory', async (_event, title?: string) => {
     try {
       if (!mainWindow) {
         return '';
@@ -8725,7 +8725,7 @@ end.
   });
 
   // Save file handler (with save dialog)
-  ipcMain.handle('save-file', async (_event, content: string, filename: string) => {
+  registerHandler('save-file', async (_event, content: string, filename: string) => {
     try {
       const safeName = String(filename || 'export.txt').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'export.txt';
       const defaultDir = path.join(os.homedir(), 'Downloads');
@@ -8780,7 +8780,7 @@ end.
   });
 
   // Pick JSON file handler (native open dialog)
-  ipcMain.handle('pick-json-file', async () => {
+  registerHandler('pick-json-file', async () => {
     try {
       const win = BrowserWindow.getFocusedWindow() || mainWindow;
       const options = {
@@ -9681,7 +9681,7 @@ end.
    * AI Script Generation Handler
    * Generates Papyrus, XML, or Python scripts from natural language description
    */
-  ipcMain.handle('ai-generate-script', async (_event, req: { description: string; language?: 'papyrus' | 'xml' | 'python' | 'json'; context?: Record<string, any>; style?: 'commented' | 'minimal' }) => {
+  registerHandler('ai-generate-script', async (_event, req: { description: string; language?: 'papyrus' | 'xml' | 'python' | 'json'; context?: Record<string, any>; style?: 'commented' | 'minimal' }) => {
     try {
       const language = req.language || 'papyrus';
       const style = req.style || 'commented';
@@ -9799,7 +9799,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Mining Infrastructure Handlers
-  ipcMain.handle('start-mining-pipeline', async (_event, sources: any) => {
+  registerHandler('start-mining-pipeline', async (_event, sources: any) => {
     try {
       // Reset mining state
       miningState = {
@@ -9843,7 +9843,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('parse-esp-file', async (_event, filePath: string) => {
+  registerHandler('parse-esp-file', async (_event, filePath: string) => {
     try {
       const filePathValidation = IpcValidation.isValidFilePath(filePath);
       if (!filePathValidation.valid) {
@@ -9862,7 +9862,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('build-dependency-graph', async (_event, modFiles: string[]) => {
+  registerHandler('build-dependency-graph', async (_event, modFiles: string[]) => {
     try {
       if (!Array.isArray(modFiles)) {
         return IpcResponseBuilder.error('modFiles must be an array', IpcErrorCode.VALIDATION_ERROR);
@@ -9881,7 +9881,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('get-mining-status', async () => {
+  registerHandler('get-mining-status', async () => {
     const elapsed = miningState.startTime ? Date.now() - miningState.startTime : 0;
     return IpcResponseBuilder.success({
       active: miningState.active,
@@ -9895,7 +9895,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   // Advanced Analysis Engine handler - TEMPORARILY DISABLED due to mining engine errors
   /*
-  ipcMain.handle('get-advanced-analysis-engine', async () => {
+  registerHandler('get-advanced-analysis-engine', async () => {
     try {
       // Dynamic import to avoid loading heavy ML dependencies at startup
       const { AdvancedAnalysisEngineImpl } = await import('../mining/advanced-analysis-engine');
@@ -9909,7 +9909,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   */
 
   // Analyze patterns in mod data
-  ipcMain.handle('analyze-patterns', async (_event, data: any) => {
+  registerHandler('analyze-patterns', async (_event, data: any) => {
     try {
       if (!data) {
         return IpcResponseBuilder.error('No data provided for pattern analysis', IpcErrorCode.VALIDATION_ERROR);
@@ -9966,7 +9966,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Predict conflicts between mods
-  ipcMain.handle('predict-conflicts', async (_event, modA: string, modB: string) => {
+  registerHandler('predict-conflicts', async (_event, modA: string, modB: string) => {
     try {
       IpcValidation.isNonEmptyString(modA, 'modA');
       IpcValidation.isNonEmptyString(modB, 'modB');
@@ -10017,7 +10017,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Analyze performance bottlenecks
-  ipcMain.handle('analyze-bottlenecks', async (_event, performanceData: any) => {
+  registerHandler('analyze-bottlenecks', async (_event, performanceData: any) => {
     try {
       if (!performanceData) {
         return IpcResponseBuilder.error('No performance data provided', IpcErrorCode.VALIDATION_ERROR);
@@ -10102,7 +10102,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Analyze memory patterns
-  ipcMain.handle('analyze-memory', async (_event, memoryData: any) => {
+  registerHandler('analyze-memory', async (_event, memoryData: any) => {
     try {
       if (!memoryData) {
         return IpcResponseBuilder.error('No memory data provided', IpcErrorCode.VALIDATION_ERROR);
@@ -10183,7 +10183,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Voice chat message handler
-  ipcMain.handle('sendMessage', async (_event, message: any) => {
+  registerHandler('sendMessage', async (_event, message: any) => {
     const isPayload = typeof message === 'object' && message !== null && typeof message.text === 'string';
     const messageText = isPayload ? String(message.text || '') : String(message || '');
     const correlationId = isPayload && typeof message.correlationId === 'string' ? message.correlationId : undefined;
@@ -10343,7 +10343,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     roadmapStorage.set(id, rm);
   }
 
-  ipcMain.handle('roadmap-get-all', async (_event) => {
+  registerHandler('roadmap-get-all', async (_event) => {
     const startTime = Date.now();
     try {
       const roadmaps = Array.from(roadmapStorage.values());
@@ -10371,7 +10371,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('roadmap-generate-ai', async (_event, params: { prompt: string; projectId: string }) => {
+  registerHandler('roadmap-generate-ai', async (_event, params: { prompt: string; projectId: string }) => {
     const startTime = Date.now();
     try {
       const { prompt, projectId } = params;
@@ -10433,7 +10433,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('roadmap-update-step', async (_event, params: { roadmapId: string; stepId: string; status: string }) => {
+  registerHandler('roadmap-update-step', async (_event, params: { roadmapId: string; stepId: string; status: string }) => {
     const startTime = Date.now();
     try {
       const { roadmapId, stepId, status } = params;
@@ -10490,7 +10490,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('roadmap-create', async (_event, params: { name: string; description?: string; projectId?: string }) => {
+  registerHandler('roadmap-create', async (_event, params: { name: string; description?: string; projectId?: string }) => {
     const startTime = Date.now();
     try {
       const { name, description = '', projectId = 'default' } = params;
@@ -10592,7 +10592,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('roadmap-delete', async (_event, roadmapId: string) => {
+  registerHandler('roadmap-delete', async (_event, roadmapId: string) => {
     const startTime = Date.now();
     try {
       // Validate roadmapId parameter
@@ -10664,7 +10664,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('roadmap-get-active', async (_event) => {
+  registerHandler('roadmap-get-active', async (_event) => {
     const startTime = Date.now();
     try {
       // Find roadmap marked as active, or return the most recently created
@@ -10967,7 +10967,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   }
 
   // Get all What's New entries
-  ipcMain.handle('whats-new-get-all', async (_event) => {
+  registerHandler('whats-new-get-all', async (_event) => {
     const startTime = Date.now();
     try {
       const entries = Array.from(whatsNewStorage.values());
@@ -11063,7 +11063,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Get full changelog (all entries as markdown)
-  ipcMain.handle('whats-new-get-changelog', async (_event) => {
+  registerHandler('whats-new-get-changelog', async (_event) => {
     const startTime = Date.now();
     try {
       const entries = Array.from(whatsNewStorage.values())
@@ -11140,7 +11140,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Mark a version as seen
-  ipcMain.handle('whats-new-mark-seen', async (_event, params: { version: string }) => {
+  registerHandler('whats-new-mark-seen', async (_event, params: { version: string }) => {
     const startTime = Date.now();
     try {
       const { version } = params;
@@ -11205,7 +11205,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Dismiss a version permanently
-  ipcMain.handle('whats-new-dismiss', async (_event, params: { version: string }) => {
+  registerHandler('whats-new-dismiss', async (_event, params: { version: string }) => {
     const startTime = Date.now();
     try {
       const { version } = params;
@@ -11270,7 +11270,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Reset dismissals (useful for testing)
-  ipcMain.handle('whats-new-reset', async (_event) => {
+  registerHandler('whats-new-reset', async (_event) => {
     const startTime = Date.now();
     try {
       const currentSettings = loadSettings();
@@ -11318,7 +11318,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // connect to a persistent database or file storage
   const questEditor = require('../mining/questEditor').questEditor;
 
-  ipcMain.handle('quest:create', async (_event, questData: any) => {
+  registerHandler('quest:create', async (_event, questData: any) => {
     try {
       console.log('[Main] quest:create handler called');
       const quest = questEditor.createQuest(questData);
@@ -11329,7 +11329,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest:load', async (_event, questId: string) => {
+  registerHandler('quest:load', async (_event, questId: string) => {
     try {
       console.log('[Main] quest:load handler called for questId:', questId);
       const quest = questEditor.loadQuest(questId);
@@ -11343,7 +11343,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest:save', async (_event, questId: string) => {
+  registerHandler('quest:save', async (_event, questId: string) => {
     try {
       console.log('[Main] quest:save handler called for questId:', questId);
       const result = questEditor.saveQuest(questId);
@@ -11354,7 +11354,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest:validate', async (_event, questId: string) => {
+  registerHandler('quest:validate', async (_event, questId: string) => {
     try {
       console.log('[Main] quest:validate handler called for questId:', questId);
       const validation = questEditor.validateQuest(questId);
@@ -11365,7 +11365,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest:simulate', async (_event, questId: string) => {
+  registerHandler('quest:simulate', async (_event, questId: string) => {
     try {
       console.log('[Main] quest:simulate handler called for questId:', questId);
       const result = questEditor.simulateQuestFlow(questId);
@@ -11376,7 +11376,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest:generateScript', async (_event, questId: string) => {
+  registerHandler('quest:generateScript', async (_event, questId: string) => {
     try {
       console.log('[Main] quest:generateScript handler called for questId:', questId);
       const papyrusCode = questEditor.generateQuestScript(questId);
@@ -11390,7 +11390,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest:generateDialogueFragments', async (_event, questId: string) => {
+  registerHandler('quest:generateDialogueFragments', async (_event, questId: string) => {
     try {
       console.log('[Main] quest:generateDialogueFragments handler called for questId:', questId);
       const fragments = questEditor.generateDialogueFragments(questId);
@@ -11406,7 +11406,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // Note: handlers map renderer payloads to the existing QuestEditorEngine API
   // --------------------------------------------------------------------------
 
-  ipcMain.handle('quest-editor:create-quest', async (_event, name: string, type: QuestType = 'side', description: string = '') => {
+  registerHandler('quest-editor:create-quest', async (_event, name: string, type: QuestType = 'side', description: string = '') => {
     try {
       console.log('[Main] quest-editor:create-quest', { name, type });
       const id = `quest_${Date.now()}`;
@@ -11418,7 +11418,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest-editor:load-quest', async (_event, espPath: string | undefined, questId: string) => {
+  registerHandler('quest-editor:load-quest', async (_event, espPath: string | undefined, questId: string) => {
     try {
       console.log('[Main] quest-editor:load-quest', { espPath, questId });
       // espPath support (loading from disk) is not yet implemented — load from in-memory engine
@@ -11431,7 +11431,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest-editor:save-quest', async (_event, quest: Quest, espPath?: string) => {
+  registerHandler('quest-editor:save-quest', async (_event, quest: Quest, espPath?: string) => {
     try {
       console.log('[Main] quest-editor:save-quest', { questId: quest?.id, espPath });
       if (!quest || !quest.id) return { success: false, error: 'Invalid quest payload' };
@@ -11444,7 +11444,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest-editor:add-stage', async (_event, quest: Quest, stage: QuestStage) => {
+  registerHandler('quest-editor:add-stage', async (_event, quest: Quest, stage: QuestStage) => {
     try {
       console.log('[Main] quest-editor:add-stage', { questId: quest?.id, stageIndex: stage?.index });
       if (!quest || !quest.id || !stage) return { success: false, error: 'Invalid payload' };
@@ -11457,7 +11457,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest-editor:generate-script', async (_event, quest: Quest) => {
+  registerHandler('quest-editor:generate-script', async (_event, quest: Quest) => {
     try {
       console.log('[Main] quest-editor:generate-script', { questId: quest?.id });
       if (!quest || !quest.id) return { success: false, error: 'Invalid quest payload' };
@@ -11470,7 +11470,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest-editor:create-dialogue', async (_event, npc: string, topic: string, questId?: string) => {
+  registerHandler('quest-editor:create-dialogue', async (_event, npc: string, topic: string, questId?: string) => {
     try {
       console.log('[Main] quest-editor:create-dialogue', { npc, topic, questId });
       const id = `dlg_${Date.now()}`;
@@ -11482,7 +11482,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest-editor:validate', async (_event, quest: Quest) => {
+  registerHandler('quest-editor:validate', async (_event, quest: Quest) => {
     try {
       console.log('[Main] quest-editor:validate', { questId: quest?.id });
       if (!quest || !quest.id) return { success: false, error: 'Invalid quest payload' };
@@ -11494,7 +11494,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('quest-editor:simulate', async (_event, quest: Quest, /* choices: UserChoice[] (ignored) */) => {
+  registerHandler('quest-editor:simulate', async (_event, quest: Quest, /* choices: UserChoice[] (ignored) */) => {
     try {
       console.log('[Main] quest-editor:simulate', { questId: quest?.id });
       if (!quest || !quest.id) return { success: false, error: 'Invalid quest payload' };
@@ -11512,7 +11512,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // --------------------------------------------------------------------------
   const cellEditor = require('../mining/cellEditor').cellEditor;
 
-  ipcMain.handle('cell-editor:load-cell', async (_event, espPath: string | undefined, cellId: string) => {
+  registerHandler('cell-editor:load-cell', async (_event, espPath: string | undefined, cellId: string) => {
     try {
       console.log('[Main] cell-editor:load-cell', { espPath, cellId });
       const cell = await cellEditor.loadCell(espPath || '', cellId);
@@ -11523,7 +11523,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:save-cell', async (_event, cell: any, espPath?: string) => {
+  registerHandler('cell-editor:save-cell', async (_event, cell: any, espPath?: string) => {
     try {
       console.log('[Main] cell-editor:save-cell', { cellId: cell?.id, espPath });
       if (!cell || !cell.id) return { success: false, error: 'Invalid cell payload' };
@@ -11535,7 +11535,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:create-cell', async (_event, name: string, type: string) => {
+  registerHandler('cell-editor:create-cell', async (_event, name: string, type: string) => {
     try {
       console.log('[Main] cell-editor:create-cell', { name, type });
       const cell = await cellEditor.createCell(name, type as any);
@@ -11546,7 +11546,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:place-object', async (_event, cell: any, baseObject: string, position: any, rotation: any) => {
+  registerHandler('cell-editor:place-object', async (_event, cell: any, baseObject: string, position: any, rotation: any) => {
     try {
       console.log('[Main] cell-editor:place-object', { cellId: cell?.id, baseObject, position });
       const ref = await cellEditor.placeObject(cell, baseObject, position, rotation);
@@ -11557,7 +11557,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:move-object', async (_event, refId: string, position: any) => {
+  registerHandler('cell-editor:move-object', async (_event, refId: string, position: any) => {
     try {
       await cellEditor.moveObject(refId, position);
       return { success: true };
@@ -11567,7 +11567,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:delete-object', async (_event, refId: string) => {
+  registerHandler('cell-editor:delete-object', async (_event, refId: string) => {
     try {
       await cellEditor.deleteObject(refId);
       return { success: true };
@@ -11577,7 +11577,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:duplicate-object', async (_event, refId: string, offset: any) => {
+  registerHandler('cell-editor:duplicate-object', async (_event, refId: string, offset: any) => {
     try {
       const dup = await cellEditor.duplicateObject(refId, offset);
       return { success: true, data: dup };
@@ -11587,7 +11587,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:generate-navmesh', async (_event, cell: any, settings: any) => {
+  registerHandler('cell-editor:generate-navmesh', async (_event, cell: any, settings: any) => {
     try {
       console.log('[Main] cell-editor:generate-navmesh', { cellId: cell?.id });
       const nm = await cellEditor.generateNavmesh(cell, settings || {});
@@ -11598,7 +11598,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:edit-navmesh', async (_event, navmesh: any, triangles: any[]) => {
+  registerHandler('cell-editor:edit-navmesh', async (_event, navmesh: any, triangles: any[]) => {
     try {
       await cellEditor.editNavmesh(navmesh, triangles);
       return { success: true };
@@ -11608,7 +11608,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:finalize-navmesh', async (_event, navmesh: any) => {
+  registerHandler('cell-editor:finalize-navmesh', async (_event, navmesh: any) => {
     try {
       await cellEditor.finalizeNavmesh(navmesh);
       return { success: true };
@@ -11618,7 +11618,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:place-light', async (_event, cell: any, light: any) => {
+  registerHandler('cell-editor:place-light', async (_event, cell: any, light: any) => {
     try {
       const ref = await cellEditor.placeLightSource(cell, light);
       return { success: true, data: ref };
@@ -11628,7 +11628,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:bake-ao', async (_event, cell: any) => {
+  registerHandler('cell-editor:bake-ao', async (_event, cell: any) => {
     try {
       const ao = await cellEditor.bakeAmbientOcclusion(cell);
       return { success: true, data: ao };
@@ -11638,7 +11638,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:generate-collision', async (_event, staticCollection: any[]) => {
+  registerHandler('cell-editor:generate-collision', async (_event, staticCollection: any[]) => {
     try {
       const col = await cellEditor.generateCollision(staticCollection);
       return { success: true, data: col };
@@ -11648,7 +11648,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:generate-occlusion-planes', async (_event, cell: any) => {
+  registerHandler('cell-editor:generate-occlusion-planes', async (_event, cell: any) => {
     try {
       const occ = await cellEditor.generateOcclusionPlanes(cell);
       return { success: true, data: occ };
@@ -11659,7 +11659,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Backwards-compatible alias: some callers use the shorter channel name `generate-occlusion`.
-  ipcMain.handle('cell-editor:generate-occlusion', async (_event, cell: any) => {
+  registerHandler('cell-editor:generate-occlusion', async (_event, cell: any) => {
     try {
       console.log('[Main] cell-editor:generate-occlusion (alias) received', { cellId: cell?.id });
       const occ = await cellEditor.generateOcclusionPlanes(cell);
@@ -11670,7 +11670,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('cell-editor:create-combined-mesh', async (_event, references: any[]) => {
+  registerHandler('cell-editor:create-combined-mesh', async (_event, references: any[]) => {
     try {
       const mesh = await cellEditor.createCombinedMesh(references);
       return { success: true, data: mesh };
@@ -11685,7 +11685,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // --------------------------------------------------------------------------
   const audioEditor = require('../mining/audioEditor').audioEditor;
 
-  ipcMain.handle('audio-editor:convert-to-xwm', async (_event, wavPath: string, quality = 80) => {
+  registerHandler('audio-editor:convert-to-xwm', async (_event, wavPath: string, quality = 80) => {
     try {
       const result = await audioEditor.convertToXWM(wavPath, quality);
       return result;
@@ -11695,7 +11695,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:convert-to-fuz', async (_event, wavPath: string, lipPath?: string) => {
+  registerHandler('audio-editor:convert-to-fuz', async (_event, wavPath: string, lipPath?: string) => {
     try {
       const result = await audioEditor.convertToFUZ(wavPath, lipPath);
       return result;
@@ -11705,7 +11705,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:batch-convert', async (_event, files: string[], format: string) => {
+  registerHandler('audio-editor:batch-convert', async (_event, files: string[], format: string) => {
     try {
       const result = await audioEditor.batchConvertAudio(files, format as any);
       return result;
@@ -11715,7 +11715,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:generate-lipsync', async (_event, wavPath: string, text: string) => {
+  registerHandler('audio-editor:generate-lipsync', async (_event, wavPath: string, text: string) => {
     try {
       const lip = await audioEditor.generateLipSync(wavPath, text);
       return { success: true, data: lip };
@@ -11725,7 +11725,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:phoneme-analysis', async (_event, wavPath: string) => {
+  registerHandler('audio-editor:phoneme-analysis', async (_event, wavPath: string) => {
     try {
       const data = await audioEditor.phonemeAnalysis(wavPath);
       return { success: true, data };
@@ -11735,7 +11735,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:create-music-track', async (_event, name: string, layers: any[], type?: string) => {
+  registerHandler('audio-editor:create-music-track', async (_event, name: string, layers: any[], type?: string) => {
     try {
       const track = await audioEditor.createMusicTrack(name, layers, type as any);
       return { success: true, data: track };
@@ -11745,7 +11745,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:set-music-conditions', async (_event, track: any, conditions: any[]) => {
+  registerHandler('audio-editor:set-music-conditions', async (_event, track: any, conditions: any[]) => {
     try {
       await audioEditor.setMusicConditions(track, conditions);
       return { success: true };
@@ -11755,7 +11755,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:create-playlist', async (_event, tracks: string[], transitionType = 'crossfade', transitionDuration = 1.0, shuffle = false) => {
+  registerHandler('audio-editor:create-playlist', async (_event, tracks: string[], transitionType = 'crossfade', transitionDuration = 1.0, shuffle = false) => {
     try {
       const pl = await audioEditor.createMusicPlaylist(tracks, transitionType, transitionDuration, shuffle);
       return { success: true, data: pl };
@@ -11765,7 +11765,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:create-descriptor', async (_event, sound: any) => {
+  registerHandler('audio-editor:create-descriptor', async (_event, sound: any) => {
     try {
       const id = await audioEditor.createSoundDescriptor(sound);
       return { success: true, data: id };
@@ -11775,7 +11775,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:set-3d-attenuation', async (_event, descriptorId: string, curve: any) => {
+  registerHandler('audio-editor:set-3d-attenuation', async (_event, descriptorId: string, curve: any) => {
     try {
       await audioEditor.set3DAttenuation(descriptorId, curve);
       return { success: true };
@@ -11785,7 +11785,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:play-audio', async (_event, audioPath: string) => {
+  registerHandler('audio-editor:play-audio', async (_event, audioPath: string) => {
     try {
       await audioEditor.playAudio(audioPath);
       return { success: true };
@@ -11795,7 +11795,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:stop-audio', async () => {
+  registerHandler('audio-editor:stop-audio', async () => {
     try {
       await audioEditor.stopAudio();
       return { success: true };
@@ -11805,7 +11805,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:create-ambient', async (_event, sounds: string[], layering: string) => {
+  registerHandler('audio-editor:create-ambient', async (_event, sounds: string[], layering: string) => {
     try {
       const amb = await audioEditor.createAmbientSound(sounds, layering as any);
       return { success: true, data: amb };
@@ -11815,7 +11815,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:normalize-volume', async (_event, audioFiles: string[]) => {
+  registerHandler('audio-editor:normalize-volume', async (_event, audioFiles: string[]) => {
     try {
       await audioEditor.normalizeVolume(audioFiles);
       return { success: true };
@@ -11825,7 +11825,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:remove-noise', async (_event, audioPath: string, strength = 0.5) => {
+  registerHandler('audio-editor:remove-noise', async (_event, audioPath: string, strength = 0.5) => {
     try {
       const out = await audioEditor.removeNoise(audioPath, strength);
       return { success: true, data: out };
@@ -11835,7 +11835,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:apply-effect', async (_event, audioPath: string, effect: any) => {
+  registerHandler('audio-editor:apply-effect', async (_event, audioPath: string, effect: any) => {
     try {
       const out = await audioEditor.applyEffect(audioPath, effect);
       return { success: true, data: out };
@@ -11846,7 +11846,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Backwards-compatible short-channel aliases (use singleton; do NOT new-up engine per call)
-  ipcMain.handle('audio-editor:convert-xwm', async (_event, wavPath: string, quality = 80) => {
+  registerHandler('audio-editor:convert-xwm', async (_event, wavPath: string, quality = 80) => {
     try {
       const result = await audioEditor.convertToXWM(wavPath, quality);
       return result;
@@ -11858,7 +11858,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   // `generate-lipsync` already exists above — keep single implementation
 
-  ipcMain.handle('audio-editor:create-music', async (_event, name: string, layers: any[], type?: string) => {
+  registerHandler('audio-editor:create-music', async (_event, name: string, layers: any[], type?: string) => {
     try {
       const track = await audioEditor.createMusicTrack(name, layers, type as any);
       return { success: true, data: track };
@@ -11868,7 +11868,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:play', async (_event, audioPath: string) => {
+  registerHandler('audio-editor:play', async (_event, audioPath: string) => {
     try {
       await audioEditor.playAudio(audioPath);
       return { success: true };
@@ -11878,7 +11878,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:stop', async () => {
+  registerHandler('audio-editor:stop', async () => {
     try {
       await audioEditor.stopAudio();
       return { success: true };
@@ -11888,7 +11888,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audio-editor:normalize', async (_event, audioFiles: string[]) => {
+  registerHandler('audio-editor:normalize', async (_event, audioFiles: string[]) => {
     try {
       await audioEditor.normalizeVolume(audioFiles);
       return { success: true };
@@ -11903,7 +11903,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // Documentation generator IPC handlers (renderer -> main) — adapters for DocumentationGeneratorEngine
   const documentationGenerator = require('../mining/documentationGenerator').documentationGenerator;
 
-  ipcMain.handle('docs:generate-project', async (_event, projectPath: string) => {
+  registerHandler('docs:generate-project', async (_event, projectPath: string) => {
     try {
       return await documentationGenerator.generateProjectDocs(projectPath);
     } catch (error: any) {
@@ -11912,7 +11912,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('docs:generate-readme', async (_event, projectData: any, template?: string) => {
+  registerHandler('docs:generate-readme', async (_event, projectData: any, template?: string) => {
     try {
       return await documentationGenerator.generateReadme(projectData, template);
     } catch (error: any) {
@@ -11921,7 +11921,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('docs:generate-api', async (_event, code: string, language: string) => {
+  registerHandler('docs:generate-api', async (_event, code: string, language: string) => {
     try {
       return await documentationGenerator.generateAPIDoc(code, language as any);
     } catch (error: any) {
@@ -11930,7 +11930,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('docs:document-assets', async (_event, assetFolder: string) => {
+  registerHandler('docs:document-assets', async (_event, assetFolder: string) => {
     try {
       return await documentationGenerator.documentAssets(assetFolder);
     } catch (error: any) {
@@ -11939,7 +11939,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('docs:generate-wiki', async (_event, project: any) => {
+  registerHandler('docs:generate-wiki', async (_event, project: any) => {
     try {
       return await documentationGenerator.generateWiki(project);
     } catch (error: any) {
@@ -11948,7 +11948,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('docs:export', async (_event, doc: any, format: string) => {
+  registerHandler('docs:export', async (_event, doc: any, format: string) => {
     try {
       switch (format) {
         case 'markdown':
@@ -11986,7 +11986,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     return learningEngine;
   };
 
-  ipcMain.handle('learning:get-tutorial', async (_event, tutorialId: string) => {
+  registerHandler('learning:get-tutorial', async (_event, tutorialId: string) => {
     try {
       const engine = ensureLearningEngine('get-tutorial');
       const result = await engine.getTutorial(tutorialId);
@@ -11997,7 +11997,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('learning:list-tutorials', async (_event, category?: string) => {
+  registerHandler('learning:list-tutorials', async (_event, category?: string) => {
     try {
       const engine = ensureLearningEngine('list-tutorials');
       const result = await engine.listTutorials(category);
@@ -12008,7 +12008,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('learning:track-progress', async (_event, userId: string, tutorialId: string, step: number | string) => {
+  registerHandler('learning:track-progress', async (_event, userId: string, tutorialId: string, step: number | string) => {
     try {
       const engine = ensureLearningEngine('track-progress');
       const tut = await engine.getTutorial(tutorialId);
@@ -12025,7 +12025,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('learning:submit-exercise', async (_event, exerciseId: string, answer: any) => {
+  registerHandler('learning:submit-exercise', async (_event, exerciseId: string, answer: any) => {
     try {
       const engine = ensureLearningEngine('submit-exercise');
       const result = await engine.validateExercise(exerciseId, answer);
@@ -12036,7 +12036,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('learning:get-achievements', async (_event, userId: string) => {
+  registerHandler('learning:get-achievements', async (_event, userId: string) => {
     try {
       const engine = ensureLearningEngine('get-achievements');
       const all = await engine.listAchievements();
@@ -12050,7 +12050,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('learning:get-user-progress', async (_event, userId: string) => {
+  registerHandler('learning:get-user-progress', async (_event, userId: string) => {
     try {
       const engine = ensureLearningEngine('get-user-progress');
       const result = await engine.getUserProgress(userId);
@@ -12061,7 +12061,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('learning:complete-step', async (_event, userId: string, stepId: string) => {
+  registerHandler('learning:complete-step', async (_event, userId: string, stepId: string) => {
     try {
       const engine = ensureLearningEngine('complete-step');
       const result = await engine.completeStep(userId, stepId);
@@ -12072,7 +12072,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('learning:provide-hint', async (_event, exerciseId: string, currentAttempt: any) => {
+  registerHandler('learning:provide-hint', async (_event, exerciseId: string, currentAttempt: any) => {
     try {
       const engine = ensureLearningEngine('provide-hint');
       const result = await engine.provideHint(exerciseId, currentAttempt);
@@ -12083,7 +12083,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('learning:unlock-achievement', async (_event, userId: string, achievementId: string) => {
+  registerHandler('learning:unlock-achievement', async (_event, userId: string, achievementId: string) => {
     try {
       return await learningEngine.unlockAchievement(userId, achievementId);
     } catch (error: any) {
@@ -12095,7 +12095,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // Mod Browser IPC handlers (renderer -> main)
   const { modBrowser: modBrowserEngine } = require('../mining/modBrowser');
 
-  ipcMain.handle('mod-browser:search', async (_event, query: string, filters: any) => {
+  registerHandler('mod-browser:search', async (_event, query: string, filters: any) => {
     const startTime = Date.now();
     try {
       const results = await modBrowserEngine.searchMods(query, filters || { game: 'fallout4', sortBy: 'trending', nsfw: false });
@@ -12124,7 +12124,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mod-browser:get-details', async (_event, modId: string) => {
+  registerHandler('mod-browser:get-details', async (_event, modId: string) => {
     const startTime = Date.now();
     try {
       const details = await modBrowserEngine.getModDetails(modId);
@@ -12153,7 +12153,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mod-browser:download', async (_event, modId: string, destination: string) => {
+  registerHandler('mod-browser:download', async (_event, modId: string, destination: string) => {
     const startTime = Date.now();
     try {
       const result = await modBrowserEngine.downloadMod(modId, destination);
@@ -12182,7 +12182,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mod-browser:rate', async (_event, modId: string, rating: number, review: string) => {
+  registerHandler('mod-browser:rate', async (_event, modId: string, rating: number, review: string) => {
     const startTime = Date.now();
     try {
       await modBrowserEngine.rateMod(modId, rating, review);
@@ -12211,7 +12211,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mod-browser:authenticate-nexus', async (_event, apiKey: string) => {
+  registerHandler('mod-browser:authenticate-nexus', async (_event, apiKey: string) => {
     const startTime = Date.now();
     try {
       const result = await modBrowserEngine.authenticateNexus(apiKey);
@@ -12244,7 +12244,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mod-browser:get-reviews', async (_event, modId: string) => {
+  registerHandler('mod-browser:get-reviews', async (_event, modId: string) => {
     const startTime = Date.now();
     try {
       const reviews = await modBrowserEngine.getModReviews(modId);
@@ -12273,7 +12273,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mod-browser:create-collection', async (_event, name: string, mods: string[], description?: string) => {
+  registerHandler('mod-browser:create-collection', async (_event, name: string, mods: string[], description?: string) => {
     const startTime = Date.now();
     try {
       const collection = await modBrowserEngine.createCollection(name, mods, description);
@@ -12306,7 +12306,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mod-browser:share-collection', async (_event, collectionId: string) => {
+  registerHandler('mod-browser:share-collection', async (_event, collectionId: string) => {
     const startTime = Date.now();
     try {
       const result = await modBrowserEngine.shareCollection(collectionId);
@@ -12335,7 +12335,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mod-browser:endorse-mod', async (_event, modId: string) => {
+  registerHandler('mod-browser:endorse-mod', async (_event, modId: string) => {
     const startTime = Date.now();
     try {
       await modBrowserEngine.endorseMod(modId);
@@ -12364,7 +12364,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mod-browser:trending', async (_event, timeframe?: string) => {
+  registerHandler('mod-browser:trending', async (_event, timeframe?: string) => {
     const startTime = Date.now();
     try {
       const results = await modBrowserEngine.getTrendingMods(timeframe || 'week');
@@ -12421,7 +12421,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadLoadOrdersFromDisk();
 
-  ipcMain.handle('load-order:get-all', async (_event) => {
+  registerHandler('load-order:get-all', async (_event) => {
     const startTime = Date.now();
     try {
       const orders = Array.from(loadOrderStorage.values());
@@ -12449,7 +12449,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('load-order:get-current', async (_event) => {
+  registerHandler('load-order:get-current', async (_event) => {
     const startTime = Date.now();
     try {
       const settings = loadSettings();
@@ -12479,7 +12479,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('load-order:create', async (_event, name: string, description?: string) => {
+  registerHandler('load-order:create', async (_event, name: string, description?: string) => {
     const startTime = Date.now();
     try {
       const id = `lo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -12520,7 +12520,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('load-order:update-order', async (_event, loadOrderId: string, plugins: any[]) => {
+  registerHandler('load-order:update-order', async (_event, loadOrderId: string, plugins: any[]) => {
     const startTime = Date.now();
     try {
       const order = loadOrderStorage.get(loadOrderId);
@@ -12554,7 +12554,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('load-order:validate', async (_event, loadOrderId: string) => {
+  registerHandler('load-order:validate', async (_event, loadOrderId: string) => {
     const startTime = Date.now();
     try {
       const order = loadOrderStorage.get(loadOrderId);
@@ -12604,7 +12604,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('load-order:analyze-conflicts', async (_event, loadOrderId: string) => {
+  registerHandler('load-order:analyze-conflicts', async (_event, loadOrderId: string) => {
     const startTime = Date.now();
     try {
       const order = loadOrderStorage.get(loadOrderId);
@@ -12646,7 +12646,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('load-order:optimize', async (_event, loadOrderId: string) => {
+  registerHandler('load-order:optimize', async (_event, loadOrderId: string) => {
     const startTime = Date.now();
     try {
       const order = loadOrderStorage.get(loadOrderId);
@@ -12694,7 +12694,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('load-order:export', async (_event, loadOrderId: string, format: string) => {
+  registerHandler('load-order:export', async (_event, loadOrderId: string, format: string) => {
     const startTime = Date.now();
     try {
       const order = loadOrderStorage.get(loadOrderId);
@@ -12733,7 +12733,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('load-order:import', async (_event, name: string, content: string, format: string) => {
+  registerHandler('load-order:import', async (_event, name: string, content: string, format: string) => {
     const startTime = Date.now();
     try {
       const id = `lo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -12793,7 +12793,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('load-order:delete', async (_event, loadOrderId: string) => {
+  registerHandler('load-order:delete', async (_event, loadOrderId: string) => {
     const startTime = Date.now();
     try {
       if (!loadOrderStorage.has(loadOrderId)) throw new Error('Load order not found');
@@ -12852,7 +12852,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadConflictRulesFromDisk();
 
-  ipcMain.handle('conflict-resolver:analyze', async (_event, pluginPaths: string[]) => {
+  registerHandler('conflict-resolver:analyze', async (_event, pluginPaths: string[]) => {
     const startTime = Date.now();
     try {
       const analysis: any = {
@@ -12903,7 +12903,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict-resolver:detect', async (_event, plugin1: string, plugin2: string) => {
+  registerHandler('conflict-resolver:detect', async (_event, plugin1: string, plugin2: string) => {
     const startTime = Date.now();
     try {
       const conflicts = [
@@ -12935,7 +12935,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict-resolver:resolve', async (_event, conflicts: any[], strategy: string) => {
+  registerHandler('conflict-resolver:resolve', async (_event, conflicts: any[], strategy: string) => {
     const startTime = Date.now();
     try {
       const resolved = { resolved: conflicts.slice(0, Math.ceil(conflicts.length * 0.7)), unresolved: conflicts.slice(Math.ceil(conflicts.length * 0.7)) };
@@ -12964,7 +12964,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict-resolver:generate-patch', async (_event, conflicts: any[], patchName: string) => {
+  registerHandler('conflict-resolver:generate-patch', async (_event, conflicts: any[], patchName: string) => {
     const startTime = Date.now();
     try {
       const patch = {
@@ -13000,7 +13000,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict-resolver:add-rule', async (_event, ruleData: any) => {
+  registerHandler('conflict-resolver:add-rule', async (_event, ruleData: any) => {
     const startTime = Date.now();
     try {
       const rule = { ...ruleData, id: `rule_${Date.now()}_${Math.random().toString(36).substring(7)}`, createdAt: Date.now() };
@@ -13031,7 +13031,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict-resolver:get-rules', async (_event) => {
+  registerHandler('conflict-resolver:get-rules', async (_event) => {
     const startTime = Date.now();
     try {
       const rules = Array.from(conflictRuleStorage.values());
@@ -13059,7 +13059,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict-resolver:delete-rule', async (_event, ruleId: string) => {
+  registerHandler('conflict-resolver:delete-rule', async (_event, ruleId: string) => {
     const startTime = Date.now();
     try {
       if (!conflictRuleStorage.has(ruleId)) throw new Error('Rule not found');
@@ -13090,7 +13090,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict-resolver:apply-rules', async (_event, conflicts: any[], ruleIds?: string[]) => {
+  registerHandler('conflict-resolver:apply-rules', async (_event, conflicts: any[], ruleIds?: string[]) => {
     const startTime = Date.now();
     try {
       const rulesToApply = ruleIds ? ruleIds.map(id => conflictRuleStorage.get(id)).filter(Boolean) : Array.from(conflictRuleStorage.values());
@@ -13120,7 +13120,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict-resolver:export-analysis', async (_event, analysis: any, format: string) => {
+  registerHandler('conflict-resolver:export-analysis', async (_event, analysis: any, format: string) => {
     const startTime = Date.now();
     try {
       let content = '';
@@ -13157,7 +13157,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict-resolver:import-rules', async (_event, content: string, format: string) => {
+  registerHandler('conflict-resolver:import-rules', async (_event, content: string, format: string) => {
     const startTime = Date.now();
     try {
       let rules = [];
@@ -13359,7 +13359,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin-manager:install-from-path', async (_event, pluginPath: string) => {
+  registerHandler('plugin-manager:install-from-path', async (_event, pluginPath: string) => {
     const startTime = Date.now();
     try {
       if (!pluginPath || typeof pluginPath !== 'string') {
@@ -13423,7 +13423,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin-manager:list-marketplace', async (_event) => {
+  registerHandler('plugin-manager:list-marketplace', async (_event) => {
     const startTime = Date.now();
     try {
       const marketplacePlugins = [
@@ -13454,7 +13454,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin-manager:install', async (_event, pluginId: string, version: string) => {
+  registerHandler('plugin-manager:install', async (_event, pluginId: string, version: string) => {
     const startTime = Date.now();
     try {
       const plugin = {
@@ -13498,7 +13498,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin-manager:uninstall', async (_event, pluginId: string) => {
+  registerHandler('plugin-manager:uninstall', async (_event, pluginId: string) => {
     const startTime = Date.now();
     try {
       if (!pluginStorage.has(pluginId)) throw new Error('Plugin not found');
@@ -13529,7 +13529,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin-manager:toggle', async (_event, pluginId: string, enabled: boolean) => {
+  registerHandler('plugin-manager:toggle', async (_event, pluginId: string, enabled: boolean) => {
     const startTime = Date.now();
     try {
       const plugin = pluginStorage.get(pluginId);
@@ -13562,7 +13562,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin-manager:update', async (_event, pluginId: string, newVersion: string) => {
+  registerHandler('plugin-manager:update', async (_event, pluginId: string, newVersion: string) => {
     const startTime = Date.now();
     try {
       const plugin = pluginStorage.get(pluginId);
@@ -13597,7 +13597,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin-manager:get-settings', async (_event) => {
+  registerHandler('plugin-manager:get-settings', async (_event) => {
     const startTime = Date.now();
     try {
       auditLogger.log({
@@ -13624,7 +13624,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin-manager:set-settings', async (_event, newSettings: any) => {
+  registerHandler('plugin-manager:set-settings', async (_event, newSettings: any) => {
     const startTime = Date.now();
     try {
       Object.assign(pluginManagerSettings, newSettings);
@@ -13654,7 +13654,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin-manager:get-details', async (_event, pluginId: string) => {
+  registerHandler('plugin-manager:get-details', async (_event, pluginId: string) => {
     const startTime = Date.now();
     try {
       const plugin = pluginStorage.get(pluginId);
@@ -13684,7 +13684,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin-manager:validate', async (_event, pluginId: string) => {
+  registerHandler('plugin-manager:validate', async (_event, pluginId: string) => {
     const startTime = Date.now();
     try {
       const plugin = pluginStorage.get(pluginId);
@@ -13726,7 +13726,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // Security validator IPC handlers (renderer -> main)
   const { securityValidator: securityEngine } = require('../mining/securityValidator');
 
-  ipcMain.handle('security:scan-file', async (_event, path: string) => {
+  registerHandler('security:scan-file', async (_event, path: string) => {
     try {
       return await securityEngine.scanFile(path);
     } catch (error: any) {
@@ -13735,7 +13735,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('security:scan-archive', async (_event, path: string) => {
+  registerHandler('security:scan-archive', async (_event, path: string) => {
     try {
       return await securityEngine.scanArchive(path);
     } catch (error: any) {
@@ -13744,7 +13744,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('security:scan-script', async (_event, path: string) => {
+  registerHandler('security:scan-script', async (_event, path: string) => {
     try {
       return await securityEngine.scanScript(path);
     } catch (error: any) {
@@ -13753,7 +13753,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('security:analyze-papyrus', async (_event, code: string) => {
+  registerHandler('security:analyze-papyrus', async (_event, code: string) => {
     try {
       return await securityEngine.analyzePapyrusScript(code);
     } catch (error: any) {
@@ -13762,7 +13762,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('security:generate-checksum', async (_event, path: string, algorithm = 'sha256') => {
+  registerHandler('security:generate-checksum', async (_event, path: string, algorithm = 'sha256') => {
     try {
       return await securityEngine.generateChecksum(path, algorithm);
     } catch (error: any) {
@@ -13772,7 +13772,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Verify checksum (added)
-  ipcMain.handle('security:verify-checksum', async (_event, path: string, expectedHash: string) => {
+  registerHandler('security:verify-checksum', async (_event, path: string, expectedHash: string) => {
     try {
       return await securityEngine.verifyChecksum(path, expectedHash);
     } catch (error: any) {
@@ -13781,7 +13781,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('security:verify-signature', async (_event, path: string, signature: string, publicKey: string) => {
+  registerHandler('security:verify-signature', async (_event, path: string, signature: string, publicKey: string) => {
     try {
       return await securityEngine.verifySignature(path, signature, publicKey);
     } catch (error: any) {
@@ -13790,7 +13790,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('security:run-sandbox', async (_event, exe: string, args: string[], config?: any) => {
+  registerHandler('security:run-sandbox', async (_event, exe: string, args: string[], config?: any) => {
     try {
       return await securityEngine.runInSandbox(exe, args, config);
     } catch (error: any) {
@@ -13800,7 +13800,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Threat database update (alias)
-  ipcMain.handle('security:update-db', async () => {
+  registerHandler('security:update-db', async () => {
     try {
       return await securityEngine.updateThreatDatabase();
     } catch (error: any) {
@@ -13810,7 +13810,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // New handler name requested: 'security:update-threats' -> same implementation
-  ipcMain.handle('security:update-threats', async () => {
+  registerHandler('security:update-threats', async () => {
     try {
       return await securityEngine.updateThreatDatabase();
     } catch (error: any) {
@@ -13856,7 +13856,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadWorkspacesFromDisk();
 
-  ipcMain.handle('team-workspace:create-workspace', async (_event, workspaceName: string, description?: string) => {
+  registerHandler('team-workspace:create-workspace', async (_event, workspaceName: string, description?: string) => {
     const startTime = Date.now();
     try {
       const id = `ws_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -13897,7 +13897,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('team-workspace:list-workspaces', async (_event) => {
+  registerHandler('team-workspace:list-workspaces', async (_event) => {
     const startTime = Date.now();
     try {
       const workspaces = Array.from(workspaceStorage.values());
@@ -13925,7 +13925,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('team-workspace:get-workspace', async (_event, workspaceId: string) => {
+  registerHandler('team-workspace:get-workspace', async (_event, workspaceId: string) => {
     const startTime = Date.now();
     try {
       const workspace = workspaceStorage.get(workspaceId);
@@ -13955,7 +13955,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('team-workspace:join-workspace', async (_event, workspaceId: string, userId: string) => {
+  registerHandler('team-workspace:join-workspace', async (_event, workspaceId: string, userId: string) => {
     const startTime = Date.now();
     try {
       const workspace = workspaceStorage.get(workspaceId);
@@ -13992,7 +13992,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('team-workspace:leave-workspace', async (_event, workspaceId: string, userId: string) => {
+  registerHandler('team-workspace:leave-workspace', async (_event, workspaceId: string, userId: string) => {
     const startTime = Date.now();
     try {
       const workspace = workspaceStorage.get(workspaceId);
@@ -14026,7 +14026,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('team-workspace:assign-task', async (_event, workspaceId: string, taskData: any) => {
+  registerHandler('team-workspace:assign-task', async (_event, workspaceId: string, taskData: any) => {
     const startTime = Date.now();
     try {
       const taskId = `task_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14074,7 +14074,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('team-workspace:update-progress', async (_event, taskId: string, progressData: any) => {
+  registerHandler('team-workspace:update-progress', async (_event, taskId: string, progressData: any) => {
     const startTime = Date.now();
     try {
       const task = taskStorage.get(taskId);
@@ -14110,7 +14110,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('team-workspace:add-comment', async (_event, taskId: string, comment: string, userId: string) => {
+  registerHandler('team-workspace:add-comment', async (_event, taskId: string, comment: string, userId: string) => {
     const startTime = Date.now();
     try {
       const commentId = `cmt_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14148,7 +14148,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('team-workspace:get-comments', async (_event, taskId: string) => {
+  registerHandler('team-workspace:get-comments', async (_event, taskId: string) => {
     const startTime = Date.now();
     try {
       const comments = Array.from(commentStorage.values()).filter((c: any) => c.taskId === taskId);
@@ -14177,7 +14177,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('team-workspace:lock-file', async (_event, workspaceId: string, filePath: string, userId: string) => {
+  registerHandler('team-workspace:lock-file', async (_event, workspaceId: string, filePath: string, userId: string) => {
     const startTime = Date.now();
     try {
       const lockKey = `${workspaceId}:${filePath}`;
@@ -14248,7 +14248,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadMiningFromDisk();
 
-  ipcMain.handle('mining:execute-pipeline', async (_event, sources: any[]) => {
+  registerHandler('mining:execute-pipeline', async (_event, sources: any[]) => {
     const startTime = Date.now();
     try {
       const pipelineId = `pipeline_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14288,7 +14288,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mining:parse-esp', async (_event, filePath: string) => {
+  registerHandler('mining:parse-esp', async (_event, filePath: string) => {
     const startTime = Date.now();
     try {
       const parseId = `parse_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14327,7 +14327,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mining:build-dependency-graph', async (_event, espData: any) => {
+  registerHandler('mining:build-dependency-graph', async (_event, espData: any) => {
     const startTime = Date.now();
     try {
       const graphId = `graph_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14363,7 +14363,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mining:extract-forms', async (_event, espDataId: string) => {
+  registerHandler('mining:extract-forms', async (_event, espDataId: string) => {
     const startTime = Date.now();
     try {
       const espData = miningStorage.get(espDataId);
@@ -14402,7 +14402,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mining:analyze-conflicts', async (_event, espDataIds: string[]) => {
+  registerHandler('mining:analyze-conflicts', async (_event, espDataIds: string[]) => {
     const startTime = Date.now();
     try {
       const analysisId = `conflict_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14440,7 +14440,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mining:generate-report', async (_event, pipelineId: string) => {
+  registerHandler('mining:generate-report', async (_event, pipelineId: string) => {
     const startTime = Date.now();
     try {
       const pipeline = miningStorage.get(pipelineId);
@@ -14484,7 +14484,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mining:validate-master', async (_event, masterPath: string, dependencyPaths: string[]) => {
+  registerHandler('mining:validate-master', async (_event, masterPath: string, dependencyPaths: string[]) => {
     const startTime = Date.now();
     try {
       const validationId = `validation_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14523,7 +14523,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mining:scan-asset-references', async (_event, espDataId: string) => {
+  registerHandler('mining:scan-asset-references', async (_event, espDataId: string) => {
     const startTime = Date.now();
     try {
       const espData = miningStorage.get(espDataId);
@@ -14563,7 +14563,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mining:cache-mining-data', async (_event, dataId: string, data: any) => {
+  registerHandler('mining:cache-mining-data', async (_event, dataId: string, data: any) => {
     const startTime = Date.now();
     try {
       const cacheKey = `cache_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14601,7 +14601,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mining:get-cached-data', async (_event, cacheKey: string) => {
+  registerHandler('mining:get-cached-data', async (_event, cacheKey: string) => {
     const startTime = Date.now();
     try {
       const cacheEntry = miningCacheStorage.get(cacheKey);
@@ -14671,7 +14671,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadTestingFromDisk();
 
-  ipcMain.handle('testing:create-test-suite', async (_event, suiteName: string, config?: any) => {
+  registerHandler('testing:create-test-suite', async (_event, suiteName: string, config?: any) => {
     const startTime = Date.now();
     try {
       const suiteId = `suite_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14711,7 +14711,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('testing:run-all-tests', async (_event, suiteId: string) => {
+  registerHandler('testing:run-all-tests', async (_event, suiteId: string) => {
     const startTime = Date.now();
     try {
       const suite = testingStorage.get(suiteId);
@@ -14755,7 +14755,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('testing:run-single-test', async (_event, suiteId: string, testId: string) => {
+  registerHandler('testing:run-single-test', async (_event, suiteId: string, testId: string) => {
     const startTime = Date.now();
     try {
       const suite = testingStorage.get(suiteId);
@@ -14797,7 +14797,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('testing:test-load-order', async (_event, loadOrderPath: string) => {
+  registerHandler('testing:test-load-order', async (_event, loadOrderPath: string) => {
     const startTime = Date.now();
     try {
       const validationId = `loadorder_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14836,7 +14836,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('testing:test-script-compilation', async (_event, scriptPath: string) => {
+  registerHandler('testing:test-script-compilation', async (_event, scriptPath: string) => {
     const startTime = Date.now();
     try {
       const compilationId = `compile_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14875,7 +14875,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('testing:test-asset-integrity', async (_event, assetPath: string) => {
+  registerHandler('testing:test-asset-integrity', async (_event, assetPath: string) => {
     const startTime = Date.now();
     try {
       const integrityId = `integrity_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14915,7 +14915,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('testing:benchmark-performance', async (_event, profileName?: string) => {
+  registerHandler('testing:benchmark-performance', async (_event, profileName?: string) => {
     const startTime = Date.now();
     try {
       const benchmarkId = `benchmark_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -14954,7 +14954,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('testing:generate-test-report', async (_event, resultId: string) => {
+  registerHandler('testing:generate-test-report', async (_event, resultId: string) => {
     const startTime = Date.now();
     try {
       const result = testResultsStorage.get(resultId);
@@ -14998,7 +14998,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('testing:get-test-history', async (_event, suiteId: string, limit?: number) => {
+  registerHandler('testing:get-test-history', async (_event, suiteId: string, limit?: number) => {
     const startTime = Date.now();
     try {
       const maxResults = limit || 50;
@@ -15031,7 +15031,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('testing:save-test-results', async (_event, testData: any) => {
+  registerHandler('testing:save-test-results', async (_event, testData: any) => {
     const startTime = Date.now();
     try {
       const resultId = `saved_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -15104,7 +15104,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadWorkflowsFromDisk();
 
-  ipcMain.handle('workflow:create-workflow', async (_event, workflowName: string, description?: string, tags?: string[]) => {
+  registerHandler('workflow:create-workflow', async (_event, workflowName: string, description?: string, tags?: string[]) => {
     const startTime = Date.now();
     try {
       const workflowId = `workflow_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -15147,7 +15147,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('workflow:save-workflow', async (_event, workflowId: string, updates: any) => {
+  registerHandler('workflow:save-workflow', async (_event, workflowId: string, updates: any) => {
     const startTime = Date.now();
     try {
       const workflow = workflowStorage.get(workflowId);
@@ -15180,7 +15180,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('workflow:load-workflow', async (_event, workflowId: string) => {
+  registerHandler('workflow:load-workflow', async (_event, workflowId: string) => {
     const startTime = Date.now();
     try {
       const workflow = workflowStorage.get(workflowId);
@@ -15210,7 +15210,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('workflow:delete-workflow', async (_event, workflowId: string) => {
+  registerHandler('workflow:delete-workflow', async (_event, workflowId: string) => {
     const startTime = Date.now();
     try {
       const workflow = workflowStorage.get(workflowId);
@@ -15242,7 +15242,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('workflow:run-workflow', async (_event, workflowId: string) => {
+  registerHandler('workflow:run-workflow', async (_event, workflowId: string) => {
     const startTime = Date.now();
     try {
       const workflow = workflowStorage.get(workflowId);
@@ -15287,7 +15287,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('workflow:get-workflows', async () => {
+  registerHandler('workflow:get-workflows', async () => {
     const startTime = Date.now();
     try {
       const workflows = Array.from(workflowStorage.values());
@@ -15315,7 +15315,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('workflow:export-workflow', async (_event, workflowId: string) => {
+  registerHandler('workflow:export-workflow', async (_event, workflowId: string) => {
     const startTime = Date.now();
     try {
       const workflow = workflowStorage.get(workflowId);
@@ -15351,7 +15351,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('workflow:import-workflow', async (_event, importJson: string) => {
+  registerHandler('workflow:import-workflow', async (_event, importJson: string) => {
     const startTime = Date.now();
     try {
       const importData = JSON.parse(importJson);
@@ -15390,7 +15390,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('workflow:get-workflow-history', async (_event, workflowId?: string, limit?: number) => {
+  registerHandler('workflow:get-workflow-history', async (_event, workflowId?: string, limit?: number) => {
     const startTime = Date.now();
     try {
       const maxResults = limit || 50;
@@ -15424,7 +15424,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('workflow:validate-workflow', async (_event, workflowId: string) => {
+  registerHandler('workflow:validate-workflow', async (_event, workflowId: string) => {
     const startTime = Date.now();
     try {
       const workflow = workflowStorage.get(workflowId);
@@ -15502,7 +15502,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadAnalyticsFromDisk();
 
-  ipcMain.handle('analytics:track-event', async (_event, eventName: string, category?: string, properties?: Record<string, any>) => {
+  registerHandler('analytics:track-event', async (_event, eventName: string, category?: string, properties?: Record<string, any>) => {
     const startTime = Date.now();
     try {
       const eventId = `event_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -15543,7 +15543,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('analytics:get-metrics-summary', async () => {
+  registerHandler('analytics:get-metrics-summary', async () => {
     const startTime = Date.now();
     try {
       const events = Array.from(analyticsStorage.values());
@@ -15585,7 +15585,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('analytics:build-statistics', async () => {
+  registerHandler('analytics:build-statistics', async () => {
     const startTime = Date.now();
     try {
       const events = Array.from(analyticsStorage.values());
@@ -15629,7 +15629,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('analytics:asset-usage-report', async () => {
+  registerHandler('analytics:asset-usage-report', async () => {
     const startTime = Date.now();
     try {
       const report = {
@@ -15672,7 +15672,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('analytics:performance-history', async () => {
+  registerHandler('analytics:performance-history', async () => {
     const startTime = Date.now();
     try {
       const now = Date.now();
@@ -15717,7 +15717,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('analytics:generate-report', async (_event, reportType?: string, timeRange?: any) => {
+  registerHandler('analytics:generate-report', async (_event, reportType?: string, timeRange?: any) => {
     const startTime = Date.now();
     try {
       const reportId = `report_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -15767,7 +15767,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('analytics:get-dashboard-data', async () => {
+  registerHandler('analytics:get-dashboard-data', async () => {
     const startTime = Date.now();
     try {
       const dashboardData = {
@@ -15810,7 +15810,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('analytics:export-report', async (_event, reportId: string, format?: string) => {
+  registerHandler('analytics:export-report', async (_event, reportId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const report = metricsHistoryStorage.get(reportId);
@@ -15842,7 +15842,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('analytics:get-analytics-config', async () => {
+  registerHandler('analytics:get-analytics-config', async () => {
     const startTime = Date.now();
     try {
       const settings = loadSettings();
@@ -15878,7 +15878,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('analytics:update-analytics-config', async (_event, updates: any) => {
+  registerHandler('analytics:update-analytics-config', async (_event, updates: any) => {
     const startTime = Date.now();
     try {
       const settings = loadSettings();
@@ -15908,7 +15908,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('analytics:clear-data', async () => {
+  registerHandler('analytics:clear-data', async () => {
     const startTime = Date.now();
     try {
       analyticsStorage.clear();
@@ -15974,7 +15974,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadGitDataFromDisk();
 
-  ipcMain.handle('git:init-repo', async (_event, repoPath: string, repoName?: string) => {
+  registerHandler('git:init-repo', async (_event, repoPath: string, repoName?: string) => {
     const startTime = Date.now();
     try {
       const repoId = `repo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -16015,7 +16015,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('git:commit', async (_event, repoId: string, message: string, author?: string) => {
+  registerHandler('git:commit', async (_event, repoId: string, message: string, author?: string) => {
     const startTime = Date.now();
     try {
       let repo = gitReposStorage.get(repoId);
@@ -16076,7 +16076,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('git:push', async (_event, repoId: string, remoteName?: string, branch?: string) => {
+  registerHandler('git:push', async (_event, repoId: string, remoteName?: string, branch?: string) => {
     const startTime = Date.now();
     try {
       const repo = gitReposStorage.get(repoId);
@@ -16113,7 +16113,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('git:pull', async (_event, repoId: string, remoteName?: string, branch?: string) => {
+  registerHandler('git:pull', async (_event, repoId: string, remoteName?: string, branch?: string) => {
     const startTime = Date.now();
     try {
       const repo = gitReposStorage.get(repoId);
@@ -16152,7 +16152,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('collaboration-git-init', async (_event, projectId: string, config: any) => {
+  registerHandler('collaboration-git-init', async (_event, projectId: string, config: any) => {
     try {
       const projects = getProjects();
       const project = projects.find((p) => p.id === projectId);
@@ -16181,7 +16181,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('collaboration-git-commit', async (_event, projectId: string, message: string) => {
+  registerHandler('collaboration-git-commit', async (_event, projectId: string, message: string) => {
     try {
       const projects = getProjects();
       const project = projects.find((p) => p.id === projectId);
@@ -16213,7 +16213,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('collaboration-git-push', async (_event, projectId: string) => {
+  registerHandler('collaboration-git-push', async (_event, projectId: string) => {
     try {
       const projects = getProjects();
       const project = projects.find((p) => p.id === projectId);
@@ -16237,7 +16237,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('collaboration-git-pull', async (_event, projectId: string) => {
+  registerHandler('collaboration-git-pull', async (_event, projectId: string) => {
     try {
       const projects = getProjects();
       const project = projects.find((p) => p.id === projectId);
@@ -16261,7 +16261,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('git:create-branch', async (_event, repoId: string, branchName: string, baseBranch?: string) => {
+  registerHandler('git:create-branch', async (_event, repoId: string, branchName: string, baseBranch?: string) => {
     const startTime = Date.now();
     try {
       let repo = gitReposStorage.get(repoId);
@@ -16311,7 +16311,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('git:switch-branch', async (_event, repoId: string, branchName: string) => {
+  registerHandler('git:switch-branch', async (_event, repoId: string, branchName: string) => {
     const startTime = Date.now();
     try {
       const repo = gitReposStorage.get(repoId);
@@ -16344,7 +16344,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('git:get-branches', async (_event, repoId?: string) => {
+  registerHandler('git:get-branches', async (_event, repoId?: string) => {
     const startTime = Date.now();
     try {
       const branches = [
@@ -16377,7 +16377,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('git:get-diff', async (_event, repoId: string, fromCommit?: string, toCommit?: string) => {
+  registerHandler('git:get-diff', async (_event, repoId: string, fromCommit?: string, toCommit?: string) => {
     const startTime = Date.now();
     try {
       const diff = {
@@ -16416,7 +16416,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('git:merge-branch', async (_event, repoId: string, sourceBranch: string, targetBranch?: string) => {
+  registerHandler('git:merge-branch', async (_event, repoId: string, sourceBranch: string, targetBranch?: string) => {
     const startTime = Date.now();
     try {
       let repo = gitReposStorage.get(repoId);
@@ -16469,7 +16469,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('git:get-history', async (_event, repoId?: string, limit?: number) => {
+  registerHandler('git:get-history', async (_event, repoId?: string, limit?: number) => {
     const startTime = Date.now();
     try {
       const historyLimit = limit || 50;
@@ -16574,7 +16574,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadNexusDataFromDisk();
 
-  ipcMain.handle('nexus:init-config', async (_event, apiKey?: string, apiUrl?: string) => {
+  registerHandler('nexus:init-config', async (_event, apiKey?: string, apiUrl?: string) => {
     const startTime = Date.now();
     try {
       const settings = loadSettings();
@@ -16612,7 +16612,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('nexus:authenticate', async (_event, apiKey: string) => {
+  registerHandler('nexus:authenticate', async (_event, apiKey: string) => {
     const startTime = Date.now();
     try {
       const settings = loadSettings();
@@ -16645,7 +16645,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('nexus:get-game-info', async (_event, gameName?: string) => {
+  registerHandler('nexus:get-game-info', async (_event, gameName?: string) => {
     const startTime = Date.now();
     try {
       const game = gameName || 'fallout4';
@@ -16683,7 +16683,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('nexus:create-mod', async (_event, modName: string, description?: string, category?: string) => {
+  registerHandler('nexus:create-mod', async (_event, modName: string, description?: string, category?: string) => {
     const startTime = Date.now();
     try {
       const modId = `mod_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -16726,7 +16726,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('nexus:update-mod', async (_event, modId: string, updates: any) => {
+  registerHandler('nexus:update-mod', async (_event, modId: string, updates: any) => {
     const startTime = Date.now();
     try {
       const mod = nexusModsStorage.get(modId);
@@ -16758,7 +16758,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('nexus:upload-file', async (_event, modId: string, filePath: string, version?: string) => {
+  registerHandler('nexus:upload-file', async (_event, modId: string, filePath: string, version?: string) => {
     const startTime = Date.now();
     try {
       const mod = nexusModsStorage.get(modId);
@@ -16804,7 +16804,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('nexus:publish-mod', async (_event, modId: string, publishNow?: boolean) => {
+  registerHandler('nexus:publish-mod', async (_event, modId: string, publishNow?: boolean) => {
     const startTime = Date.now();
     try {
       const mod = nexusModsStorage.get(modId);
@@ -16847,7 +16847,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('nexus:get-upload-history', async (_event, modId?: string, limit?: number) => {
+  registerHandler('nexus:get-upload-history', async (_event, modId?: string, limit?: number) => {
     const startTime = Date.now();
     try {
       const historyLimit = limit || 50;
@@ -16880,7 +16880,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('nexus:get-mod-stats', async (_event, modId: string) => {
+  registerHandler('nexus:get-mod-stats', async (_event, modId: string) => {
     const startTime = Date.now();
     try {
       const mod = nexusModsStorage.get(modId);
@@ -16925,7 +16925,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('nexus:generate-changelog', async (_event, modId: string, fromVersion?: string, toVersion?: string) => {
+  registerHandler('nexus:generate-changelog', async (_event, modId: string, fromVersion?: string, toVersion?: string) => {
     const startTime = Date.now();
     try {
       const mod = nexusModsStorage.get(modId);
@@ -17005,7 +17005,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadTutorialDataFromDisk();
 
-  ipcMain.handle('tutorial:create-session', async (_event, tutorialId: string, title?: string) => {
+  registerHandler('tutorial:create-session', async (_event, tutorialId: string, title?: string) => {
     const startTime = Date.now();
     try {
       const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -17061,7 +17061,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('tutorial:get-progress', async (_event, sessionId: string) => {
+  registerHandler('tutorial:get-progress', async (_event, sessionId: string) => {
     const startTime = Date.now();
     try {
       const session = tutorialSessionsStorage.get(sessionId);
@@ -17095,7 +17095,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('tutorial:complete-step', async (_event, sessionId: string, stepNumber: number) => {
+  registerHandler('tutorial:complete-step', async (_event, sessionId: string, stepNumber: number) => {
     const startTime = Date.now();
     try {
       const session = tutorialSessionsStorage.get(sessionId);
@@ -17138,7 +17138,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('tutorial:get-tutorials', async () => {
+  registerHandler('tutorial:get-tutorials', async () => {
     const startTime = Date.now();
     try {
       const tutorials = [
@@ -17172,7 +17172,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('tutorial:get-tutorial-content', async (_event, tutorialId: string) => {
+  registerHandler('tutorial:get-tutorial-content', async (_event, tutorialId: string) => {
     const startTime = Date.now();
     try {
       const content = {
@@ -17216,7 +17216,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('tutorial:skip-tutorial', async (_event, sessionId: string) => {
+  registerHandler('tutorial:skip-tutorial', async (_event, sessionId: string) => {
     const startTime = Date.now();
     try {
       const session = tutorialSessionsStorage.get(sessionId);
@@ -17249,7 +17249,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('tutorial:get-recommendations', async (_event, userLevel?: string) => {
+  registerHandler('tutorial:get-recommendations', async (_event, userLevel?: string) => {
     const startTime = Date.now();
     try {
       const level = userLevel || 'beginner';
@@ -17287,7 +17287,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('tutorial:save-progress', async (_event, sessionId: string) => {
+  registerHandler('tutorial:save-progress', async (_event, sessionId: string) => {
     const startTime = Date.now();
     try {
       const session = tutorialSessionsStorage.get(sessionId);
@@ -17323,7 +17323,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('tutorial:reset-progress', async (_event, sessionId?: string) => {
+  registerHandler('tutorial:reset-progress', async (_event, sessionId?: string) => {
     const startTime = Date.now();
     try {
       if (sessionId) {
@@ -17366,7 +17366,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('tutorial:get-tutorial-stats', async (_event, tutorialId?: string) => {
+  registerHandler('tutorial:get-tutorial-stats', async (_event, tutorialId?: string) => {
     const startTime = Date.now();
     try {
       const sessions = Array.from(tutorialSessionsStorage.values());
@@ -17443,7 +17443,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadEnhanceDataFromDisk();
 
-  ipcMain.handle('enhance:init-enhancer', async (_event, filterName?: string, gpuEnabled?: boolean) => {
+  registerHandler('enhance:init-enhancer', async (_event, filterName?: string, gpuEnabled?: boolean) => {
     const startTime = Date.now();
     try {
       const settings = loadSettings();
@@ -17482,7 +17482,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enhance:load-filters', async () => {
+  registerHandler('enhance:load-filters', async () => {
     const startTime = Date.now();
     try {
       const filters = [
@@ -17516,7 +17516,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enhance:get-filter-info', async (_event, filterId: string) => {
+  registerHandler('enhance:get-filter-info', async (_event, filterId: string) => {
     const startTime = Date.now();
     try {
       const filterMap: Record<string, any> = {
@@ -17558,7 +17558,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enhance:start-enhance', async (_event, inputPath: string, outputPath?: string, filterId?: string) => {
+  registerHandler('enhance:start-enhance', async (_event, inputPath: string, outputPath?: string, filterId?: string) => {
     const startTime = Date.now();
     try {
       const sessionId = `enhance_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -17603,7 +17603,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enhance:enhance-batch', async (_event, inputPaths: string[], filterId?: string) => {
+  registerHandler('enhance:enhance-batch', async (_event, inputPaths: string[], filterId?: string) => {
     const startTime = Date.now();
     try {
       const batchId = `batch_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -17648,7 +17648,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enhance:get-enhancement-progress', async (_event, sessionId: string) => {
+  registerHandler('enhance:get-enhancement-progress', async (_event, sessionId: string) => {
     const startTime = Date.now();
     try {
       const session = enhanceSessionsStorage.get(sessionId);
@@ -17684,7 +17684,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enhance:cancel-enhancement', async (_event, sessionId: string) => {
+  registerHandler('enhance:cancel-enhancement', async (_event, sessionId: string) => {
     const startTime = Date.now();
     try {
       const session = enhanceSessionsStorage.get(sessionId);
@@ -17717,7 +17717,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enhance:get-enhancement-history', async (_event, limit?: number) => {
+  registerHandler('enhance:get-enhancement-history', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const historyLimit = limit || 50;
@@ -17754,7 +17754,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enhance:compare-enhancements', async (_event, beforePath: string, afterPath: string) => {
+  registerHandler('enhance:compare-enhancements', async (_event, beforePath: string, afterPath: string) => {
     const startTime = Date.now();
     try {
       const comparison = {
@@ -17798,7 +17798,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enhance:export-enhanced', async (_event, sessionId: string, format?: string) => {
+  registerHandler('enhance:export-enhanced', async (_event, sessionId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const session = enhanceSessionsStorage.get(sessionId);
@@ -17877,7 +17877,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadVoiceDataFromDisk();
 
-  ipcMain.handle('voice:init-tts', async (_event, voiceProfile?: string, gpuEnabled?: boolean) => {
+  registerHandler('voice:init-tts', async (_event, voiceProfile?: string, gpuEnabled?: boolean) => {
     const startTime = Date.now();
     try {
       const settings = loadSettings();
@@ -17924,7 +17924,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('voice:load-voice-profiles', async () => {
+  registerHandler('voice:load-voice-profiles', async () => {
     const startTime = Date.now();
     try {
       const profiles = [
@@ -17958,7 +17958,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('voice:get-voice-profile-info', async (_event, profileId: string) => {
+  registerHandler('voice:get-voice-profile-info', async (_event, profileId: string) => {
     const startTime = Date.now();
     try {
       const profileMap: Record<string, any> = {
@@ -17999,7 +17999,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('voice:generate-voice', async (_event, text: string, profileId?: string, emotion?: string) => {
+  registerHandler('voice:generate-voice', async (_event, text: string, profileId?: string, emotion?: string) => {
     const startTime = Date.now();
     try {
       const sessionId = `voice_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -18045,7 +18045,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('voice:generate-batch-dialogue', async (_event, dialogueList: Array<{text: string, profileId?: string}>) => {
+  registerHandler('voice:generate-batch-dialogue', async (_event, dialogueList: Array<{text: string, profileId?: string}>) => {
     const startTime = Date.now();
     try {
       const batchId = `batch_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -18089,7 +18089,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('voice:get-generation-progress', async (_event, sessionId: string) => {
+  registerHandler('voice:get-generation-progress', async (_event, sessionId: string) => {
     const startTime = Date.now();
     try {
       const session = voiceSessionsStorage.get(sessionId);
@@ -18129,7 +18129,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('voice:clone-voice-profile', async (_event, audioSamplePath: string, profileName: string) => {
+  registerHandler('voice:clone-voice-profile', async (_event, audioSamplePath: string, profileName: string) => {
     const startTime = Date.now();
     try {
       const cloneId = `custom_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -18166,7 +18166,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('voice:generate-lipsync', async (_event, sessionId: string, animationFormat?: string) => {
+  registerHandler('voice:generate-lipsync', async (_event, sessionId: string, animationFormat?: string) => {
     const startTime = Date.now();
     try {
       const session = voiceSessionsStorage.get(sessionId);
@@ -18207,7 +18207,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('voice:get-voice-history', async (_event, limit?: number) => {
+  registerHandler('voice:get-voice-history', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const historyLimit = limit || 50;
@@ -18244,7 +18244,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('voice:export-voice-audio', async (_event, sessionId: string, format?: string) => {
+  registerHandler('voice:export-voice-audio', async (_event, sessionId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const session = voiceSessionsStorage.get(sessionId);
@@ -18321,7 +18321,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('deps:add-mod-dependency', async (_event, modName: string, dependencies: Array<{name: string, version?: string}>) => {
+  registerHandler('deps:add-mod-dependency', async (_event, modName: string, dependencies: Array<{name: string, version?: string}>) => {
     const startTime = Date.now();
     try {
       const depId = `dep_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -18360,7 +18360,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('deps:get-mod-dependencies', async (_event, modName: string) => {
+  registerHandler('deps:get-mod-dependencies', async (_event, modName: string) => {
     const startTime = Date.now();
     try {
       const deps = Array.from(modDependenciesStorage.values()).filter((d: any) => d.modName === modName);
@@ -18388,7 +18388,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('deps:detect-conflicts', async (_event) => {
+  registerHandler('deps:detect-conflicts', async (_event) => {
     const startTime = Date.now();
     try {
       const conflicts: any[] = [];
@@ -18433,7 +18433,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('deps:resolve-conflict', async (_event, conflictId: string, resolution: string) => {
+  registerHandler('deps:resolve-conflict', async (_event, conflictId: string, resolution: string) => {
     const startTime = Date.now();
     try {
       const conflict = dependencyConflictsStorage.get(conflictId);
@@ -18467,7 +18467,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('deps:get-conflict-report', async (_event, limit?: number) => {
+  registerHandler('deps:get-conflict-report', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const conflicts = Array.from(dependencyConflictsStorage.values()).slice(-Math.min(limit || 50, 100));
@@ -18507,7 +18507,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('deps:optimize-load-order', async (_event, modList: string[]) => {
+  registerHandler('deps:optimize-load-order', async (_event, modList: string[]) => {
     const startTime = Date.now();
     try {
       const optimizedOrder = [...modList].sort((a, b) => {
@@ -18539,7 +18539,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('deps:validate-dependencies', async (_event, modName: string) => {
+  registerHandler('deps:validate-dependencies', async (_event, modName: string) => {
     const startTime = Date.now();
     try {
       const modDeps = Array.from(modDependenciesStorage.values()).find((d: any) => d.modName === modName);
@@ -18576,7 +18576,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('deps:export-dependency-list', async (_event, format?: string) => {
+  registerHandler('deps:export-dependency-list', async (_event, format?: string) => {
     const startTime = Date.now();
     try {
       const deps = Array.from(modDependenciesStorage.values());
@@ -18613,7 +18613,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('deps:import-dependency-list', async (_event, importPath: string, format?: string) => {
+  registerHandler('deps:import-dependency-list', async (_event, importPath: string, format?: string) => {
     const startTime = Date.now();
     try {
       const importFormat = format || 'json';
@@ -18650,7 +18650,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('deps:get-dependency-stats', async (_event) => {
+  registerHandler('deps:get-dependency-stats', async (_event) => {
     const startTime = Date.now();
     try {
       const allDeps = Array.from(modDependenciesStorage.values());
@@ -18724,7 +18724,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('release:create-release-package', async (_event, modName: string, version: string, files: string[]) => {
+  registerHandler('release:create-release-package', async (_event, modName: string, version: string, files: string[]) => {
     const startTime = Date.now();
     try {
       const pkgId = `pkg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -18766,7 +18766,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('release:generate-changelog', async (_event, modName: string, version: string, changes: string[]) => {
+  registerHandler('release:generate-changelog', async (_event, modName: string, version: string, changes: string[]) => {
     const startTime = Date.now();
     try {
       const changelog = {
@@ -18807,7 +18807,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('release:bump-version', async (_event, modName: string, currentVersion: string, bumpType?: string) => {
+  registerHandler('release:bump-version', async (_event, modName: string, currentVersion: string, bumpType?: string) => {
     const startTime = Date.now();
     try {
       const type = bumpType || 'patch';
@@ -18840,7 +18840,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('release:create-release-notes', async (_event, modName: string, version: string, changelog: string, highlights?: string[]) => {
+  registerHandler('release:create-release-notes', async (_event, modName: string, version: string, changelog: string, highlights?: string[]) => {
     const startTime = Date.now();
     try {
       const releaseNotes = {
@@ -18877,7 +18877,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('release:validate-release', async (_event, packageId: string) => {
+  registerHandler('release:validate-release', async (_event, packageId: string) => {
     const startTime = Date.now();
     try {
       const pkg = releasePackagesStorage.get(packageId);
@@ -18919,7 +18919,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('release:publish-to-nexus', async (_event, packageId: string, nexusModId: string, releaseNotes?: string) => {
+  registerHandler('release:publish-to-nexus', async (_event, packageId: string, nexusModId: string, releaseNotes?: string) => {
     const startTime = Date.now();
     try {
       const pkg = releasePackagesStorage.get(packageId);
@@ -18965,7 +18965,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('release:get-release-history', async (_event, modName: string, limit?: number) => {
+  registerHandler('release:get-release-history', async (_event, modName: string, limit?: number) => {
     const startTime = Date.now();
     try {
       const history = Array.from(releaseHistoryStorage.values())
@@ -18995,7 +18995,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('release:manage-release-tags', async (_event, packageId: string, tags: string[], action?: string) => {
+  registerHandler('release:manage-release-tags', async (_event, packageId: string, tags: string[], action?: string) => {
     const startTime = Date.now();
     try {
       const pkg = releasePackagesStorage.get(packageId);
@@ -19030,7 +19030,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('release:export-release', async (_event, packageId: string, format?: string) => {
+  registerHandler('release:export-release', async (_event, packageId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const pkg = releasePackagesStorage.get(packageId);
@@ -19071,7 +19071,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('release:schedule-release', async (_event, packageId: string, releaseDate: number, timezone?: string) => {
+  registerHandler('release:schedule-release', async (_event, packageId: string, releaseDate: number, timezone?: string) => {
     const startTime = Date.now();
     try {
       const pkg = releasePackagesStorage.get(packageId);
@@ -19146,7 +19146,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('audit:scan-nif-mesh', async (_event, filePath: string, modName?: string) => {
+  registerHandler('audit:scan-nif-mesh', async (_event, filePath: string, modName?: string) => {
     const startTime = Date.now();
     try {
       const nifAudit = {
@@ -19199,7 +19199,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audit:scan-dds-texture', async (_event, filePath: string, modName?: string) => {
+  registerHandler('audit:scan-dds-texture', async (_event, filePath: string, modName?: string) => {
     const startTime = Date.now();
     try {
       const ddsAudit = {
@@ -19253,7 +19253,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audit:scan-esp-plugin', async (_event, filePath: string, modName?: string) => {
+  registerHandler('audit:scan-esp-plugin', async (_event, filePath: string, modName?: string) => {
     const startTime = Date.now();
     try {
       const espAudit = {
@@ -19307,7 +19307,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audit:validate-papyrus-scripts', async (_event, scriptContent: string, modName?: string) => {
+  registerHandler('audit:validate-papyrus-scripts', async (_event, scriptContent: string, modName?: string) => {
     const startTime = Date.now();
     try {
       const syntaxIssues: string[] = [];
@@ -19361,7 +19361,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audit:check-audio-compatibility', async (_event, filePath: string, modName?: string) => {
+  registerHandler('audit:check-audio-compatibility', async (_event, filePath: string, modName?: string) => {
     const startTime = Date.now();
     try {
       const audioAudit = {
@@ -19414,7 +19414,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audit:generate-report', async (_event, modName: string, auditIds: string[]) => {
+  registerHandler('audit:generate-report', async (_event, modName: string, auditIds: string[]) => {
     const startTime = Date.now();
     try {
       const audits = auditIds.map(id => assetAuditStorage.get(id)).filter(Boolean);
@@ -19461,7 +19461,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audit:get-audit-history', async (_event, modName: string, limit?: number) => {
+  registerHandler('audit:get-audit-history', async (_event, modName: string, limit?: number) => {
     const startTime = Date.now();
     try {
       const history = Array.from(assetAuditStorage.values())
@@ -19492,7 +19492,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audit:export-audit-data', async (_event, reportId: string, format?: string) => {
+  registerHandler('audit:export-audit-data', async (_event, reportId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const report = auditReportsStorage.get(reportId);
@@ -19531,7 +19531,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audit:compare-versions', async (_event, modName: string, version1Id: string, version2Id: string) => {
+  registerHandler('audit:compare-versions', async (_event, modName: string, version1Id: string, version2Id: string) => {
     const startTime = Date.now();
     try {
       const audit1 = assetAuditStorage.get(version1Id);
@@ -19575,7 +19575,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('audit:batch-scan-assets', async (_event, modName: string, assetPaths: string[], assetTypes?: string[]) => {
+  registerHandler('audit:batch-scan-assets', async (_event, modName: string, assetPaths: string[], assetTypes?: string[]) => {
     const startTime = Date.now();
     try {
       const batchResults: any[] = [];
@@ -19661,7 +19661,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('codeGenerator:get-template', async (_event, templateType: string) => {
+  registerHandler('codeGenerator:get-template', async (_event, templateType: string) => {
     const startTime = Date.now();
     try {
       const templates: any = {
@@ -19705,7 +19705,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('codeGenerator:generate-stub', async (_event, functionName: string, parameters?: any[], returnType?: string) => {
+  registerHandler('codeGenerator:generate-stub', async (_event, functionName: string, parameters?: any[], returnType?: string) => {
     const startTime = Date.now();
     try {
       const paramList = (parameters || []).map((p: any) => `${p.type} a${p.name}`).join(', ');
@@ -19745,7 +19745,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('codeGenerator:validate-syntax', async (_event, scriptContent: string) => {
+  registerHandler('codeGenerator:validate-syntax', async (_event, scriptContent: string) => {
     const startTime = Date.now();
     try {
       const issues: any[] = [];
@@ -19787,7 +19787,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('codeGenerator:get-snippets', async (_event, category?: string) => {
+  registerHandler('codeGenerator:get-snippets', async (_event, category?: string) => {
     const startTime = Date.now();
     try {
       const snippets = [
@@ -19828,7 +19828,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('codeGenerator:generate-event-handlers', async (_event, scriptType: string, events?: string[]) => {
+  registerHandler('codeGenerator:generate-event-handlers', async (_event, scriptType: string, events?: string[]) => {
     const startTime = Date.now();
     try {
       const eventHandlers = (events || ['OnInit', 'OnUpdate']).map((evt: string) => 
@@ -19867,7 +19867,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('codeGenerator:format-script', async (_event, scriptContent: string) => {
+  registerHandler('codeGenerator:format-script', async (_event, scriptContent: string) => {
     const startTime = Date.now();
     try {
       const lines = scriptContent.split('\n');
@@ -19914,7 +19914,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('codeGenerator:get-documentation', async (_event, functionName: string, category?: string) => {
+  registerHandler('codeGenerator:get-documentation', async (_event, functionName: string, category?: string) => {
     const startTime = Date.now();
     try {
       const docs: any = {
@@ -19956,7 +19956,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('codeGenerator:generate-from-spec', async (_event, specification: string, scriptType?: string) => {
+  registerHandler('codeGenerator:generate-from-spec', async (_event, specification: string, scriptType?: string) => {
     const startTime = Date.now();
     try {
       const scriptId = `gen_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -19995,7 +19995,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('codeGenerator:optimize-script', async (_event, scriptContent: string) => {
+  registerHandler('codeGenerator:optimize-script', async (_event, scriptContent: string) => {
     const startTime = Date.now();
     try {
       const suggestions: any[] = [];
@@ -20034,7 +20034,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('codeGenerator:test-in-sandbox', async (_event, scriptContent: string, testParams?: any) => {
+  registerHandler('codeGenerator:test-in-sandbox', async (_event, scriptContent: string, testParams?: any) => {
     const startTime = Date.now();
     try {
       const testResult = {
@@ -20113,7 +20113,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('perf:start-monitoring', async (_event, sessionName?: string) => {
+  registerHandler('perf:start-monitoring', async (_event, sessionName?: string) => {
     const startTime = Date.now();
     try {
       const session = {
@@ -20157,7 +20157,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('perf:get-fps-metrics', async (_event, sessionId: string) => {
+  registerHandler('perf:get-fps-metrics', async (_event, sessionId: string) => {
     const startTime = Date.now();
     try {
       const session = performanceMetricsStorage.get(sessionId);
@@ -20197,7 +20197,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('perf:analyze-memory', async (_event, sessionId: string, threshold?: number) => {
+  registerHandler('perf:analyze-memory', async (_event, sessionId: string, threshold?: number) => {
     const startTime = Date.now();
     try {
       const session = performanceMetricsStorage.get(sessionId);
@@ -20243,7 +20243,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('perf:measure-load-time', async (_event, modPath: string) => {
+  registerHandler('perf:measure-load-time', async (_event, modPath: string) => {
     const startTime = Date.now();
     try {
       const loadTimeData = {
@@ -20285,7 +20285,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('perf:detect-bottlenecks', async (_event, sessionId: string) => {
+  registerHandler('perf:detect-bottlenecks', async (_event, sessionId: string) => {
     const startTime = Date.now();
     try {
       const session = performanceMetricsStorage.get(sessionId);
@@ -20328,7 +20328,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('perf:suggest-optimizations', async (_event, sessionId: string) => {
+  registerHandler('perf:suggest-optimizations', async (_event, sessionId: string) => {
     const startTime = Date.now();
     try {
       const session = performanceMetricsStorage.get(sessionId);
@@ -20375,7 +20375,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('perf:compare-sessions', async (_event, session1Id: string, session2Id: string) => {
+  registerHandler('perf:compare-sessions', async (_event, session1Id: string, session2Id: string) => {
     const startTime = Date.now();
     try {
       const session1 = performanceMetricsStorage.get(session1Id);
@@ -20416,7 +20416,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('perf:export-report', async (_event, sessionId: string, format?: string) => {
+  registerHandler('perf:export-report', async (_event, sessionId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const session = performanceMetricsStorage.get(sessionId);
@@ -20456,7 +20456,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('perf:stop-monitoring', async (_event, sessionId: string) => {
+  registerHandler('perf:stop-monitoring', async (_event, sessionId: string) => {
     const startTime = Date.now();
     try {
       const session = performanceMetricsStorage.get(sessionId);
@@ -20490,7 +20490,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('perf:get-session-history', async (_event, limit?: number) => {
+  registerHandler('perf:get-session-history', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const history = Array.from(performanceMetricsStorage.values())
@@ -20558,7 +20558,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('modlist:create-modlist', async (_event, listName: string, description?: string) => {
+  registerHandler('modlist:create-modlist', async (_event, listName: string, description?: string) => {
     const startTime = Date.now();
     try {
       const listId = `modlist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -20603,7 +20603,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('modlist:add-mod-to-list', async (_event, modlistId: string, modEntry: any) => {
+  registerHandler('modlist:add-mod-to-list', async (_event, modlistId: string, modEntry: any) => {
     const startTime = Date.now();
     try {
       const modlist = modlistsStorage.get(modlistId);
@@ -20648,7 +20648,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('modlist:remove-mod-from-list', async (_event, modlistId: string, modId: string) => {
+  registerHandler('modlist:remove-mod-from-list', async (_event, modlistId: string, modId: string) => {
     const startTime = Date.now();
     try {
       const modlist = modlistsStorage.get(modlistId);
@@ -20685,7 +20685,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('modlist:get-modlist', async (_event, modlistId: string) => {
+  registerHandler('modlist:get-modlist', async (_event, modlistId: string) => {
     const startTime = Date.now();
     try {
       const modlist = modlistsStorage.get(modlistId);
@@ -20714,7 +20714,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('modlist:export-modlist', async (_event, modlistId: string, format?: string) => {
+  registerHandler('modlist:export-modlist', async (_event, modlistId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const modlist = modlistsStorage.get(modlistId);
@@ -20755,7 +20755,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('modlist:import-modlist', async (_event, importPath: string, listName?: string) => {
+  registerHandler('modlist:import-modlist', async (_event, importPath: string, listName?: string) => {
     const startTime = Date.now();
     try {
       const listId = `modlist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -20799,7 +20799,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('modlist:validate-modlist', async (_event, modlistId: string) => {
+  registerHandler('modlist:validate-modlist', async (_event, modlistId: string) => {
     const startTime = Date.now();
     try {
       const modlist = modlistsStorage.get(modlistId);
@@ -20843,7 +20843,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('modlist:get-modlist-stats', async (_event, modlistId: string) => {
+  registerHandler('modlist:get-modlist-stats', async (_event, modlistId: string) => {
     const startTime = Date.now();
     try {
       const modlist = modlistsStorage.get(modlistId);
@@ -20885,7 +20885,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('modlist:share-modlist', async (_event, modlistId: string, platform?: string) => {
+  registerHandler('modlist:share-modlist', async (_event, modlistId: string, platform?: string) => {
     const startTime = Date.now();
     try {
       const modlist = modlistsStorage.get(modlistId);
@@ -20930,7 +20930,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('modlist:compare-modlists', async (_event, modlist1Id: string, modlist2Id: string) => {
+  registerHandler('modlist:compare-modlists', async (_event, modlist1Id: string, modlist2Id: string) => {
     const startTime = Date.now();
     try {
       const modlist1 = modlistsStorage.get(modlist1Id);
@@ -21011,7 +21011,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('conflict:scan-for-conflicts', async (_event, modlistId: string) => {
+  registerHandler('conflict:scan-for-conflicts', async (_event, modlistId: string) => {
     const startTime = Date.now();
     try {
       const scanId = `scan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -21057,7 +21057,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict:detect-plugin-conflicts', async (_event, modlistId: string) => {
+  registerHandler('conflict:detect-plugin-conflicts', async (_event, modlistId: string) => {
     const startTime = Date.now();
     try {
       const conflicts = [
@@ -21098,7 +21098,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict:detect-asset-conflicts', async (_event, modlistId: string) => {
+  registerHandler('conflict:detect-asset-conflicts', async (_event, modlistId: string) => {
     const startTime = Date.now();
     try {
       const assetConflicts = [
@@ -21140,7 +21140,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict:detect-script-conflicts', async (_event, modlistId: string) => {
+  registerHandler('conflict:detect-script-conflicts', async (_event, modlistId: string) => {
     const startTime = Date.now();
     try {
       const scriptConflicts = [
@@ -21181,7 +21181,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict:suggest-conflict-resolution', async (_event, conflictId: string) => {
+  registerHandler('conflict:suggest-conflict-resolution', async (_event, conflictId: string) => {
     const startTime = Date.now();
     try {
       const conflict = conflictDetectionStorage.get(conflictId);
@@ -21225,7 +21225,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict:auto-resolve-conflicts', async (_event, conflictId: string, strategy?: string) => {
+  registerHandler('conflict:auto-resolve-conflicts', async (_event, conflictId: string, strategy?: string) => {
     const startTime = Date.now();
     try {
       const conflict = conflictDetectionStorage.get(conflictId);
@@ -21267,7 +21267,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict:generate-patch', async (_event, conflictId: string, patchType?: string) => {
+  registerHandler('conflict:generate-patch', async (_event, conflictId: string, patchType?: string) => {
     const startTime = Date.now();
     try {
       const conflict = conflictDetectionStorage.get(conflictId);
@@ -21308,7 +21308,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict:validate-resolution', async (_event, resolutionId: string) => {
+  registerHandler('conflict:validate-resolution', async (_event, resolutionId: string) => {
     const startTime = Date.now();
     try {
       const resolution = resolutionRecordsStorage.get(resolutionId);
@@ -21351,7 +21351,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict:get-conflict-report', async (_event, scanId: string) => {
+  registerHandler('conflict:get-conflict-report', async (_event, scanId: string) => {
     const startTime = Date.now();
     try {
       const scan = conflictDetectionStorage.get(scanId);
@@ -21393,7 +21393,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('conflict:export-conflict-data', async (_event, scanId: string, format?: string) => {
+  registerHandler('conflict:export-conflict-data', async (_event, scanId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const scan = conflictDetectionStorage.get(scanId);
@@ -21470,7 +21470,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('diag:analyze-crash-log', async (_event, logPath: string) => {
+  registerHandler('diag:analyze-crash-log', async (_event, logPath: string) => {
     const startTime = Date.now();
     try {
       const analysis = {
@@ -21515,7 +21515,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('diag:diagnose-ctd-issues', async (_event, modlistId: string) => {
+  registerHandler('diag:diagnose-ctd-issues', async (_event, modlistId: string) => {
     const startTime = Date.now();
     try {
       const ctdDiagnosis = {
@@ -21564,7 +21564,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('diag:check-mod-compatibility', async (_event, mod1: string, mod2: string) => {
+  registerHandler('diag:check-mod-compatibility', async (_event, mod1: string, mod2: string) => {
     const startTime = Date.now();
     try {
       const compatible = Math.random() > 0.4;
@@ -21608,7 +21608,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('diag:generate-diagnostics-report', async (_event, modlistId: string) => {
+  registerHandler('diag:generate-diagnostics-report', async (_event, modlistId: string) => {
     const startTime = Date.now();
     try {
       const report = {
@@ -21652,7 +21652,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('diag:suggest-troubleshooting-steps', async (_event, issue: string) => {
+  registerHandler('diag:suggest-troubleshooting-steps', async (_event, issue: string) => {
     const startTime = Date.now();
     try {
       const steps = {
@@ -21694,7 +21694,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('diag:test-game-stability', async (_event, modlistId: string, duration?: number) => {
+  registerHandler('diag:test-game-stability', async (_event, modlistId: string, duration?: number) => {
     const startTime = Date.now();
     try {
       const testDuration = (duration || 30) * 60 * 1000;
@@ -21736,7 +21736,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('diag:debug-script-errors', async (_event, scriptContent: string, modName?: string) => {
+  registerHandler('diag:debug-script-errors', async (_event, scriptContent: string, modName?: string) => {
     const startTime = Date.now();
     try {
       const errors: any[] = [];
@@ -21777,7 +21777,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('diag:analyze-load-order-issues', async (_event, loadOrder: string[]) => {
+  registerHandler('diag:analyze-load-order-issues', async (_event, loadOrder: string[]) => {
     const startTime = Date.now();
     try {
       const issues: any[] = [];
@@ -21818,7 +21818,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('diag:run-system-diagnostics', async (_event) => {
+  registerHandler('diag:run-system-diagnostics', async (_event) => {
     const startTime = Date.now();
     try {
       const diagnostics = {
@@ -21856,7 +21856,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('diag:generate-troubleshooting-guide', async (_event, issue: string, modlistId?: string) => {
+  registerHandler('diag:generate-troubleshooting-guide', async (_event, issue: string, modlistId?: string) => {
     const startTime = Date.now();
     try {
       const guide = {
@@ -21940,7 +21940,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('loadorder:analyze-load-order', async (_event, loadOrder: string[]) => {
+  registerHandler('loadorder:analyze-load-order', async (_event, loadOrder: string[]) => {
     const startTime = Date.now();
     try {
       const analysis = {
@@ -21981,7 +21981,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('loadorder:suggest-optimal-order', async (_event, loadOrder: string[], conflictMap?: any) => {
+  registerHandler('loadorder:suggest-optimal-order', async (_event, loadOrder: string[], conflictMap?: any) => {
     const startTime = Date.now();
     try {
       const optimized = {
@@ -22025,7 +22025,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('loadorder:detect-master-dependencies', async (_event, pluginName: string) => {
+  registerHandler('loadorder:detect-master-dependencies', async (_event, pluginName: string) => {
     const startTime = Date.now();
     try {
       const dependencies = {
@@ -22063,7 +22063,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('loadorder:prioritize-plugins', async (_event, loadOrder: string[], priorityMap?: any) => {
+  registerHandler('loadorder:prioritize-plugins', async (_event, loadOrder: string[], priorityMap?: any) => {
     const startTime = Date.now();
     try {
       const prioritized = {
@@ -22106,7 +22106,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('loadorder:validate-load-order-integrity', async (_event, loadOrder: string[]) => {
+  registerHandler('loadorder:validate-load-order-integrity', async (_event, loadOrder: string[]) => {
     const startTime = Date.now();
     try {
       const isValid = Math.random() > 0.2;
@@ -22147,7 +22147,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('loadorder:compare-load-orders', async (_event, loadOrder1: string[], loadOrder2: string[]) => {
+  registerHandler('loadorder:compare-load-orders', async (_event, loadOrder1: string[], loadOrder2: string[]) => {
     const startTime = Date.now();
     try {
       const added = loadOrder2.filter(p => !loadOrder1.includes(p));
@@ -22189,7 +22189,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('loadorder:export-load-order', async (_event, loadOrder: string[], format?: string) => {
+  registerHandler('loadorder:export-load-order', async (_event, loadOrder: string[], format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'txt';
@@ -22229,7 +22229,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('loadorder:import-load-order', async (_event, filePath: string, mergeMode?: string) => {
+  registerHandler('loadorder:import-load-order', async (_event, filePath: string, mergeMode?: string) => {
     const startTime = Date.now();
     try {
       const importedLoadOrder = ['master1.esp', 'mod1.esp', 'mod2.esp'];
@@ -22269,7 +22269,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('loadorder:auto-optimize-load-order', async (_event, loadOrder: string[], strategy?: string) => {
+  registerHandler('loadorder:auto-optimize-load-order', async (_event, loadOrder: string[], strategy?: string) => {
     const startTime = Date.now();
     try {
       const optimizationStrategy = strategy || 'balanced';
@@ -22311,7 +22311,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('loadorder:get-load-order-statistics', async (_event, loadOrder: string[]) => {
+  registerHandler('loadorder:get-load-order-statistics', async (_event, loadOrder: string[]) => {
     const startTime = Date.now();
     try {
       const stats = {
@@ -22389,7 +22389,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('papyrus:compile-script', async (_event, scriptPath: string, flags?: string) => {
+  registerHandler('papyrus:compile-script', async (_event, scriptPath: string, flags?: string) => {
     const startTime = Date.now();
     try {
       const compilation = {
@@ -22430,7 +22430,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrus:batch-compile', async (_event, scriptFolder: string, flags?: string) => {
+  registerHandler('papyrus:batch-compile', async (_event, scriptFolder: string, flags?: string) => {
     const startTime = Date.now();
     try {
       const batchResults = {
@@ -22471,7 +22471,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrus:validate-syntax', async (_event, scriptContent: string) => {
+  registerHandler('papyrus:validate-syntax', async (_event, scriptContent: string) => {
     const startTime = Date.now();
     try {
       const errors: any[] = [];
@@ -22511,7 +22511,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrus:generate-debug-info', async (_event, scriptPath: string) => {
+  registerHandler('papyrus:generate-debug-info', async (_event, scriptPath: string) => {
     const startTime = Date.now();
     try {
       const debugInfo = {
@@ -22556,7 +22556,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrus:profile-script-performance', async (_event, scriptPath: string) => {
+  registerHandler('papyrus:profile-script-performance', async (_event, scriptPath: string) => {
     const startTime = Date.now();
     try {
       const profile = {
@@ -22596,7 +22596,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrus:detect-script-issues', async (_event, scriptContent: string) => {
+  registerHandler('papyrus:detect-script-issues', async (_event, scriptContent: string) => {
     const startTime = Date.now();
     try {
       const issues: any[] = [];
@@ -22637,7 +22637,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrus:get-compiler-version', async (_event) => {
+  registerHandler('papyrus:get-compiler-version', async (_event) => {
     const startTime = Date.now();
     try {
       const versionInfo = {
@@ -22675,7 +22675,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrus:configure-compiler', async (_event, config: any) => {
+  registerHandler('papyrus:configure-compiler', async (_event, config: any) => {
     const startTime = Date.now();
     try {
       const compilerConfig = {
@@ -22715,7 +22715,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrus:analyze-compilation-report', async (_event, reportPath: string) => {
+  registerHandler('papyrus:analyze-compilation-report', async (_event, reportPath: string) => {
     const startTime = Date.now();
     try {
       const report = {
@@ -22769,7 +22769,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrus:export-compilation-stats', async (_event, format?: string) => {
+  registerHandler('papyrus:export-compilation-stats', async (_event, format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'json';
@@ -22847,7 +22847,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('archive:create-archive', async (_event, archivePath: string, fileList: string[], archiveType?: string) => {
+  registerHandler('archive:create-archive', async (_event, archivePath: string, fileList: string[], archiveType?: string) => {
     const startTime = Date.now();
     try {
       const archiveType_ = archiveType || 'ba2';
@@ -22888,7 +22888,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('archive:extract-archive', async (_event, archivePath: string, extractPath?: string) => {
+  registerHandler('archive:extract-archive', async (_event, archivePath: string, extractPath?: string) => {
     const startTime = Date.now();
     try {
       const extraction = {
@@ -22928,7 +22928,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('archive:list-archive-contents', async (_event, archivePath: string) => {
+  registerHandler('archive:list-archive-contents', async (_event, archivePath: string) => {
     const startTime = Date.now();
     try {
       const contents = {
@@ -22968,7 +22968,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('archive:validate-archive-integrity', async (_event, archivePath: string) => {
+  registerHandler('archive:validate-archive-integrity', async (_event, archivePath: string) => {
     const startTime = Date.now();
     try {
       const isValid = Math.random() > 0.15;
@@ -23009,7 +23009,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('archive:add-files-to-archive', async (_event, archivePath: string, filePaths: string[]) => {
+  registerHandler('archive:add-files-to-archive', async (_event, archivePath: string, filePaths: string[]) => {
     const startTime = Date.now();
     try {
       const addition = {
@@ -23049,7 +23049,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('archive:remove-files-from-archive', async (_event, archivePath: string, fileNames: string[]) => {
+  registerHandler('archive:remove-files-from-archive', async (_event, archivePath: string, fileNames: string[]) => {
     const startTime = Date.now();
     try {
       const removal = {
@@ -23088,7 +23088,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('archive:convert-archive-format', async (_event, archivePath: string, targetFormat: string) => {
+  registerHandler('archive:convert-archive-format', async (_event, archivePath: string, targetFormat: string) => {
     const startTime = Date.now();
     try {
       const conversion = {
@@ -23128,7 +23128,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('archive:compress-archive', async (_event, archivePath: string, compressionLevel?: number) => {
+  registerHandler('archive:compress-archive', async (_event, archivePath: string, compressionLevel?: number) => {
     const startTime = Date.now();
     try {
       const compLevel = compressionLevel || 7;
@@ -23169,7 +23169,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('archive:get-archive-statistics', async (_event, archivePath: string) => {
+  registerHandler('archive:get-archive-statistics', async (_event, archivePath: string) => {
     const startTime = Date.now();
     try {
       const stats = {
@@ -23209,7 +23209,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('archive:optimize-archive', async (_event, archivePath: string, strategy?: string) => {
+  registerHandler('archive:optimize-archive', async (_event, archivePath: string, strategy?: string) => {
     const startTime = Date.now();
     try {
       const strategy_ = strategy || 'balanced';
@@ -23289,7 +23289,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('enb:create-preset', async (_event, presetName: string, settings_: any) => {
+  registerHandler('enb:create-preset', async (_event, presetName: string, settings_: any) => {
     const startTime = Date.now();
     try {
       const preset = {
@@ -23330,7 +23330,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enb:load-preset', async (_event, presetId: string) => {
+  registerHandler('enb:load-preset', async (_event, presetId: string) => {
     const startTime = Date.now();
     try {
       const preset = enbPresetStorage.get(presetId);
@@ -23375,7 +23375,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enb:export-preset', async (_event, presetId: string, exportPath?: string) => {
+  registerHandler('enb:export-preset', async (_event, presetId: string, exportPath?: string) => {
     const startTime = Date.now();
     try {
       const preset = enbPresetStorage.get(presetId);
@@ -23418,7 +23418,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enb:import-preset', async (_event, filePath: string, presetName?: string) => {
+  registerHandler('enb:import-preset', async (_event, filePath: string, presetName?: string) => {
     const startTime = Date.now();
     try {
       const name = presetName || `imported_preset_${Date.now()}`;
@@ -23461,7 +23461,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enb:validate-preset', async (_event, presetId: string) => {
+  registerHandler('enb:validate-preset', async (_event, presetId: string) => {
     const startTime = Date.now();
     try {
       const preset = enbPresetStorage.get(presetId);
@@ -23504,7 +23504,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enb:apply-preset-settings', async (_event, presetId: string) => {
+  registerHandler('enb:apply-preset-settings', async (_event, presetId: string) => {
     const startTime = Date.now();
     try {
       const preset = enbPresetStorage.get(presetId);
@@ -23547,7 +23547,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enb:compare-presets', async (_event, presetId1: string, presetId2: string) => {
+  registerHandler('enb:compare-presets', async (_event, presetId1: string, presetId2: string) => {
     const startTime = Date.now();
     try {
       const preset1 = enbPresetStorage.get(presetId1);
@@ -23593,7 +23593,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enb:delete-preset', async (_event, presetId: string) => {
+  registerHandler('enb:delete-preset', async (_event, presetId: string) => {
     const startTime = Date.now();
     try {
       const preset = enbPresetStorage.get(presetId);
@@ -23633,7 +23633,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enb:optimize-preset-performance', async (_event, presetId: string) => {
+  registerHandler('enb:optimize-preset-performance', async (_event, presetId: string) => {
     const startTime = Date.now();
     try {
       const preset = enbPresetStorage.get(presetId);
@@ -23677,7 +23677,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('enb:get-installed-presets', async (_event) => {
+  registerHandler('enb:get-installed-presets', async (_event) => {
     const startTime = Date.now();
     try {
       const presets = Array.from(enbPresetStorage.values());
@@ -23751,7 +23751,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('community:fetch-mod-ratings', async (_event, modId: string) => {
+  registerHandler('community:fetch-mod-ratings', async (_event, modId: string) => {
     const startTime = Date.now();
     try {
       const ratings = {
@@ -23796,7 +23796,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('community:get-reviews-for-mod', async (_event, modId: string, limit?: number) => {
+  registerHandler('community:get-reviews-for-mod', async (_event, modId: string, limit?: number) => {
     const startTime = Date.now();
     try {
       const reviewCount = limit || 20;
@@ -23841,7 +23841,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('community:submit-rating', async (_event, modId: string, rating: number, userId?: string) => {
+  registerHandler('community:submit-rating', async (_event, modId: string, rating: number, userId?: string) => {
     const startTime = Date.now();
     try {
       const submission = {
@@ -23880,7 +23880,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('community:submit-review', async (_event, modId: string, reviewText: string, rating?: number) => {
+  registerHandler('community:submit-review', async (_event, modId: string, reviewText: string, rating?: number) => {
     const startTime = Date.now();
     try {
       const review = {
@@ -23921,7 +23921,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('community:get-trending-mods', async (_event, limit?: number, category?: string) => {
+  registerHandler('community:get-trending-mods', async (_event, limit?: number, category?: string) => {
     const startTime = Date.now();
     try {
       const trendingCount = limit || 10;
@@ -23964,7 +23964,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('community:analyze-rating-trends', async (_event, modId: string, timeframe?: string) => {
+  registerHandler('community:analyze-rating-trends', async (_event, modId: string, timeframe?: string) => {
     const startTime = Date.now();
     try {
       const tf = timeframe || '30d';
@@ -24007,7 +24007,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('community:filter-reviews-by-criteria', async (_event, modId: string, criteria: any) => {
+  registerHandler('community:filter-reviews-by-criteria', async (_event, modId: string, criteria: any) => {
     const startTime = Date.now();
     try {
       const filtered = {
@@ -24047,7 +24047,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('community:get-popular-endorsements', async (_event, limit?: number) => {
+  registerHandler('community:get-popular-endorsements', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const endorCount = limit || 10;
@@ -24087,7 +24087,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('community:compare-mod-ratings', async (_event, modId1: string, modId2: string) => {
+  registerHandler('community:compare-mod-ratings', async (_event, modId1: string, modId2: string) => {
     const startTime = Date.now();
     try {
       const comparison = {
@@ -24129,7 +24129,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('community:export-rating-data', async (_event, modId: string, format?: string) => {
+  registerHandler('community:export-rating-data', async (_event, modId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'json';
@@ -24208,7 +24208,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('mesh:analyze-nif-file', async (_event, filePath: string) => {
+  registerHandler('mesh:analyze-nif-file', async (_event, filePath: string) => {
     const startTime = Date.now();
     try {
       const analysis = {
@@ -24252,7 +24252,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mesh:reduce-polygon-count', async (_event, filePath: string, reductionPercentage?: number) => {
+  registerHandler('mesh:reduce-polygon-count', async (_event, filePath: string, reductionPercentage?: number) => {
     const startTime = Date.now();
     try {
       const reduction = reductionPercentage || 30;
@@ -24295,7 +24295,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mesh:optimize-vertex-data', async (_event, filePath: string, options?: any) => {
+  registerHandler('mesh:optimize-vertex-data', async (_event, filePath: string, options?: any) => {
     const startTime = Date.now();
     try {
       const optimization = {
@@ -24344,7 +24344,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mesh:generate-lod-meshes', async (_event, filePath: string, lodLevels?: number) => {
+  registerHandler('mesh:generate-lod-meshes', async (_event, filePath: string, lodLevels?: number) => {
     const startTime = Date.now();
     try {
       const levels = lodLevels || 3;
@@ -24390,7 +24390,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mesh:remove-unused-data', async (_event, filePath: string) => {
+  registerHandler('mesh:remove-unused-data', async (_event, filePath: string) => {
     const startTime = Date.now();
     try {
       const cleanup = {
@@ -24435,7 +24435,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mesh:batch-optimize-meshes', async (_event, filePaths: string[], options?: any) => {
+  registerHandler('mesh:batch-optimize-meshes', async (_event, filePaths: string[], options?: any) => {
     const startTime = Date.now();
     try {
       const batch = {
@@ -24482,7 +24482,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mesh:compare-optimization-results', async (_event, beforePath: string, afterPath: string) => {
+  registerHandler('mesh:compare-optimization-results', async (_event, beforePath: string, afterPath: string) => {
     const startTime = Date.now();
     try {
       const comparison = {
@@ -24528,7 +24528,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mesh:validate-mesh-integrity', async (_event, filePath: string) => {
+  registerHandler('mesh:validate-mesh-integrity', async (_event, filePath: string) => {
     const startTime = Date.now();
     try {
       const validation = {
@@ -24579,7 +24579,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mesh:export-optimization-report', async (_event, filePath: string, format?: string) => {
+  registerHandler('mesh:export-optimization-report', async (_event, filePath: string, format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'json';
@@ -24624,7 +24624,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('mesh:get-analysis-summary', async (_event, limit?: number) => {
+  registerHandler('mesh:get-analysis-summary', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const count = limit || 10;
@@ -24707,7 +24707,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('animation:import-animation-file', async (_event, filePath: string, format?: string) => {
+  registerHandler('animation:import-animation-file', async (_event, filePath: string, format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'hkx';
@@ -24750,7 +24750,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('animation:retarget-skeleton', async (_event, animationId: string, targetSkeleton: string) => {
+  registerHandler('animation:retarget-skeleton', async (_event, animationId: string, targetSkeleton: string) => {
     const startTime = Date.now();
     try {
       const retargeted = {
@@ -24793,7 +24793,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('animation:validate-bone-structure', async (_event, filePath: string) => {
+  registerHandler('animation:validate-bone-structure', async (_event, filePath: string) => {
     const startTime = Date.now();
     try {
       const validation = {
@@ -24841,7 +24841,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('animation:blend-animations', async (_event, animationIds: string[], blendMode?: string) => {
+  registerHandler('animation:blend-animations', async (_event, animationIds: string[], blendMode?: string) => {
     const startTime = Date.now();
     try {
       const mode = blendMode || 'linear';
@@ -24883,7 +24883,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('animation:create-custom-animation', async (_event, name: string, frameCount: number, boneData?: any) => {
+  registerHandler('animation:create-custom-animation', async (_event, name: string, frameCount: number, boneData?: any) => {
     const startTime = Date.now();
     try {
       const created = {
@@ -24924,7 +24924,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('animation:export-animation', async (_event, animationId: string, outputPath: string, format?: string) => {
+  registerHandler('animation:export-animation', async (_event, animationId: string, outputPath: string, format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'hkx';
@@ -24965,7 +24965,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('animation:batch-retarget-animations', async (_event, animationIds: string[], targetSkeleton: string) => {
+  registerHandler('animation:batch-retarget-animations', async (_event, animationIds: string[], targetSkeleton: string) => {
     const startTime = Date.now();
     try {
       const batch = {
@@ -25010,7 +25010,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('animation:compare-animations', async (_event, animationId1: string, animationId2: string) => {
+  registerHandler('animation:compare-animations', async (_event, animationId1: string, animationId2: string) => {
     const startTime = Date.now();
     try {
       const comparison = {
@@ -25053,7 +25053,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('animation:get-retargeting-summary', async (_event, limit?: number) => {
+  registerHandler('animation:get-retargeting-summary', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const count = limit || 10;
@@ -25098,7 +25098,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('animation:optimize-keyframes', async (_event, animationId: string, tolerance?: number) => {
+  registerHandler('animation:optimize-keyframes', async (_event, animationId: string, tolerance?: number) => {
     const startTime = Date.now();
     try {
       const tol = tolerance || 0.1;
@@ -25180,7 +25180,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('dialogue:create-dialogue-tree', async (_event, npcId: string, dialogueName: string) => {
+  registerHandler('dialogue:create-dialogue-tree', async (_event, npcId: string, dialogueName: string) => {
     const startTime = Date.now();
     try {
       const tree = {
@@ -25222,7 +25222,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('dialogue:add-dialogue-node', async (_event, treeId: string, nodeData: any) => {
+  registerHandler('dialogue:add-dialogue-node', async (_event, treeId: string, nodeData: any) => {
     const startTime = Date.now();
     try {
       const node = {
@@ -25263,7 +25263,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('dialogue:add-voice-line', async (_event, nodeId: string, voicePath: string, voiceActor?: string) => {
+  registerHandler('dialogue:add-voice-line', async (_event, nodeId: string, voicePath: string, voiceActor?: string) => {
     const startTime = Date.now();
     try {
       const voiceLine = {
@@ -25305,7 +25305,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('dialogue:set-dialogue-conditions', async (_event, nodeId: string, conditions: any[]) => {
+  registerHandler('dialogue:set-dialogue-conditions', async (_event, nodeId: string, conditions: any[]) => {
     const startTime = Date.now();
     try {
       const conditionSet = {
@@ -25348,7 +25348,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('dialogue:export-dialogue-tree', async (_event, treeId: string, format?: string) => {
+  registerHandler('dialogue:export-dialogue-tree', async (_event, treeId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'yaml';
@@ -25389,7 +25389,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('dialogue:import-dialogue-file', async (_event, filePath: string, npcId?: string) => {
+  registerHandler('dialogue:import-dialogue-file', async (_event, filePath: string, npcId?: string) => {
     const startTime = Date.now();
     try {
       const imported = {
@@ -25430,7 +25430,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('dialogue:validate-dialogue-tree', async (_event, treeId: string) => {
+  registerHandler('dialogue:validate-dialogue-tree', async (_event, treeId: string) => {
     const startTime = Date.now();
     try {
       const validation = {
@@ -25478,7 +25478,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('dialogue:batch-import-dialogues', async (_event, filePaths: string[]) => {
+  registerHandler('dialogue:batch-import-dialogues', async (_event, filePaths: string[]) => {
     const startTime = Date.now();
     try {
       const batch = {
@@ -25526,7 +25526,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('dialogue:get-dialogue-system-stats', async (_event, limit?: number) => {
+  registerHandler('dialogue:get-dialogue-system-stats', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const count = limit || 10;
@@ -25573,7 +25573,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('dialogue:compare-dialogue-trees', async (_event, treeId1: string, treeId2: string) => {
+  registerHandler('dialogue:compare-dialogue-trees', async (_event, treeId1: string, treeId2: string) => {
     const startTime = Date.now();
     try {
       const comparison = {
@@ -25653,7 +25653,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('texture:create-material-definition', async (_event, materialName: string, properties?: any) => {
+  registerHandler('texture:create-material-definition', async (_event, materialName: string, properties?: any) => {
     const startTime = Date.now();
     try {
       const material = {
@@ -25699,7 +25699,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('texture:create-texture-atlas', async (_event, atlasName: string, textureList: string[]) => {
+  registerHandler('texture:create-texture-atlas', async (_event, atlasName: string, textureList: string[]) => {
     const startTime = Date.now();
     try {
       const atlas = {
@@ -25741,7 +25741,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('texture:apply-material-properties', async (_event, materialId: string, properties: any) => {
+  registerHandler('texture:apply-material-properties', async (_event, materialId: string, properties: any) => {
     const startTime = Date.now();
     try {
       const applied = {
@@ -25785,7 +25785,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('texture:manage-texture-replacements', async (_event, sourceTexture: string, replacementTexture: string) => {
+  registerHandler('texture:manage-texture-replacements', async (_event, sourceTexture: string, replacementTexture: string) => {
     const startTime = Date.now();
     try {
       const replacement = {
@@ -25826,7 +25826,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('texture:validate-material-compatibility', async (_event, materialId: string, targetEngine?: string) => {
+  registerHandler('texture:validate-material-compatibility', async (_event, materialId: string, targetEngine?: string) => {
     const startTime = Date.now();
     try {
       const validation = {
@@ -25874,7 +25874,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('texture:optimize-material-performance', async (_event, materialId: string, targetMemory?: number) => {
+  registerHandler('texture:optimize-material-performance', async (_event, materialId: string, targetMemory?: number) => {
     const startTime = Date.now();
     try {
       const optimized = {
@@ -25916,7 +25916,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('texture:batch-process-materials', async (_event, materialIds: string[], operation: string) => {
+  registerHandler('texture:batch-process-materials', async (_event, materialIds: string[], operation: string) => {
     const startTime = Date.now();
     try {
       const batch = {
@@ -25961,7 +25961,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('texture:export-material-package', async (_event, materialId: string, format?: string) => {
+  registerHandler('texture:export-material-package', async (_event, materialId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'zip';
@@ -26003,7 +26003,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('texture:get-material-statistics', async (_event, limit?: number) => {
+  registerHandler('texture:get-material-statistics', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const count = limit || 10;
@@ -26050,7 +26050,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('texture:import-material-package', async (_event, filePath: string, materialName?: string) => {
+  registerHandler('texture:import-material-package', async (_event, filePath: string, materialName?: string) => {
     const startTime = Date.now();
     try {
       const imported = {
@@ -26129,7 +26129,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('plugin:analyze-plugin-file', async (_event, filePath: string) => {
+  registerHandler('plugin:analyze-plugin-file', async (_event, filePath: string) => {
     const startTime = Date.now();
     try {
       const analysis = {
@@ -26175,7 +26175,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin:validate-plugin-references', async (_event, pluginPath: string) => {
+  registerHandler('plugin:validate-plugin-references', async (_event, pluginPath: string) => {
     const startTime = Date.now();
     try {
       const validation = {
@@ -26224,7 +26224,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin:merge-plugins', async (_event, pluginPaths: string[], outputPath: string) => {
+  registerHandler('plugin:merge-plugins', async (_event, pluginPaths: string[], outputPath: string) => {
     const startTime = Date.now();
     try {
       const merged = {
@@ -26265,7 +26265,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin:analyze-plugin-dependencies', async (_event, pluginPath: string) => {
+  registerHandler('plugin:analyze-plugin-dependencies', async (_event, pluginPath: string) => {
     const startTime = Date.now();
     try {
       const dependencies = {
@@ -26313,7 +26313,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin:detect-plugin-conflicts', async (_event, pluginPaths: string[]) => {
+  registerHandler('plugin:detect-plugin-conflicts', async (_event, pluginPaths: string[]) => {
     const startTime = Date.now();
     try {
       const conflicts = {
@@ -26357,7 +26357,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin:optimize-plugin-load-order', async (_event, pluginPaths: string[]) => {
+  registerHandler('plugin:optimize-plugin-load-order', async (_event, pluginPaths: string[]) => {
     const startTime = Date.now();
     try {
       const optimized = {
@@ -26398,7 +26398,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin:generate-compatibility-report', async (_event, pluginPaths: string[], format?: string) => {
+  registerHandler('plugin:generate-compatibility-report', async (_event, pluginPaths: string[], format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'json';
@@ -26445,7 +26445,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin:batch-validate-plugins', async (_event, filePaths: string[]) => {
+  registerHandler('plugin:batch-validate-plugins', async (_event, filePaths: string[]) => {
     const startTime = Date.now();
     try {
       const batch = {
@@ -26490,7 +26490,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin:get-plugin-management-stats', async (_event, limit?: number) => {
+  registerHandler('plugin:get-plugin-management-stats', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const count = limit || 10;
@@ -26536,7 +26536,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('plugin:export-plugin-analysis', async (_event, analysisId: string, format?: string) => {
+  registerHandler('plugin:export-plugin-analysis', async (_event, analysisId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'json';
@@ -26620,7 +26620,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('papyrusGen:generate-papyrus-script', async (_event, scriptName: string, scriptType?: string) => {
+  registerHandler('papyrusGen:generate-papyrus-script', async (_event, scriptName: string, scriptType?: string) => {
     const startTime = Date.now();
     try {
       const type = scriptType || 'generic';
@@ -26662,7 +26662,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrusGen:create-event-handler', async (_event, eventName: string, parameters?: string[]) => {
+  registerHandler('papyrusGen:create-event-handler', async (_event, eventName: string, parameters?: string[]) => {
     const startTime = Date.now();
     try {
       const handler = {
@@ -26700,7 +26700,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrusGen:generate-property-definition', async (_event, propertyName: string, propertyType?: string) => {
+  registerHandler('papyrusGen:generate-property-definition', async (_event, propertyName: string, propertyType?: string) => {
     const startTime = Date.now();
     try {
       const type = propertyType || 'int';
@@ -26741,7 +26741,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrusGen:create-validation-helper', async (_event, helperName: string, validationType?: string) => {
+  registerHandler('papyrusGen:create-validation-helper', async (_event, helperName: string, validationType?: string) => {
     const startTime = Date.now();
     try {
       const vtype = validationType || 'range';
@@ -26781,7 +26781,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrusGen:generate-optimization-pattern', async (_event, patternName: string, optimizationType?: string) => {
+  registerHandler('papyrusGen:generate-optimization-pattern', async (_event, patternName: string, optimizationType?: string) => {
     const startTime = Date.now();
     try {
       const otype = optimizationType || 'caching';
@@ -26822,7 +26822,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrusGen:generate-documentation', async (_event, scriptId: string, format?: string) => {
+  registerHandler('papyrusGen:generate-documentation', async (_event, scriptId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'markdown';
@@ -26865,7 +26865,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrusGen:batch-generate-scripts', async (_event, scriptConfigs: any[]) => {
+  registerHandler('papyrusGen:batch-generate-scripts', async (_event, scriptConfigs: any[]) => {
     const startTime = Date.now();
     try {
       const batch = {
@@ -26913,7 +26913,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrusGen:validate-papyrus-syntax', async (_event, code: string) => {
+  registerHandler('papyrusGen:validate-papyrus-syntax', async (_event, code: string) => {
     const startTime = Date.now();
     try {
       const validation = {
@@ -26954,7 +26954,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrusGen:apply-type-safety-patterns', async (_event, scriptId: string) => {
+  registerHandler('papyrusGen:apply-type-safety-patterns', async (_event, scriptId: string) => {
     const startTime = Date.now();
     try {
       const script = scriptGeneratorStorage.get(scriptId);
@@ -26995,7 +26995,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('papyrusGen:get-generator-statistics', async (_event, limit?: number) => {
+  registerHandler('papyrusGen:get-generator-statistics', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const count = limit || 10;
@@ -27081,7 +27081,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('form:create-form-reference', async (_event, formId: string, formData?: any) => {
+  registerHandler('form:create-form-reference', async (_event, formId: string, formData?: any) => {
     const startTime = Date.now();
     try {
       const reference = {
@@ -27120,7 +27120,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('form:get-form-properties', async (_event, referenceId: string) => {
+  registerHandler('form:get-form-properties', async (_event, referenceId: string) => {
     const startTime = Date.now();
     try {
       const reference = formReferenceStorage.get(referenceId);
@@ -27157,7 +27157,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('form:update-entity-state', async (_event, entityId: string, stateData: any) => {
+  registerHandler('form:update-entity-state', async (_event, entityId: string, stateData: any) => {
     const startTime = Date.now();
     try {
       const state = {
@@ -27196,7 +27196,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('form:register-event-listener', async (_event, referenceId: string, eventType: string) => {
+  registerHandler('form:register-event-listener', async (_event, referenceId: string, eventType: string) => {
     const startTime = Date.now();
     try {
       const listener = {
@@ -27235,7 +27235,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('form:serialize-reference', async (_event, referenceId: string, format?: string) => {
+  registerHandler('form:serialize-reference', async (_event, referenceId: string, format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'json';
@@ -27277,7 +27277,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('form:validate-reference-integrity', async (_event, referenceId: string) => {
+  registerHandler('form:validate-reference-integrity', async (_event, referenceId: string) => {
     const startTime = Date.now();
     try {
       const validation = {
@@ -27317,7 +27317,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('form:batch-update-references', async (_event, referenceUpdates: any[]) => {
+  registerHandler('form:batch-update-references', async (_event, referenceUpdates: any[]) => {
     const startTime = Date.now();
     try {
       const batch = {
@@ -27363,7 +27363,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('form:optimize-reference-performance', async (_event, referenceId: string) => {
+  registerHandler('form:optimize-reference-performance', async (_event, referenceId: string) => {
     const startTime = Date.now();
     try {
       const optimization = {
@@ -27402,7 +27402,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('form:get-reference-manager-statistics', async (_event, limit?: number) => {
+  registerHandler('form:get-reference-manager-statistics', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const count = limit || 10;
@@ -27450,7 +27450,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('form:deserialize-reference', async (_event, serializedData: string, format?: string) => {
+  registerHandler('form:deserialize-reference', async (_event, serializedData: string, format?: string) => {
     const startTime = Date.now();
     try {
       const fmt = format || 'json';
@@ -27528,7 +27528,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('asset:stream-large-asset', async (_event, assetPath: string, chunkSize?: number) => {
+  registerHandler('asset:stream-large-asset', async (_event, assetPath: string, chunkSize?: number) => {
     const startTime = Date.now();
     try {
       const chunk = chunkSize || 1048576;
@@ -27571,7 +27571,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('asset:manage-memory-efficiently', async (_event, strategy?: string) => {
+  registerHandler('asset:manage-memory-efficiently', async (_event, strategy?: string) => {
     const startTime = Date.now();
     try {
       const mgmt = {
@@ -27611,7 +27611,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('asset:load-resource', async (_event, resourceId: string, priority?: number) => {
+  registerHandler('asset:load-resource', async (_event, resourceId: string, priority?: number) => {
     const startTime = Date.now();
     try {
       const resource = {
@@ -27650,7 +27650,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('asset:unload-resource', async (_event, resourceId: string) => {
+  registerHandler('asset:unload-resource', async (_event, resourceId: string) => {
     const startTime = Date.now();
     try {
       const unload = {
@@ -27688,7 +27688,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('asset:optimize-cache-performance', async (_event, cacheStrategy?: string) => {
+  registerHandler('asset:optimize-cache-performance', async (_event, cacheStrategy?: string) => {
     const startTime = Date.now();
     try {
       const cache = {
@@ -27727,7 +27727,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('asset:handle-memory-pressure', async (_event, pressureLevel?: string) => {
+  registerHandler('asset:handle-memory-pressure', async (_event, pressureLevel?: string) => {
     const startTime = Date.now();
     try {
       const level = pressureLevel || 'normal';
@@ -27768,7 +27768,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('asset:get-memory-diagnostics', async (_event, detailed?: boolean) => {
+  registerHandler('asset:get-memory-diagnostics', async (_event, detailed?: boolean) => {
     const startTime = Date.now();
     try {
       const diagnostics = {
@@ -27809,7 +27809,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('asset:batch-stream-assets', async (_event, assetPaths: string[]) => {
+  registerHandler('asset:batch-stream-assets', async (_event, assetPaths: string[]) => {
     const startTime = Date.now();
     try {
       const batch = {
@@ -27856,7 +27856,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('asset:get-streaming-statistics', async (_event, limit?: number) => {
+  registerHandler('asset:get-streaming-statistics', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const count = limit || 10;
@@ -27903,7 +27903,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('asset:validate-resource-integrity', async (_event, resourceId: string) => {
+  registerHandler('asset:validate-resource-integrity', async (_event, resourceId: string) => {
     const startTime = Date.now();
     try {
       const validation = {
@@ -27980,7 +27980,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('scriptCache:load-cached-script', async (_event, scriptId: string, forceRecompile?: boolean) => {
+  registerHandler('scriptCache:load-cached-script', async (_event, scriptId: string, forceRecompile?: boolean) => {
     const startTime = Date.now();
     try {
       const script = {
@@ -28020,7 +28020,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('scriptCache:save-script-cache', async (_event, scriptId: string, compiledData: any, compressionLevel?: number) => {
+  registerHandler('scriptCache:save-script-cache', async (_event, scriptId: string, compiledData: any, compressionLevel?: number) => {
     const startTime = Date.now();
     try {
       const compression = compressionLevel || 6;
@@ -28061,7 +28061,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('scriptCache:validate-cache-integrity', async (_event, cacheId: string) => {
+  registerHandler('scriptCache:validate-cache-integrity', async (_event, cacheId: string) => {
     const startTime = Date.now();
     try {
       const validation = {
@@ -28100,7 +28100,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('scriptCache:optimize-cache-structure', async (_event, optimization?: string) => {
+  registerHandler('scriptCache:optimize-cache-structure', async (_event, optimization?: string) => {
     const startTime = Date.now();
     try {
       const opt = optimization || 'balanced';
@@ -28140,7 +28140,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('scriptCache:clear-cache-entry', async (_event, cacheId: string) => {
+  registerHandler('scriptCache:clear-cache-entry', async (_event, cacheId: string) => {
     const startTime = Date.now();
     try {
       const clear = {
@@ -28179,7 +28179,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('scriptCache:get-cache-statistics', async (_event, limit?: number) => {
+  registerHandler('scriptCache:get-cache-statistics', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const count = limit || 10;
@@ -28227,7 +28227,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('scriptCache:batch-update-cache', async (_event, updates: any[]) => {
+  registerHandler('scriptCache:batch-update-cache', async (_event, updates: any[]) => {
     const startTime = Date.now();
     try {
       const batch = {
@@ -28272,7 +28272,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('scriptCache:analyze-script-performance', async (_event, scriptId: string) => {
+  registerHandler('scriptCache:analyze-script-performance', async (_event, scriptId: string) => {
     const startTime = Date.now();
     try {
       const analysis = {
@@ -28313,7 +28313,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('scriptCache:generate-cache-report', async (_event, reportFormat?: string) => {
+  registerHandler('scriptCache:generate-cache-report', async (_event, reportFormat?: string) => {
     const startTime = Date.now();
     try {
       const format = reportFormat || 'json';
@@ -28353,7 +28353,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('scriptCache:monitor-cache-health', async (_event, detailedMetrics?: boolean) => {
+  registerHandler('scriptCache:monitor-cache-health', async (_event, detailedMetrics?: boolean) => {
     const startTime = Date.now();
     try {
       const health = {
@@ -28431,7 +28431,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
-  ipcMain.handle('formID:scan-for-collisions', async (_event, modPaths: string[]) => {
+  registerHandler('formID:scan-for-collisions', async (_event, modPaths: string[]) => {
     const startTime = Date.now();
     try {
       const scan = {
@@ -28470,7 +28470,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('formID:detect-collision', async (_event, formID: string, affectedMods: string[]) => {
+  registerHandler('formID:detect-collision', async (_event, formID: string, affectedMods: string[]) => {
     const startTime = Date.now();
     try {
       const collision = {
@@ -28509,7 +28509,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('formID:generate-formid-mapping', async (_event, modPath: string, baseFormID?: string) => {
+  registerHandler('formID:generate-formid-mapping', async (_event, modPath: string, baseFormID?: string) => {
     const startTime = Date.now();
     try {
       const mapping = {
@@ -28548,7 +28548,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('formID:validate-formid-integrity', async (_event, modPath: string) => {
+  registerHandler('formID:validate-formid-integrity', async (_event, modPath: string) => {
     const startTime = Date.now();
     try {
       const validation = {
@@ -28588,7 +28588,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('formID:remap-conflicting-formids', async (_event, collisionId: string, targetModID: string) => {
+  registerHandler('formID:remap-conflicting-formids', async (_event, collisionId: string, targetModID: string) => {
     const startTime = Date.now();
     try {
       const remap = {
@@ -28627,7 +28627,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('formID:get-collision-report', async (_event, reportId: string) => {
+  registerHandler('formID:get-collision-report', async (_event, reportId: string) => {
     const startTime = Date.now();
     try {
       const report = {
@@ -28666,7 +28666,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('formID:batch-scan-mods', async (_event, modPaths: string[]) => {
+  registerHandler('formID:batch-scan-mods', async (_event, modPaths: string[]) => {
     const startTime = Date.now();
     try {
       const batch = {
@@ -28712,7 +28712,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('formID:monitor-formid-health', async (_event, modPath: string) => {
+  registerHandler('formID:monitor-formid-health', async (_event, modPath: string) => {
     const startTime = Date.now();
     try {
       const health = {
@@ -28752,7 +28752,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('formID:get-formid-statistics', async (_event, limit?: number) => {
+  registerHandler('formID:get-formid-statistics', async (_event, limit?: number) => {
     const startTime = Date.now();
     try {
       const count = limit || 10;
@@ -28802,7 +28802,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   loadFormIDDataFromDisk();
 
   // Panel Data Persistence IPC handlers
-  ipcMain.handle('panel:save-data', async (_event, panelId: string, data: any) => {
+  registerHandler('panel:save-data', async (_event, panelId: string, data: any) => {
     try {
       const success = await savePanelData(panelId, data);
       return { success };
@@ -28812,7 +28812,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('panel:load-data', async (_event, panelId: string) => {
+  registerHandler('panel:load-data', async (_event, panelId: string) => {
     try {
       const data = await loadPanelData(panelId);
       return { success: true, data };
@@ -28822,7 +28822,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('panel:delete-data', async (_event, panelId: string) => {
+  registerHandler('panel:delete-data', async (_event, panelId: string) => {
     try {
       const success = await deletePanelData(panelId);
       return { success };
@@ -28833,7 +28833,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // ML/LLM API handlers - Ollama
-  ipcMain.handle('ml:get-ollama-status', async (_event, baseUrl?: string) => {
+  registerHandler('ml:get-ollama-status', async (_event, baseUrl?: string) => {
     try {
       const { getOllamaStatus } = require('../electron/ml/ollama');
       const status = await getOllamaStatus(baseUrl || 'http://127.0.0.1:11434');
@@ -28844,7 +28844,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('ml:ollama-pull', async (_event, modelName: string, opts?: any) => {
+  registerHandler('ml:ollama-pull', async (_event, modelName: string, opts?: any) => {
     try {
       const { ollamaPull } = require('../electron/ml/ollama');
       const result = await ollamaPull(modelName, opts);
@@ -28856,7 +28856,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // ML/LLM API handlers - OpenAI compatible
-  ipcMain.handle('ml:get-openai-compat-status', async (_event, baseUrl?: string) => {
+  registerHandler('ml:get-openai-compat-status', async (_event, baseUrl?: string) => {
     try {
       const { getOpenAICompatStatus } = require('../electron/ml/openaiCompat');
       const status = await getOpenAICompatStatus(baseUrl || 'http://127.0.0.1:1234/v1');
@@ -28867,7 +28867,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('security:check-db', async (_event, hash: string) => {
+  registerHandler('security:check-db', async (_event, hash: string) => {
     try {
       return await securityEngine.checkAgainstDatabase(hash);
     } catch (error: any) {
@@ -28876,7 +28876,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('security:pick-file', async () => {
+  registerHandler('security:pick-file', async () => {
     try {
       const result = await dialog.showOpenDialog(mainWindow!, {
         title: 'Select file or folder to scan',
@@ -28895,7 +28895,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   // Auto-updater IPC handlers
 
-  ipcMain.handle('check-for-updates', async () => {
+  registerHandler('check-for-updates', async () => {
     try {
       await autoUpdaterService.checkForUpdates();
       return { success: true };
@@ -28905,7 +28905,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('download-update', async () => {
+  registerHandler('download-update', async () => {
     try {
       await autoUpdaterService.downloadUpdate();
       return { success: true };
@@ -28915,7 +28915,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('install-update', async () => {
+  registerHandler('install-update', async () => {
     try {
       autoUpdaterService.quitAndInstall();
       return { success: true };
@@ -30076,7 +30076,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
    * wiki depending on the query topic. Returns plain-text results so they can
    * be injected directly into Mossy's AI context.
    */
-  ipcMain.handle('web-search', async (_event, query: string, type?: string) => {
+  registerHandler('web-search', async (_event, query: string, type?: string) => {
     try {
       if (!query || typeof query !== 'string') {
         return { success: false, error: 'Invalid query' };
@@ -30216,7 +30216,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
    *     summary: string;
    *   }
    */
-  ipcMain.handle('test-internet-access', async () => {
+  registerHandler('test-internet-access', async () => {
     const TEST_WIKI_QUERY = 'Papyrus scripting Fallout 4';
     const TEST_GENERAL_QUERY = 'Fallout 4 modding guide';
 
@@ -30316,7 +30316,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
    * browse-web — Fetch raw text content from an HTTPS URL.
    * Used by the browse_web tool so Mossy can read a specific page.
    */
-  ipcMain.handle('browse-web', async (_event, url: string) => {
+  registerHandler('browse-web', async (_event, url: string) => {
     try {
       if (!url || typeof url !== 'string') {
         return { success: false, error: 'Invalid URL' };
@@ -30344,7 +30344,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
    *
    * Returns: { success: boolean; exePath?: string; error?: string }
    */
-  ipcMain.handle('download-umodel', async (_event, destDir?: string) => {
+  registerHandler('download-umodel', async (_event, destDir?: string) => {
     // Timeout for download and extraction operations (ms)
     const UMODEL_TIMEOUT_MS = 60_000;
     // Official UModel (UEViewer) Win64 download — gildor.org
@@ -30468,7 +30468,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
    *
    * Returns: { available: boolean; version?: string; path?: string; pythonFound?: boolean; error?: string }
    */
-  ipcMain.handle('check-pytorch', async () => {
+  registerHandler('check-pytorch', async () => {
     /** Spawn a process with optional env overrides; collects output and times out after 15 s. */
     const runCmd = (
       cmd: string,
@@ -30643,7 +30643,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
    * @param mode – Optional: 'cpu' | 'gpu' | 'auto' (defaults to 'cpu')
    * Returns: { success: boolean; path?: string; version?: string; message?: string; error?: string; troubleshooting?: string[] }
    */
-  ipcMain.handle('install-pytorch', async (_event, destDir?: string, mode: string = 'cpu') => {
+  registerHandler('install-pytorch', async (_event, destDir?: string, mode: string = 'cpu') => {
     // IMPORTANT: Always use CPU-only build for maximum compatibility
     // GPU (CUDA) mode causes "DLL initialization failed" errors in Blender because:
     // 1. Blender has its own Python environment
@@ -30889,7 +30889,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
    * Uninstalls all PyTorch and reinstalls CPU-only version.
    * Use when GPU build causes "DLL initialization failed" in Blender.
    */
-  ipcMain.handle('reinstall-pytorch-cpu-only', async () => {
+  registerHandler('reinstall-pytorch-cpu-only', async () => {
     try {
       const userData = app.getPath('userData');
 
@@ -30968,7 +30968,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // ── FOMOD Builder handlers ────────────────────────────────────────────────
   // Pure XML/file operations — no external tools required.
 
-  ipcMain.handle('fomod:create', async (_event, modPath: string, modInfo?: any) => {
+  registerHandler('fomod:create', async (_event, modPath: string, modInfo?: any) => {
     try {
       const safeModPath = String(modPath || '');
       if (!safeModPath || !fs.existsSync(safeModPath)) {
@@ -31015,7 +31015,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  ipcMain.handle('fomod:generate-module-config', async (_event, fomod: any) => {
+  registerHandler('fomod:generate-module-config', async (_event, fomod: any) => {
     try {
       const steps = (fomod?.steps || []).map((step: any) => {
         const groups = (step?.groups || []).map((group: any) => {
@@ -31055,7 +31055,7 @@ ${steps}
     }
   });
 
-  ipcMain.handle('fomod:generate-info-xml', async (_event, modInfo: any) => {
+  registerHandler('fomod:generate-info-xml', async (_event, modInfo: any) => {
     try {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <fomod>
@@ -31071,7 +31071,7 @@ ${steps}
     }
   });
 
-  ipcMain.handle('fomod:validate', async (_event, fomodPath: string) => {
+  registerHandler('fomod:validate', async (_event, fomodPath: string) => {
     try {
       const safePath = String(fomodPath || '');
       const errors: string[] = [];
@@ -31095,7 +31095,7 @@ ${steps}
     }
   });
 
-  ipcMain.handle('fomod:preview', async (_event, fomod: any, _selections?: any) => {
+  registerHandler('fomod:preview', async (_event, fomod: any, _selections?: any) => {
     try {
       const fileList: string[] = [];
       for (const step of fomod?.steps || []) {
@@ -31114,7 +31114,7 @@ ${steps}
     }
   });
 
-  ipcMain.handle('fomod:export', async (_event, fomod: any, outputPath: string, sourceModPath?: string) => {
+  registerHandler('fomod:export', async (_event, fomod: any, outputPath: string, sourceModPath?: string) => {
     try {
       const safeOut = String(outputPath || '');
       if (!safeOut) return { success: false, error: 'No output path specified' };
@@ -31194,7 +31194,7 @@ ${steps}
     }
   });
 
-  ipcMain.handle('fomod:load', async (_event, fomodPath: string) => {
+  registerHandler('fomod:load', async (_event, fomodPath: string) => {
     try {
       const safePath = String(fomodPath || '');
       const moduleConfigPath = path.join(safePath, 'fomod', 'ModuleConfig.xml');
@@ -31207,7 +31207,7 @@ ${steps}
     }
   });
 
-  ipcMain.handle('fomod:save-project', async (_event, fomod: any, projectPath: string) => {
+  registerHandler('fomod:save-project', async (_event, fomod: any, projectPath: string) => {
     try {
       const safePath = String(projectPath || '');
       if (!safePath) return { success: false, error: 'No project path specified' };
@@ -31357,7 +31357,7 @@ ${steps}
 
   // ── CK path pickers (missing one) ────────────────────────────────────────
 
-  ipcMain.handle('ck-pick-fallout4-folder', async () => {
+  registerHandler('ck-pick-fallout4-folder', async () => {
     const result = await dialog.showOpenDialog({ title: 'Select Fallout 4 Folder', properties: ['openDirectory'] });
     if (result.canceled || !result.filePaths?.length) return '';
     return result.filePaths[0];
@@ -31440,7 +31440,7 @@ ${steps}
   };
 
   // ── ck:inspect-plugin — full deep-scan binary parser ────────────────────────
-  ipcMain.handle('ck:inspect-plugin', async (_event, pluginPath: string) => {
+  registerHandler('ck:inspect-plugin', async (_event, pluginPath: string) => {
     try {
       if (!pluginPath || typeof pluginPath !== 'string') return { success: false, error: 'No plugin path provided.' };
       const resolved = path.resolve(pluginPath);
@@ -31544,7 +31544,7 @@ ${steps}
   });
 
   // ── ck:autofix-rename — rename plugin, replacing spaces with underscores ──────
-  ipcMain.handle('ck:autofix-rename', async (_event, pluginPath: string) => {
+  registerHandler('ck:autofix-rename', async (_event, pluginPath: string) => {
     try {
       const resolved = path.resolve(pluginPath);
       if (!fs.existsSync(resolved)) return { success: false, error: 'File not found.' };
@@ -31562,7 +31562,7 @@ ${steps}
   // ── ck:autofix-undelete-navmesh — binary fix for deleted NAVM records ─────────
   // Clears the Deleted flag (0x20) and sets InitiallyDisabled (0x800).
   // Creates a .bak backup first so the original can be restored.
-  ipcMain.handle('ck:autofix-undelete-navmesh', async (_event, pluginPath: string) => {
+  registerHandler('ck:autofix-undelete-navmesh', async (_event, pluginPath: string) => {
     try {
       const resolved = path.resolve(pluginPath);
       if (!fs.existsSync(resolved)) return { success: false, error: 'File not found.' };
@@ -31585,7 +31585,7 @@ ${steps}
   });
 
   // ── ck:autofix-launch-xedit — open plugin in FO4Edit for clean / compact / inspect
-  ipcMain.handle('ck:autofix-launch-xedit', async (_event, pluginPath: string, mode: 'clean' | 'compact' | 'open') => {
+  registerHandler('ck:autofix-launch-xedit', async (_event, pluginPath: string, mode: 'clean' | 'compact' | 'open') => {
     try {
       const resolved   = path.resolve(pluginPath);
       const pluginName = path.basename(resolved);
@@ -31608,7 +31608,7 @@ ${steps}
   });
 
   // ── ck:autofix-rebuild-precombines — spawn CK with -GeneratePrevisiblesForPlugin ─
-  ipcMain.handle('ck:autofix-rebuild-precombines', async (_event, pluginPath: string) => {
+  registerHandler('ck:autofix-rebuild-precombines', async (_event, pluginPath: string) => {
     try {
       const resolved   = path.resolve(pluginPath);
       const pluginName = path.basename(resolved);
@@ -31622,7 +31622,7 @@ ${steps}
   });
 
   // ── ck:scan-conflicts — find FormID overlaps between two plugins ──────────────
-  ipcMain.handle('ck:scan-conflicts', async (_event, pathA: string, pathB: string) => {
+  registerHandler('ck:scan-conflicts', async (_event, pathA: string, pathB: string) => {
     try {
       const rA = path.resolve(pathA), rB = path.resolve(pathB);
       for (const p of [rA, rB]) if (!fs.existsSync(p)) return { success: false, error: `Not found: ${p}` };
@@ -31659,7 +31659,7 @@ ${steps}
   });
 
   // ── ck:create-patch — write a compatibility patch ESP ─────────────────────────
-  ipcMain.handle('ck:create-patch', async (_event, pathA: string, pathB: string, patchPath: string, winner: 'A' | 'B') => {
+  registerHandler('ck:create-patch', async (_event, pathA: string, pathB: string, patchPath: string, winner: 'A' | 'B') => {
     try {
       const rA = path.resolve(pathA), rB = path.resolve(pathB);
       for (const p of [rA, rB]) if (!fs.existsSync(p)) return { success: false, error: `Not found: ${p}` };
@@ -31764,7 +31764,7 @@ ${steps}
   };
 
   // ── ck:env-check — detect all tools required for previsbine generation ────────
-  ipcMain.handle('ck:env-check', async (_event, dataDir: string) => {
+  registerHandler('ck:env-check', async (_event, dataDir: string) => {
     try {
       const fo4Dir = path.resolve(path.join(dataDir, '..'));
       const result: Record<string, any> = { fo4Dir };
@@ -31832,7 +31832,7 @@ ${steps}
   });
 
   // ── ck:setup-generation-env — auto-create steam_appid.txt ────────────────────
-  ipcMain.handle('ck:setup-generation-env', async (_event, fo4Dir: string) => {
+  registerHandler('ck:setup-generation-env', async (_event, fo4Dir: string) => {
     try {
       const steps: string[] = [];
       const steamTxt = path.join(path.resolve(fo4Dir), 'steam_appid.txt');
@@ -31850,7 +31850,7 @@ ${steps}
   // Returns list of CELL FormIDs the plugin touches, with reasons (XCRI override,
   // REFR override in cell, direct CELL edit). These are the cells that need
   // precombine/previs regeneration or a PRP patch.
-  ipcMain.handle('ck:detect-xcri-cells', async (_event, pluginPath: string) => {
+  registerHandler('ck:detect-xcri-cells', async (_event, pluginPath: string) => {
     try {
       const resolved = path.resolve(pluginPath);
       if (!fs.existsSync(resolved)) return { success: false, error: 'File not found.' };
@@ -31908,7 +31908,7 @@ ${steps}
   // with the user's mod changes. Based on the "Quick PRP Patch" approach where you
   // override the conflicting cells with PRP's CELL records so the game uses PRP's
   // precombine data for those cells.
-  ipcMain.handle('ck:create-prp-patch', async (_event, pluginPath: string, prpPath: string, patchPath: string) => {
+  registerHandler('ck:create-prp-patch', async (_event, pluginPath: string, prpPath: string, patchPath: string) => {
     try {
       const rPlugin = path.resolve(pluginPath);
       const rPrp    = path.resolve(prpPath);
@@ -31991,7 +31991,7 @@ ${steps}
   // ── ck:launch-previs-workflow — orchestrate the full PJM Scripts workflow ──────
   // mode 'check'    → xEdit + FO4Check_Previsbines.pas (run first, find issues)
   // mode 'generate' → GeneratePrevisibines.bat (run after check completes)
-  ipcMain.handle('ck:launch-previs-workflow', async (_event, pluginPath: string, xeditPath: string, mode: 'check' | 'generate') => {
+  registerHandler('ck:launch-previs-workflow', async (_event, pluginPath: string, xeditPath: string, mode: 'check' | 'generate') => {
     try {
       const resolved   = path.resolve(pluginPath);
       const pluginName = path.basename(resolved, path.extname(resolved));
@@ -32035,7 +32035,7 @@ ${steps}
   // ── ck:clean-plugin-precombines — strip existing precombine data before regen ──
   // Runs FO4Edit -script:FO4RemovePrecombines.pas to clean CELL records before
   // regenerating. Prevents conflicts from stale precombine references.
-  ipcMain.handle('ck:clean-plugin-precombines', async (_event, pluginPath: string, xeditPath: string) => {
+  registerHandler('ck:clean-plugin-precombines', async (_event, pluginPath: string, xeditPath: string) => {
     try {
       const xeditExe = path.resolve(xeditPath);
       const plugName = path.basename(path.resolve(pluginPath));
@@ -32062,7 +32062,7 @@ ${steps}
   const TRAINING_DATA_FILE = path.join(app.getPath('userData'), 'training-dataset.jsonl');
   const TRAINING_META_FILE = path.join(app.getPath('userData'), 'training-meta.json');
 
-  ipcMain.handle('training-data-add-pair', async (_event, pair: { question: string; answer: string; rating: 'good' | 'bad'; topic?: string; editedAnswer?: string }) => {
+  registerHandler('training-data-add-pair', async (_event, pair: { question: string; answer: string; rating: 'good' | 'bad'; topic?: string; editedAnswer?: string }) => {
     try {
       const entry = {
         conversations: [
@@ -32080,7 +32080,7 @@ ${steps}
     }
   });
 
-  ipcMain.handle('training-data-get-stats', async () => {
+  registerHandler('training-data-get-stats', async () => {
     try {
       if (!fs.existsSync(TRAINING_DATA_FILE)) return { total: 0, good: 0, bad: 0, topics: {} };
       const lines = fs.readFileSync(TRAINING_DATA_FILE, 'utf-8').split('\n').filter(Boolean);
@@ -32100,7 +32100,7 @@ ${steps}
     }
   });
 
-  ipcMain.handle('training-data-export-jsonl', async (_event, opts?: { goodOnly?: boolean; outputPath?: string }) => {
+  registerHandler('training-data-export-jsonl', async (_event, opts?: { goodOnly?: boolean; outputPath?: string }) => {
     try {
       if (!fs.existsSync(TRAINING_DATA_FILE)) return { ok: false, error: 'No training data yet. Rate some responses first.' };
       const lines = fs.readFileSync(TRAINING_DATA_FILE, 'utf-8').split('\n').filter(Boolean);
@@ -32126,7 +32126,7 @@ ${steps}
     }
   });
 
-  ipcMain.handle('training-data-clear', async () => {
+  registerHandler('training-data-clear', async () => {
     try {
       if (fs.existsSync(TRAINING_DATA_FILE)) {
         fs.renameSync(TRAINING_DATA_FILE, TRAINING_DATA_FILE + `.backup-${Date.now()}`);
