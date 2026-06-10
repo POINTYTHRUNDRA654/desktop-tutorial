@@ -165,6 +165,7 @@ const JourneyHub = React.lazy(() => import('./JourneyHub'));
 const RuntimeHub = React.lazy(() => import('./RuntimeHub'));
 const SystemHub = React.lazy(() => import('./SystemHub'));
 const GuidesHub = React.lazy(() => import('./GuidesHub'));
+const CreativeDirectorPanel = React.lazy(() => import('../../../plugin_creative_director/CreativeDirectorPanel'));
 
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
@@ -234,7 +235,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/wizards', '/devtools', '/settings', '/project', '/support', '/assembler', '/diagnostics',
   '/community', '/capabilities', '/asset-analysis', '/plugin-tools', '/packaging-release', '/extensions/mo2',
   '/extensions/comfyui', '/extensions/upscayl', '/journey-hub', '/runtime-hub', '/system-hub', '/guides-hub',
-  '/ext-tools',
+  '/ext-tools', '/creative-director',
   // Special routes rendered directly inside <Routes>
   '/tutorial', '/whats-new',
 ]);
@@ -1605,6 +1606,8 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/extensions/mo2"><ErrorBoundary><MO2Extension /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/extensions/comfyui"><ErrorBoundary><ComfyUIExtension /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/extensions/upscayl"><ErrorBoundary><UpscaylExtension /></ErrorBoundary></KeepAlivePanel>
+              {/* Vault-Tec Creative Director plugin */}
+              <KeepAlivePanel path="/creative-director"><ErrorBoundary><CreativeDirectorPanel /></ErrorBoundary></KeepAlivePanel>
             </div>
           </main>
           </div>
