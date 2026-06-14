@@ -165,7 +165,7 @@ const JourneyHub = React.lazy(() => import('./JourneyHub'));
 const RuntimeHub = React.lazy(() => import('./RuntimeHub'));
 const SystemHub = React.lazy(() => import('./SystemHub'));
 const GuidesHub = React.lazy(() => import('./GuidesHub'));
-const CreativeDirectorPanel = React.lazy(() => import('../../../plugin_creative_director/CreativeDirectorPanel'));
+const CreativeDirectorPanel = React.lazy(() => import('./plugin_creative_director/CreativeDirectorPanel'));
 
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
