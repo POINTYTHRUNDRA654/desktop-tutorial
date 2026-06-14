@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Image, Layers, Wand2, BookOpen, AlertCircle, ChevronRight, Zap, Sparkles, FileCode2, SlidersHorizontal, Package } from 'lucide-react';
+import { Image, Layers, Wand2, BookOpen, AlertCircle, ChevronRight, Zap, Sparkles, FileCode2, SlidersHorizontal, Package, Palette } from 'lucide-react';
 
 // Lazy-load tool panels — hub stays lightweight
 const DDSConverter = React.lazy(() =>
@@ -30,7 +30,7 @@ const MaterialDefinitionEditor = React.lazy(() =>
   import('./MaterialDefinitionEditor').then((m) => ({ default: m.MaterialDefinitionEditor }))
 );
 
-type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'bgsm' | 'materials' | 'matdefs' | 'optimizer' | 'enhancer';
+type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'bgsm' | 'materials' | 'matdefs' | 'optimizer' | 'enhancer' | 'krita';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'dds',       icon: Image,             label: 'DDS Converter',     sublabel: 'BC1·BC3·BC4·BC5·BC7' },
@@ -42,6 +42,7 @@ const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>;
   { id: 'matdefs',   icon: Package,           label: 'Mat Definitions',   sublabel: 'RMAOS manifest' },
   { id: 'optimizer', icon: Zap,               label: 'Optimizer',         sublabel: 'Batch compress' },
   { id: 'enhancer',  icon: Sparkles,          label: 'Enhancer',          sublabel: 'AI upscale' },
+  { id: 'krita',     icon: Palette,           label: 'Krita AI Paint',    sublabel: 'Diffusion · Inpaint' },
 ];
 
 // ============================================================================
@@ -321,6 +322,114 @@ const FO4TextureGuide: React.FC = () => (
 );
 
 // ============================================================================
+// Krita AI Diffusion Panel
+// ============================================================================
+
+const KRITA_SETUP_STEPS = [
+  { step: '1', title: 'Install Krita', desc: 'Download from krita.org — free and open source. Windows 64-bit installer recommended.' },
+  { step: '2', title: 'Install ComfyUI (AI Backend)', desc: 'The plugin uses ComfyUI as its generation backend. Install ComfyUI with your NVIDIA GPU drivers. Requires 6+ GB VRAM for quality results.' },
+  { step: '3', title: 'Install the Plugin', desc: 'In Krita: Tools → Scripts → Import Python Plugin → select the krita-ai-diffusion folder cloned at D:\\Projects\\desktop-tutorial\\krita-ai-diffusion. Enable in Plugin Manager.' },
+  { step: '4', title: 'Connect to ComfyUI', desc: 'In the AI panel inside Krita: set server URL to http://127.0.0.1:8188, click Connect. Plugin downloads required checkpoints on first use.' },
+  { step: '5', title: 'Open Your Texture', desc: 'Open a 1024×1024 or 2048×2048 PNG in Krita (power-of-2 size). Use selections to target specific regions for generation.' },
+  { step: '6', title: 'Export PNG → DDS', desc: 'Save output as PNG, then use the DDS Converter tab here to compress to BC1/BC3/BC7 with mipmaps for FO4.' },
+];
+
+const KRITA_FO4_TIPS = [
+  { label: 'Tileable textures', tip: 'Add "tileable, seamless" to your prompt. Enable Krita\'s Wrap Around mode (View menu) to check tiling live before export.' },
+  { label: 'Flat-lit diffuse', tip: '"ambient occlusion baked, diffuse only, no specular highlights, flat lighting" — FO4 applies its own lighting via normal/spec maps.' },
+  { label: 'FO4 aesthetic', tip: '"Fallout 4 style, post-apocalyptic, retro-futuristic, worn, grungy" anchors the style to match vanilla assets.' },
+  { label: 'Inpainting seams', tip: 'Select the tile edge with a feathered selection and inpaint to blend seams. Use ~20% strength for subtle fixes.' },
+  { label: 'Normal map derivation', tip: 'Generate diffuse first, then derive normal/roughness with xNormal or Materialize. Or use ControlNet depth/normal to guide a matching generation.' },
+  { label: 'Resolution flow', tip: 'Generate at 512–1024px for speed, upscale to 2048–4096 using the plugin\'s 4x upscale. Gives better coherence than generating large from scratch.' },
+];
+
+const KritaAIDiffusion: React.FC = () => (
+  <div className="space-y-6 text-sm text-slate-200">
+    <div className="rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-900/30 to-black/40 p-5">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-10 h-10 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center flex-shrink-0">
+          <Palette className="w-5 h-5 text-purple-400" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-white">Krita AI Diffusion</h2>
+          <p className="text-xs text-purple-300/80">Generative AI texture painting — Acly/krita-ai-diffusion</p>
+        </div>
+      </div>
+      <p className="text-slate-300 text-xs leading-relaxed">
+        Integrates Stable Diffusion / Flux directly into Krita for AI-assisted texture creation, inpainting, upscaling, and live painting.
+        Ideal for generating and refining FO4 diffuse textures with precise selections and reference control.
+      </p>
+      <div className="mt-3 text-xs font-mono text-purple-400 bg-purple-900/20 border border-purple-500/20 rounded px-3 py-1.5">
+        Cloned: D:\Projects\desktop-tutorial\krita-ai-diffusion
+      </div>
+    </div>
+
+    <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5">
+      <h3 className="text-base font-bold text-white mb-3">Why Use This for FO4 Textures</h3>
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: 'Inpainting', desc: 'Fix seams, repair damaged areas, or add detail to existing textures. Select the region, prompt the fill.' },
+          { label: 'Live Painting', desc: 'AI interprets your brush strokes in real time. Sketch a rough shape → get a fully textured surface.' },
+          { label: '4K / 8K Upscale', desc: 'Upscale 512px to 4096px without artifacts. Essential for hero-asset quality without massive generation cost.' },
+          { label: 'ControlNet', desc: 'Use existing textures as reference — canny edge, depth, scribble — to generate matching style variations.' },
+          { label: 'Seamless Tiling', desc: 'Generate tileable tiling textures by inpainting tile boundary edges for seamless wrapping.' },
+          { label: 'Model Support', desc: 'Flux 2, SD XL, Illustrious, SD 1.5, Z-Image — SDXL and Flux 2 recommended for texture detail.' },
+        ].map(item => (
+          <div key={item.label} className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+            <div className="text-xs font-bold text-purple-300 mb-1">{item.label}</div>
+            <div className="text-xs text-slate-400">{item.desc}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5">
+      <h3 className="text-base font-bold text-white mb-4">Setup Steps</h3>
+      <div className="space-y-3">
+        {KRITA_SETUP_STEPS.map(s => (
+          <div key={s.step} className="flex gap-3 items-start">
+            <div className="w-6 h-6 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="text-xs text-purple-400 font-bold">{s.step}</span>
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-white">{s.title}</div>
+              <div className="text-xs text-slate-400 mt-0.5">{s.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div className="rounded-xl border border-amber-500/20 bg-amber-900/10 p-5">
+      <h3 className="text-base font-bold text-amber-300 mb-3">FO4 Texture Workflow</h3>
+      <div className="space-y-2 text-xs text-slate-300">
+        <p><span className="text-amber-300 font-semibold">1. Generate diffuse</span> — Prompt: "rusted metal panel, Fallout 4 aesthetic, grungy, tileable, flat lit" → 2048×2048 PNG</p>
+        <p><span className="text-amber-300 font-semibold">2. Inpaint seams &amp; flaws</span> — Select imperfect areas, inpaint to fix. Select tile edges and blend for seamless tiling.</p>
+        <p><span className="text-amber-300 font-semibold">3. Upscale to 4096</span> — Use plugin's 4× upscale. Result is sharper and more detailed than bicubic interpolation.</p>
+        <p><span className="text-amber-300 font-semibold">4. PNG → DDS Converter</span> — Save as PNG, switch to the DDS Converter tab, compress to BC1 (opaque) or BC3 (alpha). Enable mipmaps.</p>
+        <p><span className="text-amber-300 font-semibold">5. Derive normal map</span> — Use xNormal, Materialize, or ControlNet normal mode to generate a matching _n.dds from the diffuse.</p>
+        <p><span className="text-amber-300 font-semibold">6. Test in-game</span> — Drop loose DDS files in Data\Textures\, reference in BGSM, load via MO2 or directly in FO4.</p>
+      </div>
+    </div>
+
+    <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5">
+      <h3 className="text-base font-bold text-white mb-3">FO4 Prompting Tips</h3>
+      <div className="space-y-2">
+        {KRITA_FO4_TIPS.map(tip => (
+          <div key={tip.label} className="flex gap-3">
+            <ChevronRight className="w-4 h-4 text-purple-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-xs font-semibold text-slate-200">{tip.label}: </span>
+              <span className="text-xs text-slate-400">{tip.tip}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+// ============================================================================
 // Main Hub Component
 // ============================================================================
 
@@ -427,6 +536,7 @@ const TextureMaterialsHub: React.FC = () => {
             <TextureEnhancer />
           </PanelLoader>
         )}
+        {activeTab === 'krita' && <KritaAIDiffusion />}
       </div>
     </div>
   );
