@@ -4,9 +4,10 @@
   "private": true,
   "dependencies": {
     "express": "^4.19.2",
-    "node-fetch": "^3.0.0"
+    "node-fetch": "^3.0.0",
+    "tsx": "^4.7.1"
   },
   "scripts": {
-    "start": "node token-server.js"
+    "start": "tsx token-server.ts"
   }
 }
