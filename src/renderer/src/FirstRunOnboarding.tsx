@@ -34,6 +34,10 @@ interface RecommendedDownload {
     hasExecutable?: boolean;
     /** Optional Fallout 4 versions this item is relevant for in onboarding. */
     supportedFo4Versions?: Array<'og' | 'ng' | 'ae'>;
+    /** Real Electron settings key (Settings.ts) this tool's path should be persisted to,
+     *  so the rest of the app (CK Hub, Workshop, External Tools, etc.) can actually find
+     *  it - not just the localStorage-only permission list used for the AI's context. */
+    settingsKey?: string;
 }
 
 const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
@@ -73,6 +77,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     // ── Modding tools ─────────────────────────────────────────────────────────
     {
         name: 'Spriggit',
+        settingsKey: 'spriggitPath',
         description: `Converts ESP/ESM plugin files to plain text (YAML/JSON) so you can track changes in Git and collaborate on mods. Used by Mossy's onboarding brain-boost step to ingest the vanilla ESMs.`,
         detectKeywords: ['spriggit'],
         url: 'https://github.com/Mutagen-Modding/Spriggit/releases',
@@ -84,6 +89,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'xEdit / FO4Edit',
+        settingsKey: 'xeditPath',
         description: "Advanced graphical module viewer, conflict detector, and editor for Fallout 4, created by ElminsterAU and the xEdit Team (Hlp, Zilav, Sharlikran). Lets you inspect every record in your entire load order, detect and resolve conflicts between plugins, clean masters (remove ITMs and UDRs), run Pascal scripts to batch-edit records, and create compatibility patches. The current release is xEdit 4.1.5. Full documentation is available in the bundled 'Tome of xEdit' (converted from the Fallout 3 training manual). ⚠️ Unpack with 7-Zip. Licensed under Mozilla Public License 1.1. Community contributors include: AndalayBay, Divstator, fireundubh, Jonathan Ostrus, jonwd7, shad0wshayd3.",
         detectKeywords: ['xedit', 'fo4edit', 'tes5edit'],
         url: 'https://www.nexusmods.com/fallout4/mods/2737',
@@ -116,6 +122,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'Fallout 4 Creation Kit',
+        settingsKey: 'creationKitPath',
         description: 'Bethesda\'s official editor for Fallout 4. Required for CK Crash Prevention monitoring, Papyrus script compilation, worldspace editing, and quest creation. Free on Steam.',
         detectKeywords: ['creation kit', 'creationkit', 'ck2'],
         url: 'https://store.steampowered.com/app/1946160/Fallout_4_Creation_Kit/',
@@ -126,6 +133,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'Papyrus Compiler Patched — NoDox (Nexus #44959)',
+        settingsKey: 'papyrusCompilerPath',
         description: 'Patched replacement for the stock Fallout 4 Papyrus Compiler that unlocks features Bethesda intentionally disabled: arrays inside structs, var types, and structs inside structs. "NoDox" edition also strips your computer name, Windows username, and full source file path from compiled .pex output. v1.50 (Nov 2025) adds performance defaults: in-memory compile cache and 2-thread limit, making large project recompiles dramatically faster — full FO4 base tree (7 800 files) drops from 3+ hours to ~5 minutes. Supports -threads=n and -enablecache command-line arguments, and equivalent settings in .ppj project files. ⚠️ Drop the patched files into your Creation Kit folder. Requires .NET 4.0 and the included .config file; the DLL (PCompile.dll) must also be replaced alongside the exe.',
         detectKeywords: ['papyrus compiler patched', 'papyrus compiler patch', 'nodox', 'pcompile'],
         url: 'https://www.nexusmods.com/fallout4/mods/44959',
@@ -160,6 +168,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'Mod Organizer 2',
+        settingsKey: 'mo2Path',
         description: 'The recommended mod manager for Fallout 4. Keeps your game folder clean with a virtual file system and supports profiles.',
         detectKeywords: ['mod organizer', 'modorganizer'],
         url: 'https://github.com/ModOrganizer2/modorganizer/releases',
@@ -170,6 +179,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'Vortex Mod Manager',
+        settingsKey: 'vortexPath',
         description: 'Nexus Mods\' official mod manager. Deploys mods directly to the Data folder and integrates with NexusMods.com for one-click installs.',
         detectKeywords: ['vortex'],
         url: 'https://www.nexusmods.com/about/vortex/',
@@ -180,6 +190,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'LOOT',
+        settingsKey: 'lootPath',
         description: 'Automatically sorts your load order to reduce conflicts and provides warnings about problematic mods.',
         detectKeywords: ['loot'],
         url: 'https://github.com/loot/loot/releases',
@@ -190,6 +201,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'NifSkope Next-Gen Fork',
+        settingsKey: 'nifSkopePath',
         description: 'Experimental NifSkope fork for current Fallout 4 that adds many fixes and improvements, including next-gen FO4 support, glTF import/export, archive/resource extraction, improved material and texture browsing, better UV/lighting tools, and upgraded FO4 material editing. Credits: fork by hexabit, based on NifSkope from the Niftools team and other contributors.',
         detectKeywords: ['nifskope'],
         url: 'https://www.nexusmods.com/fallout4/mods/91780',
@@ -200,6 +212,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'BodySlide & Outfit Studio',
+        settingsKey: 'bodySlidePath',
         description: "GUI tool suite for customising bodies and outfits, creating new shapes, and converting outfits between body types for Fallout 4 (and Skyrim). BodySlide lets you adjust body and outfit sliders and batch-build meshes without editing NIF files directly — check 'Build Morphs' to also generate TRI files for in-game morphing via LooksMenu. Outfit Studio lets you convert outfits between body types, create new BodySlide sliders, correct animation weights, and edit or import/export FBX/OBJ/NIF meshes. ⚠️ Requires OpenGL 3.3+. Install to Data/Tools/BodySlide and launch through your mod manager (MO2: add as executable; Vortex: add as dashboard tool). After BatchBuilding in MO2, move output files from Overwrite into a dedicated 'BodySlide Output' mod. Add bInvalidateOlderFiles=1 and sResourceDataDirsFinal= under [Archive] in Fallout4Custom.ini. Preset XML files you create are free to share; built meshes require author permission. Source: GPLv3+ (GitHub: ousnius/BodySlide-and-Outfit-Studio). Credits: Caliente, ousnius, NifTools team; Chinese translation by xuniana & silentdark; CBBE Uniboob reference by SQr17.",
         detectKeywords: ['bodyslide', 'outfit studio'],
         url: 'https://www.nexusmods.com/fallout4/mods/25',
@@ -211,6 +224,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'F4SE (Fallout 4 Script Extender)',
+        settingsKey: 'f4sePath',
         description: 'Extends the scripting capabilities of Fallout 4. Required by many mods and by Mossy\'s deeper game integrations. ⚠️ Extract to game folder and launch via f4se_loader.exe (NOT via Steam).',
         detectKeywords: ['f4se', 'script extender'],
         url: 'https://f4se.silverlock.org/',
@@ -255,6 +269,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'B.A.E. (Bethesda Archive Extractor)',
+        settingsKey: 'baePath',
         description: 'Extracts the contents of Bethesda .ba2 archive files so you can inspect and modify base-game assets.',
         detectKeywords: ['bae', 'bethesda archive extractor', 'b.a.e'],
         url: 'https://www.nexusmods.com/fallout4/mods/78',
@@ -496,6 +511,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     // ── Creative tools ────────────────────────────────────────────────────────
     {
         name: 'Blender',
+        settingsKey: 'blenderPath',
         description: 'Free open-source 3D creation suite. Mossy has a direct Neural Link integration (Mossy Link addon) for Blender 4.0+ — enabling live script execution, mesh automation, and FO4 asset export from within Mossy.',
         detectKeywords: ['blender'],
         url: 'https://www.blender.org/download/',
@@ -506,6 +522,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'Upscayl',
+        settingsKey: 'upscaylPath',
         description: 'AI-powered image upscaler (2×, 3×, 4×) for texture and asset enhancement. Required by Mossy\'s Upscayl Extension. Supports PNG, JPG, and WebP with multiple AI model options and batch processing.',
         detectKeywords: ['upscayl'],
         url: 'https://github.com/upscayl/upscayl/releases',
@@ -561,6 +578,7 @@ const RECOMMENDED_DOWNLOADS: RecommendedDownload[] = [
     },
     {
         name: 'FOMOD Creator (by Wenderer)',
+        settingsKey: 'fomodCreatorPath',
         description: 'Free GUI editor for building FOMOD installer packages (ModuleConfig.xml). Drag-and-drop interface to configure mod options, file mappings, and conditions — generates correct FOMOD XML without hand-coding. Required if you want to release mods with a proper installer that works in MO2 and Vortex.',
         detectKeywords: ['fomod creator', 'fomod'],
         url: 'https://www.nexusmods.com/fallout4/mods/6821',
@@ -1497,6 +1515,34 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
         const existingApprovedApps = parseArray(localStorage.getItem('mossy_apps'));
         const mergedApprovedApps = mergeToolsByKey(existingApprovedApps, promotedApps);
         localStorage.setItem('mossy_apps', JSON.stringify(mergedApprovedApps));
+
+        // Persist real tool paths to the actual Electron settings store (not just
+        // localStorage) so the rest of the app - CK Hub, Workshop's Papyrus
+        // compiler, External Tools, etc. - can actually find these tools next
+        // launch. Previously both manually-browsed paths AND auto-detected paths
+        // only ever lived in this wizard's local state / localStorage permission
+        // list, never in settings.json, so they reset every time the app reopened.
+        const settingsPatch: Record<string, string> = {};
+        for (const dl of RECOMMENDED_DOWNLOADS) {
+            if (!dl.settingsKey) continue;
+            const manual = manuallyLocated[dl.name];
+            if (manual && manual !== '__confirmed__') {
+                settingsPatch[dl.settingsKey] = manual;
+                continue;
+            }
+            const detected = recommendations.find(r => r.name === dl.name);
+            if (detected?.path && userChoices[dl.name] === true) {
+                settingsPatch[dl.settingsKey] = detected.path;
+            }
+        }
+        if (Object.keys(settingsPatch).length > 0) {
+            const api = (window as any).electron?.api || (window as any).electronAPI;
+            if (api?.setSettings) {
+                void api.setSettings(settingsPatch).catch((e: any) =>
+                    console.error('[Onboarding] Failed to persist tool paths to settings:', e)
+                );
+            }
+        }
 
         // Offer the Spriggit digest step before showing "complete".
         setStep('spriggit-digest');

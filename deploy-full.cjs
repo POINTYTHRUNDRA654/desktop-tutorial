@@ -66,6 +66,31 @@ async function main() {
   copyDir(distElectronDir, tmpDE);
   console.log('      dist-electron/ replaced');
 
+  // 5b. Sync .env.encrypted from project root so the deployed asar always uses
+  // the latest token values (the extracted asar has the old copy).
+  const srcEnv = path.join(ROOT, '.env.encrypted');
+  const destEnv = path.join(TMP, '.env.encrypted');
+  if (fs.existsSync(srcEnv)) {
+    fs.copyFileSync(srcEnv, destEnv);
+    console.log('      .env.encrypted refreshed from project root');
+  }
+
+  // 5c. Sync runtime node_modules added since the asar's bundled node_modules was last packed
+  const REQUIRED_MODULES = [
+    'simple-git', '@kwsites/file-exists', '@kwsites/promise-deferred',
+    '@simple-git/args-pathspec', '@simple-git/argv-parser', 'debug', 'ms',
+    'adm-zip',
+  ];
+  const tmpNodeModules = path.join(TMP, 'node_modules');
+  for (const mod of REQUIRED_MODULES) {
+    const src = path.join(ROOT, 'node_modules', mod);
+    const dest = path.join(tmpNodeModules, mod);
+    if (fs.existsSync(src) && !fs.existsSync(dest)) {
+      copyDir(src, dest);
+      console.log('      synced node_modules/' + mod);
+    }
+  }
+
   // 6. Slim-pack (native .node modules stay in app.asar.unpacked)
   console.log('[6/6] Slim-packing...');
   await ASAR.createPackageWithOptions(TMP, DEST, { unpack: '{*.node,*.dll}' });

@@ -13,12 +13,13 @@ import { clipboard, nativeImage, screen } from 'electron';
  */
 export class BridgeServer {
     private server: http.Server | null = null;
-    private port: number = 21337;
+    private port: number;
     private addonPort: number;
     private pythonPath: string = '';
 
-    constructor(addonPort: number = 9999) {
+    constructor(addonPort: number = 9999, port: number = 21337) {
         this.addonPort = addonPort;
+        this.port = port;
     }
 
     /** Set the Python executable to use for package installs. */

@@ -514,7 +514,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Conversation error:', error);
       const msg = error instanceof Error ? error.message : 'Unknown error';
       setStatus(`Error: ${msg}`);
-      setMode('idle');
+      setMode('listening'); // reset to listening not idle, so next turn's modeRef check doesn't block
       // notify user more visibly via console; showNotification is not available in preload
       console.warn('[LiveContext] Voice session error:', msg);
       // if the backend appears hung, restart the voice link
@@ -525,6 +525,15 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setTimeout(() => {
           connect().catch(() => { });
         }, 1000);
+      } else if (currentSessionRef.current !== 0 && voiceServiceRef.current) {
+        // Non-timeout error (e.g. TTS failure): mic was paused for TTS but speak()
+        // threw before its finally block could schedule a restart — do it here.
+        console.warn('[LiveContext] Non-timeout voice error; restarting microphone after short delay');
+        setTimeout(() => {
+          if (currentSessionRef.current !== 0 && voiceServiceRef.current) {
+            voiceServiceRef.current.safeMicrophoneRestart();
+          }
+        }, 1500);
       }
     } finally {
       // Mark processing complete so disconnect can proceed if needed

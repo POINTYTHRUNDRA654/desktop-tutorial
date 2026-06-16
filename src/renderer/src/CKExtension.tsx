@@ -274,15 +274,17 @@ export const CKExtension: React.FC = () => {
     setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Queued: ${scriptName}`]);
 
     // Use real Papyrus compiler IPC when available
-    if (api?.compileScript || api?.papyrusCompiler?.compile) {
+    if (api?.papyrusCompiler?.compileScript) {
       setCompilationQueue(prev =>
         prev.map(j => j.id === job.id ? { ...j, status: 'compiling', startTime: new Date() } : j)
       );
       setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Compiling: ${scriptName}`]);
       try {
-        const result = await (api.compileScript ?? api.papyrusCompiler.compile)(scriptName);
-        const success = result?.success ?? false;
-        const errors = result?.errors ?? (success ? [] : ['Compilation failed — check CK output']);
+        const result = await api.papyrusCompiler.compileScript(scriptName);
+        const success = result?.success && result?.compilation?.status === 'success';
+        const errors = success
+          ? []
+          : [result?.error || result?.compilation?.stderr || result?.compilation?.stdout || 'Compilation failed — check CK output'];
         setCompilationQueue(prev =>
           prev.map(j => j.id === job.id ? { ...j, status: success ? 'success' : 'error', endTime: new Date(), errors } : j)
         );

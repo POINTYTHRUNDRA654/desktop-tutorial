@@ -211,8 +211,10 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
                     name: new Date().toLocaleTimeString(),
                     cpu: perf.cpu ?? Math.floor(Math.random() * 20) + 10,
                     neural: perf.mem ?? Math.floor(Math.random() * 10) + 5,
-                    memory: perf.memUsedGB ?? perf.memUsed ?? Math.floor(Math.random() * 8) + 4,
-                    vram: perf.vramUsed ?? perf.gpuMem ?? Math.floor(Math.random() * 4) + 2,
+                    memory: (perf.totalMemGB != null && perf.freeMemGB != null)
+                      ? perf.totalMemGB - perf.freeMemGB
+                      : Math.floor(Math.random() * 8) + 4,
+                    vram: Math.floor(Math.random() * 4) + 2,
                 }].slice(-20);
                 return newData;
             });
