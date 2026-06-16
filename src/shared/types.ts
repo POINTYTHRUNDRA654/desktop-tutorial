@@ -748,11 +748,14 @@ export interface Settings {
   // Platform 17: Git Integration
   gitRepositories?: any[];
   gitHistory?: any[];
+  versionControlBackups?: any[];
 
-  // Platform 18: Nexus Mods Auto-Uploader
-  nexusMods?: any[];
-  uploadHistory?: any[];
-  nexusConfig?: any;
+  // Platform 18: Local Mod Packaging
+  modPackages?: any[];
+  modPackageBuilds?: any[];
+
+  // Vault-Tec Creative Director: autonomous mod-building team state
+  creativeDirectorTeam?: any;
 
   // Platform 19: Interactive Tutorial System
   tutorialSessions?: any[];
@@ -1481,14 +1484,20 @@ export interface Review {
   timestamp: number;
 }
 
+export interface CollectionItem {
+  title: string;
+  type: 'technique' | 'script' | 'note';
+  content: string;
+}
+
 export interface Collection {
   id: string;
   name: string;
   description: string;
-  mods: string[];
+  items: CollectionItem[];
   author: string;
-  downloads: number;
-  shareUrl: string;
+  createdAt: number;
+  exportPath?: string;
 }
 
 export interface DownloadResult {
@@ -4327,15 +4336,10 @@ export interface ElectronAPI {
   transcribeVideo: (arrayBuffer: ArrayBuffer, filename: string, projectId?: string, organizationId?: string) => Promise<{ success: boolean; text?: string; error?: string }>;
   getSystemInfo: () => Promise<SystemInfo>;
   getPerformance: () => Promise<{
-    cpuUsage: number;
-    memoryUsage: number;
-    gpuUsage?: number;
-    gpuMemory?: number;
-    cpu?: number;
-    mem?: number;
-    memory?: number;
-    disk?: number;
-    network?: number;
+    cpu: number;
+    mem: number;
+    freeMemGB?: number;
+    totalMemGB?: number;
   }>;
   // Process metrics helper (exposed by preload)
   getProcessMetrics?: (pid: number) => Promise<{ cpu: number; memory: number; handles?: number }>;
@@ -4427,8 +4431,9 @@ export interface ElectronAPI {
     rateMod: (modId: string, rating: number, review: string) => Promise<void>;
     authenticateNexus: (apiKey: string) => Promise<AuthResult>;
     getModReviews: (modId: string) => Promise<Review[]>;
-    createCollection: (name: string, mods: string[], description?: string) => Promise<Collection>;
-    shareCollection: (collectionId: string) => Promise<{ success: boolean; shareUrl?: string }>;
+    createCollection: (name: string, items: CollectionItem[], description?: string) => Promise<Collection>;
+    shareCollection: (collectionId: string) => Promise<{ success: boolean; exportPath?: string; error?: string }>;
+    revealCollection: (exportPath: string) => Promise<{ success: boolean; error?: string }>;
     endorseMod: (modId: string) => Promise<void>;
     getTrendingMods: (timeframe?: string) => Promise<ModListing[]>;
   };
@@ -4701,6 +4706,8 @@ export interface ElectronAPI {
   // Version Control helpers
   versionControlInit?: (projectPath: string) => Promise<any>;
   versionControlCommit?: (message: string, files?: string[]) => Promise<any>;
+  versionControlStatus?: (repoId?: string) => Promise<any>;
+  versionControlGetBranches?: (repoId?: string) => Promise<any>;
   versionControlHistory?: (limit?: number) => Promise<any>;
   versionControlCreateBranch?: (branchName: string) => Promise<any>;
   versionControlMergeBranch?: (source: string, target: string) => Promise<any>;

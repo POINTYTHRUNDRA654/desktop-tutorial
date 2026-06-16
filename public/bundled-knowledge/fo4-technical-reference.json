@@ -1,0 +1,93 @@
+{
+  "packId": "fo4-technical-reference-v1",
+  "packName": "Fallout 4 Technical Reference (Papyrus, Records, FormIDs, NIF, Console)",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-06-15",
+  "description": "Structured technical reference data (script templates, record field schemas, FormID ranges, NIF block types, console commands, common error solutions) ported from src/shared/FO4KnowledgeBase.ts, which was only reachable through an unused barrel export (src/shared/index.ts) with zero production consumers.",
+  "items": [
+    {
+      "id": "fo4-papyrus-script-templates",
+      "title": "Fallout 4 — Papyrus Script Boilerplate Templates",
+      "content": "Standard Papyrus script skeletons for common record types. QUEST script: `Scriptname MyQuestScript extends Quest` with `Actor Property PlayerRef Auto`, `ObjectReference Property TargetObject Auto`, `GlobalVariable Property QuestStage Auto`; register location-change events in OnInit via `RegisterForRemoteEvent(PlayerRef, \"OnLocationChange\")`, handle in `Event Actor.OnLocationChange(Actor akSender, Location akOldLoc, Location akNewLoc)` and call `SetStage(n)` when the player enters the target location; use `Event OnStageSet(int auiStageID, int auiItemID)` to react to stage changes. OBJECTREFERENCE script: `extends ObjectReference`, call `BlockActivation(false)` in OnInit, handle `Event OnActivate(ObjectReference akActionRef)` and check `if akActionRef == Game.GetPlayer()`. ACTOR script: `extends Actor`, use `AddToFaction()`/`AddKeyword()` in OnInit, handle `Event OnDeath(Actor akKiller)`. MCM MENU script: `extends Quest`, expose `GlobalVariable Property` settings, call `Parent.OnInit()` then `RegisterForMenu(\"PauseMenu\")` in OnInit, implement `Function SetSettingFloat(string setting, float value)` to route MCM slider changes into your GlobalVariables. COMMON PATTERNS: register for remote events with `RegisterForRemoteEvent(PlayerRef, \"OnItemAdded\")` and handle via `Event ObjectReference.OnItemAdded(...)`; property types include Auto (CK-filled), `Auto Conditional` (toggle visibility in CK), and `Auto Const` (compile-time constant, e.g. `int Property MaxLevel = 50 Auto Const`); ALWAYS add `Utility.Wait(0.1)` inside `while` loops to prevent Papyrus stack overflow from tight loops.",
+      "source": "Ported from src/shared/FO4KnowledgeBase.ts papyrusTemplates/papyrusPatterns",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["papyrus", "script-template", "quest", "mcm", "boilerplate", "code-generation"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-creation-kit-record-schemas",
+      "title": "Fallout 4 — Creation Kit Record Type Field Reference",
+      "content": "Required fields and common properties for frequently-edited Creation Kit record types. WEAP (Weapon): requires Name, Model, WeaponType, Damage, AttackAnimation; common properties BaseDamage, CriticalMultiplier, Speed (attack speed), Reach (melee), MinRange/MaxRange. ARMO (Armor): requires Name, Model, ArmorRating, BodySlot; common properties ArmorRating, Weight, Value, BodyTemplate (slot occupancy). QUST (Quest): requires Name, EditorID; common properties Priority (journal priority), AllowRepeatedStages, QuestStages, QuestObjectives, QuestAliases (actor/object references). NPC_ (Non-Player Character): requires Name, Race, Class, FaceGen; common properties Level, Health, Stamina, DefaultOutfit, CombatStyle, AIPackages. LVLI (Leveled List): requires EditorID, Entries; common properties ChanceNone, UseAll, CalculateFromAllLevels, CalculateForEachItem. Use this as a checklist when generating or validating a new record of these types — a record missing a 'required' field above will commonly produce a CK warning or empty-default in-game behavior.",
+      "source": "Ported from src/shared/FO4KnowledgeBase.ts recordTypes",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["creation-kit", "record-types", "weap", "armo", "qust", "npc", "lvli", "schema"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-formid-ranges",
+      "title": "Fallout 4 — FormID Ranges By Master File",
+      "content": "FormID load-order byte ranges for vanilla Fallout 4 master files (the first 2 hex digits of a FormID indicate which plugin in load order owns the record): Fallout4.esm 0x00000000–0x00FFFFFF (base game). DLCRobot.esm 0x01000000–0x01FFFFFF (Automatron). DLCworkshop01.esm 0x02000000–0x02FFFFFF (Wasteland Workshop). DLCCoast.esm 0x03000000–0x03FFFFFF (Far Harbor). DLCworkshop02.esm 0x04000000–0x04FFFFFF (Contraptions Workshop). DLCworkshop03.esm 0x05000000–0x05FFFFFF (Vault-Tec Workshop). DLCNukaWorld.esm 0x06000000–0x06FFFFFF (Nuka-World). A user's first installed mod plugin dynamically gets 0x01000000–0x01FFFFFF relative to its actual load-order position (the ranges shift per-plugin based on load order index, not a fixed assignment) — only the official master files above have permanently fixed ranges. Use this when a user reports a FormID and asks which file it belongs to, or when explaining why a FormID changed after reordering plugins (light/ESL-flagged plugins use a separate compressed FE0xx range instead).",
+      "source": "Ported from src/shared/FO4KnowledgeBase.ts formIDRanges",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["formid", "load-order", "masters", "dlc", "esm"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-nif-mesh-specs",
+      "title": "Fallout 4 — NIF Mesh Format Specs & Block Types",
+      "content": "Fallout 4 uses NIF version 20.2.0.7 with BSTriShape geometry blocks (never the older NiTriShape — that's a Skyrim/older-engine format and will not render correctly in FO4). Key block types: BSTriShape (main mesh geometry), BSLightingShaderProperty (material/texture assignment), BSShaderTextureSet (texture file paths), bhkCollisionObject (collision container), bhkRigidBody (physics properties), bhkBoxShape (simple box collision), bhkConvexVerticesShape (convex hull collision), bhkMoppBvTreeShape (complex mesh collision). Texture slot assignments in BSShaderTextureSet: slot 0 Diffuse (_d.dds), slot 1 Normal (_n.dds), slot 2 Glow/Emissive (_g.dds), slot 3 Parallax/Height (_p.dds), slot 4 Environment Mask (_e.dds), slot 5 Environment Map (cubemap), slot 6 Subsurface Tint (_sk.dds), slot 7 Specular (_s.dds). Best practices: keep weapon meshes under 5,000 triangles and armor under 10,000; always use BSTriShape; texture paths in the NIF must be relative to the Data\\ folder; include collision blocks for any object with physics; use BC1 (diffuse/specular, opaque) or BC3 (diffuse with alpha) compressed DDS, and BC5 for normal maps (2-channel, critical for correct lighting); generate proper normals and tangents before export (NifSkope: Sanitize → Update Tangents/Space).",
+      "source": "Ported from src/shared/FO4KnowledgeBase.ts nifSpecs/assetOptimization",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["nif", "mesh", "bstrishape", "texture-slots", "dds", "collision", "nifskope"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-console-commands-reference",
+      "title": "Fallout 4 — Console Commands For Mod Testing & Debugging",
+      "content": "TESTING: `coc [CellID]` teleport to a cell (e.g. `coc SanctuaryHillsExt`); `player.additem [FormID] [Count]` add an item to inventory; `setstage [QuestID] [Stage]` force a quest stage; `player.setlevel [Level]`; `tgm` toggle god mode; `tcl` toggle noclip/collision; `tm` toggle UI menus (for clean screenshots). DEBUGGING: `coc qasmoke` teleport to the developer test cell containing nearly every base-game item; `showlooksmenu player 1` open character customization on the player; `resetquest [QuestID]` reset a quest to its start; `sqv [QuestID]` show all quest script variables (essential for diagnosing a stuck quest); `prid [RefID]` select a reference by its RefID so subsequent console commands target it; `zzz` kill all nearby NPCs (testing only). MODDING: `help [ItemName] 4` search for items/records by partial name; `player.placeatme [FormID]` spawn an object at the player's location; `disable` make the currently-selected reference invisible and non-interactive without deleting it; `markfordelete` permanently delete the selected reference (use with care — prefer `disable` for testing); `getpos x/y/z` read a reference's coordinates; `setpos x/y/z [Value]` move a reference.",
+      "source": "Ported from src/shared/FO4KnowledgeBase.ts consoleCommands",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["console-commands", "debugging", "testing", "qasmoke", "coc"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-common-errors-and-fixes",
+      "title": "Fallout 4 — Common Modding Errors & Their Fixes",
+      "content": "Stack Overflow: caused by an infinite loop or excessive recursive Papyrus calls; fix by adding `Utility.Wait()` inside loops, checking for unbounded recursion, and reducing update frequency. 'Cannot call X() on a None object': a script property was never filled in the CK, or the referenced object no longer exists; fix by verifying CK properties are filled and adding `if MyProperty != None` guards before calling methods on it. Yellow Precombined Meshes (in-game): broken PreVis/Precombine data caused by cell edits; fix by regenerating PreVis for the cell in the Creation Kit, or disabling PreVis for that cell as a fallback (with a performance cost). CTD on Cell Load: usually a corrupt mesh, a missing texture, a bad navmesh, or a deleted NAVM record; diagnose by running CLASSIC (Nexus #56255) on the Buffout 4 NG / Addictol crash log first, then check the Papyrus log, validate assets, confirm all masters are present, and scan the ESP for deleted [D] NAVM records in xEdit. ESP won't load in CK: missing master, corrupted ESP, or a CK-version/plugin-version mismatch; fix by confirming all masters are loaded in the correct order, verifying the ESP in xEdit, and matching the CK version to the game's runtime. Script Won't Compile: a Papyrus syntax error, a missing parent script, or a property declared with the wrong type; fix by checking syntax carefully, confirming the parent script exists and compiles first, and verifying property types match what the parent/CK expects.",
+      "source": "Ported from src/shared/FO4KnowledgeBase.ts commonErrors",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["common-errors", "troubleshooting", "ctd", "stack-overflow", "previs", "navmesh", "classic"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-xedit-script-templates",
+      "title": "Fallout 4 — xEdit (FO4Edit) Pascal Script Templates",
+      "content": "Two common xEdit applied-script patterns. Rename all weapons matching a filter: `unit UserScript; function Process(e: IInterface): integer; var newName: string; begin Result := 0; if Signature(e) <> 'WEAP' then Exit; newName := GetElementEditValues(e, 'FULL') + ' [RENAMED]'; SetElementEditValues(e, 'FULL', newName); AddMessage('Renamed: ' + newName); end; end.` — note the `Signature(e) <> 'WEAP'` guard restricts the script to weapon records only; swap the signature string to target other record types. Find conflicting records across the loaded plugins: `unit ConflictFinder; function Process(e: IInterface): integer; var conflictStatus: TConflictThis; begin Result := 0; conflictStatus := ConflictThisForNode(e); if conflictStatus >= caConflict then begin AddMessage('CONFLICT: ' + Name(e)); end; end; end.` — `ConflictThisForNode` returns an enum (`caUnknown`, `caOnlyOne`, `caNoConflict`, `caConflictBenign`, `caConflict`, `caConflictCritical`, `caOverride`); the `>= caConflict` check filters out benign overrides and flags genuine conflicts. Both run via xEdit's 'Apply Script' on a selected record or plugin.",
+      "source": "Ported from src/shared/FO4KnowledgeBase.ts xEditScriptTemplates",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["xedit", "fo4edit", "pascal-script", "conflict-detection", "automation"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    }
+  ]
+}

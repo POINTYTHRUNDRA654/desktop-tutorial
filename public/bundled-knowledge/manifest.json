@@ -1,6 +1,6 @@
 {
-  "version": "3.2.0",
-  "lastUpdated": "2026-05-13",
+  "version": "3.5.0",
+  "lastUpdated": "2026-06-15",
   "description": "Bundled knowledge packs that are auto-imported on first run",
   "packs": [
     {
@@ -22,6 +22,36 @@
       "auto-import": true,
       "creditName": "4estGimp",
       "creditUrl": "https://www.nexusmods.com/fallout4/users/30343500"
+    },
+    {
+      "id": "fo4-vanilla-asset-paths-v1",
+      "name": "Fallout 4 Vanilla Asset Paths & Archive Map",
+      "version": "1.0.0",
+      "file": "fo4-vanilla-asset-paths.json",
+      "description": "Ground-truth vanilla Data\\ directory and BA2 archive organization (decal meshes, impact FX, top-level Meshes\\ map, asset lookup workflow) verified directly against the installed game's BA2 archives.",
+      "itemCount": 4,
+      "auto-import": true,
+      "creditName": "Mossy Team"
+    },
+    {
+      "id": "fo4-popular-mods-compatibility-v1",
+      "name": "Fallout 4 Popular Mods & Compatibility Database",
+      "version": "1.0.0",
+      "file": "fo4-popular-mods-compatibility.json",
+      "description": "Curated database of the most-installed Fallout 4 mods, usage rates, known conflicts, and compatibility tips for mod authors.",
+      "itemCount": 3,
+      "auto-import": true,
+      "creditName": "Mossy Team"
+    },
+    {
+      "id": "fo4-technical-reference-v1",
+      "name": "Fallout 4 Technical Reference (Papyrus, Records, FormIDs, NIF, Console)",
+      "version": "1.0.0",
+      "file": "fo4-technical-reference.json",
+      "description": "Structured technical reference: Papyrus script templates, CK record field schemas, FormID ranges, NIF block types, console commands, common error fixes, xEdit script templates.",
+      "itemCount": 7,
+      "auto-import": true,
+      "creditName": "Mossy Team"
     }
   ]
 }

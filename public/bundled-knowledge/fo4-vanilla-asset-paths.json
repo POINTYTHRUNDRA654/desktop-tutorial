@@ -1,0 +1,57 @@
+{
+  "packId": "fo4-vanilla-asset-paths-v1",
+  "packName": "Fallout 4 Vanilla Asset Paths & Archive Map",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-06-15",
+  "description": "Ground-truth vanilla Fallout 4 Data/ directory and BA2 archive organization, verified by directly parsing the BTDX GNRL file tables of the user's installed Fallout4 - Meshes.ba2 and Fallout4 - MeshesExtra.ba2. Closes the gap where Mossy could not answer where vanilla asset types (e.g. decal meshes) live on disk.",
+  "items": [
+    {
+      "id": "fo4-ba2-archive-map",
+      "title": "Fallout 4 — Which BA2 Archive Holds Which Asset Type",
+      "content": "Vanilla Fallout 4 ships its assets packed inside BA2 archives in the Data\\ folder (not as loose files). The relevant archives are: Fallout4 - Meshes.ba2 and Fallout4 - MeshesExtra.ba2 (all .nif models — MeshesExtra holds overflow/DLC-adjacent meshes that didn't fit the primary archive), Fallout4 - Textures1.ba2 through Textures9.ba2 plus Fallout4 - TexturesPatch.ba2 (all .dds textures, split across numbered archives purely for size, not by category), Fallout4 - Materials.ba2 (.bgsm/.bgem material files), Fallout4 - Sounds.ba2 and Fallout4 - Voices.ba2 (audio), Fallout4 - Animations.ba2 (.hkx), Fallout4 - Interface.ba2 (Scaleform .swf/HUD), Fallout4 - Shaders.ba2 (compiled shader bytecode), Fallout4 - Misc.ba2, Fallout4 - Nvflex.ba2, and Fallout4 - Startup.ba2. Each DLC has its own pair, e.g. DLCCoast - Main.ba2 / DLCCoast - Textures.ba2, DLCNukaWorld - Main.ba2 / -Textures.ba2, DLCRobot, DLCworkshop01-03. BA2 archives are the 'GNRL' (general) format for meshes/sounds/scripts and 'DX10' format for textures. To browse contents without extracting, use Bethesda Archive2.exe (ships with the Creation Kit, Data\\Tools\\Archive2\\Archive2.exe) or the community tool BSArch — both can list and extract a single file path without unpacking the whole archive. xEdit's asset browser and Material Editor can also resolve a NIF/BGSM path directly against the loaded BA2s.",
+      "source": "Verified by parsing the BTDX GNRL header/name-table of the installed Fallout4 - Meshes.ba2 and Fallout4 - MeshesExtra.ba2",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["asset-paths", "ba2", "archive", "meshes", "textures", "materials", "data-folder", "vanilla", "directory-structure", "archive2", "bsarch"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-decal-mesh-locations",
+      "title": "Fallout 4 — Decal Mesh Locations (Placed Decals vs Impact FX)",
+      "content": "Fallout 4 has two distinct categories of 'decal' meshes, both inside Fallout4 - Meshes.ba2 under Meshes\\Effects\\: (1) STATIC PLACED DECALS at Meshes\\Effects\\DecalsPlaced\\ — these are hand-placed Static records used as set-dressing surface stains: DecalConcrete01.nif through DecalConcrete04.nif, DecalMetal01.nif through DecalMetal04.nif, and DecalWood01.nif through DecalWood04.nif (12 files total, one set per surface material). These are what a level designer drags into a cell in the Creation Kit to add grime/stain detail to a wall or floor. (2) DYNAMIC IMPACT EFFECT MESHES at Meshes\\Effects\\ (no subfolder) — spawned at runtime by the Impact Data Set system when a projectile hits a surface: ImpactBallisticBlood01.nif, ImpactBallisticBloodHeavy.nif, ImpactBallisticBloodPus.nif, ImpactBallisticGlass.nif, ImpactBallisticDirt.nif, ImpactBallisticDirtHeavy.nif, ImpactBallisticWood01.nif, ImpactBallisticWoodHeavy.nif, ImpactBallisticStone.nif, ImpactBallisticMetal.nif, ImpactBallisticGenericHeavy.nif, plus laser/melee/explosion variants (ImpactLaserRedSmall.nif, ImpactLaserVsShell.nif, ImpactMeleeGeneric.nif, ImpactNuke01.nif) and a small ImpactEffects\\ subfolder (ImpactWingFX.nif). Gore-specific blood spray meshes (limb hits, dismemberment) live separately at Meshes\\Gore\\ (e.g. LimbBloodSprayPus.nif, SmallBloodSpurtRed01.nif). In the Creation Kit, the runtime impact meshes are wired up via Impact Data Set (IPDS) records, which map a Material Type + projectile type to one of these meshes plus a decal texture/material; the placed decals are wired up as ordinary Static records referencing a BGSM material from Materials\\Effects\\. There is no single generic 'Decals' top-level folder — decal-type assets are split between Meshes\\Effects\\DecalsPlaced\\ (placed) and Meshes\\Effects\\ (impact FX) plus Meshes\\Gore\\ (blood).",
+      "source": "Verified by parsing the BTDX GNRL header/name-table of the installed Fallout4 - Meshes.ba2 and Fallout4 - MeshesExtra.ba2",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["decal", "decals", "impact", "blood", "gore", "meshes", "effects", "ipds", "impact-data-set", "asset-paths", "vanilla"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-meshes-top-level-map",
+      "title": "Fallout 4 — Top-Level Meshes\\ Folder Map (by content type)",
+      "content": "Inside Fallout4 - Meshes.ba2 / Fallout4 - MeshesExtra.ba2, the Meshes\\ root splits by content type, not by quest or location. Largest first: PreCombined\\ (precombined mesh chunks per cell — the .nif files PRP and precombine patches replace), Interiors\\ (interior cell set pieces), Terrain\\ (landscape LOD chunks), Architecture\\ (building kits — walls, doors, roofs by kit name e.g. Architecture\\Buildings\\), SetDressing\\ (clutter/rubble/signage props, includes SetDressing\\Rubble\\ and SetDressing\\Signage\\ where several debris decals live), LOD\\ (distant low-poly versions), Actors\\ (creature/NPC skeletons and parts, organized Actors\\<SpeciesName>\\), SCOL\\ (scattered/static collision LOD groups), Landscape\\ (Landscape\\Grass\\ and other terrain dressing), Armor\\, Weapons\\, Clothes\\, Effects\\ (particle/impact/decal FX — see decal-specific entry), Props\\, Markers\\ (editor-only gizmo and placement markers, never rendered in-game), Cameras\\ / VATSCameras\\ (cinematic camera rigs for kill-cams and VATS), Furniture\\, AnimObjects\\ (furniture/animation hookup objects), Vehicles\\, Ammo\\, Traps\\, Workshop\\ (settlement building pieces), Critters\\, Water\\, Gore\\, Footsteps\\ (footstep FX), and Sky\\. When asked 'where does asset type X live', check this top-level map first, then look one level deeper inside the matching folder.",
+      "source": "Verified by parsing the BTDX GNRL header/name-table of the installed Fallout4 - Meshes.ba2 and Fallout4 - MeshesExtra.ba2 (full top-level folder + file-count breakdown)",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["meshes", "asset-paths", "directory-structure", "vanilla", "precombine", "architecture", "setdressing", "data-folder"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-asset-lookup-method",
+      "title": "Fallout 4 — How To Look Up Any Vanilla Asset Path On Demand",
+      "content": "When a user asks where a specific vanilla asset type lives and it isn't already in the Knowledge Vault, do not stall or ask the user multiple clarifying questions before attempting an answer. First check the Knowledge Vault entries tagged 'asset-paths' for the closest match (decals, impact FX, gore, architecture, etc.). If nothing matches, give the most likely vanilla folder based on FO4's established convention (content type, not quest/location — e.g. weapons under Meshes\\Weapons\\, materials under Materials\\, textures mirroring the meshes path one-to-one e.g. Meshes\\Effects\\DecalsPlaced\\DecalConcrete01.nif pairs with Textures\\Effects\\DecalsPlaced\\... and Materials\\Effects\\DecalsPlaced\\...) and explicitly tell the user how to verify it themselves in under a minute: open Archive2.exe (Creation Kit install, Data\\Tools\\Archive2\\Archive2.exe) or BSArch, open Fallout4 - Meshes.ba2 (or -Textures#.ba2 / -Materials.ba2 depending on asset type), and use its search/filter box for the keyword. This mirrors how Materials/Textures always shadow the Meshes\\ path structure 1:1 in vanilla FO4.",
+      "source": "Mossy Core System",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "official",
+      "tags": ["asset-paths", "workflow", "archive2", "bsarch", "vanilla", "lookup", "directory-structure"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    }
+  ]
+}

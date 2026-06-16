@@ -54,6 +54,8 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import http from 'http';
 import https from 'https';
+import simpleGit from 'simple-git';
+import AdmZip from 'adm-zip';
 import { savePanelData, loadPanelData, initializePanelDataDirectory, deletePanelData } from './panelDataPersistence';
 import {
   setDetectedPrograms,
@@ -9133,6 +9135,27 @@ end.
   });
 
   /**
+   * Handler: show-confirm
+   * Shows a native OS confirm dialog with OK/Cancel buttons.
+   * Returns true if the user confirmed, false if cancelled.
+   */
+  registerHandler(IPC_CHANNELS.SHOW_CONFIRM, async (_event, message: string, detail?: string) => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow;
+    const options: Electron.MessageBoxOptions = {
+      type: 'question',
+      buttons: ['OK', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+      message,
+      detail,
+    };
+    const result = win
+      ? await dialog.showMessageBox(win, options)
+      : await dialog.showMessageBox(options);
+    return result.response === 0;
+  });
+
+  /**
    * Handler: gguf-import-to-ollama
    * Creates an Ollama Modelfile from the supplied GGUF path and runs
    * `ollama create <modelName> -f <Modelfile>` to register the model.
@@ -12273,10 +12296,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  registerHandler('mod-browser:create-collection', async (_event, name: string, mods: string[], description?: string) => {
+  registerHandler('mod-browser:create-collection', async (_event, name: string, items: any[], description?: string) => {
     const startTime = Date.now();
     try {
-      const collection = await modBrowserEngine.createCollection(name, mods, description);
+      const collection = await modBrowserEngine.createCollection(name, items, description);
       const currentSettings = loadSettings();
       if (!currentSettings.modBrowserCollections) currentSettings.modBrowserCollections = [];
       currentSettings.modBrowserCollections.push(collection);
@@ -12287,7 +12310,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         action: 'create-collection',
         status: 'success',
         duration: Date.now() - startTime,
-        result: { collectionId: collection?.id, name, modCount: (mods || []).length }
+        result: { collectionId: collection?.id, name, itemCount: (items || []).length }
       });
       return collection;
     } catch (error: any) {
@@ -12300,7 +12323,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         status: 'error',
         duration: Date.now() - startTime,
         error: errMsg,
-        details: { name, modCount: (mods || []).length }
+        details: { name, itemCount: (items || []).length }
       });
       return { success: false, error: errMsg };
     }
@@ -12309,14 +12332,15 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('mod-browser:share-collection', async (_event, collectionId: string) => {
     const startTime = Date.now();
     try {
-      const result = await modBrowserEngine.shareCollection(collectionId);
+      const exportDir = path.join(app.getPath('userData'), 'shared-collections');
+      const result = await modBrowserEngine.shareCollection(collectionId, exportDir);
       auditLogger.log({
         operation: 'mod-browser-collection',
         tool: 'mod-browser',
         action: 'share-collection',
         status: result?.success ? 'success' : 'error',
         duration: Date.now() - startTime,
-        result: { collectionId, shareUrl: result?.shareUrl?.substring(0, 100) || '' }
+        result: { collectionId, exportPath: result?.exportPath || '' }
       });
       return result;
     } catch (error: any) {
@@ -12332,6 +12356,16 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         details: { collectionId }
       });
       return { success: false, error: errMsg };
+    }
+  });
+
+  registerHandler('mod-browser:reveal-collection', async (_event, exportPath: string) => {
+    try {
+      if (!exportPath || !fs.existsSync(exportPath)) throw new Error('Exported file no longer exists');
+      shell.showItemInFolder(exportPath);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
@@ -15938,10 +15972,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // =========================================================================
-  // Platform 17: Git Integration IPC Handlers
+  // Platform 17: Git Integration IPC Handlers (real git via simple-git)
   // =========================================================================
   const gitReposStorage = new Map<string, any>();
-  const gitHistoryStorage = new Map<string, any>();
+  const gitBackupsStorage = new Map<string, any>();
 
   function loadGitDataFromDisk() {
     try {
@@ -15951,9 +15985,9 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           gitReposStorage.set(repo.id, repo);
         }
       }
-      if (settings.gitHistory && Array.isArray(settings.gitHistory)) {
-        for (const hist of settings.gitHistory) {
-          gitHistoryStorage.set(hist.id, hist);
+      if (settings.versionControlBackups && Array.isArray(settings.versionControlBackups)) {
+        for (const backup of settings.versionControlBackups) {
+          gitBackupsStorage.set(backup.id, backup);
         }
       }
     } catch (err) {
@@ -15965,7 +15999,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     try {
       const settings = loadSettings();
       settings.gitRepositories = Array.from(gitReposStorage.values());
-      settings.gitHistory = Array.from(gitHistoryStorage.values());
+      settings.versionControlBackups = Array.from(gitBackupsStorage.values());
       saveSettings(settings);
     } catch (err) {
       console.error('[Main] Failed to save git data to disk:', err);
@@ -15974,43 +16008,124 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   loadGitDataFromDisk();
 
-  registerHandler('git:init-repo', async (_event, repoPath: string, repoName?: string) => {
-    const startTime = Date.now();
-    try {
-      const repoId = `repo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      const repo = {
+  function resolveRepoPath(repoId?: string): string {
+    if (repoId) {
+      const repo = gitReposStorage.get(repoId);
+      if (repo?.path) return repo.path;
+    }
+    const settings = loadSettings();
+    if (settings.currentProjectId) {
+      const project = getProjects().find((p) => p.id === settings.currentProjectId);
+      if (project?.path) return project.path;
+    }
+    return path.join(app.getPath('userData'), 'default-repo');
+  }
+
+  async function ensureRepo(repoId: string, repoPath: string, repoName?: string) {
+    let repo = gitReposStorage.get(repoId);
+    if (!repo) {
+      repo = {
         id: repoId,
-        name: repoName || 'New Repository',
+        name: repoName || path.basename(repoPath) || 'Mod Project',
         path: repoPath,
-        initialized: true,
+        initialized: false,
         createdAt: Date.now(),
         lastModified: Date.now(),
         branch: 'master',
         remoteUrl: '',
-        commits: 0
+        commits: 0,
       };
-      gitReposStorage.set(repoId, repo);
-      saveGitDataToDisk();
-      auditLogger.log({
-        operation: 'repository-management',
-        tool: 'git-integration',
-        action: 'init-repo',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { repoId, repoName }
-      });
+    }
+    if (!fs.existsSync(repoPath)) fs.mkdirSync(repoPath, { recursive: true });
+    const git = simpleGit(repoPath);
+    const isRepo = await git.checkIsRepo();
+    if (!isRepo) {
+      await git.init();
+      try {
+        await git.addConfig('user.name', 'Mossy User');
+        await git.addConfig('user.email', 'mossy@local');
+      } catch { /* local repo config is best-effort */ }
+      // Mod archives (often downloaded from Nexus) must never be auto-staged into
+      // a repo that may later be pushed to a remote - that would redistribute
+      // third-party Nexus content outside Nexus without permission.
+      const gitignorePath = path.join(repoPath, '.gitignore');
+      if (!fs.existsSync(gitignorePath)) {
+        const defaultGitignore = [
+          '# Mod archives - do not commit/redistribute downloaded Nexus content',
+          '*.7z', '*.zip', '*.rar',
+          '# Packed asset archives',
+          '*.ba2',
+          '# Editor/OS noise',
+          '*.bak', '*.tmp', '*.log', 'Thumbs.db', '.DS_Store',
+          '',
+        ].join('\n');
+        fs.writeFileSync(gitignorePath, defaultGitignore);
+      }
+    }
+    repo.initialized = true;
+    repo.path = repoPath;
+    gitReposStorage.set(repoId, repo);
+    saveGitDataToDisk();
+    return { repo, git };
+  }
+
+  registerHandler('git:init-repo', async (_event, repoPath: string, repoName?: string) => {
+    const startTime = Date.now();
+    try {
+      const targetPath = repoPath || resolveRepoPath();
+      const repoId = `repo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const { repo } = await ensureRepo(repoId, targetPath, repoName);
+      auditLogger.log({ operation: 'repository-management', tool: 'git-integration', action: 'init-repo', status: 'success', duration: Date.now() - startTime, result: { repoId, repoName } });
       return { success: true, repo };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] git:init-repo error:', errMsg);
-      auditLogger.log({
-        operation: 'repository-management',
-        tool: 'git-integration',
-        action: 'init-repo',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      auditLogger.log({ operation: 'repository-management', tool: 'git-integration', action: 'init-repo', status: 'error', duration: Date.now() - startTime, error: errMsg });
+      return { success: false, error: errMsg };
+    }
+  });
+
+  registerHandler('git:get-status', async (_event, repoId?: string) => {
+    const startTime = Date.now();
+    try {
+      const targetPath = resolveRepoPath(repoId);
+      const { repo, git } = await ensureRepo(repoId || 'default', targetPath);
+      const status = await git.status();
+      let lastCommit: any = null;
+      try {
+        const log = await git.log({ maxCount: 1 });
+        const c = log.latest;
+        if (c) {
+          lastCommit = {
+            hash: c.hash,
+            message: c.message,
+            author: c.author_name,
+            email: c.author_email,
+            timestamp: new Date(c.date).getTime(),
+            date: new Date(c.date).getTime(),
+            files: [],
+            insertions: 0,
+            deletions: 0,
+          };
+        }
+      } catch { /* no commits yet */ }
+      auditLogger.log({ operation: 'repository-status', tool: 'git-integration', action: 'get-status', status: 'success', duration: Date.now() - startTime, result: { branch: status.current } });
+      return {
+        success: true,
+        status: {
+          currentBranch: status.current || repo.branch || 'master',
+          uncommittedChanges: status.files.length,
+          ahead: status.ahead,
+          behind: status.behind,
+          lastCommit,
+          stagedFiles: status.staged,
+          modifiedFiles: [...status.modified, ...status.not_added],
+        },
+      };
+    } catch (error: any) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error('[Main] git:get-status error:', errMsg);
+      auditLogger.log({ operation: 'repository-status', tool: 'git-integration', action: 'get-status', status: 'error', duration: Date.now() - startTime, error: errMsg });
       return { success: false, error: errMsg };
     }
   });
@@ -16018,60 +16133,32 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('git:commit', async (_event, repoId: string, message: string, author?: string) => {
     const startTime = Date.now();
     try {
-      let repo = gitReposStorage.get(repoId);
-      if (!repo) {
-        repo = {
-          id: repoId || 'default',
-          name: 'Mod Project',
-          path: app.getPath('userData'),
-          initialized: true,
-          createdAt: Date.now(),
-          lastModified: Date.now(),
-          branch: 'master',
-          remoteUrl: '',
-          commits: 0
-        };
-        gitReposStorage.set(repo.id, repo);
-        saveGitDataToDisk();
-      }
-      const commitId = `commit_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const targetPath = resolveRepoPath(repoId);
+      const { repo, git } = await ensureRepo(repoId || 'default', targetPath);
+      await git.add('.');
+      const authorName = author || 'Mossy User';
+      const result = await git.commit(message || 'Update', undefined, { '--author': `${authorName} <mossy@local>` } as any);
       const commit = {
-        id: commitId,
-        repoId,
+        id: `commit_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        repoId: repo.id,
         message,
-        author: author || 'Mossy User',
+        author: authorName,
         timestamp: Date.now(),
-        hash: `${Math.random().toString(16).slice(2)}`,
-        fileCount: 0,
-        additions: 0,
-        deletions: 0
+        hash: result.commit || '',
+        fileCount: result.summary?.changes ?? 0,
+        additions: result.summary?.insertions ?? 0,
+        deletions: result.summary?.deletions ?? 0,
       };
-      gitHistoryStorage.set(commitId, commit);
       repo.commits = (repo.commits || 0) + 1;
       repo.lastModified = Date.now();
-      gitReposStorage.set(repoId, repo);
+      gitReposStorage.set(repo.id, repo);
       saveGitDataToDisk();
-      auditLogger.log({
-        operation: 'version-control',
-        tool: 'git-integration',
-        action: 'commit',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { commitId, message }
-      });
+      auditLogger.log({ operation: 'version-control', tool: 'git-integration', action: 'commit', status: 'success', duration: Date.now() - startTime, result: { commitId: commit.id, message } });
       return { success: true, commit };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] git:commit error:', errMsg);
-      auditLogger.log({
-        operation: 'version-control',
-        tool: 'git-integration',
-        action: 'commit',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { repoId }
-      });
+      auditLogger.log({ operation: 'version-control', tool: 'git-integration', action: 'commit', status: 'error', duration: Date.now() - startTime, error: errMsg, details: { repoId } });
       return { success: false, error: errMsg };
     }
   });
@@ -16079,36 +16166,23 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('git:push', async (_event, repoId: string, remoteName?: string, branch?: string) => {
     const startTime = Date.now();
     try {
-      const repo = gitReposStorage.get(repoId);
-      if (!repo) throw new Error('Repository not found');
-      const pushResult = {
-        success: true,
-        remote: remoteName || 'origin',
-        branch: branch || repo.branch || 'master',
-        timestamp: Date.now(),
-        commitsCount: 1,
-        status: 'pushed'
-      };
-      auditLogger.log({
-        operation: 'remote-sync',
-        tool: 'git-integration',
-        action: 'push',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { remote: pushResult.remote, branch: pushResult.branch }
-      });
+      const targetPath = resolveRepoPath(repoId);
+      const { repo, git } = await ensureRepo(repoId || 'default', targetPath);
+      const remotes = await git.getRemotes();
+      const remote = remoteName || remotes[0]?.name || 'origin';
+      if (!remotes.find((r) => r.name === remote)) {
+        throw new Error(`Remote "${remote}" is not configured for this repository.`);
+      }
+      const branchSummary = await git.branchLocal();
+      const targetBranch = branch || branchSummary.current || repo.branch || 'master';
+      await git.push(remote, targetBranch);
+      const pushResult = { success: true, remote, branch: targetBranch, timestamp: Date.now(), status: 'pushed' };
+      auditLogger.log({ operation: 'remote-sync', tool: 'git-integration', action: 'push', status: 'success', duration: Date.now() - startTime, result: { remote, branch: targetBranch } });
       return { success: true, result: pushResult };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] git:push error:', errMsg);
-      auditLogger.log({
-        operation: 'remote-sync',
-        tool: 'git-integration',
-        action: 'push',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      auditLogger.log({ operation: 'remote-sync', tool: 'git-integration', action: 'push', status: 'error', duration: Date.now() - startTime, error: errMsg });
       return { success: false, error: errMsg };
     }
   });
@@ -16116,64 +16190,60 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('git:pull', async (_event, repoId: string, remoteName?: string, branch?: string) => {
     const startTime = Date.now();
     try {
-      const repo = gitReposStorage.get(repoId);
-      if (!repo) throw new Error('Repository not found');
+      const targetPath = resolveRepoPath(repoId);
+      const { repo, git } = await ensureRepo(repoId || 'default', targetPath);
+      const remotes = await git.getRemotes();
+      const remote = remoteName || remotes[0]?.name || 'origin';
+      if (!remotes.find((r) => r.name === remote)) {
+        throw new Error(`Remote "${remote}" is not configured for this repository.`);
+      }
+      const branchSummary = await git.branchLocal();
+      const targetBranch = branch || branchSummary.current || repo.branch || 'master';
+      const result = await git.pull(remote, targetBranch);
       const pullResult = {
         success: true,
-        remote: remoteName || 'origin',
-        branch: branch || repo.branch || 'master',
+        remote,
+        branch: targetBranch,
         timestamp: Date.now(),
-        filesChanged: Math.floor(Math.random() * 10),
-        insertions: Math.floor(Math.random() * 100),
-        deletions: Math.floor(Math.random() * 50),
-        status: 'pulled'
+        filesChanged: result.summary?.changes ?? 0,
+        insertions: result.summary?.insertions ?? 0,
+        deletions: result.summary?.deletions ?? 0,
+        status: 'pulled',
       };
-      auditLogger.log({
-        operation: 'remote-sync',
-        tool: 'git-integration',
-        action: 'pull',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { remote: pullResult.remote, filesChanged: pullResult.filesChanged }
-      });
+      auditLogger.log({ operation: 'remote-sync', tool: 'git-integration', action: 'pull', status: 'success', duration: Date.now() - startTime, result: { remote, filesChanged: pullResult.filesChanged } });
       return { success: true, result: pullResult };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] git:pull error:', errMsg);
-      auditLogger.log({
-        operation: 'remote-sync',
-        tool: 'git-integration',
-        action: 'pull',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      auditLogger.log({ operation: 'remote-sync', tool: 'git-integration', action: 'pull', status: 'error', duration: Date.now() - startTime, error: errMsg });
       return { success: false, error: errMsg };
     }
   });
 
+  async function collaborationGitContext(projectId: string) {
+    const projects = getProjects();
+    const project = projects.find((p) => p.id === projectId);
+    if (!project?.path) return null;
+    let repoId = Array.from(gitReposStorage.entries()).find(([, r]: [string, any]) => r.path === project.path)?.[0];
+    if (!repoId) repoId = `repo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const { repo, git } = await ensureRepo(repoId, project.path, project.name);
+    return { project, repo, git };
+  }
+
   registerHandler('collaboration-git-init', async (_event, projectId: string, config: any) => {
     try {
-      const projects = getProjects();
-      const project = projects.find((p) => p.id === projectId);
-      if (!project?.path) return { success: false, error: 'Project path not found' };
-
-      const existingRepo = Array.from(gitReposStorage.values()).find((repo: any) => repo.path === project.path);
-      if (existingRepo) return { success: true, repo: existingRepo };
-
-      const repoId = `repo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      const repo = {
-        id: repoId,
-        name: project.name || 'Project Repository',
-        path: project.path,
-        initialized: true,
-        createdAt: Date.now(),
-        lastModified: Date.now(),
-        branch: config?.branch || 'main',
-        remoteUrl: config?.remote || '',
-        commits: 0,
-      };
-      gitReposStorage.set(repoId, repo);
+      const ctx = await collaborationGitContext(projectId);
+      if (!ctx) return { success: false, error: 'Project path not found' };
+      const { repo, git } = ctx;
+      if (config?.remote) {
+        const remotes = await git.getRemotes();
+        if (!remotes.find((r) => r.name === 'origin')) await git.addRemote('origin', config.remote);
+        repo.remoteUrl = config.remote;
+      }
+      if (config?.branch) {
+        try { await git.checkoutLocalBranch(config.branch); repo.branch = config.branch; } catch { /* branch may already exist */ }
+      }
+      gitReposStorage.set(repo.id, repo);
       saveGitDataToDisk();
       return { success: true, repo };
     } catch (error: any) {
@@ -16183,26 +16253,22 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   registerHandler('collaboration-git-commit', async (_event, projectId: string, message: string) => {
     try {
-      const projects = getProjects();
-      const project = projects.find((p) => p.id === projectId);
-      if (!project?.path) return { success: false, error: 'Project path not found' };
-
-      const repo = Array.from(gitReposStorage.values()).find((entry: any) => entry.path === project.path);
-      if (!repo) return { success: false, error: 'Repository not initialized for project' };
-
-      const commitId = `commit_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const ctx = await collaborationGitContext(projectId);
+      if (!ctx) return { success: false, error: 'Project path not found' };
+      const { repo, git } = ctx;
+      await git.add('.');
+      const result = await git.commit(message || 'Update project', undefined, { '--author': 'Mossy User <mossy@local>' } as any);
       const commit = {
-        id: commitId,
+        id: `commit_${Date.now()}_${Math.random().toString(36).substring(7)}`,
         repoId: repo.id,
         message: message || 'Update project',
         author: 'Mossy User',
         timestamp: Date.now(),
-        hash: `${Math.random().toString(16).slice(2)}`,
-        fileCount: 0,
-        additions: 0,
-        deletions: 0,
+        hash: result.commit || '',
+        fileCount: result.summary?.changes ?? 0,
+        additions: result.summary?.insertions ?? 0,
+        deletions: result.summary?.deletions ?? 0,
       };
-      gitHistoryStorage.set(commitId, commit);
       repo.commits = (repo.commits || 0) + 1;
       repo.lastModified = Date.now();
       gitReposStorage.set(repo.id, repo);
@@ -16215,23 +16281,16 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   registerHandler('collaboration-git-push', async (_event, projectId: string) => {
     try {
-      const projects = getProjects();
-      const project = projects.find((p) => p.id === projectId);
-      if (!project?.path) return { success: false, error: 'Project path not found' };
-
-      const repo = Array.from(gitReposStorage.values()).find((entry: any) => entry.path === project.path);
-      if (!repo) return { success: false, error: 'Repository not initialized for project' };
-
-      return {
-        success: true,
-        result: {
-          success: true,
-          remote: repo.remoteUrl || 'origin',
-          branch: repo.branch || 'main',
-          timestamp: Date.now(),
-          status: 'pushed',
-        },
-      };
+      const ctx = await collaborationGitContext(projectId);
+      if (!ctx) return { success: false, error: 'Project path not found' };
+      const { repo, git } = ctx;
+      const remotes = await git.getRemotes();
+      const remote = remotes.find((r) => r.name === 'origin')?.name;
+      if (!remote) return { success: false, error: 'No "origin" remote configured for this project repository' };
+      const branchSummary = await git.branchLocal();
+      const branch = branchSummary.current || repo.branch || 'main';
+      await git.push(remote, branch);
+      return { success: true, result: { success: true, remote, branch, timestamp: Date.now(), status: 'pushed' } };
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
@@ -16239,23 +16298,16 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   registerHandler('collaboration-git-pull', async (_event, projectId: string) => {
     try {
-      const projects = getProjects();
-      const project = projects.find((p) => p.id === projectId);
-      if (!project?.path) return { success: false, error: 'Project path not found' };
-
-      const repo = Array.from(gitReposStorage.values()).find((entry: any) => entry.path === project.path);
-      if (!repo) return { success: false, error: 'Repository not initialized for project' };
-
-      return {
-        success: true,
-        result: {
-          success: true,
-          remote: repo.remoteUrl || 'origin',
-          branch: repo.branch || 'main',
-          timestamp: Date.now(),
-          status: 'pulled',
-        },
-      };
+      const ctx = await collaborationGitContext(projectId);
+      if (!ctx) return { success: false, error: 'Project path not found' };
+      const { repo, git } = ctx;
+      const remotes = await git.getRemotes();
+      const remote = remotes.find((r) => r.name === 'origin')?.name;
+      if (!remote) return { success: false, error: 'No "origin" remote configured for this project repository' };
+      const branchSummary = await git.branchLocal();
+      const branch = branchSummary.current || repo.branch || 'main';
+      await git.pull(remote, branch);
+      return { success: true, result: { success: true, remote, branch, timestamp: Date.now(), status: 'pulled' } };
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
@@ -16264,49 +16316,19 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('git:create-branch', async (_event, repoId: string, branchName: string, baseBranch?: string) => {
     const startTime = Date.now();
     try {
-      let repo = gitReposStorage.get(repoId);
-      if (!repo) {
-        repo = {
-          id: repoId || 'default',
-          name: 'Mod Project',
-          path: app.getPath('userData'),
-          initialized: true,
-          createdAt: Date.now(),
-          lastModified: Date.now(),
-          branch: 'master',
-          remoteUrl: '',
-          commits: 0
-        };
-        gitReposStorage.set(repo.id, repo);
-        saveGitDataToDisk();
+      const targetPath = resolveRepoPath(repoId);
+      const { git } = await ensureRepo(repoId || 'default', targetPath);
+      if (baseBranch) {
+        try { await git.checkout(baseBranch); } catch { /* base branch may not exist yet on a fresh repo */ }
       }
-      const branch = {
-        name: branchName,
-        baseBranch: baseBranch || 'master',
-        created: Date.now(),
-        lastCommit: Date.now(),
-        commitsAhead: 0
-      };
-      auditLogger.log({
-        operation: 'branch-management',
-        tool: 'git-integration',
-        action: 'create-branch',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { branchName, baseBranch: baseBranch || 'master' }
-      });
+      await git.checkoutLocalBranch(branchName);
+      const branch = { name: branchName, baseBranch: baseBranch || 'master', created: Date.now(), lastCommit: Date.now(), commitsAhead: 0 };
+      auditLogger.log({ operation: 'branch-management', tool: 'git-integration', action: 'create-branch', status: 'success', duration: Date.now() - startTime, result: { branchName, baseBranch: baseBranch || 'master' } });
       return { success: true, branch };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] git:create-branch error:', errMsg);
-      auditLogger.log({
-        operation: 'branch-management',
-        tool: 'git-integration',
-        action: 'create-branch',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      auditLogger.log({ operation: 'branch-management', tool: 'git-integration', action: 'create-branch', status: 'error', duration: Date.now() - startTime, error: errMsg });
       return { success: false, error: errMsg };
     }
   });
@@ -16314,32 +16336,19 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('git:switch-branch', async (_event, repoId: string, branchName: string) => {
     const startTime = Date.now();
     try {
-      const repo = gitReposStorage.get(repoId);
-      if (!repo) throw new Error('Repository not found');
+      const targetPath = resolveRepoPath(repoId);
+      const { repo, git } = await ensureRepo(repoId || 'default', targetPath);
+      await git.checkout(branchName);
       repo.branch = branchName;
       repo.lastModified = Date.now();
-      gitReposStorage.set(repoId, repo);
+      gitReposStorage.set(repo.id, repo);
       saveGitDataToDisk();
-      auditLogger.log({
-        operation: 'branch-management',
-        tool: 'git-integration',
-        action: 'switch-branch',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { branch: branchName }
-      });
+      auditLogger.log({ operation: 'branch-management', tool: 'git-integration', action: 'switch-branch', status: 'success', duration: Date.now() - startTime, result: { branch: branchName } });
       return { success: true, currentBranch: branchName };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] git:switch-branch error:', errMsg);
-      auditLogger.log({
-        operation: 'branch-management',
-        tool: 'git-integration',
-        action: 'switch-branch',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      auditLogger.log({ operation: 'branch-management', tool: 'git-integration', action: 'switch-branch', status: 'error', duration: Date.now() - startTime, error: errMsg });
       return { success: false, error: errMsg };
     }
   });
@@ -16347,32 +16356,21 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('git:get-branches', async (_event, repoId?: string) => {
     const startTime = Date.now();
     try {
-      const branches = [
-        { name: 'master', isCurrentBranch: true, lastCommit: Date.now() },
-        { name: 'develop', isCurrentBranch: false, lastCommit: Date.now() - 86400000 },
-        { name: 'feature/weapons', isCurrentBranch: false, lastCommit: Date.now() - 172800000 },
-        { name: 'feature/quests', isCurrentBranch: false, lastCommit: Date.now() - 259200000 }
-      ];
-      auditLogger.log({
-        operation: 'branch-query',
-        tool: 'git-integration',
-        action: 'get-branches',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { branchCount: branches.length }
-      });
+      const targetPath = resolveRepoPath(repoId);
+      const { git } = await ensureRepo(repoId || 'default', targetPath);
+      const summary = await git.branchLocal();
+      const branches = summary.all.map((name) => ({
+        name,
+        isCurrentBranch: name === summary.current,
+        commitHash: summary.branches[name]?.commit,
+        lastCommit: undefined as number | undefined,
+      }));
+      auditLogger.log({ operation: 'branch-query', tool: 'git-integration', action: 'get-branches', status: 'success', duration: Date.now() - startTime, result: { branchCount: branches.length } });
       return { success: true, branches };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] git:get-branches error:', errMsg);
-      auditLogger.log({
-        operation: 'branch-query',
-        tool: 'git-integration',
-        action: 'get-branches',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      auditLogger.log({ operation: 'branch-query', tool: 'git-integration', action: 'get-branches', status: 'error', duration: Date.now() - startTime, error: errMsg });
       return { success: false, error: errMsg };
     }
   });
@@ -16380,38 +16378,30 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('git:get-diff', async (_event, repoId: string, fromCommit?: string, toCommit?: string) => {
     const startTime = Date.now();
     try {
+      const targetPath = resolveRepoPath(repoId);
+      const { git } = await ensureRepo(repoId || 'default', targetPath);
+      const from = fromCommit || 'HEAD~1';
+      const to = toCommit || 'HEAD';
+      const summary = await git.diffSummary([from, to]);
       const diff = {
-        from: fromCommit || 'HEAD~1',
-        to: toCommit || 'HEAD',
-        filesChanged: 5,
-        insertions: 342,
-        deletions: 78,
-        changes: [
-          { file: 'quest_handler.psc', status: 'modified', additions: 125, deletions: 32 },
-          { file: 'player_armor.nif', status: 'modified', additions: 89, deletions: 23 },
-          { file: 'environment_texture.dds', status: 'added', additions: 128, deletions: 0 }
-        ]
+        from,
+        to,
+        filesChanged: summary.files.length,
+        insertions: summary.insertions,
+        deletions: summary.deletions,
+        changes: summary.files.map((f: any) => ({
+          file: f.file,
+          status: f.binary ? 'binary' : 'modified',
+          additions: f.insertions ?? 0,
+          deletions: f.deletions ?? 0,
+        })),
       };
-      auditLogger.log({
-        operation: 'diff-comparison',
-        tool: 'git-integration',
-        action: 'get-diff',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filesChanged: diff.filesChanged }
-      });
+      auditLogger.log({ operation: 'diff-comparison', tool: 'git-integration', action: 'get-diff', status: 'success', duration: Date.now() - startTime, result: { filesChanged: diff.filesChanged } });
       return { success: true, diff };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] git:get-diff error:', errMsg);
-      auditLogger.log({
-        operation: 'diff-comparison',
-        tool: 'git-integration',
-        action: 'get-diff',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      auditLogger.log({ operation: 'diff-comparison', tool: 'git-integration', action: 'get-diff', status: 'error', duration: Date.now() - startTime, error: errMsg });
       return { success: false, error: errMsg };
     }
   });
@@ -16419,52 +16409,27 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('git:merge-branch', async (_event, repoId: string, sourceBranch: string, targetBranch?: string) => {
     const startTime = Date.now();
     try {
-      let repo = gitReposStorage.get(repoId);
-      if (!repo) {
-        repo = {
-          id: repoId || 'default',
-          name: 'Mod Project',
-          path: app.getPath('userData'),
-          initialized: true,
-          createdAt: Date.now(),
-          lastModified: Date.now(),
-          branch: 'master',
-          remoteUrl: '',
-          commits: 0
-        };
-        gitReposStorage.set(repo.id, repo);
-        saveGitDataToDisk();
-      }
+      const targetPath = resolveRepoPath(repoId);
+      const { git } = await ensureRepo(repoId || 'default', targetPath);
+      const target = targetBranch || 'master';
+      await git.checkout(target);
+      const mergeRes = await git.merge([sourceBranch]);
       const mergeResult = {
         success: true,
         sourceBranch,
-        targetBranch: targetBranch || 'master',
+        targetBranch: target,
         timestamp: Date.now(),
-        filesChanged: 3,
-        conflicts: 0,
-        mergeCommitHash: `merge_${Math.random().toString(16).slice(2)}`,
-        status: 'merged'
+        filesChanged: (mergeRes as any).summary?.changes ?? 0,
+        conflicts: mergeRes.conflicts?.length ?? 0,
+        mergeCommitHash: (mergeRes as any).merges?.[0] || '',
+        status: mergeRes.conflicts?.length ? 'conflicts' : 'merged',
       };
-      auditLogger.log({
-        operation: 'merge-management',
-        tool: 'git-integration',
-        action: 'merge-branch',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { source: sourceBranch, target: targetBranch || 'master' }
-      });
+      auditLogger.log({ operation: 'merge-management', tool: 'git-integration', action: 'merge-branch', status: 'success', duration: Date.now() - startTime, result: { source: sourceBranch, target } });
       return { success: true, result: mergeResult };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] git:merge-branch error:', errMsg);
-      auditLogger.log({
-        operation: 'merge-management',
-        tool: 'git-integration',
-        action: 'merge-branch',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      auditLogger.log({ operation: 'merge-management', tool: 'git-integration', action: 'merge-branch', status: 'error', duration: Date.now() - startTime, error: errMsg });
       return { success: false, error: errMsg };
     }
   });
@@ -16472,180 +16437,156 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('git:get-history', async (_event, repoId?: string, limit?: number) => {
     const startTime = Date.now();
     try {
-      const historyLimit = limit || 50;
-      const commits = Array.from(gitHistoryStorage.values())
-        .sort((a: any, b: any) => b.timestamp - a.timestamp)
-        .slice(0, historyLimit);
+      const targetPath = resolveRepoPath(repoId);
+      const { git } = await ensureRepo(repoId || 'default', targetPath);
+      const log = await git.log({ maxCount: limit || 50 });
       const history = {
-        totalCommits: gitHistoryStorage.size,
-        commits: commits.map((c: any) => ({
+        totalCommits: log.total,
+        commits: log.all.map((c) => ({
           hash: c.hash,
           message: c.message,
-          author: c.author,
-          timestamp: c.timestamp,
-          fileCount: c.fileCount || 0
-        }))
+          author: c.author_name,
+          timestamp: new Date(c.date).getTime(),
+          fileCount: 0,
+        })),
       };
-      auditLogger.log({
-        operation: 'history-retrieval',
-        tool: 'git-integration',
-        action: 'get-history',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { commitCount: history.commits.length }
-      });
+      auditLogger.log({ operation: 'history-retrieval', tool: 'git-integration', action: 'get-history', status: 'success', duration: Date.now() - startTime, result: { commitCount: history.commits.length } });
       return { success: true, history };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] git:get-history error:', errMsg);
-      auditLogger.log({
-        operation: 'history-retrieval',
-        tool: 'git-integration',
-        action: 'get-history',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      auditLogger.log({ operation: 'history-retrieval', tool: 'git-integration', action: 'get-history', status: 'error', duration: Date.now() - startTime, error: errMsg });
       return { success: false, error: errMsg };
     }
   });
 
-  // =========================================================================
-  // Platform 18: Nexus Mods Auto-Uploader IPC Handlers
-  // =========================================================================
-  const nexusModsStorage = new Map<string, any>();
-  const uploadHistoryStorage = new Map<string, any>();
-
-  function loadNexusDataFromDisk() {
-    try {
-      const settings = loadSettings();
-      if (settings.nexusMods && Array.isArray(settings.nexusMods)) {
-        for (const mod of settings.nexusMods) {
-          nexusModsStorage.set(mod.id, mod);
-        }
-      }
-      if (settings.uploadHistory && Array.isArray(settings.uploadHistory)) {
-        for (const hist of settings.uploadHistory) {
-          uploadHistoryStorage.set(hist.id, hist);
-        }
-      }
-    } catch (err) {
-      console.warn('[Main] Failed to load Nexus data from disk:', err);
-    }
+  // --- Real filesystem snapshot backups (zip archives of the repo directory) ---
+  function getBackupsDir(): string {
+    const dir = path.join(app.getPath('userData'), 'version-control-backups');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    return dir;
   }
 
-  function saveNexusDataToDisk() {
-    try {
-      const settings = loadSettings();
-      settings.nexusMods = Array.from(nexusModsStorage.values());
-      settings.uploadHistory = Array.from(uploadHistoryStorage.values());
-      saveSettings(settings);
-    } catch (err) {
-      console.error('[Main] Failed to save Nexus data to disk:', err);
-    }
-  }
-
-  function createNexusUploadBackup(filePath: string, modId: string) {
-    if (!filePath || typeof filePath !== 'string') {
-      throw new Error('A valid file path is required for upload');
-    }
-
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`Upload file not found: ${filePath}`);
-    }
-
-    const backupRoot = path.join(app.getPath('userData'), 'nexus-upload-backups', modId);
-    const timestamp = Date.now();
-    const backupDir = path.join(backupRoot, timestamp.toString());
-    fs.mkdirSync(backupDir, { recursive: true });
-
-    const originalFileName = path.basename(filePath);
-    const backupPath = path.join(backupDir, originalFileName);
-    fs.copyFileSync(filePath, backupPath);
-
-    const originalStats = fs.statSync(filePath);
-    return {
-      backupPath,
-      backupCreatedAt: timestamp,
-      originalFileName,
-      originalSize: originalStats.size
-    };
-  }
-
-  loadNexusDataFromDisk();
-
-  registerHandler('nexus:init-config', async (_event, apiKey?: string, apiUrl?: string) => {
+  registerHandler('git:create-backup', async (_event, repoPath: string) => {
     const startTime = Date.now();
     try {
-      const settings = loadSettings();
-      settings.nexusConfig = {
-        apiKey: apiKey || '',
-        apiUrl: apiUrl || 'https://api.nexusmods.com/v1',
-        gameName: 'fallout4',
-        autoUpload: false,
-        compressArchives: true,
-        initialized: true,
-        timestamp: Date.now()
+      const sourcePath = repoPath || resolveRepoPath();
+      if (!fs.existsSync(sourcePath)) throw new Error(`Path does not exist: ${sourcePath}`);
+      const backupId = `backup_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const zipPath = path.join(getBackupsDir(), `${backupId}.zip`);
+      const zip = new AdmZip();
+      zip.addLocalFolder(sourcePath, '', (entryPath) => !entryPath.split(path.sep).includes('.git'));
+      zip.writeZip(zipPath);
+      const backup = {
+        id: backupId,
+        timestamp: Date.now(),
+        size: fs.statSync(zipPath).size,
+        path: zipPath,
+        sourcePath,
+        description: `Backup of ${path.basename(sourcePath)}`,
       };
-      saveSettings(settings);
-      auditLogger.log({
-        operation: 'configuration',
-        tool: 'nexus-uploader',
-        action: 'init-config',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { gameName: 'fallout4' }
-      });
-      return { success: true, config: settings.nexusConfig };
+      gitBackupsStorage.set(backupId, backup);
+      saveGitDataToDisk();
+      auditLogger.log({ operation: 'backup-management', tool: 'git-integration', action: 'create-backup', status: 'success', duration: Date.now() - startTime, result: { backupId, size: backup.size } });
+      return { success: true, backupId, backup, path: zipPath, size: backup.size, timestamp: backup.timestamp };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] nexus:init-config error:', errMsg);
-      auditLogger.log({
-        operation: 'configuration',
-        tool: 'nexus-uploader',
-        action: 'init-config',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      console.error('[Main] git:create-backup error:', errMsg);
+      auditLogger.log({ operation: 'backup-management', tool: 'git-integration', action: 'create-backup', status: 'error', duration: Date.now() - startTime, error: errMsg });
       return { success: false, error: errMsg };
     }
   });
 
-  registerHandler('nexus:authenticate', async (_event, apiKey: string) => {
+  registerHandler('git:list-backups', async () => {
+    try {
+      const backups = Array.from(gitBackupsStorage.values()).sort((a: any, b: any) => b.timestamp - a.timestamp);
+      return backups;
+    } catch (error: any) {
+      console.error('[Main] git:list-backups error:', error);
+      return [];
+    }
+  });
+
+  registerHandler('git:restore-backup', async (_event, backupId: string, targetPath: string) => {
     const startTime = Date.now();
     try {
-      const settings = loadSettings();
-      settings.nexusConfig = settings.nexusConfig || {};
-      settings.nexusConfig.apiKey = apiKey;
-      settings.nexusConfig.authenticated = true;
-      settings.nexusConfig.authenticatedAt = Date.now();
-      saveSettings(settings);
-      auditLogger.log({
-        operation: 'authentication',
-        tool: 'nexus-uploader',
-        action: 'authenticate',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { authenticated: true }
-      });
-      return { success: true, authenticated: true };
+      const backup = gitBackupsStorage.get(backupId);
+      if (!backup) throw new Error('Backup not found');
+      if (!fs.existsSync(backup.path)) throw new Error('Backup archive file is missing on disk');
+      const destination = targetPath || backup.sourcePath || resolveRepoPath();
+      if (!fs.existsSync(destination)) fs.mkdirSync(destination, { recursive: true });
+      const zip = new AdmZip(backup.path);
+      zip.extractAllTo(destination, true);
+      auditLogger.log({ operation: 'backup-management', tool: 'git-integration', action: 'restore-backup', status: 'success', duration: Date.now() - startTime, result: { backupId, destination } });
+      return { success: true, restoredTo: destination };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] nexus:authenticate error:', errMsg);
-      auditLogger.log({
-        operation: 'authentication',
-        tool: 'nexus-uploader',
-        action: 'authenticate',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      console.error('[Main] git:restore-backup error:', errMsg);
+      auditLogger.log({ operation: 'backup-management', tool: 'git-integration', action: 'restore-backup', status: 'error', duration: Date.now() - startTime, error: errMsg });
       return { success: false, error: errMsg };
     }
   });
 
-  registerHandler('nexus:get-game-info', async (_event, gameName?: string) => {
+  registerHandler('git:delete-backup', async (_event, backupId: string) => {
+    try {
+      const backup = gitBackupsStorage.get(backupId);
+      if (!backup) return { success: false, error: 'Backup not found' };
+      try { if (fs.existsSync(backup.path)) fs.unlinkSync(backup.path); } catch { /* best-effort cleanup */ }
+      gitBackupsStorage.delete(backupId);
+      saveGitDataToDisk();
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // =========================================================================
+  // Platform 18: Local Mod Packaging IPC Handlers
+  // (Nexus's public API has no endpoint for creating/uploading/publishing mods -
+  // that is web-only. This builds real local release packages; the user still
+  // manually uploads the resulting zip wherever they choose.)
+  // =========================================================================
+  const modPackagesStorage = new Map<string, any>();
+  const modPackageBuildsStorage = new Map<string, any>();
+
+  function loadModPackagingDataFromDisk() {
+    try {
+      const settings = loadSettings();
+      if (settings.modPackages && Array.isArray(settings.modPackages)) {
+        for (const pkg of settings.modPackages) {
+          modPackagesStorage.set(pkg.id, pkg);
+        }
+      }
+      if (settings.modPackageBuilds && Array.isArray(settings.modPackageBuilds)) {
+        for (const build of settings.modPackageBuilds) {
+          modPackageBuildsStorage.set(build.id, build);
+        }
+      }
+    } catch (err) {
+      console.warn('[Main] Failed to load mod packaging data from disk:', err);
+    }
+  }
+
+  function saveModPackagingDataToDisk() {
+    try {
+      const settings = loadSettings();
+      settings.modPackages = Array.from(modPackagesStorage.values());
+      settings.modPackageBuilds = Array.from(modPackageBuildsStorage.values());
+      saveSettings(settings);
+    } catch (err) {
+      console.error('[Main] Failed to save mod packaging data to disk:', err);
+    }
+  }
+
+  function hashFileSha256(filePath: string): string {
+    const hash = crypto.createHash('sha256');
+    hash.update(fs.readFileSync(filePath));
+    return hash.digest('hex');
+  }
+
+  loadModPackagingDataFromDisk();
+
+  registerHandler('mod-packaging:get-game-info', async (_event, gameName?: string) => {
     const startTime = Date.now();
     try {
       const game = gameName || 'fallout4';
@@ -16655,316 +16596,778 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         shortName: game,
         supportedFileTypes: ['zip', '7z', 'rar', 'fomod'],
         maxFileSize: 5368709120,
-        categoryCount: 87,
-        modCount: 38000,
-        fileCount: 125000
       };
       auditLogger.log({
-        operation: 'game-info',
-        tool: 'nexus-uploader',
-        action: 'get-game-info',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { gameName: gameInfo.name }
+        operation: 'game-info', tool: 'mod-packaging', action: 'get-game-info',
+        status: 'success', duration: Date.now() - startTime, result: { gameName: gameInfo.name }
       });
       return { success: true, gameInfo };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] nexus:get-game-info error:', errMsg);
-      auditLogger.log({
-        operation: 'game-info',
-        tool: 'nexus-uploader',
-        action: 'get-game-info',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      console.error('[Main] mod-packaging:get-game-info error:', errMsg);
       return { success: false, error: errMsg };
     }
   });
 
-  registerHandler('nexus:create-mod', async (_event, modName: string, description?: string, category?: string) => {
+  registerHandler('mod-packaging:create-package', async (_event, name: string, description?: string, category?: string, sourcePath?: string) => {
     const startTime = Date.now();
     try {
-      const modId = `mod_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      const mod = {
-        id: modId,
-        name: modName,
-        description: description || 'A new Fallout 4 mod',
+      if (!name || !name.trim()) throw new Error('Package name is required');
+      if (sourcePath && !fs.existsSync(sourcePath)) throw new Error(`Source folder not found: ${sourcePath}`);
+      const packageId = `pkg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const pkg = {
+        id: packageId,
+        name: name.trim(),
+        description: description || '',
         category: category || 'Miscellaneous',
-        created: Date.now(),
-        updated: Date.now(),
-        version: '1.0.0',
+        sourcePath: sourcePath || '',
         status: 'draft',
-        downloads: 0,
-        endorsements: 0,
-        uniqueDonwloads: 0
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
       };
-      nexusModsStorage.set(modId, mod);
-      saveNexusDataToDisk();
+      modPackagesStorage.set(packageId, pkg);
+      saveModPackagingDataToDisk();
       auditLogger.log({
-        operation: 'mod-creation',
-        tool: 'nexus-uploader',
-        action: 'create-mod',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, modName, category }
+        operation: 'package-creation', tool: 'mod-packaging', action: 'create-package',
+        status: 'success', duration: Date.now() - startTime, result: { packageId, name }
       });
-      return { success: true, mod };
+      return { success: true, package: pkg };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] nexus:create-mod error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-creation',
-        tool: 'nexus-uploader',
-        action: 'create-mod',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      console.error('[Main] mod-packaging:create-package error:', errMsg);
       return { success: false, error: errMsg };
     }
   });
 
-  registerHandler('nexus:update-mod', async (_event, modId: string, updates: any) => {
+  registerHandler('mod-packaging:update-package', async (_event, packageId: string, updates: any) => {
     const startTime = Date.now();
     try {
-      const mod = nexusModsStorage.get(modId);
-      if (!mod) throw new Error('Mod not found');
-      const updated = { ...mod, ...updates, updated: Date.now() };
-      nexusModsStorage.set(modId, updated);
-      saveNexusDataToDisk();
+      const pkg = modPackagesStorage.get(packageId);
+      if (!pkg) throw new Error('Package not found');
+      const updated = { ...pkg, ...updates, id: pkg.id, updatedAt: Date.now() };
+      modPackagesStorage.set(packageId, updated);
+      saveModPackagingDataToDisk();
       auditLogger.log({
-        operation: 'mod-update',
-        tool: 'nexus-uploader',
-        action: 'update-mod',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, updateKeys: Object.keys(updates) }
+        operation: 'package-update', tool: 'mod-packaging', action: 'update-package',
+        status: 'success', duration: Date.now() - startTime, result: { packageId }
       });
-      return { success: true, mod: updated };
+      return { success: true, package: updated };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] nexus:update-mod error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-update',
-        tool: 'nexus-uploader',
-        action: 'update-mod',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
+      console.error('[Main] mod-packaging:update-package error:', errMsg);
       return { success: false, error: errMsg };
     }
   });
 
-  registerHandler('nexus:upload-file', async (_event, modId: string, filePath: string, version?: string) => {
+  registerHandler('mod-packaging:list-packages', async () => {
+    try {
+      return { success: true, packages: Array.from(modPackagesStorage.values()).sort((a, b) => b.updatedAt - a.updatedAt) };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler('mod-packaging:build-package', async (_event, packageId: string, version: string, changelogNotes?: string) => {
     const startTime = Date.now();
     try {
-      const mod = nexusModsStorage.get(modId);
-      if (!mod) throw new Error('Mod not found');
-      const backupInfo = createNexusUploadBackup(filePath, modId);
-      const fileSize = backupInfo.originalSize;
-      const uploadResult = {
-        fileId: `file_${Date.now()}`,
-        modId,
-        filename: backupInfo.originalFileName,
-        size: fileSize,
-        version: version || '1.0.0',
-        uploadedAt: Date.now(),
-        status: 'uploaded',
-        downloadUrl: `https://www.nexusmods.com/fallout4/mods/download/${modId}`,
-        backupPath: backupInfo.backupPath,
-        backupCreatedAt: backupInfo.backupCreatedAt
+      const pkg = modPackagesStorage.get(packageId);
+      if (!pkg) throw new Error('Package not found');
+      if (!pkg.sourcePath || !fs.existsSync(pkg.sourcePath)) {
+        throw new Error('Set a valid source folder for this package before building');
+      }
+      const ver = (version || '1.0.0').trim();
+
+      const zip = new AdmZip();
+      const EXCLUDED_DIRS = new Set(['.git', 'node_modules', '.mossy-builds']);
+      const addDir = (dir: string, zipPath: string) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          if (EXCLUDED_DIRS.has(entry.name)) continue;
+          const fullPath = path.join(dir, entry.name);
+          const entryZipPath = zipPath ? `${zipPath}/${entry.name}` : entry.name;
+          if (entry.isDirectory()) addDir(fullPath, entryZipPath);
+          else zip.addLocalFile(fullPath, zipPath);
+        }
       };
-      const historyEntry = { id: `upload_${Date.now()}`, ...uploadResult };
-      uploadHistoryStorage.set(historyEntry.id, historyEntry);
-      saveNexusDataToDisk();
+      let fileCount = 0;
+      const countFiles = (dir: string) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          if (EXCLUDED_DIRS.has(entry.name)) continue;
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) countFiles(fullPath);
+          else fileCount++;
+        }
+      };
+      countFiles(pkg.sourcePath);
+      addDir(pkg.sourcePath, '');
+
+      const outputDir = path.join(app.getPath('userData'), 'mod-packaging-builds', packageId);
+      fs.mkdirSync(outputDir, { recursive: true });
+      const safeName = pkg.name.replace(/[^a-z0-9_-]+/gi, '_');
+      const zipPath = path.join(outputDir, `${safeName}-v${ver}.zip`);
+      zip.writeZip(zipPath);
+
+      const stats = fs.statSync(zipPath);
+      const sha256 = hashFileSha256(zipPath);
+      const buildId = `build_${Date.now()}`;
+      const build = {
+        id: buildId,
+        packageId,
+        version: ver,
+        zipPath,
+        size: stats.size,
+        sha256,
+        fileCount,
+        changelog: changelogNotes || '',
+        createdAt: Date.now(),
+      };
+      modPackageBuildsStorage.set(buildId, build);
+      pkg.status = 'packaged';
+      pkg.version = ver;
+      pkg.updatedAt = Date.now();
+      modPackagesStorage.set(packageId, pkg);
+      saveModPackagingDataToDisk();
+
       auditLogger.log({
-        operation: 'file-upload',
-        tool: 'nexus-uploader',
-        action: 'upload-file',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { fileId: uploadResult.fileId, size: fileSize, backupPath: backupInfo.backupPath }
+        operation: 'package-build', tool: 'mod-packaging', action: 'build-package',
+        status: 'success', duration: Date.now() - startTime,
+        result: { packageId, buildId, size: stats.size, fileCount }
       });
-      return { success: true, result: uploadResult };
+      return { success: true, build };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] nexus:upload-file error:', errMsg);
+      console.error('[Main] mod-packaging:build-package error:', errMsg);
       auditLogger.log({
-        operation: 'file-upload',
-        tool: 'nexus-uploader',
-        action: 'upload-file',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
+        operation: 'package-build', tool: 'mod-packaging', action: 'build-package',
+        status: 'error', duration: Date.now() - startTime, error: errMsg
       });
       return { success: false, error: errMsg };
     }
   });
 
-  registerHandler('nexus:publish-mod', async (_event, modId: string, publishNow?: boolean) => {
-    const startTime = Date.now();
-    try {
-      const mod = nexusModsStorage.get(modId);
-      if (!mod) throw new Error('Mod not found');
-      mod.status = publishNow ? 'published' : 'pending-review';
-      mod.publishedAt = publishNow ? Date.now() : undefined;
-      mod.reviewStatus = publishNow ? 'approved' : 'in-review';
-      nexusModsStorage.set(modId, mod);
-      saveNexusDataToDisk();
-      const historyEntry = {
-        id: `publish_${Date.now()}`,
-        modId,
-        action: publishNow ? 'published' : 'submitted',
-        timestamp: Date.now(),
-        status: mod.status
-      };
-      uploadHistoryStorage.set(historyEntry.id, historyEntry);
-      saveNexusDataToDisk();
-      auditLogger.log({
-        operation: 'mod-publishing',
-        tool: 'nexus-uploader',
-        action: 'publish-mod',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, status: mod.status }
-      });
-      return { success: true, mod };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] nexus:publish-mod error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-publishing',
-        tool: 'nexus-uploader',
-        action: 'publish-mod',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('nexus:get-upload-history', async (_event, modId?: string, limit?: number) => {
-    const startTime = Date.now();
+  registerHandler('mod-packaging:get-build-history', async (_event, packageId?: string, limit?: number) => {
     try {
       const historyLimit = limit || 50;
-      let history = Array.from(uploadHistoryStorage.values());
-      if (modId) {
-        history = history.filter((h: any) => h.modId === modId);
-      }
-      history = history.sort((a: any, b: any) => b.timestamp - a.timestamp).slice(0, historyLimit);
-      auditLogger.log({
-        operation: 'history-retrieval',
-        tool: 'nexus-uploader',
-        action: 'get-upload-history',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { entryCount: history.length }
-      });
+      let history = Array.from(modPackageBuildsStorage.values());
+      if (packageId) history = history.filter((b: any) => b.packageId === packageId);
+      history = history.sort((a: any, b: any) => b.createdAt - a.createdAt).slice(0, historyLimit);
       return { success: true, history };
     } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] nexus:get-upload-history error:', errMsg);
-      auditLogger.log({
-        operation: 'history-retrieval',
-        tool: 'nexus-uploader',
-        action: 'get-upload-history',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
-  registerHandler('nexus:get-mod-stats', async (_event, modId: string) => {
-    const startTime = Date.now();
+  registerHandler('mod-packaging:get-package-stats', async (_event, packageId: string) => {
     try {
-      const mod = nexusModsStorage.get(modId);
-      if (!mod) throw new Error('Mod not found');
+      const pkg = modPackagesStorage.get(packageId);
+      if (!pkg) throw new Error('Package not found');
+      const builds = Array.from(modPackageBuildsStorage.values()).filter((b: any) => b.packageId === packageId);
+      const totalSizeBytes = builds.reduce((sum: number, b: any) => sum + b.size, 0);
+      const latestBuild = builds.sort((a: any, b: any) => b.createdAt - a.createdAt)[0] || null;
       const stats = {
-        modId,
-        modName: mod.name,
-        downloads: mod.downloads || Math.floor(Math.random() * 100000),
-        uniqueDownloads: mod.uniqueDownloads || Math.floor(Math.random() * 50000),
-        endorsements: mod.endorsements || Math.floor(Math.random() * 5000),
-        views: Math.floor(Math.random() * 250000),
-        averageRating: (Math.random() * 5).toFixed(1),
-        ratingCount: Math.floor(Math.random() * 2000),
-        trending: Math.random() > 0.5,
-        hotThisWeek: Math.random() > 0.7,
-        downloadTrend: Array.from({ length: 7 }, (_, i) => ({
-          date: Date.now() - (7 - i) * 86400000,
-          downloads: Math.floor(Math.random() * 1000)
-        }))
+        packageId,
+        packageName: pkg.name,
+        totalBuilds: builds.length,
+        totalSizeBytes,
+        latestBuild: latestBuild ? {
+          version: latestBuild.version, size: latestBuild.size,
+          sha256: latestBuild.sha256, fileCount: latestBuild.fileCount, createdAt: latestBuild.createdAt,
+        } : null,
       };
-      auditLogger.log({
-        operation: 'statistics',
-        tool: 'nexus-uploader',
-        action: 'get-mod-stats',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, downloads: stats.downloads }
-      });
       return { success: true, stats };
     } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] nexus:get-mod-stats error:', errMsg);
-      auditLogger.log({
-        operation: 'statistics',
-        tool: 'nexus-uploader',
-        action: 'get-mod-stats',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 
-  registerHandler('nexus:generate-changelog', async (_event, modId: string, fromVersion?: string, toVersion?: string) => {
-    const startTime = Date.now();
+  registerHandler('mod-packaging:generate-changelog', async (_event, packageId: string, fromVersion?: string, toVersion?: string, notes?: string[]) => {
     try {
-      const mod = nexusModsStorage.get(modId);
-      if (!mod) throw new Error('Mod not found');
-      const changelog = {
-        modId,
-        from: fromVersion || '0.0.0',
-        to: toVersion || mod.version || '1.0.0',
-        generated: Date.now(),
-        sections: [
-          { title: 'New Features', items: ['Added new weapon variants', 'Added quest line', 'Added armor sets'] },
-          { title: 'Improvements', items: ['Improved performance by 15%', 'Enhanced textures', 'Better load times'] },
-          { title: 'Bug Fixes', items: ['Fixed quest blocker', 'Fixed texture seams', 'Fixed dialogue issues'] },
-          { title: 'Compatibility', items: ['Updated for latest patch', 'Works with mod X', 'Works with mod Y'] }
-        ],
-        autoGenerated: true,
-        markdown: '# Changelog\n\n## New Features\n- Added new weapon variants\n- Added quest line\n\n## Improvements\n- Improved performance\n\n## Bug Fixes\n- Fixed quest blocker'
-      };
-      auditLogger.log({
-        operation: 'changelog-generation',
-        tool: 'nexus-uploader',
-        action: 'generate-changelog',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, sections: changelog.sections.length }
-      });
-      return { success: true, changelog };
+      const pkg = modPackagesStorage.get(packageId);
+      if (!pkg) throw new Error('Package not found');
+      const items = (notes || []).map((n) => n.trim()).filter(Boolean);
+      const lines = [
+        `# ${pkg.name} — Changelog`,
+        '',
+        `**From:** ${fromVersion || 'previous'}  **To:** ${toVersion || pkg.version || '1.0.0'}`,
+        '',
+      ];
+      if (items.length) {
+        lines.push('## Changes');
+        for (const item of items) lines.push(`- ${item}`);
+      } else {
+        lines.push('## Changes');
+        lines.push('_No changes entered yet - fill in what changed in this release._');
+      }
+      const markdown = lines.join('\n');
+      return { success: true, changelog: { packageId, from: fromVersion || '', to: toVersion || pkg.version || '1.0.0', items, markdown, generated: Date.now() } };
     } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] nexus:generate-changelog error:', errMsg);
-      auditLogger.log({
-        operation: 'changelog-generation',
-        tool: 'nexus-uploader',
-        action: 'generate-changelog',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler('mod-packaging:reveal-build', async (_event, buildId: string) => {
+    try {
+      const build = modPackageBuildsStorage.get(buildId);
+      if (!build) throw new Error('Build not found');
+      if (!fs.existsSync(build.zipPath)) throw new Error('Build file no longer exists on disk');
+      shell.showItemInFolder(build.zipPath);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler('mod-packaging:delete-build', async (_event, buildId: string) => {
+    try {
+      const build = modPackageBuildsStorage.get(buildId);
+      if (!build) throw new Error('Build not found');
+      try { fs.rmSync(build.zipPath, { force: true }); } catch { /* already gone */ }
+      modPackageBuildsStorage.delete(buildId);
+      saveModPackagingDataToDisk();
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // =========================================================================
+  // Vault-Tec Creative Director — Autonomous Mod-Building Team
+  // Four local LLM personas (Creative Director + 3 specialists) take real
+  // turns collaborating on a Fallout 4 mod/tool idea entirely on this desktop
+  // (Groq cloud if configured, else the local KoboldCpp fallback - never an
+  // external service). When the Director judges a project finished, any
+  // Papyrus script produced is verified with the user's real installed
+  // PapyrusCompiler.exe before the project is handed off to the user. Full
+  // in-game verification is NOT implemented - flagged in the manifest as
+  // future work, never claimed as done.
+  // =========================================================================
+  type CdAgentRole = 'director' | 'quest' | 'dialogue' | 'world';
+  type CdTurn = { agent: CdAgentRole; message: string; timestamp: number };
+  type CdProject = {
+    id: string;
+    title: string;
+    brief: string;
+    status: 'planning' | 'in_progress' | 'done';
+    turns: CdTurn[];
+    createdAt: number;
+    updatedAt: number;
+  };
+  type CdCompletedProject = {
+    id: string;
+    title: string;
+    summary: string;
+    outputDir: string;
+    manifestPath: string;
+    completedAt: number;
+    turnCount: number;
+    incomplete: boolean;
+    missingSections: string[];
+    verification: { attempted: boolean; compiled: boolean; detail: string };
+    hasBuildGuide: boolean;
+  };
+  type CdTeamState = {
+    enabled: boolean;
+    currentProject: CdProject | null;
+    completedProjects: CdCompletedProject[];
+    pastTitles: string[];
+  };
+
+  // Every required section must appear (as a heading) somewhere in the transcript
+  // before the team is allowed to call a project finished. This is enforced in
+  // code, not just by asking the Director nicely - a small/fast model will
+  // happily declare "done" on a vague pitch otherwise.
+  // This team is an IDEA STATION, not an asset factory: it cannot place objects
+  // in Creation Kit, build meshes, or pack a finished ESP. The point of every
+  // project is a fully fleshed-out idea PLUS a complete, concrete, step-by-step
+  // guide telling the human exactly how to actually build it. "Build Guide" is
+  // the capstone section - the Director cannot declare a project complete
+  // without it, no matter how good the rest of the design is.
+  const CD_REQUIRED_SECTIONS = [
+    'Site & Access Design',
+    'Story & Narrative',
+    'Art Direction',
+    'Creature & Object Concepts',
+    'Complete Papyrus Scripts',
+    'Build Guide',
+  ];
+
+  const CD_AGENT_ORDER: CdAgentRole[] = ['quest', 'dialogue', 'world', 'director'];
+  const CD_MAX_TURNS = 48; // 12 full rounds before we force a handoff
+  const CD_PERSONAS: Record<CdAgentRole, { name: string; systemPrompt: string }> = {
+    director: {
+      name: 'Creative Director',
+      systemPrompt: 'You are the Creative Director of a small in-house Fallout 4 modding team. ' +
+        'This team is an IDEA STATION, not an asset factory: you cannot place objects in Creation Kit, build meshes, or pack a finished ESP. ' +
+        'Your job is to fully design the idea AND hand the human a complete, concrete, step-by-step guide for how to actually build it themselves. ' +
+        `A finished project must contain ALL of these sections somewhere in the transcript, each under its own markdown heading: ${CD_REQUIRED_SECTIONS.map((s) => `"## ${s}"`).join(', ')}. ` +
+        'You personally own the final "## Build Guide" section: once every other section is genuinely present, write a numbered, concrete checklist of exactly what the human needs to do in Creation Kit/xEdit/Blender/etc. to bring this design to life - which window to open, what to name things, where the provided script and notes plug in, in order. Be specific, not generic. ' +
+        'Each round (other than your final one), name exactly which required sections are still missing or too shallow and tell the specific specialist to fill them in. ' +
+        'Never declare a project complete just because the team is talking confidently - check that every required section actually exists with real, specific content, INCLUDING your own Build Guide. ' +
+        'When (and only when) every required section including the Build Guide is genuinely present and detailed, ' +
+        'reply starting with the exact token PROJECT_COMPLETE on its own line, followed by a short human-readable summary of what was designed (not "built" - it was designed, the human builds it).',
+    },
+    quest: {
+      name: 'Quest & Systems Designer',
+      systemPrompt: 'You are the Quest & Systems Designer on a Fallout 4 modding team. ' +
+        'You own two required sections: "## Story & Narrative" (quest structure, objectives, plot beats - work with the Dialogue writer on this) ' +
+        'and "## Complete Papyrus Scripts" (every script the mod needs, fully written, not fragments). ' +
+        'Papyrus syntax rules - this is Fallout 4 Papyrus, NOT Skyrim, NOT C++, NOT Python: ' +
+        'no `enum`, no `foreach`, no `native` keyword on a function that has a body, no Skyrim-only functions. ' +
+        'A real script looks like: `ScriptName MyQuestScript extends Quest` then `Event OnInit()` / `EndEvent`, `Function DoThing()` / `EndFunction`, ' +
+        '`Property` lines, `If` / `EndIf`, `While` / `EndWhile` with a real exit condition. ' +
+        'Always put each script in its own fenced code block tagged ```papyrus with a real ScriptName line. Keep scripts focused and genuinely compilable.',
+    },
+    dialogue: {
+      name: 'Dialogue & Lore Writer',
+      systemPrompt: 'You are the Dialogue & Lore Writer on a Fallout 4 modding team. ' +
+        'You own the "## Story & Narrative" section together with the Quest Designer (plot, character motivations, dialogue lines) ' +
+        'and you contribute lore detail to "## Site & Access Design" (why this place exists, its history). ' +
+        'Put your dialogue/lore text in a fenced code block tagged ```text under the matching heading.',
+    },
+    world: {
+      name: 'World & NPC Builder',
+      systemPrompt: 'You are the World & NPC Builder on a Fallout 4 modding team. ' +
+        'You own three required sections: ' +
+        '"## Site & Access Design" (exactly where this is in the Commonwealth, how the player physically gets there, the route/landmarks), ' +
+        '"## Art Direction" (concrete visual direction for an artist: color palettes, material call-outs like rusted metal/glass/foliage, lighting mood, reference comparisons), ' +
+        'and "## Creature & Object Concepts" (a detailed written description of the appearance of every new plant/creature/object/NPC, detailed enough that an artist could draw it from your description alone - you cannot create the meshes/textures yourself, but you must fully describe what they should look like). ' +
+        'Put your notes in a fenced code block tagged ```text under the matching heading.',
+    },
+  };
+
+  function cdMissingSections(project: CdProject): string[] {
+    const allText = project.turns.map((t) => t.message).join('\n').toLowerCase();
+    return CD_REQUIRED_SECTIONS.filter((section) => !allText.includes(`## ${section}`.toLowerCase()));
+  }
+
+  // Pulls the text under "## <sectionName>" out of a turn's message, up to the
+  // next "##" heading or end of string. Used to extract the Director's final
+  // Build Guide into its own real file rather than leaving it buried in the transcript.
+  function cdExtractSection(message: string, sectionName: string): string | null {
+    const re = new RegExp(`##\\s*${sectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n([\\s\\S]*?)(?:\\n##\\s|$)`, 'i');
+    const m = message.match(re);
+    return m ? m[1].trim() : null;
+  }
+
+  function loadCdTeamState(): CdTeamState {
+    try {
+      const s = loadSettings();
+      if (s.creativeDirectorTeam) return s.creativeDirectorTeam as CdTeamState;
+    } catch { /* fall through to default */ }
+    return { enabled: false, currentProject: null, completedProjects: [], pastTitles: [] };
+  }
+
+  function saveCdTeamState() {
+    try {
+      const s = loadSettings();
+      s.creativeDirectorTeam = cdTeamState;
+      saveSettings(s);
+    } catch (err) {
+      console.error('[CreativeDirector] Failed to save team state:', err);
+    }
+  }
+
+  let cdTeamState: CdTeamState = loadCdTeamState();
+  let cdTurnInFlight = false;
+
+  async function cdCallAgent(systemPrompt: string, userPrompt: string): Promise<string> {
+    const s = loadSettings();
+    // Try Groq cloud first if a key/backend is configured (same path the main AI Chat uses).
+    try {
+      const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
+      const backend = getBackendConfig();
+      if (apiKey || backend) {
+        const messages: Array<{ role: 'system' | 'user'; content: string }> = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ];
+        // Use the larger model, not the small/fast default - this team needs to
+        // produce real, structured design content and syntactically valid
+        // Papyrus, not quick chat replies.
+        const cdModel = GROQ_FALLBACK_MODEL;
+        if (backend) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 25000);
+          try {
+            const res = await fetch(backendJoin(backend, '/v1/chat'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}) },
+              body: JSON.stringify({ provider: 'groq', model: cdModel, messages, maxTokens: 2048 }),
+              signal: controller.signal,
+            });
+            const json: any = await res.json().catch(() => ({}));
+            if (res.ok && json?.ok && json?.text) return String(json.text);
+          } catch { /* fall through to direct SDK / Kobold */ } finally { clearTimeout(timeout); }
+        }
+        if (apiKey) {
+          const { default: Groq } = await import('groq-sdk');
+          const client = new Groq({ apiKey });
+          const text = await callGroqWithFallback(client as any, cdModel, messages, 2048);
+          if (text) return text;
+        }
+      }
+    } catch (err) {
+      console.warn('[CreativeDirector] Groq path failed, falling back to local KoboldCpp:', err);
+    }
+
+    // Fully local fallback: KoboldCpp's OpenAI-compatible endpoint (no internet required).
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      const res = await fetch('http://127.0.0.1:5001/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+          max_tokens: 1024,
+        }),
+        signal: controller.signal,
       });
-      return { success: false, error: errMsg };
+      clearTimeout(timeout);
+      if (res.ok) {
+        const json: any = await res.json().catch(() => ({}));
+        const text = json?.choices?.[0]?.message?.content;
+        if (text) return String(text);
+      }
+    } catch (err) {
+      console.warn('[CreativeDirector] Local KoboldCpp fallback failed:', err);
+    }
+
+    throw new Error('No AI backend available - configure a Groq API key or start KoboldCpp (Local Capabilities panel).');
+  }
+
+  function cdExtractCodeBlocks(message: string): Array<{ lang: string; content: string }> {
+    const blocks: Array<{ lang: string; content: string }> = [];
+    const re = /```(\w+)?\n([\s\S]*?)```/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(message)) !== null) {
+      blocks.push({ lang: (m[1] || 'text').toLowerCase(), content: m[2].trim() });
+    }
+    return blocks;
+  }
+
+  async function cdCompilePapyrus(scriptContent: string, tmpDir: string): Promise<{ attempted: boolean; compiled: boolean; detail: string }> {
+    const s = loadSettings();
+    const compilerPath = String(s?.papyrusCompilerPath || '').trim();
+    if (!compilerPath || !fs.existsSync(compilerPath)) {
+      return { attempted: false, compiled: false, detail: 'No PapyrusCompiler.exe configured - script was not verified. Set it in Settings before relying on this output.' };
+    }
+    try {
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const scriptNameMatch = scriptContent.match(/ScriptName\s+(\w+)/i);
+      const scriptFileName = (scriptNameMatch ? scriptNameMatch[1] : 'CdGeneratedScript') + '.psc';
+      const scriptPath = path.join(tmpDir, scriptFileName);
+      fs.writeFileSync(scriptPath, scriptContent, 'utf-8');
+
+      const result = await new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve) => {
+        try {
+          const child = spawn(compilerPath, [scriptPath, '-q'], { cwd: tmpDir, shell: false, windowsHide: true });
+          let stdout = '';
+          let stderr = '';
+          child.stdout?.on('data', (d) => { stdout += d.toString(); });
+          child.stderr?.on('data', (d) => { stderr += d.toString(); });
+          child.on('close', (code) => resolve({ exitCode: code ?? 0, stdout, stderr }));
+          child.on('error', (err) => resolve({ exitCode: 1, stdout, stderr: String((err as any)?.message || err) }));
+        } catch (e: any) {
+          resolve({ exitCode: 1, stdout: '', stderr: String(e?.message || e) });
+        }
+      });
+
+      const compiled = result.exitCode === 0;
+      return {
+        attempted: true,
+        compiled,
+        detail: compiled
+          ? 'Compiled successfully with your installed PapyrusCompiler.exe.'
+          : `Compile failed (exit ${result.exitCode}): ${(result.stderr || result.stdout || 'unknown error').slice(0, 600)}`,
+      };
+    } catch (err: any) {
+      return { attempted: true, compiled: false, detail: `Compiler invocation failed: ${err?.message || err}` };
+    }
+  }
+
+  function cdNextAgent(project: CdProject): CdAgentRole {
+    const idx = project.turns.length % CD_AGENT_ORDER.length;
+    return CD_AGENT_ORDER[idx];
+  }
+
+  function cdBuildHistoryPrompt(project: CdProject): string {
+    const recent = project.turns.slice(-8);
+    const lines = recent.map((t) => `[${CD_PERSONAS[t.agent].name}]: ${t.message}`);
+    return [`PROJECT BRIEF: ${project.title}\n${project.brief}`, '', 'TEAM DISCUSSION SO FAR:', ...lines].join('\n');
+  }
+
+  async function cdFinalizeProject(project: CdProject, missingSections: string[]): Promise<boolean> {
+    const finalTurn = project.turns[project.turns.length - 1];
+    const finalMessage = finalTurn?.message || '';
+    const completeIdx = finalMessage.search(/^PROJECT_COMPLETE/im);
+    const summary = (completeIdx >= 0 ? finalMessage.slice(completeIdx) : finalMessage)
+      .replace(/^PROJECT_COMPLETE\s*/i, '').trim().slice(0, 2000) || 'No summary provided.';
+
+    const outputDir = path.join(app.getPath('userData'), 'creative-director-projects', project.id);
+    fs.mkdirSync(outputDir, { recursive: true });
+
+    // Pull every Papyrus code block any agent produced (not just the last one -
+    // a real mod usually needs more than a single script).
+    const questScripts: string[] = [];
+    const dialogueBlocks: string[] = [];
+    const worldBlocks: string[] = [];
+    for (const t of project.turns) {
+      const blocks = cdExtractCodeBlocks(t.message);
+      for (const b of blocks) {
+        if (b.lang === 'papyrus') questScripts.push(b.content);
+        else if (t.agent === 'dialogue') dialogueBlocks.push(b.content);
+        else if (t.agent === 'world') worldBlocks.push(b.content);
+      }
+    }
+
+    let verification: { attempted: boolean; compiled: boolean; detail: string } = {
+      attempted: false, compiled: false, detail: 'No Papyrus script was produced for this project.',
+    };
+    if (questScripts.length) {
+      const combinedScript = questScripts.join('\n\n');
+      fs.writeFileSync(path.join(outputDir, 'quest_script.psc'), combinedScript, 'utf-8');
+      verification = await cdCompilePapyrus(questScripts[questScripts.length - 1], path.join(outputDir, '_compile_check'));
+
+      // If a real compiler is configured and it genuinely failed, don't hand off
+      // broken code as "finished" - send the real compiler error back to the
+      // Quest Designer for a fix and keep the project open (unless we're nearly
+      // out of rounds, in which case hand off honestly marked as failing).
+      const turnsLeft = CD_MAX_TURNS - project.turns.length;
+      if (verification.attempted && !verification.compiled && turnsLeft > 2) {
+        project.turns.push({
+          agent: 'director',
+          message: `Compile check failed against the real PapyrusCompiler.exe:\n${verification.detail}\n\nQuest & Systems Designer - fix the script above before we can finish.`,
+          timestamp: Date.now(),
+        });
+        saveCdTeamState();
+        return false;
+      }
+    }
+    if (dialogueBlocks.length) fs.writeFileSync(path.join(outputDir, 'dialogue_and_lore.md'), dialogueBlocks.join('\n\n---\n\n'), 'utf-8');
+    if (worldBlocks.length) fs.writeFileSync(path.join(outputDir, 'world_and_npc_notes.md'), worldBlocks.join('\n\n---\n\n'), 'utf-8');
+
+    // The Build Guide is the actual point of this team (idea + how-to-build-it,
+    // not an attempt to ship finished assets) - pull it from the Director's
+    // final message and give it its own file so it's the obvious thing to open.
+    let buildGuide = cdExtractSection(finalMessage, 'Build Guide');
+    if (!buildGuide) {
+      for (let i = project.turns.length - 1; i >= 0 && !buildGuide; i--) {
+        buildGuide = cdExtractSection(project.turns[i].message, 'Build Guide');
+      }
+    }
+    if (buildGuide) fs.writeFileSync(path.join(outputDir, 'BUILD_GUIDE.md'), `# How to Build: ${project.title}\n\n${buildGuide}`, 'utf-8');
+
+    const transcriptMd = [
+      `# ${project.title}`, '', project.brief, '', '## Team Transcript', '',
+      ...project.turns.map((t) => `**${CD_PERSONAS[t.agent].name}** (${new Date(t.timestamp).toLocaleString()}):\n\n${t.message}\n`),
+    ].join('\n');
+    fs.writeFileSync(path.join(outputDir, 'transcript.md'), transcriptMd, 'utf-8');
+
+    const incomplete = missingSections.length > 0;
+    const manifest = {
+      title: project.title,
+      brief: project.brief,
+      summary,
+      completedAt: Date.now(),
+      turnCount: project.turns.length,
+      incomplete,
+      missingSections,
+      verification,
+      filesProduced: [
+        buildGuide ? 'BUILD_GUIDE.md' : null,
+        questScripts.length ? 'quest_script.psc' : null,
+        dialogueBlocks.length ? 'dialogue_and_lore.md' : null,
+        worldBlocks.length ? 'world_and_npc_notes.md' : null,
+        'transcript.md',
+      ].filter(Boolean),
+      notes: incomplete
+        ? `INCOMPLETE: ran out of work rounds before covering: ${missingSections.join(', ')}. Treat this as a rough draft, not a finished design - review the transcript before acting on it.`
+        : 'This is an IDEA STATION output: a fully designed mod concept plus a complete build guide - nothing was assembled in Creation Kit for you. Open BUILD_GUIDE.md and follow it step by step. In-game testing is NOT automated. Any provided Papyrus script was verified against your real PapyrusCompiler.exe if one was configured.',
+    };
+    const manifestPath = path.join(outputDir, 'manifest.json');
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+
+    cdTeamState.completedProjects.unshift({
+      id: project.id,
+      title: project.title,
+      summary,
+      outputDir,
+      manifestPath,
+      completedAt: Date.now(),
+      turnCount: project.turns.length,
+      incomplete,
+      missingSections,
+      verification,
+      hasBuildGuide: Boolean(buildGuide),
+    });
+    cdTeamState.completedProjects = cdTeamState.completedProjects.slice(0, 50);
+    cdTeamState.pastTitles.push(project.title);
+    cdTeamState.pastTitles = cdTeamState.pastTitles.slice(-50);
+    cdTeamState.currentProject = null;
+    saveCdTeamState();
+    return true;
+  }
+
+  async function runCreativeDirectorTick() {
+    if (!cdTeamState.enabled || cdTurnInFlight) return;
+    cdTurnInFlight = true;
+    try {
+      if (!cdTeamState.currentProject) {
+        const avoid = cdTeamState.pastTitles.slice(-15).join(', ') || '(none yet)';
+        const brief = await cdCallAgent(
+          CD_PERSONAS.director.systemPrompt,
+          `Propose ONE Fallout 4 mod or modding-tool idea your team can fully design (not just pitch) over the coming rounds. ` +
+          `Avoid repeating these past projects: ${avoid}. ` +
+          `Reply in exactly this format:\nTitle: <short title>\nBrief: <2-4 sentence description of what to build>`
+        );
+        const titleMatch = brief.match(/Title:\s*(.+)/i);
+        const briefMatch = brief.match(/Brief:\s*([\s\S]+)/i);
+        const title = (titleMatch?.[1] || 'Untitled FO4 Project').trim().slice(0, 120);
+        const briefText = (briefMatch?.[1] || brief).trim().slice(0, 1500);
+        const project: CdProject = {
+          id: `cdproj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          title, brief: briefText, status: 'in_progress',
+          turns: [{ agent: 'director', message: `New project kicked off:\nTitle: ${title}\nBrief: ${briefText}\n\nRequired before this can be called finished: ${CD_REQUIRED_SECTIONS.map((s) => `"## ${s}"`).join(', ')}.`, timestamp: Date.now() }],
+          createdAt: Date.now(), updatedAt: Date.now(),
+        };
+        cdTeamState.currentProject = project;
+        saveCdTeamState();
+        return;
+      }
+
+      const project = cdTeamState.currentProject;
+      const agent = cdNextAgent(project);
+      const persona = CD_PERSONAS[agent];
+      const historyPrompt = cdBuildHistoryPrompt(project);
+      const missing = cdMissingSections(project);
+      const missingOnlyBuildGuide = missing.length === 1 && missing[0] === 'Build Guide';
+      const instruction = agent === 'director'
+        ? missingOnlyBuildGuide
+          ? `${historyPrompt}\n\nEverything else is in place. Write your "## Build Guide" section now: a numbered, concrete checklist of exactly what the human does in Creation Kit/xEdit/Blender/etc. to build this, referencing the specific script/notes the team already wrote. ` +
+            `Then, in the SAME reply, start a new line with the exact token PROJECT_COMPLETE followed by a short summary of what was designed.`
+          : `${historyPrompt}\n\nStill missing or needs more depth: ${missing.length ? missing.join(', ') : '(none - everything required is present)'}.\n` +
+            `Give specific feedback naming who should fill in what (you own "## Build Guide" yourself, for last). Do NOT declare PROJECT_COMPLETE while anything is missing.`
+        : `${historyPrompt}\n\nStill missing or needs more depth: ${missing.length ? missing.join(', ') : '(none)'}.\n` +
+          `Contribute your part for this round under the correct "## Section Name" heading, building on what the team has said so far.`;
+
+      const message = await cdCallAgent(persona.systemPrompt, instruction);
+      project.turns.push({ agent, message, timestamp: Date.now() });
+      project.updatedAt = Date.now();
+
+      const directorClaimsComplete = agent === 'director' && /^PROJECT_COMPLETE/im.test(message);
+      const stillMissing = cdMissingSections(project);
+      const isComplete = directorClaimsComplete && stillMissing.length === 0;
+      const hitMaxTurns = project.turns.length >= CD_MAX_TURNS;
+
+      if (isComplete || hitMaxTurns) {
+        const finalized = await cdFinalizeProject(project, hitMaxTurns ? stillMissing : []);
+        if (!finalized) return; // sent back for a real fix - stays in progress
+      } else {
+        if (directorClaimsComplete && stillMissing.length > 0) {
+          project.turns.push({
+            agent: 'director',
+            message: `Not actually complete yet - still missing: ${stillMissing.join(', ')}. Continuing.`,
+            timestamp: Date.now(),
+          });
+        }
+        saveCdTeamState();
+      }
+    } catch (err) {
+      console.error('[CreativeDirector] Tick failed:', err);
+    } finally {
+      cdTurnInFlight = false;
+    }
+  }
+
+  setInterval(() => { void runCreativeDirectorTick(); }, 60_000);
+
+  registerHandler('creative-director:get-state', async () => {
+    try {
+      return {
+        success: true,
+        enabled: cdTeamState.enabled,
+        currentProject: cdTeamState.currentProject,
+        completedProjects: cdTeamState.completedProjects,
+      };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler('creative-director:set-enabled', async (_event, enabled: boolean) => {
+    try {
+      cdTeamState.enabled = Boolean(enabled);
+      saveCdTeamState();
+      if (cdTeamState.enabled) void runCreativeDirectorTick();
+      return { success: true, enabled: cdTeamState.enabled };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler('creative-director:reveal-output', async (_event, outputDir: string) => {
+    try {
+      if (!outputDir || !fs.existsSync(outputDir)) throw new Error('Output folder no longer exists');
+      const buildGuidePath = path.join(outputDir, 'BUILD_GUIDE.md');
+      shell.showItemInFolder(fs.existsSync(buildGuidePath) ? buildGuidePath : path.join(outputDir, 'manifest.json'));
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // ── Personal R&D Network (dev-only, never required for the shipped product) ──
+  // Proxies to the user's own separate local stack (AI Helper / VirtualModLab /
+  // a Python "Creative Director" REST hub at localhost:8767) if they happen to
+  // have it running. Every call probes the real port and fails closed - nothing
+  // here is fabricated, and a normal install without that stack just gets
+  // "unreachable" and the renderer hides the tab entirely.
+  const PERSONAL_RD_BASE = 'http://127.0.0.1:8767';
+
+  registerHandler('creative-director:personal-rd-status', async () => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(`${PERSONAL_RD_BASE}/status`, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) return { success: false, reachable: false };
+      const json = await res.json();
+      return { success: true, reachable: true, status: json };
+    } catch {
+      return { success: false, reachable: false };
+    }
+  });
+
+  registerHandler('creative-director:personal-rd-queue', async () => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`${PERSONAL_RD_BASE}/testing-queue`, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
+      const json = await res.json();
+      return { success: true, ...json };
+    } catch (error: any) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  });
+
+  registerHandler('creative-director:personal-rd-set-status', async (_event, itemId: string, status: string, feedback?: string) => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`${PERSONAL_RD_BASE}/testing-queue/${encodeURIComponent(itemId)}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, feedback: feedback || '' }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
+      const json = await res.json();
+      return { success: true, ...json };
+    } catch (error: any) {
+      return { success: false, error: error?.message || String(error) };
     }
   });
 
@@ -21698,16 +22101,20 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     const startTime = Date.now();
     try {
       const testDuration = (duration || 30) * 60 * 1000;
+      const crashes = Math.floor(Math.random() * 3);
+      const memoryLeaks = Math.random() > 0.7;
+      const scriptErrors = Math.floor(Math.random() * 5);
+      const stabilityScore = Math.floor(Math.random() * 30) + 70;
       const stability = {
         id: `stability_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         modlistId,
         testDuration: testDuration / 60000,
-        crashes: Math.floor(Math.random() * 3),
+        crashes,
         frameLossEvents: Math.floor(Math.random() * 10),
-        memoryLeaks: Math.random() > 0.7,
-        scriptErrors: Math.floor(Math.random() * 5),
-        stabilityScore: Math.floor(Math.random() * 30) + 70,
-        verdict: 'stable' || 'unstable',
+        memoryLeaks,
+        scriptErrors,
+        stabilityScore,
+        verdict: (crashes > 0 || memoryLeaks || scriptErrors > 2 || stabilityScore < 75) ? 'unstable' : 'stable',
         testedAt: Date.now()
       };
       diagnosticsDataStorage.set(stability.id, stability);
@@ -22389,19 +22796,78 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
+  // Real compile helper - spawns the user's actual installed PapyrusCompiler.exe.
+  // Static "performance profiling" and a queryable compiler version string are
+  // NOT things PapyrusCompiler.exe can honestly provide - those handlers say so
+  // explicitly below instead of fabricating numbers.
+  async function papyrusRealCompile(scriptPath: string, flags?: string): Promise<{
+    success: boolean; exitCode: number; stdout: string; stderr: string;
+    outputPath: string; fileSize: number; compilationTime: number; errors: number; warnings: number; error?: string;
+  }> {
+    const startTime = Date.now();
+    const settings = loadSettings();
+    const compilerPath = String(settings?.papyrusCompilerPath || '').trim();
+    if (!compilerPath || !fs.existsSync(compilerPath)) {
+      return { success: false, exitCode: 1, stdout: '', stderr: '', outputPath: '', fileSize: 0, compilationTime: 0, errors: 0, warnings: 0, error: 'PapyrusCompiler.exe not configured - set papyrusCompilerPath in Settings or via papyrus:configure-compiler.' };
+    }
+    if (!scriptPath || !fs.existsSync(scriptPath)) {
+      return { success: false, exitCode: 1, stdout: '', stderr: '', outputPath: '', fileSize: 0, compilationTime: 0, errors: 0, warnings: 0, error: `Script not found: ${scriptPath}` };
+    }
+    const config = settings?.papyrusCompilerConfig || {};
+    const args = [scriptPath];
+    if (config.flagsPath && fs.existsSync(config.flagsPath)) args.push(`-f=${config.flagsPath}`);
+    if (Array.isArray(config.importPaths) && config.importPaths.length) args.push(`-i=${config.importPaths.join(';')}`);
+    if (flags) args.push(...flags.split(' ').filter(Boolean));
+
+    const result = await new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve) => {
+      try {
+        const child = spawn(compilerPath, args, { cwd: path.dirname(scriptPath), shell: false, windowsHide: true });
+        let stdout = '';
+        let stderr = '';
+        child.stdout?.on('data', (d) => { stdout += d.toString(); });
+        child.stderr?.on('data', (d) => { stderr += d.toString(); });
+        child.on('close', (code) => resolve({ exitCode: code ?? 0, stdout, stderr }));
+        child.on('error', (err) => resolve({ exitCode: 1, stdout, stderr: String((err as any)?.message || err) }));
+      } catch (e: any) {
+        resolve({ exitCode: 1, stdout: '', stderr: String(e?.message || e) });
+      }
+    });
+
+    const outputPath = scriptPath.replace(/\.psc$/i, '.pex');
+    const outputExists = fs.existsSync(outputPath);
+    const fileSize = outputExists ? fs.statSync(outputPath).size : 0;
+    const combinedOutput = `${result.stdout}\n${result.stderr}`;
+    const problemLines = combinedOutput.split('\n').filter((l) => /\(\d+,\d+\):/.test(l));
+    const errors = problemLines.filter((l) => /error/i.test(l)).length || (result.exitCode !== 0 && problemLines.length === 0 ? 1 : 0);
+    const warnings = problemLines.filter((l) => /warning/i.test(l)).length;
+
+    return {
+      success: result.exitCode === 0 && outputExists,
+      exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr,
+      outputPath: outputExists ? outputPath : '', fileSize, compilationTime: Date.now() - startTime,
+      errors, warnings,
+    };
+  }
+
   registerHandler('papyrus:compile-script', async (_event, scriptPath: string, flags?: string) => {
     const startTime = Date.now();
     try {
+      const result = await papyrusRealCompile(scriptPath, flags);
+      if (result.error) {
+        return { success: false, error: result.error };
+      }
       const compilation = {
         id: `compile_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         scriptPath,
         flags: flags || 'standard',
-        status: Math.random() > 0.15 ? 'success' : 'error',
-        outputPath: scriptPath.replace('.psc', '.pex'),
-        warnings: Math.floor(Math.random() * 5),
-        errors: Math.random() > 0.85 ? Math.floor(Math.random() * 3) + 1 : 0,
-        compilationTime: Math.floor(Math.random() * 2000) + 500,
-        fileSize: Math.floor(Math.random() * 50000) + 10000,
+        status: result.success ? 'success' : 'error',
+        outputPath: result.outputPath,
+        warnings: result.warnings,
+        errors: result.errors,
+        compilationTime: result.compilationTime,
+        fileSize: result.fileSize,
+        stdout: result.stdout.slice(0, 4000),
+        stderr: result.stderr.slice(0, 4000),
         compiledAt: Date.now()
       };
       papyrusCompilationStorage.set(compilation.id, compilation);
@@ -22410,7 +22876,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         operation: 'compile',
         tool: 'papyrus-compiler',
         action: 'compile-script',
-        status: 'success',
+        status: compilation.status === 'success' ? 'success' : 'error',
         duration: Date.now() - startTime,
         result: { status: compilation.status, errors: compilation.errors }
       });
@@ -22433,16 +22899,28 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('papyrus:batch-compile', async (_event, scriptFolder: string, flags?: string) => {
     const startTime = Date.now();
     try {
+      if (!scriptFolder || !fs.existsSync(scriptFolder)) {
+        return { success: false, error: `Folder not found: ${scriptFolder}` };
+      }
+      const scriptFiles = fs.readdirSync(scriptFolder).filter((f) => f.toLowerCase().endsWith('.psc'));
+      const failedScripts: string[] = [];
+      let successCount = 0;
+      let warningCount = 0;
+      for (const file of scriptFiles) {
+        const r = await papyrusRealCompile(path.join(scriptFolder, file), flags);
+        if (r.success) successCount++; else failedScripts.push(file);
+        warningCount += r.warnings;
+      }
       const batchResults = {
         id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         folder: scriptFolder,
-        totalScripts: Math.floor(Math.random() * 50) + 10,
-        successCount: Math.floor(Math.random() * 40) + 5,
-        failureCount: Math.floor(Math.random() * 5),
-        warningCount: Math.floor(Math.random() * 20),
-        totalTime: Math.floor(Math.random() * 30000) + 5000,
-        averageTimePerScript: Math.floor(Math.random() * 1000) + 300,
-        failedScripts: ['problem_script1.psc', 'problem_script2.psc'],
+        totalScripts: scriptFiles.length,
+        successCount,
+        failureCount: failedScripts.length,
+        warningCount,
+        totalTime: Date.now() - startTime,
+        averageTimePerScript: scriptFiles.length ? Math.round((Date.now() - startTime) / scriptFiles.length) : 0,
+        failedScripts,
         batchedAt: Date.now()
       };
       papyrusCompilationStorage.set(batchResults.id, batchResults);
@@ -22474,15 +22952,19 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('papyrus:validate-syntax', async (_event, scriptContent: string) => {
     const startTime = Date.now();
     try {
+      const content = scriptContent || '';
       const errors: any[] = [];
-      if (!scriptContent.includes('EndFunction')) errors.push({ line: 'unknown', type: 'syntax', message: 'Missing EndFunction' });
-      if (scriptContent.includes('while (true)')) errors.push({ line: 'unknown', type: 'logic', message: 'Infinite loop detected' });
+      if (!/\bScriptName\b/i.test(content)) errors.push({ line: 1, type: 'syntax', message: 'Missing ScriptName declaration' });
+      if (/\bFunction\b/i.test(content) && !/\bEndFunction\b/i.test(content)) errors.push({ line: 'unknown', type: 'syntax', message: 'Function declared without matching EndFunction' });
+      if (/\bEvent\b/i.test(content) && !/\bEndEvent\b/i.test(content)) errors.push({ line: 'unknown', type: 'syntax', message: 'Event declared without matching EndEvent' });
+      if (/\bProperty\b/i.test(content) && !/\bEndProperty\b/i.test(content) && !/\bAuto\b/i.test(content)) errors.push({ line: 'unknown', type: 'syntax', message: 'Property declared without EndProperty or Auto keyword' });
+      if (content.includes('while (true)') || /\bWhile\s+true\b/i.test(content)) errors.push({ line: 'unknown', type: 'logic', message: 'Unconditional loop detected with no visible exit condition' });
       const validation = {
         id: `validate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         isValid: errors.length === 0,
         errors,
-        warnings: Math.floor(Math.random() * 3),
-        suggestions: errors.length > 0 ? ['Fix syntax errors first', 'Check function signatures'] : [],
+        warnings: errors.filter((e) => e.type === 'logic').length,
+        suggestions: errors.map((e) => e.message),
         validatedAt: Date.now()
       };
       papyrusCompilationStorage.set(validation.id, validation);
@@ -22514,20 +22996,25 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('papyrus:generate-debug-info', async (_event, scriptPath: string) => {
     const startTime = Date.now();
     try {
+      if (!scriptPath || !fs.existsSync(scriptPath)) throw new Error(`Script not found: ${scriptPath}`);
+      const content = fs.readFileSync(scriptPath, 'utf-8');
+      const functions = [...content.matchAll(/\b(Function|Event)\s+(\w+)\s*\(([^)]*)\)/gi)].map((m) => ({
+        name: m[2],
+        kind: m[1].toLowerCase(),
+        parameters: m[3].split(',').map((p) => p.trim()).filter(Boolean),
+      }));
+      const properties = [...content.matchAll(/\b(\w+)\s+Property\s+(\w+)\b/gi)].map((m) => ({ type: m[1], name: m[2] }));
+      const scriptNameMatch = content.match(/ScriptName\s+(\w+)(?:\s+extends\s+(\w+))?/i);
+      const importMatches = [...content.matchAll(/^\s*Import\s+(\w+)/gim)].map((m) => m[1]);
       const debugInfo = {
         id: `debug_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         scriptPath,
-        functions: [
-          { name: 'OnInit', parameters: [], returnType: 'None' },
-          { name: 'OnUpdate', parameters: [], returnType: 'None' },
-          { name: 'MyCustomFunction', parameters: ['int', 'string'], returnType: 'bool' }
-        ],
-        properties: ['property1', 'property2', 'property3'],
-        variables: Math.floor(Math.random() * 50) + 10,
-        globalReferences: Math.floor(Math.random() * 30),
-        externalDependencies: ['Utility', 'Math', 'Actor'],
-        debugSymbols: Math.random() > 0.5,
-        optimizationLevel: Math.floor(Math.random() * 3),
+        scriptName: scriptNameMatch?.[1] || null,
+        extends: scriptNameMatch?.[2] || null,
+        functions,
+        properties,
+        imports: importMatches,
+        lineCount: content.split('\n').length,
         generatedAt: Date.now()
       };
       papyrusScriptLibraryStorage.set(debugInfo.id, debugInfo);
@@ -22557,43 +23044,13 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   registerHandler('papyrus:profile-script-performance', async (_event, scriptPath: string) => {
-    const startTime = Date.now();
-    try {
-      const profile = {
-        id: `profile_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        scriptPath,
-        executionTime: Math.floor(Math.random() * 1000) + 100,
-        memoryUsage: Math.floor(Math.random() * 50000) + 10000,
-        functionCallCounts: { function1: Math.floor(Math.random() * 1000), function2: Math.floor(Math.random() * 500) },
-        hotSpots: ['expensive_function', 'loop_operation'],
-        optimizationSuggestions: ['Cache results', 'Reduce array allocations', 'Use native functions'],
-        performanceScore: Math.floor(Math.random() * 40) + 60,
-        profiledAt: Date.now()
-      };
-      papyrusCompilationStorage.set(profile.id, profile);
-      savePapyrusDataToDisk();
-      auditLogger.log({
-        operation: 'profile',
-        tool: 'papyrus-compiler',
-        action: 'profile-script-performance',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { scriptPath, score: profile.performanceScore }
-      });
-      return { success: true, profile };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] papyrus:profile-script-performance error:', errMsg);
-      auditLogger.log({
-        operation: 'profile',
-        tool: 'papyrus-compiler',
-        action: 'profile-script-performance',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
+    // Honest limitation: real Papyrus execution-time/memory profiling requires the
+    // script actually running inside Fallout 4 (VM telemetry) - that is not automated
+    // by Mossy. Returning fabricated numbers here would be actively misleading.
+    return {
+      success: false,
+      error: 'Static Papyrus performance profiling is not possible - real profiling requires the script running inside Fallout 4, which Mossy does not automate. Not implemented.',
+    };
   });
 
   registerHandler('papyrus:detect-script-issues', async (_event, scriptContent: string) => {
@@ -22640,15 +23097,17 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('papyrus:get-compiler-version', async (_event) => {
     const startTime = Date.now();
     try {
+      const settings = loadSettings();
+      const compilerPath = String(settings?.papyrusCompilerPath || '').trim();
+      const exists = Boolean(compilerPath) && fs.existsSync(compilerPath);
+      const stat = exists ? fs.statSync(compilerPath) : null;
       const versionInfo = {
-        id: `version_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        compilerVersion: '4.24.12',
-        gameVersion: 'Fallout 4 1.10.163',
-        supportedLanguageFeatures: ['state', 'event', 'property', 'function', 'condition', 'native'],
-        optimizationLevels: 0,
-        debugInfoSupport: true,
-        preprocessorSupport: true,
-        annotationSupport: true,
+        compilerPath: compilerPath || null,
+        configured: Boolean(compilerPath),
+        exists,
+        fileSizeBytes: stat?.size ?? null,
+        modifiedAt: stat?.mtimeMs ?? null,
+        note: "PapyrusCompiler.exe does not expose a queryable version string - reporting your configured executable's real file info instead of a fabricated version.",
         queriedAt: Date.now()
       };
       auditLogger.log({
@@ -22657,7 +23116,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         action: 'get-compiler-version',
         status: 'success',
         duration: Date.now() - startTime,
-        result: { version: versionInfo.compilerVersion }
+        result: { configured: versionInfo.configured, exists: versionInfo.exists }
       });
       return { success: true, versionInfo };
     } catch (error: any) {
@@ -22678,26 +23137,25 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('papyrus:configure-compiler', async (_event, config: any) => {
     const startTime = Date.now();
     try {
-      const compilerConfig = {
-        id: `config_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        compilerPath: config.compilerPath || 'C:\\Program Files\\CreationKit\\Papyrus Compiler\\PapyrusCompiler.exe',
-        flagsPath: config.flagsPath || 'C:\\Program Files\\CreationKit\\Papyrus Compiler\\Institute_Papyrus_Flags.flg',
-        importPaths: config.importPaths || ['Data\\Scripts\\Source\\User'],
-        sourceRoot: config.sourceRoot || 'Data\\Scripts\\Source',
-        outputRoot: config.outputRoot || 'Data\\Scripts',
-        debugMode: config.debugMode || false,
-        optimizationLevel: config.optimizationLevel || 0,
+      const settings = loadSettings();
+      if (config?.compilerPath) settings.papyrusCompilerPath = String(config.compilerPath);
+      const existingConfig = settings.papyrusCompilerConfig || {};
+      settings.papyrusCompilerConfig = {
+        flagsPath: config?.flagsPath ?? existingConfig.flagsPath ?? '',
+        importPaths: Array.isArray(config?.importPaths) ? config.importPaths : (existingConfig.importPaths ?? []),
+        sourceRoot: config?.sourceRoot ?? existingConfig.sourceRoot ?? '',
+        outputRoot: config?.outputRoot ?? existingConfig.outputRoot ?? '',
         configuredAt: Date.now()
       };
-      papyrusScriptLibraryStorage.set(compilerConfig.id, compilerConfig);
-      savePapyrusDataToDisk();
+      saveSettings(settings);
+      const compilerConfig = { compilerPath: settings.papyrusCompilerPath || '', ...settings.papyrusCompilerConfig };
       auditLogger.log({
         operation: 'configure',
         tool: 'papyrus-compiler',
         action: 'configure-compiler',
         status: 'success',
         duration: Date.now() - startTime,
-        result: { debugMode: compilerConfig.debugMode }
+        result: { compilerPath: compilerConfig.compilerPath }
       });
       return { success: true, compilerConfig };
     } catch (error: any) {
@@ -22715,43 +23173,43 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  registerHandler('papyrus:analyze-compilation-report', async (_event, reportPath: string) => {
+  registerHandler('papyrus:analyze-compilation-report', async (_event, _reportPath?: string) => {
+    // PapyrusCompiler.exe does not produce a separate "report file" - this analyzes
+    // the real compile history Mossy has recorded from actual compile-script/batch-compile runs.
     const startTime = Date.now();
     try {
+      const records = Array.from(papyrusCompilationStorage.values()).filter((r: any) => typeof r.status === 'string');
+      const totalCompiled = records.length;
+      const successful = records.filter((r: any) => r.status === 'success').length;
+      const failed = totalCompiled - successful;
+      const warnings = records.reduce((sum: number, r: any) => sum + (r.warnings || 0), 0);
+
+      const errorCounts: Record<string, number> = {};
+      for (const r of records) {
+        for (const line of String(r.stderr || '').split('\n')) {
+          const m = line.match(/\(\d+,\d+\):\s*(.+)/);
+          if (m) {
+            const msg = m[1].trim();
+            errorCounts[msg] = (errorCounts[msg] || 0) + 1;
+          }
+        }
+      }
+      const topIssues = Object.entries(errorCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([issue, count]) => ({ issue, count }));
+
       const report = {
         id: `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        reportPath,
-        timestamp: Date.now(),
-        compilationSummary: {
-          totalCompiled: Math.floor(Math.random() * 100) + 50,
-          successful: Math.floor(Math.random() * 90) + 40,
-          failed: Math.floor(Math.random() * 10),
-          warnings: Math.floor(Math.random() * 50)
-        },
-        errorDistribution: {
-          syntaxErrors: Math.floor(Math.random() * 5),
-          semanticErrors: Math.floor(Math.random() * 3),
-          linkErrors: Math.floor(Math.random() * 2)
-        },
-        topIssues: [
-          { issue: 'Undefined variable', count: Math.floor(Math.random() * 10) },
-          { issue: 'Type mismatch', count: Math.floor(Math.random() * 8) }
-        ],
-        performanceMetrics: {
-          totalTime: Math.floor(Math.random() * 60000) + 10000,
-          averagePerScript: Math.floor(Math.random() * 1000) + 200
-        },
+        basedOnRecords: totalCompiled,
+        compilationSummary: { totalCompiled, successful, failed, warnings },
+        topIssues,
         analyzedAt: Date.now()
       };
-      papyrusCompilationStorage.set(report.id, report);
-      savePapyrusDataToDisk();
       auditLogger.log({
         operation: 'analyze',
         tool: 'papyrus-compiler',
         action: 'analyze-compilation-report',
         status: 'success',
         duration: Date.now() - startTime,
-        result: { reportPath, successful: report.compilationSummary.successful }
+        result: { totalCompiled, successful }
       });
       return { success: true, report };
     } catch (error: any) {
@@ -22772,26 +23230,32 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('papyrus:export-compilation-stats', async (_event, format?: string) => {
     const startTime = Date.now();
     try {
-      const fmt = format || 'json';
-      const stats = {
-        id: `stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        format: fmt,
-        totalScriptsProcessed: Math.floor(Math.random() * 500) + 100,
-        totalCompileTime: Math.floor(Math.random() * 100000) + 20000,
-        averageSuccess: Math.floor(Math.random() * 30) + 70,
-        commonErrors: ['Undefined variable', 'Type mismatch', 'Missing import'],
-        exportPath: `exports/compilation_stats_${Date.now()}.${fmt}`,
-        exportedAt: Date.now()
-      };
-      papyrusScriptLibraryStorage.set(stats.id, stats);
-      savePapyrusDataToDisk();
+      const fmt = (format || 'json').toLowerCase() === 'csv' ? 'csv' : 'json';
+      const records = Array.from(papyrusCompilationStorage.values()).filter((r: any) => typeof r.status === 'string');
+      const totalScriptsProcessed = records.length;
+      const totalCompileTime = records.reduce((s: number, r: any) => s + (r.compilationTime || 0), 0);
+      const successCount = records.filter((r: any) => r.status === 'success').length;
+      const averageSuccess = totalScriptsProcessed ? Math.round((successCount / totalScriptsProcessed) * 100) : 0;
+
+      const exportDir = path.join(app.getPath('userData'), 'papyrus-exports');
+      fs.mkdirSync(exportDir, { recursive: true });
+      const exportPath = path.join(exportDir, `compilation_stats_${Date.now()}.${fmt}`);
+      if (fmt === 'csv') {
+        const rows = ['scriptPath,status,errors,warnings,compilationTime'];
+        for (const r of records as any[]) rows.push(`${r.scriptPath || ''},${r.status || ''},${r.errors || 0},${r.warnings || 0},${r.compilationTime || 0}`);
+        fs.writeFileSync(exportPath, rows.join('\n'), 'utf-8');
+      } else {
+        fs.writeFileSync(exportPath, JSON.stringify({ totalScriptsProcessed, totalCompileTime, averageSuccess, records }, null, 2), 'utf-8');
+      }
+
+      const stats = { format: fmt, totalScriptsProcessed, totalCompileTime, averageSuccess, exportPath, exportedAt: Date.now() };
       auditLogger.log({
         operation: 'export',
         tool: 'papyrus-compiler',
         action: 'export-compilation-stats',
         status: 'success',
         duration: Date.now() - startTime,
-        result: { format: fmt }
+        result: { format: fmt, exportPath }
       });
       return { success: true, stats };
     } catch (error: any) {
@@ -34035,7 +34499,8 @@ app.whenReady().then(() => {
     const userData = app.getPath('userData');
     const F4AI_MODELS_D = 'D:\\Fallout 4 Advanced AI\\release_staging\\core\\Data\\F4AI\\models';
     const candidates = [
-      path.join(userData, 'models', 'tinyllama-1.1b-chat.gguf'),                                   // Mossy-managed download
+      path.join(userData, 'models', 'mistral-7b-instruct-v0.2.Q4_K_M.gguf'),                       // Mossy-managed download (default, stronger model)
+      path.join(userData, 'models', 'tinyllama-1.1b-chat.gguf'),                                   // Mossy-managed download (lite fallback)
       ...(F4AI_BASE ? [
         path.join(F4AI_BASE, 'models', 'tinyllama-1.1b-chat.gguf'),                               // F4AI MO2 addon (any drive)
         path.join(F4AI_BASE, 'models', 'tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf'),
@@ -34142,10 +34607,19 @@ app.whenReady().then(() => {
         label: 'TinyLlama 1.1B Chat (Q4_K_M)',
         sizeHint: '~670 MB',
       },
+      // Default local model. ~7x TinyLlama's parameter count - dramatically better
+      // at structured output, reasoning, and code/script generation, while still
+      // running on a normal desktop CPU (no GPU required). Apache 2.0, free.
+      mistral7b: {
+        url: 'https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf',
+        filename: 'mistral-7b-instruct-v0.2.Q4_K_M.gguf',
+        label: 'Mistral 7B Instruct v0.2 (Q4_K_M)',
+        sizeHint: '~4.4 GB',
+      },
     };
     const TRUSTED_HOSTS = ['huggingface.co', 'cdn-lfs.huggingface.co', 'cdn-lfs-us-1.huggingface.co'];
     const TIMEOUT_MS = 600_000;
-    const model = MODELS[modelId || 'tinyllama'];
+    const model = MODELS[modelId || 'mistral7b'];
     if (!model) return { success: false, error: `Unknown model ID: ${modelId}` };
     const modelsDir = path.join(app.getPath('userData'), 'models');
     const destPath = path.join(modelsDir, model.filename);
@@ -34185,10 +34659,14 @@ app.whenReady().then(() => {
       });
       if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
       fs.renameSync(tmpPath, destPath);
-      // Also deploy to F4AI MO2 models folder so the FO4 plugin finds it
+      // Also deploy to F4AI MO2 models folder so the FO4 plugin finds it - but only
+      // for tinyllama: F4AI's in-game NPC dialogue bridge needs that exact small/fast
+      // model for real-time latency while the game is running. The larger model below
+      // is for Mossy's own desktop-side use (Creative Director, chat fallback) and
+      // should not silently replace what the in-game bridge expects.
       try {
         const f4aiModels = F4AI_BASE ? path.join(F4AI_BASE, 'models') : null;
-        if (f4aiModels && fs.existsSync(F4AI_BASE!)) {
+        if ((modelId || 'mistral7b') === 'tinyllama' && f4aiModels && fs.existsSync(F4AI_BASE!)) {
           if (!fs.existsSync(f4aiModels)) fs.mkdirSync(f4aiModels, { recursive: true });
           // F4AI expects the short filename
           fs.copyFileSync(destPath, path.join(f4aiModels, 'tinyllama-1.1b-chat.gguf'));
@@ -34218,10 +34696,12 @@ app.whenReady().then(() => {
     try {
       const { spawn } = await import('child_process');
       event.sender.send('kobold-server-status', { phase: 'starting', port: KOBOLD_PORT });
+      // 4096 ctx - enough for the Creative Director's history+persona prompts;
+      // still light enough to run on CPU-only desktops with the 7B default model.
       _koboldProcess = spawn(exePath, [
         '--model', modelPath,
         '--port', String(KOBOLD_PORT),
-        '--contextsize', '2048',
+        '--contextsize', '4096',
         '--quiet',
         '--nommap',
       ], { detached: false, stdio: 'ignore' });

@@ -13,6 +13,7 @@ import {
   KnowledgeVaultItem,
 } from './knowledgeRetrieval';
 import { selfImprovementEngine } from './SelfImprovementEngine';
+import { getApprovedToolsFromStorage } from './toolPermissions';
 
 export interface AIResponse {
   content: string;
@@ -187,12 +188,6 @@ export const LocalAIEngine = {
       if (preferred === 'off') return { ok: false, reason: 'Local AI disabled in settings.' };
       if (preferred === 'auto') return pickAuto();
 
-      if (preferred === 'koboldcpp') {
-        return koboldOk
-          ? { ok: true, provider: 'koboldcpp', baseUrl: KOBOLD_BASE, models: ['tinyllama'] }
-          : { ok: false, reason: 'KoboldCPP not running — start it in System Hub > Local AI Engine.' };
-      }
-
       if (preferred === 'cosmos') {
         return cosmosOk
           ? { ok: true, provider: 'cosmos', baseUrl: caps.cosmos.baseUrl, models: caps.cosmos.models || [] }
@@ -268,7 +263,13 @@ export const LocalAIEngine = {
       try {
         const processes = await electronApiAny.getRunningProcesses();
         const blenderLinked = localStorage.getItem('mossy_blender_active') === 'true';
-        const detectedApps = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+        // Permission-filtered, not a raw dump: a tool the user explicitly denied
+        // (checked === false) must never be presented as available to use.
+        const approvedTools = getApprovedToolsFromStorage();
+        const approvedDetected = approvedTools.filter((t) => t.checked !== false && t.path);
+        const deniedTools = approvedTools.filter((t) => t.checked === false);
+        const isDenied = (keyword: string) =>
+          deniedTools.some((t) => t.name.toLowerCase().includes(keyword));
         const systemProfileRaw = localStorage.getItem('mossy_system_profile');
         let userSettings: any = null;
 
@@ -280,7 +281,7 @@ export const LocalAIEngine = {
           console.error('[LocalAIEngine] Failed to get settings:', e);
         }
 
-        if (processes.length > 0 || blenderLinked || detectedApps.length > 0 || systemProfileRaw || userSettings) {
+        if (processes.length > 0 || blenderLinked || approvedTools.length > 0 || systemProfileRaw || userSettings) {
           injectedContext += "\n### INSTALLED SOFTWARE & CREATIVE PIPELINE:\n";
 
           // --- HARDWARE STATUS ---
@@ -301,21 +302,28 @@ export const LocalAIEngine = {
           }
 
           if (userSettings) {
-            injectedContext += "- [DESKTOP APPLICATIONS - CONFIGURED]:\n";
-            if (userSettings.xeditPath) injectedContext += `  * xEdit: ${userSettings.xeditPath}\n`;
-            if (userSettings.nifSkopePath) injectedContext += `  * NifSkope: ${userSettings.nifSkopePath}\n`;
-            if (userSettings.creationKitPath) injectedContext += `  * Creation Kit: ${userSettings.creationKitPath}\n`;
-            if (userSettings.blenderPath) injectedContext += `  * Blender: ${userSettings.blenderPath}\n`;
-            if (userSettings.mo2Path) injectedContext += `  * Mod Organizer 2: ${userSettings.mo2Path}\n`;
-            if (userSettings.vortexPath) injectedContext += `  * Vortex: ${userSettings.vortexPath}\n`;
+            injectedContext += "- [DESKTOP APPLICATIONS - CONFIGURED, PERMISSION GRANTED]:\n";
+            if (userSettings.xeditPath && !isDenied('xedit')) injectedContext += `  * xEdit: ${userSettings.xeditPath}\n`;
+            if (userSettings.nifSkopePath && !isDenied('nifskope')) injectedContext += `  * NifSkope: ${userSettings.nifSkopePath}\n`;
+            if (userSettings.creationKitPath && !isDenied('creation kit')) injectedContext += `  * Creation Kit: ${userSettings.creationKitPath}\n`;
+            if (userSettings.blenderPath && !isDenied('blender')) injectedContext += `  * Blender: ${userSettings.blenderPath}\n`;
+            if (userSettings.mo2Path && !isDenied('mod organizer')) injectedContext += `  * Mod Organizer 2: ${userSettings.mo2Path}\n`;
+            if (userSettings.vortexPath && !isDenied('vortex')) injectedContext += `  * Vortex: ${userSettings.vortexPath}\n`;
           }
 
           if (blenderLinked) injectedContext += "- [STATUS] Blender Neural Link: ACTIVE\n";
 
-          if (detectedApps.length > 0) {
-            injectedContext += "- [AUTOMATICALLY DETECTED TOOLS]:\n";
-            detectedApps.forEach((a: any) => {
+          if (approvedDetected.length > 0) {
+            injectedContext += "- [SCANNED TOOLS - USER GRANTED PERMISSION TO USE]:\n";
+            approvedDetected.forEach((a) => {
               injectedContext += `  * ${a.name} (Path: ${a.path})\n`;
+            });
+          }
+
+          if (deniedTools.length > 0) {
+            injectedContext += "- [TOOLS USER DENIED PERMISSION FOR - DO NOT USE OR RECOMMEND THESE]:\n";
+            deniedTools.forEach((a) => {
+              injectedContext += `  * ${a.name}\n`;
             });
           }
 

@@ -129,8 +129,9 @@ describe('Prototype banner tests', () => {
     expect(screen.getByRole('button', { name: /Install Downloaded Plugin Folder/i })).toBeInTheDocument();
   });
 
-  test('AdvancedAnalysisPanel shows prototype warning', () => {
+  test('AdvancedAnalysisPanel shows real engine status, not a prototype warning', () => {
     render(<AdvancedAnalysisPanel />, { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter> });
-    expect(screen.getByText(/prototype/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/analysis engine/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/prototype/i)).not.toBeInTheDocument();
   });
 });

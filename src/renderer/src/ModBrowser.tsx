@@ -1,7 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Search, Download, Star, Users, ExternalLink, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
-import type { ModListing, ModDetails, SearchFilters, Review, Collection } from '../../shared/types';
+import { Search, Download, Star, Users, ExternalLink, BookOpen, ChevronDown, ChevronUp, FolderOpen, Send } from 'lucide-react';
+import type { ModListing, ModDetails, SearchFilters, Review, Collection, CollectionItem } from '../../shared/types';
+import { openExternal } from './utils/openExternal';
+import {
+  buildCommunitySubmissionIssueBody,
+  buildGithubNewIssueUrl,
+  loadCommunitySubmissionContributor,
+  saveCommunitySubmissionContributor,
+} from './communitySubmissionProfile';
 
 type ModBrowserBridge = {
   modBrowser?: {
@@ -10,7 +17,9 @@ type ModBrowserBridge = {
     getModReviews: (id: string) => Promise<Review[] | unknown>;
     downloadMod: (id: string, destination: string) => Promise<any>;
     rateMod: (id: string, rating: number, review: string) => Promise<any>;
-    createCollection: (name: string, mods: string[], description?: string) => Promise<Collection>;
+    createCollection: (name: string, items: CollectionItem[], description?: string) => Promise<Collection>;
+    shareCollection: (collectionId: string) => Promise<{ success: boolean; exportPath?: string; error?: string }>;
+    revealCollection: (exportPath: string) => Promise<{ success: boolean; error?: string }>;
     authenticateNexus: (apiKey: string) => Promise<any>;
     endorseMod: (id: string) => Promise<void>;
   };
@@ -32,6 +41,13 @@ const ModBrowser: React.FC = () => {
   const [newRating, setNewRating] = useState(5);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collectionName, setCollectionName] = useState('');
+  const [shareTitle, setShareTitle] = useState('');
+  const [shareType, setShareType] = useState<CollectionItem['type']>('technique');
+  const [shareContent, setShareContent] = useState('');
+  const [contributorName, setContributorName] = useState('');
+  const [contributorLink, setContributorLink] = useState('');
+  const [shareConsent, setShareConsent] = useState(false);
+  const [communityRepo, setCommunityRepo] = useState('');
   const [downloadDest, setDownloadDest] = useState('');
   const [nexusKey, setNexusKey] = useState('');
   const [nexusStatus, setNexusStatus] = useState<string | null>(null);
@@ -40,6 +56,20 @@ const ModBrowser: React.FC = () => {
   useEffect(() => {
     doSearch();
   }, [filters]);
+
+  useEffect(() => {
+    const existing = loadCommunitySubmissionContributor();
+    if (existing) {
+      setContributorName(existing.contributorName);
+      setContributorLink(existing.contributorLink || '');
+    }
+    (async () => {
+      try {
+        const s = await (window as any).electronAPI?.getSettings?.();
+        setCommunityRepo((s?.communityRepo || '').trim());
+      } catch { /* repo stays unset */ }
+    })();
+  }, []);
 
   const doSearch = async () => {
     setLoading(true);
@@ -112,15 +142,60 @@ const ModBrowser: React.FC = () => {
   };
 
   const createCollection = async () => {
-    if (!collectionName) { toast.error('Provide a collection name'); return; }
+    if (!collectionName.trim()) { toast.error('Provide a collection name'); return; }
+    if (!shareTitle.trim() || !shareContent.trim()) { toast.error('Add a title and content for what you want to share'); return; }
     try {
-      const col = await bridge?.modBrowser?.createCollection(collectionName, selected ? [selected.id] : [], 'Created from ModBrowser');
-      setCollections((c: any) => [col, ...c]);
+      const item: CollectionItem = { title: shareTitle.trim(), type: shareType, content: shareContent.trim() };
+      const col = await bridge?.modBrowser?.createCollection(collectionName.trim(), [item], 'Shared from ModBrowser');
+      if (!col) { toast.error('Failed to create collection'); return; }
+      const shareResult = await bridge?.modBrowser?.shareCollection(col.id);
+      if (!shareResult?.success) {
+        toast.error(shareResult?.error || 'Failed to package collection');
+        return;
+      }
+      setCollections((c) => [{ ...col, exportPath: shareResult.exportPath }, ...c]);
       setCollectionName('');
-      if (col) toast.success(`Collection created: ${col.shareUrl}`);
+      toast.success('Saved a local zip copy - use Reveal to find it on disk.');
     } catch (err) {
       console.error(err);
       toast.error('Failed to create collection');
+    }
+  };
+
+  const revealCollection = async (exportPath?: string) => {
+    if (!exportPath) return;
+    const res = await bridge?.modBrowser?.revealCollection(exportPath);
+    if (!res?.success) toast.error(res?.error || 'Could not open folder');
+  };
+
+  const submitToGithub = async () => {
+    if (!communityRepo) { toast.error('No community repo configured - set it in Settings.'); return; }
+    if (!contributorName.trim()) { toast.error('Enter your name (for credit).'); return; }
+    if (!shareTitle.trim() || !shareContent.trim()) { toast.error('Add a title and content for what you want to share'); return; }
+    if (!shareConsent) { toast.error('Consent is required to submit publicly.'); return; }
+
+    saveCommunitySubmissionContributor(contributorName.trim(), contributorLink.trim());
+
+    const body = buildCommunitySubmissionIssueBody({
+      item: { title: shareTitle.trim(), type: shareType, content: shareContent.trim() },
+      contributorName: contributorName.trim(),
+      contributorLink: contributorLink.trim() || undefined,
+    });
+    const url = buildGithubNewIssueUrl({
+      repo: communityRepo,
+      title: `Community submission: ${shareTitle.trim()}`,
+      body,
+      labels: ['community-submission'],
+    });
+
+    try {
+      await openExternal(url);
+      toast.success('Opened a draft GitHub issue - submit it from your browser to be reviewed for a future Mossy update.');
+      setShareTitle('');
+      setShareContent('');
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not open browser');
     }
   };
 
@@ -280,10 +355,43 @@ const ModBrowser: React.FC = () => {
             </div>
 
             <div className="p-3 border border-slate-800 rounded bg-[#0a0e0a]">
-              <div className="text-sm font-semibold mb-2">Collections</div>
-              <input className="w-full p-2 bg-black/10 border border-slate-800 rounded text-sm mb-2" placeholder="New collection name" value={collectionName} onChange={e => setCollectionName(e.target.value)} />
-              <button className="w-full px-3 py-2 bg-purple-700/10 rounded text-sm" onClick={createCollection}>Create</button>
-              <div className="mt-3 text-xs text-slate-400">{collections.length} collections</div>
+              <div className="text-sm font-semibold mb-1">Share with the Community</div>
+              <div className="text-[11px] text-slate-500 mb-2">
+                Submit your own techniques, scripts, or notes as a GitHub issue on{' '}
+                <span className="text-slate-300 font-mono">{communityRepo || '(no repo configured)'}</span>{' '}
+                for review and possible inclusion in a future Mossy update.
+              </div>
+              <input className="w-full p-2 bg-black/10 border border-slate-800 rounded text-sm mb-2" placeholder="Your name (for credit)" value={contributorName} onChange={e => setContributorName(e.target.value)} />
+              <input className="w-full p-2 bg-black/10 border border-slate-800 rounded text-sm mb-2" placeholder="Link (optional)" value={contributorLink} onChange={e => setContributorLink(e.target.value)} />
+              <input className="w-full p-2 bg-black/10 border border-slate-800 rounded text-sm mb-2" placeholder="Title (e.g. 'Precombine fix script')" value={shareTitle} onChange={e => setShareTitle(e.target.value)} />
+              <select className="w-full p-2 bg-black/10 border border-slate-800 rounded text-sm mb-2" value={shareType} onChange={e => setShareType(e.target.value as CollectionItem['type'])}>
+                <option value="technique">Technique</option>
+                <option value="script">Script</option>
+                <option value="note">Note</option>
+              </select>
+              <textarea className="w-full p-2 bg-black/10 border border-slate-800 rounded text-sm mb-2" rows={4} placeholder="Paste your script or describe your technique..." value={shareContent} onChange={e => setShareContent(e.target.value)} />
+              <label className="flex items-start gap-2 text-[11px] text-slate-400 mb-2">
+                <input type="checkbox" className="mt-0.5" checked={shareConsent} onChange={e => setShareConsent(e.target.checked)} />
+                I consent to share this publicly. Keep it high-level - don't include file paths, API keys, or personal info.
+              </label>
+              <div className="flex gap-2">
+                <button className="flex-1 px-3 py-2 bg-purple-700/10 rounded text-sm" onClick={createCollection}>Save Local Copy</button>
+                <button className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={submitToGithub}>
+                  <Send className="w-3 h-3" />Submit to GitHub
+                </button>
+              </div>
+              {collections.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {collections.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between gap-2 text-xs text-slate-400 bg-black/10 rounded px-2 py-1.5">
+                      <span className="truncate">{c.name}</span>
+                      <button className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 whitespace-nowrap" onClick={() => revealCollection(c.exportPath)}>
+                        <FolderOpen className="w-3 h-3" />Reveal
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="p-3 border border-slate-800 rounded bg-[#0a0e0a]">

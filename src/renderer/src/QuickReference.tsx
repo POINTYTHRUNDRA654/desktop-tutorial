@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Book, Code, Keyboard, Hash, ChevronDown, ChevronUp, Zap, FileCode, Terminal, Palette, Copy, Check } from 'lucide-react';
-import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 interface ReferenceSection {
   id: string;

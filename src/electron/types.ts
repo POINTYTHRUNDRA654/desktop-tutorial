@@ -345,6 +345,13 @@ export const IPC_CHANNELS = {
 
   // BA2 archive file picker
   PICK_BA2_FILE: 'pick-ba2-file',
+
+  // Native confirm dialog
+  SHOW_CONFIRM: 'show-confirm',
+
+  // Text-to-speech (cloud TTS)
+  TTS_SPEAK: 'tts-speak',
+  TTS_RESULT: 'tts-result',
 } as const;
 
 export type MlIndexBuildRequest = {

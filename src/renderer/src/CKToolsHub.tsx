@@ -234,16 +234,47 @@ const PluginInspectorPanel: React.FC = () => {
   const [previsPlugin, setPrevisPlugin] = useState('');
   const [previsStep,   setPrevisStep]   = useState<'idle'|'checking'|'generating'>('idle');
   const [previsMsg,    setPrevisMsg]    = useState('');
+  const [dataDirInput, setDataDirInput] = useState('');
+  const [xeditPathInput, setXeditPathInput] = useState('');
+
+  // Default the xEdit path from settings so Step 1/3 don't require retyping it.
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await (window as any).electronAPI?.getSettings?.();
+        if (s?.xeditPath) setXeditPathInput(s.xeditPath);
+      } catch { /* settings unavailable */ }
+    })();
+  }, []);
+
+  const pickDataDir = async () => {
+    const a = api();
+    if (!a?.pickDirectory) return;
+    try {
+      const dir = await a.pickDirectory('Select your Fallout 4 Data folder');
+      if (dir) setDataDirInput(dir);
+    } catch { /* silent */ }
+  };
 
   const runEnvCheck = async () => {
     const a = api(); if (!a?.ckEnvCheck) return;
+    if (!dataDirInput.trim()) { setSetupMsg('Enter or browse to your Fallout 4 Data folder first.'); return; }
     setEnvBusy(true); setEnvResult(null); setSetupMsg('');
-    try { const r = await a.ckEnvCheck(); if (r?.ok) setEnvResult(r); }
-    catch { /* silent */ } finally { setEnvBusy(false); }
+    try {
+      const r = await a.ckEnvCheck(dataDirInput.trim());
+      if (r?.success) {
+        setEnvResult(r);
+        if (r.xedit?.found && r.xedit.path) setXeditPathInput(r.xedit.path);
+      } else {
+        setSetupMsg(r?.error ?? 'Environment check failed.');
+      }
+    }
+    catch (e: any) { setSetupMsg(e?.message ?? 'Error.'); } finally { setEnvBusy(false); }
   };
   const runSetupEnv = async () => {
     const a = api(); if (!a?.ckSetupGenerationEnv) return;
-    try { const r = await a.ckSetupGenerationEnv(); setSetupMsg(r?.message ?? 'Done.'); }
+    if (!envResult?.fo4Dir) { setSetupMsg('Run Environment Check first.'); return; }
+    try { const r = await a.ckSetupGenerationEnv(envResult.fo4Dir); setSetupMsg(r?.message ?? (r?.success ? 'Done.' : r?.error ?? 'Failed.')); }
     catch (e: any) { setSetupMsg(e?.message ?? 'Error.'); }
   };
   const runXcriScan = async () => {
@@ -251,7 +282,7 @@ const PluginInspectorPanel: React.FC = () => {
     setXcirBusy(true); setXcriErr(''); setXcriCells(null);
     try {
       const r = await a.ckDetectXcriCells(xcriPlugin.trim());
-      if (!r?.ok) { setXcriErr(r?.error ?? 'Scan failed.'); return; }
+      if (!r?.success) { setXcriErr(r?.error ?? 'Scan failed.'); return; }
       setXcriCells(r.cells ?? []);
     } catch (e: any) { setXcriErr(e?.message ?? 'Error.'); }
     finally { setXcirBusy(false); }
@@ -262,26 +293,28 @@ const PluginInspectorPanel: React.FC = () => {
     setPrpBusy(true); setPrpErr(''); setPrpMsg('');
     try {
       const r = await a.ckCreatePrpPatch(prpPlugin.trim(), prpFile.trim(), prpOut.trim());
-      if (!r?.ok) { setPrpErr(r?.error ?? 'Failed.'); return; }
+      if (!r?.success) { setPrpErr(r?.error ?? 'Failed.'); return; }
       setPrpMsg(r.message ?? `Patch written to ${r.patchPath}`);
     } catch (e: any) { setPrpErr(e?.message ?? 'Error.'); }
     finally { setPrpBusy(false); }
   };
   const runClean = async () => {
     const a = api(); if (!a?.ckCleanPluginPrecombines || !cleanPlugin.trim()) return;
+    if (!xeditPathInput.trim()) { setCleanMsg('Enter the path to FO4Edit.exe / xEdit first (see Environment Check).'); return; }
     setCleanBusy(true); setCleanMsg('');
     try {
-      const r = await a.ckCleanPluginPrecombines(cleanPlugin.trim());
-      setCleanMsg(r?.message ?? (r?.ok ? 'xEdit launched.' : r?.error ?? 'Failed.'));
+      const r = await a.ckCleanPluginPrecombines(cleanPlugin.trim(), xeditPathInput.trim());
+      setCleanMsg(r?.message ?? (r?.success ? 'xEdit launched.' : r?.error ?? 'Failed.'));
     } catch (e: any) { setCleanMsg(e?.message ?? 'Error.'); }
     finally { setCleanBusy(false); }
   };
   const runPrevis = async (mode: 'check' | 'generate') => {
     const a = api(); if (!a?.ckLaunchPrevisWorkflow) return;
+    if (!xeditPathInput.trim()) { setPrevisMsg('Enter the path to FO4Edit.exe / xEdit first (see Environment Check).'); return; }
     setPrevisStep(mode === 'check' ? 'checking' : 'generating'); setPrevisMsg('');
     try {
-      const r = await a.ckLaunchPrevisWorkflow(previsPlugin.trim(), mode);
-      setPrevisMsg(r?.message ?? (r?.ok ? 'Launched.' : r?.error ?? 'Failed.'));
+      const r = await a.ckLaunchPrevisWorkflow(previsPlugin.trim(), xeditPathInput.trim(), mode);
+      setPrevisMsg(r?.message ?? (r?.success ? 'Launched.' : r?.error ?? 'Failed.'));
     } catch (e: any) { setPrevisMsg(e?.message ?? 'Error.'); }
     finally { setPrevisStep('idle'); }
   };
@@ -627,19 +660,38 @@ const PluginInspectorPanel: React.FC = () => {
 
           {/* ── Environment Check ─────────────────────────────────────────── */}
           <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-slate-200 flex items-center gap-2"><Monitor className="h-3.5 w-3.5 text-sky-400" />Environment Check</p>
-              <button onClick={runEnvCheck} disabled={envBusy}
-                className="px-3 py-1 rounded-lg bg-sky-700 hover:bg-sky-600 text-xs font-semibold text-white disabled:opacity-60 transition-colors flex items-center gap-1.5">
-                {envBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}Check
-              </button>
+            <p className="text-xs font-bold text-slate-200 flex items-center gap-2"><Monitor className="h-3.5 w-3.5 text-sky-400" />Environment Check</p>
+
+            <div className="space-y-1">
+              <p className="text-[10px] text-slate-400">Fallout 4 Data Folder</p>
+              <div className="flex gap-2">
+                <input value={dataDirInput} onChange={e => setDataDirInput(e.target.value)}
+                  placeholder="e.g. C:\Program Files (x86)\Steam\steamapps\common\Fallout 4\Data"
+                  className="flex-1 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                <button onClick={pickDataDir}
+                  className="rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-600 transition-colors flex items-center gap-1">
+                  <FolderOpen className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
+
+            <div className="space-y-1">
+              <p className="text-[10px] text-slate-400">FO4Edit / xEdit Path (used by Steps 1 &amp; 3 below)</p>
+              <input value={xeditPathInput} onChange={e => setXeditPathInput(e.target.value)}
+                placeholder="e.g. C:\Tools\FO4Edit\FO4Edit64.exe (auto-filled after Check if found)"
+                className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            </div>
+
+            <button onClick={runEnvCheck} disabled={envBusy || !dataDirInput.trim()}
+              className="w-full px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-600 text-xs font-semibold text-white disabled:opacity-60 transition-colors flex items-center justify-center gap-1.5">
+              {envBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}Check Environment
+            </button>
 
             {envResult && (
               <div className="grid grid-cols-2 gap-2">
-                {Object.entries(envResult).filter(([k]) => k !== 'ok').map(([key, val]: [string, any]) => {
+                {Object.entries(envResult).filter(([k]) => !['success', 'fo4Dir', 'error'].includes(k)).map(([key, val]: [string, any]) => {
                   const found = typeof val === 'object' ? val?.found : !!val;
-                  const label = { ck: 'Creation Kit', ckpe: 'CKPE', xedit: 'FO4Edit / xEdit', pjm: 'PJM Scripts', prp: 'PRP (Nexus)', steamAppId: 'steam_appid.txt', archive2: 'Archive2' }[key] ?? key;
+                  const label = { ck: 'Creation Kit', ckpe: 'CKPE', xedit: 'FO4Edit / xEdit', pjmScripts: 'PJM Scripts', prp: 'PRP (Nexus)', steamAppId: 'steam_appid.txt', archive2: 'Archive2' }[key] ?? key;
                   const detail = typeof val === 'object' ? (val?.path ?? '') : '';
                   return (
                     <div key={key} className={`rounded-lg border p-2.5 flex items-start gap-2 ${found ? 'border-emerald-600/30 bg-emerald-950/20' : 'border-red-600/30 bg-red-950/20'}`}>
@@ -655,7 +707,7 @@ const PluginInspectorPanel: React.FC = () => {
                         {!found && key === 'ckpe' && (
                           <a href="https://www.nexusmods.com/fallout4/mods/51165" target="_blank" rel="noreferrer" className="mt-1 text-[10px] text-sky-400 underline block">Get CKPE (Nexus)</a>
                         )}
-                        {!found && key === 'pjm' && (
+                        {!found && key === 'pjmScripts' && (
                           <a href="https://www.nexusmods.com/fallout4/mods/64382" target="_blank" rel="noreferrer" className="mt-1 text-[10px] text-sky-400 underline block">Get PJM Scripts (Nexus)</a>
                         )}
                         {!found && key === 'prp' && (

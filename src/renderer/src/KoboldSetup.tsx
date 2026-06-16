@@ -91,8 +91,8 @@ export const LocalAIEngine: React.FC = () => {
       if (!r?.success) addLog(`KoboldCPP download failed: ${r?.error || 'unknown'}`);
     }
     if (!modelOk) {
-      addLog('TinyLlama model not found — downloading automatically...');
-      const r = await api.downloadGgufModel?.('tinyllama').catch((e: any) => ({ success: false, error: String(e) }));
+      addLog('Mistral 7B model not found — downloading automatically (~4.4 GB)...');
+      const r = await api.downloadGgufModel?.('mistral7b').catch((e: any) => ({ success: false, error: String(e) }));
       if (!r?.success) addLog(`Model download failed: ${r?.error || 'unknown'}`);
     }
     const updated = await refresh();
@@ -106,7 +106,7 @@ export const LocalAIEngine: React.FC = () => {
   useEffect(() => {
     const unsubProgress = api.onLocalAiProgress?.((evt: ProgressEvt) => {
       setProgress(p => ({ ...p, [evt.type]: evt }));
-      if (evt.phase === 'done')  addLog(`${evt.type === 'koboldcpp' ? 'KoboldCPP' : 'TinyLlama'} download complete.`);
+      if (evt.phase === 'done')  addLog(`${evt.type === 'koboldcpp' ? 'KoboldCPP' : 'Model'} download complete.`);
       if (evt.phase === 'error') addLog(`Download error: ${evt.message}`);
       if (evt.phase === 'start') addLog(evt.message || 'Download starting...');
     });
@@ -186,9 +186,9 @@ export const LocalAIEngine: React.FC = () => {
     }
   };
 
-  const handleRedownload = async (type: 'koboldcpp' | 'model') => {
+  const handleRedownload = async (type: 'koboldcpp' | 'model', modelId: 'mistral7b' | 'tinyllama' = 'mistral7b') => {
     if (type === 'koboldcpp') await api.downloadKoboldCpp?.();
-    else await api.downloadGgufModel?.('tinyllama');
+    else await api.downloadGgufModel?.(modelId);
     await refresh();
   };
 
@@ -213,7 +213,7 @@ export const LocalAIEngine: React.FC = () => {
             Local AI Engine
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Fully local, offline AI powered by KoboldCPP + TinyLlama — no cloud, no cost.
+            Fully local, offline AI powered by KoboldCPP + Mistral 7B — no cloud, no cost.
           </p>
         </div>
         <button onClick={() => refresh()} className="p-1.5 rounded hover:bg-slate-800 text-slate-500 hover:text-white transition-colors" title="Refresh status">
@@ -402,17 +402,19 @@ export const LocalAIEngine: React.FC = () => {
           </div>
         </div>
 
-        {/* TinyLlama */}
-        <div className="bg-slate-900 border border-slate-700/60 rounded-xl p-4 space-y-3">
+        {/* Mistral 7B - default, stronger model */}
+        <div className="bg-slate-900 border border-emerald-700/40 rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <HardDrive className="h-4 w-4 text-purple-400" />
-              <span className="text-sm font-semibold text-white">TinyLlama 1.1B</span>
+              <span className="text-sm font-semibold text-white">Mistral 7B Instruct</span>
             </div>
             <Badge ok={!!status?.model?.exists} label={status?.model?.exists ? 'Installed' : 'Not installed'} />
           </div>
           <p className="text-[11px] text-slate-400">
-            TinyLlama 1.1B Chat Q4_K_M by TheBloke. Fast and lightweight — runs on any PC without a GPU.
+            Mistral 7B Instruct v0.2 Q4_K_M by TheBloke. Default local model — far stronger than a 1B-class model at
+            structured output, reasoning, and script generation (used by the Creative Director team and chat fallback).
+            Runs on CPU, no GPU required.
           </p>
           {status?.model?.exists && status.model.size && (
             <p className="text-[10px] text-slate-500 break-all">{fmtBytes(status.model.size)} · {status.model.path}</p>
@@ -422,12 +424,44 @@ export const LocalAIEngine: React.FC = () => {
           )}
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => handleRedownload('model')}
+              onClick={() => handleRedownload('model', 'mistral7b')}
               disabled={!!modelBusy}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 disabled:opacity-40 text-purple-300 text-[11px] font-medium border border-purple-500/20 transition-colors"
             >
               {modelBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-              {status?.model?.exists ? 'Re-download' : 'Download'}
+              {status?.model?.exists ? 'Re-download' : 'Download (~4.4 GB)'}
+            </button>
+            <a href="https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF" target="_blank" rel="noreferrer"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[11px] font-medium transition-colors">
+              <ExternalLink className="h-3 w-3" /> HuggingFace
+            </a>
+          </div>
+          <div className="text-[10px] text-slate-600 border-t border-slate-800 pt-2">
+            <Info className="h-3 w-3 inline mr-1 text-slate-700" />
+            Apache 2.0 · Mistral AI · Quantized by TheBloke
+          </div>
+        </div>
+
+        {/* TinyLlama - optional lite fallback for very low-spec machines */}
+        <div className="bg-slate-900 border border-slate-700/60 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <HardDrive className="h-4 w-4 text-slate-500" />
+              <span className="text-sm font-semibold text-white">TinyLlama 1.1B (Lite)</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            TinyLlama 1.1B Chat Q4_K_M by TheBloke. Optional smaller/faster fallback for very low-spec machines.
+            Mistral 7B above is used automatically when present, so most users don't need this.
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => handleRedownload('model', 'tinyllama')}
+              disabled={!!modelBusy}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-700/40 hover:bg-slate-700/60 disabled:opacity-40 text-slate-300 text-[11px] font-medium border border-slate-600/30 transition-colors"
+            >
+              {modelBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+              Download (~670 MB)
             </button>
             <a href="https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF" target="_blank" rel="noreferrer"
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[11px] font-medium transition-colors">
