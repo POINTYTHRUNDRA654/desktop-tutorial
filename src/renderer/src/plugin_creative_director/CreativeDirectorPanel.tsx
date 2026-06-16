@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Wand2, Scroll, MessageSquare, User, BookOpen, Map, Radio, Bug,
   CheckCircle2, AlertCircle, Loader2, RefreshCw, Plus, Trash2,
-  Send, Search, Pin, Download,
-  Cpu, Wifi, WifiOff, Zap, FileText,
+  Search, Pin, Download,
+  Cpu, Zap, FileText,
   Play, AlertTriangle, Info, Copy, FlaskConical,
 } from 'lucide-react';
 
@@ -54,33 +54,9 @@ interface LoreEntry {
   category: 'faction' | 'location' | 'character' | 'technology' | 'event' | 'custom';
 }
 
-interface PeerStatus {
-  name: string;
-  port: number;
-  connected: boolean;
-  lastMessage: string;
-}
-
-type CreativeTab = 'quest' | 'dialogue' | 'npc' | 'lore' | 'world' | 'network' | 'debug' | 'handoff';
-
-type ArtifactStatus = 'pending' | 'testing' | 'approved' | 'rejected';
-type ArtifactType = 'script' | 'esp' | 'texture' | 'mesh' | 'tool' | 'config';
-
-interface Artifact {
-  id: string;
-  name: string;
-  type: ArtifactType;
-  agent: string;
-  timestamp: string;
-  status: ArtifactStatus;
-  notes: string;
-  filePath: string;
-  size: string;
-}
+type CreativeTab = 'quest' | 'dialogue' | 'npc' | 'lore' | 'world' | 'network' | 'debug' | 'handoff' | 'personalrd';
 
 const BACKEND_PORT = 8767;
-const AI_HELPER_PORT = 8766;
-const VML_PORT = 8768;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -701,90 +677,102 @@ const WorldDesign: React.FC<{ backendOnline: boolean }> = ({ backendOnline }) =>
   );
 };
 
-// ─── Network Feed ─────────────────────────────────────────────────────────────
+// ─── AI Team ──────────────────────────────────────────────────────────────────
+// Real in-process team: Creative Director + Quest/Dialogue/World specialists
+// take turns on a shared project, entirely on this desktop (Groq if configured,
+// else local KoboldCpp). No external servers, no fake peer ports.
 
-const NetworkFeed: React.FC<{ backendOnline: boolean }> = ({ backendOnline }) => {
-  const [peers, setPeers] = useState<PeerStatus[]>([
-    { name: 'AI Helper', port: AI_HELPER_PORT, connected: false, lastMessage: '' },
-    { name: 'VirtualModLab', port: VML_PORT, connected: false, lastMessage: '' },
-  ]);
-  const [messages, setMessages] = useState<{ from: string; text: string; ts: string }[]>([]);
-  const [msgInput, setMsgInput] = useState('');
-  const [checking, setChecking] = useState(false);
+const AGENT_COLORS: Record<string, string> = {
+  director: 'text-amber-400',
+  quest: 'text-emerald-400',
+  dialogue: 'text-sky-400',
+  world: 'text-purple-400',
+};
 
-  const checkPeers = useCallback(async () => {
-    setChecking(true);
-    const updated = await Promise.all(peers.map(async p => {
-      try {
-        const r = await fetch(`http://localhost:${p.port}/status`, { signal: AbortSignal.timeout(1500) });
-        const data = await r.json();
-        return { ...p, connected: true, lastMessage: data.status ?? 'online' };
-      } catch {
-        return { ...p, connected: false, lastMessage: '' };
-      }
-    }));
-    setPeers(updated);
-    setChecking(false);
-  }, [peers]);
+const AI_TEAM_NAMES: Record<string, string> = {
+  director: 'Creative Director',
+  quest: 'Quest & Systems Designer',
+  dialogue: 'Dialogue & Lore Writer',
+  world: 'World & NPC Builder',
+};
 
-  useEffect(() => { checkPeers(); }, []);
+const AITeamPanel: React.FC = () => {
+  const [state, setState] = useState<{ enabled: boolean; currentProject: any; completedProjects: any[] } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const transcriptRef = useRef<HTMLDivElement>(null);
 
-  const broadcast = async () => {
-    if (!msgInput.trim()) return;
-    const msg = { from: 'Creative Director', text: msgInput, ts: new Date().toISOString() };
-    setMessages(m => [...m, msg]);
-    const connected = peers.filter(p => p.connected);
-    for (const peer of connected) {
-      try {
-        await fetch(`http://localhost:${peer.port}/narrative/event`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(msg),
-          signal: AbortSignal.timeout(2000),
-        });
-      } catch { /* peer offline */ }
+  const api = () => (window as any).electronAPI ?? (window as any).electron?.api;
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await api()?.creativeDirectorTeam?.getState?.();
+      if (res?.success !== false) setState(res);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const interval = setInterval(refresh, 5000);
+    return () => clearInterval(interval);
+  }, [refresh]);
+
+  useEffect(() => {
+    transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight });
+  }, [state?.currentProject?.turns?.length]);
+
+  const toggleEnabled = async () => {
+    setBusy(true);
+    try {
+      await api()?.creativeDirectorTeam?.setEnabled?.(!state?.enabled);
+      await refresh();
+    } finally {
+      setBusy(false);
     }
-    setMsgInput('');
   };
+
+  const project = state?.currentProject;
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        {peers.map(p => (
-          <div key={p.port} className={`flex items-center gap-3 p-3 rounded border ${p.connected ? 'border-emerald-500/30 bg-emerald-900/10' : 'border-slate-700 bg-slate-800/40'}`}>
-            {p.connected ? <Wifi className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <WifiOff className="w-4 h-4 text-slate-600 flex-shrink-0" />}
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-white">{p.name}</div>
-              <div className="text-xs text-slate-500">port {p.port}{p.lastMessage ? ` · ${p.lastMessage}` : ''}</div>
-            </div>
-            <span className={`text-xs font-semibold ${p.connected ? 'text-emerald-400' : 'text-slate-600'}`}>
-              {p.connected ? 'ONLINE' : 'OFFLINE'}
-            </span>
+      <div className="flex items-center justify-between gap-3 bg-slate-800/60 border border-slate-700 rounded p-3">
+        <div>
+          <div className="text-sm font-semibold text-white">Autonomous Team</div>
+          <div className="text-xs text-slate-500">
+            {state?.enabled ? 'Working continuously — picks up a new project automatically when one finishes.' : 'Disabled — no AI calls are made while off.'}
           </div>
-        ))}
-      </div>
-      <button onClick={checkPeers} disabled={checking}
-        className="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded text-sm transition-colors">
-        {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-        Check Peer Status
-      </button>
-      <div>
-        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Narrative Broadcast</div>
-        <div className="bg-slate-950 border border-slate-700 rounded p-3 h-32 overflow-y-auto mb-2 space-y-1">
-          {messages.length === 0 && <div className="text-xs text-slate-600">No messages. Broadcast narrative events to connected peers.</div>}
-          {messages.map((m, i) => (
-            <div key={i} className="text-xs">
-              <span className="text-slate-500 font-mono">[{new Date(m.ts).toLocaleTimeString()}]</span>{' '}
-              <span className="text-amber-400">{m.from}:</span>{' '}
-              <span className="text-slate-300">{m.text}</span>
-            </div>
-          ))}
         </div>
-        <div className="flex gap-2">
-          <input className="flex-1 bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-amber-500 outline-none"
-            value={msgInput} onChange={e => setMsgInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && broadcast()}
-            placeholder="Broadcast narrative event to peers..." />
-          <button onClick={broadcast} className="bg-amber-500 hover:bg-amber-400 text-black px-3 py-2 rounded transition-colors"><Send className="w-4 h-4" /></button>
-        </div>
+        <button onClick={toggleEnabled} disabled={busy}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors ${state?.enabled ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'}`}>
+          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+          {state?.enabled ? 'Disable' : 'Enable'}
+        </button>
       </div>
+
+      {!project && (
+        <div className="text-center py-10 border border-dashed border-slate-700 rounded-lg">
+          <Cpu className="w-8 h-8 text-slate-700 mx-auto mb-3" />
+          <div className="text-slate-500 text-sm font-semibold">{state?.enabled ? 'Picking a new project shortly...' : 'Team is disabled'}</div>
+          <div className="text-slate-600 text-xs mt-1 max-w-xs mx-auto">Enable the team and the Creative Director will propose an FO4 mod/tool idea, then fully design it with the other two specialists — ending in a complete BUILD_GUIDE.md for you to follow.</div>
+        </div>
+      )}
+
+      {project && (
+        <div className="bg-slate-950 border border-slate-700 rounded">
+          <div className="px-3 py-2 border-b border-slate-800">
+            <div className="text-sm font-semibold text-white">{project.title}</div>
+            <div className="text-xs text-slate-500 mt-0.5">{project.brief}</div>
+          </div>
+          <div ref={transcriptRef} className="p-3 space-y-3 max-h-96 overflow-y-auto">
+            {(project.turns || []).map((t: any, i: number) => (
+              <div key={i} className="text-xs">
+                <span className={`font-semibold ${AGENT_COLORS[t.agent] || 'text-slate-400'}`}>{AI_TEAM_NAMES[t.agent] || t.agent}</span>
+                <span className="text-slate-600 ml-2 font-mono">{new Date(t.timestamp).toLocaleTimeString()}</span>
+                <div className="text-slate-300 whitespace-pre-wrap mt-1">{t.message}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -864,215 +852,186 @@ const NarrativeDebug: React.FC<{ backendOnline: boolean }> = ({ backendOnline })
 
 // ─── Lab Handoff ──────────────────────────────────────────────────────────────
 
-const TYPE_COLORS: Record<ArtifactType, string> = {
-  script:  'text-amber-400 bg-amber-400/10',
-  esp:     'text-purple-400 bg-purple-400/10',
-  texture: 'text-blue-400 bg-blue-400/10',
-  mesh:    'text-cyan-400 bg-cyan-400/10',
-  tool:    'text-emerald-400 bg-emerald-400/10',
-  config:  'text-slate-400 bg-slate-400/10',
-};
+const HandoffPanel: React.FC = () => {
+  const [completed, setCompleted] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-const STATUS_COLORS: Record<ArtifactStatus, string> = {
-  pending:  'text-slate-400 bg-slate-700',
-  testing:  'text-amber-400 bg-amber-400/20',
-  approved: 'text-emerald-400 bg-emerald-400/20',
-  rejected: 'text-red-400 bg-red-400/20',
-};
+  const api = () => (window as any).electronAPI ?? (window as any).electron?.api;
 
-const ArtifactRow: React.FC<{
-  art: Artifact;
-  feedback: string;
-  onFeedbackChange: (val: string) => void;
-  onStatus: (status: ArtifactStatus) => void;
-}> = ({ art, feedback, onFeedbackChange, onStatus }) => (
-  <div className="bg-slate-800/60 border border-slate-700 rounded p-3 space-y-2">
-    <div className="flex items-start gap-2">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${TYPE_COLORS[art.type]}`}>{art.type.toUpperCase()}</span>
-          <span className="text-sm font-semibold text-white truncate">{art.name}</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${STATUS_COLORS[art.status]}`}>{art.status}</span>
-        </div>
-        <div className="text-xs text-slate-500 mt-0.5">
-          by <span className="text-amber-400">{art.agent}</span> · {new Date(art.timestamp).toLocaleString()}{art.size ? ` · ${art.size}` : ''}
-        </div>
-      </div>
-      {art.filePath && (
-        <button
-          onClick={() => (window as any).electronAPI?.shell?.openPath?.(art.filePath)}
-          className="text-slate-500 hover:text-white transition-colors flex-shrink-0"
-          title="Open file location"
-        >
-          <Download className="w-4 h-4" />
-        </button>
-      )}
-    </div>
-    {art.notes && <p className="text-xs text-slate-400 italic">{art.notes}</p>}
-    {art.filePath && (
-      <div className="flex items-center gap-1 font-mono text-xs text-slate-600 bg-slate-900/60 rounded px-2 py-1 truncate">{art.filePath}</div>
-    )}
-    <div className="flex items-center gap-2">
-      <input
-        className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 focus:border-amber-500 outline-none"
-        placeholder="Feedback / test notes..."
-        value={feedback}
-        onChange={e => onFeedbackChange(e.target.value)}
-      />
-      <button onClick={() => onStatus('testing')} disabled={art.status === 'testing'}
-        className="text-xs px-2 py-1 rounded bg-amber-400/10 text-amber-400 hover:bg-amber-400/20 disabled:opacity-40 transition-colors whitespace-nowrap">Test</button>
-      <button onClick={() => onStatus('approved')} disabled={art.status === 'approved'}
-        className="text-xs px-2 py-1 rounded bg-emerald-400/10 text-emerald-400 hover:bg-emerald-400/20 disabled:opacity-40 transition-colors">
-        <CheckCircle2 className="w-3.5 h-3.5" />
-      </button>
-      <button onClick={() => onStatus('rejected')} disabled={art.status === 'rejected'}
-        className="text-xs px-2 py-1 rounded bg-red-400/10 text-red-400 hover:bg-red-400/20 disabled:opacity-40 transition-colors">
-        <AlertCircle className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  </div>
-);
-
-const HandoffPanel: React.FC<{ backendOnline: boolean }> = ({ backendOnline }) => {
-  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
-  const [polling, setPolling] = useState(false);
-  const [feedbackMap, setFeedbackMap] = useState<Record<string, string>>({});
-  const [showAdd, setShowAdd] = useState(false);
-  const [newArt, setNewArt] = useState<{ name: string; type: ArtifactType; agent: string; filePath: string; size: string; notes: string }>({
-    name: '', type: 'script', agent: 'Mossy', filePath: '', size: '', notes: '',
-  });
-
-  const pollQueue = useCallback(async () => {
-    if (!backendOnline) return;
-    setPolling(true);
+  const refresh = useCallback(async () => {
+    setLoading(true);
     try {
-      const data = await backendFetch('/api/handoff/queue');
-      if (Array.isArray(data.artifacts)) {
-        setArtifacts(prev => {
-          const ids = new Set(prev.map(a => a.id));
-          const fresh = data.artifacts.filter((a: Artifact) => !ids.has(a.id));
-          return [...prev, ...fresh];
-        });
-      }
-    } catch {}
-    setPolling(false);
-  }, [backendOnline]);
+      const res = await api()?.creativeDirectorTeam?.getState?.();
+      if (Array.isArray(res?.completedProjects)) setCompleted(res.completedProjects);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    pollQueue();
-    const interval = setInterval(pollQueue, 30000);
+    refresh();
+    const interval = setInterval(refresh, 10000);
     return () => clearInterval(interval);
-  }, [pollQueue]);
+  }, [refresh]);
 
-  const setStatus = async (id: string, status: ArtifactStatus) => {
-    setArtifacts(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-    if (backendOnline) {
-      try { await backendFetch('/api/handoff/feedback', { id, status, notes: feedbackMap[id] ?? '' }); } catch {}
-    }
+  const reveal = async (outputDir: string) => {
+    const res = await api()?.creativeDirectorTeam?.revealOutput?.(outputDir);
+    if (!res?.success) console.warn('[Lab Handoff] reveal failed:', res?.error);
   };
-
-  const addManual = () => {
-    if (!newArt.name.trim()) return;
-    setArtifacts(prev => [...prev, {
-      id: uid(), timestamp: new Date().toISOString(), status: 'pending',
-      name: newArt.name, type: newArt.type, agent: newArt.agent || 'Manual',
-      filePath: newArt.filePath, size: newArt.size, notes: newArt.notes,
-    }]);
-    setNewArt({ name: '', type: 'script', agent: 'Mossy', filePath: '', size: '', notes: '' });
-    setShowAdd(false);
-  };
-
-  const pending  = artifacts.filter(a => a.status === 'pending');
-  const testing  = artifacts.filter(a => a.status === 'testing');
-  const done     = artifacts.filter(a => a.status === 'approved' || a.status === 'rejected');
 
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs text-slate-500 leading-relaxed">
-          {backendOnline
-            ? <span className="text-emerald-400">Backend online — AI agents can push completed work here automatically via POST /api/handoff/deliver.</span>
-            : 'When AI agents finish a mod, script, or tool they push it here for you to download and test in FO4 / MO2. Add entries manually while in offline mode.'}
+          This is an idea station, not an asset factory: the team designs the full idea and writes a complete BUILD_GUIDE.md telling you exactly how to bring it to life yourself in Creation Kit/xEdit/Blender — plus any real script and notes they wrote along the way.
         </p>
-        <div className="flex gap-2 flex-shrink-0">
-          {backendOnline && (
-            <button onClick={pollQueue} disabled={polling}
-              className="flex items-center gap-1 text-xs text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1.5 rounded transition-colors">
-              {polling ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Poll
-            </button>
-          )}
-          <button onClick={() => setShowAdd(v => !v)}
-            className="flex items-center gap-1 text-xs text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 px-2 py-1.5 rounded transition-colors">
-            <Plus className="w-3 h-3" /> Add
-          </button>
-        </div>
+        <button onClick={refresh} disabled={loading}
+          className="flex items-center gap-1 text-xs text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1.5 rounded transition-colors flex-shrink-0">
+          {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Refresh
+        </button>
       </div>
 
-      {showAdd && (
-        <div className="bg-slate-800 border border-amber-500/30 rounded p-3 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <input className="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-white focus:border-amber-500 outline-none"
-              placeholder="Artifact name" value={newArt.name} onChange={e => setNewArt(n => ({ ...n, name: e.target.value }))} />
-            <select className="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-white focus:border-amber-500 outline-none"
-              value={newArt.type} onChange={e => setNewArt(n => ({ ...n, type: e.target.value as ArtifactType }))}>
-              {(['script','esp','texture','mesh','tool','config'] as ArtifactType[]).map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input className="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-white focus:border-amber-500 outline-none"
-              placeholder="Agent name (e.g. Mossy)" value={newArt.agent} onChange={e => setNewArt(n => ({ ...n, agent: e.target.value }))} />
-            <input className="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-white focus:border-amber-500 outline-none"
-              placeholder="Size (e.g. 24 KB)" value={newArt.size} onChange={e => setNewArt(n => ({ ...n, size: e.target.value }))} />
-          </div>
-          <input className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-white focus:border-amber-500 outline-none font-mono"
-            placeholder="File path — e.g. D:\FO4Mods\MyMod\Scripts\MyQuest.psc" value={newArt.filePath}
-            onChange={e => setNewArt(n => ({ ...n, filePath: e.target.value }))} />
-          <textarea className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-white focus:border-amber-500 outline-none resize-none"
-            rows={2} placeholder="Notes from the agent about what was built and how to test it..." value={newArt.notes}
-            onChange={e => setNewArt(n => ({ ...n, notes: e.target.value }))} />
-          <button onClick={addManual} className="text-xs bg-amber-500 hover:bg-amber-400 text-black font-semibold px-3 py-1.5 rounded transition-colors">Add to Queue</button>
+      {completed.length === 0 && (
+        <div className="text-center py-10 border border-dashed border-slate-700 rounded-lg">
+          <FlaskConical className="w-8 h-8 text-slate-700 mx-auto mb-3" />
+          <div className="text-slate-500 text-sm font-semibold">No finished projects yet</div>
+          <div className="text-slate-600 text-xs mt-1 max-w-xs mx-auto">Enable the AI Team tab — when they decide a project is done, it shows up here automatically.</div>
         </div>
       )}
 
-      {artifacts.length === 0 && !showAdd && (
-        <div className="text-center py-10 border border-dashed border-slate-700 rounded-lg">
-          <FlaskConical className="w-8 h-8 text-slate-700 mx-auto mb-3" />
-          <div className="text-slate-500 text-sm font-semibold">Queue is empty</div>
-          <div className="text-slate-600 text-xs mt-1 max-w-xs mx-auto">AI agents push completed scripts, ESPs, textures, and tools here when they finish. You download, test in FO4/MO2, then approve or send feedback.</div>
+      {completed.map((c) => (
+        <div key={c.id} className="bg-slate-800/60 border border-slate-700 rounded p-3 space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-semibold text-white">{c.title}</div>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${c.incomplete ? 'bg-amber-400/10 text-amber-400' : 'bg-emerald-400/10 text-emerald-400'}`}>
+                  {c.incomplete ? 'INCOMPLETE' : 'IDEA + BUILD GUIDE READY'}
+                </span>
+                {c.hasBuildGuide && !c.incomplete && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-sky-400/10 text-sky-400">BUILD_GUIDE.md</span>
+                )}
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">{new Date(c.completedAt).toLocaleString()} · {c.turnCount} turns</div>
+            </div>
+            <button onClick={() => reveal(c.outputDir)}
+              className="flex items-center gap-1 text-xs text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 px-2 py-1.5 rounded transition-colors flex-shrink-0">
+              <Download className="w-3 h-3" /> Reveal
+            </button>
+          </div>
+          <p className="text-xs text-slate-400">{c.summary}</p>
+          {c.incomplete && Array.isArray(c.missingSections) && c.missingSections.length > 0 && (
+            <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-amber-400/10 text-amber-400">
+              <AlertCircle className="w-3 h-3 flex-shrink-0" />
+              Ran out of rounds before covering: {c.missingSections.join(', ')} — treat as a rough draft.
+            </div>
+          )}
+          <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${c.verification?.compiled ? 'bg-emerald-400/10 text-emerald-400' : c.verification?.attempted ? 'bg-red-400/10 text-red-400' : 'bg-slate-700/60 text-slate-400'}`}>
+            {c.verification?.compiled ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+            {c.verification?.detail || 'Not verified'}
+          </div>
+        </div>
+      ))}
+
+      <div className="bg-slate-800/40 border border-slate-700/50 rounded p-3">
+        <div className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1"><Info className="w-3 h-3" /> How This Works</div>
+        <ul className="space-y-1 text-xs text-slate-500">
+          <li>The team can't place objects in Creation Kit, build meshes, or pack an ESP — every project is an idea, fully designed, plus a step-by-step BUILD_GUIDE.md for you to follow</li>
+          <li>Any Papyrus script the team wrote is verified against your real installed PapyrusCompiler.exe and is yours to paste in directly</li>
+          <li>Full in-game testing is NOT automated — always load and play-test in FO4/MO2 yourself before release</li>
+          <li>Click Reveal to open BUILD_GUIDE.md directly (falls back to the project folder if no guide was produced)</li>
+          <li>Once you've built it for real, point Local Mod Packaging (Packaging & Release Hub) at your finished files to release</li>
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+// ─── Personal R&D Network (dev-only) ───────────────────────────────────────────
+// Proxies to the user's own separate local AI stack (AI Helper / VirtualModLab /
+// a Python Creative Director hub) if it happens to be running. Not part of the
+// shipped feature set - the panel only renders if that real stack is reachable.
+
+const PersonalRdNetworkPanel: React.FC = () => {
+  const [queueItems, setQueueItems] = useState<any[]>([]);
+  const [status, setStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, string>>({});
+
+  const api = () => (window as any).electronAPI ?? (window as any).electron?.api;
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const s = await api()?.personalRdNetwork?.getStatus?.();
+      setStatus(s?.status || null);
+      const q = await api()?.personalRdNetwork?.getQueue?.();
+      if (Array.isArray(q?.items)) setQueueItems(q.items);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const interval = setInterval(refresh, 10000);
+    return () => clearInterval(interval);
+  }, [refresh]);
+
+  const setItemStatus = async (id: string, newStatus: string) => {
+    await api()?.personalRdNetwork?.setItemStatus?.(id, newStatus, feedbackMap[id] || '');
+    await refresh();
+  };
+
+  const pending = queueItems.filter((i) => i.status === 'pending_review');
+  const others = queueItems.filter((i) => i.status !== 'pending_review');
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-800/60 border border-slate-700 rounded p-3">
+        <div className="text-sm font-semibold text-white">Your Personal R&D Network</div>
+        <div className="text-xs text-slate-500 mt-0.5">
+          Connected to your own AI Helper / VirtualModLab / Creative Director stack on this machine — not part of what ships with Mossy.
+          {status && <span className="text-emerald-400"> AI Helper: {status.network?.ai_helper?.connected ? 'online' : 'offline'} · VirtualModLab: {status.network?.virtual_mod_lab?.connected ? 'online' : 'offline'}</span>}
+        </div>
+      </div>
+
+      {pending.length === 0 && others.length === 0 && (
+        <div className="text-center py-8 border border-dashed border-slate-700 rounded-lg">
+          <div className="text-slate-500 text-sm">{loading ? 'Loading...' : 'Queue is empty - findings from AI Helper/VirtualModLab will show up here.'}</div>
         </div>
       )}
 
       {pending.length > 0 && (
         <div className="space-y-2">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Awaiting Test ({pending.length})</div>
-          {pending.map(a => <ArtifactRow key={a.id} art={a} feedback={feedbackMap[a.id] ?? ''} onFeedbackChange={v => setFeedbackMap(m => ({ ...m, [a.id]: v }))} onStatus={s => setStatus(a.id, s)} />)}
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Awaiting Review ({pending.length})</div>
+          {pending.map((item) => (
+            <div key={item.id} className="bg-slate-800/60 border border-slate-700 rounded p-3 space-y-2">
+              <div className="text-sm font-semibold text-white">{item.title}</div>
+              <p className="text-xs text-slate-400">{item.description}</p>
+              <div className="text-[10px] text-slate-500">by {item.created_by} · {item.mod_type} · {new Date(item.created_at * 1000).toLocaleString()}</div>
+              <div className="flex items-center gap-2">
+                <input className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 focus:border-amber-500 outline-none"
+                  placeholder="Feedback..." value={feedbackMap[item.id] ?? ''}
+                  onChange={(e) => setFeedbackMap((m) => ({ ...m, [item.id]: e.target.value }))} />
+                <button onClick={() => setItemStatus(item.id, 'tested')} className="text-xs px-2 py-1 rounded bg-amber-400/10 text-amber-400 hover:bg-amber-400/20">Tested</button>
+                <button onClick={() => setItemStatus(item.id, 'published')} className="text-xs px-2 py-1 rounded bg-emerald-400/10 text-emerald-400 hover:bg-emerald-400/20">Published</button>
+                <button onClick={() => setItemStatus(item.id, 'rejected')} className="text-xs px-2 py-1 rounded bg-red-400/10 text-red-400 hover:bg-red-400/20">Rejected</button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {testing.length > 0 && (
+      {others.length > 0 && (
         <div className="space-y-2">
-          <div className="text-xs font-semibold text-amber-400 uppercase tracking-wider">In Testing ({testing.length})</div>
-          {testing.map(a => <ArtifactRow key={a.id} art={a} feedback={feedbackMap[a.id] ?? ''} onFeedbackChange={v => setFeedbackMap(m => ({ ...m, [a.id]: v }))} onStatus={s => setStatus(a.id, s)} />)}
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Reviewed ({others.length})</div>
+          {others.map((item) => (
+            <div key={item.id} className="bg-slate-800/30 border border-slate-700/60 rounded p-2.5 text-xs text-slate-400 flex items-center justify-between">
+              <span>{item.title}</span>
+              <span className="text-slate-500">{item.status}</span>
+            </div>
+          ))}
         </div>
       )}
-
-      {done.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Completed ({done.length})</div>
-          {done.map(a => <ArtifactRow key={a.id} art={a} feedback={feedbackMap[a.id] ?? ''} onFeedbackChange={v => setFeedbackMap(m => ({ ...m, [a.id]: v }))} onStatus={s => setStatus(a.id, s)} />)}
-        </div>
-      )}
-
-      <div className="bg-slate-800/40 border border-slate-700/50 rounded p-3">
-        <div className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1"><Info className="w-3 h-3" /> Handoff Workflow</div>
-        <ul className="space-y-1 text-xs text-slate-500">
-          <li>AI agents POST to /api/handoff/deliver with name, type, filePath, notes</li>
-          <li>Artifact appears as Pending — click Test when you start evaluating it in FO4</li>
-          <li>Load via MO2 loose files or drop in Data\ folder, then play-test the feature</li>
-          <li>Approve or Reject with feedback notes — result is sent back to the originating agent</li>
-          <li>Approved work moves to the Packaging & Release hub for final BA2 packing</li>
-        </ul>
-      </div>
     </div>
   );
 };
@@ -1085,15 +1044,17 @@ const TAB_DEFS: { id: CreativeTab; icon: React.ComponentType<{ className?: strin
   { id: 'npc',      icon: User,          label: 'NPC Creator',     sublabel: 'SPECIAL · Traits · Backstory' },
   { id: 'lore',     icon: BookOpen,      label: 'Lore Vault',      sublabel: 'Semantic Search · Knowledge' },
   { id: 'world',    icon: Map,           label: 'World Design',    sublabel: 'Cells · Navmesh · Storytelling' },
-  { id: 'network',  icon: Radio,         label: 'Network Feed',    sublabel: 'Peer Agents · Broadcast' },
+  { id: 'network',  icon: Radio,         label: 'AI Team',         sublabel: 'Director + Specialists · Live Transcript' },
   { id: 'debug',    icon: Bug,           label: 'Debug',           sublabel: 'Script Analysis · Pitfalls' },
-  { id: 'handoff',  icon: FlaskConical,  label: 'Lab Handoff',     sublabel: 'Agent Output · Testing Queue' },
+  { id: 'handoff',  icon: FlaskConical,  label: 'Lab Handoff',     sublabel: 'Finished Projects · Retrieve & Test' },
 ];
 
 const CreativeDirectorPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<CreativeTab>('quest');
   const [backendOnline, setBackendOnline] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [teamEnabled, setTeamEnabled] = useState(false);
+  const [personalRdReachable, setPersonalRdReachable] = useState(false);
 
   const checkBackend = useCallback(async () => {
     setChecking(true);
@@ -1107,12 +1068,44 @@ const CreativeDirectorPanel: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const pollTeam = async () => {
+      try {
+        const api = (window as any).electronAPI ?? (window as any).electron?.api;
+        const res = await api?.creativeDirectorTeam?.getState?.();
+        setTeamEnabled(Boolean(res?.enabled));
+      } catch { /* ignore */ }
+    };
+    pollTeam();
+    const interval = setInterval(pollTeam, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     checkBackend();
     const interval = setInterval(checkBackend, 15000);
     return () => clearInterval(interval);
   }, [checkBackend]);
 
-  const active = TAB_DEFS.find(t => t.id === activeTab)!;
+  // Dev-only: probe the user's personal R&D stack. Most installs won't have it
+  // running, so the tab below stays hidden by default - nothing required.
+  useEffect(() => {
+    const probe = async () => {
+      try {
+        const api = (window as any).electronAPI ?? (window as any).electron?.api;
+        const res = await api?.personalRdNetwork?.getStatus?.();
+        setPersonalRdReachable(Boolean(res?.reachable));
+      } catch { setPersonalRdReachable(false); }
+    };
+    probe();
+    const interval = setInterval(probe, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const visibleTabs = personalRdReachable
+    ? [...TAB_DEFS, { id: 'personalrd' as CreativeTab, icon: Cpu, label: 'Personal R&D', sublabel: 'Your AI Helper Network · Dev Only' }]
+    : TAB_DEFS;
+
+  const active = visibleTabs.find(t => t.id === activeTab)!;
 
   return (
     <div className="flex flex-col h-full bg-slate-900 text-white min-h-0">
@@ -1138,7 +1131,7 @@ const CreativeDirectorPanel: React.FC = () => {
       </div>
 
       <div className="flex overflow-x-auto border-b border-slate-800 flex-shrink-0">
-        {TAB_DEFS.map(tab => {
+        {visibleTabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
@@ -1161,16 +1154,17 @@ const CreativeDirectorPanel: React.FC = () => {
         {activeTab === 'npc'      && <NPCCreator      backendOnline={backendOnline} />}
         {activeTab === 'lore'     && <LoreVault       backendOnline={backendOnline} />}
         {activeTab === 'world'    && <WorldDesign     backendOnline={backendOnline} />}
-        {activeTab === 'network'  && <NetworkFeed     backendOnline={backendOnline} />}
+        {activeTab === 'network'  && <AITeamPanel />}
         {activeTab === 'debug'    && <NarrativeDebug  backendOnline={backendOnline} />}
-        {activeTab === 'handoff'  && <HandoffPanel    backendOnline={backendOnline} />}
+        {activeTab === 'handoff'  && <HandoffPanel />}
+        {activeTab === 'personalrd' && <PersonalRdNetworkPanel />}
       </div>
 
-      {!backendOnline && (
+      {!teamEnabled && (
         <div className="px-4 py-2 bg-slate-800/60 border-t border-slate-700/50 flex-shrink-0">
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <Info className="w-3 h-3 flex-shrink-0" />
-            <span>Run <code className="text-amber-400 font-mono">python creative_director.py</code> on port {BACKEND_PORT} to enable AI generation.</span>
+            <span>The AI Team tab is disabled — enable it there to let the Creative Director and specialists start working autonomously.</span>
           </div>
         </div>
       )}

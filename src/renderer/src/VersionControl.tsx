@@ -168,17 +168,34 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
   const loadRepositoryStatus = async () => {
     try {
       setLoading(true);
-      setCurrentBranch('main'); setUncommittedChanges(3); setRemoteStatus({ ahead: 2, behind: 0 });
-      setLastCommit({ hash: 'abc123', message: 'Add new feature', author: 'Developer', email: 'dev@example.com', timestamp: Date.now() - 3600000, date: Date.now() - 3600000, files: ['src/main.ts', 'src/renderer/App.tsx'], insertions: 150, deletions: 25 });
+      const res = await (window as any).electronAPI?.versionControlStatus?.('default');
+      if (res?.success && res.status) {
+        setCurrentBranch(res.status.currentBranch || 'master');
+        setUncommittedChanges(res.status.uncommittedChanges ?? 0);
+        setRemoteStatus({ ahead: res.status.ahead ?? 0, behind: res.status.behind ?? 0 });
+        setLastCommit(res.status.lastCommit ?? null);
+        setStagedFiles(res.status.stagedFiles ?? []);
+        setModifiedFiles(res.status.modifiedFiles ?? []);
+      } else {
+        setError(res?.error || 'Failed to load repository status');
+      }
     } catch { setError('Failed to load repository status'); } finally { setLoading(false); }
   };
 
   const loadCommitHistory = async () => {
-    try { const h = await (window as any).electronAPI?.versionControlHistory?.(50); setCommitHistory(h ?? []); }
+    try {
+      const res = await (window as any).electronAPI?.versionControlHistory?.(50);
+      setCommitHistory(res?.success ? (res.history?.commits ?? []) : []);
+    }
     catch { setError('Failed to load commit history'); }
   };
 
-  const loadBranches = async () => setBranches(['main', 'feature/new-ui', 'bugfix/login']);
+  const loadBranches = async () => {
+    try {
+      const res = await (window as any).electronAPI?.versionControlGetBranches?.('default');
+      setBranches(res?.success ? (res.branches ?? []).map((b: any) => b.name) : []);
+    } catch { setError('Failed to load branches'); }
+  };
 
   const loadBackups = async () => {
     try { const l = await (window as any).electronAPI?.versionControlListBackups?.(); setBackups(l ?? []); }
@@ -187,36 +204,73 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
 
   const handleQuickCommit = async () => {
     if (!commitMessage.trim()) return;
-    try { setLoading(true); await (window as any).electronAPI?.versionControlCommit?.(commitMessage); setCommitMessage(''); await loadRepositoryStatus(); await loadCommitHistory(); }
+    try {
+      setLoading(true);
+      const res = await (window as any).electronAPI?.versionControlCommit?.(commitMessage);
+      if (!res?.success) { setError(res?.error || 'Failed to commit changes'); return; }
+      setCommitMessage(''); await loadRepositoryStatus(); await loadCommitHistory();
+    }
     catch { setError('Failed to commit changes'); } finally { setLoading(false); }
   };
 
   const handleCreateBranch = async () => {
     if (!newBranchName.trim()) return;
-    try { setLoading(true); await (window as any).electronAPI?.versionControlCreateBranch?.(newBranchName); setNewBranchName(''); setCreateBranchDialog(false); await loadBranches(); }
+    try {
+      setLoading(true);
+      const res = await (window as any).electronAPI?.versionControlCreateBranch?.(newBranchName);
+      if (!res?.success) { setError(res?.error || 'Failed to create branch'); return; }
+      setNewBranchName(''); setCreateBranchDialog(false); await loadBranches();
+    }
     catch { setError('Failed to create branch'); } finally { setLoading(false); }
   };
 
   const handleMergeBranches = async () => {
     if (!mergeSource || !mergeTarget) return;
-    try { setLoading(true); await (window as any).electronAPI?.versionControlMergeBranch?.(mergeSource, mergeTarget); await loadRepositoryStatus(); }
+    try {
+      setLoading(true);
+      const res = await (window as any).electronAPI?.versionControlMergeBranch?.(mergeSource, mergeTarget);
+      if (!res?.success) { setError(res?.error || 'Failed to merge branches'); return; }
+      await loadRepositoryStatus();
+    }
     catch { setError('Failed to merge branches'); } finally { setLoading(false); }
   };
 
   const handleCreateBackup = async () => {
-    try { setLoading(true); await (window as any).electronAPI?.versionControlBackup?.(process.cwd()); await loadBackups(); }
+    try {
+      setLoading(true);
+      const res = await (window as any).electronAPI?.versionControlBackup?.(undefined);
+      if (!res?.success) setError(res?.error || 'Failed to create backup');
+      await loadBackups();
+    }
     catch { setError('Failed to create backup'); } finally { setLoading(false); }
   };
 
   const handleRestoreBackup = async () => {
     if (!selectedBackup) return;
-    try { setLoading(true); await (window as any).electronAPI?.versionControlRestore?.(selectedBackup.id, process.cwd()); setRestoreDialog(false); setSelectedBackup(null); }
+    try {
+      setLoading(true);
+      const res = await (window as any).electronAPI?.versionControlRestore?.(selectedBackup.id, undefined);
+      if (!res?.success) setError(res?.error || 'Failed to restore backup');
+      setRestoreDialog(false); setSelectedBackup(null);
+      await loadRepositoryStatus();
+    }
     catch { setError('Failed to restore backup'); } finally { setLoading(false); }
   };
 
   const handleViewCommitDetails = async (commit: CommitHistory) => {
-    try { const d = await (window as any).electronAPI?.versionControlShowChanges?.(commit.hash); setSelectedCommit(commit); setCommitDetails(d); }
-    catch { setError('Failed to load commit details'); }
+    try {
+      const res = await (window as any).electronAPI?.versionControlShowChanges?.(commit.hash);
+      setSelectedCommit(commit);
+      if (res?.success && res.diff) {
+        setCommitDetails({
+          ...res.diff,
+          files: res.diff.changes.map((c: any) => ({ fileA: c.file, fileB: c.file, additions: c.additions, deletions: c.deletions })),
+        });
+      } else {
+        setCommitDetails(null);
+        setError(res?.error || 'Failed to load commit details');
+      }
+    } catch { setError('Failed to load commit details'); }
   };
 
   const filteredHistory = commitHistory.filter(c =>

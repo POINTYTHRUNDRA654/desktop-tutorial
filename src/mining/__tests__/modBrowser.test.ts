@@ -14,12 +14,14 @@ describe('ModBrowserEngine - authentication and local operations', () => {
   });
 
   it('creates and shares a collection', async () => {
-    const col = await modBrowser.createCollection('My Test Collection', ['nx_1001', 'nx_1002'], 'Demo collection');
+    const col = await modBrowser.createCollection('My Test Collection', [
+      { title: 'My Technique', type: 'technique', content: 'Do the thing this way.' },
+    ], 'Demo collection');
     expect(col.name).toBe('My Test Collection');
-    expect(col).toHaveProperty('shareUrl');
+    expect(col.items).toHaveLength(1);
     const share = await modBrowser.shareCollection(col.id);
     expect(share.success).toBe(true);
-    expect(share.shareUrl).toBeDefined();
+    expect(share.exportPath).toBeDefined();
   });
 
   it('stores and returns local reviews', async () => {

@@ -1,8 +1,10 @@
-import type { ModListing, ModDetails, SearchFilters, DownloadResult, Review, Collection, AuthResult, ModFile } from '../shared/types';
+import type { ModListing, ModDetails, SearchFilters, DownloadResult, Review, Collection, CollectionItem, AuthResult, ModFile } from '../shared/types';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import { URL } from 'url';
+import AdmZip from 'adm-zip';
+import os from 'os';
 
 function now() { return Date.now(); }
 function makeId(prefix = 'id') { return `${prefix}_${Math.floor(Math.random() * 90000) + 10000}`; }
@@ -335,25 +337,53 @@ export class ModBrowserEngine {
     return (this.reviews[modId] || []).slice(0, 50);
   }
 
-  async createCollection(name: string, mods: string[] = [], description = ''): Promise<Collection> {
+  /**
+   * Community collections hold techniques, scripts, and notes a user wants to
+   * share - not Nexus mod lists. There is no Nexus "publish a collection" API
+   * call here; shareCollection() packages the content into a real local zip
+   * the user then posts wherever they choose (Discord, forums, Nexus articles).
+   */
+  async createCollection(name: string, items: CollectionItem[] = [], description = ''): Promise<Collection> {
     const id = makeId('col');
     const collection: Collection = {
       id,
       name,
       description,
-      mods: mods.slice(0, 100),
+      items: items.slice(0, 100),
       author: 'local_user',
-      downloads: 0,
-      shareUrl: `https://next.nexusmods.com/fallout4/collections/${id}`,
+      createdAt: now(),
     };
     this.collections[id] = collection;
     return collection;
   }
 
-  async shareCollection(collectionId: string): Promise<{ success: boolean; shareUrl?: string }> {
+  async shareCollection(collectionId: string, exportDir?: string): Promise<{ success: boolean; exportPath?: string; error?: string }> {
     const collection = this.collections[collectionId];
-    if (!collection) return { success: false };
-    return { success: true, shareUrl: collection.shareUrl };
+    if (!collection) return { success: false, error: 'Collection not found' };
+
+    const zip = new AdmZip();
+    const manifest = {
+      name: collection.name,
+      description: collection.description,
+      author: collection.author,
+      createdAt: collection.createdAt,
+      items: collection.items.map((item) => ({ title: item.title, type: item.type })),
+    };
+    zip.addFile('manifest.json', Buffer.from(JSON.stringify(manifest, null, 2)));
+    collection.items.forEach((item, index) => {
+      const safeTitle = (item.title || `item-${index + 1}`).replace(/[^a-z0-9_-]+/gi, '_');
+      const ext = item.type === 'script' ? 'psc' : 'md';
+      zip.addFile(`items/${index + 1}-${safeTitle}.${ext}`, Buffer.from(item.content || ''));
+    });
+
+    const targetDir = exportDir || path.join(os.tmpdir(), 'mossy-shared-collections');
+    fs.mkdirSync(targetDir, { recursive: true });
+    const safeName = collection.name.replace(/[^a-z0-9_-]+/gi, '_');
+    const exportPath = path.join(targetDir, `${safeName}-${collectionId}.zip`);
+    zip.writeZip(exportPath);
+
+    collection.exportPath = exportPath;
+    return { success: true, exportPath };
   }
 
   async authenticateNexus(apiKey: string): Promise<AuthResult> {

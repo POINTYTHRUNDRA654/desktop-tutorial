@@ -27,9 +27,12 @@ describe('Diagnostics UI', () => {
     const toasts = await screen.findAllByText(/Running diagnostics/i);
     expect(toasts.length).toBeGreaterThan(0);
 
-    // after click, a loader with the spin animation should be rendered
+    // Most checks resolve synchronously in this test environment (no real
+    // electron API / permissions API to await), so the transient per-item
+    // "checking" spinner isn't a reliable signal here. Instead confirm the
+    // run actually started: every check left its initial "idle" indicator.
     await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).toBeInTheDocument();
+      expect(document.querySelectorAll('.bg-slate-600').length).toBe(0);
     });
   });
 });

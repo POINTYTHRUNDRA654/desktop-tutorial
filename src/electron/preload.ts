@@ -389,6 +389,9 @@ const IPC_CHANNELS = {
   SYSTEM_METRICS_POLL: 'system-metrics-poll',
   SYSTEM_METRICS_GET: 'system-metrics-get',
   SYSTEM_METRICS_SUBSCRIBE: 'system-metrics-subscribe',
+
+  // Native confirm dialog
+  SHOW_CONFIRM: 'show-confirm',
 } as const;
 
 const REQUIRED_IPC_HANDLER_CHANNELS = [
@@ -3580,10 +3583,12 @@ const electronAPI = {
       ipcRenderer.invoke('mod-browser:authenticate-nexus', apiKey),
     getModReviews: (modId: string): Promise<any[]> =>
       ipcRenderer.invoke('mod-browser:get-reviews', modId),
-    createCollection: (name: string, mods: string[], description?: string): Promise<any> =>
-      ipcRenderer.invoke('mod-browser:create-collection', name, mods, description),
+    createCollection: (name: string, items: any[], description?: string): Promise<any> =>
+      ipcRenderer.invoke('mod-browser:create-collection', name, items, description),
     shareCollection: (collectionId: string): Promise<any> =>
       ipcRenderer.invoke('mod-browser:share-collection', collectionId),
+    revealCollection: (exportPath: string): Promise<any> =>
+      ipcRenderer.invoke('mod-browser:reveal-collection', exportPath),
     endorseMod: (modId: string): Promise<void> =>
       ipcRenderer.invoke('mod-browser:endorse-mod', modId),
     getTrendingMods: (timeframe?: string): Promise<any[]> =>
@@ -3845,30 +3850,55 @@ const electronAPI = {
       ipcRenderer.invoke('git:merge-branch', repoId, sourceBranch, targetBranch),
     getHistory: (repoId?: string, limit?: number): Promise<any> =>
       ipcRenderer.invoke('git:get-history', repoId, limit),
+    getStatus: (repoId?: string): Promise<any> =>
+      ipcRenderer.invoke('git:get-status', repoId),
   },
 
-  // Platform 18: Nexus Mods Auto-Uploader API
-  nexusUploader: {
-    initConfig: (apiKey?: string, apiUrl?: string): Promise<any> =>
-      ipcRenderer.invoke('nexus:init-config', apiKey, apiUrl),
-    authenticate: (apiKey: string): Promise<any> =>
-      ipcRenderer.invoke('nexus:authenticate', apiKey),
+  // Platform 18: Local Mod Packaging API
+  // (Nexus's public API has no mod-creation/upload endpoint - this packages
+  // real release zips locally; the user manually uploads them wherever they choose.)
+  modPackaging: {
     getGameInfo: (gameName?: string): Promise<any> =>
-      ipcRenderer.invoke('nexus:get-game-info', gameName),
-    createMod: (modName: string, description?: string, category?: string): Promise<any> =>
-      ipcRenderer.invoke('nexus:create-mod', modName, description, category),
-    updateMod: (modId: string, updates: any): Promise<any> =>
-      ipcRenderer.invoke('nexus:update-mod', modId, updates),
-    uploadFile: (modId: string, filePath: string, version?: string): Promise<any> =>
-      ipcRenderer.invoke('nexus:upload-file', modId, filePath, version),
-    publishMod: (modId: string, publishNow?: boolean): Promise<any> =>
-      ipcRenderer.invoke('nexus:publish-mod', modId, publishNow),
-    getUploadHistory: (modId?: string, limit?: number): Promise<any> =>
-      ipcRenderer.invoke('nexus:get-upload-history', modId, limit),
-    getModStats: (modId: string): Promise<any> =>
-      ipcRenderer.invoke('nexus:get-mod-stats', modId),
-    generateChangelog: (modId: string, fromVersion?: string, toVersion?: string): Promise<any> =>
-      ipcRenderer.invoke('nexus:generate-changelog', modId, fromVersion, toVersion),
+      ipcRenderer.invoke('mod-packaging:get-game-info', gameName),
+    createPackage: (name: string, description?: string, category?: string, sourcePath?: string): Promise<any> =>
+      ipcRenderer.invoke('mod-packaging:create-package', name, description, category, sourcePath),
+    updatePackage: (packageId: string, updates: any): Promise<any> =>
+      ipcRenderer.invoke('mod-packaging:update-package', packageId, updates),
+    listPackages: (): Promise<any> =>
+      ipcRenderer.invoke('mod-packaging:list-packages'),
+    buildPackage: (packageId: string, version: string, changelogNotes?: string): Promise<any> =>
+      ipcRenderer.invoke('mod-packaging:build-package', packageId, version, changelogNotes),
+    getBuildHistory: (packageId?: string, limit?: number): Promise<any> =>
+      ipcRenderer.invoke('mod-packaging:get-build-history', packageId, limit),
+    getPackageStats: (packageId: string): Promise<any> =>
+      ipcRenderer.invoke('mod-packaging:get-package-stats', packageId),
+    generateChangelog: (packageId: string, fromVersion?: string, toVersion?: string, notes?: string[]): Promise<any> =>
+      ipcRenderer.invoke('mod-packaging:generate-changelog', packageId, fromVersion, toVersion, notes),
+    revealBuild: (buildId: string): Promise<any> =>
+      ipcRenderer.invoke('mod-packaging:reveal-build', buildId),
+    deleteBuild: (buildId: string): Promise<any> =>
+      ipcRenderer.invoke('mod-packaging:delete-build', buildId),
+  },
+
+  // Vault-Tec Creative Director: autonomous mod-building team API
+  creativeDirectorTeam: {
+    getState: (): Promise<any> =>
+      ipcRenderer.invoke('creative-director:get-state'),
+    setEnabled: (enabled: boolean): Promise<any> =>
+      ipcRenderer.invoke('creative-director:set-enabled', enabled),
+    revealOutput: (outputDir: string): Promise<any> =>
+      ipcRenderer.invoke('creative-director:reveal-output', outputDir),
+  },
+
+  // Personal R&D Network (dev-only) - proxies to the user's own separate local
+  // AI stack if they have it running. Not part of the shipped feature set.
+  personalRdNetwork: {
+    getStatus: (): Promise<any> =>
+      ipcRenderer.invoke('creative-director:personal-rd-status'),
+    getQueue: (): Promise<any> =>
+      ipcRenderer.invoke('creative-director:personal-rd-queue'),
+    setItemStatus: (itemId: string, status: string, feedback?: string): Promise<any> =>
+      ipcRenderer.invoke('creative-director:personal-rd-set-status', itemId, status, feedback),
   },
 
   // Platform 19: Interactive Tutorial System API
@@ -4551,6 +4581,11 @@ aiTextureEnhancer: {
     buildDependencyGraph: (espData: any): Promise<any> =>
       ipcRenderer.invoke('mining:build-dependency-graph', espData),
   },
+  // Flat aliases used by MiningHub.tsx
+  startMiningPipeline: (sources: any[]): Promise<any> =>
+    ipcRenderer.invoke('mining:execute-pipeline', sources),
+  getMiningStatus: (): Promise<any> =>
+    ipcRenderer.invoke('get-mining-status'),
 
   // Panel Data Persistence API
   panels: {
@@ -4637,12 +4672,16 @@ aiTextureEnhancer: {
   },
 
   // Version Control API
+  versionControlStatus: (repoId?: string) =>
+    ipcRenderer.invoke('git:get-status', repoId ?? 'default'),
+  versionControlGetBranches: (repoId?: string) =>
+    ipcRenderer.invoke('git:get-branches', repoId ?? 'default'),
   versionControlHistory: (limit?: number) =>
-    ipcRenderer.invoke('git:get-history', undefined, limit ?? 50),
+    ipcRenderer.invoke('git:get-history', 'default', limit ?? 50),
   versionControlListBackups: () =>
-    ipcRenderer.invoke('git:get-history', undefined, 20),
+    ipcRenderer.invoke('git:list-backups'),
   versionControlShowChanges: (hash: string) =>
-    ipcRenderer.invoke('git:get-diff', 'default', hash, undefined),
+    ipcRenderer.invoke('git:get-diff', 'default', `${hash}^`, hash),
   versionControlCommit: (message: string) =>
     ipcRenderer.invoke('git:commit', 'default', message, 'Mossy User'),
   versionControlCreateBranch: (branchName: string) =>
@@ -4650,13 +4689,13 @@ aiTextureEnhancer: {
   versionControlMergeBranch: (sourceBranch: string, targetBranch?: string) =>
     ipcRenderer.invoke('git:merge-branch', 'default', sourceBranch, targetBranch),
   versionControlBackup: (path: string) =>
-    ipcRenderer.invoke('git:init-repo', path, `Backup-${new Date().toISOString().split('T')[0]}`),
-  versionControlRestore: (id: string, _path: string) =>
-    ipcRenderer.invoke('git:get-diff', id, undefined, undefined),
+    ipcRenderer.invoke('git:create-backup', path),
+  versionControlRestore: (id: string, targetPath: string) =>
+    ipcRenderer.invoke('git:restore-backup', id, targetPath),
   versionControlCreateBackup: (payload?: any) =>
-    ipcRenderer.invoke('git:init-repo', payload?.path || '', `Backup-${new Date().toISOString().split('T')[0]}`),
-  versionControlDeleteBackup: (_id?: string) =>
-    Promise.resolve({ success: true }),
+    ipcRenderer.invoke('git:create-backup', payload?.path),
+  versionControlDeleteBackup: (id?: string) =>
+    ipcRenderer.invoke('git:delete-backup', id),
 
   // Local AI Engine (KoboldCPP + GGUF model)
   checkLocalAI: (): Promise<any> => ipcRenderer.invoke('check-local-ai'),
@@ -4682,6 +4721,10 @@ aiTextureEnhancer: {
     ipcRenderer.on('local-ai-auto-setup', sub);
     return () => ipcRenderer.removeListener('local-ai-auto-setup', sub);
   },
+
+  // Native confirm dialog
+  showConfirm: (message: string, detail?: string): Promise<boolean | undefined> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SHOW_CONFIRM, message, detail),
 };
 
 /**

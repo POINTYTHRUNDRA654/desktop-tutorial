@@ -101,6 +101,13 @@ export const installWizardResources: Record<InstallWizardTopic, InstallWizardRes
   ],
   prp: [
     {
+      label: 'CKPE — Creation Kit Platform Extended (Nexus #51165)',
+      url: 'https://www.nexusmods.com/fallout4/mods/51165',
+      note: 'Manual download ONLY — do NOT use a mod manager. Match the build to your Creation Kit: 0.3.x for OG CK, 0.5+ for Next-Gen CK.',
+      content: 'Creation Kit Platform Extended (CKPE) is a mandatory crash-prevention and compatibility patch for the Fallout 4 Creation Kit, required for previs/precombine generation and most modern CK workflows including PRP patching. It is a manual download only — never install it through a mod manager. Match the CKPE build to your Creation Kit version: 0.3.x for the original (OG) Creation Kit, 0.5 or later for the Next-Gen Creation Kit. Unzip the archive directly into your Fallout 4 install folder alongside CreationKit.exe, then verify CreationKitPlatformExtended.ini is present before generating previsbines or building PRP compatibility patches.',
+      tags: ['ckpe', 'creation kit platform extended', 'creation kit', 'prp', 'previs', 'install-wizard'],
+    },
+    {
       label: "PJM's Previs Patching Scripts (Nexus #69978)",
       url: 'https://www.nexusmods.com/fallout4/mods/69978',
       note: 'By PJMail. V4.9 PJMScripts bundle (Feb 2026). Manual download ONLY — do NOT use a mod manager. Also grab every file under the "Updated Files" tab to replace older copies.',

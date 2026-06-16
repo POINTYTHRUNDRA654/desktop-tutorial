@@ -66,18 +66,16 @@ describe('InteractiveTutorial layout & navigation', () => {
     });
   });
 
-  it('uses a smaller visual guide height for AI (chat) and startup (first-success) pages', async () => {
-    // Determine the numeric step indices for the pages we want to assert
+  it('uses a smaller visual guide height for the AI (chat) page', async () => {
+    // 'first-success' is intentionally NOT a standalone ordered tutorial step
+    // anymore - it lives inside Journey Hub (page 4) instead, so it's excluded
+    // from getOrderedTutorialContexts() by design (no visualGuidePage set).
     const ordered = getOrderedTutorialContexts(tutorialContexts);
     const chatIndex = ordered.findIndex((c) => c.pageId === 'ai-chat');
     expect(chatIndex).toBeGreaterThanOrEqual(0);
-
-    const firstSuccessIndex = ordered.findIndex((c) => c.pageId === 'first-success');
-    expect(firstSuccessIndex).toBeGreaterThanOrEqual(0);
+    expect(ordered.findIndex((c) => c.pageId === 'first-success')).toBe(-1);
 
     const chatStep = 1 + chatIndex; // +1 for the initial welcome step
-    const firstSuccessStep = 1 + firstSuccessIndex;
-    const firstSuccessTitle = tutorialContexts['first-success'].pageName;
 
     // Render the tutorial directly at the AI Chat step by restoring saved progress
     localStorage.setItem('mossy_tutorial_step', chatStep.toString());
@@ -97,29 +95,7 @@ describe('InteractiveTutorial layout & navigation', () => {
     expect(wrapper).toBeTruthy();
     expect(wrapper?.className).toContain('max-h-[30vh]');
 
-    // Unmount the first instance and render the First Success step (non-pip)
-    unmount();
-    localStorage.setItem('mossy_tutorial_step', firstSuccessStep.toString());
-
-    const { unmount: unmountFs } = render(
-      <MemoryRouter initialEntries={["/tutorial"]}>
-        <InteractiveTutorial onComplete={() => {}} onSkip={() => {}} />
-      </MemoryRouter>
-    );
-
-    await waitFor(() => expect(document.body.textContent).toContain(firstSuccessTitle));
-    const finalHeroImg = document.querySelector('img[alt$="screenshot"]') as HTMLImageElement | null;
-    expect(finalHeroImg).toBeTruthy();
-    let finalWrapper: Element | null = finalHeroImg?.parentElement ?? null;
-    while (finalWrapper && !/max-h-/.test(finalWrapper.className)) finalWrapper = finalWrapper.parentElement;
-    expect(finalWrapper).toBeTruthy();
-    expect(finalWrapper?.className).toContain('max-h-[30vh]');
-
-    // Cleanup the non-pip instance before starting Pip‑Boy checks
-    unmountFs();
-
     // Now assert the even-more-compact sizing when Pip‑Boy frame is active
-    // (render each step while `body.pip-boy-mode` is set)
     unmount();
     document.body.classList.add('pip-boy-mode');
     localStorage.setItem('mossy_pip_mode', 'true');
@@ -146,7 +122,6 @@ describe('InteractiveTutorial layout & navigation', () => {
     let pipWrapper: Element | null = pipHeroImg?.parentElement ?? null;
     while (pipWrapper && !/max-h-/.test(pipWrapper.className)) pipWrapper = pipWrapper.parentElement;
     expect(pipWrapper).toBeTruthy();
-    // component should detect pip mode
     // component should detect pip mode (these four should be consistent)
     expect(pipWrapper?.getAttribute('data-prop-test-pip')).toBe('true');
     expect(pipWrapper?.getAttribute('data-pip-mode')).toBe('true');
@@ -154,22 +129,6 @@ describe('InteractiveTutorial layout & navigation', () => {
     expect(pipWrapper?.getAttribute('data-local-pip')).toBe('true');
     expect(pipWrapper?.className).toContain('max-h-[26vh]');
     unmount2();
-
-    // First Success step inside Pip‑Boy
-    document.body.classList.add('pip-boy-mode');
-    localStorage.setItem('mossy_tutorial_step', firstSuccessStep.toString());
-    render(
-      <MemoryRouter initialEntries={["/tutorial"]}>
-        <InteractiveTutorial onComplete={() => {}} onSkip={() => {}} testPipMode={true} />
-      </MemoryRouter>
-    );
-    await waitFor(() => expect(document.body.textContent).toContain(firstSuccessTitle));
-    const pipFinalHeroImg = document.querySelector('img[alt$="screenshot"]') as HTMLImageElement | null;
-    expect(pipFinalHeroImg).toBeTruthy();
-    let pipFinalWrapper: Element | null = pipFinalHeroImg?.parentElement ?? null;
-    while (pipFinalWrapper && !/max-h-/.test(pipFinalWrapper.className)) pipFinalWrapper = pipFinalWrapper.parentElement;
-    expect(pipFinalWrapper).toBeTruthy();
-    expect(pipFinalWrapper?.className).toContain('max-h-[26vh]');
 
     // Cleanup
     document.body.classList.remove('pip-boy-mode');

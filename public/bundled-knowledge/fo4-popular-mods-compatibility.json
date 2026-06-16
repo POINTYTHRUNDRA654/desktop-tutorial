@@ -1,0 +1,45 @@
+{
+  "packId": "fo4-popular-mods-compatibility-v1",
+  "packName": "Fallout 4 Popular Mods & Compatibility Database",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-06-15",
+  "description": "Curated database of the most-installed Fallout 4 mods, their usage rates, known conflicts, and compatibility tips for mod authors. Previously authored in src/renderer/src/PopularModsKnowledge.ts but never wired into the AI's actual context — only its own helper functions referenced it.",
+  "items": [
+    {
+      "id": "fo4-popular-mods-overview",
+      "title": "Fallout 4 — Most-Installed Mods By Category & Usage Rate",
+      "content": "Approximate share of modded FO4 installs using each mod, by category. FIXES: Unofficial Fallout 4 Patch (UFO4P) 92% — load immediately after all DLC, many mods require it as a master. FRAMEWORKS: F4SE 75% (required by most advanced mods, breaks on game updates), MCM NG (Mod Configuration Menu — Next Gen) 70% (use the NG build only — legacy MCM Framework is broken on NG/1.11.x), BakaMaxPapyrusOps 42% (match version to F4SE build exactly), Addictol (ALL-IN-ONE stability suite, Nexus #84214) 75% (supersedes Buffout 4, X-Cell, BakaScrapHeap, Fallout Priority, Private Profile Redirector, Faster Workshop, Interior NavCut Fix, Escape Freeze, Long Save Bug Fix, Disk Cache Enabler, Drop 7FFF Fix — do not install those alongside it), High FPS Physics Fix (Nexus #44798) 65% (fixes physics/script/door bugs above 60 FPS — install even at a 60 FPS cap), AWKCR [LEGACY, unmaintained since 2024] 35% (do not add new dependencies on it — use standalone keywords or ECO instead). WEAPONS: Modern Firearms 45% (conflicts with leveled-list injectors and damage overhauls without a patch), Weapon Balance Overhaul (WBO) 35% (conflicts with any other weapon-damage change). ARMOR: Armorsmith Extended 40% (requires AWKCR). SETTLEMENTS: Place Everywhere 55%, Sim Settlements 2 (SS2) 38% (script-heavy — test performance with it running). GAMEPLAY: Survival Options 42%, Better Locational Damage 38%. GRAPHICS: Vivid Fallout - All in One 48%, ENB 35%. UI: FallUI Suite (HUD/Inventory/Map) 55% (requires F4SE + MCM NG, must use NG-compatible build 1.10.980+/1.11.x; DEF_UI is the alternative — pick one, not both). UTILITY: LOOT 0.21+ 95% (auto-sorts load order — add LOOT metadata to your mod), CLASSIC (Crash Log Auto Scanner, Nexus #56255) 60% (run on every CTD — covers 250+ known error scenarios), Canary Save Scummer 35% (install before starting a playthrough, not after).",
+      "source": "Curated mod-compatibility database (ported from PopularModsKnowledge.ts)",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["popular-mods", "compatibility", "load-order", "f4se", "ufo4p", "mcm", "awkcr", "addictol", "fallui", "loot"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-popular-mods-compatibility-tips",
+      "title": "Fallout 4 — Compatibility Tips For Mod Authors By Mod Type",
+      "content": "When advising a mod author on compatibility, match their mod type to these checks. WEAPON mods: 45% of users have Modern Firearms (test compatibility), 35% use Weapon Balance Overhaul (avoid changing vanilla damage if possible), AWKCR is legacy/unmaintained — do not add new AWKCR dependencies, provide a leveled-list patch if touching LL_* records. ARMOR mods: AWKCR is legacy — confirm whether standalone keywords would work instead, 40% have Armorsmith Extended (consider a patch), document which armor slots are used, test with VIS-G for inventory compatibility. SETTLEMENT mods: 38% use Sim Settlements 2 (test performance, it runs scripts constantly), 55% have Place Everywhere (expect objects placed in unusual spots), settlement mods often introduce new navmesh — scan the ESP in xEdit's Auditor for deleted NAVM records before release, provide an SS2 plot if adding buildable items. SCRIPT/GAMEPLAY mods: 75% have F4SE (consider using its extended functions), 70% expect MCM NG specifically — not the legacy MCM Framework, 42% use Survival Options (don't force survival settings from a script), recommend Addictol (Nexus #84214) + Address Library AiO (#47327) in requirements if the mod uses F4SE. PHYSICS/ANIMATION mods: 65% use High FPS Physics Fix — test at high framerates, physics and door/script timing differ above 60 FPS without it. TEXTURE/VISUAL mods: 48% use Vivid Fallout textures (note compatibility in the description), 35% have ENB (test visual effects together), provide both 2K and 4K texture options. UI/HUD mods: 55% use FallUI Suite on the NG build (test HUD widget positioning), always require MCM NG not legacy MCM, follow FallUI widget conventions for new HUD elements. WORLDSPACE/CELL mods: worldspace edits can break precombines — test with PRP 81.5+ (Nexus #46403), scan the ESP for deleted NAVM records in the Auditor before release. UNIVERSAL, for every mod: 92% have UFO4P (verify compatibility), 95% use LOOT 0.21+ (ship proper LOOT metadata), always state which game version is targeted (OG 1.10.163, NG 1.10.980+, or 1.11.x/1.11.169+), and if recommending crash-stability tools, confirm Addictol is installed and that Buffout 4 / X-Cell / Baka ScrapHeap / Fallout Priority / Private Profile Redirector are NOT also installed (all superseded by Addictol).",
+      "source": "Curated mod-compatibility database (ported from PopularModsKnowledge.ts getCompatibilityTips())",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["popular-mods", "compatibility", "mod-authoring", "patch-tips", "addictol", "navmesh", "auditor"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-popular-mods-known-conflict-pairs",
+      "title": "Fallout 4 — Known Mod-Pair Conflict Patterns",
+      "content": "Specific record-level conflict patterns between commonly-paired popular mods, useful when explaining WHY two mods conflict (not just THAT they conflict). Weapon Balance Overhaul + Modern Firearms: both touch WEAP damage/speed/range fields on overlapping weapon FormIDs (e.g. 10mm Pistol, Pipe Rifle) and both inject into the same LVLI leveled lists (e.g. LootGeneral) — last-loaded plugin wins, so load order determines which mod's balance actually applies; a compatibility patch should explicitly merge the LVLI entries rather than letting one mod overwrite the other. AWKCR + standalone armor mods: both define KYWD keyword records (e.g. ap_clothes) and ARMO slot assignments — AWKCR's keyword set vs. a mod's custom keywords on the same ARMO record causes equipment slot mismatches (e.g. AWKCR uses slots 32/34, a non-AWKCR armor mod may use 32/33/52), which is why AWKCR being legacy/unmaintained increasingly causes friction with newer armor mods that don't ship an AWKCR patch. Sim Settlements 2 + other settlement-object mods: both hook the WorkshopBuild quest and OMOD-based workshop object placement — SS2 manages plots through its own quest-stage system while a direct settlement-object mod places objects without going through SS2's plot management, causing the two systems to fight over the same workshop objects if not patched.",
+      "source": "Curated mod-compatibility database (ported from PopularModsKnowledge.ts generateTailoredConflicts())",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["popular-mods", "compatibility", "conflicts", "weapon-balance-overhaul", "modern-firearms", "awkcr", "sim-settlements-2"],
+      "date": "2026-06-15T00:00:00.000Z",
+      "status": "learned"
+    }
+  ]
+}

@@ -31,7 +31,7 @@ Developer building MOSSY.SPACE — an advanced Fallout 4 modding desktop platfor
 
 → Full glossary: memory/glossary.md
 
-## Platforms (MOSSY.SPACE Components — 22 total, sidebar order)
+## Platforms (MOSSY.SPACE Components — 23 total, sidebar order)
 
 | # | Platform Name | Route | Main File |
 |---|--------------|-------|-----------|
@@ -50,13 +50,16 @@ Developer building MOSSY.SPACE — an advanced Fallout 4 modding desktop platfor
 | 13 | FO4 Automation Studio | `/tools/cosmos` | `CosmosWorkflow.tsx` |
 | 14 | FO4 Mod Builder Hub | `/mod-builder` | `ModBuilderHub.tsx` |
 | 15 | FO4 Asset Analysis Hub | `/asset-analysis` | `AssetAnalysisHub.tsx` |
-| 16 | FO4 Automation Orchestrator | `/orchestrator` | `AutomationManager.tsx` |
+| 16 | FO4 Automation Orchestrator | `/orchestrator` → `/dev/orchestrator` | `FO4AutomationOrchestrator.tsx` |
 | 17 | FO4 Automation Runner | `/workflow-runner` | `WorkflowRunner.tsx` |
 | 18 | FO4 Runtime Hub | `/runtime-hub` | `RuntimeHub.tsx` |
 | 19 | FO4 External Integrations Hub | `/ext-tools` | `ExternalToolsHub.tsx` |
 | 20 | FO4 Plugin & Load Order Hub | `/plugin-tools` | `PluginLoadOrderHub.tsx` |
 | 21 | FO4 System & Diagnostics Hub | `/system-hub` | `SystemHub.tsx` |
 | 22 | Settings | `/settings` | `SettingsHub.tsx` |
+| 23 | Vault-Tec Creative Director | `/creative-director` | `plugin_creative_director/CreativeDirectorPanel.tsx` |
+
+Note: `AutomationManager.tsx` is a separate platform at `/tools/automation` ("FO4 Automation Studio" overlaps in name only — do not confuse it with the Orchestrator).
 
 **Backend engine (not a UI platform):** `automationEngine` → `src/electron/automationEngine.ts`
 

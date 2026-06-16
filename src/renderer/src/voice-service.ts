@@ -942,18 +942,15 @@ export class VoiceService {
     }
     console.log('[VoiceService] SpeechSynthesis is available');
 
-    // Clear any stuck speech synthesis state before attempting to speak.
-    // This fixes the issue where clicking stop while speaking locks up the browser TTS.
-    // Some browsers (Chrome/Edge) can leave speechSynthesis in a stuck state after cancel(),
-    // preventing all future speech attempts until the page is reloaded.
-    const SPEECH_SYNTHESIS_CLEAR_DELAY_MS = 100;
-    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
-      console.log('[VoiceService] Clearing stuck speech synthesis state');
-      window.speechSynthesis.cancel();
-      // Wait for the browser to fully clear the synthesis queue.
-      // Without this delay, the new utterance may fail silently in some browsers.
-      await new Promise(resolve => setTimeout(resolve, SPEECH_SYNTHESIS_CLEAR_DELAY_MS));
-    }
+    // ALWAYS cancel the synthesis queue before speaking, not just when already speaking.
+    // Electron/Chromium has a known bug where speechSynthesis.speak() queues a second
+    // utterance after the first completes but onstart/onend never fire — the queue
+    // silently accepts it and hangs. Canceling first guarantees a clean slate every call.
+    const SPEECH_SYNTHESIS_CLEAR_DELAY_MS = 150;
+    console.log('[VoiceService] Resetting speechSynthesis state before speak (speaking:', window.speechSynthesis.speaking, ', pending:', window.speechSynthesis.pending, ', paused:', window.speechSynthesis.paused, ')');
+    window.speechSynthesis.cancel();
+    // Give the engine time to fully clear its internal queue before queuing the new utterance.
+    await new Promise(resolve => setTimeout(resolve, SPEECH_SYNTHESIS_CLEAR_DELAY_MS));
 
     // Resume if paused — Chrome/Electron can leave speechSynthesis in a paused
     // state, causing new speak() calls to silently queue but never start.
@@ -1006,9 +1003,21 @@ export class VoiceService {
         return;
       }
 
+      // Safety timeout — if Electron's speechSynthesis never fires onend/onerror
+      // (a known Chromium bug on the second+ utterance), force-resolve after 30s
+      // so the voice pipeline never gets permanently stuck in 'speaking' mode.
+      const TTS_HANG_TIMEOUT_MS = 30000;
+      const hangTimer = setTimeout(() => {
+        console.warn('[VoiceService] ⚠️ TTS utterance onend never fired after', TTS_HANG_TIMEOUT_MS, 'ms — force-resolving to unblock pipeline');
+        window.speechSynthesis.cancel();
+        this.onModeChange?.('idle');
+        resolve();
+      }, TTS_HANG_TIMEOUT_MS);
+
       const browserSettings = loadBrowserTtsSettings();
       if (!browserSettings.enabled) {
         console.log('[VoiceService] Browser TTS disabled in settings, skipping speak');
+        clearTimeout(hangTimer);
         resolve();
         return;
       }
@@ -1041,6 +1050,7 @@ export class VoiceService {
         console.log('[VoiceService] 🎵 Speech utterance started at', new Date().toISOString());
         if (this.shouldStop) {
           console.log('[VoiceService] Cancelling speech due to shouldStop');
+          clearTimeout(hangTimer);
           window.speechSynthesis.cancel();
           resolve();
         } else {
@@ -1048,11 +1058,13 @@ export class VoiceService {
         }
       };
       utterance.onend = () => {
+        clearTimeout(hangTimer);
         console.log('[VoiceService] 🔇 Speech utterance ended at', new Date().toISOString(), '- waiting', this.TTS_RESUME_DELAY_MS, 'ms for speaker decay');
         this.onModeChange?.('idle');
         resolve();
       };
       utterance.onerror = (event) => {
+        clearTimeout(hangTimer);
         // Treat explicit cancellations and interruptions as normal completion (do not surface as an error).
         if (event?.error === 'canceled' || event?.error === 'interrupted') {
           // 'interrupted'/'canceled' is expected when user presses stop — no logging needed

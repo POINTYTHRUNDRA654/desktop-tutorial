@@ -3,6 +3,7 @@ import { Mic, Send, MessageCircle, Code, Zap, Book, Wrench, Lightbulb, ChevronRi
 import { LocalAIEngine } from './LocalAIEngine';
 import { getFullSystemInstruction } from './MossyBrain';
 import { useHorizontalScroll } from './components/useHorizontalScroll';
+import { VoiceService, VoiceServiceConfig } from './voice-service';
 
 // Preload API — dual-path for compatibility (window.electron.api or window.electronAPI)
 // The `require('../../mining/aiModAssistant')` path was removed: Vite does not bundle
@@ -24,6 +25,7 @@ const AIModAssistant: React.FC = () => {
   const [learningMode, setLearningMode] = useState(false);
   const [wizardMode, setWizardMode] = useState<WizardMode>('none');
   const messagesRef = useRef<HTMLDivElement | null>(null);
+  const voiceServiceRef = useRef<VoiceService | null>(null);
   const wheelHandler = useHorizontalScroll(messagesRef);
   useEffect(() => { messagesRef.current?.scrollTo({ top: 99999, behavior: 'smooth' }); }, [messages]);
 
@@ -204,17 +206,54 @@ const AIModAssistant: React.FC = () => {
   };
 
 
+  // ─── Voice input — speak a message, it lands in the input box ───────────────
+  // Uses the same VoiceService (local Whisper / browser STT) that powers the
+  // Live Context voice mode, instead of the dead voiceCommands IPC stub (main
+  // process never actually runs speech recognition — see main.ts VOICE_COMMANDS_START,
+  // which just acknowledges the request and expects the renderer to do the real work).
+  const getVoiceService = (): VoiceService => {
+    if (!voiceServiceRef.current) {
+      const hasLocalWhisper = typeof bridge?.transcribeAudio === 'function';
+      const hasBrowserStt = !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+      const config: VoiceServiceConfig = {
+        sttProvider: hasLocalWhisper ? 'local' : hasBrowserStt ? 'browser' : 'local',
+        ttsProvider: 'browser',
+      };
+      voiceServiceRef.current = new VoiceService(config);
+      voiceServiceRef.current.initialize().catch(console.error);
+    }
+    return voiceServiceRef.current;
+  };
+
   const toggleListening = async () => {
-    // Voice commands are under bridge.voiceCommands — not bridge.sttStart/sttStop
-    const voiceApi = bridge?.voiceCommands;
+    const service = getVoiceService();
     if (!listening) {
+      if (!service.isSupported()) {
+        setMessages(m => [...m, { role: 'assistant', text: 'Voice input is not supported in this environment — no microphone access or speech recognition available.' }]);
+        return;
+      }
       setListening(true);
-      try { await voiceApi?.startListening?.(); } catch (err) { console.warn('Voice start failed', err); }
+      service.startListening(
+        (text) => {
+          setInput(text);
+          service.stopListening();
+          setListening(false);
+        },
+        (err) => {
+          console.warn('[AIModAssistant] Voice input error:', err);
+          setListening(false);
+        },
+        () => { /* mode changes (listening/processing/idle) — no dedicated UI state here */ }
+      );
     } else {
+      service.stopListening();
       setListening(false);
-      try { await voiceApi?.stopListening?.(); } catch (err) { console.warn('Voice stop failed', err); }
     }
   };
+
+  useEffect(() => {
+    return () => { voiceServiceRef.current?.stopListening(); };
+  }, []);
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
