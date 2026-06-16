@@ -3,6 +3,9 @@
   "WorkspaceRootPath": "D:\\Projects\\desktop-tutorial\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\plan-restore-workfloworchestrator.tsx-from-legacy-snapshot.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}|MarkdownSecurePreview"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\electron\\main.ts||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\electron\\main.ts||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
     },
@@ -37,6 +40,25 @@
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\VideoTutorial.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\renderer\\src\\VideoTutorial.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\FirstRunOnboarding.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\renderer\\src\\FirstRunOnboarding.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\electron\\handlers\\platformHandlers.ts||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\electron\\handlers\\platformHandlers.ts||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\ImageSuite.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\renderer\\src\\ImageSuite.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\WorkflowOrchestrator.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\renderer\\src\\WorkflowOrchestrator.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Owner\\AppData\\Local\\Temp\\CopilotBaseline\\Deleted\\-358405566\\WorkflowOrchestrator.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
     }
   ],
   "DocumentGroupContainers": [
@@ -46,19 +68,94 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 3,
+          "SelectedChildIndex": 1,
           "Children": [
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{c6f34f0d-7ae5-4f3a-be61-fe0c21ae9eb8}"
-            },
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 8,
+              "DocumentIndex": 0,
+              "Title": "plan-restore-workfloworchestrator.tsx-from-legacy-snapshot.md [Preview]",
+              "DocumentMoniker": "D:\\Projects\\plan-restore-workfloworchestrator.tsx-from-legacy-snapshot.md",
+              "RelativeDocumentMoniker": "..\\plan-restore-workfloworchestrator.tsx-from-legacy-snapshot.md",
+              "ToolTip": "D:\\Projects\\plan-restore-workfloworchestrator.tsx-from-legacy-snapshot.md [Preview]",
+              "RelativeToolTip": "..\\plan-restore-workfloworchestrator.tsx-from-legacy-snapshot.md [Preview]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
+              "WhenOpened": "2026-05-24T03:52:59.398Z",
+              "EditorCaption": " [Preview]"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "WorkflowOrchestrator.tsx",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\WorkflowOrchestrator.tsx",
+              "RelativeDocumentMoniker": "src\\renderer\\src\\WorkflowOrchestrator.tsx",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\WorkflowOrchestrator.tsx",
+              "RelativeToolTip": "src\\renderer\\src\\WorkflowOrchestrator.tsx",
+              "ViewState": "AgIAAC8BAAAAAAAAAMBdwAEAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2026-05-24T03:29:03.404Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "ImageSuite.tsx",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\ImageSuite.tsx",
+              "RelativeDocumentMoniker": "src\\renderer\\src\\ImageSuite.tsx",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\ImageSuite.tsx",
+              "RelativeToolTip": "src\\renderer\\src\\ImageSuite.tsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAxwMgCAAAaAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2026-05-24T03:00:05.408Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{c6f34f0d-7ae5-4f3a-be61-fe0c21ae9eb8}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
+              "Title": "WorkflowOrchestrator.tsx",
+              "DocumentMoniker": "C:\\Users\\Owner\\AppData\\Local\\Temp\\CopilotBaseline\\Deleted\\-358405566\\WorkflowOrchestrator.tsx",
+              "ToolTip": "C:\\Users\\Owner\\AppData\\Local\\Temp\\CopilotBaseline\\Deleted\\-358405566\\WorkflowOrchestrator.tsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2026-05-24T03:36:49.521Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "platformHandlers.ts",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\electron\\handlers\\platformHandlers.ts",
+              "RelativeDocumentMoniker": "src\\electron\\handlers\\platformHandlers.ts",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\electron\\handlers\\platformHandlers.ts",
+              "RelativeToolTip": "src\\electron\\handlers\\platformHandlers.ts",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2026-05-23T22:37:42.009Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "FirstRunOnboarding.tsx",
+              "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\FirstRunOnboarding.tsx",
+              "RelativeDocumentMoniker": "src\\renderer\\src\\FirstRunOnboarding.tsx",
+              "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\FirstRunOnboarding.tsx",
+              "RelativeToolTip": "src\\renderer\\src\\FirstRunOnboarding.tsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAxwFAOAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2026-05-23T22:03:00.363Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
               "Title": "VideoTutorial.tsx",
               "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\VideoTutorial.tsx",
               "RelativeDocumentMoniker": "src\\renderer\\src\\VideoTutorial.tsx",
@@ -70,20 +167,20 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "main.ts",
               "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\electron\\main.ts",
               "RelativeDocumentMoniker": "src\\electron\\main.ts",
               "ToolTip": "D:\\Projects\\desktop-tutorial\\src\\electron\\main.ts",
               "RelativeToolTip": "src\\electron\\main.ts",
-              "ViewState": "AgIAAAUjAAAAAAAAAAAgwAAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAOl/AAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
               "WhenOpened": "2026-05-20T22:17:32.628Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
+              "DocumentIndex": 8,
               "Title": "package.json",
               "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\package.json",
               "RelativeDocumentMoniker": "package.json",
@@ -95,7 +192,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 7,
               "Title": "setup.ts",
               "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\test\\setup.ts",
               "RelativeDocumentMoniker": "src\\test\\setup.ts",
@@ -107,7 +204,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 6,
               "Title": "Sidebar.tsx",
               "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\Sidebar.tsx",
               "RelativeDocumentMoniker": "src\\renderer\\src\\Sidebar.tsx",
@@ -119,7 +216,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 5,
               "Title": "MossyMemoryVault.tsx",
               "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\MossyMemoryVault.tsx",
               "RelativeDocumentMoniker": "src\\renderer\\src\\MossyMemoryVault.tsx",
@@ -131,7 +228,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 4,
               "Title": "KnowledgeHub.tsx",
               "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\KnowledgeHub.tsx",
               "RelativeDocumentMoniker": "src\\renderer\\src\\KnowledgeHub.tsx",
@@ -143,7 +240,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 3,
               "Title": "DonationSupport.tsx",
               "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\DonationSupport.tsx",
               "RelativeDocumentMoniker": "src\\renderer\\src\\DonationSupport.tsx",
@@ -155,7 +252,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 2,
               "Title": "CommunityLearning.tsx",
               "DocumentMoniker": "D:\\Projects\\desktop-tutorial\\src\\renderer\\src\\CommunityLearning.tsx",
               "RelativeDocumentMoniker": "src\\renderer\\src\\CommunityLearning.tsx",
